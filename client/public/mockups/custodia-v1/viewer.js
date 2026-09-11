@@ -386,7 +386,7 @@ if(embedded){
    return;
   }
   if(event.data.type==='export'){
-   try{if(applyingHost||materialPending||photoPending)throw new Error('Attendi il caricamento');notifyHost('exported',{requestId:event.data.requestId,previews:renderConfigurationViews(true),configuration:hostConfiguration()});}
+   try{if(applyingHost||materialPending||photoPending)throw new Error('Attendi il caricamento');const previews=await renderConfigurationViews(true);notifyHost('exported',{requestId:event.data.requestId,previews,configuration:hostConfiguration()});}
    catch{notifyHost('export-error',{requestId:event.data.requestId});}
    return;
   }

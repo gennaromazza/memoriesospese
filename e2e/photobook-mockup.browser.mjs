@@ -25,6 +25,7 @@ async function rendererDiagnostics(){
  const rendererState=renderer?await renderer.evaluate(()=>({
   url:location.href,
   dataset:Object.fromEntries(Object.entries(document.body?.dataset||{})),
+  photoStatus:document.querySelector('#photoStatus')?.textContent||null,
   downloadStatus:document.querySelector('#downloadStatus')?.textContent||null,
   activeElement:document.activeElement?.id||document.activeElement?.textContent?.trim().slice(0,80)||null
  })).catch(error=>({url:renderer.url(),error:error.message})):{url:null,dataset:null};
@@ -46,6 +47,7 @@ try{
   page=await browser.newPage({viewport:{width:1440,height:1100}});
  const errors=[];page.on('pageerror',e=>{errors.push(e.message);console.error('Browser:',e.message);});
  page.on('console',msg=>{if(msg.type()==='error')console.error('Console:',msg.text());});
+  page.on('requestfailed',request=>console.error(`[mockup] REQUEST FAILED: ${request.method()} ${request.url()} ${request.failure()?.errorText||''}`));
   phase('preparazione fixture e intercettazione API');
  const catalog=JSON.parse(fs.readFileSync('client/public/mockups/custodia-v1/peppe-lab-catalog.json','utf8'));
  const model=catalog.models[0],material=catalog.variants[0];
@@ -127,12 +129,25 @@ try{
    check(`testo renderer ${selector} → ${text}`);
   const renderer=page.frames().find(candidate=>candidate!==page.mainFrame()&&candidate.url().includes('/mockups/'));
   if (!renderer) throw new Error('Il renderer 3D non ha creato il frame incorporato');
-  await renderer.waitForFunction(({selector,text})=>document.querySelector(selector)?.textContent?.includes(text)===true,{selector,text});
+   await renderer.waitForFunction(({selector,text})=>document.querySelector(selector)?.textContent?.includes(text)===true,{selector,text},{timeout:90000});
  }
  async function screenshotRect(selector,filePath) {
    check(`screenshot ${selector}`);
+   if(process.env.MOCKUP_E2E_SCREENSHOTS!=='1')return;
   await page.screenshot({path:filePath,clip:await domRect(selector)});
  }
+  async function capturePage(filePath,options={}) {
+   if(process.env.MOCKUP_E2E_SCREENSHOTS!=='1')return;
+   fs.mkdirSync('work',{recursive:true});
+   await page.screenshot({path:filePath,...options});
+  }
+  async function openHomePanel(renderer) {
+   check('apertura tab In casa');
+   const tab=renderer.locator('nav button').filter({hasText:'In casa'});
+   await tab.waitFor({state:'attached',timeout:90000});
+   await tab.dispatchEvent('click');
+   await renderer.locator('#homeScene').waitFor({state:'visible',timeout:30000});
+  }
  async function clickPageButton(label) {
    check(`click pagina ${label}`);
   await page.evaluate(label=>{
@@ -192,7 +207,7 @@ try{
  await page.waitForFunction(()=>document.querySelector('iframe')?.contentDocument?.getElementById('topText')?.value==='Anna e Marco');
  await page.getByRole('button',{name:'Salva mockup',exact:true}).waitFor();
  assert.equal(await page.getByRole('button',{name:'Salva mockup',exact:true}).isDisabled(),true);
- await page.screenshot({path:'work/mockup-modal-mobile.png'});
+  await capturePage('work/mockup-modal-mobile.png');
  await clickPageButton('Chiudi');
  await page.waitForFunction(()=>!document.querySelector('iframe'));
  await page.setViewportSize({width:1440,height:1100});
@@ -208,22 +223,24 @@ try{
  await waitForFrameElementText('#photoStatus','Foto della galleria');
  await page.getByRole('button',{name:'Salva mockup'}).dispatchEvent('click');
  assert.equal(gallerySelections,1);
- await frame.getByRole('button',{name:'In casa',exact:true}).dispatchEvent('click');
+ await openHomePanel(frame);
  await frame.locator('#homeScene').selectOption('sideboard');
  assert.equal(await frame.locator('.wizard-views').count(),0,'La vista amministrativa conserva i controlli originali');
  await frame.locator('#homeLighting').selectOption('evening');
  await setFrameValue('#homeAlbumAngle','45');await frame.locator('#homeAlbumAngle').dispatchEvent('input');
  await setFrameValue('#homeAlbumX','70');await frame.locator('#homeAlbumX').dispatchEvent('input');
- const downloadPromise=page.waitForEvent('download');
- await frame.locator('#downloadClient').dispatchEvent('click');
- const download=await downloadPromise;assert.ok(download.suggestedFilename().endsWith('.html'));
+   const downloadPromise=page.waitForEvent('download',{timeout:120000}).then(download=>({download})).catch(error=>({error}));
+ await frame.locator('#downloadClient').click({timeout:30000});
+  const downloadResult=await downloadPromise;
+  if(downloadResult.error)throw new Error(`Download cliente non intercettato (stato renderer: ${await frame.locator('#downloadStatus').textContent().catch(()=> 'nessuno')}): ${downloadResult.error.message}`);
+  const download=downloadResult.download;assert.ok(download.suggestedFilename().endsWith('.html'));
  assert.equal(await frame.locator('#homeScene').inputValue(),'sideboard');
  assert.equal(await frame.locator('body').getAttribute('data-home-album-angle'),'45');
- await frame.getByRole('button',{name:'In casa',exact:true}).dispatchEvent('click');
+ await openHomePanel(frame);
  await frame.locator('#homeScene').selectOption('none');
- fs.mkdirSync('work',{recursive:true});await page.screenshot({path:'work/mockup-desktop.png',fullPage:true});
+  await capturePage('work/mockup-desktop.png');
  await page.setViewportSize({width:390,height:844});
- await page.screenshot({path:'work/mockup-mobile.png',fullPage:true});
+  await capturePage('work/mockup-mobile.png');
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
  await page.setViewportSize({width:1440,height:1100});
  frame=await open('?admin&readonly');
@@ -321,12 +338,12 @@ try{
  await page.getByText('Revisioni, documenti e invio al laboratorio',{exact:true}).dispatchEvent('click');
  await page.getByRole('button',{name:'Allega all’invio fotolibro su Drive'}).dispatchEvent('click');
  await page.getByText('Mockup registrato nella cartella Drive.',{exact:false}).waitFor();assert.equal(attachments,1);
- await page.screenshot({path:'work/mockup-workflow-studio.png',fullPage:true});
+ await capturePage('work/mockup-workflow-studio.png',{fullPage:true});
  await page.goto(`http://127.0.0.1:${port}/?job`);
  await page.getByRole('link',{name:'Apri WhatsApp'}).waitFor();
  assert.equal(await page.getByRole('link',{name:'Apri WhatsApp'}).getAttribute('href'),'https://wa.me/393331234567');
  await page.getByText('Confermato dallo studio',{exact:false}).waitFor();
- await page.setViewportSize({width:390,height:844});await page.screenshot({path:'work/mockup-operativo-mobile.png',fullPage:true});
+ await page.setViewportSize({width:390,height:844});await capturePage('work/mockup-operativo-mobile.png',{fullPage:true});
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   phase('album girevole: cambio renderer, finiture e copertine');
   // Secondo modello: cambio renderer, tre finiture/copertine, persistenza senza foto.
@@ -386,7 +403,7 @@ try{
  assert.equal(await frame.locator('body').getAttribute('data-extraction'),'100');assert.equal(await frame.locator('#rotation').isDisabled(),true);
  assert.equal(await page.getByRole('button',{name:'Salva mockup',exact:true}).isDisabled(),true);
  await screenshotRect('iframe','work/mockup-girevole-estratto.png');
- await frame.getByRole('button',{name:'In casa',exact:true}).dispatchEvent('click');
+ await openHomePanel(frame);
  await frame.locator('#homeScene').selectOption('warm');
  assert.equal(await page.getByRole('button',{name:'Salva mockup',exact:true}).isDisabled(),true);
  await page.getByRole('button',{name:'Verifica',exact:true}).dispatchEvent('click');
@@ -394,14 +411,14 @@ try{
  assert.equal(confirmations,3);assert.equal(await frame.locator('#extract').inputValue(),'100');
  assert.equal(await frame.locator('#homeScene').inputValue(),'warm');
  await page.getByRole('button',{name:'Modifica',exact:true}).dispatchEvent('click');
- await frame.getByRole('button',{name:'In casa',exact:true}).dispatchEvent('click');
+ await openHomePanel(frame);
  await frame.locator('#homeScene').selectOption('none');
  frame=await open('?admin&readonly');await frame.getByRole('button',{name:'Dettagli',exact:true}).dispatchEvent('click');
  assert.equal(await frame.locator('#backCover').isDisabled(),true);
- await frame.getByRole('button',{name:'In casa',exact:true}).dispatchEvent('click');
+ await openHomePanel(frame);
  await frame.locator('#homeScene').selectOption('console');
  assert.equal(await frame.locator('#homeFinish').isEnabled(),true);
- await frame.getByRole('button',{name:'In casa',exact:true}).dispatchEvent('click');
+ await openHomePanel(frame);
  await frame.locator('#homeScene').selectOption('none');
  await setFrameValue('#extract','50');await frame.locator('#extract').dispatchEvent('input');assert.equal(await frame.locator('body').getAttribute('data-extraction'),'50');
  await frame.locator('#reset').dispatchEvent('click');assert.equal(await frame.locator('#extract').inputValue(),'0');assert.equal(await frame.locator('#rotation').isDisabled(),false);
@@ -442,7 +459,7 @@ try{
  assert.equal(saved.configuration.photoAssetId,null);
  await frame.locator('#coverLayout').selectOption('full');assert.equal(await page.getByRole('button',{name:'Salva mockup',exact:true}).isDisabled(),true);
  await frame.locator('#coverLayout').selectOption('plaque');
- await page.setViewportSize({width:390,height:844});await page.screenshot({path:'work/mockup-girevole-mobile.png',fullPage:true});
+ await page.setViewportSize({width:390,height:844});await capturePage('work/mockup-girevole-mobile.png',{fullPage:true});
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
  frame=await open('?admin&readonly');await frame.getByRole('button',{name:'Dettagli',exact:true}).dispatchEvent('click');
  assert.equal(await frame.locator('#frameFinish').isDisabled(),true);
@@ -465,41 +482,41 @@ try{
  await page.getByRole('button',{name:'Dettagli',exact:true}).dispatchEvent('click');
  await page.locator('#firstName').fill('Anna');await page.locator('#secondName').fill('Jacopo');
  await page.locator('#engravingPreview').screenshot({path:'work/mockup-incisione-botanica.png'});
- await page.screenshot({path:'work/mockup-girevole-anteprima.png'});
+ await capturePage('work/mockup-girevole-anteprima.png');
   phase('ambientazioni: scene, finiture, misure e mobile');
   // Le ambientazioni sono condivise e non modificano la configurazione prodotto.
  for (const rendererPath of ['girevole-v4','custodia-v1']) {
   await page.goto(`http://127.0.0.1:${port}/mockups/${rendererPath}/index.html`);
   await page.waitForFunction(() => document.body.dataset.ready === 'true');
-  await page.getByRole('button',{name:'In casa',exact:true}).dispatchEvent('click');
+  await openHomePanel(page);
   await page.locator('#homeScene').selectOption('sideboard');
   assert.equal(await page.locator('#front').isVisible(),false);
   for (const scene of ['living','sideboard','warm','console']) {
-   await page.getByRole('button',{name:'In casa',exact:true}).dispatchEvent('click');
+   await openHomePanel(page);
    await page.locator('#homeScene').selectOption(scene);
    await page.locator('#homeFinish').selectOption('walnut');
   await page.waitForFunction(expectedScene => document.body.dataset.homeScene === expectedScene && document.body.dataset.homeFinish === 'walnut', scene);
-   await page.screenshot({path:`work/home-${rendererPath}-${scene}.png`});
+   await capturePage(`work/home-${rendererPath}-${scene}.png`);
   }
   for (const finish of ['white','gloss','taupe','cashmere','charcoal','oak','cadiz','walnut','mercure','cement','oxide','nordic','modern']) {
    await page.locator('#homeFinish').selectOption(finish);
    assert.equal(await page.locator('body').getAttribute('data-home-finish'),finish);
   }
-  await page.getByRole('button',{name:'In casa',exact:true}).dispatchEvent('click');
+  await openHomePanel(page);
   await page.locator('#homeScene').selectOption('living');
   await page.locator('#homeFinish').selectOption('nordic');
   await page.locator('.home-measures summary').dispatchEvent('click');
   for (const [key,value] of [['width','240'],['height','90'],['depth','55']]) {
    await page.locator(`#home-${key}`).fill(value);await page.locator(`#home-${key}`).dispatchEvent('change');
   }
-  await page.screenshot({path:`work/home-${rendererPath}-large-day.png`});
+  await capturePage(`work/home-${rendererPath}-large-day.png`);
   await page.locator('#homeLighting').selectOption('evening');
   for (const [id,value] of [['homeAlbumX','60'],['homeAlbumZ','-50'],['homeAlbumAngle','35']]) {
    await page.locator(`#${id}`).fill(value);await page.locator(`#${id}`).dispatchEvent('input');
   }
   assert.equal(await page.locator('body').getAttribute('data-home-album-position'),'60,-50');
   assert.equal(await page.locator('body').getAttribute('data-home-album-angle'),'35');
-  await page.screenshot({path:`work/home-${rendererPath}-large-led.png`});
+  await capturePage(`work/home-${rendererPath}-large-led.png`);
   assert.equal(await page.locator('body').getAttribute('data-home-lighting'),'evening');
   await page.locator('#home-width').fill('0');await page.locator('#home-width').dispatchEvent('change');
   assert.match(await page.locator('#homeDimensionStatus').textContent(),/ultima misura valida/);
@@ -508,7 +525,7 @@ try{
   for (const [key,value] of [['width','80'],['height','50'],['depth','30']]) {
    await page.locator(`#home-${key}`).fill(value);await page.locator(`#home-${key}`).dispatchEvent('change');
   }
-  await page.screenshot({path:`work/home-${rendererPath}-small-led.png`});
+  await capturePage(`work/home-${rendererPath}-small-led.png`);
   await page.locator('#homeAlbumAngle').fill('90');await page.locator('#homeAlbumAngle').dispatchEvent('input');
   assert.match(await page.locator('#homePlacementStatus').textContent(),/sporge/);
   await page.locator('#homeAlbumReset').dispatchEvent('click');
@@ -518,9 +535,9 @@ try{
   for (const [key,value] of [['width','300'],['height','110'],['depth','65']]) {
    await page.locator(`#home-${key}`).fill(value);await page.locator(`#home-${key}`).dispatchEvent('change');
   }
-  await page.screenshot({path:`work/home-${rendererPath}-mobile.png`,fullPage:true});
+  await capturePage(`work/home-${rendererPath}-mobile.png`,{fullPage:true});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
-  await page.getByRole('button',{name:'In casa',exact:true}).dispatchEvent('click');
+  await openHomePanel(page);
   await page.locator('#homeScene').selectOption('none');
   assert.equal(await page.locator('#front').isVisible(),true);
   await page.setViewportSize({width:1440,height:1000});
@@ -534,10 +551,10 @@ try{
  await page.waitForFunction(()=>document.querySelector('iframe')?.contentDocument?.body.dataset.wizard==='true' && document.querySelector('iframe')?.contentDocument?.getElementById('modelName'));
  await frame.getByRole('button',{name:/^Album girevole/}).dispatchEvent('click');
  await page.waitForFunction(()=>document.querySelector('iframe')?.contentDocument?.body.dataset.wizard==='true' && document.querySelector('iframe')?.contentDocument?.getElementById('firstName'));
- await page.screenshot({path:'work/mockup-wizard-mobile-modelli.png'});
+ await capturePage('work/mockup-wizard-mobile-modelli.png');
  await page.getByRole('button',{name:'Avanti',exact:true}).dispatchEvent('click');
  await frame.getByRole('button',{name:'Bianco',exact:true}).dispatchEvent('click');
- await page.screenshot({path:'work/mockup-wizard-mobile-materiali.png'});
+ await capturePage('work/mockup-wizard-mobile-materiali.png');
  await frame.getByRole('button',{name:'Estrai album',exact:true}).dispatchEvent('click');
  assert.equal(await frame.locator('body').getAttribute('data-extraction'),'100');
  await frame.getByRole('button',{name:'Reinserisci album',exact:true}).dispatchEvent('click');
@@ -549,7 +566,7 @@ try{
  page.once('dialog',dialog=>dialog.dismiss());
  await clickPageButton('Chiudi');
  assert.equal(await frame.locator('#firstName').inputValue(),'Éléonore','Annullare la chiusura conserva la personalizzazione cliente');
- await page.screenshot({path:'work/mockup-wizard-mobile-nomi.png'});
+ await capturePage('work/mockup-wizard-mobile-nomi.png');
  assert.equal(await page.getByRole('button',{name:'Avanti',exact:true}).isEnabled(),true,'Incisione senza foto valida');
  await page.getByRole('button',{name:'Indietro',exact:true}).dispatchEvent('click');
  await frame.getByRole('button',{name:'Foto grande a tutta copertina',exact:true}).dispatchEvent('click');
@@ -571,7 +588,7 @@ try{
  await page.getByText('Mockup salvato.',{exact:false}).waitFor();
  assert.equal(saved.revision,beforeDraft+1);assert.equal(saved.status,'draft');
  assert.equal(saved.configuration.backPhotoAssetId,backAssetId);assert.equal(saved.configuration.frameFinish,'white');assert.equal(saved.configuration.backCrop.zoom,1.4);
- await page.screenshot({path:'work/mockup-wizard-mobile-riepilogo.png'});
+ await capturePage('work/mockup-wizard-mobile-riepilogo.png');
  await page.getByRole('button',{name:'Chiudi',exact:true}).dispatchEvent('click');
  frame=await open('?client&readonly');
  const readRevision=saved.revision;
@@ -586,7 +603,7 @@ try{
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  assert.equal(await frame.locator('body').evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  assert.equal(await frame.getByRole('button',{name:'Fronte',exact:true}).isVisible(),true);
- await page.screenshot({path:'work/mockup-wizard-mobile-320.png'});
+ await capturePage('work/mockup-wizard-mobile-320.png');
  assert.equal(saved.revision,readRevision);
  await page.setViewportSize({width:1280,height:800});
  frame=await open('?admin');
@@ -599,7 +616,7 @@ try{
  await page.getByText('Proposta restituita al cliente per le modifiche.',{exact:true}).waitFor();
  assert.equal(saved.status,'changes_requested');assert.equal(saved.note,'Centra la foto sul plexiglass');
  assert.equal(await page.getByLabel('Cosa deve correggere il cliente?').count(),0);
- await page.screenshot({path:'work/mockup-admin-review-final.png'});
+ await capturePage('work/mockup-admin-review-final.png');
  assert.deepEqual(errors,[]);
  console.log('Album girevole OK: cambio renderer, ripristino, 3 finiture e copertine, 8 viste, incisione senza foto, blocco foto mancante, mobile e sola lettura.');
  console.log('Browser OK: renderer, foto, download, mobile, catalogo laboratorio, proposta, invio cliente, correzione studio, conferma con 8 viste, allegato e contatto WhatsApp operativo.');

@@ -292,7 +292,7 @@ if (embedded) {
     const data = event.data;
     if (data.type === 'lock') { locked = !!data.readOnly; lock(); return; }
     if (data.type === 'export') {
-      try { if (pending || applying) throw new Error('Attendi il caricamento'); notify('exported', { requestId: data.requestId, previews: previews(), configuration: configuration() }); }
+      try { if (pending || applying) throw new Error('Attendi il caricamento'); notify('exported', { requestId: data.requestId, previews: await previews(), configuration: configuration() }); }
       catch { notify('export-error', { requestId: data.requestId }); } return;
     }
     if (data.type !== 'apply' || applying) return;

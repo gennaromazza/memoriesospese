@@ -1,5 +1,16 @@
 export function yieldToBrowser() {
-  return new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+  return new Promise(resolve => {
+    let settled = false;
+    const fallback = setTimeout(finish, 50);
+    function finish() {
+      if (settled) return;
+      settled = true;
+      clearTimeout(fallback);
+      setTimeout(resolve, 0);
+    }
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(finish);
+    else finish();
+  });
 }
 
 export function getExportSize(renderer) {
