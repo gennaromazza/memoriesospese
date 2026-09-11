@@ -35,6 +35,7 @@ const vite = await createServer({
 });
 
 let browser;
+let lifecycleStage = 'harness setup';
 try {
   await vite.listen();
   const port = vite.httpServer.address().port;
@@ -150,6 +151,7 @@ try {
   }
 
   // Modello fisso: messaggio dello studio e nessuna scelta tra modelli.
+  lifecycleStage = 'fixed model messaging';
   await reloadClient();
   await page.getByText('Modello scelto dallo studio', { exact: true }).waitFor();
   await page.getByText('Il modello dell’album è già definito; puoi scegliere soltanto le sue personalizzazioni.', { exact: true }).waitFor();
@@ -161,6 +163,7 @@ try {
   await page.screenshot({ path: 'work/photobook-client-fixed-model.png' });
 
   // Scelta tra modelli.
+  lifecycleStage = 'model choice messaging';
   mode = 'choice';
   saved = null;
   await reloadClient();
@@ -178,6 +181,7 @@ try {
   ];
   let revision = 1;
   for (const [status, label, message] of expectedStates) {
+    lifecycleStage = `customer workflow state: ${status}`;
     saved = {
       version: 1,
       revision: revision++,
@@ -198,6 +202,7 @@ try {
   await page.screenshot({ path: 'work/photobook-client-confirmed.png' });
 
   // Una modifica successiva alla conferma crea una nuova revisione in bozza.
+  lifecycleStage = 'post-confirmation revision';
   const confirmedRevision = saved.revision;
   const response = await page.evaluate(async ({ configuration, revision, selection }) => {
     const result = await fetch('/api/photobooks/by-token/mockup-test-token/mockup?version=1', {
@@ -224,6 +229,7 @@ try {
   await page.getByText('Bozza salvata: puoi riprenderla quando vuoi oppure inviarla allo studio per la verifica.', { exact: true }).waitFor();
 
   // Blocco stampa: UI esplicitamente sola lettura e API di modifica rifiutata.
+  lifecycleStage = 'print lock and read-only API';
   editable = false;
   await reloadClient();
   await page.evaluate(() => {
@@ -259,6 +265,10 @@ try {
 
   assert.deepEqual(browserErrors, []);
   console.log('Browser OK: modello fisso, scelta tra modelli, bozza, inviato, modifiche richieste, confermato, nuova revisione e blocco stampa.');
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+  if (error instanceof Error) error.message = `Mockup lifecycle regression at "${lifecycleStage}": ${message}`;
+  throw error;
 } finally {
   await browser?.close();
   await vite.close();

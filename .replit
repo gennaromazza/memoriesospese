@@ -35,6 +35,21 @@ author = "agent"
 task = "workflow.run"
 args = "Dev Workflow"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "photobook-client-lifecycle"
+
+[[workflows.workflow]]
+name = "photobook-client-lifecycle"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node e2e/photobook-client-lifecycle.browser.mjs"
+
+[workflows.workflow.metadata]
+isValidation = true
+
 [[ports]]
 localPort = 5000
 externalPort = 5000
