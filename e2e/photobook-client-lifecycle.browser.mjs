@@ -45,8 +45,10 @@ try {
     screen: { width: 390, height: 844 },
     isMobile: true,
     hasTouch: true,
+    acceptDownloads: true,
   });
   await page.addInitScript(() => {
+    window.__MEMORIE_MOCKUP_E2E__ = true;
     const nativeMatchMedia = window.matchMedia.bind(window);
     window.matchMedia = query =>
       query === '(pointer: coarse)'
@@ -261,6 +263,54 @@ try {
   });
   assert.equal(lockedResponse.status, 409);
   assert.match(lockedResponse.body.error, /sola lettura/i);
+
+  // Il download resta disponibile dopo il blocco e il report contiene tutte
+  // le viste che il cliente può consultare, senza riaprire la modifica.
+  lifecycleStage = 'print-locked customer download';
+  const mockupFrame = page.frameLocator('iframe[title^="Configuratore 3D"]');
+  await mockupFrame.locator('body[data-wizard-mobile="true"]').waitFor();
+  const nextButton = mockupFrame.locator('#wizard-actions-slot button').nth(1);
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    await nextButton.waitFor({ state: 'attached' });
+    assert.equal(await nextButton.isVisible(), true, `Azione wizard non visibile al tentativo ${attempt + 1}`);
+    const actionLabel = (await nextButton.textContent())?.trim() || '';
+    if (!/^Avanti/.test(actionLabel)) break;
+    await nextButton.click();
+  }
+  const downloadButton = mockupFrame.locator('#downloadClient');
+  await downloadButton.waitFor({ state: 'visible' });
+  assert.equal(await downloadButton.isDisabled(), false);
+  const downloadPromise = page.waitForEvent('download', { timeout: 30_000 })
+    .then(download => ({ download }))
+    .catch(error => ({ error }));
+  try {
+    await downloadButton.click({ timeout: 30_000 });
+  } catch (error) {
+    const status = await mockupFrame.locator('#downloadStatus').textContent().catch(() => '');
+    throw new Error(`Click download cliente fallito (stato renderer: ${status || 'nessuno'}): ${error.message}`);
+  }
+  const downloadResult = await downloadPromise;
+  if (downloadResult.error) {
+    const status = await mockupFrame.locator('#downloadStatus').textContent().catch(() => '');
+    throw new Error(`Download cliente non intercettato (stato renderer: ${status || 'nessuno'}): ${downloadResult.error.message}`);
+  }
+  const download = downloadResult.download;
+  assert.equal(await download.failure(), null);
+  assert.match(download.suggestedFilename(), /^album-configurazione-.*\.html$/);
+  const downloadedReport = fs.readFileSync(await download.path(), 'utf8');
+  for (const viewLabel of [
+    'Album e custodia · prospettiva',
+    'Copertina · album senza custodia',
+    'Retro · album senza custodia',
+    'Dorso e scritte personalizzate',
+    'Lato destro',
+    'Vista superiore',
+    'Vista inferiore',
+    'Album estratto dalla custodia',
+  ]) {
+    assert.ok(downloadedReport.includes(viewLabel), `Vista mancante nel download: ${viewLabel}`);
+  }
+  assert.equal(await page.getByRole('button', { name: 'Cambia', exact: true }).isDisabled(), true);
   await page.screenshot({ path: 'work/photobook-client-print-locked.png' });
 
   assert.deepEqual(browserErrors, []);

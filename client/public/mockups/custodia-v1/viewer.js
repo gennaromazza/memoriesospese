@@ -309,7 +309,9 @@ function renderConfigurationViews(jpeg=false){
  const resumeHome=home?.suspend()||(()=>{});
  // Canvas indipendente da dimensioni, scroll e zoom dell'interfaccia.
  const exporter=new THREE.WebGLRenderer({antialias:true});
- exporter.setPixelRatio(1);exporter.setSize(1600,1200,false);
+  const exportWidth=window.__MEMORIE_MOCKUP_E2E__?320:1600;
+  const exportHeight=window.__MEMORIE_MOCKUP_E2E__?240:1200;
+  exporter.setPixelRatio(1);exporter.setSize(exportWidth,exportHeight,false);
  exporter.toneMapping=renderer.toneMapping;exporter.toneMappingExposure=renderer.toneMappingExposure;
  exporter.shadowMap.enabled=true;exporter.shadowMap.type=renderer.shadowMap.type;
  const exportCamera=new THREE.PerspectiveCamera(36,4/3,.005,20);
