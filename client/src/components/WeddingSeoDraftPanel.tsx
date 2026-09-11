@@ -718,17 +718,15 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
                        <Eye className="h-3.5 w-3.5" />
                      </Button>
                    </div>
-                   {selected && (
-                     <Input
-                       value={photoAltTexts[photo.id] || ''}
-                       maxLength={200}
-                       placeholder="Testo alt"
-                       aria-label={`Testo alternativo per ${photo.name}`}
-                       className="mt-2 h-8 text-xs"
-                       onClick={event => event.stopPropagation()}
-                       onChange={event => setPhotoAltTexts(current => ({ ...current, [photo.id]: event.target.value }))}
-                     />
-                   )}
+                   <Input
+                     value={photoAltTexts[photo.id] || ''}
+                     maxLength={200}
+                     placeholder="Testo alt"
+                     aria-label={`Testo alternativo per ${photo.name}`}
+                     className={`mt-2 h-8 text-xs ${selected ? '' : 'bg-gray-50'}`}
+                     onClick={event => event.stopPropagation()}
+                     onChange={event => setPhotoAltTexts(current => ({ ...current, [photo.id]: event.target.value }))}
+                   />
                 </div>
               );
             })}
@@ -737,7 +735,7 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
            {visiblePhotoCount < chapterPhotos.length && (
             <div className="mt-4 text-center"><Button variant="outline" onClick={() => setVisiblePhotoCount(count => count + WEDDING_PHOTO_PAGE_SIZE)}>Mostra altre 60 foto</Button></div>
           )}
-           {validSelectedPhotoIds.length > 0 && <p className="mt-3 text-xs text-gray-500">Il testo alt è opzionale: se lasciato vuoto, la pagina userà il capitolo o il titolo della storia come fallback.</p>}
+           <p className="mt-3 text-xs text-gray-500">Il testo alt è associato alla foto quando la selezioni per la storia. Se lasciato vuoto, la pagina userà il capitolo o il titolo della storia come fallback.</p>
         </CardContent>
       </Card>
 
