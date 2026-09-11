@@ -41,6 +41,7 @@ import {
   MAX_WEDDING_STORY_PHOTOS,
   loadWeddingVendorReviews,
   slugifyWeddingStory,
+  storyFromDocument,
   toPublicWeddingStory,
   validateWeddingVendorSearchResult,
   validateWeddingStoryInput,
@@ -107,6 +108,31 @@ describe('Real Wedding editorial safety', () => {
       photoAltTexts: { 'photo-1': 'x'.repeat(200) },
       coverPhotoId: 'photo-1',
     });
+  });
+
+  it('does not replace an existing blog selection with an old temporary draft', () => {
+    const persisted = storyFromDocument('gallery-1', {
+      galleryId: 'gallery-1',
+      selectedPhotoIds: ['saved-photo-1', 'saved-photo-2'],
+      coverPhotoId: 'saved-photo-2',
+      draftSelectedPhotoIds: [],
+      draftCoverPhotoId: undefined,
+    }, { preferDraftSelection: true });
+
+    expect(persisted.selectedPhotoIds).toEqual(['saved-photo-1', 'saved-photo-2']);
+    expect(persisted.coverPhotoId).toBe('saved-photo-2');
+
+    const currentDraft = storyFromDocument('gallery-1', {
+      galleryId: 'gallery-1',
+      selectedPhotoIds: ['saved-photo-1'],
+      coverPhotoId: 'saved-photo-1',
+      draftSelectedPhotoIds: ['new-photo'],
+      draftCoverPhotoId: 'new-photo',
+      draftSelectionUpdatedAt: { seconds: 1 },
+    }, { preferDraftSelection: true });
+
+    expect(currentDraft.selectedPhotoIds).toEqual(['new-photo']);
+    expect(currentDraft.coverPhotoId).toBe('new-photo');
   });
 
   it('uses the direct Gemini vision model and Google OpenAI-compatible endpoint', () => {

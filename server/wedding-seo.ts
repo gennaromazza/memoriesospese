@@ -213,15 +213,18 @@ function normalizePhotoAltTexts(value: unknown, selectedPhotoIds: string[]): Rec
   );
 }
 
-function storyFromDocument(
+export function storyFromDocument(
   id: string,
   data: Record<string, any>,
   options: { preferDraftSelection?: boolean } = {},
 ): WeddingSeoStory {
-  const selectedPhotoIdsSource = options.preferDraftSelection && Array.isArray(data.draftSelectedPhotoIds)
+  const hasCurrentDraftSelection = options.preferDraftSelection
+    && Array.isArray(data.draftSelectedPhotoIds)
+    && Boolean(data.draftSelectionUpdatedAt);
+  const selectedPhotoIdsSource = hasCurrentDraftSelection
     ? data.draftSelectedPhotoIds
     : data.selectedPhotoIds;
-  const coverPhotoIdSource = options.preferDraftSelection && Array.isArray(data.draftSelectedPhotoIds)
+  const coverPhotoIdSource = hasCurrentDraftSelection
     ? data.draftCoverPhotoId
     : data.coverPhotoId;
   const selectedPhotoIds = Array.isArray(selectedPhotoIdsSource)
@@ -240,7 +243,7 @@ function storyFromDocument(
     seoDescription: data.seoDescription || '',
     selectedPhotoIds,
     photoAltTexts: normalizePhotoAltTexts(
-      options.preferDraftSelection && Array.isArray(data.draftSelectedPhotoIds)
+      hasCurrentDraftSelection
         ? data.draftPhotoAltTexts
         : data.photoAltTexts,
       selectedPhotoIds,
@@ -1721,6 +1724,7 @@ router.put('/gallery/:galleryId', async (req: Request, res: Response) => {
       updatedBy: (req as any).user?.email || '',
       draftSelectedPhotoIds: FieldValue.delete(),
       draftPhotoAltTexts: FieldValue.delete(),
+      draftSelectionUpdatedAt: FieldValue.delete(),
       draftCoverPhotoId: FieldValue.delete(),
     };
     if (!previous.exists) payload.createdAt = FieldValue.serverTimestamp();
@@ -1757,6 +1761,7 @@ router.put('/gallery/:galleryId/selection', async (req: Request, res: Response) 
       jobId: gallery.jobId || '',
       draftSelectedPhotoIds: input.selectedPhotoIds,
       draftCoverPhotoId: input.coverPhotoId || FieldValue.delete(),
+      draftSelectionUpdatedAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
       updatedBy: (req as any).user?.email || '',
     };
