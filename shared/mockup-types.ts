@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { MOCKUP_MODEL, ROTATING_MOCKUP_MODEL } from './mockup-catalog';
-import type { MockupOffer, MockupOption, MockupSelection, MockupStatus } from './mockup-workflow';
+import type { MockupOffer, MockupOfferMode, MockupOption, MockupSelection, MockupStatus } from './mockup-workflow';
 
 const custodiaConfigurationSchema = z.object({
   modelId: z.literal(MOCKUP_MODEL.id),
@@ -59,7 +59,17 @@ export interface SavedMockup {
   status?: MockupStatus; updatedBy?: 'studio' | 'client'; selection?: MockupSelection;
   option?: MockupOption; note?: string; confirmedAt?: string; reportPath?: string;
 }
-export interface MockupPayload { version: number; editable: boolean; enabled: boolean; approvalRequired?: boolean; saved: SavedMockup | null; offer?: MockupOffer | null }
+export interface MockupPayload {
+  version: number;
+  editable: boolean;
+  enabled: boolean;
+  approvalRequired?: boolean;
+  saved: SavedMockup | null;
+  offer?: MockupOffer | null;
+  modelMode?: MockupOfferMode;
+  modelSelection?: MockupSelection | null;
+  offerInherited?: boolean;
+}
 
 export function mockupEditable(book: { locked?: boolean; currentVersion: number; approval?: { version: number } | null }, version: number): boolean {
   return !book.locked && version === book.currentVersion;

@@ -93,6 +93,12 @@ export interface Photobook {
    */
   approval?: PhotobookApproval | null;
   /**
+   * Modello 3D scelto una sola volta per il fotolibro. Le versioni ereditano
+   * questa scelta; le proposte legacy per versione restano compatibili.
+   */
+  mockupModelMode?: 'fixed' | 'choice';
+  mockupModelSelection?: { labId: string; modelId: string } | null;
+  /**
    * Lavoro (job) associato: popolato alla creazione da gallery.jobId e
    * retro-compilato per i fotolibri esistenti. Serve alla creazione della
    * spedizione laboratorio al momento del "Manda in Stampa".

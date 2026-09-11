@@ -26,6 +26,7 @@ export function mockupCoverExamples(rendererId: MockupOption['rendererId']): rea
 export interface MockupModelChooserProps {
   options: MockupOption[];
   initialOption?: MockupOption;
+  fixed?: boolean;
   onChoose: (option: MockupOption, coverLayout: string) => void;
   onCancel?: () => void;
 }
@@ -33,7 +34,7 @@ export interface MockupModelChooserProps {
 const optionKey = (option: MockupOption) => `${option.labId}/${option.id}`;
 
 /** Due decisioni distinte, prima del caricamento del 3D: modello, poi esempio di copertina. */
-export default function MockupModelChooser({ options, initialOption, onChoose, onCancel }: MockupModelChooserProps) {
+export default function MockupModelChooser({ options, initialOption, fixed = false, onChoose, onCancel }: MockupModelChooserProps) {
   const available = options.filter(option => option.active && mockupCoverExamples(option.rendererId).length > 0);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const selected = available.find(option => optionKey(option) === selectedKey);
@@ -82,8 +83,8 @@ export default function MockupModelChooser({ options, initialOption, onChoose, o
   return <section className="mockup-chooser" data-testid="mockup-model-chooser" data-chooser-stage={selected ? 'styles' : 'models'} aria-label={selected ? `Stili di ${selected.name}` : 'Scelta del modello'}>
     <header className="mockup-chooser-heading">
       <div>
-        <h2>{selected ? `Come immagini ${selected.name}?` : 'Quale album preferisci?'}</h2>
-        <p>{selected ? 'Scorri gli esempi. Foto e nomi saranno i tuoi.' : 'Scorri i modelli e tocca quello che ti piace.'}</p>
+        <h2>{selected ? `Come immagini ${selected.name}?` : fixed ? 'Il modello scelto per il tuo album' : 'Quale album preferisci?'}</h2>
+        <p>{selected ? 'Scorri gli esempi. Foto e nomi saranno i tuoi.' : fixed ? 'Questo modello è stato scelto dallo studio. Continua per personalizzare copertina e contenuti.' : 'Scorri i modelli e tocca quello che ti piace.'}</p>
       </div>
       {(selected || onCancel) && <button type="button" className="mockup-chooser-back" onClick={() => selected ? (setSelectedKey(null), setIndex(modelIndex)) : onCancel?.()}>
         <ArrowLeft size={17} aria-hidden="true" /><span>{selected ? 'Modelli' : 'Annulla'}</span>
@@ -116,7 +117,7 @@ export default function MockupModelChooser({ options, initialOption, onChoose, o
                   <strong className="mockup-chooser-model-name">{option.name}</strong>
                   <span className="mockup-chooser-model-copy">{option.rendererId === ROTATING_MOCKUP_MODEL.id ? 'Album estraibile in uno scrigno che ruota.' : 'Album estraibile e custodia rivestita in tessuto.'}</span>
                 </span>
-                <span className="mockup-chooser-choose">Scopri questo modello <ArrowRight size={17} aria-hidden="true" /></span>
+                 <span className="mockup-chooser-choose">{fixed ? 'Continua con questo modello' : 'Scopri questo modello'} <ArrowRight size={17} aria-hidden="true" /></span>
               </span>
             </button>
           </CarouselItem>;

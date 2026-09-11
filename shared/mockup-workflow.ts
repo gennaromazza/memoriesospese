@@ -22,7 +22,8 @@ export const labMockupCatalogSchema = z.object({
 export type LabMockupModel = z.infer<typeof labMockupModelSchema>;
 export type LabMockupCatalog = z.infer<typeof labMockupCatalogSchema>;
 export interface MockupOption extends LabMockupModel { labId: string; labName: string; materials: z.infer<typeof materialSchema>[] }
-export interface MockupOffer { revision: number; options: MockupOption[]; updatedAt: string }
+export type MockupOfferMode = 'fixed' | 'choice';
+export interface MockupOffer { revision: number; options: MockupOption[]; updatedAt: string; mode?: MockupOfferMode }
 export type MockupStatus = 'draft' | 'submitted' | 'changes_requested' | 'confirmed';
 export const MOCKUP_STATUS_LABELS: Record<MockupStatus, string> = {
   draft: 'Bozza', submitted: 'Da verificare', changes_requested: 'Modifiche richieste', confirmed: 'Confermato dallo studio',
@@ -32,8 +33,9 @@ export const mockupSelectionSchema = z.object({ labId: mockupIdSchema, modelId: 
 export const mockupOfferInputSchema = z.object({
   revision: z.number().int().min(0),
   savedRevision: z.number().int().min(0),
+  mode: z.enum(['fixed', 'choice']).default('choice'),
   selections: z.array(mockupSelectionSchema).min(1).max(100).refine(items => new Set(items.map(i => `${i.labId}/${i.modelId}`)).size === items.length),
-}).strict();
+}).strict().refine(input => input.mode !== 'fixed' || input.selections.length === 1, 'Il modello unico richiede una sola scelta');
 export const mockupWorkflowInputSchema = z.object({ revision: z.number().int().min(1), note: z.string().trim().max(2000).default('') }).strict();
 
 export function optionFor(offer: MockupOffer | null, selection?: MockupSelection): MockupOption | undefined {

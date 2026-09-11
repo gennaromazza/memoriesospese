@@ -72,6 +72,8 @@ function serializeBook(id: string, d: any): any {
           note: d.approval.note || null,
         }
       : null,
+    mockupModelMode: d.mockupModelMode || null,
+    mockupModelSelection: d.mockupModelSelection || null,
     jobId: d.jobId || null,
     labShipmentId: d.labShipmentId || null,
     versions: (d.versions || []).map((v: any) => ({

@@ -45,3 +45,4 @@
 - [Admin panel browser harnesses](admin-panel-e2e-harnesses.md) — monta il componente reale e simula le API same-origin per testare UI e salvataggio senza servizi esterni.
 - [Follow-up automatici preventivi](follow-up-automation.md) — invio fail-closed con lock prima di Gmail; risposte Gmail restano manuali finché non esiste sync thread/message ID.
 - [Gmail connector SDK](gmail-connector-sdk.md) — usare il proxy SDK per Gmail; mittente, admin Firebase e calendario Service Account sono identità separate.
+- [Photobook mockup model scope](photobook-mockup-model-scope.md) — il modello normale è scelto a livello fotolibro e viene ereditato da tutte le versioni; più modelli solo come eccezione esplicita.

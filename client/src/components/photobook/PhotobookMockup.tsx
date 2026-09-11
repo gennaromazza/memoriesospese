@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import PhotobookPhotoPicker from './PhotobookPhotoPicker';
 import { mockupConfigurationSchema, type MockupConfiguration, type MockupPayload, type MockupPhoto, type SavedMockup } from '@shared/mockup-types';
-import { MOCKUP_STATUS_LABELS, optionFor, type MockupSelection } from '@shared/mockup-workflow';
+import { MOCKUP_STATUS_LABELS, optionFor, type MockupOfferMode, type MockupSelection } from '@shared/mockup-workflow';
 import MockupOfferEditor from './MockupOfferEditor';
 import { MOCKUP_RENDERERS } from '@shared/mockup-catalog';
 import type { MockupOption } from '@shared/mockup-workflow';
@@ -443,7 +443,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
         <Button variant="outline" className={mobile ? 'mockup-close' : 'min-h-11'} aria-label={mobile ? 'Chiudi mockup' : undefined} disabled={busy} onClick={closeConfigurator}>{mobile ? <X size={18} /> : 'Chiudi'}</Button>
       </div>
       {token && !mobile && <div className="mockup-progress shrink-0 border-b px-3 py-2" aria-live="polite"><p className="text-sm font-medium">Passaggio {steps.indexOf(step) + 1} di {steps.length} · {stepNames[step - 1]}</p><div className="mt-2 flex gap-1" aria-hidden="true">{steps.map(value => <span key={value} className={`h-1 flex-1 rounded ${value <= step ? 'bg-primary' : 'bg-muted'}`} />)}</div></div>}
-      {mobile && choosing && state.data?.offer && <MockupModelChooser options={state.data.offer.options} initialOption={selectedOption} onChoose={chooseExample} onCancel={viewerStarted ? () => setChoosing(false) : undefined} />}
+      {mobile && choosing && state.data?.offer && <MockupModelChooser options={state.data.offer.options} initialOption={selectedOption} fixed={state.data.modelMode === 'fixed'} onChoose={chooseExample} onCancel={viewerStarted ? () => setChoosing(false) : undefined} />}
       <div style={mobile && choosing ? { display: 'none' } : undefined} className={token ? 'min-h-0 flex-1 flex flex-col overflow-hidden' : 'mockup-admin-body'} data-testid="mockup-dialog-body">
       {!token && <div className="mockup-admin-panel" ref={setAdminSlot}>
         <nav className="sticky top-0 z-10 bg-background flex flex-wrap gap-1 border-b pb-3" aria-label="Gestione proposta album">
@@ -460,9 +460,9 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       {state.isLoading && <p role="status">Caricamento configurazione…</p>}
       {state.isError && <p role="alert">{(state.error as Error).message}</p>}
       {state.data && <>
-        {!token && adminPanel(<div hidden={adminTab !== 'offer'}><p className="text-sm mb-3">Scegli quali modelli proporre nel link di questo cliente. Questa sezione non conferma il suo mockup.</p><MockupOfferEditor offer={state.data.offer} disabled={readOnly || busy || dirty} publish={async selections => {
+        {!token && adminPanel(<div hidden={adminTab !== 'offer'}><p className="text-sm mb-3">Il modello principale vale per tutto il fotolibro. Questa sezione non conferma il suo mockup.</p><MockupOfferEditor offer={state.data.offer} modelMode={state.data.modelMode} modelSelection={state.data.modelSelection} disabled={readOnly || busy || dirty} publish={async (mode: MockupOfferMode, selections) => {
           setBusy(true);
-          try { await request('/offer', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: state.data?.offer?.revision || 0, savedRevision: saved?.revision || 0, selections }) }); await state.refetch({ throwOnError: true }); setReady(false); setGeneration(g => g + 1); setMessage('Proposta pubblicata nel link cliente.'); return true; }
+          try { await request('/offer', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: state.data?.offer?.revision || 0, savedRevision: saved?.revision || 0, mode, selections }) }); await state.refetch({ throwOnError: true }); setReady(false); setGeneration(g => g + 1); setMessage(mode === 'fixed' ? 'Modello unico salvato per tutto il fotolibro.' : 'Proposta pubblicata nel link cliente.'); return true; }
           catch (error) { setMessage((error as Error).message); return false; }
           finally { setBusy(false); }
         }} /></div>)}

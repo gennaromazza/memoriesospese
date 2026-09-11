@@ -7,13 +7,69 @@ import { db, storage } from './firebase-admin.js';
 import { loadGalleryPhotoDocs } from './photobook-gallery.js';
 import { uidRateLimiter } from './print-shop/rate-limit.js';
 import { mockupConfigurationSchema, mockupEditable, type MockupPhoto, type SavedMockup } from '../shared/mockup-types.js';
-import { labMockupCatalogSchema, mockupOfferInputSchema, mockupSelectionSchema, mockupWorkflowInputSchema, optionFor, type MockupOffer, type MockupOption } from '../shared/mockup-workflow.js';
+import { labMockupCatalogSchema, mockupOfferInputSchema, mockupSelectionSchema, mockupWorkflowInputSchema, optionFor, type MockupOffer, type MockupOption, type MockupOfferMode } from '../shared/mockup-workflow.js';
 import { buildMockupReport, mockupConfirmSchema } from './mockup-report.js';
 
 class MockupError extends Error { constructor(public status: number, message: string) { super(message); } }
 const versionSchema = z.coerce.number().int().min(1).max(9999);
 const saveSchema = z.object({ revision: z.number().int().min(0), configuration: mockupConfigurationSchema, selection: mockupSelectionSchema.optional(), offerRevision: z.number().int().min(0).optional() }).strict();
 type Resolver = (req: Request) => Promise<DocumentSnapshot | null>;
+
+function optionFromLab(lab: DocumentSnapshot, selection: { labId: string; modelId: string }): MockupOption | null {
+  if (!lab.exists || lab.id !== selection.labId || lab.data()?.attivo === false) return null;
+  const catalog = labMockupCatalogSchema.parse(lab.data()!.mockupCatalog);
+  const model = catalog.models.find(m => m.id === selection.modelId && m.active && m.rendererId);
+  if (!model) return null;
+  return {
+    ...model,
+    materials: catalog.materials.filter(m => model.materialIds.includes(m.id)),
+    labId: lab.id,
+    labName: String(lab.data()!.nome),
+  };
+}
+
+async function effectiveOffer(book: DocumentSnapshot, version: number, stored?: DocumentSnapshot): Promise<MockupOffer | null> {
+  const storedOffer = stored || await book.ref.collection('mockupOffers').doc(`v${version}`).get();
+  const data = book.data() || {};
+  const selection = data.mockupModelMode === 'fixed' ? data.mockupModelSelection : null;
+  if (selection?.labId && selection?.modelId) {
+    const option = optionFromLab(await db.collection('labs').doc(selection.labId).get(), selection);
+    if (option) {
+      const previous = storedOffer.data() || {};
+      return {
+        revision: Number(previous.revision || 1),
+        options: [option],
+        updatedAt: String(previous.updatedAt || new Date().toISOString()),
+        mode: 'fixed',
+      };
+    }
+  }
+  return (storedOffer.data() || null) as MockupOffer | null;
+}
+
+async function effectiveOfferInTransaction(
+  tx: FirebaseFirestore.Transaction,
+  book: DocumentSnapshot,
+  version: number,
+  bookData: FirebaseFirestore.DocumentData,
+  stored?: DocumentSnapshot,
+): Promise<MockupOffer | null> {
+  const storedOffer = stored || await tx.get(book.ref.collection('mockupOffers').doc(`v${version}`));
+  const selection = bookData.mockupModelMode === 'fixed' ? bookData.mockupModelSelection : null;
+  if (selection?.labId && selection?.modelId) {
+    const option = optionFromLab(await tx.get(db.collection('labs').doc(selection.labId)), selection);
+    if (option) {
+      const previous = storedOffer.data() || {};
+      return {
+        revision: Number(previous.revision || 1),
+        options: [option],
+        updatedAt: String(previous.updatedAt || new Date().toISOString()),
+        mode: 'fixed',
+      };
+    }
+  }
+  return (storedOffer.data() || null) as MockupOffer | null;
+}
 
 /** Nessun URL fornito dal browser viene scaricato: accettiamo solo il bucket già configurato. */
 export function mockupGalleryStoragePath(value: string, bucket: string): string {
@@ -65,7 +121,7 @@ export function createPhotobookMockupRouter(resolveBook: Resolver, isAdmin: bool
         if (!isAdmin) {
           const saved = await book.ref.collection('mockups').doc(`v${version}`).get();
           const offer = await book.ref.collection('mockupOffers').doc(`v${version}`).get();
-          if (!saved.exists && !offer.exists) throw new MockupError(403, 'Lo studio non ha ancora attivato il mockup per questa versione.');
+          if (!saved.exists && !offer.exists && data.mockupModelMode !== 'fixed') throw new MockupError(403, 'Lo studio non ha ancora attivato il mockup per questa versione.');
         }
       }
       next();
@@ -77,10 +133,14 @@ export function createPhotobookMockupRouter(resolveBook: Resolver, isAdmin: bool
       const book = res.locals.book as DocumentSnapshot;
       const version = res.locals.version as number;
       const saved = await book.ref.collection('mockups').doc(`v${version}`).get();
-      const offer = await book.ref.collection('mockupOffers').doc(`v${version}`).get();
+      const offerDoc = await book.ref.collection('mockupOffers').doc(`v${version}`).get();
+      const offer = await effectiveOffer(book, version, offerDoc);
       const data = saved.data();
       if (data && !isAdmin) delete data.reportPath;
-      res.json({ version, editable: canEditBook(book.data()!, version), enabled: isAdmin || saved.exists || offer.exists, approvalRequired: needsPageApproval(book.data()!, version), saved: data || null, offer: offer.data() || null });
+      const root = book.data() || {};
+      const modelMode: MockupOfferMode = root.mockupModelMode || offer?.mode || (offer?.options.length === 1 ? 'fixed' : 'choice');
+      const modelSelection = root.mockupModelSelection || (modelMode === 'fixed' && offer?.options[0] ? { labId: offer.options[0].labId, modelId: offer.options[0].id } : null);
+      res.json({ version, editable: canEditBook(root, version), enabled: isAdmin || saved.exists || !!offer || modelMode === 'fixed', approvalRequired: needsPageApproval(root, version), saved: data || null, offer, modelMode, modelSelection, offerInherited: modelMode === 'fixed' && !offerDoc.exists });
     } catch (error) { next(error); }
   });
 
@@ -105,7 +165,9 @@ export function createPhotobookMockupRouter(resolveBook: Resolver, isAdmin: bool
         const savedRef = book.ref.collection('mockups').doc(`v${version}`);
         const old = await tx.get(ref);
         const saved = await tx.get(savedRef);
-        if ((old.data()?.revision || 0) !== input.revision || (saved.data()?.revision || 0) !== input.savedRevision) throw new MockupError(409, 'Proposta modificata: ricarica prima di proseguire');
+        const fresh = await tx.get(book.ref);
+        const currentOffer = await effectiveOfferInTransaction(tx, book, version, fresh.data()!, old);
+        if ((currentOffer?.revision || 0) !== input.revision || (saved.data()?.revision || 0) !== input.savedRevision) throw new MockupError(409, 'Proposta modificata: ricarica prima di proseguire');
         const options: MockupOption[] = [];
         for (const selection of input.selections) {
           const lab = await tx.get(db.collection('labs').doc(selection.labId));
@@ -115,8 +177,9 @@ export function createPhotobookMockupRouter(resolveBook: Resolver, isAdmin: bool
           if (!model) throw new MockupError(400, 'Modello non disponibile o asset 3D non ancora integrato');
           options.push({ ...model, materials: catalog.materials.filter(m => model.materialIds.includes(m.id)), labId: lab.id, labName: String(lab.data()!.nome) });
         }
-        const offer: MockupOffer = { revision: input.revision + 1, options, updatedAt: new Date().toISOString() };
+        const offer: MockupOffer = { revision: input.revision + 1, options, updatedAt: new Date().toISOString(), mode: input.mode };
         tx.set(ref, offer);
+        tx.set(book.ref, { mockupModelMode: input.mode, mockupModelSelection: input.mode === 'fixed' ? input.selections[0] : null }, { merge: true });
         if (saved.exists) {
           const previous = saved.data() as SavedMockup;
           tx.set(book.ref.collection('mockupHistory').doc(`v${version}-r${previous.revision}`), previous);
@@ -139,7 +202,8 @@ export function createPhotobookMockupRouter(resolveBook: Resolver, isAdmin: bool
         await guardCurrent(tx, book, version);
         const previous = await tx.get(ref);
         const offerDoc = await tx.get(book.ref.collection('mockupOffers').doc(`v${version}`));
-        const offer = (offerDoc.data() || null) as MockupOffer | null;
+        const currentBook = await tx.get(book.ref);
+        const offer = await effectiveOfferInTransaction(tx, book, version, currentBook.data()!, offerDoc);
         const photoIds = [input.configuration.photoAssetId, ...('backPhotoAssetId' in input.configuration ? [input.configuration.backPhotoAssetId] : [])];
         for (const id of new Set(photoIds.filter((id): id is string => !!id))) {
           const photo = await tx.get(book.ref.collection('mockupAssets').doc(id));
@@ -174,7 +238,9 @@ export function createPhotobookMockupRouter(resolveBook: Resolver, isAdmin: bool
         const doc = await tx.get(ref);
         const previous = doc.data() as SavedMockup | undefined;
         const offerDoc = await tx.get(book.ref.collection('mockupOffers').doc(`v${version}`));
-        const option = optionFor((offerDoc.data() || null) as MockupOffer | null, previous?.selection);
+        const currentBook = await tx.get(book.ref);
+        const offer = await effectiveOfferInTransaction(tx, book, version, currentBook.data()!, offerDoc);
+        const option = optionFor(offer, previous?.selection);
         if (!previous || previous.revision !== input.revision) throw new MockupError(409, 'Ricarica la proposta aggiornata');
         if (action === 'submit' && (!option || !option.materials.some(m => m.id === previous.configuration.materialId))) throw new MockupError(409, 'Salva prima una scelta inclusa nella proposta dello studio');
         if (action === 'submit' && ['submitted', 'confirmed'].includes(previous.status || '')) throw new MockupError(409, 'Proposta già inviata. Salva una modifica prima di inviarla di nuovo.');
@@ -210,7 +276,7 @@ export function createPhotobookMockupRouter(resolveBook: Resolver, isAdmin: bool
       if (!initial || initial.revision !== input.revision || initial.status === 'confirmed') throw new MockupError(409, 'Ricarica la proposta prima di confermare');
       if (JSON.stringify(input.configuration) !== JSON.stringify(initial.configuration)) throw new MockupError(409, 'Le viste non corrispondono alla configurazione salvata');
       const offerDoc = await book.ref.collection('mockupOffers').doc(`v${version}`).get();
-      const offer = offerDoc.data() as MockupOffer | undefined;
+      const offer = await effectiveOffer(book, version, offerDoc);
       const option = optionFor(offer || null, initial.selection);
       if (!option || !option.materials.some(m => m.id === initial.configuration.materialId)) throw new MockupError(409, 'Salva prima un modello e un rivestimento inclusi nella proposta');
       const now = new Date().toISOString();
@@ -225,8 +291,8 @@ export function createPhotobookMockupRouter(resolveBook: Resolver, isAdmin: bool
         await db.runTransaction(async tx => {
           await guardCurrent(tx, book, version);
           const fresh = await tx.get(ref);
-          const freshOffer = await tx.get(offerDoc.ref);
-          if (fresh.data()?.revision !== input.revision || freshOffer.data()?.revision !== offer?.revision) throw new MockupError(409, 'Proposta cambiata durante la conferma: ricarica e riprova');
+          const freshOffer = await effectiveOfferInTransaction(tx, book, version, fresh.data()!, await tx.get(offerDoc.ref));
+          if (fresh.data()?.revision !== input.revision || freshOffer?.revision !== offer?.revision) throw new MockupError(409, 'Proposta cambiata durante la conferma: ricarica e riprova');
           tx.set(book.ref.collection('mockupHistory').doc(`v${version}-r${initial.revision}`), initial);
           tx.set(ref, confirmed);
         });

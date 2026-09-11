@@ -17,7 +17,13 @@ function ref(path: string): any {
 vi.mock('./firebase-admin.js', () => ({
   db: { collection: (name: string) => ({ doc: (id: string) => ref(`${name}/${id}`) }), runTransaction: async (run: any) => {
     h.beforeTransaction?.(); h.beforeTransaction = null;
-    const result = await run({ get: (r: any) => r.get(), set: (r: any, data: any) => h.docs.set(r.path, structuredClone(data)) });
+    const result = await run({
+      get: (r: any) => r.get(),
+      set: (r: any, data: any, options?: { merge?: boolean }) => {
+        const next = structuredClone(data);
+        h.docs.set(r.path, options?.merge ? { ...(h.docs.get(r.path) || {}), ...next } : next);
+      },
+    });
     if (h.failAfterCommit) { h.failAfterCommit = false; throw new Error('Risposta persa dopo commit'); }
     return result;
   } },
@@ -328,6 +334,23 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     const other = MOCKUP_MODEL.variants[1];
     expect((await save(base, { revision: 1, configuration: { ...configuration, materialId: other.id }, selection, offerRevision: 1 }, 'client')).status).toBe(409);
     expect((await save(base, { revision: 1, configuration, selection, offerRevision: 0 }, 'client')).status).toBe(409);
+  });
+
+  it('eredita il modello fisso del fotolibro nelle versioni senza una proposta duplicata', async () => {
+    await publish(base);
+    h.docs.get('photobooks/book').mockupModelMode = 'fixed';
+    h.docs.get('photobooks/book').mockupModelSelection = selection;
+    h.docs.get('photobooks/book').currentVersion = 2;
+    h.docs.delete('photobooks/book/mockupOffers/v2');
+    h.docs.set(`photobooks/book/mockupAssets/${photoId}`, { version: 2, storagePath: 'own-photo-v2.jpg' });
+    const payload = await fetch(`${base}/admin?version=2`).then(r => r.json());
+    expect(payload).toMatchObject({
+      modelMode: 'fixed',
+      modelSelection: selection,
+      offerInherited: true,
+      offer: { mode: 'fixed', options: [{ labId: 'lab', id: entryId }] },
+    });
+    expect((await save(base, { revision: 0, configuration, selection, offerRevision: 1 }, 'admin', 2)).status).toBe(200);
   });
   it('non permette al cliente di pubblicare, confermare, allegare o vedere lo storico', async () => {
     await publish(base);
