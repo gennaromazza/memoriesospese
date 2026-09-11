@@ -321,7 +321,7 @@ export default function ImageExperiencePage() {
               {realWeddings.map(story => (
                 <a key={story.slug} href={`/real-wedding/${encodeURIComponent(story.slug)}`} className="ie-real-wedding-card">
                   {story.coverImage && (
-                    <img src={story.coverImage} alt="" loading="lazy" className="wedding-cover-image" style={weddingCoverPositionStyle(story.coverPhotoPosition, story.coverPhotoMobilePosition)} />
+                    <img src={story.coverImage} alt="" loading="lazy" className="wedding-cover-card-image" style={weddingCoverPositionStyle(story.coverPhotoPosition, story.coverPhotoMobilePosition, story.coverPhotoCardPosition, story.coverPhotoCardMobilePosition)} />
                   )}
                   <span className="ie-real-wedding-body">
                     <strong>{story.title}</strong>

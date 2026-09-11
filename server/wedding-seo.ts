@@ -246,6 +246,12 @@ export function storyFromDocument(
   const coverPhotoMobilePosition = normalizeWeddingCoverPosition(
     hasCurrentDraftSelection ? data.draftCoverPhotoMobilePosition : data.coverPhotoMobilePosition,
   );
+  const coverPhotoCardPosition = normalizeWeddingCoverPosition(
+    hasCurrentDraftSelection ? data.draftCoverPhotoCardPosition : data.coverPhotoCardPosition,
+  ) || coverPhotoPosition;
+  const coverPhotoCardMobilePosition = normalizeWeddingCoverPosition(
+    hasCurrentDraftSelection ? data.draftCoverPhotoCardMobilePosition : data.coverPhotoCardMobilePosition,
+  ) || coverPhotoMobilePosition || coverPhotoCardPosition;
   const selectedPhotoIds = Array.isArray(selectedPhotoIdsSource)
     ? [...new Set(selectedPhotoIdsSource.map(String))].slice(0, MAX_WEDDING_STORY_PHOTOS)
     : [];
@@ -270,6 +276,8 @@ export function storyFromDocument(
     coverPhotoId: coverPhotoIdSource ? String(coverPhotoIdSource) : undefined,
     coverPhotoPosition,
     coverPhotoMobilePosition,
+    coverPhotoCardPosition,
+    coverPhotoCardMobilePosition,
     approvedSourceIds: Array.isArray(data.approvedSourceIds) ? data.approvedSourceIds : [],
     createdAt: jsonTimestamp(data.createdAt),
     updatedAt: jsonTimestamp(data.updatedAt),
@@ -862,6 +870,8 @@ export function validateWeddingStoryInput(body: Record<string, any>, publish: bo
   const photoAltTexts = normalizePhotoAltTexts(body.photoAltTexts, selectedPhotoIds);
   const coverPhotoPosition = normalizeWeddingCoverPosition(body.coverPhotoPosition);
   const coverPhotoMobilePosition = normalizeWeddingCoverPosition(body.coverPhotoMobilePosition);
+  const coverPhotoCardPosition = normalizeWeddingCoverPosition(body.coverPhotoCardPosition);
+  const coverPhotoCardMobilePosition = normalizeWeddingCoverPosition(body.coverPhotoCardMobilePosition);
   const approvedSourceIds = [...new Set(Array.isArray(body.approvedSourceIds) ? body.approvedSourceIds.map(String) : [])]
     .slice(0, MAX_SOURCES);
 
@@ -885,6 +895,12 @@ export function validateWeddingStoryInput(body: Record<string, any>, publish: bo
     ...(Object.prototype.hasOwnProperty.call(body, 'coverPhotoMobilePosition') && coverPhotoMobilePosition
       ? { coverPhotoMobilePosition }
       : {}),
+    ...(Object.prototype.hasOwnProperty.call(body, 'coverPhotoCardPosition') && coverPhotoCardPosition
+      ? { coverPhotoCardPosition }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(body, 'coverPhotoCardMobilePosition') && coverPhotoCardMobilePosition
+      ? { coverPhotoCardMobilePosition }
+      : {}),
     approvedSourceIds,
   };
 }
@@ -899,6 +915,8 @@ export function validateWeddingStorySelectionInput(body: Record<string, any>) {
   const photoAltTexts = normalizePhotoAltTexts(body.photoAltTexts, selectedPhotoIds);
   const coverPhotoPosition = normalizeWeddingCoverPosition(body.coverPhotoPosition);
   const coverPhotoMobilePosition = normalizeWeddingCoverPosition(body.coverPhotoMobilePosition);
+  const coverPhotoCardPosition = normalizeWeddingCoverPosition(body.coverPhotoCardPosition);
+  const coverPhotoCardMobilePosition = normalizeWeddingCoverPosition(body.coverPhotoCardMobilePosition);
   return {
     selectedPhotoIds,
     ...(Object.prototype.hasOwnProperty.call(body, 'photoAltTexts') ? { photoAltTexts } : {}),
@@ -908,6 +926,12 @@ export function validateWeddingStorySelectionInput(body: Record<string, any>) {
       : {}),
     ...(Object.prototype.hasOwnProperty.call(body, 'coverPhotoMobilePosition') && coverPhotoMobilePosition
       ? { coverPhotoMobilePosition }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(body, 'coverPhotoCardPosition') && coverPhotoCardPosition
+      ? { coverPhotoCardPosition }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(body, 'coverPhotoCardMobilePosition') && coverPhotoCardMobilePosition
+      ? { coverPhotoCardMobilePosition }
       : {}),
   };
 }
@@ -1605,6 +1629,8 @@ export function toPublicWeddingStory(
     vendors,
     coverPhotoPosition: story.coverPhotoPosition,
     coverPhotoMobilePosition: story.coverPhotoMobilePosition,
+    coverPhotoCardPosition: story.coverPhotoCardPosition,
+    coverPhotoCardMobilePosition: story.coverPhotoCardMobilePosition,
   };
 }
 
@@ -1635,6 +1661,8 @@ router.get('/public', async (req: Request, res: Response) => {
         coverImage: photos[0]?.url || undefined,
         coverPhotoPosition: story.coverPhotoPosition,
         coverPhotoMobilePosition: story.coverPhotoMobilePosition,
+        coverPhotoCardPosition: story.coverPhotoCardPosition,
+        coverPhotoCardMobilePosition: story.coverPhotoCardMobilePosition,
       };
       return preview;
     }));
@@ -1769,6 +1797,8 @@ router.put('/gallery/:galleryId', async (req: Request, res: Response) => {
       draftCoverPhotoId: FieldValue.delete(),
       draftCoverPhotoPosition: FieldValue.delete(),
       draftCoverPhotoMobilePosition: FieldValue.delete(),
+      draftCoverPhotoCardPosition: FieldValue.delete(),
+      draftCoverPhotoCardMobilePosition: FieldValue.delete(),
     };
     if (!previous.exists) payload.createdAt = FieldValue.serverTimestamp();
     if (status === 'published') {
@@ -1806,6 +1836,8 @@ router.put('/gallery/:galleryId/selection', async (req: Request, res: Response) 
       draftCoverPhotoId: input.coverPhotoId || FieldValue.delete(),
       ...(input.coverPhotoPosition ? { draftCoverPhotoPosition: input.coverPhotoPosition } : {}),
       ...(input.coverPhotoMobilePosition ? { draftCoverPhotoMobilePosition: input.coverPhotoMobilePosition } : {}),
+      ...(input.coverPhotoCardPosition ? { draftCoverPhotoCardPosition: input.coverPhotoCardPosition } : {}),
+      ...(input.coverPhotoCardMobilePosition ? { draftCoverPhotoCardMobilePosition: input.coverPhotoCardMobilePosition } : {}),
       draftSelectionUpdatedAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
       updatedBy: (req as any).user?.email || '',

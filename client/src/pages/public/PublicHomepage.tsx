@@ -67,6 +67,8 @@ type HomepageEditorialCard = {
   coverImage?: string;
   coverPhotoPosition?: PublicWeddingStoryPreview['coverPhotoPosition'];
   coverPhotoMobilePosition?: PublicWeddingStoryPreview['coverPhotoMobilePosition'];
+  coverPhotoCardPosition?: PublicWeddingStoryPreview['coverPhotoCardPosition'];
+  coverPhotoCardMobilePosition?: PublicWeddingStoryPreview['coverPhotoCardMobilePosition'];
   href: string;
   kind: 'blog' | 'real-wedding';
 };
@@ -191,6 +193,8 @@ export default function PublicHomepage() {
         coverImage: story.coverImage,
          coverPhotoPosition: story.coverPhotoPosition,
          coverPhotoMobilePosition: story.coverPhotoMobilePosition,
+         coverPhotoCardPosition: story.coverPhotoCardPosition,
+         coverPhotoCardMobilePosition: story.coverPhotoCardMobilePosition,
         href: `/real-wedding/${story.slug}`,
         kind: 'real-wedding',
       }));
@@ -1070,12 +1074,12 @@ export default function PublicHomepage() {
                   <Link key={post.id} href={post.href}>
                     <div className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 cursor-pointer group h-full flex flex-col">
                       {post.coverImage && (
-                        <div className="overflow-hidden bg-beige h-48">
+                         <div className="aspect-[4/3] overflow-hidden bg-beige">
                           <img
                             src={post.coverImage}
                             alt={post.title}
-                             className="wedding-cover-image w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                             style={weddingCoverPositionStyle(post.coverPhotoPosition, post.coverPhotoMobilePosition)}
+                             className="wedding-cover-card-image w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                             style={weddingCoverPositionStyle(post.coverPhotoPosition, post.coverPhotoMobilePosition, post.coverPhotoCardPosition, post.coverPhotoCardMobilePosition)}
                             loading="lazy"
                           />
                         </div>

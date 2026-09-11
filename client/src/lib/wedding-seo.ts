@@ -15,16 +15,26 @@ const DEFAULT_COVER_POSITION = '50% 50%';
 export function weddingCoverPositionStyle(
   desktopPosition?: { x: number; y: number },
   mobilePosition?: { x: number; y: number },
+  cardDesktopPosition?: { x: number; y: number },
+  cardMobilePosition?: { x: number; y: number },
 ): CSSProperties {
+  const desktop = desktopPosition
+    ? `${desktopPosition.x}% ${desktopPosition.y}%`
+    : DEFAULT_COVER_POSITION;
+  const mobile = mobilePosition
+    ? `${mobilePosition.x}% ${mobilePosition.y}%`
+    : desktop;
+  const cardDesktop = cardDesktopPosition
+    ? `${cardDesktopPosition.x}% ${cardDesktopPosition.y}%`
+    : desktop;
+  const cardMobile = cardMobilePosition
+    ? `${cardMobilePosition.x}% ${cardMobilePosition.y}%`
+    : cardDesktop;
   return {
-    '--wedding-cover-position-desktop': desktopPosition
-      ? `${desktopPosition.x}% ${desktopPosition.y}%`
-      : DEFAULT_COVER_POSITION,
-    '--wedding-cover-position-mobile': mobilePosition
-      ? `${mobilePosition.x}% ${mobilePosition.y}%`
-      : desktopPosition
-        ? `${desktopPosition.x}% ${desktopPosition.y}%`
-        : DEFAULT_COVER_POSITION,
+    '--wedding-cover-position-desktop': desktop,
+    '--wedding-cover-position-mobile': mobile,
+    '--wedding-cover-card-position-desktop': cardDesktop,
+    '--wedding-cover-card-position-mobile': cardMobile,
   } as CSSProperties;
 }
 
@@ -76,12 +86,16 @@ export async function saveWeddingStorySelection(
   photoAltTexts?: Record<string, string>,
   coverPhotoPosition?: WeddingCoverPosition,
   coverPhotoMobilePosition?: WeddingCoverPosition,
+  coverPhotoCardPosition?: WeddingCoverPosition,
+  coverPhotoCardMobilePosition?: WeddingCoverPosition,
 ): Promise<{
   selectedPhotoIds: string[];
   coverPhotoId?: string;
   photoAltTexts?: Record<string, string>;
   coverPhotoPosition?: WeddingCoverPosition;
   coverPhotoMobilePosition?: WeddingCoverPosition;
+  coverPhotoCardPosition?: WeddingCoverPosition;
+  coverPhotoCardMobilePosition?: WeddingCoverPosition;
 }> {
   const response = await apiRequest(
     'PUT',
@@ -92,6 +106,8 @@ export async function saveWeddingStorySelection(
       ...(photoAltTexts === undefined ? {} : { photoAltTexts }),
       ...(coverPhotoPosition === undefined ? {} : { coverPhotoPosition }),
       ...(coverPhotoMobilePosition === undefined ? {} : { coverPhotoMobilePosition }),
+      ...(coverPhotoCardPosition === undefined ? {} : { coverPhotoCardPosition }),
+      ...(coverPhotoCardMobilePosition === undefined ? {} : { coverPhotoCardMobilePosition }),
     },
   );
   return responseJson<{
@@ -100,6 +116,8 @@ export async function saveWeddingStorySelection(
     photoAltTexts?: Record<string, string>;
     coverPhotoPosition?: WeddingCoverPosition;
     coverPhotoMobilePosition?: WeddingCoverPosition;
+    coverPhotoCardPosition?: WeddingCoverPosition;
+    coverPhotoCardMobilePosition?: WeddingCoverPosition;
   }>(response);
 }
 

@@ -25,6 +25,8 @@ type EditorialCard = {
   coverImageAlt?: string;
   coverPhotoPosition?: PublicWeddingStoryPreview['coverPhotoPosition'];
   coverPhotoMobilePosition?: PublicWeddingStoryPreview['coverPhotoMobilePosition'];
+  coverPhotoCardPosition?: PublicWeddingStoryPreview['coverPhotoCardPosition'];
+  coverPhotoCardMobilePosition?: PublicWeddingStoryPreview['coverPhotoCardMobilePosition'];
   category: string;
   tags: string[];
   href: string;
@@ -88,6 +90,8 @@ export default function BlogListPage() {
         coverImage: story.coverImage,
          coverPhotoPosition: story.coverPhotoPosition,
          coverPhotoMobilePosition: story.coverPhotoMobilePosition,
+         coverPhotoCardPosition: story.coverPhotoCardPosition,
+         coverPhotoCardMobilePosition: story.coverPhotoCardMobilePosition,
         category: 'Real Wedding',
         tags: ['matrimonio'],
         href: `/real-wedding/${story.slug}`,
@@ -296,8 +300,8 @@ export default function BlogListPage() {
                         <img 
                           src={post.coverImage} 
                           alt={post.coverImageAlt || post.title}
-                           className="wedding-cover-image w-full h-auto object-cover hover:scale-105 transition-transform duration-500"
-                           style={weddingCoverPositionStyle(post.coverPhotoPosition, post.coverPhotoMobilePosition)}
+                           className="wedding-cover-card-image aspect-[4/3] w-full object-cover hover:scale-105 transition-transform duration-500"
+                           style={weddingCoverPositionStyle(post.coverPhotoPosition, post.coverPhotoMobilePosition, post.coverPhotoCardPosition, post.coverPhotoCardMobilePosition)}
                           loading="lazy"
                         />
                       </div>

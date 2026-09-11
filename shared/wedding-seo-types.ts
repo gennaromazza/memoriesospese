@@ -45,6 +45,10 @@ export interface WeddingSeoStory {
   coverPhotoPosition?: WeddingCoverPosition;
   /** Punto focale della copertina per i layout smartphone. */
   coverPhotoMobilePosition?: WeddingCoverPosition;
+  /** Punto focale della copertina per le card editoriali desktop. */
+  coverPhotoCardPosition?: WeddingCoverPosition;
+  /** Punto focale della copertina per le card editoriali smartphone. */
+  coverPhotoCardMobilePosition?: WeddingCoverPosition;
   approvedSourceIds: string[];
   createdAt?: any;
   updatedAt?: any;
@@ -131,6 +135,8 @@ export interface PublicWeddingStory {
   vendors: WeddingStoryVendor[];
   coverPhotoPosition?: WeddingCoverPosition;
   coverPhotoMobilePosition?: WeddingCoverPosition;
+  coverPhotoCardPosition?: WeddingCoverPosition;
+  coverPhotoCardMobilePosition?: WeddingCoverPosition;
 }
 
 /** Dati minimi, privi di informazioni riservate, per le liste editoriali pubbliche. */
@@ -142,4 +148,6 @@ export interface PublicWeddingStoryPreview {
   coverImage?: string;
   coverPhotoPosition?: WeddingCoverPosition;
   coverPhotoMobilePosition?: WeddingCoverPosition;
+  coverPhotoCardPosition?: WeddingCoverPosition;
+  coverPhotoCardMobilePosition?: WeddingCoverPosition;
 }

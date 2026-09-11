@@ -142,6 +142,19 @@ describe('Real Wedding editorial safety', () => {
     expect(currentDraft.coverPhotoId).toBe('new-photo');
   });
 
+  it('falls back to hero focal points for legacy card layouts', () => {
+    const story = storyFromDocument('gallery-1', {
+      galleryId: 'gallery-1',
+      selectedPhotoIds: ['photo-1'],
+      coverPhotoId: 'photo-1',
+      coverPhotoPosition: { x: 22, y: 34 },
+      coverPhotoMobilePosition: { x: 68, y: 46 },
+    });
+
+    expect(story.coverPhotoCardPosition).toEqual({ x: 22, y: 34 });
+    expect(story.coverPhotoCardMobilePosition).toEqual({ x: 68, y: 46 });
+  });
+
   it('uses the direct Gemini vision model and Google OpenAI-compatible endpoint', () => {
     expect(GEMINI_BASE_URL).toBe('https://generativelanguage.googleapis.com/v1beta/openai');
     expect(GEMINI_MODEL).toBe('gemini-3.5-flash');
@@ -927,6 +940,23 @@ describe('Real Wedding editorial safety', () => {
 
     expect(validateWeddingStoryInput({ ...fields, coverPhotoId: 'p2' }, false).coverPhotoId).toBe('p2');
     expect(validateWeddingStoryInput({ ...fields, coverPhotoId: 'photo-estranea' }, false).coverPhotoId).toBe('p1');
+  });
+
+  it('normalizes independent focal points for hero and editorial cards', () => {
+    const result = validateWeddingStoryInput({
+      title: 'Anna e Luca',
+      story: 'Bozza iniziale',
+      selectedPhotoIds: ['p1'],
+      coverPhotoPosition: { x: 12.4, y: 98.8 },
+      coverPhotoMobilePosition: { x: -5, y: 45 },
+      coverPhotoCardPosition: { x: 65, y: 30 },
+      coverPhotoCardMobilePosition: { x: 120, y: 50 },
+    }, false);
+
+    expect(result.coverPhotoPosition).toEqual({ x: 12, y: 99 });
+    expect(result.coverPhotoMobilePosition).toEqual({ x: 0, y: 45 });
+    expect(result.coverPhotoCardPosition).toEqual({ x: 65, y: 30 });
+    expect(result.coverPhotoCardMobilePosition).toEqual({ x: 100, y: 50 });
   });
 
   it('removes private and operational references from the public projection', () => {

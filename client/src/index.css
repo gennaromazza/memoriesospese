@@ -12,9 +12,17 @@
   object-position: var(--wedding-cover-position-desktop, 50% 50%);
 }
 
+.wedding-cover-card-image {
+  object-position: var(--wedding-cover-card-position-desktop, 50% 50%);
+}
+
 @media (max-width: 639px) {
   .wedding-cover-image {
     object-position: var(--wedding-cover-position-mobile, 50% 50%);
+  }
+
+  .wedding-cover-card-image {
+    object-position: var(--wedding-cover-card-position-mobile, 50% 50%);
   }
 }
 
