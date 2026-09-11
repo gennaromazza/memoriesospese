@@ -47,7 +47,7 @@ import { useSEO } from "@/hooks/useSEO";
 import { WEDDING_HOME_SEO } from "@shared/public-seo-content";
 import { resolveHomepageContent } from "@shared/homepage-content";
 import { instagramHandle, normalizeSocialUrl } from "@/lib/social-links";
-import { getPublicWeddingStoryPreviews } from "@/lib/wedding-seo";
+import { getPublicWeddingStoryPreviews, weddingCoverPositionStyle } from "@/lib/wedding-seo";
 import type { PublicWeddingStoryPreview } from "@shared/wedding-seo-types";
 
 interface PortfolioPhoto {
@@ -65,6 +65,8 @@ type HomepageEditorialCard = {
   excerpt: string;
   publishedAt?: any;
   coverImage?: string;
+  coverPhotoPosition?: PublicWeddingStoryPreview['coverPhotoPosition'];
+  coverPhotoMobilePosition?: PublicWeddingStoryPreview['coverPhotoMobilePosition'];
   href: string;
   kind: 'blog' | 'real-wedding';
 };
@@ -187,6 +189,8 @@ export default function PublicHomepage() {
         excerpt: story.excerpt,
         publishedAt: story.publishedAt,
         coverImage: story.coverImage,
+         coverPhotoPosition: story.coverPhotoPosition,
+         coverPhotoMobilePosition: story.coverPhotoMobilePosition,
         href: `/real-wedding/${story.slug}`,
         kind: 'real-wedding',
       }));
@@ -1070,7 +1074,8 @@ export default function PublicHomepage() {
                           <img
                             src={post.coverImage}
                             alt={post.title}
-                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                             className="wedding-cover-image w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                             style={weddingCoverPositionStyle(post.coverPhotoPosition, post.coverPhotoMobilePosition)}
                             loading="lazy"
                           />
                         </div>

@@ -8,6 +8,16 @@
   content-visibility: auto;
 }
 
+.wedding-cover-image {
+  object-position: var(--wedding-cover-position-desktop, 50% 50%);
+}
+
+@media (max-width: 639px) {
+  .wedding-cover-image {
+    object-position: var(--wedding-cover-position-mobile, 50% 50%);
+  }
+}
+
 /* Navbar semitrasparente quando galleria mobile è in fullscreen */
 body.mobile-gallery-fullscreen .mobile-gallery-nav {
   position: fixed;

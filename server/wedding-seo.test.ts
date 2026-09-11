@@ -40,6 +40,7 @@ import {
   MAX_WEDDING_DRAFT_ATTEMPTS,
   MAX_WEDDING_STORY_PHOTOS,
   loadWeddingVendorReviews,
+  normalizeWeddingCoverPosition,
   slugifyWeddingStory,
   storyFromDocument,
   toPublicWeddingStory,
@@ -63,6 +64,12 @@ function repeatedWords(count: number): string {
 }
 
 describe('Real Wedding editorial safety', () => {
+  it('normalizes cover focal points to the safe 0-100 range', () => {
+    expect(normalizeWeddingCoverPosition({ x: 120.4, y: -8 })).toEqual({ x: 100, y: 0 });
+    expect(normalizeWeddingCoverPosition({ x: '35', y: '64' })).toEqual({ x: 35, y: 64 });
+    expect(normalizeWeddingCoverPosition({ x: 'invalid', y: 50 })).toBeUndefined();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.unstubAllGlobals();

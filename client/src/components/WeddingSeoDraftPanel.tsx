@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import type { Gallery } from '@/lib/galleries';
 import type { Photo } from '@/lib/photos';
 import {
   WEDDING_STORY_LIMITS,
+  type WeddingCoverPosition,
   type WeddingSeoStory,
   type WeddingStorySource,
   type WeddingVendorReview,
@@ -74,13 +75,22 @@ function sourceValue(source: WeddingStorySource): string {
 }
 
 const MAX_WEDDING_STORY_PHOTOS = 12;
+const DEFAULT_COVER_POSITION: WeddingCoverPosition = { x: 50, y: 50 };
 
 function photoSelectionSignature(
   photoIds: string[],
   coverPhotoId?: string,
   photoAltTexts: Record<string, string> = {},
+  coverPhotoPosition: WeddingCoverPosition = DEFAULT_COVER_POSITION,
+  coverPhotoMobilePosition: WeddingCoverPosition = DEFAULT_COVER_POSITION,
 ): string {
-  return JSON.stringify({ photoIds, coverPhotoId: coverPhotoId || '', photoAltTexts });
+  return JSON.stringify({
+    photoIds,
+    coverPhotoId: coverPhotoId || '',
+    photoAltTexts,
+    coverPhotoPosition,
+    coverPhotoMobilePosition,
+  });
 }
 
 export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
@@ -93,7 +103,11 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
   const [selectedSourceIds, setSelectedSourceIds] = useState<Set<string>>(new Set());
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
   const [coverPhotoId, setCoverPhotoId] = useState<string>();
+  const [coverPhotoPosition, setCoverPhotoPosition] = useState<WeddingCoverPosition>(DEFAULT_COVER_POSITION);
+  const [coverPhotoMobilePosition, setCoverPhotoMobilePosition] = useState<WeddingCoverPosition>(DEFAULT_COVER_POSITION);
   const [photoAltTexts, setPhotoAltTexts] = useState<Record<string, string>>({});
+  const [coverEditorOpen, setCoverEditorOpen] = useState(false);
+  const [coverEditorMode, setCoverEditorMode] = useState<'desktop' | 'mobile'>('desktop');
   const [activeChapterId, setActiveChapterId] = useState('__all__');
   const [warning, setWarning] = useState<string>();
   const [loading, setLoading] = useState(true);
@@ -138,18 +152,24 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
           setSelectedSourceIds(new Set(context.story.approvedSourceIds));
           setSelectedPhotoIds(new Set(initialPhotoIds));
           setCoverPhotoId(initialCoverPhotoId);
-            setPhotoAltTexts(context.story.photoAltTexts || {});
-            lastSavedSelection.current = photoSelectionSignature(
-              initialPhotoIds,
-              initialCoverPhotoId,
-              context.story.photoAltTexts || {},
-            );
+           setCoverPhotoPosition(context.story.coverPhotoPosition || DEFAULT_COVER_POSITION);
+           setCoverPhotoMobilePosition(context.story.coverPhotoMobilePosition || context.story.coverPhotoPosition || DEFAULT_COVER_POSITION);
+           setPhotoAltTexts(context.story.photoAltTexts || {});
+           lastSavedSelection.current = photoSelectionSignature(
+             initialPhotoIds,
+             initialCoverPhotoId,
+             context.story.photoAltTexts || {},
+             context.story.coverPhotoPosition || DEFAULT_COVER_POSITION,
+             context.story.coverPhotoMobilePosition || context.story.coverPhotoPosition || DEFAULT_COVER_POSITION,
+           );
         } else {
           setSlugIsCustom(false);
           setSelectedPhotoIds(new Set());
           setCoverPhotoId(undefined);
-            setPhotoAltTexts({});
-          lastSavedSelection.current = photoSelectionSignature([]);
+           setCoverPhotoPosition(DEFAULT_COVER_POSITION);
+           setCoverPhotoMobilePosition(DEFAULT_COVER_POSITION);
+           setPhotoAltTexts({});
+           lastSavedSelection.current = photoSelectionSignature([]);
         }
         selectionInitialized.current = true;
       })
@@ -223,6 +243,20 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
   const validCoverPhotoId = coverPhotoId && validSelectedPhotoIds.includes(coverPhotoId)
     ? coverPhotoId
     : validSelectedPhotoIds[0];
+  const coverPhoto = photos.find(photo => photo.id === validCoverPhotoId);
+  const activeCoverPosition = coverEditorMode === 'desktop' ? coverPhotoPosition : coverPhotoMobilePosition;
+  const updateCoverPosition = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const position = {
+      x: Math.round(Math.max(0, Math.min(100, ((event.clientX - bounds.left) / bounds.width) * 100))),
+      y: Math.round(Math.max(0, Math.min(100, ((event.clientY - bounds.top) / bounds.height) * 100))),
+    };
+    if (coverEditorMode === 'desktop') setCoverPhotoPosition(position);
+    else setCoverPhotoMobilePosition(position);
+  };
+  const coverPositionStyle = (position: WeddingCoverPosition) => ({
+    objectPosition: `${position.x}% ${position.y}%`,
+  });
   const validPhotoAltTexts = Object.fromEntries(
     validSelectedPhotoIds
       .map(photoId => [photoId, String(photoAltTexts[photoId] || '').trim().slice(0, 200)] as const)
@@ -245,23 +279,41 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
       };
     }));
   const storyBlocks = useMemo(() => parseWeddingStoryMarkdown(draft.story), [draft.story]);
-  const currentSelectionSignature = photoSelectionSignature(validSelectedPhotoIds, validCoverPhotoId, validPhotoAltTexts);
+  const currentSelectionSignature = photoSelectionSignature(
+    validSelectedPhotoIds,
+    validCoverPhotoId,
+    validPhotoAltTexts,
+    coverPhotoPosition,
+    coverPhotoMobilePosition,
+  );
 
   useEffect(() => {
     if (loading || !selectionInitialized.current || currentSelectionSignature === lastSavedSelection.current) return;
     setSelectionSaveState('saving');
     const timer = window.setTimeout(() => {
-      const selection = JSON.parse(currentSelectionSignature) as { photoIds: string[]; coverPhotoId: string; photoAltTexts: Record<string, string> };
+      const selection = JSON.parse(currentSelectionSignature) as {
+        photoIds: string[];
+        coverPhotoId: string;
+        photoAltTexts: Record<string, string>;
+        coverPhotoPosition: WeddingCoverPosition;
+        coverPhotoMobilePosition: WeddingCoverPosition;
+      };
       const saveVersion = ++selectionSaveVersion.current;
       const request = selectionSaveQueue.current.then(
-         () => saveWeddingStorySelection(gallery.id, selection.photoIds, selection.coverPhotoId || undefined, selection.photoAltTexts),
-         () => saveWeddingStorySelection(gallery.id, selection.photoIds, selection.coverPhotoId || undefined, selection.photoAltTexts),
+         () => saveWeddingStorySelection(gallery.id, selection.photoIds, selection.coverPhotoId || undefined, selection.photoAltTexts, selection.coverPhotoPosition, selection.coverPhotoMobilePosition),
+         () => saveWeddingStorySelection(gallery.id, selection.photoIds, selection.coverPhotoId || undefined, selection.photoAltTexts, selection.coverPhotoPosition, selection.coverPhotoMobilePosition),
       );
       selectionSaveQueue.current = request.then(() => undefined, () => undefined);
       request
         .then(saved => {
           if (saveVersion !== selectionSaveVersion.current) return;
-           lastSavedSelection.current = photoSelectionSignature(saved.selectedPhotoIds, saved.coverPhotoId, saved.photoAltTexts || {});
+           lastSavedSelection.current = photoSelectionSignature(
+             saved.selectedPhotoIds,
+             saved.coverPhotoId,
+             saved.photoAltTexts || {},
+             saved.coverPhotoPosition || DEFAULT_COVER_POSITION,
+             saved.coverPhotoMobilePosition || saved.coverPhotoPosition || DEFAULT_COVER_POSITION,
+           );
           setSelectionSaveState('saved');
         })
         .catch(() => {
@@ -300,7 +352,11 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
         delete nextAltTexts[photoId];
         return nextAltTexts;
       });
-      if (coverPhotoId === photoId) setCoverPhotoId([...next][0]);
+      if (coverPhotoId === photoId) {
+        setCoverPhotoId([...next][0]);
+        setCoverPhotoPosition(DEFAULT_COVER_POSITION);
+        setCoverPhotoMobilePosition(DEFAULT_COVER_POSITION);
+      }
     } else if (validSelectedPhotoIds.length < MAX_WEDDING_STORY_PHOTOS) {
       next.add(photoId);
       if (!coverPhotoId) setCoverPhotoId(photoId);
@@ -318,6 +374,10 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
         return;
       }
       setSelectedPhotoIds(new Set(selectedPhotoIds).add(photoId));
+    }
+    if (coverPhotoId !== photoId) {
+      setCoverPhotoPosition(DEFAULT_COVER_POSITION);
+      setCoverPhotoMobilePosition(DEFAULT_COVER_POSITION);
     }
     setCoverPhotoId(photoId);
   };
@@ -390,6 +450,8 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
         selectedPhotoIds: validSelectedPhotoIds,
         photoAltTexts: validPhotoAltTexts,
         coverPhotoId: validCoverPhotoId,
+         coverPhotoPosition,
+         coverPhotoMobilePosition,
         approvedSourceIds: validSelectedSourceIds,
       });
       setDraft({
@@ -402,6 +464,8 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
       });
       setStatus(saved.status);
       setCoverPhotoId(saved.coverPhotoId || saved.selectedPhotoIds[0]);
+       setCoverPhotoPosition(saved.coverPhotoPosition || DEFAULT_COVER_POSITION);
+       setCoverPhotoMobilePosition(saved.coverPhotoMobilePosition || saved.coverPhotoPosition || DEFAULT_COVER_POSITION);
       setPhotoAltTexts(saved.photoAltTexts || {});
       const publicStoryUrl = createUrl(`/real-wedding/${saved.slug}`);
       toast({
@@ -646,6 +710,22 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
           <CardDescription>
             Seleziona fino a {MAX_WEDDING_STORY_PHOTOS} foto e usa la stella per scegliere la copertina del blog. Selezionate {validSelectedPhotoIds.length}/{MAX_WEDDING_STORY_PHOTOS}.
           </CardDescription>
+           {coverPhoto && (
+             <div className="flex flex-wrap items-center gap-3 pt-2">
+               <Button
+                 type="button"
+                 variant="outline"
+                 size="sm"
+                 onClick={() => setCoverEditorOpen(true)}
+               >
+                 <ImageIcon className="mr-2 h-4 w-4" />
+                 Posiziona copertina
+               </Button>
+               <span className="text-xs text-gray-500">
+                 Copertina: {coverPhoto.name} · desktop {coverPhotoPosition.x}%/{coverPhotoPosition.y}% · mobile {coverPhotoMobilePosition.x}%/{coverPhotoMobilePosition.y}%
+               </span>
+             </div>
+           )}
           <p className={`text-xs ${selectionSaveState === 'error' ? 'text-red-600' : 'text-gray-500'}`}>
             {selectionSaveState === 'saving' && 'Salvataggio automatico della selezione…'}
              {selectionSaveState === 'saved' && 'Selezione foto, copertina e testi alternativi salvati automaticamente.'}
@@ -748,6 +828,108 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
            <p className="mt-3 text-xs text-gray-500">Il testo alt è associato alla foto quando la selezioni per la storia. Se lasciato vuoto, la pagina userà il capitolo o il titolo della storia come fallback.</p>
         </CardContent>
       </Card>
+
+       <Dialog open={coverEditorOpen} onOpenChange={setCoverEditorOpen}>
+         <DialogContent className="max-h-[92vh] max-w-6xl overflow-y-auto">
+           <DialogHeader>
+             <DialogTitle>Posiziona la copertina</DialogTitle>
+             <DialogDescription>
+               Clicca o trascina il punto focale sull’immagine. Le due posizioni vengono applicate automaticamente ai ritagli desktop e smartphone del sito.
+             </DialogDescription>
+           </DialogHeader>
+           {coverPhoto && (
+             <div className="space-y-5">
+               <div className="flex flex-wrap gap-2">
+                 <Button
+                   type="button"
+                   size="sm"
+                   variant={coverEditorMode === 'desktop' ? 'default' : 'outline'}
+                   onClick={() => setCoverEditorMode('desktop')}
+                 >
+                   Desktop
+                 </Button>
+                 <Button
+                   type="button"
+                   size="sm"
+                   variant={coverEditorMode === 'mobile' ? 'default' : 'outline'}
+                   onClick={() => setCoverEditorMode('mobile')}
+                 >
+                   Smartphone
+                 </Button>
+                 <span className="self-center text-xs text-gray-500">
+                   Posizione {activeCoverPosition.x}% orizzontale · {activeCoverPosition.y}% verticale
+                 </span>
+               </div>
+
+               <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,.9fr)]">
+                 <div>
+                   <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                     Editor {coverEditorMode === 'desktop' ? 'desktop' : 'smartphone'}
+                   </p>
+                   <div
+                     className={`relative mx-auto max-h-[420px] w-full overflow-hidden rounded-xl border-2 border-sage/40 bg-gray-100 touch-none ${coverEditorMode === 'mobile' ? 'max-w-[280px] aspect-[9/16]' : 'aspect-[16/9]'}`}
+                     onPointerDown={event => {
+                       event.currentTarget.setPointerCapture(event.pointerId);
+                       updateCoverPosition(event);
+                     }}
+                     onPointerMove={event => {
+                       if (event.currentTarget.hasPointerCapture(event.pointerId)) updateCoverPosition(event);
+                     }}
+                   >
+                     <img
+                       src={coverPhoto.url}
+                       alt={coverPhoto.name}
+                       className="h-full w-full select-none object-cover"
+                       draggable={false}
+                       style={coverPositionStyle(activeCoverPosition)}
+                     />
+                     <div
+                       className="pointer-events-none absolute h-10 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-lg"
+                       style={{ left: `${activeCoverPosition.x}%`, top: `${activeCoverPosition.y}%` }}
+                     >
+                       <span className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white" />
+                     </div>
+                   </div>
+                   <p className="mt-2 text-center text-xs text-gray-500">Trascina o clicca sull’immagine per scegliere il soggetto da mantenere nel ritaglio.</p>
+                 </div>
+
+                 <div className="space-y-4">
+                   <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Anteprime reali</p>
+                   <div className="grid grid-cols-2 gap-3">
+                     <div className="space-y-1.5">
+                       <p className="text-xs font-medium text-gray-600">Hero storia · desktop</p>
+                       <div className="aspect-[16/9] overflow-hidden rounded-lg bg-gray-100">
+                         <img src={coverPhoto.url} alt="" className="h-full w-full object-cover" style={coverPositionStyle(coverPhotoPosition)} />
+                       </div>
+                     </div>
+                     <div className="space-y-1.5">
+                       <p className="text-xs font-medium text-gray-600">Hero storia · smartphone</p>
+                       <div className="aspect-[4/5] overflow-hidden rounded-lg bg-gray-100">
+                         <img src={coverPhoto.url} alt="" className="h-full w-full object-cover" style={coverPositionStyle(coverPhotoMobilePosition)} />
+                       </div>
+                     </div>
+                     <div className="space-y-1.5">
+                       <p className="text-xs font-medium text-gray-600">Card Blog/Home · desktop</p>
+                       <div className="aspect-[4/3] overflow-hidden rounded-lg bg-gray-100">
+                         <img src={coverPhoto.url} alt="" className="h-full w-full object-cover" style={coverPositionStyle(coverPhotoPosition)} />
+                       </div>
+                     </div>
+                     <div className="space-y-1.5">
+                       <p className="text-xs font-medium text-gray-600">Card Blog/Home · smartphone</p>
+                       <div className="aspect-[4/3] overflow-hidden rounded-lg bg-gray-100">
+                         <img src={coverPhoto.url} alt="" className="h-full w-full object-cover" style={coverPositionStyle(coverPhotoMobilePosition)} />
+                       </div>
+                     </div>
+                   </div>
+                 </div>
+               </div>
+               <div className="flex justify-end">
+                 <Button type="button" onClick={() => setCoverEditorOpen(false)}>Fatto</Button>
+               </div>
+             </div>
+           )}
+         </DialogContent>
+       </Dialog>
 
       <Dialog open={viewer !== null} onOpenChange={open => { if (!open) setViewer(null); }}>
         <DialogContent className="max-w-5xl">

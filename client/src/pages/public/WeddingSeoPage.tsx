@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'wouter';
 import { ArrowLeft, Camera, Loader2 } from 'lucide-react';
-import { getPublicWeddingStory } from '@/lib/wedding-seo';
+import { getPublicWeddingStory, weddingCoverPositionStyle } from '@/lib/wedding-seo';
 import type { PublicWeddingStory } from '@shared/wedding-seo-types';
 import { parseWeddingStoryMarkdown } from '@/lib/wedding-story-format';
 import WeddingStoryInline from '@/components/WeddingStoryInline';
@@ -62,7 +62,7 @@ export default function WeddingSeoPage() {
           {story.excerpt && <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-gray-600">{story.excerpt}</p>}
         </header>
 
-        {story.photos[0] && <img src={story.photos[0].url} alt={story.photos[0].alt || story.photos[0].chapterTitle || story.title} className="h-[55vh] w-full object-cover" />}
+        {story.photos[0] && <img src={story.photos[0].url} alt={story.photos[0].alt || story.photos[0].chapterTitle || story.title} className="wedding-cover-image h-[55vh] w-full object-cover" style={weddingCoverPositionStyle(story.coverPhotoPosition, story.coverPhotoMobilePosition)} />}
 
         <div className="mx-auto max-w-3xl space-y-12 px-6 py-16">
           {blocks.map((block, index) => (

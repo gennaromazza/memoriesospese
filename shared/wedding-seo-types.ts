@@ -20,6 +20,11 @@ export interface WeddingStorySource {
   legacyImported?: boolean;
 }
 
+export interface WeddingCoverPosition {
+  x: number;
+  y: number;
+}
+
 export interface WeddingSeoStory {
   id: string;
   galleryId: string;
@@ -36,6 +41,10 @@ export interface WeddingSeoStory {
   photoAltTexts?: Record<string, string>;
   /** Foto usata come hero della pagina e copertina nelle liste editoriali. */
   coverPhotoId?: string;
+  /** Punto focale della copertina per i layout desktop e fallback legacy. */
+  coverPhotoPosition?: WeddingCoverPosition;
+  /** Punto focale della copertina per i layout smartphone. */
+  coverPhotoMobilePosition?: WeddingCoverPosition;
   approvedSourceIds: string[];
   createdAt?: any;
   updatedAt?: any;
@@ -120,6 +129,8 @@ export interface PublicWeddingStory {
   publishedAt?: any;
   photos: WeddingStoryPhoto[];
   vendors: WeddingStoryVendor[];
+  coverPhotoPosition?: WeddingCoverPosition;
+  coverPhotoMobilePosition?: WeddingCoverPosition;
 }
 
 /** Dati minimi, privi di informazioni riservate, per le liste editoriali pubbliche. */
@@ -129,4 +140,6 @@ export interface PublicWeddingStoryPreview {
   excerpt: string;
   publishedAt?: any;
   coverImage?: string;
+  coverPhotoPosition?: WeddingCoverPosition;
+  coverPhotoMobilePosition?: WeddingCoverPosition;
 }

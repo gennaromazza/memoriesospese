@@ -1,12 +1,32 @@
 import { apiRequest } from './queryClient';
 import { createUrl } from './config';
+import type { CSSProperties } from 'react';
 import type {
   PublicWeddingStory,
   PublicWeddingStoryPreview,
+  WeddingCoverPosition,
   WeddingSeoStory,
   WeddingStoryEditorContext,
   WeddingVendorReview,
 } from '@shared/wedding-seo-types';
+
+const DEFAULT_COVER_POSITION = '50% 50%';
+
+export function weddingCoverPositionStyle(
+  desktopPosition?: { x: number; y: number },
+  mobilePosition?: { x: number; y: number },
+): CSSProperties {
+  return {
+    '--wedding-cover-position-desktop': desktopPosition
+      ? `${desktopPosition.x}% ${desktopPosition.y}%`
+      : DEFAULT_COVER_POSITION,
+    '--wedding-cover-position-mobile': mobilePosition
+      ? `${mobilePosition.x}% ${mobilePosition.y}%`
+      : desktopPosition
+        ? `${desktopPosition.x}% ${desktopPosition.y}%`
+        : DEFAULT_COVER_POSITION,
+  } as CSSProperties;
+}
 
 async function responseJson<T>(response: Response): Promise<T> {
   return await response.json() as T;
@@ -54,7 +74,15 @@ export async function saveWeddingStorySelection(
   selectedPhotoIds: string[],
   coverPhotoId?: string,
   photoAltTexts?: Record<string, string>,
-): Promise<{ selectedPhotoIds: string[]; coverPhotoId?: string; photoAltTexts?: Record<string, string> }> {
+  coverPhotoPosition?: WeddingCoverPosition,
+  coverPhotoMobilePosition?: WeddingCoverPosition,
+): Promise<{
+  selectedPhotoIds: string[];
+  coverPhotoId?: string;
+  photoAltTexts?: Record<string, string>;
+  coverPhotoPosition?: WeddingCoverPosition;
+  coverPhotoMobilePosition?: WeddingCoverPosition;
+}> {
   const response = await apiRequest(
     'PUT',
     `/api/wedding-seo/gallery/${encodeURIComponent(galleryId)}/selection`,
@@ -62,9 +90,17 @@ export async function saveWeddingStorySelection(
       selectedPhotoIds,
       coverPhotoId,
       ...(photoAltTexts === undefined ? {} : { photoAltTexts }),
+      ...(coverPhotoPosition === undefined ? {} : { coverPhotoPosition }),
+      ...(coverPhotoMobilePosition === undefined ? {} : { coverPhotoMobilePosition }),
     },
   );
-  return responseJson<{ selectedPhotoIds: string[]; coverPhotoId?: string; photoAltTexts?: Record<string, string> }>(response);
+  return responseJson<{
+    selectedPhotoIds: string[];
+    coverPhotoId?: string;
+    photoAltTexts?: Record<string, string>;
+    coverPhotoPosition?: WeddingCoverPosition;
+    coverPhotoMobilePosition?: WeddingCoverPosition;
+  }>(response);
 }
 
 export async function generateWeddingStoryDraft(

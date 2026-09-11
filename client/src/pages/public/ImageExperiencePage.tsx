@@ -3,7 +3,7 @@ import { useStudio } from '@/context/StudioContext';
 import { useSEO } from '@/hooks/useSEO';
 import { trackAnalyticsEvent } from '@/lib/analytics';
 import { buildImageExperienceConfiguratorUrl } from '@/lib/image-experience';
-import { getPublicWeddingStoryPreviews } from '@/lib/wedding-seo';
+import { getPublicWeddingStoryPreviews, weddingCoverPositionStyle } from '@/lib/wedding-seo';
 import type { PublicWeddingStoryPreview } from '@shared/wedding-seo-types';
 import './ImageExperiencePage.css';
 
@@ -321,7 +321,7 @@ export default function ImageExperiencePage() {
               {realWeddings.map(story => (
                 <a key={story.slug} href={`/real-wedding/${encodeURIComponent(story.slug)}`} className="ie-real-wedding-card">
                   {story.coverImage && (
-                    <img src={story.coverImage} alt="" loading="lazy" />
+                    <img src={story.coverImage} alt="" loading="lazy" className="wedding-cover-image" style={weddingCoverPositionStyle(story.coverPhotoPosition, story.coverPhotoMobilePosition)} />
                   )}
                   <span className="ie-real-wedding-body">
                     <strong>{story.title}</strong>

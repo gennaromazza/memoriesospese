@@ -12,7 +12,7 @@ import { useStudio } from "@/context/StudioContext";
 import StudioLogo from "@/components/StudioLogo";
 import { useSEO } from "@/hooks/useSEO";
 import Navigation from "@/components/Navigation";
-import { getPublicWeddingStoryPreviews } from "@/lib/wedding-seo";
+import { getPublicWeddingStoryPreviews, weddingCoverPositionStyle } from "@/lib/wedding-seo";
 import type { PublicWeddingStoryPreview } from "@shared/wedding-seo-types";
 import { trackBlogEvent } from "@/lib/analytics";
 
@@ -23,6 +23,8 @@ type EditorialCard = {
   publishedAt?: any;
   coverImage?: string;
   coverImageAlt?: string;
+  coverPhotoPosition?: PublicWeddingStoryPreview['coverPhotoPosition'];
+  coverPhotoMobilePosition?: PublicWeddingStoryPreview['coverPhotoMobilePosition'];
   category: string;
   tags: string[];
   href: string;
@@ -84,6 +86,8 @@ export default function BlogListPage() {
         excerpt: story.excerpt,
         publishedAt: story.publishedAt,
         coverImage: story.coverImage,
+         coverPhotoPosition: story.coverPhotoPosition,
+         coverPhotoMobilePosition: story.coverPhotoMobilePosition,
         category: 'Real Wedding',
         tags: ['matrimonio'],
         href: `/real-wedding/${story.slug}`,
@@ -292,7 +296,8 @@ export default function BlogListPage() {
                         <img 
                           src={post.coverImage} 
                           alt={post.coverImageAlt || post.title}
-                          className="w-full h-auto object-cover hover:scale-105 transition-transform duration-500"
+                           className="wedding-cover-image w-full h-auto object-cover hover:scale-105 transition-transform duration-500"
+                           style={weddingCoverPositionStyle(post.coverPhotoPosition, post.coverPhotoMobilePosition)}
                           loading="lazy"
                         />
                       </div>
