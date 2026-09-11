@@ -14,6 +14,28 @@ const vite=await createServer({ configFile:false, root:path.join(root,'e2e/mocku
   css:{postcss:path.join(root,'postcss.config.js')},
   server:{host:'127.0.0.1',port:0,fs:{allow:[root]}} });
 let browser;
+let page;
+let currentPhase='avvio harness';
+let lastCheck='avvio harness';
+function phase(name){currentPhase=name;lastCheck=`fase: ${name}`;console.log(`[mockup] FASE: ${name}`);}
+function check(name){lastCheck=name;}
+async function rendererDiagnostics(){
+ const pageState=page?await page.evaluate(()=>({url:location.href,iframeCount:document.querySelectorAll('iframe').length})).catch(error=>({error:error.message})):{error:'page non disponibile'};
+ const renderer=page?.frames().find(candidate=>candidate!==page.mainFrame()&&candidate.url().includes('/mockups/'));
+ const rendererState=renderer?await renderer.evaluate(()=>({
+  url:location.href,
+  dataset:Object.fromEntries(Object.entries(document.body?.dataset||{})),
+  downloadStatus:document.querySelector('#downloadStatus')?.textContent||null,
+  activeElement:document.activeElement?.id||document.activeElement?.textContent?.trim().slice(0,80)||null
+ })).catch(error=>({url:renderer.url(),error:error.message})):{url:null,dataset:null};
+ return {page:pageState,renderer:rendererState};
+}
+async function withDiagnostics(error){
+ const diagnostic=await rendererDiagnostics();
+ const enriched=error instanceof Error?error:new Error(String(error));
+ enriched.message=`${enriched.message}\n[Mockup diagnostics] fase: ${currentPhase}; ultimo controllo: ${lastCheck}; stato: ${JSON.stringify(diagnostic)}`;
+ return enriched;
+}
 try{
  await vite.listen();
  const port=vite.httpServer.address().port;
@@ -21,9 +43,10 @@ try{
  const edge='C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
  if(fs.existsSync(edge))options.executablePath=edge;
  browser=await chromium.launch(options);
- const page=await browser.newPage({viewport:{width:1440,height:1100}});
+  page=await browser.newPage({viewport:{width:1440,height:1100}});
  const errors=[];page.on('pageerror',e=>{errors.push(e.message);console.error('Browser:',e.message);});
  page.on('console',msg=>{if(msg.type()==='error')console.error('Console:',msg.text());});
+  phase('preparazione fixture e intercettazione API');
  const catalog=JSON.parse(fs.readFileSync('client/public/mockups/custodia-v1/peppe-lab-catalog.json','utf8'));
  const model=catalog.models[0],material=catalog.variants[0];
  const assetId='11111111-1111-4111-8111-111111111111';
@@ -60,6 +83,7 @@ try{
  });
  await page.route('**/sample.png',r=>r.fulfill({contentType:'image/png',body:photo}));
  async function domRect(selector) {
+   check(`rettangolo DOM ${selector}`);
   return page.evaluate(selector => {
    const element=document.querySelector(selector);
    if (!element) throw new Error(`Elemento non trovato: ${selector}`);
@@ -68,6 +92,7 @@ try{
   },selector);
  }
  async function domRectByButtonText(label) {
+   check(`rettangolo pulsante ${label}`);
   return page.evaluate(label => {
    const element=[...document.querySelectorAll('button')].find(button => button.textContent?.trim() === label);
    if (!element) throw new Error(`Pulsante non trovato: ${label}`);
@@ -76,6 +101,7 @@ try{
   },label);
  }
  async function frameDomRect(selector) {
+   check(`rettangolo renderer ${selector}`);
   const renderer=page.frames().find(candidate=>candidate!==page.mainFrame()&&candidate.url().includes('/mockups/'));
   if (!renderer) throw new Error('Il renderer 3D non ha creato il frame incorporato');
   return renderer.evaluate(selector => {
@@ -86,6 +112,7 @@ try{
   },selector);
  }
  async function setFrameValue(selector,value) {
+   check(`impostazione renderer ${selector}`);
   const renderer=page.frames().find(candidate=>candidate!==page.mainFrame()&&candidate.url().includes('/mockups/'));
   if (!renderer) throw new Error('Il renderer 3D non ha creato il frame incorporato');
   await renderer.evaluate(({selector,value})=>{
@@ -97,14 +124,17 @@ try{
   },{selector,value});
  }
  async function waitForFrameElementText(selector,text) {
+   check(`testo renderer ${selector} → ${text}`);
   const renderer=page.frames().find(candidate=>candidate!==page.mainFrame()&&candidate.url().includes('/mockups/'));
   if (!renderer) throw new Error('Il renderer 3D non ha creato il frame incorporato');
   await renderer.waitForFunction(({selector,text})=>document.querySelector(selector)?.textContent?.includes(text)===true,{selector,text});
  }
  async function screenshotRect(selector,filePath) {
+   check(`screenshot ${selector}`);
   await page.screenshot({path:filePath,clip:await domRect(selector)});
  }
  async function clickPageButton(label) {
+   check(`click pagina ${label}`);
   await page.evaluate(label=>{
    const button=[...document.querySelectorAll('button')].find(candidate=>candidate.textContent?.trim()===label&&!candidate.disabled);
    if (!button) throw new Error(`Pulsante non trovato: ${label}`);
@@ -112,10 +142,13 @@ try{
   },label);
  }
  async function open(query='?admin'){
+   check(`navigazione ${query}`);
   await page.goto(`http://127.0.0.1:${port}/${query}`);
   assert.equal(await page.locator('iframe').count(),0,'Il 3D non deve caricarsi nella pagina delle foto');
+   check(`apertura mockup ${query}`);
   await page.getByRole('button',{name:/^Apri mockup /}).dispatchEvent('click');
-  try { await page.waitForFunction(() => document.querySelector('iframe')?.contentDocument?.body?.dataset.ready === 'true', undefined, {timeout:30000}); }
+   check(`ready renderer ${query}`);
+   try { await page.waitForFunction(() => document.querySelector('iframe')?.contentDocument?.body?.dataset.ready === 'true', undefined, {timeout:30000}); }
   catch(error){console.error(await page.locator('body').innerText());console.error(await page.frameLocator('iframe').locator('body').innerText());throw error;}
   if(query.includes('admin')) {
    await page.getByRole('heading',{name:'Verifica proposta album',exact:true}).waitFor();
@@ -129,7 +162,8 @@ try{
   else await page.frameLocator('iframe').locator('#wizard-slot').waitFor();
   return page.frameLocator('iframe');
  }
- let frame=await open();
+  phase('custodia: modifica iniziale, foto e download');
+  let frame=await open();
  await frame.getByRole('button',{name:'Dettagli',exact:true}).dispatchEvent('click');
  await page.waitForFunction(()=>document.querySelector('iframe')?.contentDocument?.getElementById('topText')?.value==='Custodia test');
  assert.equal(await page.getByRole('button',{name:'Salva mockup'}).isDisabled(),true);
@@ -200,7 +234,8 @@ try{
  await frame.getByRole('button',{name:'Dettagli',exact:true}).dispatchEvent('click');
  await page.waitForFunction(()=>document.querySelector('iframe')?.contentDocument?.getElementById('topText')?.disabled===false);
  assert.ok(adminRequests>0);
- // Catalogo reale: campionario unico laboratorio, nome configurabile e modello pronto.
+  phase('catalogo laboratorio: importazione e modifica modello');
+  // Catalogo reale: campionario unico laboratorio, nome configurabile e modello pronto.
  await page.goto(`http://127.0.0.1:${port}/?catalog`);
  await page.getByText('Nessun modello associato',{exact:true}).waitFor();
  await page.getByText('Campionario del laboratorio (0)',{exact:true}).dispatchEvent('click');
@@ -224,7 +259,8 @@ try{
  await page.setViewportSize({width:390,height:844});
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  await page.setViewportSize({width:1440,height:1100});
- // Il laboratorio abilita due rivestimenti per questo modello, non per il lavoro.
+  phase('proposta cliente: modelli e rivestimenti disponibili');
+  // Il laboratorio abilita due rivestimenti per questo modello, non per il lavoro.
  labCatalog.models[0].materialIds=labCatalog.materials.slice(0,2).map(m=>m.id);
  frame=await open('?admin');
  await page.getByRole('button',{name:'Modelli disponibili',exact:true}).dispatchEvent('click');
@@ -292,7 +328,8 @@ try{
  await page.getByText('Confermato dallo studio',{exact:false}).waitFor();
  await page.setViewportSize({width:390,height:844});await page.screenshot({path:'work/mockup-operativo-mobile.png',fullPage:true});
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
- // Secondo modello: cambio renderer, tre finiture/copertine, persistenza senza foto.
+  phase('album girevole: cambio renderer, finiture e copertine');
+  // Secondo modello: cambio renderer, tre finiture/copertine, persistenza senza foto.
  const rotatingEntry={...labCatalog.models[0],id:'44444444-4444-4444-8444-444444444444',name:'Album girevole',rendererId:'album-girevole'};
  offer.options.push({...rotatingEntry,labId:'lab',labName:'Laboratorio test',materials:labCatalog.materials.slice(0,2)});
  await page.setViewportSize({width:1440,height:1100});
@@ -329,7 +366,8 @@ try{
  await page.getByRole('button',{name:'Verifica',exact:true}).dispatchEvent('click');
  await page.getByRole('button',{name:'Conferma mockup',exact:true}).dispatchEvent('click');await page.getByText('Mockup confermato.',{exact:false}).waitFor({timeout:45000});
  assert.equal(confirmations,2);
- // Foto sul plexiglass dello scrigno ed estrazione del solo album, senza cambiare la configurazione.
+  phase('album girevole: foto retro, estrazione e ambientazione');
+  // Foto sul plexiglass dello scrigno ed estrazione del solo album, senza cambiare la configurazione.
  frame=await open('?admin');await frame.getByRole('button',{name:'Dettagli',exact:true}).dispatchEvent('click');
  await frame.locator('#backCover').selectOption('photo');
  assert.equal(await page.getByRole('button',{name:'Salva mockup',exact:true}).isDisabled(),true);
@@ -367,7 +405,8 @@ try{
  await frame.locator('#homeScene').selectOption('none');
  await setFrameValue('#extract','50');await frame.locator('#extract').dispatchEvent('input');assert.equal(await frame.locator('body').getAttribute('data-extraction'),'50');
  await frame.locator('#reset').dispatchEvent('click');assert.equal(await frame.locator('#extract').inputValue(),'0');assert.equal(await frame.locator('#rotation').isDisabled(),false);
- // Le configurazioni v2/v3 conservano la loro identità anche nel renderer corrente.
+  phase('compatibilità: revisioni storiche e conferma fedele');
+  // Le configurazioni v2/v3 conservano la loro identità anche nel renderer corrente.
  // La conferma compara l'intera configurazione esportata con quella salvata, incluse foto e ritagli.
  const currentRotatingSnapshot=structuredClone(saved);
  for (const legacyRevision of [2,3]) {
@@ -385,7 +424,8 @@ try{
   await page.getByText('Mockup confermato.',{exact:false}).waitFor({timeout:45000});
   assert.deepEqual(saved.configuration,historicalConfiguration,'Export storico fedele, senza migrazione implicita');
  }
- // Una configurazione v1 resta invariata all'apertura, e passa a v4 solo modificandola.
+  phase('compatibilità: apertura v1 e migrazione solo dopo modifica');
+  // Una configurazione v1 resta invariata all'apertura, e passa a v4 solo modificandola.
  const {backCover:oldBack,backPhotoAssetId:oldBackPhoto,backCrop:oldBackCrop,engravingNames:oldNames,...legacyConfig}=saved.configuration;
  saved={...saved,status:'draft',configuration:{...legacyConfig,assetRevision:1}};
  frame=await open('?admin');await frame.getByRole('button',{name:'Dettagli',exact:true}).dispatchEvent('click');
@@ -417,7 +457,8 @@ try{
  await page.frameLocator('iframe').getByText('Nuova foto.png',{exact:false}).first().waitFor();
  await page.getByRole('button',{name:'Salva mockup',exact:true}).dispatchEvent('click');await page.getByText('Mockup salvato.',{exact:false}).waitFor();
  assert.equal(saved.configuration.modelId,model.id);assert.equal(saved.configuration.photoAssetId,assetId);
- // Anteprima del campione iniziale Mist 03, senza API o dati cliente.
+  phase('anteprima standalone: modello iniziale senza API');
+  // Anteprima del campione iniziale Mist 03, senza API o dati cliente.
  await page.setViewportSize({width:1440,height:1000});
  await page.goto(`http://127.0.0.1:${port}/mockups/girevole-v4/index.html`);
  await page.waitForFunction(() => document.body.dataset.ready === 'true');
@@ -425,7 +466,8 @@ try{
  await page.locator('#firstName').fill('Anna');await page.locator('#secondName').fill('Jacopo');
  await page.locator('#engravingPreview').screenshot({path:'work/mockup-incisione-botanica.png'});
  await page.screenshot({path:'work/mockup-girevole-anteprima.png'});
- // Le ambientazioni sono condivise e non modificano la configurazione prodotto.
+  phase('ambientazioni: scene, finiture, misure e mobile');
+  // Le ambientazioni sono condivise e non modificano la configurazione prodotto.
  for (const rendererPath of ['girevole-v4','custodia-v1']) {
   await page.goto(`http://127.0.0.1:${port}/mockups/${rendererPath}/index.html`);
   await page.waitForFunction(() => document.body.dataset.ready === 'true');
@@ -483,7 +525,8 @@ try{
   assert.equal(await page.locator('#front').isVisible(),true);
   await page.setViewportSize({width:1440,height:1000});
  }
- // Wizard girevole: incisione senza foto, requisiti fronte/retro, nuove bozze e sola lettura.
+  phase('wizard cliente: incisione, foto richieste, bozza e sola lettura');
+  // Wizard girevole: incisione senza foto, requisiti fronte/retro, nuove bozze e sola lettura.
  saved={...rotatingWizardFixture,configuration:{...rotatingWizardFixture.configuration,photoAssetId:null}};
  await page.setViewportSize({width:390,height:844});
  frame=await open('?client');
@@ -560,4 +603,8 @@ try{
  assert.deepEqual(errors,[]);
  console.log('Album girevole OK: cambio renderer, ripristino, 3 finiture e copertine, 8 viste, incisione senza foto, blocco foto mancante, mobile e sola lettura.');
  console.log('Browser OK: renderer, foto, download, mobile, catalogo laboratorio, proposta, invio cliente, correzione studio, conferma con 8 viste, allegato e contatto WhatsApp operativo.');
-}finally{await browser?.close();await vite.close();}
+  }catch(error){
+   const enriched=await withDiagnostics(error);
+   console.error(`[mockup] FALLIMENTO: fase=${currentPhase}; ultimo controllo=${lastCheck}; stato=${JSON.stringify(await rendererDiagnostics())}`);
+   throw enriched;
+ }finally{await browser?.close();await vite.close();}
