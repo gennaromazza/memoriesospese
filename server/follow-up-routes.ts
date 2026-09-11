@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { db, FieldValue, Timestamp } from "./firebase-admin.js";
+import type { DocumentReference } from "firebase-admin/firestore";
 import { authenticateFirebase } from "./email-routes.js";
 import { sendGmailEmail } from "./email-routes.js";
 import type {
@@ -486,7 +487,7 @@ async function appendRecoveryEvent(
 }
 
 async function finalizeRecoveredSend(
-  stateRef: any,
+  stateRef: DocumentReference,
   context: any,
   sequence: FollowUpSequence,
   lock: FirestoreData,
@@ -513,7 +514,7 @@ async function finalizeRecoveredSend(
 }
 
 async function recoverStaleSendingLock(
-  stateRef: any,
+  stateRef: DocumentReference,
   context: any,
   sequence: FollowUpSequence,
   state: FirestoreData,

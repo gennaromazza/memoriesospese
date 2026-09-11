@@ -38,6 +38,7 @@ export type FollowUpEventType =
   | "superseded"
   | "followup_recovery_cleared"
   | "followup_recovery_finalized"
+  | "followup_recovery_pending"
   | "followup_persistence_failed";
 
 export type FollowUpPersistenceType = "state" | "audit";
