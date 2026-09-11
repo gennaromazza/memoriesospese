@@ -744,7 +744,15 @@ router.post('/by-token/:token/approve', async (req: Request, res: Response) => {
 // ============================================================
 
 router.use(authenticateFirebase, requireAdmin);
-router.use('/:id/mockup', createPhotobookMockupRouter(req => db.collection(BOOKS_COL).doc(req.params.id).get(), true));
+router.use(
+  '/:id/mockup',
+  createPhotobookMockupRouter(
+    req => db.collection(BOOKS_COL).doc(req.params.id).get(),
+    true,
+    undefined,
+    notifyMockupClientStatus,
+  ),
+);
 
 /** Lettura operativa senza backfill o mutazioni dei fotolibri legacy. */
 router.get('/mockup-jobs/:jobId', async (req, res) => {
@@ -1029,6 +1037,102 @@ async function resolvePhotobookClientEmail(book: any): Promise<string | null> {
     console.warn('[photobooks] Risoluzione email cliente fallita:', e);
   }
   return null;
+}
+
+/**
+ * Avvisa il cliente quando lo studio richiede modifiche o conferma il mockup.
+ * Ogni transizione di stato ha un claim acquisito prima dell'invio: un doppio
+ * clic o una risposta HTTP persa non genera email duplicate.
+ */
+async function notifyMockupClientStatus(
+  bookDoc: FirebaseFirestore.DocumentSnapshot,
+  saved: { version: number; revision: number; status?: string; note?: string },
+  event: 'changes_requested' | 'confirmed',
+): Promise<void> {
+  const book = bookDoc.data() || {};
+  const clientEmail = await resolvePhotobookClientEmail(book);
+  if (!clientEmail) {
+    console.warn(`[photobooks] Nessuna email cliente per la notifica mockup ${event} (${bookDoc.id})`);
+    return;
+  }
+
+  const key = `${event}_v${saved.version}_r${saved.revision}`;
+  const attemptId = randomUUID();
+  const acquired = await db.runTransaction(async (tx) => {
+    const fresh = await tx.get(bookDoc.ref);
+    if (!fresh.exists || fresh.data()!.locked || fresh.data()!.currentVersion !== saved.version) return 'stale';
+    const existing = fresh.data()?.mockupNotifications?.[key];
+    if (existing) return existing.state === 'pending' || existing.state === 'uncertain' ? 'uncertain' : 'sent';
+    tx.update(bookDoc.ref, { [`mockupNotifications.${key}`]: { attemptId, state: 'pending' } });
+    return 'acquired';
+  });
+  if (acquired === 'stale') return;
+  if (acquired === 'sent') return;
+  if (acquired === 'uncertain') {
+    throw new Error('Invio email già in corso o con esito incerto');
+  }
+
+  const esc = (value: unknown) =>
+    String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  const link = `${getSiteBaseUrl()}/fotolibro/${book.token}`;
+  const clientName = esc(book.clientName || 'Cliente');
+  const bookName = esc(book.name || 'Fotolibro');
+  const note = String(saved.note || '').trim();
+  const changes = event === 'changes_requested';
+  const heading = changes ? 'Lo studio ha richiesto alcune modifiche' : 'Il tuo mockup è stato confermato';
+  const subject = changes
+    ? `Fotolibro: modifiche richieste al mockup`
+    : `Fotolibro: mockup confermato dallo studio`;
+  const message = changes
+    ? `Apri il mockup, aggiorna le scelte richieste e invialo nuovamente allo studio per la verifica.`
+    : `Lo studio ha verificato la proposta. L’album non è ancora in stampa: se desideri fare altre modifiche, dovrai inviare una nuova revisione per la verifica.`;
+  const noteHtml = changes && note
+    ? `<p><strong>Nota dello studio:</strong><br>${esc(note).replace(/\n/g, '<br>')}</p>`
+    : '';
+
+  try {
+    await sendGmailEmail(
+      clientEmail,
+      subject,
+      `<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#44403c">
+        <h2 style="color:#78716c;font-weight:normal">${heading}</h2>
+        <p>Ciao ${clientName},</p>
+        <p>il mockup del fotolibro &laquo;${bookName}&raquo; (versione ${saved.version}) è <strong>${changes ? 'da aggiornare' : 'confermato dallo studio'}</strong>.</p>
+        ${noteHtml}
+        <p>${message}</p>
+        <p style="text-align:center;margin:28px 0">
+          <a href="${esc(link)}" style="background:#78716c;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none">
+            ${changes ? 'Apri e modifica il mockup' : 'Apri il tuo fotolibro'}
+          </a>
+        </p>
+        <p style="color:#a8a29e;font-size:13px;margin-top:32px">Image Studio Fotografico</p>
+      </div>`,
+      undefined,
+      {
+        type: changes ? 'photobook_mockup_changes_requested' : 'photobook_mockup_confirmed',
+        relatedDocId: bookDoc.id,
+        relatedDocType: 'photobook',
+        clientName: book.clientName || undefined,
+      },
+    );
+  } catch (error) {
+    await db.runTransaction(async (tx) => {
+      const fresh = await tx.get(bookDoc.ref);
+      if (fresh.data()?.mockupNotifications?.[key]?.attemptId === attemptId) {
+        tx.update(bookDoc.ref, { [`mockupNotifications.${key}`]: { attemptId, state: 'uncertain' } });
+      }
+    }).catch(() => {});
+    throw error;
+  }
+
+  await bookDoc.ref.update({
+    [`mockupNotifications.${key}`]: FieldValue.serverTimestamp(),
+  }).catch(() => {});
+  console.log(`[photobooks] Email mockup ${event} inviata a ${clientEmail} (${bookDoc.id})`);
 }
 
 /**

@@ -7,6 +7,7 @@ import { MOCKUP_MODEL, ROTATING_MOCKUP_MODEL } from '../shared/mockup-catalog';
 
 const h = vi.hoisted(() => ({ docs: new Map<string, any>(), files: new Map<string, Buffer>(), photos: [] as any[], failAfterCommit: false, beforeTransaction: null as (() => void) | null }));
 const notifySubmission = vi.fn<(book: unknown, saved: unknown) => Promise<void>>();
+const notifyClient = vi.fn<(book: unknown, saved: unknown, event: 'changes_requested' | 'confirmed') => Promise<void>>();
 function ref(path: string): any {
   return {
     id: path.split('/').pop(), path,
@@ -43,11 +44,11 @@ const configuration = { modelId: MOCKUP_MODEL.id, assetRevision: MOCKUP_MODEL.as
 describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
   let server: Server; let base: string;
   beforeEach(async () => {
-    h.docs.clear(); h.files.clear(); h.photos = []; h.beforeTransaction = null; h.failAfterCommit = false; notifySubmission.mockReset().mockResolvedValue(undefined);
+    h.docs.clear(); h.files.clear(); h.photos = []; h.beforeTransaction = null; h.failAfterCommit = false; notifySubmission.mockReset().mockResolvedValue(undefined); notifyClient.mockReset().mockResolvedValue(undefined);
     h.docs.set('photobooks/book', { currentVersion: 1, versions: [{ version: 1 }, { version: 2 }], galleryId: 'gallery', locked: false, approval: { version: 1 } });
     h.docs.set(`photobooks/book/mockupAssets/${photoId}`, { version: 1, storagePath: 'own-photo.jpg' });
     const app = express(); app.use(express.json());
-    app.use('/admin', createPhotobookMockupRouter(async () => ref('photobooks/book').get(), true));
+    app.use('/admin', createPhotobookMockupRouter(async () => ref('photobooks/book').get(), true, undefined, notifyClient));
     app.use('/client', createPhotobookMockupRouter(async () => ref('photobooks/book').get(), false, notifySubmission));
     app.use('/invalid', createPhotobookMockupRouter(async () => null, false));
     server = app.listen(0, '127.0.0.1');
@@ -275,6 +276,8 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     await action(base, 'client', 'submit', 1);
     await action(base, 'admin', 'request-changes', 2);
     expect(notifySubmission).toHaveBeenCalledTimes(1);
+    expect(notifyClient).toHaveBeenCalledTimes(1);
+    expect(notifyClient.mock.calls[0][2]).toBe('changes_requested');
   });
 
   it('un errore email conserva la proposta e non provoca reinvii automatici', async () => {
@@ -380,6 +383,7 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     expect(confirm.status).toBe(200);
     const confirmed = await confirm.json();
     expect(confirmed).toMatchObject({ revision: 2, status: 'confirmed', updatedBy: 'studio' });
+    expect(notifyClient).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ revision: 2, status: 'confirmed' }), 'confirmed');
     const report = h.files.get(confirmed.reportPath)!.toString('utf8');
     expect(report).toContain('Custodia personalizzata');
     expect(report).toContain('LAB-01');

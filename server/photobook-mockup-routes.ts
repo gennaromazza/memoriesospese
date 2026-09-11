@@ -14,6 +14,11 @@ class MockupError extends Error { constructor(public status: number, message: st
 const versionSchema = z.coerce.number().int().min(1).max(9999);
 const saveSchema = z.object({ revision: z.number().int().min(0), configuration: mockupConfigurationSchema, selection: mockupSelectionSchema.optional(), offerRevision: z.number().int().min(0).optional() }).strict();
 type Resolver = (req: Request) => Promise<DocumentSnapshot | null>;
+type ClientMockupNotification = (
+  book: DocumentSnapshot,
+  saved: SavedMockup,
+  event: 'changes_requested' | 'confirmed',
+) => Promise<void>;
 
 function optionFromLab(lab: DocumentSnapshot, selection: { labId: string; modelId: string }): MockupOption | null {
   if (!lab.exists || lab.id !== selection.labId || lab.data()?.attivo === false) return null;
@@ -89,7 +94,12 @@ export function mockupGalleryStoragePath(value: string, bucket: string): string 
 }
 
 /** Montato dopo il controllo admin oppure sotto il token del singolo fotolibro. */
-export function createPhotobookMockupRouter(resolveBook: Resolver, isAdmin: boolean, notifySubmission?: (book: DocumentSnapshot, saved: SavedMockup) => Promise<void>) {
+export function createPhotobookMockupRouter(
+  resolveBook: Resolver,
+  isAdmin: boolean,
+  notifySubmission?: (book: DocumentSnapshot, saved: SavedMockup) => Promise<void>,
+  notifyClient?: ClientMockupNotification,
+) {
   const router = express.Router({ mergeParams: true });
   // L'approvazione riguarda le pagine della versione corrente, non la
   // copertina: dopo averle approvate il cliente può creare più revisioni del
@@ -261,6 +271,13 @@ export function createPhotobookMockupRouter(resolveBook: Resolver, isAdmin: bool
           return res.json({ ...result, notificationWarning: 'La proposta è stata ricevuta, ma la notifica email allo studio non è confermata. Non serve inviarla di nuovo.' });
         }
       }
+      if (action === 'request-changes' && isAdmin && notifyClient) {
+        try { await notifyClient(book, result, 'changes_requested'); }
+        catch {
+          console.warn('[photobook-mockup] Esito email modifiche al cliente non confermato');
+          return res.json({ ...result, notificationWarning: 'Le modifiche sono state richieste, ma l’esito dell’email al cliente non è confermato. Avvisalo manualmente senza ripetere l’azione.' });
+        }
+      }
       res.json(result);
     } catch (error) { next(error); }
   });
@@ -301,6 +318,13 @@ export function createPhotobookMockupRouter(resolveBook: Resolver, isAdmin: bool
         // va conservata. Cancelliamo solo dopo un rifiuto applicativo certo.
         if (error instanceof MockupError) await file.delete().catch(() => undefined);
         throw error;
+      }
+      if (notifyClient) {
+        try { await notifyClient(book, confirmed, 'confirmed'); }
+        catch {
+          console.warn('[photobook-mockup] Esito email conferma al cliente non confermato');
+          return res.json({ ...confirmed, notificationWarning: 'Il mockup è confermato, ma l’esito dell’email al cliente non è confermato. Avvisalo manualmente senza ripetere la conferma.' });
+        }
       }
       res.json(confirmed);
     } catch (error) { next(error); }

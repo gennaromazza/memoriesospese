@@ -83,7 +83,7 @@ export default function MockupModelChooser({ options, initialOption, fixed = fal
   return <section className="mockup-chooser" data-testid="mockup-model-chooser" data-chooser-stage={selected ? 'styles' : 'models'} aria-label={selected ? `Stili di ${selected.name}` : 'Scelta del modello'}>
     <header className="mockup-chooser-heading">
       <div>
-        <h2>{selected ? `Come immagini ${selected.name}?` : fixed ? 'Il modello scelto per il tuo album' : 'Quale album preferisci?'}</h2>
+        <h2>{selected ? `Scegli lo stile di ${selected.name}` : fixed ? 'Il modello scelto per il tuo album' : 'Quale album preferisci?'}</h2>
         <p>{selected ? 'Scorri gli esempi. Foto e nomi saranno i tuoi.' : fixed ? 'Questo modello è stato scelto dallo studio. Continua per personalizzare copertina e contenuti.' : 'Scorri i modelli e tocca quello che ti piace.'}</p>
       </div>
       {(selected || onCancel) && <button type="button" className="mockup-chooser-back" onClick={() => selected ? (setSelectedKey(null), setIndex(modelIndex)) : onCancel?.()}>
@@ -102,7 +102,7 @@ export default function MockupModelChooser({ options, initialOption, fixed = fal
                 <small>Esempio illustrativo · colori e foto personalizzabili</small>
               </div>
               <button type="button" className="mockup-chooser-choose" data-testid={`choose-mockup-example-${example.layout}`} tabIndex={index === itemIndex ? 0 : -1} onClick={() => onChoose(selected, example.layout)}>
-                Personalizza questo <ArrowRight size={17} aria-hidden="true" />
+                {fixed ? 'Continua con questo stile' : 'Personalizza questo'} <ArrowRight size={17} aria-hidden="true" />
               </button>
             </div>
           </article>

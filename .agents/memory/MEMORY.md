@@ -46,3 +46,4 @@
 - [Follow-up automatici preventivi](follow-up-automation.md) — invio fail-closed con lock prima di Gmail; risposte Gmail restano manuali finché non esiste sync thread/message ID.
 - [Gmail connector SDK](gmail-connector-sdk.md) — usare il proxy SDK per Gmail; mittente, admin Firebase e calendario Service Account sono identità separate.
 - [Photobook mockup model scope](photobook-mockup-model-scope.md) — il modello normale è scelto a livello fotolibro e viene ereditato da tutte le versioni; più modelli solo come eccezione esplicita.
+- [Photobook mockup confirmation lifecycle](photobook-mockup-confirmation-lifecycle.md) — la conferma dello studio non blocca il cliente; ogni modifica riapre una revisione fino alla stampa.

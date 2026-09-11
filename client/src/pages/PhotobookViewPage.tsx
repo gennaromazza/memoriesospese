@@ -870,7 +870,7 @@ export default function PhotobookViewPage() {
           {!isCurrentVersion && <Button variant="outline" onClick={() => { setSelectedVersion(null); setSlideIdx(0); }}>Torna alla versione attuale</Button>}
         </CardContent></Card>}
         {!isTouchPhone && <details className="rounded-lg border bg-white p-3 text-sm"><summary className="cursor-pointer font-medium min-h-9">Come controllare il tuo fotolibro · guida passo passo</summary>
-          <ol className="list-decimal pl-5 space-y-2 mt-2"><li>Sfoglia tutte le pagine con le frecce.</li><li>Per una correzione, tocca “Segna una X”, indica la foto e descrivi cosa cambiare.</li><li>Invia le richieste: finché restano in bozza lo studio non le riceve.</li><li>Quando le pagine vanno bene, approva l’impaginato. Poi personalizza copertina e box con “Apri mockup”: potrai modificarli fino all’invio in stampa.</li></ol>
+          <ol className="list-decimal pl-5 space-y-2 mt-2"><li>Sfoglia tutte le pagine con le frecce.</li><li>Per una correzione, tocca “Segna una X”, indica la foto e descrivi cosa cambiare.</li><li>Invia le richieste: finché restano in bozza lo studio non le riceve.</li><li>Quando le pagine vanno bene, approva l’impaginato. Lo studio prepara poi la proposta dell’album; quando è disponibile, personalizza copertina e box con “Apri mockup”.</li></ol>
         </details>}
         {!isTouchPhone && isApproved && <PhotobookMockup key={`${photobook.id}-${data.version}`} photobookId={photobook.id} version={data.version} token={token} readOnly={isLocked || !isCurrentVersion} onOpenChange={setMockupOpen} />}
         {isLocked && !isTouchPhone && (
@@ -895,9 +895,10 @@ export default function PhotobookViewPage() {
               <div className="space-y-1">
                 <p className="font-semibold text-green-800">Impaginato approvato</p>
                 <p className="text-sm text-green-700">
-                  Le pagine di questa versione sono approvate. Ora puoi personalizzare
-                  album e box con il mockup, fino all'invio in stampa. Per altre
-                  modifiche alle pagine, contatta il tuo fotografo.
+                  Le pagine di questa versione sono approvate. Il prossimo passaggio è
+                  la personalizzazione di album e box con il mockup, non la stampa.
+                  Quando lo studio avrà preparato la proposta potrai aprirla qui. Per
+                  altre modifiche alle pagine, contatta il tuo fotografo.
                 </p>
               </div>
             </CardContent>
@@ -1103,7 +1104,7 @@ export default function PhotobookViewPage() {
             <li>Quando le pagine vanno bene, tocca <strong>Approva pagine</strong>. Poi puoi scegliere modello, copertina e box da <strong>Personalizza album</strong>.</li>
           </ol>
           <p className="text-sm text-muted-foreground">Il menu versione in alto conserva le pagine precedenti in sola lettura. Se lo studio pubblica una nuova versione, approva prima le nuove pagine: il mockup salvato non viene cancellato.</p>
-          <p className="text-sm text-muted-foreground">Approvare le pagine non manda l'album in stampa. Il mockup resta modificabile fino alla stampa; per cambiare pagine già approvate contatta lo studio.</p>
+          <p className="text-sm text-muted-foreground">Approvare le pagine non manda l'album in stampa. Quando lo studio conferma il mockup puoi ancora creare una nuova revisione fino alla stampa, ma ogni modifica richiederà una nuova verifica. Per cambiare pagine già approvate contatta lo studio.</p>
           <DialogFooter><Button className="h-11" onClick={() => setHelpOpen(false)}>Ho capito</Button></DialogFooter>
         </DialogContent>
       </Dialog>
