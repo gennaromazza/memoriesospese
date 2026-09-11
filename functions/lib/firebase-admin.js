@@ -1,11 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.admin = exports.db = void 0;
+exports.db = void 0;
 /** Admin SDK condiviso per le Cloud Functions. */
-const admin = require("firebase-admin");
-exports.admin = admin;
-if (!admin.apps.length) {
-    admin.initializeApp();
+const app_1 = require("firebase-admin/app");
+const firestore_1 = require("firebase-admin/firestore");
+if (!(0, app_1.getApps)().length) {
+    (0, app_1.initializeApp)();
 }
-exports.db = admin.firestore();
+exports.db = (0, firestore_1.getFirestore)();
 //# sourceMappingURL=firebase-admin.js.map

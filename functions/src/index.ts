@@ -3,8 +3,8 @@
  * Gestisce invio email tramite Gmail API con Replit Integration
  */
 
-import * as functions from 'firebase-functions';
-import * as admin from 'firebase-admin';
+import * as functions from 'firebase-functions/v1';
+import { admin } from './admin-compat';
 import { EmailQueue } from './email-queue'; // Assicurati che questo percorso sia corretto
 
 // Initialize Firebase Admin if not already done

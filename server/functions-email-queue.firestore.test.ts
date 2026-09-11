@@ -122,7 +122,7 @@ firestoreIntegration("EmailQueue — Firestore transaction integration", () => {
       const collection = originalCollection(path);
       if (path !== "emailQueue") return collection;
 
-      const originalWhere = collection.where.bind(collection);
+      const originalWhere = collection.where.bind(collection) as (...args: any[]) => any;
       collection.where = (...args: any[]) => {
         const query = originalWhere(...args);
         const isProcessingQuery =
@@ -131,7 +131,7 @@ firestoreIntegration("EmailQueue — Firestore transaction integration", () => {
           args[2] === "processing";
         if (!isProcessingQuery) return query;
 
-        const originalGet = query.get.bind(query);
+        const originalGet = query.get.bind(query) as (...args: any[]) => Promise<any>;
         query.get = async (...getArgs: any[]) => {
           const snapshot = await originalGet(...getArgs);
           recoveryQueryRead();
@@ -153,7 +153,7 @@ firestoreIntegration("EmailQueue — Firestore transaction integration", () => {
       recoveryQueryRead = () => resolve();
     });
 
-    const internals = EmailQueue as {
+    const internals = EmailQueue as unknown as {
       updateOwnedEmail: (
         ref: any,
         worker: string,
@@ -181,18 +181,19 @@ firestoreIntegration("EmailQueue — Firestore transaction integration", () => {
     expect(await recovery).toBe(0);
 
     const current = await docRef.get();
-    expect(current.data()).toMatchObject({
+    const currentData = current.data()!;
+    expect(currentData).toMatchObject({
       status: "processing",
       processingWorkerId: workerId,
     });
-    expect(current.data().processingLeaseUntil.toMillis()).toBeGreaterThan(now);
+    expect(currentData.processingLeaseUntil.toMillis()).toBeGreaterThan(now);
 
     h.sendGmailEmail.mockResolvedValue(undefined);
     await sendGmailEmail(
-      current.data().to,
-      current.data().subject,
-      current.data().htmlContent,
-      current.data().from,
+      currentData.to,
+      currentData.subject,
+      currentData.htmlContent,
+      currentData.from,
     );
     expect(
       await internals.updateOwnedEmail(docRef, workerId, {
@@ -206,7 +207,7 @@ firestoreIntegration("EmailQueue — Firestore transaction integration", () => {
 
     // A completed document cannot be reclaimed by a later recovery pass.
     expect(await internals.recoverStaleProcessing(Date.now() + 20 * 60 * 1_000)).toBe(0);
-    expect((await docRef.get()).data().status).toBe("sent");
+    expect((await docRef.get()).data()!.status).toBe("sent");
     expect(h.sendGmailEmail).toHaveBeenCalledTimes(1);
   });
 });

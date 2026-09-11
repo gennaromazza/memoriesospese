@@ -17,7 +17,7 @@ function update(path: string, value: object) {
   }
   h.docs.set(path, next);
 }
-function collection(path: string, filters: [string, unknown][] = []) {
+function collection(path: string, filters: [string, unknown][] = []): any {
   return { doc: (id: string = crypto.randomUUID()) => ref(`${path}/${id}`), limit: () => collection(path, filters), where: (field: string, _op: string, value: unknown) => collection(path, [...filters, [field, value]]), get: async () => {
     const docs = await Promise.all([...h.docs].filter(([key, value]) => key.startsWith(`${path}/`) && key.split('/').length === path.split('/').length + 1 && filters.every(([field, expected]) => value[field] === expected)).map(([key]) => ref(key).get()));
     return { docs, empty: docs.length === 0, size: docs.length };

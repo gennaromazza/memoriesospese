@@ -5,7 +5,7 @@
  */
 
 import { google } from 'googleapis';
-import * as functions from 'firebase-functions';
+import * as functions from 'firebase-functions/v1';
 
 // Cache per access token (evita troppe chiamate al connector)
 let cachedSettings: {

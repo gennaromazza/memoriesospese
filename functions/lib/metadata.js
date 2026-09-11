@@ -1,10 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getGalleryMetadata = void 0;
-const functions = require("firebase-functions");
-const admin = require("firebase-admin");
-if (!admin.apps?.length)
-    admin.initializeApp();
+const functions = require("firebase-functions/v1");
+const admin_compat_1 = require("./admin-compat");
 // ✅ CORS Configuration - v1 Setup
 const allowedOrigins = new Set([
     "http://localhost:5173",
@@ -55,7 +53,7 @@ exports.getGalleryMetadata = functions
             res.status(400).json({ error: 'galleryCode is required' });
             return;
         }
-        const db = admin.firestore();
+        const db = admin_compat_1.admin.firestore();
         // Ricerca per campo "code"
         const byCode = await db.collection('galleries')
             .where('code', '==', galleryCode)

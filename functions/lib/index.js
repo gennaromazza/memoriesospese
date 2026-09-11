@@ -5,12 +5,12 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getEmailQueueStats = exports.processEmailQueue = exports.downloadWordPressImage = exports.sendWelcomeEmail = exports.testEmailConfiguration = exports.sendBookingConfirmedEmail = exports.sendBookingReceivedEmail = exports.sendGalleryPasswordV2 = exports.sendNewPhotosNotificationPublic = exports.sendNewPhotosNotificationCall = exports.getGalleryMetadata = void 0;
-const functions = require("firebase-functions");
-const admin = require("firebase-admin");
+const functions = require("firebase-functions/v1");
+const admin_compat_1 = require("./admin-compat");
 const email_queue_1 = require("./email-queue"); // Assicurati che questo percorso sia corretto
 // Initialize Firebase Admin if not already done
-if (!admin.apps?.length) {
-    admin.initializeApp();
+if (!admin_compat_1.admin.apps?.length) {
+    admin_compat_1.admin.initializeApp();
 }
 // Re-export della funzione isolata (no heavy dependencies)
 var metadata_1 = require("./metadata");
@@ -120,7 +120,7 @@ exports.sendNewPhotosNotificationPublic = functions
         const idToken = authHeader.replace('Bearer ', '').trim();
         let uid = '';
         try {
-            const decoded = await admin.auth().verifyIdToken(idToken);
+            const decoded = await admin_compat_1.admin.auth().verifyIdToken(idToken);
             uid = decoded.uid;
             functions.logger.info(`🔐 sendNewPhotosNotificationPublic called by uid=${uid}`);
         }
@@ -213,7 +213,7 @@ exports.sendGalleryPasswordV2 = functions
             return;
         }
         // SICUREZZA: Recupera password da Firestore server-side
-        const galleryDoc = await admin.firestore().collection('galleries').doc(galleryId).get();
+        const galleryDoc = await admin_compat_1.admin.firestore().collection('galleries').doc(galleryId).get();
         if (!galleryDoc.exists) {
             functions.logger.error(`Gallery not found: ${galleryId}`);
             res.status(404).json({
@@ -313,7 +313,7 @@ exports.sendBookingReceivedEmail = functions
         if (authHeader && authHeader.startsWith('Bearer ')) {
             const idToken = authHeader.replace('Bearer ', '').trim();
             try {
-                const decoded = await admin.auth().verifyIdToken(idToken);
+                const decoded = await admin_compat_1.admin.auth().verifyIdToken(idToken);
                 functions.logger.info(`🔐 sendBookingReceivedEmail called by uid=${decoded.uid}`);
             }
             catch (authError) {
@@ -403,7 +403,7 @@ exports.sendBookingConfirmedEmail = functions
         if (authHeader && authHeader.startsWith('Bearer ')) {
             const idToken = authHeader.replace('Bearer ', '').trim();
             try {
-                const decoded = await admin.auth().verifyIdToken(idToken);
+                const decoded = await admin_compat_1.admin.auth().verifyIdToken(idToken);
                 uid = decoded.uid;
                 functions.logger.info(`🔐 sendBookingConfirmedEmail called by uid=${uid}`);
             }

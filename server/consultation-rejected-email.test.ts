@@ -114,6 +114,14 @@ globalThis.fetch = (async (url: any, init?: any) => {
     // getStudioContactInfo → fallback ai default
     return new Response("{}", { status: 404 });
   }
+  if (u.includes("/api/v2/proxy/")) {
+    const raw = init?.body ? JSON.parse(String(init.body)).raw : undefined;
+    if (raw) h.sentRaw.push(raw);
+    return new Response(JSON.stringify({ id: "msg-1" }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
   return realFetch(url, init);
 }) as any;
 

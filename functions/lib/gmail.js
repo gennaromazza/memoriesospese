@@ -14,7 +14,7 @@ exports.createTestEmailHTML = createTestEmailHTML;
 exports.createBookingReceivedEmailHTML = createBookingReceivedEmailHTML;
 exports.createBookingConfirmedEmailHTML = createBookingConfirmedEmailHTML;
 const googleapis_1 = require("googleapis");
-const functions = require("firebase-functions");
+const functions = require("firebase-functions/v1");
 // Cache per access token (evita troppe chiamate al connector)
 let cachedSettings = null;
 /**

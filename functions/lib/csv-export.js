@@ -1,10 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.exportGalleryAccessCSV = void 0;
-const functions = require("firebase-functions");
-const admin = require("firebase-admin");
+const functions = require("firebase-functions/v1");
+const firestore_1 = require("firebase-admin/firestore");
 const Papa = require("papaparse");
-const db = admin.firestore();
+const db = (0, firestore_1.getFirestore)();
 // Export gallery access data to CSV (Pro/Premium only)
 exports.exportGalleryAccessCSV = functions.https.onCall(async (data, context) => {
     if (!context.auth) {

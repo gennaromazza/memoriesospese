@@ -1,8 +1,8 @@
-import * as functions from 'firebase-functions';
-import * as admin from 'firebase-admin';
+import * as functions from 'firebase-functions/v1';
+import { getFirestore } from 'firebase-admin/firestore';
 import * as Papa from 'papaparse';
 
-const db = admin.firestore();
+const db = getFirestore();
 
 // Export gallery access data to CSV (Pro/Premium only)
 export const exportGalleryAccessCSV = functions.https.onCall(async (data: any, context: any) => {

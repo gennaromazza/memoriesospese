@@ -1,7 +1,5 @@
-import * as functions from 'firebase-functions';
-import * as admin from 'firebase-admin';
-
-if (!admin.apps?.length) admin.initializeApp();
+import * as functions from 'firebase-functions/v1';
+import { admin } from './admin-compat';
 
 // ✅ CORS Configuration - v1 Setup
 const allowedOrigins = new Set([

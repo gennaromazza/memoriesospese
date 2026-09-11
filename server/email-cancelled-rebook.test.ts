@@ -62,7 +62,7 @@ beforeAll(async () => {
   process.env.REPL_IDENTITY = "test-identity";
 
   // Mock fetch globale: connector Gmail + Firestore REST (studio info)
-  vi.stubGlobal("fetch", async (url: any) => {
+  vi.stubGlobal("fetch", async (url: any, init?: any) => {
     const u = String(url);
     if (u.includes("/api/v2/connection")) {
       return {
@@ -79,8 +79,16 @@ beforeAll(async () => {
         }),
       };
     }
+    if (u.includes("/api/v2/proxy/")) {
+      const raw = init?.body ? JSON.parse(String(init.body)).raw : undefined;
+      if (raw) h.sentMessages.push({ requestBody: { raw } });
+      return new Response(JSON.stringify({ id: "msg1" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
     // Firestore REST (studio info): non ok → fallback default
-    return { ok: false, json: async () => ({}) };
+    return new Response("{}", { status: 404 });
   });
 
   const emailRoutes = await import("./email-routes.js");

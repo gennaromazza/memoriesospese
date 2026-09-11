@@ -1,9 +1,9 @@
 /** Admin SDK condiviso per le Cloud Functions. */
-import * as admin from 'firebase-admin';
+import { getApps, initializeApp } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
 
-if (!admin.apps.length) {
-  admin.initializeApp();
+if (!getApps().length) {
+  initializeApp();
 }
 
-export const db = admin.firestore();
-export { admin };
+export const db = getFirestore();

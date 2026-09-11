@@ -5,6 +5,7 @@ import {
   getBlogContextualLinks,
   getBlogCluster,
   selectRelevantWeddingStory,
+  type BlogWeddingStoryCandidate,
 } from './blog-contextual-links';
 
 const AUDIT_SLUGS = [
@@ -99,7 +100,7 @@ describe('blog contextual editorial map', () => {
 
   it('adds only a published, valid Real Wedding supplied at runtime', () => {
     const source = 'Il reportage del matrimonio ad Aversa racconta la giornata degli sposi.';
-    const candidates = [
+    const candidates: BlogWeddingStoryCandidate[] = [
       { slug: '', title: 'Senza URL', excerpt: 'matrimonio ad Aversa' },
       { slug: 'bozza-aversa', title: 'Bozza ad Aversa', excerpt: 'matrimonio ad Aversa', status: 'draft' },
       { slug: 'anna-e-luca', title: 'Anna e Luca ad Aversa', excerpt: 'Reportage del matrimonio', status: 'published' },

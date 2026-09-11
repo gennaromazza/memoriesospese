@@ -4,7 +4,7 @@
  * Gestisce invio massivo rispettando limiti Google
  */
 
-import * as functions from 'firebase-functions';
+import * as functions from 'firebase-functions/v1';
 import { randomUUID } from 'node:crypto';
 import { db } from './firebase-admin';
 import { sendGmailEmail } from './gmail';
