@@ -1,6 +1,7 @@
 // Verifica browser focalizzata sul percorso cliente del mockup fino al blocco stampa.
 // Usa il componente reale con API same-origin isolate dalla produzione.
-// node e2e/photobook-client-lifecycle.browser.mjs
+// SwiftShader (default): node e2e/photobook-client-lifecycle.browser.mjs
+// GPU reale: PHOTOBOOK_REAL_GPU=1 PHOTOBOOK_GPU_HEADLESS=0 node e2e/photobook-client-lifecycle.browser.mjs
 import { strict as assert } from 'node:assert';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -39,7 +40,20 @@ let lifecycleStage = 'harness setup';
 try {
   await vite.listen();
   const port = vite.httpServer.address().port;
-  browser = await chromium.launch({ headless: true, args: ['--enable-unsafe-swiftshader'] });
+  const realGpu = process.env.PHOTOBOOK_REAL_GPU === '1';
+  const gpuArgs = realGpu
+    ? [
+        '--ignore-gpu-blocklist',
+        '--enable-gpu-rasterization',
+        '--enable-webgl',
+        '--use-angle=gl',
+        '--disable-software-rasterizer',
+      ]
+    : ['--enable-unsafe-swiftshader'];
+  browser = await chromium.launch({
+    headless: realGpu ? process.env.PHOTOBOOK_GPU_HEADLESS === '1' : true,
+    args: gpuArgs,
+  });
   const page = await browser.newPage({
     viewport: { width: 390, height: 844 },
     screen: { width: 390, height: 844 },
@@ -161,7 +175,7 @@ try {
   await page.getByText('Questo modello è stato scelto dallo studio. Continua per personalizzare copertina e contenuti.', { exact: true }).waitFor();
   assert.equal(await page.getByRole('heading', { name: 'Quale album preferisci?', exact: true }).count(), 0);
   assert.equal(await page.getByRole('button', { name: /Scopri Album Alternativo/ }).count(), 0);
-  await page.screenshot({ path: 'work/photobook-client-fixed-model.png' });
+  if (!realGpu) await page.screenshot({ path: 'work/photobook-client-fixed-model.png' });
 
   // Scelta tra modelli.
   lifecycleStage = 'model choice messaging';
@@ -171,7 +185,7 @@ try {
   await page.getByRole('button', { name: /Apri mockup/ }).click();
   await page.getByRole('heading', { name: 'Quale album preferisci?', exact: true }).waitFor();
   await page.getByRole('button', { name: 'Scopri Album Alternativo', exact: true }).waitFor();
-  await page.screenshot({ path: 'work/photobook-client-model-choice.png' });
+  if (!realGpu) await page.screenshot({ path: 'work/photobook-client-model-choice.png' });
 
   // Tutti gli stati visibili al cliente.
   const expectedStates = [
@@ -200,7 +214,7 @@ try {
       await page.getByRole('button', { name: /Apri mockup/ }).waitFor();
     }
   }
-  await page.screenshot({ path: 'work/photobook-client-confirmed.png' });
+  if (!realGpu) await page.screenshot({ path: 'work/photobook-client-confirmed.png' });
 
   // Una modifica successiva alla conferma crea una nuova revisione in bozza.
   lifecycleStage = 'post-confirmation revision';
@@ -268,49 +282,86 @@ try {
   lifecycleStage = 'print-locked customer download';
   const mockupFrame = page.frameLocator('iframe[title^="Configuratore 3D"]');
   await mockupFrame.locator('body[data-wizard-mobile="true"]').waitFor();
+  const viewerFrame = page.frames().find(frame => frame !== page.mainFrame() && frame.url().includes('/custodia-v1/'));
+  assert.ok(viewerFrame, 'Frame del viewer custodia non trovato');
+  const webglInfo = await viewerFrame.evaluate(() => {
+    const canvas = document.querySelector('#viewport');
+    const gl = canvas?.getContext('webgl2') || canvas?.getContext('webgl');
+    if (!gl) return { renderer: '', vendor: '' };
+    const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+    return {
+      renderer: debugInfo ? String(gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL)) : '',
+      vendor: debugInfo ? String(gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL)) : '',
+    };
+  });
+  assert.ok(webglInfo.renderer, 'WEBGL_debug_renderer_info non disponibile: impossibile confermare il renderer GPU');
+  const softwareRenderer = /swiftshader|llvmpipe|softpipe|software rasterizer/i.test(webglInfo.renderer);
+  if (realGpu) {
+    assert.equal(
+      softwareRenderer,
+      false,
+      `La modalità GPU reale sta usando un renderer software: ${webglInfo.renderer}`,
+    );
+    console.log(`GPU WebGL reale: ${webglInfo.renderer} (${webglInfo.vendor})`);
+  } else {
+    assert.equal(softwareRenderer, true, `Il gate SwiftShader non usa un renderer software: ${webglInfo.renderer}`);
+  }
   const nextButton = mockupFrame.locator('#wizard-actions-slot button').nth(1);
   for (let attempt = 0; attempt < 6; attempt += 1) {
     await nextButton.waitFor({ state: 'attached' });
     assert.equal(await nextButton.isVisible(), true, `Azione wizard non visibile al tentativo ${attempt + 1}`);
     const actionLabel = (await nextButton.textContent())?.trim() || '';
     if (!/^Avanti/.test(actionLabel)) break;
-    await nextButton.click();
+    await nextButton.click({ noWaitAfter: true });
   }
   const downloadButton = mockupFrame.locator('#downloadClient');
   await downloadButton.waitFor({ state: 'visible' });
   assert.equal(await downloadButton.isDisabled(), false);
-  const downloadPromise = page.waitForEvent('download', { timeout: 30_000 })
-    .then(download => ({ download }))
-    .catch(error => ({ error }));
+  const downloadPromise = page.waitForEvent('download', { timeout: 30_000 });
   try {
-    await downloadButton.click({ timeout: 30_000 });
+    const [download] = await Promise.all([
+      downloadPromise,
+      downloadButton.click({ timeout: 30_000, noWaitAfter: true }),
+    ]);
+    assert.equal(await download.failure(), null);
+    assert.match(download.suggestedFilename(), /^album-configurazione-.*\.html$/);
+    const downloadedReport = fs.readFileSync(await download.path(), 'utf8');
+    const viewLabels = [
+      'Album e custodia · prospettiva',
+      'Copertina · album senza custodia',
+      'Retro · album senza custodia',
+      'Dorso e scritte personalizzate',
+      'Lato destro',
+      'Vista superiore',
+      'Vista inferiore',
+      'Album estratto dalla custodia',
+    ];
+    for (const viewLabel of viewLabels) {
+      assert.ok(downloadedReport.includes(viewLabel), `Vista mancante nel download: ${viewLabel}`);
+    }
+    const embeddedPngs = [...downloadedReport.matchAll(
+      /<img\b[^>]*\bsrc="data:image\/png;base64,([^"]+)"/g,
+    )].map(match => Buffer.from(match[1], 'base64'));
+    assert.equal(embeddedPngs.length, viewLabels.length, 'Il report non contiene otto immagini PNG incorporate');
+    const imageDimensions = embeddedPngs.map((png, index) => {
+      assert.equal(png.toString('ascii', 1, 4), 'PNG', `Vista ${index + 1} non è una PNG valida`);
+      return { width: png.readUInt32BE(16), height: png.readUInt32BE(20) };
+    });
+    const expectedDimensions = realGpu ? { width: 1600, height: 1200 } : { width: 800, height: 600 };
+    assert.deepEqual(
+      imageDimensions,
+      viewLabels.map(() => expectedDimensions),
+      `Dimensioni export inattese: attese ${expectedDimensions.width}×${expectedDimensions.height}, ricevute ${JSON.stringify(imageDimensions)}`,
+    );
+    console.log(
+      `Report OK: ${embeddedPngs.length} viste PNG ${expectedDimensions.width}×${expectedDimensions.height}.`,
+    );
   } catch (error) {
     const status = await mockupFrame.locator('#downloadStatus').textContent().catch(() => '');
-    throw new Error(`Click download cliente fallito (stato renderer: ${status || 'nessuno'}): ${error.message}`);
-  }
-  const downloadResult = await downloadPromise;
-  if (downloadResult.error) {
-    const status = await mockupFrame.locator('#downloadStatus').textContent().catch(() => '');
-    throw new Error(`Download cliente non intercettato (stato renderer: ${status || 'nessuno'}): ${downloadResult.error.message}`);
-  }
-  const download = downloadResult.download;
-  assert.equal(await download.failure(), null);
-  assert.match(download.suggestedFilename(), /^album-configurazione-.*\.html$/);
-  const downloadedReport = fs.readFileSync(await download.path(), 'utf8');
-  for (const viewLabel of [
-    'Album e custodia · prospettiva',
-    'Copertina · album senza custodia',
-    'Retro · album senza custodia',
-    'Dorso e scritte personalizzate',
-    'Lato destro',
-    'Vista superiore',
-    'Vista inferiore',
-    'Album estratto dalla custodia',
-  ]) {
-    assert.ok(downloadedReport.includes(viewLabel), `Vista mancante nel download: ${viewLabel}`);
+    throw new Error(`Download cliente fallito (stato renderer: ${status || 'nessuno'}): ${error.message}`);
   }
   assert.equal(await page.getByRole('button', { name: 'Cambia', exact: true }).isDisabled(), true);
-  await page.screenshot({ path: 'work/photobook-client-print-locked.png' });
+  if (!realGpu) await page.screenshot({ path: 'work/photobook-client-print-locked.png' });
 
   assert.deepEqual(browserErrors, []);
   console.log('Browser OK: modello fisso, scelta tra modelli, bozza, inviato, modifiche richieste, confermato, nuova revisione e blocco stampa.');
