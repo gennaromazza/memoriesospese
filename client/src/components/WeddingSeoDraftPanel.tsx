@@ -897,14 +897,14 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Anteprime reali</p>
                    <div className="grid grid-cols-2 gap-3">
                      <div className="space-y-1.5">
-                       <p className="text-xs font-medium text-gray-600">Hero storia · desktop</p>
-                       <div className="aspect-[16/9] overflow-hidden rounded-lg bg-gray-100">
+                       <p className="text-xs font-medium text-gray-600">Pagina Real Wedding · desktop · hero 55vh</p>
+                       <div className="aspect-[3.6/1] overflow-hidden rounded-lg bg-gray-100">
                          <img src={coverPhoto.url} alt="" className="h-full w-full object-cover" style={coverPositionStyle(coverPhotoPosition)} />
                        </div>
                      </div>
                      <div className="space-y-1.5">
-                       <p className="text-xs font-medium text-gray-600">Hero storia · smartphone</p>
-                       <div className="aspect-[4/5] overflow-hidden rounded-lg bg-gray-100">
+                       <p className="text-xs font-medium text-gray-600">Pagina Real Wedding · smartphone · hero 55vh</p>
+                       <div className="aspect-[5/6] overflow-hidden rounded-lg bg-gray-100">
                          <img src={coverPhoto.url} alt="" className="h-full w-full object-cover" style={coverPositionStyle(coverPhotoMobilePosition)} />
                        </div>
                      </div>
