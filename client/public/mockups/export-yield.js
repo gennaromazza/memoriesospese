@@ -16,11 +16,21 @@ export function yieldToBrowser() {
 export function isSoftwareRenderer(rendererName) {
   return /swiftshader|llvmpipe|softpipe|software rasterizer/i.test(String(rendererName));
 }
-export function getExportSize(renderer) {
+
+export function getWebGLInfo(renderer) {
   const gl = renderer.getContext();
   const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
   const rendererName = debugInfo ? String(gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL)) : '';
-  const software = isSoftwareRenderer(rendererName);
+  const vendorName = debugInfo ? String(gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL)) : '';
+  return {
+    renderer: rendererName,
+    vendor: vendorName,
+    software: isSoftwareRenderer(rendererName),
+  };
+}
+
+export function getExportSize(renderer) {
+  const { software } = getWebGLInfo(renderer);
   const lowPower = software
     || (typeof navigator.deviceMemory === 'number' && navigator.deviceMemory <= 4)
     || (typeof navigator.hardwareConcurrency === 'number' && navigator.hardwareConcurrency <= 4);

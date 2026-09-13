@@ -296,6 +296,7 @@ try {
   });
   assert.ok(webglInfo.renderer, 'WEBGL_debug_renderer_info non disponibile: impossibile confermare il renderer GPU');
   const softwareRenderer = /swiftshader|llvmpipe|softpipe|software rasterizer/i.test(webglInfo.renderer);
+  const gpuMode = softwareRenderer ? 'software-fallback' : 'hardware';
   if (realGpu) {
     assert.equal(
       softwareRenderer,
@@ -345,14 +346,50 @@ try {
     assert.equal(embeddedPngs.length, viewLabels.length, 'Il report non contiene otto immagini PNG incorporate');
     const imageDimensions = embeddedPngs.map((png, index) => {
       assert.equal(png.toString('ascii', 1, 4), 'PNG', `Vista ${index + 1} non è una PNG valida`);
-      return { width: png.readUInt32BE(16), height: png.readUInt32BE(20) };
+      return {
+        width: png.readUInt32BE(16),
+        height: png.readUInt32BE(20),
+        bytes: png.byteLength,
+      };
     });
     const expectedDimensions = realGpu ? { width: 1600, height: 1200 } : { width: 800, height: 600 };
     assert.deepEqual(
-      imageDimensions,
+      imageDimensions.map(({ width, height }) => ({ width, height })),
       viewLabels.map(() => expectedDimensions),
       `Dimensioni export inattese: attese ${expectedDimensions.width}×${expectedDimensions.height}, ricevute ${JSON.stringify(imageDimensions)}`,
     );
+    const qualityReport = {
+      schemaVersion: 1,
+      gate: 'photobook-client-lifecycle',
+      result: 'passed',
+      gpuMode,
+      exportProfile: gpuMode === 'hardware' ? 'hardware-1600x1200' : 'software-fallback-800x600',
+      webgl: {
+        renderer: webglInfo.renderer,
+        vendor: webglInfo.vendor,
+        softwareRenderer,
+      },
+      export: {
+        viewCount: viewLabels.length,
+        expectedDimensions,
+        views: viewLabels.map((label, index) => ({
+          index: index + 1,
+          label,
+          png: {
+            format: 'PNG',
+            width: imageDimensions[index].width,
+            height: imageDimensions[index].height,
+            bytes: imageDimensions[index].bytes,
+          },
+        })),
+      },
+    };
+    fs.mkdirSync('work', { recursive: true });
+    fs.writeFileSync(
+      'work/photobook-client-lifecycle-quality.json',
+      `${JSON.stringify(qualityReport, null, 2)}\n`,
+    );
+    console.log(`3D quality report JSON: ${JSON.stringify(qualityReport)}`);
     console.log(
       `Report OK: ${embeddedPngs.length} viste PNG ${expectedDimensions.width}×${expectedDimensions.height}.`,
     );
