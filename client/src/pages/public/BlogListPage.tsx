@@ -23,6 +23,10 @@ type EditorialCard = {
   publishedAt?: any;
   coverImage?: string;
   coverImageAlt?: string;
+  coverImagePosition?: PublicWeddingStoryPreview['coverPhotoPosition'];
+  coverImageMobilePosition?: PublicWeddingStoryPreview['coverPhotoMobilePosition'];
+  coverImageCardPosition?: PublicWeddingStoryPreview['coverPhotoCardPosition'];
+  coverImageCardMobilePosition?: PublicWeddingStoryPreview['coverPhotoCardMobilePosition'];
   coverPhotoPosition?: PublicWeddingStoryPreview['coverPhotoPosition'];
   coverPhotoMobilePosition?: PublicWeddingStoryPreview['coverPhotoMobilePosition'];
   coverPhotoCardPosition?: PublicWeddingStoryPreview['coverPhotoCardPosition'];
@@ -300,8 +304,13 @@ export default function BlogListPage() {
                         <img 
                           src={post.coverImage} 
                           alt={post.coverImageAlt || post.title}
-                           className="wedding-cover-card-image aspect-[4/3] w-full object-cover hover:scale-105 transition-transform duration-500"
-                           style={weddingCoverPositionStyle(post.coverPhotoPosition, post.coverPhotoMobilePosition, post.coverPhotoCardPosition, post.coverPhotoCardMobilePosition)}
+                            className="wedding-cover-card-image aspect-[4/3] w-full object-cover hover:scale-105 transition-transform duration-500"
+                            style={weddingCoverPositionStyle(
+                              post.kind === 'blog' ? post.coverImagePosition : post.coverPhotoPosition,
+                              post.kind === 'blog' ? post.coverImageMobilePosition : post.coverPhotoMobilePosition,
+                              post.kind === 'blog' ? post.coverImageCardPosition : post.coverPhotoCardPosition,
+                              post.kind === 'blog' ? post.coverImageCardMobilePosition : post.coverPhotoCardMobilePosition,
+                            )}
                           loading="lazy"
                         />
                       </div>

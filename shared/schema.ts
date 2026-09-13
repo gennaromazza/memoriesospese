@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { EditorialCoverPositions } from "./editorial-cover";
 import { Timestamp } from 'firebase/firestore';
 
 // Security Question Types
@@ -893,7 +894,7 @@ export enum BlogPostStatus {
 }
 
 // Blog Post interface
-export interface BlogPost {
+export interface BlogPost extends EditorialCoverPositions {
   id: string;
   title: string;
   slug: string; // URL-friendly version (es. "sposarsi-costiera-amalfitana")
@@ -929,6 +930,10 @@ export const insertBlogPostSchema = z.object({
   content: z.string().min(1, "Il contenuto è obbligatorio"),
   coverImage: z.string().url("URL immagine non valido").optional(),
   coverImageAlt: z.string().max(200, "Il testo alternativo è troppo lungo").optional(),
+  coverImagePosition: z.object({ x: z.number().min(0).max(100), y: z.number().min(0).max(100) }).optional(),
+  coverImageMobilePosition: z.object({ x: z.number().min(0).max(100), y: z.number().min(0).max(100) }).optional(),
+  coverImageCardPosition: z.object({ x: z.number().min(0).max(100), y: z.number().min(0).max(100) }).optional(),
+  coverImageCardMobilePosition: z.object({ x: z.number().min(0).max(100), y: z.number().min(0).max(100) }).optional(),
   status: z.nativeEnum(BlogPostStatus).default(BlogPostStatus.DRAFT),
   category: z.string().optional(),
   tags: z.array(z.string()).optional(),

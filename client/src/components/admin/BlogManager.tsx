@@ -20,6 +20,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Plus, Edit, Trash2, FileText, Loader2, Eye, Calendar, Trash, Upload, ImagePlus, Code, FileJson } from 'lucide-react';
 import { BlogPost, BlogPostStatus, insertBlogPostSchema } from '@shared/schema';
+import type { EditorialCoverPosition, EditorialCoverPositions } from '@shared/editorial-cover';
+import EditorialCoverPositionEditor from '@/components/EditorialCoverPositionEditor';
 import WordPressImporter from './WordPressImporter';
 import { compressImage } from '@/lib/imageCompression';
 import {
@@ -31,6 +33,7 @@ import {
 
 const FALLBACK_AUTHOR = 'Gennaro Mazzacane';
 const SEO_CONTENT_LIMIT = 50000;
+const DEFAULT_COVER_POSITION: EditorialCoverPosition = { x: 50, y: 50 };
 
 // Conserva nel documento una versione testuale leggera dell'articolo. In questo
 // modo crawler e anteprime non devono scaricare HTML con immagini Base64 da vari MB.
@@ -101,6 +104,12 @@ export default function BlogManager({
   const [showHtmlSource, setShowHtmlSource] = useState(false);
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
   const [coverImagePath, setCoverImagePath] = useState('');
+  const [coverPositions, setCoverPositions] = useState<EditorialCoverPositions>({
+    coverImagePosition: DEFAULT_COVER_POSITION,
+    coverImageMobilePosition: DEFAULT_COVER_POSITION,
+    coverImageCardPosition: DEFAULT_COVER_POSITION,
+    coverImageCardMobilePosition: DEFAULT_COVER_POSITION,
+  });
   const [contentImagePaths, setContentImagePaths] = useState<string[]>([]);
   // Counter per gestire race condition in openDialog (fetch asincrono da Storage)
   const openDialogCallRef = useRef(0);
@@ -194,6 +203,12 @@ export default function BlogManager({
     setEditingPost(null);
     setSlugManuallyEdited(false);
     setCoverImagePath('');
+    setCoverPositions({
+      coverImagePosition: DEFAULT_COVER_POSITION,
+      coverImageMobilePosition: DEFAULT_COVER_POSITION,
+      coverImageCardPosition: DEFAULT_COVER_POSITION,
+      coverImageCardMobilePosition: DEFAULT_COVER_POSITION,
+    });
     setContentImagePaths([]);
     contentImageAltMapRef.current.clear();
     pendingEditorImageFileRef.current = null;
@@ -296,6 +311,12 @@ export default function BlogManager({
       metaTitle: typeof data.metaTitle === 'string' ? data.metaTitle.trim().slice(0, 60) : '',
       metaDescription: typeof data.metaDescription === 'string' ? data.metaDescription.trim().slice(0, 160) : ''
     });
+    setCoverPositions({
+      coverImagePosition: data.coverImagePosition || DEFAULT_COVER_POSITION,
+      coverImageMobilePosition: data.coverImageMobilePosition || data.coverImagePosition || DEFAULT_COVER_POSITION,
+      coverImageCardPosition: data.coverImageCardPosition || data.coverImagePosition || DEFAULT_COVER_POSITION,
+      coverImageCardMobilePosition: data.coverImageCardMobilePosition || data.coverImageMobilePosition || data.coverImagePosition || DEFAULT_COVER_POSITION,
+    });
     setDialogOpen(true);
 
     toast({
@@ -395,6 +416,12 @@ export default function BlogManager({
         author: post.author || FALLBACK_AUTHOR,
         metaTitle: post.metaTitle || '',
         metaDescription: post.metaDescription || ''
+      });
+      setCoverPositions({
+        coverImagePosition: post.coverImagePosition || DEFAULT_COVER_POSITION,
+        coverImageMobilePosition: post.coverImageMobilePosition || post.coverImagePosition || DEFAULT_COVER_POSITION,
+        coverImageCardPosition: post.coverImageCardPosition || post.coverImagePosition || DEFAULT_COVER_POSITION,
+        coverImageCardMobilePosition: post.coverImageCardMobilePosition || post.coverImageMobilePosition || post.coverImagePosition || DEFAULT_COVER_POSITION,
       });
     } else {
       resetForm();
@@ -690,6 +717,7 @@ export default function BlogManager({
       if (formData.coverImage?.trim()) {
         dataToValidate.coverImage = formData.coverImage;
         dataToValidate.coverImageAlt = formData.coverImageAlt.trim() || formData.title.trim();
+        Object.assign(dataToValidate, coverPositions);
       }
       if (formData.category?.trim()) {
         dataToValidate.category = formData.category;
@@ -760,6 +788,10 @@ export default function BlogManager({
         postData.coverImage = deleteField();
         postData.coverImageAlt = deleteField();
         postData.coverImagePath = deleteField();
+        postData.coverImagePosition = deleteField();
+        postData.coverImageMobilePosition = deleteField();
+        postData.coverImageCardPosition = deleteField();
+        postData.coverImageCardMobilePosition = deleteField();
       }
       postData.contentImagePaths = referencedContentImagePaths;
 
@@ -1339,11 +1371,13 @@ export default function BlogManager({
                         </p>
                       </div>
                       {formData.coverImage && (
-                        <div className="relative">
+                        <div className="space-y-3">
+                          <div className="relative">
                           <img 
                             src={formData.coverImage} 
                             alt={formData.coverImageAlt || formData.title || "Anteprima copertina"}
-                            className="w-full h-40 object-cover rounded border"
+                            className="w-full aspect-[1.91/1] object-cover rounded border"
+                            style={{ objectPosition: `${coverPositions.coverImagePosition?.x ?? 50}% ${coverPositions.coverImagePosition?.y ?? 50}%` }}
                             onLoad={(e) => {
                               const img = e.target as HTMLImageElement;
                               const width = img.naturalWidth;
@@ -1358,6 +1392,13 @@ export default function BlogManager({
                           <div className="absolute top-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
                             <span id="cover-image-tooltip">Caricamento...</span>
                           </div>
+                          </div>
+                          <EditorialCoverPositionEditor
+                            imageUrl={formData.coverImage}
+                            alt={formData.coverImageAlt || formData.title || "Anteprima copertina"}
+                            positions={coverPositions}
+                            onChange={(key, position) => setCoverPositions(current => ({ ...current, [key]: position }))}
+                          />
                         </div>
                       )}
                       <p className="text-xs text-muted-foreground">
@@ -1408,7 +1449,8 @@ export default function BlogManager({
                       <img 
                         src={formData.coverImage} 
                         alt={formData.coverImageAlt || formData.title || "Copertina"}
-                        className="w-full h-64 object-cover rounded-lg mb-6"
+                        className="w-full aspect-[3.6/1] object-cover rounded-lg mb-6"
+                        style={{ objectPosition: `${coverPositions.coverImagePosition?.x ?? 50}% ${coverPositions.coverImagePosition?.y ?? 50}%` }}
                       />
                     )}
 

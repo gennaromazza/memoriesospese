@@ -15,7 +15,7 @@ import {
   buildBlogContextualLinks,
   type BlogContextualLink,
 } from "@shared/blog-contextual-links";
-import { getPublicWeddingStoryPreviews } from "@/lib/wedding-seo";
+import { getPublicWeddingStoryPreviews, weddingCoverPositionStyle } from "@/lib/wedding-seo";
 import { trackBlogContextualClick } from "@/lib/analytics";
 
 const FALLBACK_AUTHOR = "Gennaro Mazzacane";
@@ -338,8 +338,13 @@ export default function BlogPostPage() {
             <img
               src={post.coverImage}
               alt={post.coverImageAlt || post.title}
-              className="w-full object-cover"
-              style={{ maxHeight: '480px', objectFit: 'cover' }}
+              className="wedding-cover-image w-full object-cover"
+              style={weddingCoverPositionStyle(
+                post.coverImagePosition,
+                post.coverImageMobilePosition,
+                post.coverImageCardPosition,
+                post.coverImageCardMobilePosition,
+              )}
               loading="eager"
               decoding="async"
               data-testid="img-cover"
@@ -487,7 +492,13 @@ export default function BlogPostPage() {
                       <img
                         src={relatedPost.coverImage}
                         alt={relatedPost.title}
-                        className="w-full h-40 sm:h-48 object-cover rounded-lg mb-3 group-hover:opacity-90 transition"
+                        className="wedding-cover-card-image w-full h-40 sm:h-48 object-cover rounded-lg mb-3 group-hover:opacity-90 transition"
+                        style={weddingCoverPositionStyle(
+                          relatedPost.coverImagePosition,
+                          relatedPost.coverImageMobilePosition,
+                          relatedPost.coverImageCardPosition,
+                          relatedPost.coverImageCardMobilePosition,
+                        )}
                         loading="lazy"
                         decoding="async"
                       />

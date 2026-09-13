@@ -10,6 +10,8 @@
 
 .wedding-cover-image {
   object-position: var(--wedding-cover-position-desktop, 50% 50%);
+  aspect-ratio: 3.6 / 1;
+  max-height: 480px;
 }
 
 .wedding-cover-card-image {

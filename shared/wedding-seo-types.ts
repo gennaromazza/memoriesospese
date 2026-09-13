@@ -1,3 +1,5 @@
+import type { EditorialCoverPosition } from './editorial-cover';
+
 export type WeddingStoryStatus = 'draft' | 'published';
 
 export const WEDDING_STORY_LIMITS = {
@@ -20,10 +22,7 @@ export interface WeddingStorySource {
   legacyImported?: boolean;
 }
 
-export interface WeddingCoverPosition {
-  x: number;
-  y: number;
-}
+export type WeddingCoverPosition = EditorialCoverPosition;
 
 export interface WeddingSeoStory {
   id: string;

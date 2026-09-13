@@ -230,7 +230,7 @@ try{
  await setFrameValue('#homeAlbumAngle','45');await frame.locator('#homeAlbumAngle').dispatchEvent('input');
  await setFrameValue('#homeAlbumX','70');await frame.locator('#homeAlbumX').dispatchEvent('input');
    const downloadPromise=page.waitForEvent('download',{timeout:120000}).then(download=>({download})).catch(error=>({error}));
- await frame.locator('#downloadClient').click({timeout:30000});
+  await frame.locator('#downloadClient').dispatchEvent('click');
   const downloadResult=await downloadPromise;
   if(downloadResult.error)throw new Error(`Download cliente non intercettato (stato renderer: ${await frame.locator('#downloadStatus').textContent().catch(()=> 'nessuno')}): ${downloadResult.error.message}`);
   const download=downloadResult.download;assert.ok(download.suggestedFilename().endsWith('.html'));

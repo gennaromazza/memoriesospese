@@ -65,6 +65,10 @@ type HomepageEditorialCard = {
   excerpt: string;
   publishedAt?: any;
   coverImage?: string;
+  coverImagePosition?: PublicWeddingStoryPreview['coverPhotoPosition'];
+  coverImageMobilePosition?: PublicWeddingStoryPreview['coverPhotoMobilePosition'];
+  coverImageCardPosition?: PublicWeddingStoryPreview['coverPhotoCardPosition'];
+  coverImageCardMobilePosition?: PublicWeddingStoryPreview['coverPhotoCardMobilePosition'];
   coverPhotoPosition?: PublicWeddingStoryPreview['coverPhotoPosition'];
   coverPhotoMobilePosition?: PublicWeddingStoryPreview['coverPhotoMobilePosition'];
   coverPhotoCardPosition?: PublicWeddingStoryPreview['coverPhotoCardPosition'];
@@ -1079,7 +1083,12 @@ export default function PublicHomepage() {
                             src={post.coverImage}
                             alt={post.title}
                              className="wedding-cover-card-image w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                             style={weddingCoverPositionStyle(post.coverPhotoPosition, post.coverPhotoMobilePosition, post.coverPhotoCardPosition, post.coverPhotoCardMobilePosition)}
+                             style={weddingCoverPositionStyle(
+                               post.kind === 'blog' ? post.coverImagePosition : post.coverPhotoPosition,
+                               post.kind === 'blog' ? post.coverImageMobilePosition : post.coverPhotoMobilePosition,
+                               post.kind === 'blog' ? post.coverImageCardPosition : post.coverPhotoCardPosition,
+                               post.kind === 'blog' ? post.coverImageCardMobilePosition : post.coverPhotoCardMobilePosition,
+                             )}
                             loading="lazy"
                           />
                         </div>
