@@ -3,6 +3,7 @@ import express from 'express';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { MOCKUP_MODEL } from '../shared/mockup-catalog';
+import peppeLabCatalog from '../client/public/mockups/custodia-v1/peppe-lab-catalog.json';
 const h = vi.hoisted(() => ({ docs: new Map<string, any>(), sends: 0, failSend: false }));
 function ref(path: string): any {
   return { id: path.split('/').pop(), path, get: async () => { const value = h.docs.get(path); return { exists: !!value, id: path.split('/').pop(), ref: ref(path), data: () => value ? { ...value } : undefined }; }, update: async (data: any) => h.docs.set(path, { ...h.docs.get(path), ...data }) };
@@ -43,6 +44,28 @@ describe('Catalogo laboratori e protezioni spedizione mockup', () => {
     expect((await request('/labs/lab/mockup-catalog', 'PUT', catalog)).status).toBe(409);
     expect(h.docs.get('labs/lab').email).toBe('lab@example.test');
     expect((await request('/labs/lab/mockup-catalog', 'PUT', { ...catalog, revision: 1, materials: [] })).status).toBe(400);
+  });
+  it('importa tutti i rivestimenti solo nel PeppeLab scelto e non modifica proposte già pubblicate', async () => {
+    const spigato = peppeLabCatalog.variants.find(material => material.label === 'Spigato Beje');
+    expect(spigato).toBeDefined();
+    h.docs.set('labs/peppe-corretto', { nome: 'PeppeLab', attivo: true });
+    h.docs.set('labs/peppe-omonimo', { nome: 'PeppeLab', attivo: true, mockupCatalog: { revision: 4, materials: [], models: [] } });
+    const publishedOffer = {
+      revision: 2,
+      options: [{ labId: 'peppe-corretto', labName: 'PeppeLab', id: catalog.models[0].id, materials: [{ id: 'snapshot', label: 'Campione precedente', supplierCode: '' }] }],
+    };
+    h.docs.set('photobooks/book/mockupOffers/v1', structuredClone(publishedOffer));
+    const imported = {
+      revision: 0,
+      materials: peppeLabCatalog.variants.map(material => ({ id: material.id, label: material.label, supplierCode: material.supplierCode || '' })),
+      models: [{ ...catalog.models[0], name: 'Custodia', materialIds: peppeLabCatalog.variants.map(material => material.id) }],
+    };
+
+    expect((await request('/labs/peppe-corretto/mockup-catalog', 'PUT', imported)).status).toBe(200);
+    expect(h.docs.get('labs/peppe-corretto').mockupCatalog.materials).toHaveLength(38);
+    expect(h.docs.get('labs/peppe-corretto').mockupCatalog.models[0].materialIds).toContain(spigato!.id);
+    expect(h.docs.get('labs/peppe-omonimo').mockupCatalog).toEqual({ revision: 4, materials: [], models: [] });
+    expect(h.docs.get('photobooks/book/mockupOffers/v1')).toEqual(publishedOffer);
   });
   it('non cambia laboratorio né invia la conferma ad un destinatario diverso', async () => {
     expect((await request('/lab-shipments/shipment', 'PATCH', { labId: 'other' })).status).toBe(409);

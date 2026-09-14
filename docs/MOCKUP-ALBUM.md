@@ -165,6 +165,7 @@ Se Git segnala conflitti, non forzare né azzerare il lavoro locale. Le prove lo
 - `node e2e/photobook-versions.browser.mjs`: approvazione, versioni, header mobile e modali nei due orientamenti.
 - `npx vitest run server/mockup-renderer-revisions.test.ts`: schemi e report v4, compatibilità incisioni/revisioni precedenti.
 - `npx vitest run server/mockup-catalog-assets.test.ts`: consistenza ID, allowlist, asset 1200 × 1200, hash e metadati di Spigato Beje.
+- `npx vitest run server/lab-mockup-workflow.test.ts server/photobook-mockup-routes.test.ts`: importa i 38 rivestimenti nel solo documento laboratorio scelto, lascia invariato un PeppeLab omonimo e verifica che Spigato Beje resti nel configuratore tramite lo snapshot pubblicato anche dopo modifiche al catalogo.
 - `node e2e/spigato-beje.browser.mjs`: renderer Custodia reale, selezione del campione, stato pronto e export normale con il materiale conservato nel report.
 - `npm run build`
 - `npx tsc --noEmit --pretty false`: dopo l'allineamento al commit Replit `bce512fd` restano tre errori già presenti nel codice remoto in `server/follow-up-routes.ts`: `data`/`exists` alle righe 530/532 e il tipo dell'evento `followup_recovery_pending` alla riga 567. Non sono introdotti dai mockup.

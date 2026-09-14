@@ -4,6 +4,7 @@ import sharp from 'sharp';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { MOCKUP_MODEL, ROTATING_MOCKUP_MODEL } from '../shared/mockup-catalog';
+import peppeLabCatalog from '../client/public/mockups/custodia-v1/peppe-lab-catalog.json';
 
 const h = vi.hoisted(() => ({ docs: new Map<string, any>(), files: new Map<string, Buffer>(), photos: [] as any[], failAfterCommit: false, beforeTransaction: null as (() => void) | null }));
 const notifySubmission = vi.fn<(book: unknown, saved: unknown) => Promise<void>>();
@@ -337,6 +338,36 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     const other = MOCKUP_MODEL.variants[1];
     expect((await save(base, { revision: 1, configuration: { ...configuration, materialId: other.id }, selection, offerRevision: 1 }, 'client')).status).toBe(409);
     expect((await save(base, { revision: 1, configuration, selection, offerRevision: 0 }, 'client')).status).toBe(409);
+  });
+
+  it('mostra Spigato Beje al cliente solo dallo snapshot del PeppeLab selezionato', async () => {
+    const spigato = peppeLabCatalog.variants.find(material => material.label === 'Spigato Beje');
+    expect(spigato).toBeDefined();
+    expect((await publish(base)).status).toBe(200);
+    const selectedLab = h.docs.get('labs/lab');
+    selectedLab.mockupCatalog.materials = [
+      ...selectedLab.mockupCatalog.materials,
+      { id: spigato!.id, label: spigato!.label, supplierCode: '' },
+    ];
+    selectedLab.mockupCatalog.models[0].materialIds.push(spigato!.id);
+    h.docs.set('labs/other', {
+      nome: selectedLab.nome,
+      attivo: true,
+      mockupCatalog: { revision: 0, materials: [], models: [] },
+    });
+
+    expect((await fetch(`${base}/admin/offer`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ revision: 1, savedRevision: 0, selections: [selection] }),
+    })).status).toBe(200);
+    selectedLab.mockupCatalog.materials.find((material: any) => material.id === spigato!.id).label = 'Nome cambiato dopo la pubblicazione';
+    selectedLab.mockupCatalog.models[0].materialIds = selectedLab.mockupCatalog.models[0].materialIds.filter((id: string) => id !== spigato!.id);
+
+    const payload = await fetch(`${base}/client`).then(r => r.json());
+    expect(payload.offer.options[0].labId).toBe('lab');
+    expect(payload.offer.options[0].materials).toContainEqual(expect.objectContaining({ id: spigato!.id, label: 'Spigato Beje' }));
+    expect(h.docs.get('labs/other').mockupCatalog).toEqual({ revision: 0, materials: [], models: [] });
   });
 
   it('eredita il modello fisso del fotolibro nelle versioni senza una proposta duplicata', async () => {
