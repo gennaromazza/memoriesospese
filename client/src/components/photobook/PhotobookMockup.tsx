@@ -97,6 +97,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   const saved = state.data?.saved;
   const renderer = MOCKUP_RENDERERS.find(r => r.id === (rendererOverride || saved?.configuration.modelId)) || MOCKUP_RENDERERS[0];
   const title = selectedOption?.name || saved?.option?.name || 'Custodia';
+  const hasSavedDraft = !!saved && (!saved.status || saved.status === 'draft');
   const fixedModel = state.data?.modelMode === 'fixed';
   const clientStatusMessage = !saved ? 'Personalizza copertina, rivestimento e scritte, poi invia la proposta allo studio.'
     : saved.status === 'submitted' ? 'La proposta è stata inviata allo studio per la verifica. Puoi ancora modificarla: ogni modifica richiederà una nuova verifica.'
@@ -440,7 +441,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     setViewMessage({ front: 'Vista frontale', back: 'Vista posteriore', reset: 'Vista ripristinata', plus: 'Zoom avanti', minus: 'Zoom indietro', extract: 'Estrazione album', rotate: nativeRotation?.hasAttribute('disabled') ? 'Reinserisci l’album per ruotare lo scrigno' : nativeRotation?.getAttribute('aria-pressed') === 'true' ? 'Scrigno in rotazione' : 'Rotazione ferma' }[action]);
   };
   return <section className={compact ? 'inline-flex shrink-0 items-center gap-1.5' : 'rounded-lg border bg-white p-4 space-y-3'} data-testid="photobook-mockup">
-    {compact ? <><Button variant="outline" className="h-10 px-3 text-xs" onClick={openConfigurator}>{saved?.status === 'changes_requested' ? 'Modifica mockup' : saved ? 'Apri il tuo album' : 'Personalizza album'}</Button>{saved && <span className="max-w-28 truncate text-[11px] text-muted-foreground" title={clientStatusMessage}>{MOCKUP_STATUS_LABELS[saved.status || 'draft']}</span>}</> : <div className="flex flex-wrap items-center justify-between gap-2">
+    {compact ? <><Button variant="outline" className="h-10 px-3 text-xs" onClick={openConfigurator} aria-label={hasSavedDraft ? 'Recupera bozza' : undefined}>{saved?.status === 'changes_requested' ? 'Modifica mockup' : hasSavedDraft ? 'Recupera bozza' : saved ? 'Apri il tuo album' : 'Personalizza album'}</Button>{saved && <span className="max-w-28 truncate text-[11px] text-muted-foreground" title={clientStatusMessage}>{MOCKUP_STATUS_LABELS[saved.status || 'draft']}</span>}</> : <div className="flex flex-wrap items-center justify-between gap-2">
       <div><h2 className="font-semibold">{title} · Anteprima album 3D</h2><p className="text-sm text-muted-foreground">Foto, rivestimento e scritte · versione {version}</p></div>
       <Button variant="outline" onClick={openConfigurator}>Apri mockup {title}</Button>
     </div>}

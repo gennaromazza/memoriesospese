@@ -163,6 +163,10 @@ try {
  assert.equal(saved.configuration.backPhotoAssetId,photoId);
  assert.equal(saved.configuration.assetRevision,4);
  assert.equal(saved.configuration.engravingNames.first,'Anna');
+ await page.getByRole('button',{name:'Chiudi mockup',exact:true}).tap();
+ await page.getByRole('button',{name:'Recupera bozza',exact:true}).tap();
+ assert.equal(await chooser.count(),0,'La bozza salvata viene recuperata senza tornare alla scelta modello');
+ await frame.locator('#wizard-slot').waitFor({timeout:45000});
  await frame.getByRole('button',{name:'Invia allo studio',exact:true}).tap();
  await frame.getByText('Proposta inviata allo studio per la verifica.',{exact:true}).waitFor();
  assert.equal(saved.status,'submitted');
