@@ -60,6 +60,39 @@ try {
  assert.equal(await page.locator('iframe').count(),0,'Le varianti sono statiche e non caricano il 3D');
  await chooser.getByTestId('choose-mockup-example-plaque').tap();
  const frame=page.frameLocator('iframe');
+ const tapFrameButton=async(selector='.wizard-primary') => {
+   await frame.getByRole('button',{name:'Avanti',exact:true}).waitFor();
+   const point=await page.evaluate(selector => {
+     const iframe=document.querySelector('iframe');
+     const button=iframe?.contentDocument?.querySelector(selector);
+     const rect=button?.getBoundingClientRect();
+     if (!iframe || !button || !rect || button.disabled) throw new Error(`Pulsante iframe non disponibile: ${selector}`);
+     const iframeRect=iframe.getBoundingClientRect();
+     return {x:iframeRect.x+rect.x+rect.width/2,y:iframeRect.y+rect.y+rect.height/2};
+   }, selector);
+   await page.touchscreen.tap(point.x,point.y);
+ };
+ const tapFrameTextButton=async(name) => {
+   await frame.getByRole('button',{name,exact:true}).waitFor();
+   const point=await page.evaluate(name => {
+     const iframe=document.querySelector('iframe');
+     const button=[...(iframe?.contentDocument?.querySelectorAll('button') || [])].find(item => item.textContent?.trim() === name);
+     const rect=button?.getBoundingClientRect();
+     if (!iframe || !button || !rect || button.disabled) throw new Error(`Pulsante iframe non disponibile: ${name}`);
+     const iframeRect=iframe.getBoundingClientRect();
+     return {x:iframeRect.x+rect.x+rect.width/2,y:iframeRect.y+rect.y+rect.height/2};
+   }, name);
+   await page.touchscreen.tap(point.x,point.y);
+ };
+ const tapCloseButton=async() => {
+   const point=await page.evaluate(() => {
+     const button=document.querySelector('.mockup-close');
+     if (!button) throw new Error('Pulsante chiusura mockup non disponibile');
+     const rect=button.getBoundingClientRect();
+     return {x:rect.x+rect.width/2,y:rect.y+rect.height/2};
+   });
+   await page.touchscreen.tap(point.x,point.y);
+ };
  await page.locator('iframe').waitFor({state:'attached'});
  assert.equal(await page.locator('iframe').isVisible(),false,'Non mostrare il documento autonomo prima che il wizard sia pronto');
  await page.getByText('Preparazione del tuo configuratore…',{exact:true}).waitFor();
@@ -139,7 +172,7 @@ try {
  const picker=page.getByRole('dialog',{name:'Scegli la foto del retro',exact:true});
  await picker.waitFor();
  for(const viewport of [{width:667,height:375},{width:390,height:844},{width:844,height:390}]){
-   await page.setViewportSize(viewport);await page.waitForTimeout(250);
+   await page.setViewportSize(viewport);await page.waitForTimeout(500);
    const bounds=await picker.boundingBox();
    assert.ok(bounds && bounds.x>=-1 && bounds.y>=-1 && bounds.x+bounds.width<=viewport.width+1 && bounds.y+bounds.height<=viewport.height+1);
    await page.getByTestId('button-picker-next').tap();
@@ -184,7 +217,6 @@ try {
  await frame.getByRole('button',{name:'Salva bozza',exact:true}).tap();
  await frame.getByText('Mockup salvato.',{exact:false}).waitFor();
  assert.equal(saved.revision,3,'Nuova revisione dopo precedente invio, che ha creato la revisione 2');
- await page.screenshot({path:`work/mockup-touch-${engine}-plaza.png`});
  // Il cambio modello ritorna ai due caroselli, con renderer esistente nascosto fino alla scelta.
  await page.getByRole('button',{name:'Cambia',exact:true}).tap();
  await chooser.getByRole('button',{name:'Modello precedente',exact:true}).tap();
@@ -196,28 +228,46 @@ try {
  releaseRenderer();
  await frame.locator('#wizard-slot').waitFor({timeout:45000});
  await page.locator('iframe').waitFor({state:'visible'});
- // Il frame appena sostituito non espone un bounding box stabile al locator
- // Playwright, ma il gesto touch reale deve comunque raggiungere il pulsante.
- const tapPoint=await page.evaluate(() => {
-   const iframe = document.querySelector('iframe');
-   const button = iframe?.contentDocument?.querySelector('.wizard-primary');
-   const rect = button?.getBoundingClientRect();
-   if (!iframe || !button || !rect || button.disabled) throw new Error('Pulsante Avanti Custodia non disponibile');
-   const iframeRect=iframe.getBoundingClientRect();
-   return { x: iframeRect.x + rect.x + rect.width / 2, y: iframeRect.y + rect.y + rect.height / 2 };
-  });
- await page.touchscreen.tap(tapPoint.x,tapPoint.y);
+ // Il frame appena sostituito non espone un bounding box stabile al locator,
+ // ma il gesto touch reale deve comunque raggiungere il pulsante.
+ await tapFrameButton();
  assert.equal(await frame.locator('body').getAttribute('data-wizard-step'),'4','Custodia non mostra un passaggio struttura vuoto');
  await page.waitForFunction(()=>document.querySelector('iframe')?.contentDocument.querySelector('#coverOptions select')?.value==='full');
  assert.equal(await frame.locator('#coverUpload').isVisible(),false,'Il selettore di file nativo non riappare in Custodia');
  assert.equal(await frame.locator('label[for=coverUpload]').isVisible(),false);
- await page.waitForTimeout(500);
- const closePoint=await page.evaluate(() => { const element=document.querySelector('.mockup-close'); if (!element) throw new Error('Pulsante chiusura mockup non disponibile'); const rect=element.getBoundingClientRect(); return { x:rect.x + rect.width / 2, y:rect.y + rect.height / 2 }; });
- page.once('dialog',dialog=>dialog.dismiss());
- await page.touchscreen.tap(closePoint.x,closePoint.y);
- assert.equal(await page.locator('iframe').count(),1,'Annullare la chiusura conserva il lavoro locale');
+ await tapFrameTextButton('Scegli dalla galleria');
+ const coverPicker=page.getByRole('dialog',{name:'Scegli la foto di copertina',exact:true});
+ await coverPicker.waitFor();
+ await page.getByTestId('button-pick-photo-gallery-one').tap();
+ await tapFrameButton();
+
+ // Anche il cambio inverso deve lasciare intatta la bozza Custodia finché
+ // l’utente non salva esplicitamente il nuovo modello.
+ await frame.getByRole('button',{name:'Avanti',exact:true}).tap();
+ await frame.getByRole('button',{name:'Salva bozza',exact:true}).tap();
+ await frame.getByText('Mockup salvato.',{exact:false}).waitFor();
+ assert.equal(saved.selection.modelId,catalog.models[0].id,'La bozza salvata appartiene ancora a Custodia');
+ await page.getByRole('button',{name:'Cambia',exact:true}).tap();
+ await chooser.getByRole('button',{name:'Modello successivo',exact:true}).tap();
+ await chooser.getByRole('button',{name:'Scopri Plaza',exact:true}).tap();
+ await chooser.getByTestId('choose-mockup-example-plaque').tap();
+ assert.equal(await page.locator('iframe').isVisible(),false,'Nascondere il renderer Custodia durante il cambio inverso');
+ await frame.locator('#wizard-slot').waitFor({timeout:45000});
+ await page.locator('iframe').waitFor({state:'visible'});
+ assert.equal(await page.locator('iframe').getAttribute('title'),'Configuratore 3D Album girevole');
+ assert.equal(await frame.locator('body').getAttribute('data-wizard-step'),'2','Il cambio inverso apre il pannello Rivestimento');
+ assert.equal(saved.selection.modelId,catalog.models[0].id,'Il cambio non sovrascrive la bozza Custodia');
  page.once('dialog',dialog=>dialog.accept());
- await page.touchscreen.tap(closePoint.x,closePoint.y);
+ await tapCloseButton();
+ await page.waitForFunction(()=>!document.querySelector('iframe'));
+ await page.getByRole('button',{name:'Recupera bozza',exact:true}).tap();
+ assert.equal(await chooser.count(),0,'Il recupero mantiene la bozza Custodia');
+ await frame.locator('#wizard-slot').waitFor({timeout:45000});
+ assert.equal(await page.locator('iframe').getAttribute('title'),'Configuratore 3D Custodia');
+ assert.equal(await frame.locator('#coverOptions select').inputValue(),'full','Il recupero ripristina la copertina Custodia');
+
+ await page.waitForTimeout(500);
+ await tapCloseButton();
  await page.waitForFunction(()=>!document.querySelector('iframe'));
  locked=true;saved=null;
  await page.reload();
