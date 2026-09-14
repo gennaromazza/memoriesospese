@@ -30,6 +30,6 @@ export function installFabricSampling(material, THREE) {
       .replace('#include <map_fragment>', mapFragment)
       .replace('#include <normal_fragment_maps>', normalFragment);
   };
-  material.customProgramCacheKey = () => 'fabric-stochastic-color-v5';
+  material.customProgramCacheKey = () => 'fabric-mirrored-mip-v6';
   material.needsUpdate = true;
 }
