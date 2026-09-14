@@ -26,3 +26,9 @@ Il browser WebKit Playwright scaricato nel runner Nix può restare non avviabile
 **Why:** forzare il caricamento di una versione diversa può superare il controllo iniziale ma fallire con simboli mancanti o produrre una verifica Safari non attendibile.
 
 **How to apply:** trattare l’assenza delle librerie WebKit come prerequisito esplicito del runner e usare un ambiente con dipendenze Playwright/Ubuntu compatibili per la conferma WebKit; non modificare il progetto solo per aggirare il linker.
+
+Il harness amministrativo completo può inoltre restare occupato nel primo export della custodia con SwiftShader, prima di raggiungere le fasi successive; un controllo mirato del renderer girevole è più affidabile per validare una regressione specifica di copertina.
+
+**Why:** il percorso completo combina molte esportazioni WebGL e può superare il budget del runner senza fornire un segnale utile sulla fase appena modificata.
+
+**How to apply:** per nuove asserzioni di contenuto del mockup, mantenere il test nel punto del wizard che esercita direttamente la configurazione interessata e usare il gate lifecycle separatamente per la copertura cliente già stabile.

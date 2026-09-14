@@ -49,7 +49,7 @@ try{
  const assetId='11111111-1111-4111-8111-111111111111';
  const backAssetId='55555555-5555-4555-8555-555555555555';
  const rearImage=await sharp(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400"><rect width="600" height="400" fill="#286880"/><rect x="300" width="300" height="400" fill="#bb9646"/><text x="45" y="100" font-size="64" fill="white">RETRO</text><circle cx="90" cy="290" r="48" fill="white"/></svg>')).png().toBuffer();
- const photo=await sharp({create:{width:600,height:400,channels:3,background:'#bc8862'}}).png().toBuffer();
+  const photo=await sharp(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400"><rect width="600" height="400" fill="#2b6678"/><rect width="300" height="400" fill="#d66b50"/><circle cx="145" cy="205" r="96" fill="#f4d58d"/><path d="M0 320 C100 250 190 390 300 305 S500 250 600 325 V400 H0Z" fill="#7f3f67"/><text x="30" y="74" font-family="Georgia,serif" font-size="42" fill="#fff8e7">FOTO</text></svg>')).png().toBuffer();
  let saved={version:1,revision:1,updatedAt:new Date().toISOString(),configuration:{modelId:model.id,assetRevision:model.assetRevision,materialId:material.id,appearanceRevision:material.appearanceRevision,coverLayout:'full',topText:'Custodia test',bottomText:'Ricordi',photoAssetId:assetId,crop:{zoom:1.2,x:.4,y:.6}}};
  let uploads=0,gallerySelections=0,adminRequests=0;
  let failNextSave=false,submissions=0;
@@ -142,6 +142,48 @@ try{
    await tab.waitFor({state:'attached',timeout:90000});
    await tab.dispatchEvent('click');
    await renderer.locator('#homeScene').waitFor({state:'visible',timeout:30000});
+  }
+  function contentBounds(pixels) {
+   const {width,height,channels}=pixels.info;
+   const corners=[[0,0],[width-1,0],[0,height-1],[width-1,height-1]];
+   const background=corners.reduce((sum,[x,y])=>{
+    const offset=(y*width+x)*channels;
+    return sum.map((value,index)=>value+pixels.data[offset+index]/corners.length);
+   },[0,0,0]);
+   let left=width,top=height,right=0,bottom=0,count=0;
+   for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+    const offset=(y*width+x)*channels;
+    const distance=Math.hypot(
+     pixels.data[offset]-background[0],
+     pixels.data[offset+1]-background[1],
+     pixels.data[offset+2]-background[2],
+    );
+    if(distance<18)continue;
+    left=Math.min(left,x);top=Math.min(top,y);right=Math.max(right,x);bottom=Math.max(bottom,y);count++;
+   }
+   if(count<100)return null;
+   return {left,top,right:Math.min(width,right+1),bottom:Math.min(height,bottom+1)};
+  }
+  function regionMean(pixels,region) {
+   const {width,channels}=pixels.info;
+   let red=0,green=0,blue=0,count=0;
+   for(let y=region.top;y<region.bottom;y++)for(let x=region.left;x<region.right;x++){
+    const offset=(y*width+x)*channels;
+    red+=pixels.data[offset];green+=pixels.data[offset+1];blue+=pixels.data[offset+2];count++;
+   }
+   return [red/count,green/count,blue/count];
+  }
+  function colorDistance(first,second) {
+   return Math.hypot(first[0]-second[0],first[1]-second[1],first[2]-second[2]);
+  }
+  function insetCoverRegions(pixels,bounds) {
+   const width=bounds.right-bounds.left,height=bounds.bottom-bounds.top;
+   const middle=Math.floor((bounds.left+bounds.right)/2);
+   const yInset=Math.max(1,Math.floor(height*.18)),xInset=Math.max(1,Math.floor(width*.12));
+   return {
+    left:{left:bounds.left+xInset,right:middle-2,top:bounds.top+yInset,bottom:bounds.bottom-yInset},
+    right:{left:middle+2,right:bounds.right-xInset,top:bounds.top+yInset,bottom:bounds.bottom-yInset},
+   };
   }
  async function clickPageButton(label) {
    check(`click pagina ${label}`);
@@ -372,7 +414,36 @@ try{
  await page.getByRole('button',{name:'Salva mockup',exact:true}).dispatchEvent('click');await page.getByText('Mockup salvato.',{exact:false}).waitFor();
  assert.equal(saved.configuration.frameFinish,'white');assert.equal(saved.configuration.coverLayout,'photo-plaque');
  await screenshotRect('iframe','work/mockup-girevole-bianco.png');
-  await frame.locator('#frameFinish').selectOption('fabric');await frame.locator('#coverLayout').selectOption('split-photo-fabric');
+   await frame.locator('#frameFinish').selectOption('fabric');await frame.locator('#coverLayout').selectOption('split-photo-fabric');
+  await frame.locator('#front').dispatchEvent('click');await page.waitForTimeout(250);
+  const splitRenderer=page.frames().find(candidate=>candidate!==page.mainFrame()&&candidate.url().includes('/mockups/girevole-v4/'));
+  assert.ok(splitRenderer,'Renderer girevole-v4 non trovato per la verifica della copertina divisa');
+  const splitState=await splitRenderer.evaluate(()=>({
+   layout:document.getElementById('coverLayout')?.value,
+   coverLayout:document.body.dataset.coverLayout,
+   photoStatus:document.getElementById('photoStatus')?.textContent||'',
+ }));
+  assert.deepEqual(splitState,{layout:'split-photo-fabric',coverLayout:'split-photo-fabric',photoStatus:'Foto salvata'});
+  const namedCover=await splitRenderer.locator('#viewport').screenshot();
+  if(process.env.MOCKUP_E2E_SCREENSHOTS==='1')fs.writeFileSync('work/mockup-girevole-split-cover.png',namedCover);
+  const namedPixels=await sharp(namedCover).raw().toBuffer({resolveWithObject:true});
+  const coverBounds=contentBounds(namedPixels);
+  assert.ok(coverBounds&&coverBounds.right-coverBounds.left>100,`Copertina non rilevata nel rendering: ${JSON.stringify(coverBounds)}`);
+  const splitRegions=insetCoverRegions(namedPixels,coverBounds);
+  assert.ok(colorDistance(regionMean(namedPixels,splitRegions.left),regionMean(namedPixels,splitRegions.right))>12,`Le due metà non sono distinguibili nel rendering: ${JSON.stringify({coverBounds,splitRegions})}`);
+  await setFrameValue('#firstName','');await setFrameValue('#secondName','');await page.waitForTimeout(150);
+  const blankCover=await splitRenderer.locator('#viewport').screenshot();
+  const blankPixels=await sharp(blankCover).raw().toBuffer({resolveWithObject:true});
+  const monogramRegion=splitRegions.right;
+  let monogramDelta=0,monogramSamples=0;
+  for(let y=monogramRegion.top;y<monogramRegion.bottom;y++)for(let x=monogramRegion.left;x<monogramRegion.right;x++){
+   const offset=(y*namedPixels.info.width+x)*namedPixels.info.channels;
+   monogramDelta+=Math.abs(namedPixels.data[offset]-blankPixels.data[offset])
+    +Math.abs(namedPixels.data[offset+1]-blankPixels.data[offset+1])
+    +Math.abs(namedPixels.data[offset+2]-blankPixels.data[offset+2]);monogramSamples++;
+  }
+  assert.ok(monogramDelta/monogramSamples>1.5,`Il monogramma botanico non risulta nel rendering: delta=${monogramDelta/monogramSamples}`);
+  await setFrameValue('#firstName','Anna');await setFrameValue('#secondName','Jacopo');
  await page.getByRole('button',{name:'Salva mockup',exact:true}).dispatchEvent('click');await page.getByText('Mockup salvato.',{exact:false}).waitFor();
   assert.equal(saved.configuration.frameFinish,'fabric');assert.equal(saved.configuration.coverLayout,'split-photo-fabric');
  await screenshotRect('iframe','work/mockup-girevole-tessuto.png');
