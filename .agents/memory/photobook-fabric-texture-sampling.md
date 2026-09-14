@@ -1,10 +1,10 @@
 ---
 name: Photobook fabric texture sampling
-description: Fabric maps are small tiled assets; stochastic color sampling must not be reused for bump data.
+description: Fabric maps are small tiled assets; mirrored repeat and conservative bump filtering avoid visible tiling artifacts.
 ---
 
-Use stochastic phase blending only for the fabric color map. Sample the height/bump map with the normal filtered UVs and attenuate its strength as the texture footprint becomes sub-pixel.
+Use mirrored-repeat sampling for both fabric color and height maps. Keep the height/bump map on normal filtered UVs and attenuate its strength as the texture footprint becomes sub-pixel.
 
-**Why:** Applying random per-cell offsets to the height map produces visible dots, false cavities, and block boundaries even when the color repetition is less obvious.
+**Why:** Random per-cell offsets produced visible bands, dots, and false cavities in the real mockup screenshot, while a mirrored repeat keeps the texture continuous at tile boundaries.
 
-**How to apply:** Keep the shared fabric shader helper in sync across active photobook renderers, preserve mipmaps and anisotropy, and validate on a real WebGL/GPU runner because software/headless contexts may not create the renderer.
+**How to apply:** Keep the shared fabric helper in sync across active photobook renderers, use mirrored wrapping with mipmaps and anisotropy, and validate on a real WebGL/GPU runner because software/headless contexts may not create the renderer.

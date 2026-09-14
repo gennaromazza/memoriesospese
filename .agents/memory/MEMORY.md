@@ -48,5 +48,5 @@
 - [Photobook mockup model scope](photobook-mockup-model-scope.md) — il modello normale è scelto a livello fotolibro e viene ereditato da tutte le versioni; più modelli solo come eccezione esplicita.
 - [Photobook mockup confirmation lifecycle](photobook-mockup-confirmation-lifecycle.md) — la conferma dello studio non blocca il cliente; ogni modifica riapre una revisione fino alla stampa.
 - [Mockup download headless rendering](mockup-download-headless-rendering.md) — renderer condiviso, loop sospeso, dimensione adattiva e download dal parent evitano blocchi SwiftShader senza flag e2e.
-- [Photobook fabric texture sampling](photobook-fabric-texture-sampling.md) — offset stocastici solo sul colore; il bump deve restare filtrato e attenuato per evitare puntini e cavità false.
+- [Photobook fabric texture sampling](photobook-fabric-texture-sampling.md) — mirrored-repeat e bump attenuato evitano bande, puntini e cavità false nelle texture piccole.
 - [Validazione .replit protetto](dot-replit-validation.md) — sostituire `.replit` tramite file temporaneo completo e `verifyAndReplaceDotReplit`, mai con edit diretto.
