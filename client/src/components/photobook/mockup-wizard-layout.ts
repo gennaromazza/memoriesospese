@@ -40,6 +40,7 @@ export function installMockupWizard(doc: Document, mobile = false) {
     }
   }
   doc.body.dataset.wizard = 'true';
+  doc.body.dataset.wizardLayout = 'installing';
   if (mobile) doc.body.dataset.wizardMobile = 'true';
   const style = doc.createElement('style');
   style.textContent = `
@@ -81,8 +82,9 @@ export function installMockupWizard(doc: Document, mobile = false) {
     @media(max-width:767px) and (max-height:380px){body[data-wizard] main{grid-template-rows:minmax(100px,35%) minmax(0,1fr)}body[data-wizard] .wizard-views button:nth-child(3){display:none}}
   `;
   doc.head.append(style);
+  let mobileStyle: HTMLStyleElement | undefined;
   if (mobile) {
-    const mobileStyle = doc.createElement('style');
+    mobileStyle = doc.createElement('style');
     mobileStyle.textContent = `
       body[data-wizard-mobile] main {grid-template-columns:minmax(0,1fr) clamp(250px,42%,410px)!important;grid-template-rows:minmax(0,1fr)!important}
       body[data-wizard-mobile][data-viewer-expanded=true] main {grid-template-columns:minmax(0,1fr)!important}
@@ -239,7 +241,16 @@ export function installMockupWizard(doc: Document, mobile = false) {
   const observer = new MutationObserver(refresh);
   mirrors.forEach(({ select }) => observer.observe(select, { attributes: true, attributeFilter: ['disabled'] }));
   let previousHome = 'sideboard';
-  return { slot, actionsSlot, controlsSlot, refresh, dispose() { observer.disconnect(); },
+  doc.body.dataset.wizardLayout = 'ready';
+  let disposed = false;
+  return { slot, actionsSlot, controlsSlot, refresh, dispose() {
+    if (disposed) return;
+    disposed = true;
+    observer.disconnect();
+    delete doc.body.dataset.wizardLayout;
+    style.remove();
+    mobileStyle?.remove();
+  },
     view(action: 'front' | 'back' | 'reset' | 'plus' | 'minus' | 'extract' | 'rotate') {
       if (action === 'extract' && extraction) { extraction.value = Number(extraction.value) ? '0' : '100'; extraction.dispatchEvent(new Event('input', { bubbles: true })); }
       else doc.getElementById(action)?.click();
