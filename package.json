@@ -9,6 +9,8 @@
   "scripts": {
     "dev": "tsx server/index.ts",
     "build": "npm run build:server && npm run build:client",
+    "validate:photobook-client-lifecycle": "node e2e/photobook-client-lifecycle.browser.mjs",
+    "build:release": "npm run validate:photobook-client-lifecycle && npm run build",
     "build:server": "npx esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist --minify",
     "build:client": "vite build",
     "postbuild:client": "node scripts/verify-client-build.mjs",
