@@ -108,6 +108,7 @@ try {
  const photoId='33333333-3333-4333-8333-333333333333';
  const photo=await sharp({create:{width:600,height:400,channels:3,background:'#ccbbaa'}}).png().toBuffer();
  let saved=null,locked=false;
+ let draftSaveRequests=0;
  await page.route('**/api/**',route=>{
    const url=new URL(route.request().url());
    assert.ok(!url.pathname.endsWith('/upload'),'Il mobile sceglie solo dalla galleria');
@@ -116,7 +117,7 @@ try {
    if(url.pathname.endsWith('/gallery-photo')) return route.fulfill({json:{id:photoId,name:'Foto prova',source:'gallery',width:600,height:400}});
    if(url.pathname.includes('/photos/')) return route.fulfill({contentType:'image/png',body:photo});
    if(url.pathname.endsWith('/submit')) {const data=mockupWorkflowInputSchema.parse(route.request().postDataJSON());assert.equal(data.revision,saved.revision);saved={...saved,revision:saved.revision+1,status:'submitted'};return route.fulfill({json:saved});}
-   if(route.request().method()==='PUT'){const data=route.request().postDataJSON();mockupConfigurationSchema.parse(data.configuration);mockupSelectionSchema.parse(data.selection);assert.equal(data.revision,saved?.revision||0);saved={version:1,status:'draft',updatedAt:new Date().toISOString(),...data,revision:(saved?.revision||0)+1};return route.fulfill({json:saved});}
+   if(route.request().method()==='PUT'){draftSaveRequests++;const data=route.request().postDataJSON();mockupConfigurationSchema.parse(data.configuration);mockupSelectionSchema.parse(data.selection);assert.equal(data.revision,saved?.revision||0);saved={version:1,status:'draft',updatedAt:new Date().toISOString(),...data,revision:(saved?.revision||0)+1};return route.fulfill({json:saved});}
    return route.fulfill({json:{version:1,enabled:true,editable:!locked,saved,offer}});
  });
  await page.route('**/test-photo.png',route=>route.fulfill({contentType:'image/png',body:photo}));
@@ -327,6 +328,8 @@ try {
  assert.equal(await page.locator('iframe').getAttribute('title'),'Configuratore 3D Album girevole');
  assert.equal(await frame.locator('body').getAttribute('data-wizard-step'),'2','Il cambio inverso apre il pannello Rivestimento');
  assert.equal(saved.selection.modelId,catalog.models[0].id,'Il cambio non sovrascrive la bozza Custodia');
+ const revisionBeforeHistoryNavigation=saved.revision;
+ const draftSaveRequestsBeforeHistoryNavigation=draftSaveRequests;
  // La cronologia deve ripristinare la bozza persistita anche quando il
  // renderer temporaneo scelto ma non salvato viene smontato e rimontato.
  await page.goto(`http://127.0.0.1:${port}/history-away`);
@@ -345,6 +348,8 @@ try {
  await frame.locator('#wizard-slot').waitFor({timeout:45000});
  assert.equal(await page.locator('iframe').getAttribute('title'),'Configuratore 3D Custodia','Il forward/back mantiene il modello salvato');
  assert.equal(await frame.locator('#coverOptions select').inputValue(),'full','Il forward/back mantiene la configurazione salvata');
+ assert.equal(saved.revision,revisionBeforeHistoryNavigation,'Back e forward recuperano la revisione senza crearne una copia');
+ assert.equal(draftSaveRequests,draftSaveRequestsBeforeHistoryNavigation,'Back e forward recuperano la configurazione senza salvare una nuova revisione');
  // Un refresh durante il cambio modello deve ripartire dalla bozza persistita,
  // non dal renderer scelto localmente ma ancora non salvato.
   await withTimeout('refresh durante cambio modello',()=>page.reload(),30000);
