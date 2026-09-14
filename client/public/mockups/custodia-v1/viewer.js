@@ -6,31 +6,7 @@ import {buildAlbumReport} from './report-template.js';
 import {installHomeScenes} from '../home-scenes.js';
 import {phoneView,fitPhoneProduct,phoneDetailDistance} from '../mobile-view.js';
 import {getExportSize,setExportProgress,triggerDownload,yieldToBrowser} from '../export-yield.js';
-
-// Campionamento traslato e continuo: stessa direzione dei fili, nessuna griglia
-// di copie identiche. Colore e rilievo usano gli stessi spostamenti deterministici.
-const fabricSamplingShader=`
-vec2 fabricOffset(vec2 cell) {
- return fract(sin(vec2(dot(cell,vec2(127.1,311.7)),dot(cell,vec2(269.5,183.3))))*43758.5453);
-}
-vec4 sampleFabricAt(sampler2D fabric, vec2 uv, vec2 sampleUv) {
- vec2 cell=floor(uv), f=smoothstep(0.0,1.0,fract(uv));
- vec2 dx=dFdx(uv), dy=dFdy(uv);
- vec4 weights=vec4((1.0-f.x)*(1.0-f.y),f.x*(1.0-f.y),(1.0-f.x)*f.y,f.x*f.y);
- weights*=weights;weights/=dot(weights,vec4(1.0));
- vec4 blended=weights.x*textureGrad(fabric,sampleUv+fabricOffset(cell),dx,dy)
-      + weights.y*textureGrad(fabric,sampleUv+fabricOffset(cell+vec2(1,0)),dx,dy)
-      + weights.z*textureGrad(fabric,sampleUv+fabricOffset(cell+vec2(0,1)),dx,dy)
-      + weights.w*textureGrad(fabric,sampleUv+fabricOffset(cell+vec2(1,1)),dx,dy);
- // Conserva il contrasto nelle zone miscelate: altrimenti sembrano chiazze
- // lisce o incavate rispetto ai punti in cui domina un solo campione.
- vec4 average=textureLod(fabric,vec2(0.5),20.0);
- return clamp(average+(blended-average)/sqrt(dot(weights,weights)),0.0,1.0);
-}
-vec4 sampleFabric(sampler2D fabric, vec2 uv) {
- return sampleFabricAt(fabric,uv,uv);
-}
-`;
+import {installFabricSampling} from '../fabric-sampling.js';
 
 const $=id=>document.getElementById(id);
 const embedded=window.parent!==window;
@@ -87,7 +63,7 @@ async function finish(name){
  const token=++request;
  materialPending=true;setDownloadAvailability();
  try{const {color,height,variant}=await texture(name);if(token!==request)return;selected=name;
- for(const material of fabricMaterials){material.map=color;material.color.set(0xffffff);material.roughness=variant.roughness;material.bumpMap=height;material.bumpScale=variant.bumpScale;material.needsUpdate=true;}
+ for(const material of fabricMaterials){material.map=color;material.color.set(0xffffff);material.roughness=variant.roughness;material.bumpMap=height;material.bumpScale=variant.bumpScale*.55;material.needsUpdate=true;}
  document.querySelectorAll('[data-finish]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.finish===name)));
  $('materialLabel').textContent=laboratory.name+' · '+variant.internalCode;
  $('status').textContent='';
@@ -198,23 +174,7 @@ try{
        // esportata come normal map: il rilievo corretto viene applicato in finish().
        material.normalMap=null;
        if(material.isMeshPhysicalMaterial){material.sheen=0;material.specularIntensity=.25;}
-       // Riduce il rilievo quando i dettagli della mappa diventano più piccoli
-       // di un pixel. La misura segue anche le viste oblique e l'export 1600px.
-       material.onBeforeCompile=shader=>{
-        shader.fragmentShader=shader.fragmentShader
-         .replace('#include <common>','#include <common>\n'+fabricSamplingShader)
-         .replace('#include <map_fragment>',THREE.ShaderChunk.map_fragment.replace('texture2D( map, vMapUv )','sampleFabric( map, vMapUv )'))
-         // Nel gradiente del rilievo manteniamo fissi i pesi di fusione:
-         // la transizione tra campioni non rappresenta una cavità del tessuto.
-         .replace('#include <bumpmap_pars_fragment>',THREE.ShaderChunk.bumpmap_pars_fragment.replaceAll('texture2D( bumpMap,','sampleFabricAt( bumpMap, vBumpMapUv,'));
-        shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>',
-         THREE.ShaderChunk.normal_fragment_maps.replace('dHdxy_fwd(), faceDirection',
-          `dHdxy_fwd() * (1.0 - smoothstep(0.75, 2.5,
-           max(length(dFdx(vBumpMapUv) * vec2(textureSize(bumpMap, 0))),
-               length(dFdy(vBumpMapUv) * vec2(textureSize(bumpMap, 0)))))), faceDirection`));
-       };
-       material.customProgramCacheKey=()=> 'fabric-stochastic-footprint-v4';
-       material.needsUpdate=true;
+       installFabricSampling(material,THREE);
        fabricMaterials.add(material);
      }
        if(material.name.startsWith('Plexiglas')){object.castShadow=false;material.roughness=.015;material.transmission=1;material.thickness=.0025;material.ior=1.49;material.envMapIntensity=.45;}

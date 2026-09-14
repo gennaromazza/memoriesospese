@@ -6,6 +6,7 @@ import { drawMonogram } from '../girevole-v3/monogram.js';
 import { installHomeScenes } from '../home-scenes.js';
 import { phoneView, fitPhoneProduct, phoneDetailDistance } from '../mobile-view.js';
 import { getExportSize, setExportProgress, triggerDownload, yieldToBrowser } from '../export-yield.js';
+import { installFabricSampling } from '../fabric-sampling.js';
 
 const $ = id => document.getElementById(id);
 const embedded = window.parent !== window;
@@ -53,6 +54,8 @@ const pivot = new THREE.Group(); pivot.name = 'Supporto interno girevole'; pivot
 const album = new THREE.Group(); album.name = 'Album estraibile'; pivot.add(album);
 const fabric = new THREE.MeshStandardMaterial({ color: '#a49c90', roughness: .95 });
 const frameMaterial = new THREE.MeshStandardMaterial({ roughness: .68 });
+installFabricSampling(fabric, THREE);
+installFabricSampling(frameMaterial, THREE);
 const woodCanvas = document.createElement('canvas'); woodCanvas.width = 512; woodCanvas.height = 1024;
 const wc = woodCanvas.getContext('2d'); wc.fillStyle = '#c7a879'; wc.fillRect(0, 0, 512, 1024);
 for (let i = 0; i < 500; i++) {
@@ -149,7 +152,7 @@ async function finish(id) {
     const [color, height] = await textureCache.get(id); if (token !== materialRequest) return;
     color.colorSpace = THREE.SRGBColorSpace;
     for (const t of [color, height]) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(.4 / v.estimatedRepeatMeters, .3 / v.estimatedRepeatMeters); t.anisotropy = renderer.capabilities.getMaxAnisotropy(); }
-    selected = id; fabric.map = color; fabric.bumpMap = height; fabric.bumpScale = v.bumpScale; fabric.roughness = v.roughness; fabric.color.set('#ffffff'); fabric.needsUpdate = true;
+    selected = id; fabric.map = color; fabric.bumpMap = height; fabric.bumpScale = v.bumpScale * .55; fabric.roughness = v.roughness; fabric.color.set('#ffffff'); fabric.needsUpdate = true;
     document.querySelectorAll('[data-finish]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.finish === id)));
     finishFrame(); $('status').textContent = '';
   } finally { pending--; busy(); summary(); }
