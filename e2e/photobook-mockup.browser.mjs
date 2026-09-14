@@ -185,6 +185,42 @@ try{
     right:{left:middle+2,right:bounds.right-xInset,top:bounds.top+yInset,bottom:bounds.bottom-yInset},
    };
   }
+  async function exportRendererViews(renderer) {
+    check('export otto viste renderer');
+    const requestId=`e2e-${Date.now()}-${Math.random()}`;
+    const result=await page.evaluate(({requestId,frameUrl})=>new Promise((resolve,reject)=>{
+      const iframe=[...document.querySelectorAll('iframe')].find(candidate=>candidate.src.includes(frameUrl));
+      if(!iframe?.contentWindow)return reject(new Error(`Renderer ${frameUrl} non trovato`));
+      const timeout=setTimeout(()=>{window.removeEventListener('message',receive);reject(new Error('Export renderer scaduto'));},90000);
+      function receive(event){
+        if(event.source!==iframe.contentWindow||event.data?.channel!=='memorie-mockup-v1'||event.data?.requestId!==requestId)return;
+        if(event.data.type==='exported'){clearTimeout(timeout);window.removeEventListener('message',receive);resolve(event.data.previews);}
+        if(event.data.type==='export-error'){clearTimeout(timeout);window.removeEventListener('message',receive);reject(new Error('Export renderer non riuscito'));}
+      }
+      window.addEventListener('message',receive);
+      iframe.contentWindow.postMessage({channel:'memorie-mockup-v1',type:'export',requestId},location.origin);
+    }),{requestId,frameUrl:'/mockups/girevole-v4/'});
+    assert.ok(Array.isArray(result));
+    return result;
+  }
+  async function decodedPreview(preview) {
+    const encoded=preview.image.split(',')[1];
+    assert.ok(encoded,`Immagine export non leggibile per ${preview.label}`);
+    return sharp(Buffer.from(encoded,'base64')).raw().toBuffer({resolveWithObject:true});
+  }
+  function changedPixelStats(first,second) {
+    assert.deepEqual(first.info,second.info,'Le dimensioni della vista di controllo sono cambiate');
+    const channels=first.info.channels;
+    let changed=0,totalDelta=0;
+    for(let offset=0;offset<first.data.length;offset+=channels){
+      const delta=Math.abs(first.data[offset]-second.data[offset])
+       +Math.abs(first.data[offset+1]-second.data[offset+1])
+       +Math.abs(first.data[offset+2]-second.data[offset+2]);
+      totalDelta+=delta;
+      if(delta>24)changed++;
+    }
+    return {changed,meanDelta:totalDelta/(first.info.width*first.info.height)};
+  }
  async function clickPageButton(label) {
    check(`click pagina ${label}`);
   await page.evaluate(label=>{
@@ -444,6 +480,20 @@ try{
   }
   assert.ok(monogramDelta/monogramSamples>1.5,`Il monogramma botanico non risulta nel rendering: delta=${monogramDelta/monogramSamples}`);
   await setFrameValue('#firstName','Anna');await setFrameValue('#secondName','Jacopo');
+   const splitExport=await exportRendererViews(splitRenderer);
+   const expectedExportLabels=['Prospettiva · album ruotato','Fronte · allineato','Retro · finitura selezionata','Dorso · rotazione 90°','Lato destro','Vista superiore','Album estratto · copertina','Album estratto · retro'];
+   assert.deepEqual(splitExport.map(view=>view.label),expectedExportLabels,'L’export girevole-v4 deve conservare tutte le otto viste previste');
+   assert.ok(splitExport.every(view=>view.image.startsWith('data:image/jpeg;base64,')),'Tutte le viste girevole-v4 devono essere immagini JPEG');
+   await setFrameValue('#firstName','Elisa');await setFrameValue('#secondName','Marco');
+   const alternateMonogramExport=await exportRendererViews(splitRenderer);
+   for(const label of ['Prospettiva · album ruotato','Fronte · allineato','Album estratto · copertina']){
+    const named=splitExport.find(view=>view.label===label),alternate=alternateMonogramExport.find(view=>view.label===label);
+    assert.ok(named&&alternate,`Vista export mancante: ${label}`);
+    const namedPixels=await decodedPreview(named),alternatePixels=await decodedPreview(alternate);
+    const stats=changedPixelStats(namedPixels,alternatePixels);
+    assert.ok(stats.changed>80&&stats.meanDelta>.02,`La vista “${label}” non conserva le iniziali e i nomi del monogramma botanico sulla copertina split: ${JSON.stringify(stats)}`);
+   }
+   await setFrameValue('#firstName','Anna');await setFrameValue('#secondName','Jacopo');
  await page.getByRole('button',{name:'Salva mockup',exact:true}).dispatchEvent('click');await page.getByText('Mockup salvato.',{exact:false}).waitFor();
   assert.equal(saved.configuration.frameFinish,'fabric');assert.equal(saved.configuration.coverLayout,'split-photo-fabric');
  await screenshotRect('iframe','work/mockup-girevole-tessuto.png');
