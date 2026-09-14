@@ -18,20 +18,33 @@ export function isSoftwareRenderer(rendererName) {
 }
 
 export function getWebGLInfo(renderer) {
-  const gl = renderer.getContext();
+  const gl = renderer?.getContext?.();
+  if (!gl) {
+    return {
+      available: false,
+      renderer: '',
+      vendor: '',
+      software: false,
+      hardware: false,
+    };
+  }
   const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
   const rendererName = debugInfo ? String(gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL)) : '';
   const vendorName = debugInfo ? String(gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL)) : '';
+  const software = isSoftwareRenderer(rendererName);
   return {
+    available: true,
     renderer: rendererName,
     vendor: vendorName,
-    software: isSoftwareRenderer(rendererName),
+    software,
+    hardware: Boolean(rendererName) && !software,
   };
 }
 
 export function getExportSize(renderer) {
-  const { software } = getWebGLInfo(renderer);
-  const lowPower = software
+  const { software, hardware } = getWebGLInfo(renderer);
+  const lowPower = !hardware
+    || software
     || (typeof navigator.deviceMemory === 'number' && navigator.deviceMemory <= 4)
     || (typeof navigator.hardwareConcurrency === 'number' && navigator.hardwareConcurrency <= 4);
   return lowPower ? { width: 800, height: 600 } : { width: 1600, height: 1200 };

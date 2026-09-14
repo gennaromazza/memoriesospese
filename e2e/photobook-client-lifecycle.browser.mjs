@@ -8,6 +8,7 @@ import path from 'node:path';
 import { chromium } from '@playwright/test';
 import react from '@vitejs/plugin-react';
 import { createServer } from 'vite';
+import { isSoftwareRenderer } from '../client/public/mockups/export-yield.js';
 
 const root = process.cwd();
 const vite = await createServer({
@@ -41,6 +42,28 @@ try {
   await vite.listen();
   const port = vite.httpServer.address().port;
   const realGpu = process.env.PHOTOBOOK_REAL_GPU === '1';
+  const displayName = process.env.DISPLAY
+    ? `DISPLAY=${process.env.DISPLAY}`
+    : process.env.WAYLAND_DISPLAY
+      ? `WAYLAND_DISPLAY=${process.env.WAYLAND_DISPLAY}`
+      : process.env.MIR_SOCKET
+        ? `MIR_SOCKET=${process.env.MIR_SOCKET}`
+        : '';
+  const displayRequired = realGpu;
+  const gpuHeadless = process.env.PHOTOBOOK_GPU_HEADLESS === '1';
+  const displayAvailable = Boolean(displayName) && !gpuHeadless;
+  console.log(
+    `GPU preflight: display=${displayRequired
+      ? (gpuHeadless ? 'disabled (headless browser)' : displayAvailable ? `${displayName} (configured)` : 'missing')
+      : 'not-required (headless software mode)'}`,
+  );
+  if (displayRequired && !displayAvailable) {
+    throw new Error(
+      gpuHeadless
+        ? 'GPU preflight failed: real-GPU verification cannot run with PHOTOBOOK_GPU_HEADLESS=1. Use PHOTOBOOK_GPU_HEADLESS=0 with an active DISPLAY or WAYLAND_DISPLAY.'
+        : 'GPU preflight failed: no active display was configured. Set DISPLAY or WAYLAND_DISPLAY and run with PHOTOBOOK_GPU_HEADLESS=0; a visible display is required for real-GPU WebGL verification.',
+    );
+  }
   const gpuArgs = realGpu
     ? [
         '--ignore-gpu-blocklist',
@@ -50,10 +73,20 @@ try {
         '--disable-software-rasterizer',
       ]
     : ['--enable-unsafe-swiftshader'];
-  browser = await chromium.launch({
-    headless: realGpu ? process.env.PHOTOBOOK_GPU_HEADLESS === '1' : true,
-    args: gpuArgs,
-  });
+  try {
+    browser = await chromium.launch({
+      headless: realGpu ? gpuHeadless : true,
+      args: gpuArgs,
+    });
+  } catch (error) {
+    if (realGpu) {
+      throw new Error(
+        `GPU preflight failed: Chromium could not open the configured display (${displayName || 'none'}). `
+        + `Check the display server and GPU prerequisites before the customer path: ${error.message}`,
+      );
+    }
+    throw error;
+  }
   const page = await browser.newPage({
     viewport: { width: 390, height: 844 },
     screen: { width: 390, height: 844 },
@@ -63,6 +96,84 @@ try {
   });
   const devtools = await page.context().newCDPSession(page);
   await devtools.send('Network.setCacheDisabled', { cacheDisabled: true });
+  const browserDevtools = await browser.newBrowserCDPSession();
+  let systemInfo = null;
+  try {
+    systemInfo = await browserDevtools.send('SystemInfo.getInfo');
+  } catch (error) {
+    console.log(`GPU preflight: GPU device inspection unavailable (${error.message})`);
+  } finally {
+    await browserDevtools.detach().catch(() => {});
+  }
+  const gpuDevices = systemInfo?.gpu?.devices || [];
+  const gpuDevice = gpuDevices.find(device => (
+    device.active !== false && (device.vendorString || device.deviceString)
+  ));
+  const gpuDeviceName = gpuDevice
+    ? `${gpuDevice.vendorString || 'unknown vendor'} ${gpuDevice.deviceString || 'unknown device'}`
+    : '';
+  const hardwareGpuDevice = gpuDevice && !isSoftwareRenderer(gpuDeviceName);
+  const featureStatus = systemInfo?.gpu?.featureStatus || {};
+  const preflightPage = await browser.newPage();
+  const webglInfo = await preflightPage.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    let gl = null;
+    try {
+      gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+    } catch (error) {
+      return { available: false, renderer: '', vendor: '', error: error.message };
+    }
+    if (!gl) return { available: false, renderer: '', vendor: '', error: 'WebGL context unavailable' };
+    const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+    if (!debugInfo) {
+      return { available: true, renderer: '', vendor: '', error: 'WEBGL_debug_renderer_info unavailable' };
+    }
+    return {
+      available: true,
+      renderer: String(gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) || ''),
+      vendor: String(gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) || ''),
+      error: '',
+    };
+  });
+  await preflightPage.close();
+  const softwareRenderer = isSoftwareRenderer(webglInfo.renderer);
+  const rendererClass = !webglInfo.available
+    ? 'unavailable'
+    : !webglInfo.renderer
+      ? 'unknown'
+      : softwareRenderer
+        ? 'software-fallback'
+        : 'hardware';
+  console.log(
+    `GPU preflight: gpuDevice=${hardwareGpuDevice ? gpuDeviceName : gpuDevice ? `software (${gpuDeviceName})` : 'missing'}; `
+    + `webgl=${webglInfo.available ? 'available' : 'missing'}; renderer=${webglInfo.renderer || 'missing'}; `
+    + `rendererClass=${rendererClass}; webglFeature=${featureStatus.webgl || 'unknown'}; `
+    + `webgl2Feature=${featureStatus.webgl2 || 'unknown'}`,
+  );
+  if (!webglInfo.available) {
+    throw new Error(
+      `GPU preflight failed: WebGL is unavailable (${webglInfo.error || 'no WebGL context'}). `
+      + 'The browser needs a working display and WebGL-capable GPU/device before the customer path can run.',
+    );
+  }
+  if (!webglInfo.renderer) {
+    throw new Error(
+      `GPU preflight failed: hardware renderer is unavailable (${webglInfo.error || 'renderer not reported'}). `
+      + 'WEBGL_debug_renderer_info is required to distinguish a real GPU from software rasterization.',
+    );
+  }
+  if (realGpu && !hardwareGpuDevice) {
+    throw new Error(
+      `GPU preflight failed: no active hardware GPU device was reported by Chromium (device: ${gpuDeviceName || 'missing'}, renderer: ${webglInfo.renderer}). `
+      + 'SwiftShader, llvmpipe, and softpipe devices are software rasterizers, not valid hardware prerequisites.',
+    );
+  }
+  if (realGpu && softwareRenderer) {
+    throw new Error(
+      `GPU preflight failed: renderer "${webglInfo.renderer}" is software rasterization. `
+      + 'SwiftShader, llvmpipe, and softpipe are not accepted for real-GPU verification.',
+    );
+  }
   await page.addInitScript(() => {
     const nativeMatchMedia = window.matchMedia.bind(window);
     window.matchMedia = query =>
@@ -340,7 +451,7 @@ try {
   await mockupFrame.locator('body[data-wizard-mobile="true"]').waitFor();
   const viewerFrame = page.frames().find(frame => frame !== page.mainFrame() && frame.url().includes('/custodia-v1/'));
   assert.ok(viewerFrame, 'Frame del viewer custodia non trovato');
-  const webglInfo = await viewerFrame.evaluate(() => {
+  const viewerWebglInfo = await viewerFrame.evaluate(() => {
     const canvas = document.querySelector('#viewport');
     const gl = canvas?.getContext('webgl2') || canvas?.getContext('webgl');
     if (!gl) return { renderer: '', vendor: '' };
@@ -350,18 +461,23 @@ try {
       vendor: debugInfo ? String(gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL)) : '',
     };
   });
-  assert.ok(webglInfo.renderer, 'WEBGL_debug_renderer_info non disponibile: impossibile confermare il renderer GPU');
-  const softwareRenderer = /swiftshader|llvmpipe|softpipe|software rasterizer/i.test(webglInfo.renderer);
-  const gpuMode = softwareRenderer ? 'software-fallback' : 'hardware';
+  assert.ok(viewerWebglInfo.renderer, 'WEBGL_debug_renderer_info non disponibile: impossibile confermare il renderer GPU');
+  assert.equal(
+    viewerWebglInfo.renderer,
+    webglInfo.renderer,
+    `Il renderer WebGL è cambiato tra il preflight (${webglInfo.renderer}) e il viewer (${viewerWebglInfo.renderer})`,
+  );
+  const viewerSoftwareRenderer = isSoftwareRenderer(viewerWebglInfo.renderer);
+  const gpuMode = viewerSoftwareRenderer ? 'software-fallback' : 'hardware';
   if (realGpu) {
     assert.equal(
-      softwareRenderer,
+      viewerSoftwareRenderer,
       false,
-      `La modalità GPU reale sta usando un renderer software: ${webglInfo.renderer}`,
+      `La modalità GPU reale sta usando un renderer software: ${viewerWebglInfo.renderer}`,
     );
-    console.log(`GPU WebGL reale: ${webglInfo.renderer} (${webglInfo.vendor})`);
+    console.log(`GPU WebGL reale: ${viewerWebglInfo.renderer} (${viewerWebglInfo.vendor})`);
   } else {
-    assert.equal(softwareRenderer, true, `Il gate SwiftShader non usa un renderer software: ${webglInfo.renderer}`);
+    assert.equal(viewerSoftwareRenderer, true, `Il gate SwiftShader non usa un renderer software: ${viewerWebglInfo.renderer}`);
   }
   const nextButton = mockupFrame.locator('#wizard-actions-slot button').nth(1);
   for (let attempt = 0; attempt < 6; attempt += 1) {
@@ -421,9 +537,9 @@ try {
       gpuMode,
       exportProfile: gpuMode === 'hardware' ? 'hardware-1600x1200' : 'software-fallback-800x600',
       webgl: {
-        renderer: webglInfo.renderer,
-        vendor: webglInfo.vendor,
-        softwareRenderer,
+        renderer: viewerWebglInfo.renderer,
+        vendor: viewerWebglInfo.vendor,
+        softwareRenderer: viewerSoftwareRenderer,
       },
       export: {
         viewCount: viewLabels.length,
