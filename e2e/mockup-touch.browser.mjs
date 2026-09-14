@@ -91,8 +91,9 @@ watchdog.unref();
 let browser;
 let releaseRenderer;
 let releaseRotating;
+let releaseRetryRenderer;
 try {
- vite=await createServer({configFile:false,root:path.join(root,'e2e/mockup-harness'),publicDir:path.join(root,'client/public'),plugins:[{name:'firebase-test',enforce:'pre',resolveId(source,importer){if(source==='@/lib/firebase'||source.replaceAll('\\','/').endsWith('/client/src/lib/firebase')||(source==='./firebase'&&importer?.replaceAll('\\','/').includes('/client/src/lib/')))return path.join(root,'e2e/mockup-harness/firebase.ts');}},react()],resolve:{alias:{'@':path.join(root,'client/src'),'@shared':path.join(root,'shared')}},css:{postcss:path.join(root,'postcss.config.js')},server:{host:'127.0.0.1',port:0,fs:{allow:[root]}}});
+vite=await createServer({configFile:false,root:path.join(root,'e2e/mockup-harness'),publicDir:path.join(root,'client/public'),plugins:[{name:'firebase-test',enforce:'pre',resolveId(source,importer){if(source==='@/lib/firebase'||source.replaceAll('\\','/').endsWith('/client/src/lib/firebase')||(source==='./firebase'&&importer?.replaceAll('\\','/').includes('/client/src/lib/')))return path.join(root,'e2e/mockup-harness/firebase.ts');}},react()],resolve:{alias:{'@':path.join(root,'client/src'),'@shared':path.join(root,'shared')}},define:{'import.meta.env.VITE_MOCKUP_RENDERER_READY_TIMEOUT_MS':JSON.stringify(String(RENDERER_TIMEOUT_MS))},css:{postcss:path.join(root,'postcss.config.js')},server:{host:'127.0.0.1',port:0,fs:{allow:[root]}}});
  await withTimeout('avvio Vite',()=>vite.listen(),30000); const port=vite.httpServer.address().port;
  const {mockupConfigurationSchema}=await vite.ssrLoadModule('/@fs/'+path.join(root,'shared/mockup-types.ts').replaceAll('\\','/'));
  const {mockupWorkflowInputSchema,mockupSelectionSchema}=await vite.ssrLoadModule('/@fs/'+path.join(root,'shared/mockup-workflow.ts').replaceAll('\\','/'));
@@ -107,7 +108,8 @@ try {
  const offer={revision:1,updatedAt:new Date().toISOString(),options:[['11111111-1111-4111-8111-111111111111','Custodia',catalog.models[0].id],['22222222-2222-4222-8222-222222222222','Plaza','album-girevole']].map(([id,name,rendererId])=>({id,name,rendererId,supplierCode:'',active:true,materialIds:materials.map(m=>m.id),materials,labId:'lab',labName:'Laboratorio test'}))};
  const photoId='33333333-3333-4333-8333-333333333333';
  const photo=await sharp({create:{width:600,height:400,channels:3,background:'#ccbbaa'}}).png().toBuffer();
- let saved=null,locked=false;
+  let saved=null,locked=false;
+  let holdCustodiaRenderer=false;
  let draftSaveRequests=0;
  await page.route('**/api/**',route=>{
    const url=new URL(route.request().url());
@@ -123,7 +125,13 @@ try {
  await page.route('**/test-photo.png',route=>route.fulfill({contentType:'image/png',body:photo}));
   const rendererGate=createRendererGate('renderer Custodia');
   releaseRenderer=rendererGate.release;
-  await page.route('**/mockups/custodia-v1/viewer.js',async route=>{rendererGate.start();await rendererGate.promise;await route.continue();});
+  const retryRendererGate=createRendererGate('renderer Custodia retry');
+  releaseRetryRenderer=retryRendererGate.release;
+  await page.route('**/mockups/custodia-v1/viewer.js',async route=>{
+   if(holdCustodiaRenderer){retryRendererGate.start();await retryRendererGate.promise;}
+   else {rendererGate.start();await rendererGate.promise;}
+   await route.continue();
+  });
   const rotatingGate=createRendererGate('renderer girevole');
   releaseRotating=rotatingGate.release;
   await page.route('**/mockups/girevole-v4/viewer.js',async route=>{rotatingGate.start();await rotatingGate.promise;await route.continue();});
@@ -367,9 +375,27 @@ try {
  assert.equal(await page.locator('iframe').getAttribute('title'),'Configuratore 3D Custodia');
  assert.equal(await frame.locator('#coverOptions select').inputValue(),'full','Il recupero ripristina la copertina Custodia');
 
- await page.waitForTimeout(500);
- await tapCloseButton();
+  await page.waitForTimeout(500);
+  await tapCloseButton();
   await withTimeout('chiusura iframe finale',()=>page.waitForFunction(()=>!document.querySelector('iframe'),{timeout:TOUCH_TIMEOUT_MS}),TOUCH_TIMEOUT_MS);
+  holdCustodiaRenderer=true;
+  await page.clock.install();
+  await touch(page.getByRole('button',{name:'Recupera bozza',exact:true}),'recupero bozza per retry renderer');
+  await page.clock.fastForward(RENDERER_TIMEOUT_MS + 1);
+  await withTimeout('errore timeout renderer',()=>page.getByTestId('mockup-renderer-error').waitFor(),TOUCH_TIMEOUT_MS);
+  assert.equal(await page.getByText('L’anteprima non ha terminato il caricamento in tempo.',{exact:true}).count(),1);
+  const revisionBeforeRendererRetry=saved.revision;
+  const draftSaveRequestsBeforeRendererRetry=draftSaveRequests;
+  releaseRetryRenderer();
+  await touch(page.getByRole('button',{name:'Riprova a caricare l’anteprima',exact:true}),'retry renderer');
+  await waitForRenderer(frame,'renderer Custodia pronto dopo retry');
+  assert.equal(await frame.locator('#coverOptions select').inputValue(),'full','Il retry ripristina la copertina salvata');
+  assert.equal(saved.revision,revisionBeforeRendererRetry,'Il retry non crea una nuova revisione');
+  assert.equal(draftSaveRequests,draftSaveRequestsBeforeRendererRetry,'Il retry non salva una nuova revisione');
+  await page.clock.resume();
+  releaseRetryRenderer=()=>{};
+  await tapCloseButton();
+   await withTimeout('chiusura iframe dopo retry',()=>page.waitForFunction(()=>!document.querySelector('iframe'),{timeout:TOUCH_TIMEOUT_MS}),TOUCH_TIMEOUT_MS);
  locked=true;saved=null;
   await withTimeout('refresh versione bloccata',()=>page.reload(),30000);
   await withTimeout('stato versione bloccata',()=>page.getByText('Nessun mockup salvato da consultare',{exact:true}).waitFor(),TOUCH_TIMEOUT_MS);
@@ -382,7 +408,7 @@ try {
   throw error;
  } finally {
   clearTimeout(watchdog);
-  releaseRenderer?.();releaseRotating?.();
+  releaseRenderer?.();releaseRotating?.();releaseRetryRenderer?.();
   await closeWithTimeout('browser',()=>browser?.close());
   await closeWithTimeout('vite',()=>vite?.close());
  }

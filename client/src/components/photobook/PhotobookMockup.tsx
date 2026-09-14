@@ -20,6 +20,7 @@ import { ArrowLeft, ArrowRight, HelpCircle, Home, LogOut, Maximize, Minimize, Ro
 
 interface Props { photobookId: string; version: number; token?: string; readOnly?: boolean; summary?: boolean; compact?: boolean; onOpenChange?: (open: boolean) => void }
 type WizardStepId = MockupWizardStepDefinition['id'];
+const MOCKUP_RENDERER_READY_TIMEOUT_MS = Number(import.meta.env.VITE_MOCKUP_RENDERER_READY_TIMEOUT_MS || 45_000);
 
 export default function PhotobookMockup({ photobookId, version, token, readOnly = false, summary = false, compact = false, onOpenChange }: Props) {
   const queryClient = useQueryClient();
@@ -46,6 +47,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   const [busy, setBusy] = useState(false);
   const [renderBusy, setRenderBusy] = useState(true);
   const [ready, setReady] = useState(false);
+  const [rendererError, setRendererError] = useState('');
   const [dirty, setDirty] = useState(false);
   const [message, setMessage] = useState('');
   const [configuration, setConfiguration] = useState<MockupConfiguration | null>(null);
@@ -118,7 +120,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   function closeConfigurator() {
     if (busy) return;
     if (dirty && !window.confirm('Chiudere il configuratore e abbandonare le modifiche non salvate?')) return;
-    setOpen(false); setPicker(false); setReady(false); setRenderBusy(true);
+    setOpen(false); setPicker(false); setReady(false); setRenderBusy(true); setRendererError('');
     setDirty(false); setConfiguration(null); setRendererOverride(null); setSelection(undefined);
     setDraftCoverLayout(''); setDraftBackCover(''); setFrontPhotoPresent(false); setBackPhotoPresent(false);
     pendingOption.current = null; currentPhoto.current = undefined; initializing.current = true;
@@ -243,13 +245,21 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   }, [open, token, isPhone]);
   useEffect(() => { wizard?.refresh(); }, [wizard, configuration, busy, renderBusy, editable]);
   useEffect(() => {
+    if (!open || !token || !viewerStarted || choosing || ready || !state.data) return;
+    const timeout = window.setTimeout(() => {
+      setRenderBusy(false);
+      setRendererError('L’anteprima non ha terminato il caricamento in tempo.');
+    }, MOCKUP_RENDERER_READY_TIMEOUT_MS);
+    return () => window.clearTimeout(timeout);
+  }, [open, viewerStarted, choosing, ready, generation, renderer.id, state.data]);
+  useEffect(() => {
     if (!mobile && token && ready && !renderBusy && !busy && editable && !selection && !initializing.current && state.data?.offer?.options.length === 1) chooseOption(state.data.offer.options[0]);
   }, [token, ready, renderBusy, busy, editable, selection, state.data?.offer]);
 
   useEffect(() => {
     const receive = (event: MessageEvent) => {
       if (event.origin !== window.location.origin || event.source !== frame.current?.contentWindow || event.data?.channel !== 'memorie-mockup-v1') return;
-      if (event.data.type === 'ready') setReady(true);
+      if (event.data.type === 'ready') { setRendererError(''); setReady(true); }
       if (event.data.type === 'busy') setRenderBusy(event.data.busy === true);
       const waiter = exportWaiter.current;
       if (event.data.type === 'exported' && waiter && event.data.requestId === waiter.id) { waiter.resolve({ previews: event.data.previews, configuration: event.data.configuration }); exportWaiter.current = null; }
@@ -416,10 +426,22 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     if (busy || (dirty && !window.confirm('Ricaricare la proposta e abbandonare le modifiche non salvate?'))) return;
     const fresh = await state.refetch();
     if (!fresh.isError) {
-      pendingOption.current = null; setRendererOverride(null); setDirty(false); setReady(false);
+      pendingOption.current = null; setRendererOverride(null); setDirty(false); setReady(false); setRendererError('');
       setRenderBusy(true); setWizard(null); setStep(mobile ? (wizardSteps.find(item => item.id !== 'model')?.id || firstStep.id) : firstStep.id); setGeneration(g => g + 1); setMessage('');
       setHomeOpen(false); pendingLayout.current = null;
     }
+  }
+  function retryRenderer() {
+    if (busy) return;
+    setRendererError('');
+    setReady(false);
+    setRenderBusy(true);
+    setWizard(null);
+    setGeneration(g => g + 1);
+    setHomeOpen(false);
+    setGuideOpen(false);
+    setMessage('');
+    pendingLayout.current = null;
   }
   const isModelStep = activeStep.panel === 'model';
   const isMaterialStep = activeStep.panel === 'material';
@@ -483,7 +505,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       {open && !token && adminPanel(<Button variant="ghost" size="sm" disabled={busy} onClick={async () => {
         if (dirty && !window.confirm('Ricaricare la proposta e abbandonare le modifiche non salvate?')) return;
         const fresh = await state.refetch();
-        if (!fresh.isError) { pendingOption.current = null; setRendererOverride(null); setDirty(false); setReady(false); setRenderBusy(true); setGeneration(g => g + 1); }
+        if (!fresh.isError) { pendingOption.current = null; setRendererOverride(null); setDirty(false); setReady(false); setRendererError(''); setRenderBusy(true); setGeneration(g => g + 1); }
       }}>Ricarica proposta</Button>)}
     {saved && !token && adminPanel(<div className="rounded-lg bg-muted/50 p-3 text-sm space-y-2"><p className="font-semibold">{MOCKUP_STATUS_LABELS[saved.status || 'draft']} · revisione {saved.revision}</p><p>{saved.option?.labName} {saved.option && '·'} {saved.option?.name} {saved.option && '·'} {saved.option?.materials.find(m => m.id === saved.configuration.materialId)?.label}</p><p>Ultima modifica: {saved.updatedBy === 'client' ? 'Cliente tramite link' : saved.updatedBy === 'studio' ? 'Studio' : 'Non registrato'} · {new Date(saved.updatedAt).toLocaleString('it-IT')}</p>{saved.note && <p>Note: {saved.note}</p>}</div>)}
     {open && <>
@@ -515,7 +537,8 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
           void selectPhoto(() => request(`/upload?name=${encodeURIComponent(file.name)}`, { method: 'POST', headers: { 'Content-Type': file.type }, body: file }));
         }} />}
         {!token && message && adminPanel(<p role="status" className="rounded border p-3 text-sm">{message}</p>)}
-        {token && (!ready || !wizard) && !choosing && <p role="status" className="p-4 text-sm">Preparazione del tuo configuratore…</p>}
+        {token && rendererError && !choosing && <section className="m-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-950 space-y-2" data-testid="mockup-renderer-error" role="alert"><h2 className="font-semibold">Anteprima non disponibile</h2><p className="text-sm">{rendererError} Le tue scelte salvate sono al sicuro.</p><Button variant="outline" onClick={retryRenderer}>Riprova a caricare l’anteprima</Button></section>}
+        {token && !rendererError && (!ready || !wizard) && !choosing && <p role="status" className="p-4 text-sm">Preparazione del tuo configuratore…</p>}
         {(!mobile || viewerStarted) && <iframe key={`${renderer.id}-${generation}`} ref={frame} title={`Configuratore 3D ${renderer.name}`} src={`${import.meta.env.BASE_URL}mockups/${renderer.path}`} sandbox="allow-scripts allow-same-origin allow-downloads" style={{ visibility: token && (!ready || !wizard) ? 'hidden' : undefined }} aria-hidden={token && (!ready || !wizard) ? true : undefined} className={`${token ? 'w-full min-h-0 flex-1 border-0' : 'mockup-admin-viewer'} ${busy ? 'pointer-events-none' : ''}`} />}
         {token && wizard && createPortal(<>
            {editable && ready && !renderBusy && configurationIssue && !isModelStep && !isMaterialStep && <p role="status" className="wizard-validation">{configurationIssue}</p>}

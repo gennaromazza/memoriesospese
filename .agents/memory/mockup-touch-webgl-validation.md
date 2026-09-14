@@ -15,6 +15,12 @@ Per i cambi renderer, i gate delle route devono avviare il proprio timeout solo 
 
 **How to apply:** mantenere sempre un timeout globale più ampio dei budget per fase, ma con timeout separati per gate, readiness, gesture e cleanup; in caso di timeout riportare almeno fase, titolo iframe, stato ready, layout wizard e disponibilità WebGL.
 
+Per testare un timeout di readiness del client senza aggiungere 45–90 secondi reali al percorso touch, avanzare il clock Playwright dopo aver trattenuto la richiesta del renderer; riprenderlo subito dopo il retry prima di continuare la navigazione.
+
+**Why:** il renderer software può già consumare gran parte del budget globale, mentre un clock lasciato in pausa blocca timer e aggiornamenti delle pagine successive.
+
+**How to apply:** usare l’orologio simulato solo nel checkpoint deterministico del timeout e mantenere il timeout del renderer configurabile nel server Vite isolato, senza cambiare il limite di produzione.
+
 Il browser WebKit Playwright scaricato nel runner Nix può restare non avviabile anche dopo l’installazione delle dipendenze generiche: richiede ABI Ubuntu specifiche come `libjpeg.so.8`, oltre a ICU/GStreamer compatibili. Non sostituire queste librerie con symlink ABI-incompatibili.
 
 **Why:** forzare il caricamento di una versione diversa può superare il controllo iniziale ma fallire con simboli mancanti o produrre una verifica Safari non attendibile.
