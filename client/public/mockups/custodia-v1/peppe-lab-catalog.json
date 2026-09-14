@@ -946,8 +946,9 @@
         1200,
         1200
       ],
-      "estimatedRepeatMeters": 0.0264,
-      "physicalScaleVerified": false,
+      "estimatedRepeatMeters": 0.0296,
+      "physicalScaleVerified": true,
+      "physicalScaleSource": "photographer_declared_sample_width_0.05m_center_crop_1229px",
       "roughness": 0.88,
       "bumpScale": 0.00008,
       "status": "preview_from_approved_source"

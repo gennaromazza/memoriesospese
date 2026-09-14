@@ -23,6 +23,8 @@ const catalog = JSON.parse(fs.readFileSync(catalogPath, 'utf8')) as {
     supplierCode: string | null;
     supplierColorName: string | null;
     physicalScaleVerified: boolean;
+    physicalScaleSource?: string;
+    estimatedRepeatMeters: number;
   }>;
   models: Array<{ materialPolicy: { allowedVariantIds: string[] } }>;
 };
@@ -38,7 +40,9 @@ describe('Catalogo tessuti Peppe Lab', () => {
       label: 'Spigato Beje',
       supplierCode: null,
       supplierColorName: 'Beje',
-      physicalScaleVerified: false,
+      physicalScaleVerified: true,
+      physicalScaleSource: 'photographer_declared_sample_width_0.05m_center_crop_1229px',
+      estimatedRepeatMeters: 0.0296,
       sourceTextureSizePx: [2078, 1229],
       nativeTextureSizePx: [1200, 1200],
     });
