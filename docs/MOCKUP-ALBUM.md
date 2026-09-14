@@ -4,7 +4,7 @@ Implementazione locale del 9 settembre 2026. Non implica un deploy su Replit o l
 
 ## Nome e provenienza
 
-**Custodia** è il nome confermato per il modello Peppe Lab con custodia a cornice e foto a tutta facciata oppure con taglio obliquo. Importato dal prototipo `Album-3D-prototipo/v2`, conservando gli ID del modello e dei 37 rivestimenti (Alcantara, Cablo, City, Mist). I codici interni non sono codici commerciali del fornitore. L’ID locale Peppe Lab non viene usato come ID dell’anagrafica Firestore `labs`.
+**Custodia** è il nome confermato per il modello Peppe Lab con custodia a cornice e foto a tutta facciata oppure con taglio obliquo. Importato dal prototipo `Album-3D-prototipo/v2`, conserva gli ID del modello e dei 38 rivestimenti (Alcantara, Cablo, City, Mist e la nuova famiglia Spigato). **Spigato Beje** è una preview ricavata dalla sorgente fotografica ad alta risoluzione (2078 × 1229 px): il crop quadrato colore e la height map sono asset r1 da 1200 × 1200 px, con ripetizione stimata provvisoria di circa 2,64 cm e scala fisica ancora da confermare. I codici interni non sono codici commerciali del fornitore; il codice fornitore di Spigato Beje resta vuoto finché PeppeLab non ne comunica uno. L’ID locale Peppe Lab non viene usato come ID dell’anagrafica Firestore `labs`.
 
 Nomi ancora disponibili, non assegnati ad altri modelli: Attimo, Essenza, Incanto, Sempre, Intreccio, Batticuore, Riflessi, Memoria, Emozione, Istanti, Legami, Promessa, Meraviglia, Frammenti, Infinito, Risonanza, Sussurri, Radici, Eterna, Luce, Prezioso.
 
@@ -12,7 +12,7 @@ Nomi ancora disponibili, non assegnati ad altri modelli: Attimo, Essenza, Incant
 
 Il [piano completo](./PIANO-MOCKUP-WORKFLOW.md) conserva decisioni, ordine di implementazione e assunzioni.
 
-1. **Anagrafica laboratori → Modelli album**: importare il campionario Custodia nell’anagrafica del suo fornitore reale. Aggiungere il modello, impostare nome e codice fornitore, scegliere l’asset Custodia e i rivestimenti compatibili. Nomi/codici del campionario sono comuni ai modelli del laboratorio. Gli altri modelli possono essere censiti senza asset e restano non proponibili.
+1. **Anagrafica laboratori → Modelli album**: scegliere esplicitamente l’anagrafica PeppeLab corretta, usare **Importa campionario Custodia / Peppe Lab**, aggiungere il modello, impostare nome e codice fornitore, poi selezionare i rivestimenti compatibili (incluso Spigato Beje se il laboratorio lo abilita). Nomi/codici del campionario sono comuni ai modelli del laboratorio. Gli altri modelli possono essere censiti senza asset e restano non proponibili. L’importazione non associa laboratori omonimi e non modifica proposte già pubblicate.
 2. **Lavoro → Operativo → Album e personalizzazione**, oppure editor fotolibro: aprire il mockup e **Laboratori e modelli per questo lavoro**. Selezionare laboratori/modelli e pubblicare la proposta. Questa azione aggiorna il link cliente già esistente; non invia email/WhatsApp.
 3. Il cliente prima approva le pagine della versione corrente, poi apre il mockup. Sul telefono sceglie modello ed esempio nei due caroselli e usa soltanto foto della galleria associata. Da desktop rimane anche il caricamento JPG/PNG/WebP (20 MB, 40 megapixel massimo). Modifica testi/ritaglio e salva; può esplorare il modello e scaricare l’anteprima con otto viste. Salvataggio e download non sono conferme.
 4. **Invia allo studio per verifica** porta il mockup a **Da verificare** e invia un’email allo stesso destinatario admin già usato per l’approvazione delle pagine, con modello, versione, revisione e link amministrativo. Il cliente può salvare e inviare altre revisioni fino alla stampa. Il solo salvataggio non invia email; un doppio invio della stessa revisione viene rifiutato senza altra email. **Apri WhatsApp** apre la conversazione senza inviare messaggi automaticamente.
@@ -74,7 +74,7 @@ Le prove touch dedicate (`node e2e/mockup-touch.browser.mjs` e `node e2e/photobo
 
 `shared/mockup-catalog.ts` mantiene gli ID e le revisioni accettati dal backend. Il catalogo pubblico esclude i link alle scansioni sorgenti. Le revisioni degli asset vanno conservate: aggiornamenti grafici futuri devono usare una nuova cartella/registrazione, senza cambiare retroattivamente quelle già salvate.
 
-Il catalogo comprende Custodia e Album girevole, con i 37 rivestimenti esistenti. Ulteriori modelli/campionari richiedono integrazione e verifica degli asset reali: non si possono caricare URL o script arbitrari dal pannello. Non implementa account laboratorio, licenze, isolamento tra aziende o pagamenti B2B. Il workflow iniziale riutilizza fotolibro, galleria e token esistenti; non crea inviti autonomi prima del fotolibro.
+Il catalogo comprende Custodia e Album girevole, con i 38 rivestimenti Peppe Lab. Spigato Beje è selezionabile dai renderer già attivi quando il modello del laboratorio lo include; il campione non viene abilitato automaticamente nei record Firestore. Ulteriori modelli/campionari richiedono integrazione e verifica degli asset reali: non si possono caricare URL o script arbitrari dal pannello. Non implementa account laboratorio, licenze, isolamento tra aziende o pagamenti B2B. Il workflow iniziale riutilizza fotolibro, galleria e token esistenti; non crea inviti autonomi prima del fotolibro.
 
 ## Album girevole — secondo modello
 
@@ -164,6 +164,8 @@ Se Git segnala conflitti, non forzare né azzerare il lavoro locale. Le prove lo
 - `node e2e/renderer-mobile.browser.mjs`: zoom ravvicinato, pinch/pan, estrazione, posizione fisica plexiglass e compatibilità v1–v4.
 - `node e2e/photobook-versions.browser.mjs`: approvazione, versioni, header mobile e modali nei due orientamenti.
 - `npx vitest run server/mockup-renderer-revisions.test.ts`: schemi e report v4, compatibilità incisioni/revisioni precedenti.
+- `npx vitest run server/mockup-catalog-assets.test.ts`: consistenza ID, allowlist, asset 1200 × 1200, hash e metadati di Spigato Beje.
+- `node e2e/spigato-beje.browser.mjs`: renderer Custodia reale, selezione del campione, stato pronto e export normale con il materiale conservato nel report.
 - `npm run build`
 - `npx tsc --noEmit --pretty false`: dopo l'allineamento al commit Replit `bce512fd` restano tre errori già presenti nel codice remoto in `server/follow-up-routes.ts`: `data`/`exists` alle righe 530/532 e il tipo dell'evento `followup_recovery_pending` alla riga 567. Non sono introdotti dai mockup.
 

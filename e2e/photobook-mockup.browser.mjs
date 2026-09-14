@@ -299,7 +299,7 @@ try{
  await page.getByLabel('Modello 3D',{exact:true}).selectOption(model.id);
  await page.getByRole('button',{name:'Salva catalogo',exact:true}).dispatchEvent('click');
  await page.getByText('Catalogo salvato.',{exact:false}).waitFor();
- assert.equal(labCatalog.models[0].name,'Custodia Studio');assert.equal(labCatalog.materials.length,37);
+ assert.equal(labCatalog.models[0].name,'Custodia Studio');assert.equal(labCatalog.materials.length,38);
  assert.equal(await page.getByLabel('Nome mostrato al cliente').count(),0);
  await page.getByText('Disponibile per le proposte',{exact:true}).waitFor();
  await page.getByRole('button',{name:'Modifica',exact:true}).dispatchEvent('click');

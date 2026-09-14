@@ -45,6 +45,7 @@ $('modelName').value=currentModel.name;
 const laboratory=catalog.laboratories.find(l=>l.id===currentModel.laboratoryId);
 const allowed=new Set(currentModel.materialPolicy.allowedVariantIds);
 const variants=catalog.variants.filter(v=>v.laboratoryId===laboratory.id&&allowed.has(v.id));
+document.querySelector('#fabricPanel h2').textContent=laboratory.name+' · '+variants.length+' rivestimenti';
 const finishes=variants.map(v=>[v.id,v.label]);
 let selected=(variants.find(v=>v.legacyId==='mist-03')||variants[0]).id,request=0;
 async function texture(name){

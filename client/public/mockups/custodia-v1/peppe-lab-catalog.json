@@ -28,6 +28,11 @@
       "id": "21e6ea6d-e097-5338-b13d-f6347e00bab7",
       "name": "Mist",
       "laboratoryId": "6cac9fe5-95cb-5d75-b7af-a2c5070c98d9"
+    },
+    {
+      "id": "89726688-4655-550d-8f2f-bd822a032769",
+      "name": "Spigato",
+      "laboratoryId": "6cac9fe5-95cb-5d75-b7af-a2c5070c98d9"
     }
   ],
   "variants": [
@@ -918,6 +923,34 @@
       "roughness": 0.82,
       "bumpScale": 0.00017,
       "status": "preview_from_approved_source"
+    },
+    {
+      "id": "e42d980e-8380-5f23-bdc6-3394f0bf42c4",
+      "legacyId": "spigato-beje",
+      "label": "Spigato Beje",
+      "internalCode": "PL-SPIGATO-BEJE",
+      "laboratoryId": "6cac9fe5-95cb-5d75-b7af-a2c5070c98d9",
+      "familyId": "89726688-4655-550d-8f2f-bd822a032769",
+      "supplierCode": null,
+      "supplierColorName": "Beje",
+      "appearanceRevision": 1,
+      "texturePreparation": "high_resolution_source_square_crop_gaussian_height_preview",
+      "textureUrl": "textures/official/spigato-beje-r1.png",
+      "heightUrl": "textures/official/spigato-beje-height-r1.png",
+      "textureSha256": "d4479193d3a62447b6619e916d5bc384654b3997f9cc4913bfec8411c3cee742",
+      "sourceTextureSizePx": [
+        2078,
+        1229
+      ],
+      "nativeTextureSizePx": [
+        1200,
+        1200
+      ],
+      "estimatedRepeatMeters": 0.0264,
+      "physicalScaleVerified": false,
+      "roughness": 0.88,
+      "bumpScale": 0.00008,
+      "status": "preview_from_approved_source"
     }
   ],
   "models": [
@@ -971,7 +1004,8 @@
           "cf04c97b-c949-5840-8aad-dd566925c7bc",
           "ce997aa5-d4b2-52ff-844c-2fdfcccaebef",
           "7f8a9527-1ae9-5f2b-ab13-ba9dcb04b45b",
-          "a263cf20-bb9b-5fd1-814f-d6e5b8d0f016"
+          "a263cf20-bb9b-5fd1-814f-d6e5b8d0f016",
+          "e42d980e-8380-5f23-bdc6-3394f0bf42c4"
         ]
       },
       "coverLayouts": [

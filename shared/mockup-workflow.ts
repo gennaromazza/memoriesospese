@@ -12,11 +12,11 @@ export const labMockupModelSchema = z.object({
   supplierCode: z.string().trim().max(100),
   rendererId: z.union([z.literal(MOCKUP_MODEL.id), z.literal(ROTATING_MOCKUP_MODEL.id)]).nullable(),
   active: z.boolean(),
-  materialIds: z.array(z.string().uuid()).max(37).refine(items => new Set(items).size === items.length),
+  materialIds: z.array(z.string().uuid()).max(38).refine(items => new Set(items).size === items.length),
 }).strict().refine(model => !model.rendererId || model.materialIds.length > 0, 'Seleziona almeno un rivestimento');
 export const labMockupCatalogSchema = z.object({
   revision: z.number().int().min(0),
-  materials: z.array(materialSchema).max(37).refine(items => new Set(items.map(i => i.id)).size === items.length),
+  materials: z.array(materialSchema).max(38).refine(items => new Set(items.map(i => i.id)).size === items.length),
   models: z.array(labMockupModelSchema).max(50).refine(items => new Set(items.map(i => i.id)).size === items.length),
 }).strict().refine(catalog => catalog.models.every(model => model.materialIds.every(id => catalog.materials.some(m => m.id === id))), 'Rivestimento non presente nel laboratorio');
 export type LabMockupModel = z.infer<typeof labMockupModelSchema>;
