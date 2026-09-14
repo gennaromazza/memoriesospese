@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { buildAlbumReport } from '../custodia-v1/report-template.js';
-import { getExportSize, triggerDownload, yieldToBrowser } from '../export-yield.js';
+import { getExportSize, setExportProgress, triggerDownload, yieldToBrowser } from '../export-yield.js';
 
 const $ = id => document.getElementById(id);
 const embedded = window.parent !== window;
@@ -188,7 +188,7 @@ new ResizeObserver(() => { const stage = $('viewport').parentElement; renderer.s
 let last = 0;
 const renderLoop = time => { if (automatic) { const angle = ((THREE.MathUtils.radToDeg(pivot.rotation.y) + Math.min(time - last, 100) * .018 + 180) % 360) - 180; $('rotation').value = angle; setRotation(angle); } last = time; controls.update(); renderer.render(scene, camera); };
 renderer.setAnimationLoop(renderLoop);
-async function previews() {
+async function previews(onProgress) {
   renderer.setAnimationLoop(null);
   const oldSize = renderer.getSize(new THREE.Vector2()), oldRatio = renderer.getPixelRatio(), oldAngle = pivot.rotation.y;
   const exportCamera = new THREE.PerspectiveCamera(36, 4 / 3, .005, 20);
@@ -199,9 +199,10 @@ async function previews() {
     const previews = [];
     for (let index = 0; index < views.length; index += 1) {
       const [label, direction, degrees] = views[index];
+      onProgress?.(index + 1, views.length);
+      await yieldToBrowser();
       pivot.rotation.y = THREE.MathUtils.degToRad(degrees); exportCamera.position.set(...direction).normalize().multiplyScalar(1.12).add(new THREE.Vector3(0, .185, 0)); exportCamera.lookAt(0, .185, 0); renderer.render(scene, exportCamera);
       previews.push({ label, image: renderer.domElement.toDataURL('image/jpeg', .82) });
-      if (index < views.length - 1) await yieldToBrowser();
     }
     return previews;
   } finally { pivot.rotation.y = oldAngle; ground.visible = true; renderer.setPixelRatio(oldRatio); renderer.setSize(oldSize.x, oldSize.y, false); last = 0; renderer.setAnimationLoop(renderLoop); }
@@ -213,7 +214,7 @@ async function downloadClient() {
     const c = configuration(), material = option?.materials.find(m => m.id === selected) || variants.find(v => v.id === selected);
     const report = { model: { name: option?.name || 'Album girevole' }, branding: { name: 'Image Studio' }, material, coverLayout: { label: $('coverLayout').selectedOptions[0].text }, photo: photo || { source: 'none' }, createdAt: new Date().toISOString(), ...{ configuration: c } };
     const rows = [['Rivestimento album', material.label], ['Finitura struttura', $('frameFinish').selectedOptions[0].text], ['Copertina', report.coverLayout.label], ['Incisione nomi', c.coverLayout === 'plaque' ? c.topText : '—'], ['Incisione dedica', c.coverLayout === 'plaque' ? c.bottomText : '—'], ['Formato dichiarato', '30 × 80 cm; proporzioni indicative']];
-    const url = URL.createObjectURL(new Blob([buildAlbumReport({ configuration: report, previews: await previews(), rows, internal: false })], { type: 'text/html;charset=utf-8' }));
+    const url = URL.createObjectURL(new Blob([buildAlbumReport({ configuration: report, previews: await previews((current, total) => setExportProgress($('downloadStatus'), current, total)), rows, internal: false })], { type: 'text/html;charset=utf-8' }));
     triggerDownload(url, 'album-girevole-anteprima.html'); setTimeout(() => URL.revokeObjectURL(url), 10000);
     $('downloadStatus').textContent = 'File preparato: controlla i download del browser.';
   } catch (error) { fail(error); $('downloadStatus').textContent = 'Download non riuscito. Riprova.'; }

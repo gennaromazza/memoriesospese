@@ -5,7 +5,7 @@ import { buildAlbumReport } from '../custodia-v1/report-template.js';
 import { drawMonogram } from '../girevole-v3/monogram.js';
 import { installHomeScenes } from '../home-scenes.js';
 import { phoneView, fitPhoneProduct, phoneDetailDistance } from '../mobile-view.js';
-import { getExportSize, triggerDownload, yieldToBrowser } from '../export-yield.js';
+import { getExportSize, setExportProgress, triggerDownload, yieldToBrowser } from '../export-yield.js';
 
 const $ = id => document.getElementById(id);
 const embedded = window.parent !== window;
@@ -270,7 +270,7 @@ new ResizeObserver(() => { const stage = $('viewport').parentElement; renderer.s
 let last = 0;
 const renderLoop = time => { if (automatic) { const angle = ((THREE.MathUtils.radToDeg(pivot.rotation.y) + Math.min(time - last, 100) * .018 + 180) % 360) - 180; $('rotation').value = angle; setRotation(angle); } last = time; controls.update(); home.update(); renderer.render(scene, camera); };
 renderer.setAnimationLoop(renderLoop);
-async function previews() {
+async function previews(onProgress) {
   renderer.setAnimationLoop(null);
   const resumeHome = home.suspend();
   const oldSize = renderer.getSize(new THREE.Vector2()), oldRatio = renderer.getPixelRatio(), oldAngle = pivot.rotation.y, oldX = album.position.x;
@@ -282,11 +282,12 @@ async function previews() {
     const previews = [];
     for (let index = 0; index < views.length; index += 1) {
       const [label, direction, degrees, x] = views[index];
+      onProgress?.(index + 1, views.length);
+      await yieldToBrowser();
       pivot.rotation.y = THREE.MathUtils.degToRad(degrees); album.position.x = x;
       const sphere = new THREE.Box3().setFromObject(product).getBoundingSphere(new THREE.Sphere());
       exportCamera.position.set(...direction).normalize().multiplyScalar(sphere.radius / Math.sin(Math.PI / 10) * 1.1).add(sphere.center); exportCamera.lookAt(sphere.center);
       renderer.render(scene, exportCamera); previews.push({ label, image: renderer.domElement.toDataURL('image/jpeg', .82) });
-      if (index < views.length - 1) await yieldToBrowser();
     }
     return previews;
   } finally { album.position.x = oldX; pivot.rotation.y = oldAngle; ground.visible = true; renderer.setPixelRatio(oldRatio); renderer.setSize(oldSize.x, oldSize.y, false); resumeHome(); last = 0; renderer.setAnimationLoop(renderLoop); }
@@ -300,7 +301,7 @@ async function downloadClient() {
     const rows = [['Rivestimento album', material.label], ['Finitura struttura', $('frameFinish').selectedOptions[0].text], ['Copertina', report.coverLayout.label], ['Incisione nomi', c.coverLayout === 'plaque' ? c.topText : '—'], ['Incisione dedica', c.coverLayout === 'plaque' ? c.bottomText : '—'], ['Formato dichiarato', '30 × 80 cm; proporzioni indicative']];
     rows.push([configurationRevision >= 4 ? 'Plexiglass posteriore dello scrigno' : 'Retro album', $('backCover').value === 'photo' ? 'Foto a tutta superficie su plexiglass' : configurationRevision >= 4 ? 'Trasparente, senza stampa' : 'Tessuto coordinato'], ['Foto retro', $('backCover').value === 'photo' ? backPhoto?.name || 'Da scegliere' : '—']);
     if (c.engravingNames && c.coverLayout === 'plaque') { rows[3] = ['Primo nome inciso', c.engravingNames.first]; rows[4] = ['Secondo nome inciso', c.engravingNames.second]; rows.push(['Grafica incisione', 'Monogramma botanico con iniziali automatiche']); }
-    const url = URL.createObjectURL(new Blob([buildAlbumReport({ configuration: report, previews: await previews(), rows, internal: false })], { type: 'text/html;charset=utf-8' }));
+    const url = URL.createObjectURL(new Blob([buildAlbumReport({ configuration: report, previews: await previews((current, total) => setExportProgress($('downloadStatus'), current, total)), rows, internal: false })], { type: 'text/html;charset=utf-8' }));
     triggerDownload(url, 'album-girevole-anteprima.html'); setTimeout(() => URL.revokeObjectURL(url), 10000);
     $('downloadStatus').textContent = 'File preparato: controlla i download del browser.';
   } catch (error) { fail(error); $('downloadStatus').textContent = 'Download non riuscito. Riprova.'; }

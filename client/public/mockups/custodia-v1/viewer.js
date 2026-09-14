@@ -5,7 +5,7 @@ import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
 import {buildAlbumReport} from './report-template.js';
 import {installHomeScenes} from '../home-scenes.js';
 import {phoneView,fitPhoneProduct,phoneDetailDistance} from '../mobile-view.js';
-import {getExportSize,triggerDownload,yieldToBrowser} from '../export-yield.js';
+import {getExportSize,setExportProgress,triggerDownload,yieldToBrowser} from '../export-yield.js';
 
 // Campionamento traslato e continuo: stessa direzione dei fili, nessuna griglia
 // di copie identiche. Colore e rilievo usano gli stessi spostamenti deterministici.
@@ -307,7 +307,7 @@ function setDownloadAvailability(){
  for(const id of ['downloadClient','downloadStudio'])$(id).disabled=materialPending||photoPending||exportPending||document.body.dataset.ready!=='true';
  notifyHost('busy',{busy:materialPending||photoPending||exportPending||applyingHost});
 }
-async function renderConfigurationViews(jpeg=false){
+async function renderConfigurationViews(jpeg=false,onProgress){
  const resumeHome=home?.suspend()||(()=>{});
  renderer.setAnimationLoop(null);
  const oldSize=renderer.getSize(new THREE.Vector2()),oldRatio=renderer.getPixelRatio();
@@ -332,6 +332,8 @@ async function renderConfigurationViews(jpeg=false){
    const previews=[];
    for(let index=0;index<views.length;index+=1){
     const view=views[index];
+   onProgress?.(index+1,views.length);
+   await yieldToBrowser();
    album.position.x=view.x;caseGroup.visible=view.caseVisible;model.updateMatrixWorld(true);
    const bounds=new THREE.Box3();
    model.traverseVisible(object=>{if(object.isMesh)bounds.expandByObject(object,true);});
@@ -343,7 +345,6 @@ async function renderConfigurationViews(jpeg=false){
    exportCamera.position.copy(sphere.center).add(new THREE.Vector3(...view.direction).normalize().multiplyScalar(distance));
     exportCamera.lookAt(sphere.center);renderer.render(scene,exportCamera);
     previews.push({label:view.label,image:jpeg?renderer.domElement.toDataURL('image/jpeg',.82):renderer.domElement.toDataURL('image/png')});
-    if(index<views.length-1)await yieldToBrowser();
    }
    return previews;
  }finally{
@@ -356,7 +357,7 @@ async function downloadConfiguration(internal){
  exportPending=true;setDownloadAvailability();$('downloadStatus').textContent='Preparazione del file…';
  try{
   const c=configuration();
-   const previews=await renderConfigurationViews();
+   const previews=await renderConfigurationViews(false,(current,total)=>setExportProgress($('downloadStatus'),current,total));
   const rows=[['Modello',c.model.name],['Foto di copertina',c.photo.name],['Formato indicativo',c.dimensions],['Rivestimento',c.material.label],['Famiglia',c.material.family],['Foto in copertina',c.coverLayout.label],['Scritta superiore',c.inscriptions.top||'Nessuna'],['Scritta inferiore',c.inscriptions.bottom||'Nessuna']];
   if(internal){
    rows.push(['Laboratorio',c.laboratory.name],['Codice interno',c.material.internalCode],['Codice fornitore',c.material.supplierCode||'Da confermare con il laboratorio'],['Applicazione tessuto','Copertina, dorso e custodia'],['Revisione texture',c.material.appearanceRevision],['Note operative',$('studioNotes').value||'Nessuna']);

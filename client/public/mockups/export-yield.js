@@ -37,6 +37,10 @@ export function getExportSize(renderer) {
   return lowPower ? { width: 800, height: 600 } : { width: 1600, height: 1200 };
 }
 
+export function setExportProgress(statusElement, current, total) {
+  if (statusElement) statusElement.textContent = `Preparazione vista ${current} di ${total}…`;
+}
+
 export function triggerDownload(url, filename) {
   const downloadDocument = window.parent !== window ? window.parent.document : document;
   const link = downloadDocument.createElement('a');
