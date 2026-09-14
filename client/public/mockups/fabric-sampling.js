@@ -2,7 +2,14 @@ const fabricSamplingShader = `
 vec4 sampleFabric(sampler2D fabric, vec2 uv) {
   // La continuità viene dalla texture mirrored-repeat. Non spostiamo più
   // casualmente ogni cella: gli spostamenti generavano bande e puntini.
-  return textureGrad(fabric, uv, dFdx(uv), dFdy(uv));
+  vec2 dx = dFdx(uv);
+  vec2 dy = dFdy(uv);
+  vec2 textureSizeUv = vec2(textureSize(fabric, 0));
+  float footprint = max(length(dx * textureSizeUv), length(dy * textureSizeUv));
+  // Quando la trama occupa meno di un pixel, un mipmap leggermente più
+  // sfocato evita il moiré senza togliere il dettaglio ravvicinato.
+  float mipSmoothing = 1.0 + 1.2 * smoothstep(0.75, 3.0, footprint);
+  return textureGrad(fabric, uv, dx * mipSmoothing, dy * mipSmoothing);
 }
 `;
 
