@@ -1,12 +1,11 @@
 // Browser reale, API isolate: nessuna email o scrittura di produzione.
-import { createServer } from 'vite';
-import react from '@vitejs/plugin-react';
 import { chromium } from '@playwright/test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { createMockupHarnessServer } from './mockup-harness/vite-server.mjs';
 const root=process.cwd();
-const vite=await createServer({configFile:false,root:path.join(root,'e2e/mockup-harness'),publicDir:path.join(root,'client/public'),plugins:[{name:'firebase-test',enforce:'pre',resolveId(source,importer){if(source==='@/lib/firebase'||source.replaceAll('\\','/').endsWith('/client/src/lib/firebase')||(source==='./firebase'&&importer?.replaceAll('\\','/').includes('/client/src/lib/')))return path.join(root,'e2e/mockup-harness/firebase.ts');}},react()],resolve:{alias:{'@':path.join(root,'client/src'),'@shared':path.join(root,'shared')}},css:{postcss:path.join(root,'postcss.config.js')},server:{host:'127.0.0.1',port:0,fs:{allow:[root]}}});
+const vite=await createMockupHarnessServer(root);
 let browser;
 try {
  await vite.listen(); const base=`http://127.0.0.1:${vite.httpServer.address().port}`;

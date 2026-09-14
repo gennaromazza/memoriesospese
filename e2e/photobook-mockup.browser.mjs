@@ -1,18 +1,13 @@
 // Test reale del componente e del renderer, con API/Firebase isolati dalla produzione.
 // node e2e/photobook-mockup.browser.mjs
-import { createServer } from 'vite';
-import react from '@vitejs/plugin-react';
 import { chromium } from '@playwright/test';
 import { strict as assert } from 'node:assert';
 import fs from 'node:fs';
 import path from 'node:path';
 import sharp from 'sharp';
+import { createMockupHarnessServer } from './mockup-harness/vite-server.mjs';
 const root=process.cwd();
-const vite=await createServer({ configFile:false, root:path.join(root,'e2e/mockup-harness'), publicDir:path.join(root,'client/public'),
-  plugins:[{ name:'mockup-test-firebase', enforce:'pre', resolveId(source,importer){if(source==='@/lib/firebase'||source.replaceAll('\\','/').endsWith('/client/src/lib/firebase')||(source==='./firebase'&&importer?.replaceAll('\\','/').includes('/client/src/lib/')))return path.join(root,'e2e/mockup-harness/firebase.ts');} },react()],
-  resolve:{alias:{'@':path.join(root,'client/src'),'@shared':path.join(root,'shared')}},
-  css:{postcss:path.join(root,'postcss.config.js')},
-  server:{host:'127.0.0.1',port:0,fs:{allow:[root]}} });
+const vite=await createMockupHarnessServer(root);
 let browser;
 let page;
 let currentPhase='avvio harness';

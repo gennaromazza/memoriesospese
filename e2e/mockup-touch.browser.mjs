@@ -1,11 +1,10 @@
 // Regressione touch: non sostituire tap con click, né usare force/dispatchEvent per i pulsanti.
-import { createServer } from 'vite';
-import react from '@vitejs/plugin-react';
 import { chromium, webkit } from '@playwright/test';
 import { strict as assert } from 'node:assert';
 import fs from 'node:fs';
 import path from 'node:path';
 import sharp from 'sharp';
+import { createMockupHarnessServer } from './mockup-harness/vite-server.mjs';
 const root=process.cwd();
 const TOUCH_TIMEOUT_MS=Number(process.env.MOCKUP_TOUCH_ACTION_TIMEOUT_MS||30000);
 const RENDERER_TIMEOUT_MS=Number(process.env.MOCKUP_RENDERER_TIMEOUT_MS||90000);
@@ -93,7 +92,7 @@ let releaseRenderer;
 let releaseRotating;
 let releaseRetryRenderer;
 try {
-vite=await createServer({configFile:false,root:path.join(root,'e2e/mockup-harness'),publicDir:path.join(root,'client/public'),plugins:[{name:'firebase-test',enforce:'pre',resolveId(source,importer){if(source==='@/lib/firebase'||source.replaceAll('\\','/').endsWith('/client/src/lib/firebase')||(source==='./firebase'&&importer?.replaceAll('\\','/').includes('/client/src/lib/')))return path.join(root,'e2e/mockup-harness/firebase.ts');}},react()],resolve:{alias:{'@':path.join(root,'client/src'),'@shared':path.join(root,'shared')}},define:{'import.meta.env.VITE_MOCKUP_RENDERER_READY_TIMEOUT_MS':JSON.stringify(String(RENDERER_TIMEOUT_MS))},css:{postcss:path.join(root,'postcss.config.js')},server:{host:'127.0.0.1',port:0,fs:{allow:[root]}}});
+vite=await createMockupHarnessServer(root,{define:{'import.meta.env.VITE_MOCKUP_RENDERER_READY_TIMEOUT_MS':JSON.stringify(String(RENDERER_TIMEOUT_MS))}});
  await withTimeout('avvio Vite',()=>vite.listen(),30000); const port=vite.httpServer.address().port;
  const {mockupConfigurationSchema}=await vite.ssrLoadModule('/@fs/'+path.join(root,'shared/mockup-types.ts').replaceAll('\\','/'));
  const {mockupWorkflowInputSchema,mockupSelectionSchema}=await vite.ssrLoadModule('/@fs/'+path.join(root,'shared/mockup-workflow.ts').replaceAll('\\','/'));

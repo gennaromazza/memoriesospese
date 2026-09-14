@@ -2,7 +2,7 @@ import path from 'node:path';
 import react from '@vitejs/plugin-react';
 import { createServer } from 'vite';
 
-export function createMockupHarnessServer(projectRoot = process.cwd()) {
+export function createMockupHarnessServer(projectRoot = process.cwd(), { define } = {}) {
   const root = path.resolve(projectRoot);
   const harnessRoot = path.join(root, 'e2e/mockup-harness');
 
@@ -27,6 +27,7 @@ export function createMockupHarnessServer(projectRoot = process.cwd()) {
       react(),
     ],
     resolve: { alias: { '@': path.join(root, 'client/src'), '@shared': path.join(root, 'shared') } },
+    ...(define ? { define } : {}),
     css: { postcss: path.join(root, 'postcss.config.js') },
     server: { host: '127.0.0.1', port: 0, fs: { allow: [root] } },
   });
