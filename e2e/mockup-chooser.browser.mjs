@@ -51,7 +51,7 @@ try {
   assert.ok(nextSlide.x < page.viewportSize().width && nextSlide.x > page.viewportSize().width - 65, 'La scheda successiva è accennata, senza mostrare due modelli insieme');
   await page.getByRole('button', { name: 'Scopri Plaza', exact: true }).tap();
   assert.equal(await chooser.getAttribute('data-chooser-stage'), 'styles');
-  assert.equal(await page.locator('.mockup-chooser-slide').count(), 3);
+  assert.equal(await page.locator('.mockup-chooser-slide').count(), 4);
   assert.equal(await page.evaluate(() => window.__chosen), undefined, 'Il tocco sul modello non sceglie uno stile');
   await page.getByRole('button', { name: 'Esempio successivo', exact: true }).tap();
   await activeStyle('full');
@@ -96,6 +96,16 @@ try {
   await page.getByRole('button', { name: 'Esempio successivo', exact: true }).tap(); await activeStyle('photo-plaque');
   await page.getByTestId('choose-mockup-example-photo-plaque').tap();
   assert.equal((await page.evaluate(() => window.__chosen)).layout, 'photo-plaque');
+  await page.getByRole('button', { name: 'Modelli', exact: true }).tap();
+  const modelPrevious = page.getByRole('button', { name: 'Modello precedente', exact: true });
+  for (let i = 0; i < 4 && !(await modelPrevious.isDisabled()); i++) await modelPrevious.tap();
+  await page.getByRole('button', { name: 'Scopri Plaza', exact: true }).tap();
+  await page.getByRole('button', { name: 'Esempio successivo', exact: true }).tap();
+  await page.getByRole('button', { name: 'Esempio successivo', exact: true }).tap();
+  await page.getByRole('button', { name: 'Esempio successivo', exact: true }).tap();
+  await activeStyle('split-photo-fabric');
+  await page.getByTestId('choose-mockup-example-split-photo-fabric').tap();
+  assert.equal((await page.evaluate(() => window.__chosen)).layout, 'split-photo-fabric');
   await page.goto(`${url}?single=1`);
   assert.equal(await chooser.getAttribute('data-chooser-stage'), 'models', 'Anche un solo modello richiede una scelta esplicita');
   assert.equal(await page.getByRole('button', { name: 'Modello successivo', exact: true }).isDisabled(), true);

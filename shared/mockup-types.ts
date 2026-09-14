@@ -17,7 +17,7 @@ const custodiaConfigurationSchema = z.object({
 const rotatingConfigurationBase = z.object({
   modelId: z.literal(ROTATING_MOCKUP_MODEL.id), assetRevision: z.literal(1),
   materialId: z.string(), appearanceRevision: z.number().int(),
-  coverLayout: z.enum(['full', 'plaque', 'photo-plaque']),
+  coverLayout: z.enum(['full', 'plaque', 'photo-plaque', 'split-photo-fabric']),
   frameFinish: z.enum(['wood', 'white', 'fabric']),
   topText: z.string().max(50), bottomText: z.string().max(50),
   photoAssetId: z.string().uuid().nullable(),

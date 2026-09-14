@@ -135,6 +135,8 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     setStep(mobile && saved
       ? (saved.status === 'draft'
         ? renderer.wizardSteps[renderer.wizardSteps.length - 1].id
+        : !editable
+          ? (renderer.wizardSteps.find(item => item.panel === 'summary')?.id || renderer.wizardSteps[renderer.wizardSteps.length - 1].id)
         : (renderer.wizardSteps.find(item => item.id !== 'model')?.id || renderer.wizardSteps[0].id))
       : renderer.wizardSteps[0].id); setOpen(true);
     let guideSeen = false;

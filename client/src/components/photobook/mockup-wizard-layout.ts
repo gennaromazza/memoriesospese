@@ -170,7 +170,7 @@ export function installMockupWizard(doc: Document, mobile = false) {
     detail.dataset.wizardPanel = 'detail';
     Array.from(detail.children).forEach(child => {
       const element = child as HTMLElement;
-      if (element.tagName !== 'H2') element.dataset.wizardPanel = 'cover';
+      if (element.tagName !== 'H2' && !element.dataset.wizardPanel && !element.dataset.detailTab && !element.dataset.detailPanelSection) element.dataset.wizardPanel = 'cover';
     });
   }
   markById('frameFinish', 'structure');
@@ -183,13 +183,23 @@ export function installMockupWizard(doc: Document, mobile = false) {
   for (const id of ['coverUpload', 'photoStatus', 'restorePhoto', 'photoZoom', 'photoX', 'photoY', 'topText', 'bottomText', 'firstName', 'secondName']) markById(id, 'cover');
   for (const id of ['backUpload', 'backPhotoStatus', 'backZoom', 'backX', 'backY']) markById(id, 'box-glass');
   const detailPanels = new Set<WizardPanel>(['structure', 'cover', 'box-glass']);
+  const detailTabs = detail ? Array.from(detail.querySelectorAll<HTMLButtonElement>('[data-detail-tab]')) : [];
+  const detailSections = detail ? Array.from(detail.querySelectorAll<HTMLElement>('[data-detail-panel-section]')) : [];
+  const detailPanelId = (panel: WizardPanel) => panel === 'structure' ? 'structurePanel' : panel === 'cover' ? 'coverPanel' : panel === 'box-glass' ? 'boxPanel' : '';
+  const selectDetailTab = (panelId: string) => {
+    detailTabs.forEach(tab => tab.setAttribute('aria-selected', String(tab.dataset.detailTab === panelId)));
+    detailSections.forEach(section => { section.hidden = section.id !== panelId; });
+  };
+  detailTabs.forEach(tab => tab.addEventListener('click', () => selectDetailTab(tab.dataset.detailTab || '')));
+  if (detailSections.length) selectDetailTab('structurePanel');
   const syncPanel = (panel: WizardPanel) => {
     doc.body.dataset.wizardPanel = panel;
     if (fabric) { fabric.hidden = false; fabric.dataset.wizardPanelActive = String(panel === 'material'); }
     if (detail) {
       detail.hidden = false;
       detail.dataset.wizardPanelActive = String(detailPanels.has(panel));
-      Array.from(detail.children).forEach(child => {
+      if (detailSections.length) selectDetailTab(detailPanelId(panel) || 'structurePanel');
+      else Array.from(detail.children).forEach(child => {
         const element = child as HTMLElement;
         if (element.tagName !== 'H2' && element.dataset.wizardPanel) element.dataset.wizardPanelActive = String(element.dataset.wizardPanel === panel);
       });

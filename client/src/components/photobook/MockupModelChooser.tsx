@@ -15,6 +15,7 @@ const EXAMPLES: Record<string, CoverExample[]> = {
     { layout: 'plaque', title: 'Incisione con i vostri nomi', description: 'Placchetta in legno, iniziali e decorazione botanica.', image: 'girevole-plaque.webp' },
     { layout: 'full', title: 'Foto grande', description: 'La tua fotografia su tutta la copertina dell’album.', image: 'girevole-full.webp' },
     { layout: 'photo-plaque', title: 'Foto piccola sul tessuto', description: 'Una fotografia centrale nel formato della placchetta.', image: 'girevole-photo-plaque.webp' },
+    { layout: 'split-photo-fabric', title: 'Foto e tessuto inciso', description: 'Una metà con la tua foto e una metà in tessuto con il monogramma inciso.', image: 'girevole-split-photo-fabric.svg' },
   ],
 };
 

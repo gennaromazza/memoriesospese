@@ -346,7 +346,7 @@ try{
  await page.setViewportSize({width:390,height:844});await capturePage('work/mockup-operativo-mobile.png',{fullPage:true});
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   phase('album girevole: cambio renderer, finiture e copertine');
-  // Secondo modello: cambio renderer, tre finiture/copertine, persistenza senza foto.
+ // Secondo modello: cambio renderer, finiture e copertine, persistenza senza foto.
  const rotatingEntry={...labCatalog.models[0],id:'44444444-4444-4444-8444-444444444444',name:'Album girevole',rendererId:'album-girevole'};
  offer.options.push({...rotatingEntry,labId:'lab',labName:'Laboratorio test',materials:labCatalog.materials.slice(0,2)});
  await page.setViewportSize({width:1440,height:1100});
@@ -377,9 +377,12 @@ try{
  await page.getByRole('button',{name:'Salva mockup',exact:true}).dispatchEvent('click');await page.getByText('Mockup salvato.',{exact:false}).waitFor();
  assert.equal(saved.configuration.frameFinish,'white');assert.equal(saved.configuration.coverLayout,'photo-plaque');
  await screenshotRect('iframe','work/mockup-girevole-bianco.png');
- await frame.locator('#frameFinish').selectOption('fabric');await frame.locator('#coverLayout').selectOption('full');
+  await frame.locator('#frameFinish').selectOption('fabric');await frame.locator('#coverLayout').selectOption('split-photo-fabric');
  await page.getByRole('button',{name:'Salva mockup',exact:true}).dispatchEvent('click');await page.getByText('Mockup salvato.',{exact:false}).waitFor();
+  assert.equal(saved.configuration.frameFinish,'fabric');assert.equal(saved.configuration.coverLayout,'split-photo-fabric');
  await screenshotRect('iframe','work/mockup-girevole-tessuto.png');
+  await frame.locator('#coverLayout').selectOption('full');
+  await page.getByRole('button',{name:'Salva mockup',exact:true}).dispatchEvent('click');await page.getByText('Mockup salvato.',{exact:false}).waitFor();
  await page.getByRole('button',{name:'Verifica',exact:true}).dispatchEvent('click');
  await page.getByRole('button',{name:'Conferma mockup',exact:true}).dispatchEvent('click');await page.getByText('Mockup confermato.',{exact:false}).waitFor({timeout:45000});
  assert.equal(confirmations,2);

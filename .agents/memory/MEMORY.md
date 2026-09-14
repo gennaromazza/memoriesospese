@@ -51,4 +51,5 @@
 - [Photobook fabric texture sampling](photobook-fabric-texture-sampling.md) — offset stocastici solo sul colore; il bump deve restare filtrato e attenuato per evitare puntini e cavità false.
 - [Mockup touch WebGL validation](mockup-touch-webgl-validation.md) — il gate touch può bloccarsi prima delle asserzioni su Chromium/SwiftShader locale; servono timeout e diagnostica espliciti.
 - [Mockup layout lifecycle](mockup-layout-lifecycle.md) — i test di sostituzione devono osservare marker e stili nel documento iframe; disposer passati a setState vanno wrappati.
+- [Mockup renderer standalone tabs](mockup-renderer-standalone-tabs.md) — le tab interne devono funzionare nel renderer HTML standalone; il wizard può solo sincronizzarle.
 - [Validazione .replit protetto](dot-replit-validation.md) — sostituire `.replit` tramite file temporaneo completo e `verifyAndReplaceDotReplit`, mai con edit diretto.

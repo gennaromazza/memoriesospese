@@ -13,12 +13,13 @@ const escape = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, c => 
 export async function buildMockupReport(saved: SavedMockup, previews: z.infer<typeof mockupConfirmSchema>['previews']): Promise<Buffer> {
   const option = saved.option!;
   const material = option.materials.find(m => m.id === saved.configuration.materialId)!;
+  const engravedCover = ['plaque', 'split-photo-fabric'].includes(saved.configuration.coverLayout);
   const rows = [
     ['Laboratorio', option.labName], ['Modello', option.name], ['Codice modello fornitore', option.supplierCode || 'Non impostato'],
     ['Rivestimento', material.label], ['Codice rivestimento fornitore', material.supplierCode || 'Non impostato'],
-    ['Scritta superiore', 'frameFinish' in saved.configuration && saved.configuration.coverLayout !== 'plaque' ? 'Non applicata' : saved.configuration.topText],
-    ['Scritta inferiore', 'frameFinish' in saved.configuration && saved.configuration.coverLayout !== 'plaque' ? 'Non applicata' : saved.configuration.bottomText],
-    ['Copertina', { full: 'Foto a tutta facciata', oblique: 'Taglio obliquo', plaque: 'Placchetta incisa', 'photo-plaque': 'Foto formato placchetta' }[saved.configuration.coverLayout]],
+    ['Scritta superiore', 'frameFinish' in saved.configuration && !engravedCover ? 'Non applicata' : saved.configuration.topText],
+    ['Scritta inferiore', 'frameFinish' in saved.configuration && !engravedCover ? 'Non applicata' : saved.configuration.bottomText],
+    ['Copertina', { full: 'Foto a tutta facciata', oblique: 'Taglio obliquo', plaque: 'Placchetta incisa', 'photo-plaque': 'Foto formato placchetta', 'split-photo-fabric': 'Metà foto e metà tessuto con incisione' }[saved.configuration.coverLayout]],
     ['Versione fotolibro', saved.version], ['Revisione mockup confermata', saved.revision], ['Confermato dallo studio', saved.confirmedAt],
   ];
   if ('frameFinish' in saved.configuration) rows.push(['Finitura struttura', { wood: 'Legno naturale', white: 'Bianco', fabric: `Tessuto · ${material.label}` }[saved.configuration.frameFinish]], ['Dimensioni', 'Formato dichiarato 30 × 80 cm; proporzioni della struttura indicative']);
@@ -26,7 +27,7 @@ export async function buildMockupReport(saved: SavedMockup, previews: z.infer<ty
     if (saved.configuration.assetRevision >= 4) rows.push(['Plexiglass posteriore dello scrigno girevole', saved.configuration.backCover === 'photo' ? 'Foto a tutta superficie; rimane sullo scrigno quando l’album viene estratto' : 'Trasparente, senza stampa'], ['Retro album', 'Tessuto coordinato']);
     else rows.push(['Retro album', saved.configuration.backCover === 'photo' ? 'Foto a tutta superficie su plexiglass' : 'Tessuto coordinato']);
   }
-  if ('engravingNames' in saved.configuration && saved.configuration.coverLayout === 'plaque') {
+  if ('engravingNames' in saved.configuration && engravedCover) {
     rows[5] = ['Primo nome inciso', saved.configuration.engravingNames.first];
     rows[6] = ['Secondo nome inciso', saved.configuration.engravingNames.second];
     rows.push(['Grafica incisione', 'Monogramma botanico con iniziali automatiche']);

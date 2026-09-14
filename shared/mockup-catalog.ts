@@ -164,7 +164,7 @@ export const MOCKUP_MODEL = {
 // Identità distinta: i salvataggi Custodia mantengono asset e revisione originali.
 export const ROTATING_MOCKUP_MODEL = {
   id: 'album-girevole', name: 'Album girevole', assetRevision: 4,
-  coverLayouts: ['full', 'plaque', 'photo-plaque'], defaultCoverLayout: 'plaque',
+  coverLayouts: ['full', 'plaque', 'photo-plaque', 'split-photo-fabric'], defaultCoverLayout: 'plaque',
 } as const;
 
 /**

@@ -97,9 +97,11 @@ const plaque = box(album, 'Placchetta in legno', [.195, .137, .003], [0, 0, .027
 const coverCanvas = document.createElement('canvas'); coverCanvas.width = 1600; coverCanvas.height = 1200;
 const coverMap = new THREE.CanvasTexture(coverCanvas); coverMap.colorSpace = THREE.SRGBColorSpace;
 const cover = new THREE.Mesh(new THREE.PlaneGeometry(.4, .3), new THREE.MeshStandardMaterial({ map: coverMap, roughness: .38 })); cover.position.z = .029; album.add(cover);
+const splitFabricPanel = new THREE.Mesh(new THREE.PlaneGeometry(.2, .3), fabric);
+splitFabricPanel.name = 'Metà copertina in tessuto'; splitFabricPanel.position.set(.1, 0, .029); album.add(splitFabricPanel);
 const inscriptionCanvas = document.createElement('canvas'); inscriptionCanvas.width = 1600; inscriptionCanvas.height = 1100;
 const inscriptionMap = new THREE.CanvasTexture(inscriptionCanvas); inscriptionMap.colorSpace = THREE.SRGBColorSpace;
-const inscription = new THREE.Mesh(new THREE.PlaneGeometry(.19, .132), new THREE.MeshBasicMaterial({ map: inscriptionMap, transparent: true, depthWrite: false })); inscription.position.z = .029; album.add(inscription);
+const inscription = new THREE.Mesh(new THREE.PlaneGeometry(.19, .132), new THREE.MeshBasicMaterial({ map: inscriptionMap, transparent: true, depthWrite: false })); inscription.position.z = .031; album.add(inscription);
 const backCanvas = document.createElement('canvas'); backCanvas.width = 1600; backCanvas.height = 1200;
 const backMap = new THREE.CanvasTexture(backCanvas); backMap.colorSpace = THREE.SRGBColorSpace;
 const rearPhoto = new THREE.Mesh(new THREE.PlaneGeometry(.4, .3), new THREE.MeshPhysicalMaterial({ map: backMap, roughness: .25, clearcoat: 1, clearcoatRoughness: .035 }));
@@ -130,7 +132,8 @@ function summary() {
   const name = option?.name || 'Album girevole'; $('modelTitle').textContent = name;
   $('materialLabel').textContent = material.label;
   const engraving = monogramEnabled ? `Monogramma botanico: ${$('firstName').value.trim()} · ${$('secondName').value.trim()}` : `Incisione: ${$('topText').value} · ${$('bottomText').value}`;
-  $('configurationSummary').textContent = `${name}\nTessuto: ${material.label}\nStruttura: ${$('frameFinish').selectedOptions[0].text}\nCopertina: ${$('coverLayout').selectedOptions[0].text}\n${$('coverLayout').value === 'plaque' ? engraving : `Foto: ${photo?.name || 'Da scegliere'}`}`;
+  const engravedCover = ['plaque', 'split-photo-fabric'].includes($('coverLayout').value);
+  $('configurationSummary').textContent = `${name}\nTessuto: ${material.label}\nStruttura: ${$('frameFinish').selectedOptions[0].text}\nCopertina: ${$('coverLayout').selectedOptions[0].text}\n${engravedCover ? engraving : `Foto: ${photo?.name || 'Da scegliere'}`}`;
   $('configurationSummary').textContent += configurationRevision >= 4
     ? `\nPlexiglass posteriore dello scrigno: ${$('backCover').value === 'photo' ? `Foto stampata · ${backPhoto?.name || 'Da scegliere'}` : 'Trasparente, senza stampa'}\nRetro album: tessuto coordinato`
     : `\nRetro: ${$('backCover').value === 'photo' ? `Foto su plexiglass · ${backPhoto?.name || 'Da scegliere'}` : 'Tessuto coordinato'}`;
@@ -159,12 +162,15 @@ async function finish(id) {
 }
 function updateCover() {
   const layout = $('coverLayout').value, isPlaque = layout === 'plaque';
-  plaque.visible = isPlaque; inscription.visible = isPlaque; cover.visible = !isPlaque;
-  $('photoControls').hidden = isPlaque; $('engravingControls').hidden = !isPlaque;
-  cover.scale.set(layout === 'photo-plaque' ? .195 / .4 : 1, layout === 'photo-plaque' ? .137 / .3 : 1, 1);
+  const isSplit = layout === 'split-photo-fabric', hasEngraving = isPlaque || isSplit;
+  plaque.visible = isPlaque; splitFabricPanel.visible = isSplit; inscription.visible = hasEngraving; cover.visible = !isPlaque;
+  cover.position.x = isSplit ? -.1 : 0;
+  cover.scale.set(isSplit ? .2 / .4 : layout === 'photo-plaque' ? .195 / .4 : 1, isSplit ? 1 : layout === 'photo-plaque' ? .137 / .3 : 1, 1);
+  inscription.position.x = isSplit ? .1 : 0; inscription.scale.set(isSplit ? .92 : 1, isSplit ? .92 : 1, 1);
+  $('photoControls').hidden = isPlaque; $('engravingControls').hidden = !hasEngraving;
   const ctx = coverCanvas.getContext('2d'); ctx.fillStyle = '#e6dfd3'; ctx.fillRect(0, 0, 1600, 1200);
   if (photoMap) {
-    const image = photoMap.image, areaAspect = layout === 'photo-plaque' ? .195 / .137 : 4 / 3;
+    const image = photoMap.image, areaAspect = isSplit ? .2 / .3 : layout === 'photo-plaque' ? .195 / .137 : 4 / 3;
     const imageAspect = image.width / image.height, zoom = +$('photoZoom').value;
     const sw = image.width * Math.min(1, areaAspect / imageAspect) / zoom, sh = image.height * Math.min(1, imageAspect / areaAspect) / zoom;
     ctx.drawImage(image, (image.width - sw) * +$('photoX').value / 100, (image.height - sh) * +$('photoY').value / 100, sw, sh, 0, 0, 1600, 1200);
@@ -229,6 +235,14 @@ for (const family of catalog.families) {
 for (const button of document.querySelectorAll('[data-panel]')) button.onclick = () => {
   for (const tab of document.querySelectorAll('[data-panel]')) { tab.setAttribute('aria-pressed', String(tab === button)); $(tab.dataset.panel).hidden = tab !== button; }
 };
+const detailTabs = [...document.querySelectorAll('[data-detail-tab]')];
+const detailSections = [...document.querySelectorAll('[data-detail-panel-section]')];
+function selectDetailPanel(panelId) {
+  detailTabs.forEach(tab => tab.setAttribute('aria-selected', String(tab.dataset.detailTab === panelId)));
+  detailSections.forEach(section => { section.hidden = section.id !== panelId; });
+}
+detailTabs.forEach(tab => tab.onclick = () => selectDetailPanel(tab.dataset.detailTab));
+selectDetailPanel('structurePanel');
 for (const id of ['coverLayout', 'frameFinish', 'backCover']) $(id).onchange = () => { edited(); updateCover(); if (id === 'backCover') view([0, .1, -1]); };
 for (const id of ['topText', 'bottomText', 'photoZoom', 'photoX', 'photoY', 'backZoom', 'backX', 'backY']) $(id).oninput = () => { edited(); updateCover(); };
 for (const id of ['firstName', 'secondName']) $(id).oninput = () => { edited(); monogramEnabled = true; updateCover(); };
@@ -301,9 +315,10 @@ async function downloadClient() {
   try {
     const c = configuration(), material = option?.materials.find(m => m.id === selected) || variants.find(v => v.id === selected);
     const report = { model: { name: option?.name || 'Album girevole' }, branding: { name: 'Image Studio' }, material, coverLayout: { label: $('coverLayout').selectedOptions[0].text }, photo: photo || { source: 'none' }, createdAt: new Date().toISOString(), ...{ configuration: c } };
-    const rows = [['Rivestimento album', material.label], ['Finitura struttura', $('frameFinish').selectedOptions[0].text], ['Copertina', report.coverLayout.label], ['Incisione nomi', c.coverLayout === 'plaque' ? c.topText : '—'], ['Incisione dedica', c.coverLayout === 'plaque' ? c.bottomText : '—'], ['Formato dichiarato', '30 × 80 cm; proporzioni indicative']];
+    const engravedCover = ['plaque', 'split-photo-fabric'].includes(c.coverLayout);
+    const rows = [['Rivestimento album', material.label], ['Finitura struttura', $('frameFinish').selectedOptions[0].text], ['Copertina', report.coverLayout.label], ['Incisione nomi', engravedCover ? c.topText : '—'], ['Incisione dedica', engravedCover ? c.bottomText : '—'], ['Formato dichiarato', '30 × 80 cm; proporzioni indicative']];
     rows.push([configurationRevision >= 4 ? 'Plexiglass posteriore dello scrigno' : 'Retro album', $('backCover').value === 'photo' ? 'Foto a tutta superficie su plexiglass' : configurationRevision >= 4 ? 'Trasparente, senza stampa' : 'Tessuto coordinato'], ['Foto retro', $('backCover').value === 'photo' ? backPhoto?.name || 'Da scegliere' : '—']);
-    if (c.engravingNames && c.coverLayout === 'plaque') { rows[3] = ['Primo nome inciso', c.engravingNames.first]; rows[4] = ['Secondo nome inciso', c.engravingNames.second]; rows.push(['Grafica incisione', 'Monogramma botanico con iniziali automatiche']); }
+    if (c.engravingNames && engravedCover) { rows[3] = ['Primo nome inciso', c.engravingNames.first]; rows[4] = ['Secondo nome inciso', c.engravingNames.second]; rows.push(['Grafica incisione', 'Monogramma botanico con iniziali automatiche']); }
     const url = URL.createObjectURL(new Blob([buildAlbumReport({ configuration: report, previews: await previews((current, total) => setExportProgress($('downloadStatus'), current, total)), rows, internal: false })], { type: 'text/html;charset=utf-8' }));
     triggerDownload(url, 'album-girevole-anteprima.html'); setTimeout(() => URL.revokeObjectURL(url), 10000);
     $('downloadStatus').textContent = 'File preparato: controlla i download del browser.';
