@@ -44,6 +44,7 @@ export function installMockupWizard(doc: Document, mobile = false) {
   if (mobile) doc.body.dataset.wizardMobile = 'true';
   const style = doc.createElement('style');
   style.dataset.mockupWizardStyle = 'true';
+  style.dataset.mockupWizardStyleKind = 'base';
   style.textContent = `
     body[data-wizard] {height:100dvh;overflow:hidden;font-size:16px}
     body[data-wizard] header,body[data-wizard] aside>h1,body[data-wizard] aside>p,body[data-wizard] aside>nav,
@@ -87,6 +88,7 @@ export function installMockupWizard(doc: Document, mobile = false) {
   if (mobile) {
     mobileStyle = doc.createElement('style');
     mobileStyle.dataset.mockupWizardStyle = 'true';
+    mobileStyle.dataset.mockupWizardStyleKind = 'mobile';
     mobileStyle.textContent = `
       body[data-wizard-mobile] main {grid-template-columns:minmax(0,1fr) clamp(250px,42%,410px)!important;grid-template-rows:minmax(0,1fr)!important}
       body[data-wizard-mobile][data-viewer-expanded=true] main {grid-template-columns:minmax(0,1fr)!important}
@@ -249,7 +251,13 @@ export function installMockupWizard(doc: Document, mobile = false) {
     if (disposed) return;
     disposed = true;
     observer.disconnect();
+    delete doc.body.dataset.wizard;
     delete doc.body.dataset.wizardLayout;
+    delete doc.body.dataset.wizardMobile;
+    delete doc.body.dataset.wizardPanel;
+    delete doc.body.dataset.wizardHome;
+    delete doc.body.dataset.wizardStep;
+    delete doc.body.dataset.viewerExpanded;
     style.remove();
     mobileStyle?.remove();
   },

@@ -31,20 +31,34 @@ const LAYOUT_LIFECYCLE_FIXTURE = `<!doctype html>
     </main>
   </body></html>`;
 
-type LayoutLifecycleSnapshot = { wizardLayout: string | null; styleCount: number };
+type LayoutLifecycleSnapshot = {
+  wizard: string | null;
+  wizardLayout: string | null;
+  wizardMobile: string | null;
+  styleCount: number;
+  baseStyleCount: number;
+  mobileStyleCount: number;
+};
 
 function layoutLifecycleSnapshot(doc: Document): LayoutLifecycleSnapshot {
+  const styles = Array.from(doc.querySelectorAll<HTMLStyleElement>('style[data-mockup-wizard-style="true"]'));
   return {
+    wizard: doc.body.dataset.wizard || null,
     wizardLayout: doc.body.dataset.wizardLayout || null,
-    styleCount: doc.querySelectorAll('style[data-mockup-wizard-style="true"]').length,
+    wizardMobile: doc.body.dataset.wizardMobile || null,
+    styleCount: styles.length,
+    baseStyleCount: styles.filter(style => style.dataset.mockupWizardStyleKind === 'base').length,
+    mobileStyleCount: styles.filter(style => style.dataset.mockupWizardStyleKind === 'mobile').length,
   };
 }
 
 function LayoutLifecycleRenderer({
   revision,
+  mobile,
   onDisposeReady,
 }: {
   revision: number;
+  mobile: boolean;
   onDisposeReady: (dispose: () => void) => void;
 }) {
   const frame = React.useRef<HTMLIFrameElement>(null);
@@ -73,7 +87,7 @@ function LayoutLifecycleRenderer({
     onLoad={() => {
       const doc = frame.current?.contentDocument;
       if (!doc) throw new Error('Renderer di test non disponibile');
-      const nextLayout = installMockupWizard(doc);
+      const nextLayout = installMockupWizard(doc, mobile);
       layout.current = nextLayout;
       layoutDocument.current = doc;
       onDisposeReady(() => dispose);
@@ -84,6 +98,7 @@ function LayoutLifecycleRenderer({
 function LayoutLifecycleHarness() {
   const [revision, setRevision] = React.useState(0);
   const [dispose, setDispose] = React.useState<(() => void) | null>(null);
+  const mobile = params.has('mobile');
   React.useEffect(() => {
     (window as typeof window & {
       __mockupLayoutLifecycle?: { disposed: LayoutLifecycleSnapshot[] };
@@ -102,7 +117,7 @@ function LayoutLifecycleHarness() {
       Rimuovi layout
     </button>
     <output data-testid="layout-lifecycle-revision" data-revision={revision}>{revision}</output>
-    <LayoutLifecycleRenderer key={revision} revision={revision} onDisposeReady={setDispose} />
+    <LayoutLifecycleRenderer key={revision} revision={revision} mobile={mobile} onDisposeReady={setDispose} />
   </main>;
 }
 
