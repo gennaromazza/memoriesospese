@@ -195,6 +195,7 @@ try {
  assert.equal(await page.locator('iframe').isVisible(),false,'Nascondere il renderer durante il cambio');
  releaseRenderer();
  await frame.locator('#wizard-slot').waitFor({timeout:45000});
+ await page.locator('iframe').waitFor({state:'visible'});
  await frame.getByRole('button',{name:'Avanti',exact:true}).tap();
  assert.equal(await frame.locator('body').getAttribute('data-wizard-step'),'4','Custodia non mostra un passaggio struttura vuoto');
  await page.waitForFunction(()=>document.querySelector('iframe')?.contentDocument.querySelector('#coverOptions select')?.value==='full');

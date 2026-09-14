@@ -1,9 +1,31 @@
 // Adattatore di sola presentazione per i renderer same-origin esistenti.
 // I controlli restano nel loro documento, con gli handler e gli ID originali.
+import type { MockupWizardStepDefinition } from '@shared/mockup-catalog';
+
 export function installMockupWizard(doc: Document, mobile = false) {
-  const content = doc.querySelector<HTMLElement>('.panel-content');
+  let content = doc.querySelector<HTMLElement>('.panel-content');
   const stage = doc.querySelector<HTMLElement>('.stage');
+  if (!content) {
+    const aside = doc.querySelector<HTMLElement>('aside');
+    const sections = aside ? Array.from(aside.querySelectorAll<HTMLElement>(':scope > section')) : [];
+    const firstSection = sections[0];
+    if (aside && firstSection && sections.length) {
+      content = doc.createElement('div');
+      content.className = 'panel-content';
+      firstSection.before(content);
+      sections.forEach(section => content?.append(section));
+    }
+  }
   if (!content || !stage) throw new Error('Interfaccia del modello non disponibile');
+  const download = doc.getElementById('downloadClient');
+  if (download && !download.closest('.download-bar')) {
+    const bar = doc.createElement('div');
+    bar.className = 'download-bar';
+    download.before(bar);
+    bar.append(download);
+    const status = doc.getElementById('downloadStatus');
+    if (status && status.parentElement !== bar) bar.append(status);
+  }
   const slot = doc.createElement('div'); slot.id = 'wizard-slot'; content.prepend(slot);
   const actionsSlot = doc.createElement('div'); actionsSlot.id = 'wizard-actions-slot';
   const controlsSlot = doc.createElement('div'); controlsSlot.id = 'wizard-controls-slot';
@@ -43,17 +65,11 @@ export function installMockupWizard(doc: Document, mobile = false) {
     body[data-wizard] .wizard-cards button {flex:1 1 120px;text-align:left}
     body[data-wizard] details>summary {min-height:44px;padding:12px 0;cursor:pointer}
     body[data-wizard] .download-bar {display:none}
-    body[data-wizard][data-wizard-step="4"] .download-bar {display:block}
-    body[data-wizard] .panel-content>section {display:none!important}
-    body[data-wizard][data-wizard-step="2"] #fabricPanel,
-    body[data-wizard][data-wizard-step="2"] #detailPanel,
-    body[data-wizard][data-wizard-step="3"] #detailPanel,
-    body[data-wizard][data-wizard-step="4"] #summaryPanel {display:block!important}
-    body[data-wizard][data-wizard-step="2"] #detailPanel>*:not([data-wizard-material]),
-    body[data-wizard][data-wizard-step="3"] #detailPanel>[data-wizard-material] {display:none!important}
-    body[data-wizard][data-wizard-step="3"] #detailPanel>h2:first-child {display:none}
+    body[data-wizard][data-wizard-panel="summary"] .download-bar {display:block}
+    body[data-wizard] .panel-content>section[data-wizard-panel-active="false"],
+    body[data-wizard] #detailPanel>[data-wizard-panel-active="false"] {display:none!important}
     body[data-wizard] #wizard-home {display:none}
-    body[data-wizard][data-wizard-step="4"] #wizard-home {display:block}
+    body[data-wizard][data-wizard-panel="summary"] #wizard-home {display:block}
     body[data-wizard] #wizard-home section {display:block}
     body[data-wizard] #wizard-slot h3 {font:500 20px Georgia,serif;margin:0 0 12px}
     body[data-wizard] #wizard-slot .wizard-model {display:block;width:100%;margin:8px 0;text-align:left}
@@ -81,30 +97,22 @@ export function installMockupWizard(doc: Document, mobile = false) {
       body[data-wizard-mobile] .wizard-cards {gap:6px;margin:6px 0}
       body[data-wizard-mobile] .wizard-cards button {flex:1 1 100%;padding:9px;font-size:13px}
       body[data-wizard-mobile] .download-bar {display:none!important}
-      body[data-wizard-mobile][data-wizard-step="6"] .download-bar {display:block!important}
+       body[data-wizard-mobile][data-wizard-panel="summary"] .download-bar {display:block!important}
+       body[data-wizard-mobile] .panel-content>section[data-wizard-panel-active="false"],
+       body[data-wizard-mobile] #detailPanel>[data-wizard-panel-active="false"] {display:none!important}
       body[data-wizard-mobile] #wizard-slot h3 {font-size:17px;margin-bottom:6px}
       body[data-wizard-mobile] #wizard-slot p {font-size:13px;margin:6px 0}
       body[data-wizard-mobile] .materials {grid-template-columns:repeat(2,minmax(0,1fr))}
       body[data-wizard-mobile] #fabricPanel>h2 {display:none}
       body[data-wizard-mobile] .category summary,body[data-wizard-mobile] .material-category summary {cursor:pointer;list-style:disclosure-closed;padding:10px}
       body[data-wizard-mobile] details[open]>summary {list-style:disclosure-open}
-      body[data-wizard][data-wizard-mobile][data-wizard-step] :is(#fabricPanel,#detailPanel,#summaryPanel) {display:none!important}
-      body[data-wizard][data-wizard-mobile][data-wizard-step="2"] #fabricPanel,
-      body[data-wizard][data-wizard-mobile][data-wizard-step="3"] #detailPanel,
-      body[data-wizard][data-wizard-mobile][data-wizard-step="4"] #detailPanel,
-      body[data-wizard][data-wizard-mobile][data-wizard-step="5"] #detailPanel,
-      body[data-wizard][data-wizard-mobile][data-wizard-step="6"] #summaryPanel {display:block!important}
-      body[data-wizard][data-wizard-mobile][data-wizard-step] #detailPanel>* {display:none!important}
-      body[data-wizard][data-wizard-mobile][data-wizard-step="3"] #detailPanel>[data-wizard-frame]:not([hidden]),
-      body[data-wizard][data-wizard-mobile][data-wizard-step="4"] #detailPanel>*:not([data-wizard-frame]):not([data-wizard-rear]):not([hidden]):not(h2),
-      body[data-wizard][data-wizard-mobile][data-wizard-step="5"] #detailPanel>[data-wizard-rear]:not([hidden]) {display:block!important}
       body[data-wizard][data-wizard-mobile] #wizard-home {display:none}
       body[data-wizard][data-wizard-mobile][data-wizard-home="true"] #wizard-home {display:block}
       body[data-wizard-mobile][data-wizard-home="true"] #wizard-home>summary {display:none}
       body[data-wizard-mobile][data-wizard-home="true"] #wizard-slot,
       body[data-wizard-mobile][data-wizard-home="true"] .download-bar,
       body[data-wizard-mobile][data-wizard-home="true"] #wizard-controls-slot {display:none!important}
-      body[data-wizard][data-wizard-mobile][data-wizard-home="true"][data-wizard-step] :is(#fabricPanel,#detailPanel,#summaryPanel) {display:none!important}
+       body[data-wizard][data-wizard-mobile][data-wizard-home="true"] :is(#fabricPanel,#detailPanel,#summaryPanel) {display:none!important}
       body[data-wizard-mobile] #summaryPanel>h2, body[data-wizard-mobile] #photoStatus {display:none}
       body[data-wizard-mobile] #engravingPreview {max-height:110px;object-fit:contain}
       body[data-wizard-mobile] #wizard-actions-slot {flex-shrink:0;border-top:1px solid #d8ded7;background:#faf8f3;margin:0 -10px;padding:7px 10px}
@@ -137,20 +145,64 @@ export function installMockupWizard(doc: Document, mobile = false) {
     doc.head.append(mobileStyle);
   }
   const detail = doc.getElementById('detailPanel');
+  const fabric = doc.getElementById('fabricPanel');
+  const summaryPanel = doc.getElementById('summaryPanel');
   const mirrors: { select: HTMLSelectElement; buttons: HTMLButtonElement[] }[] = [];
+  type WizardPanel = MockupWizardStepDefinition['panel'];
+  const mark = (element: HTMLElement | null, panel: WizardPanel) => {
+    if (!element) return;
+    element.dataset.wizardPanel = panel;
+    if (element.id) {
+      const label = doc.querySelector<HTMLElement>(`label[for="${element.id}"]`);
+      if (label) label.dataset.wizardPanel = panel;
+    }
+  };
+  const markById = (id: string, panel: WizardPanel) => mark(doc.getElementById(id), panel);
+  if (fabric) fabric.dataset.wizardPanel = 'material';
+  if (summaryPanel) summaryPanel.dataset.wizardPanel = 'summary';
+  if (detail) {
+    detail.dataset.wizardPanel = 'detail';
+    Array.from(detail.children).forEach(child => {
+      const element = child as HTMLElement;
+      if (element.tagName !== 'H2') element.dataset.wizardPanel = 'cover';
+    });
+  }
+  markById('frameFinish', 'structure');
+  markById('coverLayout', 'cover');
+  markById('coverOptions', 'cover');
+  markById('photoControls', 'cover');
+  markById('engravingControls', 'cover');
+  markById('backCover', 'box-glass');
+  markById('backPhotoControls', 'box-glass');
+  for (const id of ['coverUpload', 'photoStatus', 'restorePhoto', 'photoZoom', 'photoX', 'photoY', 'topText', 'bottomText', 'firstName', 'secondName']) markById(id, 'cover');
+  for (const id of ['backUpload', 'backPhotoStatus', 'backZoom', 'backX', 'backY']) markById(id, 'box-glass');
+  const detailPanels = new Set<WizardPanel>(['structure', 'cover', 'box-glass']);
+  const syncPanel = (panel: WizardPanel) => {
+    doc.body.dataset.wizardPanel = panel;
+    if (fabric) { fabric.hidden = false; fabric.dataset.wizardPanelActive = String(panel === 'material'); }
+    if (detail) {
+      detail.hidden = false;
+      detail.dataset.wizardPanelActive = String(detailPanels.has(panel));
+      Array.from(detail.children).forEach(child => {
+        const element = child as HTMLElement;
+        if (element.tagName !== 'H2' && element.dataset.wizardPanel) element.dataset.wizardPanelActive = String(element.dataset.wizardPanel === panel);
+      });
+    }
+    if (summaryPanel) { summaryPanel.hidden = false; summaryPanel.dataset.wizardPanelActive = String(panel === 'summary'); }
+  };
+  for (const id of ['frameFinish', 'coverLayout', 'coverOptions', 'photoControls', 'engravingControls', 'backCover', 'backPhotoControls']) {
+    const element = doc.getElementById(id);
+    if (element?.dataset.wizardPanel) mark(element, element.dataset.wizardPanel as WizardPanel);
+  }
   for (const id of ['frameFinish', 'coverLayout', 'coverOptions', ...(mobile ? ['backCover'] : [])]) {
     const element = doc.getElementById(id);
     if (!element || !detail?.contains(element)) continue;
-    const group = id === 'backCover' ? 'wizardRear' : 'wizardMaterial';
-    element.dataset[group] = 'true';
-    if (id === 'frameFinish') element.dataset.wizardFrame = 'true';
+    const group = element.dataset.wizardPanel || 'cover';
     const label = doc.querySelector<HTMLElement>(`label[for="${id}"]`);
-    if (label) label.dataset[group] = 'true';
-    if (label && id === 'frameFinish') label.dataset.wizardFrame = 'true';
     if (element.tagName !== 'SELECT') continue;
     const select = element as HTMLSelectElement;
-    const cards = doc.createElement('div'); cards.className = 'wizard-cards'; cards.dataset[group] = 'true';
-    if (id === 'frameFinish') cards.dataset.wizardFrame = 'true';
+     const cards = doc.createElement('div'); cards.className = 'wizard-cards';
+     cards.dataset.wizardPanel = group;
     cards.setAttribute('role', 'group'); cards.setAttribute('aria-label', label?.textContent || id);
     const buttons = Array.from(select.options).map(option => {
       const button = doc.createElement('button'); button.type = 'button'; button.textContent = option.text;
@@ -202,10 +254,12 @@ export function installMockupWizard(doc: Document, mobile = false) {
       if (select && open && select.value === 'none') { select.value = previousHome; select.dispatchEvent(new Event('change', { bubbles: true })); }
       else if (select && !open && select.value !== 'none') { previousHome = select.value; select.value = 'none'; select.dispatchEvent(new Event('change', { bubbles: true })); }
       content.scrollTop = 0;
-    }, step(value: number) {
-    doc.body.dataset.wizardStep = String(value);
-    if (!mobile && value === 4) doc.getElementById('summaryPanel')?.after(slot); else content.prepend(slot);
-    if (mobile && (value === 4 || value === 5)) doc.getElementById(value === 5 ? 'back' : 'front')?.click();
+    }, step(value: MockupWizardStepDefinition) {
+    doc.body.dataset.wizardStep = String(value.nativeStep);
+    syncPanel(value.panel);
+    if (value.panel === 'summary') summaryPanel?.after(slot); else content.prepend(slot);
+    if (mobile && value.panel === 'box-glass') doc.getElementById('back')?.click();
+    else if (mobile && value.panel === 'cover') doc.getElementById('front')?.click();
     content.scrollTop = 0; refresh();
   } };
 }
