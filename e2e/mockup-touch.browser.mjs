@@ -196,17 +196,28 @@ try {
  releaseRenderer();
  await frame.locator('#wizard-slot').waitFor({timeout:45000});
  await page.locator('iframe').waitFor({state:'visible'});
- await frame.getByRole('button',{name:'Avanti',exact:true}).tap();
+ // Il frame appena sostituito non espone un bounding box stabile al locator
+ // Playwright, ma il gesto touch reale deve comunque raggiungere il pulsante.
+ const tapPoint=await page.evaluate(() => {
+   const iframe = document.querySelector('iframe');
+   const button = iframe?.contentDocument?.querySelector('.wizard-primary');
+   const rect = button?.getBoundingClientRect();
+   if (!iframe || !button || !rect || button.disabled) throw new Error('Pulsante Avanti Custodia non disponibile');
+   const iframeRect=iframe.getBoundingClientRect();
+   return { x: iframeRect.x + rect.x + rect.width / 2, y: iframeRect.y + rect.y + rect.height / 2 };
+  });
+ await page.touchscreen.tap(tapPoint.x,tapPoint.y);
  assert.equal(await frame.locator('body').getAttribute('data-wizard-step'),'4','Custodia non mostra un passaggio struttura vuoto');
  await page.waitForFunction(()=>document.querySelector('iframe')?.contentDocument.querySelector('#coverOptions select')?.value==='full');
  assert.equal(await frame.locator('#coverUpload').isVisible(),false,'Il selettore di file nativo non riappare in Custodia');
  assert.equal(await frame.locator('label[for=coverUpload]').isVisible(),false);
- await page.screenshot({path:`work/mockup-touch-${engine}.png`});
+ await page.waitForTimeout(500);
+ const closePoint=await page.evaluate(() => { const element=document.querySelector('.mockup-close'); if (!element) throw new Error('Pulsante chiusura mockup non disponibile'); const rect=element.getBoundingClientRect(); return { x:rect.x + rect.width / 2, y:rect.y + rect.height / 2 }; });
  page.once('dialog',dialog=>dialog.dismiss());
- await page.getByRole('button',{name:'Chiudi mockup',exact:true}).tap();
+ await page.touchscreen.tap(closePoint.x,closePoint.y);
  assert.equal(await page.locator('iframe').count(),1,'Annullare la chiusura conserva il lavoro locale');
  page.once('dialog',dialog=>dialog.accept());
- await page.getByRole('button',{name:'Chiudi mockup',exact:true}).tap();
+ await page.touchscreen.tap(closePoint.x,closePoint.y);
  await page.waitForFunction(()=>!document.querySelector('iframe'));
  locked=true;saved=null;
  await page.reload();
