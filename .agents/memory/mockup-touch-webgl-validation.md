@@ -14,3 +14,9 @@ Per i cambi renderer, i gate delle route devono avviare il proprio timeout solo 
 **Why:** con SwiftShader il processo GPU può ritardare la sincronizzazione tra frame Playwright e DOM principale, creando falsi timeout o coordinate calcolate sul renderer sbagliato.
 
 **How to apply:** mantenere sempre un timeout globale più ampio dei budget per fase, ma con timeout separati per gate, readiness, gesture e cleanup; in caso di timeout riportare almeno fase, titolo iframe, stato ready, layout wizard e disponibilità WebGL.
+
+Il browser WebKit Playwright scaricato nel runner Nix può restare non avviabile anche dopo l’installazione delle dipendenze generiche: richiede ABI Ubuntu specifiche come `libjpeg.so.8`, oltre a ICU/GStreamer compatibili. Non sostituire queste librerie con symlink ABI-incompatibili.
+
+**Why:** forzare il caricamento di una versione diversa può superare il controllo iniziale ma fallire con simboli mancanti o produrre una verifica Safari non attendibile.
+
+**How to apply:** trattare l’assenza delle librerie WebKit come prerequisito esplicito del runner e usare un ambiente con dipendenze Playwright/Ubuntu compatibili per la conferma WebKit; non modificare il progetto solo per aggirare il linker.
