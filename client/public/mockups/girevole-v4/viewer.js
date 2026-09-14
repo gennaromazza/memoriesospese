@@ -154,7 +154,7 @@ async function finish(id) {
     if (!textureCache.has(id)) textureCache.set(id, Promise.all([loader.loadAsync(new URL(v.textureUrl, catalogUrl).href), loader.loadAsync(new URL(v.heightUrl, catalogUrl).href)]).catch(error => { textureCache.delete(id); throw error; }));
     const [color, height] = await textureCache.get(id); if (token !== materialRequest) return;
     color.colorSpace = THREE.SRGBColorSpace;
-    for (const t of [color, height]) { t.wrapS = t.wrapT = THREE.MirroredRepeatWrapping; t.repeat.set(.4 / v.estimatedRepeatMeters, .3 / v.estimatedRepeatMeters); t.anisotropy = renderer.capabilities.getMaxAnisotropy(); }
+    for (const t of [color, height]) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(.4 / v.estimatedRepeatMeters, .3 / v.estimatedRepeatMeters); t.anisotropy = renderer.capabilities.getMaxAnisotropy(); }
     selected = id; fabric.map = color; fabric.bumpMap = height; fabric.bumpScale = v.bumpScale * .55; fabric.roughness = v.roughness; fabric.color.set('#ffffff'); fabric.needsUpdate = true;
     document.querySelectorAll('[data-finish]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.finish === id)));
     finishFrame(); $('status').textContent = '';

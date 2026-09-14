@@ -933,11 +933,11 @@
       "familyId": "89726688-4655-550d-8f2f-bd822a032769",
       "supplierCode": null,
       "supplierColorName": "Beje",
-      "appearanceRevision": 1,
-      "texturePreparation": "high_resolution_source_square_crop_gaussian_height_preview",
-      "textureUrl": "textures/official/spigato-beje-r1.png",
-      "heightUrl": "textures/official/spigato-beje-height-r1.png",
-      "textureSha256": "d4479193d3a62447b6619e916d5bc384654b3997f9cc4913bfec8411c3cee742",
+      "appearanceRevision": 2,
+      "texturePreparation": "seam_blended_periodic_edge_feather",
+      "textureUrl": "textures/official/spigato-beje-r2.png",
+      "heightUrl": "textures/official/spigato-beje-height-r2.png",
+      "textureSha256": "2643d1688eb23b5b52964708348ac1949e118631aa5431ee0ed80e6ac0ba03d2",
       "sourceTextureSizePx": [
         2078,
         1229

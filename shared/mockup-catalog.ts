@@ -159,7 +159,7 @@ export const MOCKUP_MODEL = {
     },
     {
       "id": "e42d980e-8380-5f23-bdc6-3394f0bf42c4",
-      "appearanceRevision": 1
+      "appearanceRevision": 2
     }
   ],
   "defaultVariantId": "53e2d227-353d-5557-9ca7-db1f8a58f280"

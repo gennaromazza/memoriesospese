@@ -52,4 +52,5 @@
 - [Mockup touch WebGL validation](mockup-touch-webgl-validation.md) — il gate touch può bloccarsi prima delle asserzioni su Chromium/SwiftShader locale; servono timeout e diagnostica espliciti.
 - [Mockup layout lifecycle](mockup-layout-lifecycle.md) — i test di sostituzione devono osservare marker e stili nel documento iframe; disposer passati a setState vanno wrappati.
 - [Mockup renderer standalone tabs](mockup-renderer-standalone-tabs.md) — le tab interne devono funzionare nel renderer HTML standalone; il wizard può solo sincronizzarle.
+- [Mockup texture tiling](mockup-texture-tiling.md) — RepeatWrapping richiede bordi colore/height raccordati; mantenere invariata la scala fisica quando si rigenera un asset seamless.
 - [Validazione .replit protetto](dot-replit-validation.md) — sostituire `.replit` tramite file temporaneo completo e `verifyAndReplaceDotReplit`, mai con edit diretto.

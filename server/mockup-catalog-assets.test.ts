@@ -40,6 +40,10 @@ describe('Catalogo tessuti Peppe Lab', () => {
       label: 'Spigato Beje',
       supplierCode: null,
       supplierColorName: 'Beje',
+      appearanceRevision: 2,
+      texturePreparation: 'seam_blended_periodic_edge_feather',
+      textureUrl: 'textures/official/spigato-beje-r2.png',
+      heightUrl: 'textures/official/spigato-beje-height-r2.png',
       physicalScaleVerified: true,
       physicalScaleSource: 'photographer_declared_sample_width_0.05m_center_crop_1229px',
       estimatedRepeatMeters: 0.0296,
@@ -49,7 +53,7 @@ describe('Catalogo tessuti Peppe Lab', () => {
     expect(catalog.models[0].materialPolicy.allowedVariantIds).toContain(spigato.id);
     expect(MOCKUP_MODEL.variants.find(variant => variant.id === spigato.id)).toEqual({
       id: spigato.id,
-      appearanceRevision: 1,
+      appearanceRevision: 2,
     });
   });
 
@@ -76,7 +80,7 @@ describe('Catalogo tessuti Peppe Lab', () => {
     expect(parsed.models[0].materialIds).toContain(spigato.id);
   });
 
-  it('usa asset colore e height map esistenti, quadrati e con hash dichiarato', async () => {
+  it('usa asset colore e height map seamless, quadrati e con hash dichiarato', async () => {
     const assetRoot = path.dirname(catalogPath);
     const colorPath = path.join(assetRoot, spigato.textureUrl);
     const heightPath = path.join(assetRoot, spigato.heightUrl);
@@ -86,5 +90,31 @@ describe('Catalogo tessuti Peppe Lab', () => {
     expect(crypto.createHash('sha256').update(fs.readFileSync(colorPath)).digest('hex')).toBe(spigato.textureSha256);
     await expect(sharp(colorPath).metadata()).resolves.toMatchObject({ width: 1200, height: 1200, space: 'srgb' });
     await expect(sharp(heightPath).metadata()).resolves.toMatchObject({ width: 1200, height: 1200, space: 'b-w' });
+    const { data, info } = await sharp(colorPath).raw().toBuffer({ resolveWithObject: true });
+    const { data: heightData, info: heightInfo } = await sharp(heightPath).raw().toBuffer({ resolveWithObject: true });
+    for (const [pixels, metadata] of [[data, info], [heightData, heightInfo]] as const) {
+      const { width, height, channels } = metadata;
+      for (let y = 0; y < height; y += 1) {
+        for (let channel = 0; channel < channels; channel += 1) {
+          expect(pixels[(y * width) * channels + channel]).toBe(pixels[(y * width + width - 1) * channels + channel]);
+        }
+      }
+      for (let x = 0; x < width; x += 1) {
+        for (let channel = 0; channel < channels; channel += 1) {
+          expect(pixels[x * channels + channel]).toBe(pixels[((height - 1) * width + x) * channels + channel]);
+        }
+      }
+    }
+  });
+
+  it('usa wrapping periodico nei renderer Custodia e Girevole v4', () => {
+    for (const rendererPath of [
+      'client/public/mockups/custodia-v1/viewer.js',
+      'client/public/mockups/girevole-v4/viewer.js',
+    ]) {
+      const source = fs.readFileSync(rendererPath, 'utf8');
+      expect(source).toContain('THREE.RepeatWrapping');
+      expect(source).not.toContain('THREE.MirroredRepeatWrapping');
+    }
   });
 });
