@@ -48,3 +48,4 @@
 - [Photobook mockup model scope](photobook-mockup-model-scope.md) — il modello normale è scelto a livello fotolibro e viene ereditato da tutte le versioni; più modelli solo come eccezione esplicita.
 - [Photobook mockup confirmation lifecycle](photobook-mockup-confirmation-lifecycle.md) — la conferma dello studio non blocca il cliente; ogni modifica riapre una revisione fino alla stampa.
 - [Mockup download headless rendering](mockup-download-headless-rendering.md) — renderer condiviso, loop sospeso, dimensione adattiva e download dal parent evitano blocchi SwiftShader senza flag e2e.
+- [Validazione .replit protetto](dot-replit-validation.md) — sostituire `.replit` tramite file temporaneo completo e `verifyAndReplaceDotReplit`, mai con edit diretto.

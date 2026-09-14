@@ -7,7 +7,7 @@ packages = ["killall"]
 
 [deployment]
 deploymentTarget = "autoscale"
-build = ["sh", "-c", "npm run build:release"]
+build = ["sh", "-c", "npm run test:deployment-build-gate && npm run build:release"]
 run = ["sh", "-c", "NODE_ENV=production node dist/index.js"]
 
 [workflows]
