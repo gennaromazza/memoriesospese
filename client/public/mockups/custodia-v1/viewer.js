@@ -52,7 +52,7 @@ async function texture(name){
  if(!variant)throw new Error('Variante non consentita per questo modello');
  if(!cache.has(name))cache.set(name,Promise.all([loader.loadAsync(variant.textureUrl),loader.loadAsync(variant.heightUrl)]).then(([color,height])=>{
   color.colorSpace=THREE.SRGBColorSpace;
-  for(const t of [color,height]){t.flipY=false;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=renderer.capabilities.getMaxAnisotropy();t.repeat.setScalar(.0128/variant.estimatedRepeatMeters);
+ for(const t of [color,height]){t.flipY=false;t.wrapS=t.wrapT=THREE.MirroredRepeatWrapping;t.anisotropy=renderer.capabilities.getMaxAnisotropy();t.repeat.setScalar(.0128/variant.estimatedRepeatMeters);
    t.generateMipmaps=true;t.minFilter=THREE.LinearMipmapLinearFilter;t.magFilter=THREE.LinearFilter;
   }
   return {color,height,variant};
