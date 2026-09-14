@@ -257,6 +257,14 @@ try {
  assert.equal(await page.locator('iframe').getAttribute('title'),'Configuratore 3D Album girevole');
  assert.equal(await frame.locator('body').getAttribute('data-wizard-step'),'2','Il cambio inverso apre il pannello Rivestimento');
  assert.equal(saved.selection.modelId,catalog.models[0].id,'Il cambio non sovrascrive la bozza Custodia');
+ // Un refresh durante il cambio modello deve ripartire dalla bozza persistita,
+ // non dal renderer scelto localmente ma ancora non salvato.
+ await page.reload();
+ await page.getByRole('button',{name:'Recupera bozza',exact:true}).tap();
+ assert.equal(await chooser.count(),0,'Il refresh recupera direttamente la bozza salvata');
+ await frame.locator('#wizard-slot').waitFor({timeout:45000});
+ assert.equal(await page.locator('iframe').getAttribute('title'),'Configuratore 3D Custodia','Il refresh ripristina il modello salvato');
+ assert.equal(await frame.locator('#coverOptions select').inputValue(),'full','Il refresh ripristina la configurazione salvata');
  page.once('dialog',dialog=>dialog.accept());
  await tapCloseButton();
  await page.waitForFunction(()=>!document.querySelector('iframe'));

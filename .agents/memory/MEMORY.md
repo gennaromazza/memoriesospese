@@ -30,7 +30,7 @@
 - [Orientamento: schermo fisico, non media query](orientation-media-query-keyboard.md) — con interactive-widget=resizes-content la tastiera falsa (orientation:portrait); usare usePhoneOrientation/screen.orientation.
 - [Calendar event ↔ Job association](calendar-job-association.md) — link in job.linkedCalendarEventIds[] (no collezione dedicata); risolto in GET /events; ogni write deve calendarCache.clear() o link stale 2min.
 - [Firestore vieta array annidati](firestore-nested-arrays.md) — write con array-di-array fallisce a runtime (INVALID_ARGUMENT); avvolgere il livello interno in mappe {points:[...]} e riconvertire in lettura.
-- [Fallback e2e Playwright locale](local-playwright-e2e-fallback.md) — se il tester e2e è giù: chromium via Nix + playwright npm con executablePath; galleria test OvZM1Zt0 ha solo 5 foto/2 capitoli.
+- [Fallback e2e Playwright locale](local-playwright-e2e-fallback.md) — se il tester e2e è giù: chromium via Nix + playwright npm con executablePath; galleria test OvZm1Zt0 ha solo 5 foto/2 capitoli.
 - [Fixture e2e nel Firestore di produzione](e2e-fixtures-prod-firestore.md) — i task env hanno i secrets: test e2e col vero Admin SDK sporcano il DB reale; usare mock, ripulire per prefisso code.
 - [Ambienti task isolati senza connettori](isolated-env-no-connectors.md) — Drive & co. non raggiungibili nei task env: testare con mock (pattern fake Firestore + drive) e route lunghe sempre in background.
 - [Ciclo vita asset Blog](blog-asset-lifecycle.md) — tracciare i path Storage; write Firestore prima del cleanup; invalidare upload fuori sessione; publishedAt resta la prima pubblicazione.
@@ -39,7 +39,7 @@
 - [NPM firewall registry protocol](npm-firewall-registry-protocol.md) — installazioni nel workflow corrompono node_modules; recupero esplicito dal lockfile con host registry sostituito.
 - [Fornitori informativi strutturati](info-form-vendors.md) — nuovi vendor come lista nome/categoria/luogo; testo e oggetti legacy solo in lettura, URL cliente mai fonte editoriale.
 - [Contratto social metadata](social-metadata-contract.md) — SSR e client condividono canonical/immagini; cover esplicita, contenuto, fallback globale; URL temporanei rifiutati.
-- [Quill alt immagini](quill-image-alt.md) — il formato immagine nativo conserva `alt` nel Delta; usare `formatText` sull’embed, non solo una mappa temporanea.
+- [Quill alt immagini](quill-image-alt.md) — il formato immagine nativo conserva `alt` nel Delta; usare `formatText` sull'embed, non solo una mappa temporanea.
 - [Fallback IA Real Wedding](real-wedding-ai-fallback.md) — una sola chiamata IA; se fallisce, bozza deterministica dai dati autorizzati, verifica fornitori solo da cache.
 - [Real Wedding foto editoriali](real-wedding-photo-editorial.md) — selezione per capitolo e alt personalizzato per foto; fallback pubblico al capitolo o al titolo per i contenuti storici.
 - [Admin panel browser harnesses](admin-panel-e2e-harnesses.md) — monta il componente reale e simula le API same-origin per testare UI e salvataggio senza servizi esterni.
@@ -48,5 +48,6 @@
 - [Photobook mockup model scope](photobook-mockup-model-scope.md) — il modello normale è scelto a livello fotolibro e viene ereditato da tutte le versioni; più modelli solo come eccezione esplicita.
 - [Photobook mockup confirmation lifecycle](photobook-mockup-confirmation-lifecycle.md) — la conferma dello studio non blocca il cliente; ogni modifica riapre una revisione fino alla stampa.
 - [Mockup download headless rendering](mockup-download-headless-rendering.md) — renderer condiviso, loop sospeso, dimensione adattiva e download dal parent evitano blocchi SwiftShader senza flag e2e.
-- [Photobook fabric texture sampling](photobook-fabric-texture-sampling.md) — mirrored-repeat e bump attenuato evitano bande, puntini e cavità false nelle texture piccole.
+- [Photobook fabric texture sampling](photobook-fabric-texture-sampling.md) — offset stocastici solo sul colore; il bump deve restare filtrato e attenuato per evitare puntini e cavità false.
+- [Mockup touch WebGL validation](mockup-touch-webgl-validation.md) — il gate touch può bloccarsi prima delle asserzioni su Chromium/SwiftShader locale; servono timeout e diagnostica espliciti.
 - [Validazione .replit protetto](dot-replit-validation.md) — sostituire `.replit` tramite file temporaneo completo e `verifyAndReplaceDotReplit`, mai con edit diretto.
