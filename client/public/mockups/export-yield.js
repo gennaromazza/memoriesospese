@@ -44,5 +44,7 @@ export function triggerDownload(url, filename) {
   link.download = filename;
   downloadDocument.body.append(link);
   link.click();
-  link.remove();
+  // Under a busy WebGL export Chromium can observe the click after this
+  // function returns; keep the parent anchor alive until the download starts.
+  setTimeout(() => link.remove(), 1000);
 }

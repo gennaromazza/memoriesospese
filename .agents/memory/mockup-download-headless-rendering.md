@@ -22,3 +22,15 @@ positive.
 **How to apply:** Run the real-GPU mode on a machine with a visible browser/display and hardware
 WebGL. In a headless or GPU-less runner, an unavailable viewer is an expected explicit failure,
 not evidence for the 1600×1200 path.
+
+The rotating viewers are separate export contracts: their reports embed JPEG previews, while the custodia report embeds PNG previews. A browser gate covering all rotating revisions must disable module caching between variants and provide any revision-local module imported through the shared fixture URL.
+
+**Why:** reusing the iframe module can execute the previous revision, and assuming PNG-only output or a shared local import makes a passing viewer look broken (or skips the requested renderer).
+
+**How to apply:** when extending the lifecycle harness, execute each viewer source explicitly, validate its own eight labels and JPEG/PNG dimensions, and keep the print-lock save rejection in every iteration.
+
+Keep the parent download anchor mounted briefly after triggering it; immediate removal can race Chromium's download detection during a busy WebGL export.
+
+**Why:** the same-origin parent trigger fixes iframe sandbox restrictions, but a synchronous remove can still lose the download event under load.
+
+**How to apply:** use a short delayed cleanup for generated anchors and keep the browser gate watching the actual download event.

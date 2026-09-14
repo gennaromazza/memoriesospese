@@ -61,6 +61,8 @@ try {
     hasTouch: true,
     acceptDownloads: true,
   });
+  const devtools = await page.context().newCDPSession(page);
+  await devtools.send('Network.setCacheDisabled', { cacheDisabled: true });
   await page.addInitScript(() => {
     const nativeMatchMedia = window.matchMedia.bind(window);
     window.matchMedia = query =>
@@ -109,6 +111,32 @@ try {
     id: 'album-alternativo',
     name: 'Album Alternativo',
   };
+  const rotatingOption = {
+    ...option,
+    id: 'album-girevole-test',
+    name: 'Album girevole test',
+    rendererId: 'album-girevole',
+  };
+  const rotatingConfiguration = assetRevision => ({
+    modelId: 'album-girevole',
+    assetRevision,
+    materialId: material.id,
+    appearanceRevision: material.appearanceRevision,
+    coverLayout: 'plaque',
+    frameFinish: 'fabric',
+    topText: 'Anna e Marco',
+    bottomText: 'Ricordi',
+    photoAssetId: null,
+    crop: { zoom: 1, x: 0.5, y: 0.5 },
+    ...(assetRevision >= 2 ? {
+      backCover: 'fabric',
+      backPhotoAssetId: null,
+      backCrop: { zoom: 1, x: 0.5, y: 0.5 },
+    } : {}),
+    ...(assetRevision >= 3 ? {
+      engravingNames: { first: 'Anna', second: 'Marco' },
+    } : {}),
+  });
   const configuration = {
     modelId: baseModel.id,
     assetRevision: baseModel.assetRevision,
@@ -123,6 +151,8 @@ try {
   let mode = 'fixed';
   let editable = true;
   let saved = null;
+  let activeRotatingViewer = null;
+  let servedRotatingViewer = null;
 
   const payload = () => ({
     version: 1,
@@ -133,10 +163,36 @@ try {
       revision: 1,
       updatedAt: new Date().toISOString(),
       mode,
-      options: mode === 'fixed' ? [option] : [option, secondOption],
+      options: mode === 'fixed'
+        ? [activeRotatingViewer ? rotatingOption : option]
+        : [option, secondOption],
     },
     modelMode: mode,
-    modelSelection: mode === 'fixed' ? { labId: option.labId, modelId: option.id } : null,
+    modelSelection: mode === 'fixed'
+      ? {
+          labId: (activeRotatingViewer ? rotatingOption : option).labId,
+          modelId: (activeRotatingViewer ? rotatingOption : option).id,
+        }
+      : null,
+  });
+
+  await page.route('**/mockups/girevole-v4/viewer.js', async route => {
+    if (!activeRotatingViewer) return route.continue();
+    servedRotatingViewer = activeRotatingViewer;
+    const viewerPath = path.join(root, 'client/public/mockups', activeRotatingViewer, 'viewer.js');
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/javascript',
+      body: fs.readFileSync(viewerPath, 'utf8'),
+    });
+  });
+  await page.route('**/mockups/girevole-v4/monogram.js', async route => {
+    if (activeRotatingViewer !== 'girevole-v3') return route.continue();
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/javascript',
+      body: fs.readFileSync(path.join(root, 'client/public/mockups/girevole-v3/monogram.js'), 'utf8'),
+    });
   });
 
   await page.route('**/api/photobooks/by-token/mockup-test-token/mockup**', async route => {
@@ -398,10 +454,170 @@ try {
     throw new Error(`Download cliente fallito (stato renderer: ${status || 'nessuno'}): ${error.message}`);
   }
   assert.equal(await page.getByRole('button', { name: 'Cambia', exact: true }).isDisabled(), true);
+
+  const rotatingViewLabels = {
+    'girevole-v1': [
+      'Prospettiva · album ruotato',
+      'Fronte · allineato',
+      'Retro',
+      'Dorso · rotazione 90°',
+      'Lato destro',
+      'Vista superiore',
+      'Copertina · cornice aperta',
+      'Rotazione 180°',
+    ],
+    'girevole-v2': [
+      'Prospettiva · album ruotato',
+      'Fronte · allineato',
+      'Retro · finitura selezionata',
+      'Dorso · rotazione 90°',
+      'Lato destro',
+      'Vista superiore',
+      'Album estratto · copertina',
+      'Album estratto · retro',
+    ],
+    'girevole-v3': [
+      'Prospettiva · album ruotato',
+      'Fronte · allineato',
+      'Retro · finitura selezionata',
+      'Dorso · rotazione 90°',
+      'Lato destro',
+      'Vista superiore',
+      'Album estratto · copertina',
+      'Album estratto · retro',
+    ],
+    'girevole-v4': [
+      'Prospettiva · album ruotato',
+      'Fronte · allineato',
+      'Retro · finitura selezionata',
+      'Dorso · rotazione 90°',
+      'Lato destro',
+      'Vista superiore',
+      'Album estratto · copertina',
+      'Album estratto · retro',
+    ],
+  };
+  for (const [viewerPath, viewLabels] of Object.entries(rotatingViewLabels)) {
+    lifecycleStage = `print-locked customer download: ${viewerPath}`;
+    activeRotatingViewer = viewerPath;
+    const lockedConfiguration = rotatingConfiguration(Number(viewerPath.slice(-1)));
+    saved = {
+      version: 1,
+      revision: 100 + Number(viewerPath.slice(-1)),
+      updatedAt: new Date().toISOString(),
+      updatedBy: 'studio',
+      status: 'confirmed',
+      configuration: lockedConfiguration,
+      selection: { labId: rotatingOption.labId, modelId: rotatingOption.id },
+      option: rotatingOption,
+    };
+    await reloadClient();
+    await page.getByRole('button', { name: /Apri mockup/ }).click();
+    await page.getByText('Questa versione è in sola lettura: puoi esplorare l’album e scaricare le viste.', { exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Cambia', exact: true }).isDisabled(), true);
+
+    const rotatingFrame = page.frameLocator('iframe[title^="Configuratore 3D"]');
+    const rotatingDownloadButton = rotatingFrame.locator('#downloadClient');
+    await rotatingDownloadButton.waitFor({ state: 'visible' });
+    const enabledDeadline = Date.now() + 30_000;
+    while (await rotatingDownloadButton.isDisabled()) {
+      if (Date.now() >= enabledDeadline) {
+        const status = await rotatingFrame.locator('#downloadStatus').textContent().catch(() => '');
+        const rendererStatus = await rotatingFrame.locator('#status').textContent().catch(() => '');
+        const handler = await rotatingFrame.locator('#downloadClient').evaluate(button => ({
+          onclick: typeof button.onclick,
+          ready: document.body.dataset.ready || '',
+        })).catch(() => null);
+        throw new Error(`${viewerPath}: download ancora disabilitato (stato=${status || 'nessuno'}, renderer=${rendererStatus || 'nessuno'}, handler=${JSON.stringify(handler)}, errori=${browserErrors.join(' | ') || 'nessuno'})`);
+      }
+      await page.waitForTimeout(100);
+    }
+    const downloadPromise = page.waitForEvent('download', { timeout: 30_000 });
+    let download;
+    try {
+      [download] = await Promise.all([
+        downloadPromise,
+        rotatingDownloadButton.dispatchEvent('click'),
+      ]);
+    } catch (error) {
+      const status = await rotatingFrame.locator('#downloadStatus').textContent().catch(() => '');
+      const disabled = await rotatingDownloadButton.isDisabled().catch(() => null);
+      const rendererStatus = await rotatingFrame.locator('#status').textContent().catch(() => '');
+      const handler = await rotatingFrame.locator('#downloadClient').evaluate(button => ({
+        onclick: typeof button.onclick,
+        ready: document.body.dataset.ready || '',
+        scripts: [...document.scripts].map(script => script.src),
+      })).catch(() => null);
+      throw new Error(`${viewerPath}: evento download assente (servito=${servedRotatingViewer}, download disabled=${disabled}, stato=${status || 'nessuno'}, renderer=${rendererStatus || 'nessuno'}, handler=${JSON.stringify(handler)}, errori=${browserErrors.join(' | ') || 'nessuno'}): ${error.message}`);
+    }
+    assert.equal(await download.failure(), null, `${viewerPath}: download fallito`);
+    assert.equal(download.suggestedFilename(), 'album-girevole-anteprima.html');
+    const downloadedReport = fs.readFileSync(await download.path(), 'utf8');
+    for (const viewLabel of viewLabels) {
+      assert.ok(downloadedReport.includes(viewLabel), `${viewerPath}: vista mancante nel download: ${viewLabel}`);
+    }
+    const embeddedPngs = [...downloadedReport.matchAll(
+      /<img\b[^>]*\bsrc="data:image\/(png|jpeg);base64,([^"]+)"/g,
+    )].map(match => ({
+      format: match[1],
+      bytes: Buffer.from(match[2], 'base64'),
+    }));
+    assert.equal(embeddedPngs.length, viewLabels.length, `${viewerPath}: il report non contiene otto immagini`);
+    const imageDimensions = embeddedPngs.map(({ format, bytes }, index) => {
+      if (format === 'png') {
+        assert.equal(bytes.toString('ascii', 1, 4), 'PNG', `${viewerPath}: vista ${index + 1} non è una PNG valida`);
+        return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
+      }
+      assert.deepEqual(
+        [...bytes.subarray(0, 3)],
+        [0xff, 0xd8, 0xff],
+        `${viewerPath}: vista ${index + 1} non è una JPEG valida`,
+      );
+      let offset = 2;
+      while (offset + 9 < bytes.length) {
+        if (bytes[offset] !== 0xff) {
+          offset += 1;
+          continue;
+        }
+        const marker = bytes[offset + 1];
+        offset += 2;
+        if (marker === 0xd8 || marker === 0xd9 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) continue;
+        const segmentLength = bytes.readUInt16BE(offset);
+        if ((marker >= 0xc0 && marker <= 0xc3) || (marker >= 0xc5 && marker <= 0xc7)
+          || (marker >= 0xc9 && marker <= 0xcb) || (marker >= 0xcd && marker <= 0xcf)) {
+          return { width: bytes.readUInt16BE(offset + 5), height: bytes.readUInt16BE(offset + 3) };
+        }
+        offset += segmentLength;
+      }
+      throw new Error(`${viewerPath}: dimensioni JPEG non leggibili per la vista ${index + 1}`);
+    });
+    const expectedDimensions = realGpu ? { width: 1600, height: 1200 } : { width: 800, height: 600 };
+    assert.deepEqual(
+      imageDimensions,
+      viewLabels.map(() => expectedDimensions),
+      `${viewerPath}: dimensioni export inattese`,
+    );
+
+    const rejectedSave = await page.evaluate(async ({ configuration, revision, selection }) => {
+      const result = await fetch('/api/photobooks/by-token/mockup-test-token/mockup?version=1', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ revision, configuration, selection, offerRevision: 1 }),
+      });
+      return { status: result.status, body: await result.json() };
+    }, {
+      configuration: lockedConfiguration,
+      revision: saved.revision,
+      selection: saved.selection,
+    });
+    assert.equal(rejectedSave.status, 409, `${viewerPath}: il salvataggio è stato accettato dopo il blocco`);
+  }
+  activeRotatingViewer = null;
+
   if (!realGpu) await page.screenshot({ path: 'work/photobook-client-print-locked.png' });
 
   assert.deepEqual(browserErrors, []);
-  console.log('Browser OK: modello fisso, scelta tra modelli, bozza, inviato, modifiche richieste, confermato, nuova revisione e blocco stampa.');
+  console.log('Browser OK: lifecycle cliente, blocco stampa e download verificati per custodia-v1 e girevole-v1…v4.');
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
   if (error instanceof Error) error.message = `Mockup lifecycle regression at "${lifecycleStage}": ${message}`;
