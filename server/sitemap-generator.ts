@@ -41,6 +41,35 @@ const STATIC_SITEMAP_IMAGES: Record<string, { url: string; title: string }> = {
   },
 };
 
+export const STATIC_SITEMAP_PAGES: Array<{
+  path: string;
+  changefreq: string;
+  priority: string;
+  lastmod: string;
+}> = [
+  { path: '/', changefreq: 'weekly', priority: '1.0', lastmod: '2026-09-11' },
+  { path: '/portfolio/matrimonio', changefreq: 'weekly', priority: '0.98', lastmod: '2026-08-21' },
+  { path: '/vision', changefreq: 'monthly', priority: '0.95', lastmod: '2026-08-21' },
+  { path: '/portfolio', changefreq: 'weekly', priority: '0.9', lastmod: '2026-08-21' },
+  { path: '/portfolio/battesimo', changefreq: 'weekly', priority: '0.85', lastmod: '2026-08-18' },
+  { path: '/portfolio/comunione', changefreq: 'weekly', priority: '0.85', lastmod: '2026-08-18' },
+  { path: '/portfolio/cresima', changefreq: 'weekly', priority: '0.85', lastmod: '2026-08-18' },
+  { path: '/portfolio/evento', changefreq: 'weekly', priority: '0.85', lastmod: '2026-08-18' },
+  { path: '/portfolio/ritratto', changefreq: 'weekly', priority: '0.85', lastmod: '2026-08-18' },
+  { path: '/portfolio/famiglia', changefreq: 'weekly', priority: '0.85', lastmod: '2026-08-18' },
+  { path: '/portfolio/altro', changefreq: 'weekly', priority: '0.8', lastmod: '2026-08-18' },
+  { path: '/blog', changefreq: 'daily', priority: '0.9', lastmod: BLOG_SEO_RENDERING_LASTMOD },
+  { path: '/image-experience', changefreq: 'monthly', priority: '0.95', lastmod: '2026-09-04' },
+  { path: '/storie', changefreq: 'monthly', priority: '0.85', lastmod: '2026-02-06' },
+  { path: '/fotografo-aversa', changefreq: 'monthly', priority: '0.95', lastmod: '2026-08-18' },
+  { path: '/stampa-foto-aversa', changefreq: 'weekly', priority: '0.92', lastmod: '2026-08-31' },
+  { path: '/prenota', changefreq: 'weekly', priority: '0.9', lastmod: '2026-08-05' },
+  { path: '/consulenze', changefreq: 'monthly', priority: '0.85', lastmod: '2026-08-05' },
+  { path: '/lasciati-trasportare', changefreq: 'monthly', priority: '0.8', lastmod: '2026-02-06' },
+  { path: '/privacy', changefreq: 'yearly', priority: '0.3', lastmod: '2026-08-31' },
+  { path: '/terms', changefreq: 'yearly', priority: '0.3', lastmod: '2026-08-31' },
+];
+
 function escapeXml(value: unknown): string {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -128,6 +157,31 @@ export function buildWeddingSitemapEntries(
   return entries;
 }
 
+export function buildStaticSitemapEntries(
+  baseUrl = 'https://imagestudiofotografico.com',
+): string {
+  let entries = '';
+  for (const page of STATIC_SITEMAP_PAGES) {
+    entries += `  <url>
+    <loc>${baseUrl}${page.path}</loc>
+    <lastmod>${page.lastmod}</lastmod>
+    <changefreq>${page.changefreq}</changefreq>
+    <priority>${page.priority}</priority>
+`;
+    const image = STATIC_SITEMAP_IMAGES[page.path];
+    if (image) {
+      entries += `    <image:image>
+      <image:loc>${escapeXml(`${baseUrl}${image.url}`)}</image:loc>
+      <image:title>${escapeXml(image.title)}</image:title>
+    </image:image>
+`;
+    }
+    entries += `  </url>
+`;
+  }
+  return entries;
+}
+
 export async function generateDynamicSitemap(): Promise<string> {
   const baseUrl = 'https://imagestudiofotografico.com';
 
@@ -156,30 +210,6 @@ export async function generateDynamicSitemap(): Promise<string> {
 
   // Pagine statiche con data di ultima modifica REALE del contenuto
   // (aggiornare la data quando si modifica il contenuto/prerender della pagina)
-  const staticPages: Array<{ path: string; changefreq: string; priority: string; lastmod: string }> = [
-    { path: '/', changefreq: 'weekly', priority: '1.0', lastmod: '2026-09-11' },
-    { path: '/portfolio/matrimonio', changefreq: 'weekly', priority: '0.98', lastmod: '2026-08-21' },
-    { path: '/vision', changefreq: 'monthly', priority: '0.95', lastmod: '2026-08-21' },
-    { path: '/portfolio', changefreq: 'weekly', priority: '0.9', lastmod: '2026-08-21' },
-    { path: '/portfolio/battesimo', changefreq: 'weekly', priority: '0.85', lastmod: '2026-08-18' },
-    { path: '/portfolio/comunione', changefreq: 'weekly', priority: '0.85', lastmod: '2026-08-18' },
-    { path: '/portfolio/cresima', changefreq: 'weekly', priority: '0.85', lastmod: '2026-08-18' },
-    { path: '/portfolio/evento', changefreq: 'weekly', priority: '0.85', lastmod: '2026-08-18' },
-    { path: '/portfolio/ritratto', changefreq: 'weekly', priority: '0.85', lastmod: '2026-08-18' },
-    { path: '/portfolio/famiglia', changefreq: 'weekly', priority: '0.85', lastmod: '2026-08-18' },
-    { path: '/portfolio/altro', changefreq: 'weekly', priority: '0.8', lastmod: '2026-08-18' },
-    { path: '/blog', changefreq: 'daily', priority: '0.9', lastmod: BLOG_SEO_RENDERING_LASTMOD },
-    { path: '/image-experience', changefreq: 'monthly', priority: '0.95', lastmod: '2026-09-04' },
-    { path: '/storie', changefreq: 'monthly', priority: '0.85', lastmod: '2026-02-06' },
-    { path: '/fotografo-aversa', changefreq: 'monthly', priority: '0.95', lastmod: '2026-08-18' },
-    { path: '/stampa-foto-aversa', changefreq: 'weekly', priority: '0.92', lastmod: '2026-08-31' },
-    { path: '/prenota', changefreq: 'weekly', priority: '0.9', lastmod: '2026-08-05' },
-    { path: '/consulenze', changefreq: 'monthly', priority: '0.85', lastmod: '2026-08-05' },
-    { path: '/lasciati-trasportare', changefreq: 'monthly', priority: '0.8', lastmod: '2026-02-06' },
-    { path: '/privacy', changefreq: 'yearly', priority: '0.3', lastmod: '2026-08-31' },
-    { path: '/terms', changefreq: 'yearly', priority: '0.3', lastmod: '2026-08-31' },
-  ];
-
   // Costruisci sitemap XML con namespace immagini
   let sitemap = `<?xml version="1.0" encoding="UTF-8"?>
 <?xml-stylesheet type="text/xsl" href="/sitemap.xsl"?>
@@ -189,24 +219,7 @@ export async function generateDynamicSitemap(): Promise<string> {
 
 `;
 
-  for (const page of staticPages) {
-    sitemap += `  <url>
-    <loc>${baseUrl}${page.path}</loc>
-    <lastmod>${page.lastmod}</lastmod>
-    <changefreq>${page.changefreq}</changefreq>
-    <priority>${page.priority}</priority>
-`;
-    const image = STATIC_SITEMAP_IMAGES[page.path];
-    if (image) {
-      sitemap += `    <image:image>
-      <image:loc>${escapeXml(`${baseUrl}${image.url}`)}</image:loc>
-      <image:title>${escapeXml(image.title)}</image:title>
-    </image:image>
-`;
-    }
-    sitemap += `  </url>
-`;
-  }
+  sitemap += buildStaticSitemapEntries(baseUrl);
 
   sitemap += `
   <!-- Blog Posts Dinamici -->

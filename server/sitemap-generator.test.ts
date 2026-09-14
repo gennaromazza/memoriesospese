@@ -5,6 +5,7 @@ vi.mock('./firebase-admin', () => ({ db: {} }));
 import {
   BLOG_SEO_RENDERING_LASTMOD,
   blogSitemapLastModifiedDate,
+  buildStaticSitemapEntries,
   buildWeddingSitemapEntries,
 } from './sitemap-generator';
 
@@ -47,5 +48,16 @@ describe('Real Wedding sitemap', () => {
     expect(xml).toContain('<image:image>');
     expect(xml).toContain('<image:loc>https://firebasestorage.googleapis.com/cover.jpg?alt=media&amp;token=abc</image:loc>');
     expect(xml).toContain('<image:title>Anna e Luca ad Aversa</image:title>');
+  });
+});
+
+describe('Static sitemap', () => {
+  it('publishes Image Experience but not its legacy campaign alias', () => {
+    const xml = buildStaticSitemapEntries();
+
+    expect(xml.match(/<loc>https:\/\/imagestudiofotografico\.com\/image-experience<\/loc>/g)?.length)
+      .toBe(1);
+    expect(xml).not.toContain('https://imagestudiofotografico.com/esperienza');
+    expect(xml).not.toContain('https://imagestudiofotografico.com/esperienza/');
   });
 });

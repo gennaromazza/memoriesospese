@@ -37,6 +37,7 @@ import weddingSeoRoutes from './wedding-seo.js';
 import printShopRoutes, { runPrintShopRetentionCleanup } from './print-shop/router.js';
 import { generateDynamicSitemap } from "./sitemap-generator";
 import { createSeoMiddleware } from './seo-prerender';
+import { registerLegacyCampaignRoutes } from './legacy-campaign-routes';
 import { startCancellationRetryWorker } from './workers/cancellation-retry.js';
 import { startEventSyncWorker, stopEventSyncWorker } from './sync/event-sync-guard.js';
 import {
@@ -257,11 +258,7 @@ async function startServer() {
 
     // Mantieni il vecchio percorso come alias non indicizzabile della landing:
     // il redirect evita di servire una seconda copia della stessa pagina.
-    app.get(['/esperienza', '/esperienza/'], (req, res) => {
-      const queryStart = req.originalUrl.indexOf('?');
-      const query = queryStart >= 0 ? req.originalUrl.slice(queryStart) : '';
-      res.redirect(301, `/image-experience${query}`);
-    });
+    registerLegacyCampaignRoutes(app);
 
     // SEO prerender middleware per bot e crawler (Google, ChatGPT, etc.)
     app.use(createSeoMiddleware());

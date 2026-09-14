@@ -8,6 +8,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createSeoMiddleware } from './seo-prerender';
 import { generateDynamicSitemap } from './sitemap-generator';
+import { registerLegacyCampaignRoutes } from './legacy-campaign-routes';
 import { runReminderCheck } from './reminder-routes';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -23,11 +24,7 @@ const buildSubfolder = basePath !== '/'
 
 const buildPath = path.join(__dirname, '../dist', buildSubfolder);
 
-app.get(['/esperienza', '/esperienza/'], (req, res) => {
-  const queryStart = req.originalUrl.indexOf('?');
-  const query = queryStart >= 0 ? req.originalUrl.slice(queryStart) : '';
-  res.redirect(301, `/image-experience${query}`);
-});
+registerLegacyCampaignRoutes(app);
 
 app.use(createSeoMiddleware());
 
