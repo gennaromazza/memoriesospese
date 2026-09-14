@@ -11,4 +11,11 @@ import { Route } from 'wouter';
 import '../../client/src/index.css';
 const params = new URLSearchParams(location.search);
 queryClient.setDefaultOptions({ queries: { retry: false } });
-createRoot(document.getElementById('root')!).render(<QueryClientProvider client={queryClient}>{location.pathname.startsWith('/fotolibro/') ? <Route path="/fotolibro/:token"><PhotobookViewPage /></Route> : location.pathname.startsWith('/admin/photobooks/') ? <Route path="/admin/photobooks/:id"><PhotobookEditorPage /></Route> : <main className="max-w-6xl mx-auto p-4">{params.has('catalog') ? <LabMockupCatalog labId="lab" /> : params.has('job') ? <MockupTrack jobId="job" /> : <PhotobookMockup photobookId="book" version={1} token={params.has('admin') ? undefined : 'mockup-test-token'} readOnly={params.has('readonly')} />}</main>}</QueryClientProvider>);
+const app = location.pathname === '/history-away'
+  ? <main data-testid="history-away" className="max-w-6xl mx-auto p-4"><h1>Pagina di prova</h1><p>Sei fuori dal configuratore.</p></main>
+  : location.pathname.startsWith('/fotolibro/')
+    ? <Route path="/fotolibro/:token"><PhotobookViewPage /></Route>
+    : location.pathname.startsWith('/admin/photobooks/')
+      ? <Route path="/admin/photobooks/:id"><PhotobookEditorPage /></Route>
+      : <main className="max-w-6xl mx-auto p-4">{params.has('catalog') ? <LabMockupCatalog labId="lab" /> : params.has('job') ? <MockupTrack jobId="job" /> : <PhotobookMockup photobookId="book" version={1} token={params.has('admin') ? undefined : 'mockup-test-token'} readOnly={params.has('readonly')} />}</main>;
+createRoot(document.getElementById('root')!).render(<QueryClientProvider client={queryClient}>{app}</QueryClientProvider>);

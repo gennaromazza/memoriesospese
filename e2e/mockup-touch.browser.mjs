@@ -257,6 +257,24 @@ try {
  assert.equal(await page.locator('iframe').getAttribute('title'),'Configuratore 3D Album girevole');
  assert.equal(await frame.locator('body').getAttribute('data-wizard-step'),'2','Il cambio inverso apre il pannello Rivestimento');
  assert.equal(saved.selection.modelId,catalog.models[0].id,'Il cambio non sovrascrive la bozza Custodia');
+ // La cronologia deve ripristinare la bozza persistita anche quando il
+ // renderer temporaneo scelto ma non salvato viene smontato e rimontato.
+ await page.goto(`http://127.0.0.1:${port}/history-away`);
+ await page.getByTestId('history-away').waitFor();
+ await page.goBack();
+ await page.getByRole('button',{name:'Recupera bozza',exact:true}).waitFor();
+ await page.getByRole('button',{name:'Recupera bozza',exact:true}).tap();
+ await frame.locator('#wizard-slot').waitFor({timeout:45000});
+ assert.equal(await page.locator('iframe').getAttribute('title'),'Configuratore 3D Custodia','Il back ripristina il modello salvato');
+ assert.equal(await frame.locator('#coverOptions select').inputValue(),'full','Il back ripristina la configurazione salvata');
+ await page.goForward();
+ await page.getByTestId('history-away').waitFor();
+ await page.goBack();
+ await page.getByRole('button',{name:'Recupera bozza',exact:true}).waitFor();
+ await page.getByRole('button',{name:'Recupera bozza',exact:true}).tap();
+ await frame.locator('#wizard-slot').waitFor({timeout:45000});
+ assert.equal(await page.locator('iframe').getAttribute('title'),'Configuratore 3D Custodia','Il forward/back mantiene il modello salvato');
+ assert.equal(await frame.locator('#coverOptions select').inputValue(),'full','Il forward/back mantiene la configurazione salvata');
  // Un refresh durante il cambio modello deve ripartire dalla bozza persistita,
  // non dal renderer scelto localmente ma ancora non salvato.
  await page.reload();
