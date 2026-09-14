@@ -25,6 +25,8 @@ import {
   createEvent,
   deleteEvent,
   createEuropeRomeDate,
+  getEventById,
+  updateEvent,
 } from "./google-calendar.js";
 import multer from "multer";
 import { saveWithDownloadToken } from "./storage-download-url.js";
@@ -2309,12 +2311,117 @@ router.patch(
         });
       }
 
-      await db.collection("consultations").doc(id).update({
-        dataConsulenza: Timestamp.fromDate(schedule.startDateTime.toJSDate()),
-        orarioInizio,
-        orarioFine,
-        updatedAt: FieldValue.serverTimestamp(),
-      });
+      let previousCalendarSchedule: { start: Date; end: Date } | null = null;
+
+      if (consultation.googleCalendarEventId) {
+        try {
+          const existingEvent = await getEventById(
+            "primary",
+            consultation.googleCalendarEventId,
+          );
+          const existingStart = existingEvent?.start?.dateTime;
+          const existingEnd = existingEvent?.end?.dateTime;
+
+          if (!existingEvent) {
+            const missingEventError = new Error("Event not found");
+            (missingEventError as any).code = 404;
+            throw missingEventError;
+          }
+          if (!existingStart || !existingEnd) {
+            throw new Error(
+              "L'evento collegato non contiene un intervallo orario ripristinabile",
+            );
+          }
+
+          previousCalendarSchedule = {
+            start: new Date(existingStart),
+            end: new Date(existingEnd),
+          };
+          if (
+            Number.isNaN(previousCalendarSchedule.start.getTime()) ||
+            Number.isNaN(previousCalendarSchedule.end.getTime())
+          ) {
+            throw new Error(
+              "L'evento collegato contiene data o orari non validi",
+            );
+          }
+
+          await updateEvent(
+            "primary",
+            consultation.googleCalendarEventId,
+            {
+              start: schedule.startDateTime.toJSDate(),
+              end: schedule.endDateTime.toJSDate(),
+            },
+          );
+        } catch (calendarError: any) {
+          const eventMissing =
+            calendarError?.code === 404 ||
+            calendarError?.response?.status === 404 ||
+            calendarError?.message?.toLowerCase().includes("not found");
+
+          console.error(
+            `[PATCH /:id/reminder-schedule] Sincronizzazione Calendar fallita per evento ${consultation.googleCalendarEventId}:`,
+            calendarError?.message,
+          );
+
+          return res.status(eventMissing ? 404 : 503).json({
+            error: eventMissing
+              ? "Evento Google Calendar non trovato"
+              : "Errore sincronizzazione Google Calendar",
+            code: eventMissing
+              ? "CALENDAR_EVENT_NOT_FOUND"
+              : "CALENDAR_SYNC_FAILED",
+            message: eventMissing
+              ? "La correzione non è stata salvata perché l'evento collegato non esiste più su Google Calendar."
+              : "La correzione non è stata salvata perché non è stato possibile aggiornare l'evento su Google Calendar. Riprova.",
+          });
+        }
+      }
+
+      try {
+        await db.collection("consultations").doc(id).update({
+          dataConsulenza: Timestamp.fromDate(schedule.startDateTime.toJSDate()),
+          orarioInizio,
+          orarioFine,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      } catch (firestoreError: any) {
+        if (consultation.googleCalendarEventId && previousCalendarSchedule) {
+          try {
+            await updateEvent(
+              "primary",
+              consultation.googleCalendarEventId,
+              previousCalendarSchedule,
+            );
+          } catch (rollbackError: any) {
+            console.error(
+              `[PATCH /:id/reminder-schedule] CRITICO: salvataggio Firestore e rollback Calendar falliti per evento ${consultation.googleCalendarEventId}:`,
+              rollbackError?.message,
+            );
+            return res.status(500).json({
+              error: "Correzione parzialmente applicata",
+              code: "CALENDAR_ROLLBACK_FAILED",
+              message:
+                "Il salvataggio della consulenza è fallito e non è stato possibile ripristinare Google Calendar. Controlla manualmente l'orario dell'evento prima di riprovare.",
+            });
+          }
+        }
+
+        console.error(
+          `[PATCH /:id/reminder-schedule] Salvataggio Firestore fallito${previousCalendarSchedule ? ", evento Calendar ripristinato" : ""}:`,
+          firestoreError?.message,
+        );
+        return res.status(500).json({
+          error: "Errore aggiornamento orario consulenza",
+          code: previousCalendarSchedule
+            ? "CONSULTATION_SAVE_FAILED_CALENDAR_RESTORED"
+            : "CONSULTATION_SAVE_FAILED",
+          message: previousCalendarSchedule
+            ? "La correzione non è stata salvata. Google Calendar è stato ripristinato all'orario precedente."
+            : "La correzione non è stata salvata. Riprova.",
+        });
+      }
       clearCalendarEventCache();
 
       res.json({
@@ -2323,6 +2430,7 @@ router.patch(
         dataConsulenza,
         orarioInizio,
         orarioFine,
+        calendarSynced: Boolean(consultation.googleCalendarEventId),
       });
     } catch (error: any) {
       console.error("[PATCH /:id/reminder-schedule] Errore:", error.message);

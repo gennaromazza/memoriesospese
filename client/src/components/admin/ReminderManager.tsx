@@ -69,6 +69,23 @@ type ScheduleDraft = {
   orarioFine: string;
 };
 
+function getApiErrorMessage(error: unknown, fallback: string): string {
+  const rawMessage = error instanceof Error ? error.message : "";
+  const jsonStart = rawMessage.indexOf("{");
+
+  if (jsonStart >= 0) {
+    try {
+      const body = JSON.parse(rawMessage.slice(jsonStart));
+      if (typeof body.message === "string" && body.message) return body.message;
+      if (typeof body.error === "string" && body.error) return body.error;
+    } catch {
+      // Usa il messaggio originale se la risposta non contiene JSON valido.
+    }
+  }
+
+  return rawMessage || fallback;
+}
+
 export default function ReminderManager() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -138,7 +155,7 @@ export default function ReminderManager() {
       );
       return response.json();
     },
-    onSuccess: (_data, schedule) => {
+    onSuccess: (data, schedule) => {
       setLastSendResult((current) =>
         current
           ? {
@@ -170,13 +187,18 @@ export default function ReminderManager() {
       queryClient.invalidateQueries({ queryKey: ["/api/reminders/status"] });
       toast({
         title: "Consulenza aggiornata",
-        description: "La correzione è salvata e il reminder potrà essere ritentato.",
+        description: data.calendarSynced
+          ? "La correzione e l'evento Google Calendar sono aggiornati. Il reminder potrà essere ritentato."
+          : "La correzione è salvata e il reminder potrà essere ritentato.",
       });
     },
     onError: (error: any) => {
       toast({
-        title: "Errore salvataggio",
-        description: error.message || "Impossibile aggiornare data e orari.",
+        title: "Correzione non salvata",
+        description: getApiErrorMessage(
+          error,
+          "Impossibile aggiornare data, orari e Google Calendar.",
+        ),
         variant: "destructive",
       });
     },

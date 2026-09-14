@@ -9,6 +9,13 @@ const h = vi.hoisted(() => ({
   createEventError: null as Error | null,
   firestoreError: null as Error | null,
   emailError: null as Error | null,
+  updateEventError: null as Error | null,
+  updateEventErrors: [] as Array<Error | null>,
+  calendarEvent: {
+    start: { dateTime: "2026-09-18T17:30:00+02:00" },
+    end: { dateTime: "2026-09-18T19:00:00+02:00" },
+  } as any,
+  updatedCalendarEvents: [] as Array<{ calendarId: string; eventId: string; eventData: any }>,
   updates: [] as any[],
   deletedEventIds: [] as string[],
 }));
@@ -61,6 +68,14 @@ vi.mock("./google-calendar.js", () => ({
     return { id: "calendar-event-1" };
   },
   deleteEvent: async (_calendarId: string, eventId: string) => h.deletedEventIds.push(eventId),
+  getEventById: async () => h.calendarEvent,
+  updateEvent: async (calendarId: string, eventId: string, eventData: any) => {
+    const queuedError = h.updateEventErrors.shift();
+    if (queuedError) throw queuedError;
+    if (h.updateEventError) throw h.updateEventError;
+    h.updatedCalendarEvents.push({ calendarId, eventId, eventData });
+    return { id: eventId };
+  },
   getEventsWithDetailsAllCalendars: async () => [],
 }));
 
@@ -106,6 +121,13 @@ beforeEach(() => {
   h.createEventError = null;
   h.firestoreError = null;
   h.emailError = null;
+  h.updateEventError = null;
+  h.updateEventErrors = [];
+  h.calendarEvent = {
+    start: { dateTime: "2026-09-18T17:30:00+02:00" },
+    end: { dateTime: "2026-09-18T19:00:00+02:00" },
+  };
+  h.updatedCalendarEvents = [];
   h.updates = [];
   h.deletedEventIds = [];
 });
@@ -207,6 +229,115 @@ describe("PATCH /api/consultations/:id/reminder-schedule", () => {
     });
     expect(h.updates[0].dataConsulenza.date).toBeInstanceOf(Date);
     expect(h.updates[0].dataConsulenza.date.toISOString()).toBe("2026-10-17T08:00:00.000Z");
+    expect(h.updatedCalendarEvents).toHaveLength(0);
+    expect(body.calendarSynced).toBe(false);
+  });
+
+  it("aggiorna l'evento Calendar collegato con gli orari Europe/Rome", async () => {
+    h.consultation = pendingConsultation({
+      stato: "confermata",
+      googleCalendarEventId: "calendar-event-existing",
+    });
+
+    const { status, body } = await repairSchedule({
+      dataConsulenza: "2026-10-17",
+      orarioInizio: "10:00",
+      orarioFine: "11:00",
+    });
+
+    expect(status).toBe(200);
+    expect(body.calendarSynced).toBe(true);
+    expect(h.updatedCalendarEvents).toEqual([
+      {
+        calendarId: "primary",
+        eventId: "calendar-event-existing",
+        eventData: {
+          start: new Date("2026-10-17T08:00:00.000Z"),
+          end: new Date("2026-10-17T09:00:00.000Z"),
+        },
+      },
+    ]);
+    expect(h.updates).toHaveLength(1);
+  });
+
+  it("se l'evento Calendar non esiste più mostra un errore e non salva la correzione", async () => {
+    h.consultation = pendingConsultation({
+      stato: "confermata",
+      googleCalendarEventId: "calendar-event-missing",
+    });
+    h.calendarEvent = null;
+
+    const { status, body } = await repairSchedule({
+      dataConsulenza: "2026-10-17",
+      orarioInizio: "10:00",
+      orarioFine: "11:00",
+    });
+
+    expect(status).toBe(404);
+    expect(body).toMatchObject({
+      error: "Evento Google Calendar non trovato",
+      code: "CALENDAR_EVENT_NOT_FOUND",
+    });
+    expect(body.message).toContain("non è stata salvata");
+    expect(h.updates).toHaveLength(0);
+  });
+
+  it("ripristina l'evento Calendar se il salvataggio Firestore fallisce", async () => {
+    h.consultation = pendingConsultation({
+      stato: "confermata",
+      googleCalendarEventId: "calendar-event-existing",
+    });
+    h.firestoreError = new Error("Firestore non disponibile");
+
+    const { status, body } = await repairSchedule({
+      dataConsulenza: "2026-10-17",
+      orarioInizio: "10:00",
+      orarioFine: "11:00",
+    });
+
+    expect(status).toBe(500);
+    expect(body.code).toBe("CONSULTATION_SAVE_FAILED_CALENDAR_RESTORED");
+    expect(h.updatedCalendarEvents).toEqual([
+      {
+        calendarId: "primary",
+        eventId: "calendar-event-existing",
+        eventData: {
+          start: new Date("2026-10-17T08:00:00.000Z"),
+          end: new Date("2026-10-17T09:00:00.000Z"),
+        },
+      },
+      {
+        calendarId: "primary",
+        eventId: "calendar-event-existing",
+        eventData: {
+          start: new Date("2026-09-18T15:30:00.000Z"),
+          end: new Date("2026-09-18T17:00:00.000Z"),
+        },
+      },
+    ]);
+  });
+
+  it("se falliscono sia Firestore sia il rollback richiede un controllo manuale", async () => {
+    h.consultation = pendingConsultation({
+      stato: "confermata",
+      googleCalendarEventId: "calendar-event-existing",
+    });
+    h.firestoreError = new Error("Firestore non disponibile");
+    h.updateEventErrors = [
+      null,
+      new Error("Google Calendar non disponibile durante il rollback"),
+    ];
+
+    const { status, body } = await repairSchedule({
+      dataConsulenza: "2026-10-17",
+      orarioInizio: "10:00",
+      orarioFine: "11:00",
+    });
+
+    expect(status).toBe(500);
+    expect(body.code).toBe("CALENDAR_ROLLBACK_FAILED");
+    expect(body.message).toContain("Controlla manualmente");
+    expect(h.updatedCalendarEvents).toHaveLength(1);
   });
 
   it("rifiuta un intervallo non valido senza scrivere", async () => {
