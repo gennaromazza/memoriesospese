@@ -768,12 +768,12 @@ export default function PhotobookViewPage() {
           restano utilizzabili in entrambi gli orientamenti, senza perdere dati. */}
       {isPortraitPhone && !mockupOpen && !helpOpen && !noteMode && !pickerOpen && !confirmOpen && !clearAllOpen && !jumpOpen && !activeMark && !approveOpen && !deleteSentTarget && createPortal(
         <div
-          className="fixed inset-0 z-[200] bg-stone-100 flex flex-col items-center justify-center gap-4 p-8 text-center"
+          className="fixed inset-x-0 bottom-0 top-[52px] z-[15] bg-stone-100 flex flex-col items-center justify-center gap-4 p-8 text-center"
           data-testid="overlay-rotate"
         >
           <Smartphone className="h-6 w-6 shrink-0 rotate-90" />
           <p>
-            Ruota il telefono in orizzontale per visualizzare le pagine e personalizzare il tuo album.
+            Ruota il telefono in orizzontale per visualizzare le pagine. Per creare l’album 3D usa il pulsante nella barra in alto.
           </p>
         </div>, document.body
       )}
