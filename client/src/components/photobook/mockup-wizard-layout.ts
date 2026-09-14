@@ -43,6 +43,7 @@ export function installMockupWizard(doc: Document, mobile = false) {
   doc.body.dataset.wizardLayout = 'installing';
   if (mobile) doc.body.dataset.wizardMobile = 'true';
   const style = doc.createElement('style');
+  style.dataset.mockupWizardStyle = 'true';
   style.textContent = `
     body[data-wizard] {height:100dvh;overflow:hidden;font-size:16px}
     body[data-wizard] header,body[data-wizard] aside>h1,body[data-wizard] aside>p,body[data-wizard] aside>nav,
@@ -85,6 +86,7 @@ export function installMockupWizard(doc: Document, mobile = false) {
   let mobileStyle: HTMLStyleElement | undefined;
   if (mobile) {
     mobileStyle = doc.createElement('style');
+    mobileStyle.dataset.mockupWizardStyle = 'true';
     mobileStyle.textContent = `
       body[data-wizard-mobile] main {grid-template-columns:minmax(0,1fr) clamp(250px,42%,410px)!important;grid-template-rows:minmax(0,1fr)!important}
       body[data-wizard-mobile][data-viewer-expanded=true] main {grid-template-columns:minmax(0,1fr)!important}

@@ -202,6 +202,45 @@ try {
   const browserErrors = [];
   page.on('pageerror', error => browserErrors.push(error.message));
 
+  lifecycleStage = 'wizard layout replacement lifecycle';
+  await page.goto(`http://127.0.0.1:${port}/?layout-lifecycle`);
+  const lifecycleFrame = page.getByTestId('layout-lifecycle-frame');
+  await lifecycleFrame.waitFor();
+  const lifecycleFrameLocator = page.frameLocator('[data-testid="layout-lifecycle-frame"]');
+  await lifecycleFrameLocator.locator('body[data-wizard-layout="ready"]').waitFor();
+  assert.equal(await lifecycleFrameLocator.locator('style[data-mockup-wizard-style="true"]').count(), 1);
+  for (let replacement = 1; replacement <= 2; replacement++) {
+    await page.getByRole('button', { name: 'Sostituisci renderer', exact: true }).click();
+    await page.getByTestId('layout-lifecycle-revision').evaluate((element, expected) => {
+      if (element.getAttribute('data-revision') !== String(expected)) {
+        throw new Error(`Revision renderer inattesa: ${element.getAttribute('data-revision')}`);
+      }
+    }, replacement);
+    await lifecycleFrameLocator.locator('body[data-wizard-layout="ready"]').waitFor();
+    assert.equal(
+      await lifecycleFrameLocator.locator('style[data-mockup-wizard-style="true"]').count(),
+      1,
+      `Il renderer ${replacement} deve avere un solo blocco di stili`,
+    );
+    const disposed = await page.evaluate(() => window.__mockupLayoutLifecycle?.disposed || []);
+    assert.ok(
+      disposed.length >= replacement * 2,
+      `Il renderer precedente ${replacement - 1} non è stato smontato: ${JSON.stringify(disposed)}`,
+    );
+    assert.ok(
+      disposed.slice(-2).every(snapshot => snapshot.wizardLayout === null && snapshot.styleCount === 0),
+      `Il layout precedente ${replacement - 1} ha lasciato tracce: ${JSON.stringify(disposed.slice(-2))}`,
+    );
+  }
+  await page.getByRole('button', { name: 'Rimuovi layout', exact: true }).click();
+  const manuallyDisposed = await page.evaluate(() => window.__mockupLayoutLifecycle?.disposed || []);
+  assert.ok(
+    manuallyDisposed.slice(-2).every(snapshot => snapshot.wizardLayout === null && snapshot.styleCount === 0),
+    `Dispose ripetuto non idempotente: ${JSON.stringify(manuallyDisposed.slice(-2))}`,
+  );
+  assert.equal(await lifecycleFrameLocator.locator('body[data-wizard-layout]').count(), 0);
+  assert.equal(await lifecycleFrameLocator.locator('style[data-mockup-wizard-style="true"]').count(), 0);
+
   const catalog = JSON.parse(
     fs.readFileSync('client/public/mockups/custodia-v1/peppe-lab-catalog.json', 'utf8'),
   );
