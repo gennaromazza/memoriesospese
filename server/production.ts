@@ -23,6 +23,12 @@ const buildSubfolder = basePath !== '/'
 
 const buildPath = path.join(__dirname, '../dist', buildSubfolder);
 
+app.get(['/esperienza', '/esperienza/'], (req, res) => {
+  const queryStart = req.originalUrl.indexOf('?');
+  const query = queryStart >= 0 ? req.originalUrl.slice(queryStart) : '';
+  res.redirect(301, `/image-experience${query}`);
+});
+
 app.use(createSeoMiddleware());
 
 app.get('/sitemap.xml', async (req, res) => {

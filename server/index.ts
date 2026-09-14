@@ -255,6 +255,14 @@ async function startServer() {
       console.log('🧭 Development preview start path: /admin');
     }
 
+    // Mantieni il vecchio percorso come alias non indicizzabile della landing:
+    // il redirect evita di servire una seconda copia della stessa pagina.
+    app.get(['/esperienza', '/esperienza/'], (req, res) => {
+      const queryStart = req.originalUrl.indexOf('?');
+      const query = queryStart >= 0 ? req.originalUrl.slice(queryStart) : '';
+      res.redirect(301, `/image-experience${query}`);
+    });
+
     // SEO prerender middleware per bot e crawler (Google, ChatGPT, etc.)
     app.use(createSeoMiddleware());
     console.log('🔍 SEO prerender middleware attivo per crawler e AI');
