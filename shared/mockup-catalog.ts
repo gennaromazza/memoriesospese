@@ -166,7 +166,39 @@ export const ROTATING_MOCKUP_MODEL = {
   id: 'album-girevole', name: 'Album girevole', assetRevision: 4,
   coverLayouts: ['full', 'plaque', 'photo-plaque'], defaultCoverLayout: 'plaque',
 } as const;
+
+/**
+ * Step semantici del wizard cliente.
+ *
+ * `nativeStep` è il valore usato dall'adapter che presenta i controlli del
+ * renderer legacy. I renderer futuri devono dichiarare qui il proprio flusso;
+ * il componente cliente non deve più dedurre gli step dal rendererId.
+ */
+export interface MockupWizardStepDefinition {
+  id: string;
+  title: string;
+  description: string;
+  nativeStep: number;
+  panel: 'model' | 'material' | 'structure' | 'cover' | 'box-glass' | 'summary' | string;
+}
+
+const CUSTODIA_WIZARD_STEPS: readonly MockupWizardStepDefinition[] = [
+  { id: 'model', title: 'Modello', description: 'Scegli il modello proposto dallo studio.', nativeStep: 1, panel: 'model' },
+  { id: 'material', title: 'Rivestimento', description: 'Scegli il tessuto e il rivestimento della custodia.', nativeStep: 2, panel: 'material' },
+  { id: 'cover', title: 'Copertina', description: 'Scegli il layout della copertina e completa le foto o le scritte richieste.', nativeStep: 4, panel: 'cover' },
+  { id: 'summary', title: 'Riepilogo e invio', description: 'Controlla tutte le scelte prima di salvare o inviare la proposta.', nativeStep: 6, panel: 'summary' },
+];
+
+const ROTATING_WIZARD_STEPS: readonly MockupWizardStepDefinition[] = [
+  { id: 'model', title: 'Modello', description: 'Scegli il modello proposto dallo studio.', nativeStep: 1, panel: 'model' },
+  { id: 'material', title: 'Rivestimento album', description: 'Scegli il tessuto dell’album.', nativeStep: 2, panel: 'material' },
+  { id: 'structure', title: 'Struttura dello scrigno', description: 'Scegli la finitura della struttura dello scrigno.', nativeStep: 3, panel: 'structure' },
+  { id: 'cover', title: 'Copertina dell’album', description: 'Scegli il layout della copertina e completa le foto o l’incisione.', nativeStep: 4, panel: 'cover' },
+  { id: 'box-glass', title: 'Plexiglass dello scrigno', description: 'Scegli se lasciare il plexiglass trasparente o aggiungere una foto che resterà sullo scrigno.', nativeStep: 5, panel: 'box-glass' },
+  { id: 'summary', title: 'Riepilogo e invio', description: 'Controlla tutte le scelte prima di salvare o inviare la proposta.', nativeStep: 6, panel: 'summary' },
+];
+
 export const MOCKUP_RENDERERS = [
-  { ...MOCKUP_MODEL, path: 'custodia-v1/index.html' },
-  { ...ROTATING_MOCKUP_MODEL, path: 'girevole-v4/index.html' },
+  { ...MOCKUP_MODEL, path: 'custodia-v1/index.html', wizardSteps: CUSTODIA_WIZARD_STEPS },
+  { ...ROTATING_MOCKUP_MODEL, path: 'girevole-v4/index.html', wizardSteps: ROTATING_WIZARD_STEPS },
 ] as const;
