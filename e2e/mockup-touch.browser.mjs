@@ -394,6 +394,24 @@ vite=await createMockupHarnessServer(root,{define:{'import.meta.env.VITE_MOCKUP_
  assert.equal(await frame.locator('#coverOptions select').inputValue(),'full','Il forward/back mantiene la configurazione salvata');
  assert.equal(saved.revision,revisionBeforeHistoryNavigation,'Back e forward recuperano la revisione senza crearne una copia');
  assert.equal(draftSaveRequests,draftSaveRequestsBeforeHistoryNavigation,'Back e forward recuperano la configurazione senza salvare una nuova revisione');
+  // Dopo il recupero la scelta locale Plaza non deve essere diventata una
+  // revisione fantasma. Una modifica fatta adesso resta locale fino al
+  // salvataggio esplicito, che deve creare una sola nuova revisione.
+  const revisionBeforeExplicitHistorySave=saved.revision;
+  const draftSaveRequestsBeforeExplicitHistorySave=draftSaveRequests;
+  await touch(frame.getByRole('button',{name:'Indietro',exact:true}),'apertura modifica dopo recupero storico');
+  await touch(frame.getByRole('button',{name:'Indietro',exact:true}),'ritorno ai materiali dopo recupero storico');
+  await touch(frame.locator('.material-category summary').first(),'apertura materiali dopo recupero storico');
+  await touch(frame.locator('.material-category[open] .materials button').nth(1),'modifica materiale dopo recupero storico');
+  await touch(frame.getByRole('button',{name:'Avanti',exact:true}),'ritorno alla copertina dopo recupero storico');
+  await touch(frame.getByRole('button',{name:'Avanti',exact:true}),'ritorno al riepilogo dopo recupero storico');
+  await touch(frame.getByRole('button',{name:'Salva bozza',exact:true}),'salvataggio esplicito dopo recupero storico');
+  await withTimeout('conferma salvataggio dopo recupero storico',()=>frame.getByText('Mockup salvato.',{exact:false}).waitFor(),TOUCH_TIMEOUT_MS);
+  assert.equal(saved.revision,revisionBeforeExplicitHistorySave+1,'Il salvataggio esplicito dopo il recupero crea una sola nuova revisione');
+  assert.equal(draftSaveRequests,draftSaveRequestsBeforeExplicitHistorySave+1,'La modifica dopo il recupero invia una sola PUT');
+  assert.equal(saved.selection.modelId,offer.options[0].id,'Il salvataggio esplicito conserva il modello della bozza recuperata');
+  const revisionBeforeHistoryInspection=saved.revision;
+  const draftSaveRequestsBeforeHistoryInspection=draftSaveRequests;
  // Un refresh durante il cambio modello deve ripartire dalla bozza persistita,
  // non dal renderer scelto localmente ma ancora non salvato.
   await withTimeout('refresh durante cambio modello',()=>page.reload(),30000);
@@ -419,9 +437,9 @@ vite=await createMockupHarnessServer(root,{define:{'import.meta.env.VITE_MOCKUP_
   const historyEntries=page.locator('text=/^r\\d+ ·/');
   await withTimeout('caricamento storico revisioni',()=>historyEntries.first().waitFor(),TOUCH_TIMEOUT_MS);
   assert.equal(await historyEntries.count(),draftSaveRequests,'Lo storico contiene una voce per ogni salvataggio deliberato');
-  assert.deepEqual(await historyEntries.evaluateAll(entries=>entries.map(entry=>Number(entry.textContent.match(/^r(\\d+)/)[1]))),[3,2,1],'Lo storico contiene solo le revisioni salvate intenzionalmente');
-  assert.equal(saved.revision,revisionBeforeHistoryNavigation,'Aprire lo storico non crea una revisione');
-  assert.equal(draftSaveRequests,draftSaveRequestsBeforeHistoryNavigation,'Aprire lo storico non invia una PUT');
+  assert.deepEqual(await historyEntries.evaluateAll(entries=>entries.map(entry=>Number(entry.textContent.match(/^r(\\d+)/)[1]))),[4,3,2,1],'Lo storico contiene solo le revisioni salvate intenzionalmente');
+  assert.equal(saved.revision,revisionBeforeHistoryInspection,'Aprire lo storico non crea una revisione');
+  assert.equal(draftSaveRequests,draftSaveRequestsBeforeHistoryInspection,'Aprire lo storico non invia una PUT');
 
   await page.waitForTimeout(500);
   await tapCloseButton();
