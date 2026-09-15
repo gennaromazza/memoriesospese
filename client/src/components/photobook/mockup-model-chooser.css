@@ -47,15 +47,21 @@
   width: min(100%, 1180px);
   min-height: 100%;
   margin: 0 auto;
-  padding: 18px 18px 112px;
+  padding: 18px 18px 0;
 }
 
 .mockup-chooser-heading {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 12px 12px;
   margin-bottom: 25px;
+}
+
+.mockup-chooser-heading .mockup-chooser-stepper {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  margin: 8px 0 0;
 }
 
 .mockup-chooser-brand {
@@ -108,7 +114,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 20px;
+  margin-bottom: 0;
   color: var(--chooser-muted);
   font-size: 10px;
   font-weight: 700;
@@ -439,12 +445,11 @@
 }
 
 .mockup-chooser-action-bar {
-  position: fixed;
+  position: sticky;
   z-index: 10;
-  right: 0;
   bottom: 0;
-  left: 0;
   display: flex;
+  margin: 24px -18px 0;
   align-items: center;
   justify-content: space-between;
   gap: 15px;
@@ -533,11 +538,11 @@
 
 @media (min-width: 700px) {
   .mockup-chooser-shell {
-    padding: 30px 44px 132px;
+    padding: 30px 44px 0;
   }
 
   .mockup-chooser-heading {
-    margin-bottom: 55px;
+    margin-bottom: 40px;
   }
 
   .mockup-chooser-models {
@@ -576,59 +581,17 @@
   }
 
   .mockup-chooser-action-bar {
+    margin-right: -44px;
+    margin-left: -44px;
     padding-right: 44px;
     padding-left: 44px;
   }
 }
 
-@media (max-height: 380px) and (orientation: landscape) {
-  .mockup-chooser-shell {
-    padding-top: 10px;
-  }
-
-  .mockup-chooser-heading {
-    margin-bottom: 14px;
-  }
-
-  .mockup-chooser-model-stage h2 {
-    font-size: 36px;
-  }
-
-  .mockup-chooser-model-card {
-    min-height: 175px;
-  }
-
-  .mockup-chooser-model-image {
-    min-height: 175px;
-  }
-
-  .mockup-chooser-model-copy {
-    padding: 12px;
-  }
-
-  .mockup-chooser-model-name {
-    margin-top: 12px;
-    font-size: 25px;
-  }
-
-  .mockup-chooser-model-description {
-    display: none;
-  }
-
-  .mockup-chooser-cover-image {
-    height: 120px;
-  }
-
-  .mockup-chooser-cover-copy {
-    min-height: 105px;
-    padding: 10px;
-  }
-}
-
 /*
- * Landscape mobile is a real split composition, not a portrait chooser
- * squeezed into a short viewport. Keep the editorial copy on the left,
- * model/cover cards on the right, and the action bar within reach.
+ * Landscape mobile is the reference format: a two-zone composition with the
+ * editorial copy fixed on the left, a scrollable card column on the right and
+ * the action bar always in view as part of the layout (never overlapping).
  */
 @media (orientation: landscape) and (min-width: 560px) and (max-height: 760px) {
   .mockup-chooser {
@@ -636,98 +599,119 @@
   }
 
   .mockup-chooser-shell {
-    display: grid;
-    grid-template-columns: minmax(220px, .72fr) minmax(380px, 1.28fr);
-    grid-template-rows: auto auto auto auto auto;
-    column-gap: clamp(24px, 4vw, 56px);
-    width: min(100%, 1180px);
-    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: none;
+    height: 100%;
     min-height: 0;
-    padding: 15px 24px 76px;
+    padding: 8px 20px 0;
   }
 
   .mockup-chooser-heading {
-    grid-column: 1 / -1;
-    margin-bottom: 12px;
-  }
-
-  .mockup-chooser-stepper {
-    grid-column: 1 / -1;
-    margin-bottom: 11px;
-  }
-
-  .mockup-chooser-kicker {
-    grid-column: 1;
-    grid-row: 3;
-    align-self: end;
-  }
-
-  .mockup-chooser-model-stage h2 {
-    grid-column: 1;
-    grid-row: 4;
-    max-width: 470px;
-    font-size: clamp(32px, 7.4vw, 56px);
-    line-height: .94;
-  }
-
-  .mockup-chooser-model-stage>.mockup-chooser-intro {
-    grid-column: 1;
-    grid-row: 5;
-    max-width: 420px;
-    margin-top: 8px;
-    font-size: 12px;
-    line-height: 1.35;
-  }
-
-  .mockup-chooser-model-stage {
     display: grid;
-    grid-column: 1 / -1;
-    grid-template-columns: minmax(220px, .72fr) minmax(380px, 1.28fr);
-    grid-template-rows: auto auto auto;
-    column-gap: clamp(24px, 4vw, 56px);
+    flex: 0 0 auto;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 6px;
+    padding-bottom: 2px;
+    border-bottom: 1px solid var(--chooser-line);
   }
 
-  .mockup-chooser-model-stage>.mockup-chooser-kicker {
-    grid-column: 1;
+  .mockup-chooser-heading .mockup-chooser-stepper {
+    grid-column: 2;
     grid-row: 1;
-    align-self: end;
+    justify-content: center;
+    margin: 0;
+    font-size: 9px;
   }
 
-  .mockup-chooser-model-stage>h2 {
-    grid-column: 1;
-    grid-row: 2;
-    align-self: start;
+  .mockup-chooser-step-index {
+    width: 18px;
+    height: 18px;
   }
 
-  .mockup-chooser-model-stage>.mockup-chooser-intro {
+  .mockup-chooser-step-line {
+    width: 18px;
+  }
+
+  .mockup-chooser-cancel {
+    min-height: 44px;
+    padding: 4px 12px;
+    font-size: 11px;
+  }
+
+  .mockup-chooser-model-stage,
+  .mockup-chooser-style-stage {
+    display: grid;
+    flex: 1 1 auto;
+    min-height: 0;
+    max-width: none;
+    grid-template-columns: minmax(200px, .62fr) minmax(360px, 1.38fr);
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    column-gap: clamp(18px, 3vw, 44px);
+    animation: none;
+  }
+
+  .mockup-chooser-style-stage {
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  }
+
+  .mockup-chooser-model-stage > .mockup-chooser-kicker,
+  .mockup-chooser-style-stage > .mockup-chooser-kicker {
     grid-column: 1;
-    grid-row: 3;
+    margin: 4px 0 6px;
+    font-size: 10px;
+  }
+
+  .mockup-chooser-model-stage > h2,
+  .mockup-chooser-style-stage > h2 {
+    grid-column: 1;
+    max-width: 360px;
+    font-size: clamp(24px, 3.9vw, 40px);
+    line-height: .96;
+  }
+
+  .mockup-chooser-model-stage > .mockup-chooser-intro,
+  .mockup-chooser-style-stage > .mockup-chooser-intro {
+    grid-column: 1;
     align-self: start;
+    max-width: 320px;
+    margin: 8px 0 0;
+    font-size: 12px;
+    line-height: 1.4;
   }
 
   .mockup-chooser-models {
     grid-column: 2;
     grid-row: 1 / 4;
-    align-self: start;
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-    margin-top: 0;
+    grid-auto-rows: max-content;
+    align-content: start;
+    gap: 10px;
+    margin: 0;
+    padding: 2px 4px 10px 2px;
+    scrollbar-width: thin;
   }
 
   .mockup-chooser-model-card {
     display: grid;
-    min-height: clamp(184px, calc(100dvh - 185px), 300px);
-    grid-template-columns: minmax(0, 1.02fr) minmax(112px, .98fr);
+    min-height: 150px;
+    grid-template-columns: minmax(0, 1.05fr) minmax(104px, .95fr);
   }
 
   .mockup-chooser-model-copy {
     min-height: 0;
-    padding: 13px 12px 12px 14px;
+    padding: 11px 10px 10px 12px;
   }
 
   .mockup-chooser-model-name {
-    margin-top: 13px;
-    font-size: clamp(23px, 3vw, 31px);
+    margin-top: 8px;
+    font-size: clamp(20px, 2.6vw, 26px);
   }
 
   .mockup-chooser-model-description {
@@ -737,7 +721,7 @@
   }
 
   .mockup-chooser-model-link {
-    margin-top: 10px;
+    margin-top: 8px;
     font-size: 10px;
   }
 
@@ -748,55 +732,59 @@
   }
 
   .mockup-chooser-model-note {
-    grid-column: 2;
+    grid-column: 1;
     grid-row: 4;
-    margin-top: 10px;
+    align-self: end;
+    margin: 6px 0 8px;
     font-size: 10px;
   }
 
-  .mockup-chooser-style-stage {
-    display: grid;
-    grid-column: 1 / -1;
-    grid-template-columns: minmax(220px, .72fr) minmax(380px, 1.28fr);
-    grid-template-rows: auto auto auto auto;
-    column-gap: clamp(24px, 4vw, 56px);
-    max-width: none;
-  }
-
   .mockup-chooser-selected-summary {
-    grid-column: 1 / -1;
-    margin: 4px 0 12px;
-    padding-top: 10px;
+    grid-column: 1;
+    grid-row: 1;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 2px;
+    margin: 2px 0 6px;
+    padding-top: 0;
+    border-top: 0;
   }
 
-  .mockup-chooser-style-stage>.mockup-chooser-kicker {
-    grid-column: 1;
+  .mockup-chooser-selected-summary strong {
+    font-size: 17px;
+  }
+
+  .mockup-chooser-change {
+    min-height: 44px;
+    padding: 0;
+  }
+
+  .mockup-chooser-style-stage > .mockup-chooser-kicker {
     grid-row: 2;
-    align-self: end;
   }
 
-  .mockup-chooser-style-stage>h2 {
-    grid-column: 1;
+  .mockup-chooser-style-stage > h2 {
     grid-row: 3;
-    align-self: start;
-    font-size: clamp(26px, 5vw, 38px);
+    font-size: clamp(22px, 3.4vw, 34px);
   }
 
-  .mockup-chooser-style-stage>.mockup-chooser-intro {
-    grid-column: 1;
+  .mockup-chooser-style-stage > .mockup-chooser-intro {
     grid-row: 4;
-    align-self: start;
-    margin: 6px 0 11px;
-    font-size: 12px;
   }
 
   .mockup-chooser-covers {
     grid-column: 2;
-    grid-row: 2 / 5;
-    align-self: start;
+    grid-row: 1 / 5;
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-auto-rows: max-content;
+    align-content: start;
     gap: 9px;
-    margin-top: 0;
+    margin: 0;
+    padding: 2px 4px 10px 2px;
+    scrollbar-width: thin;
   }
 
   .mockup-chooser-cover-card {
@@ -805,24 +793,26 @@
 
   .mockup-chooser-cover-image,
   .mockup-chooser-cover-image img {
-    height: clamp(96px, 25dvh, 155px);
+    height: clamp(88px, 24dvh, 150px);
   }
 
   .mockup-chooser-cover-copy {
-    min-height: 90px;
-    padding: 10px 11px;
+    min-height: 0;
+    padding: 9px 10px;
   }
 
   .mockup-chooser-cover-note {
     grid-column: 1;
     grid-row: 5;
-    align-self: start;
-    margin-top: 4px;
+    align-self: end;
+    margin: 6px 0 8px;
     font-size: 10px;
   }
 
   .mockup-chooser-action-bar {
-    padding: 8px 24px calc(8px + env(safe-area-inset-bottom));
+    flex: 0 0 auto;
+    margin: 0 -20px;
+    padding: 7px 20px calc(7px + env(safe-area-inset-bottom));
   }
 
   .mockup-chooser-action-status {
@@ -836,6 +826,26 @@
   .mockup-chooser-primary {
     min-height: 44px;
     padding: 0 16px;
+  }
+}
+
+@media (orientation: landscape) and (min-width: 560px) and (max-height: 420px) {
+  .mockup-chooser-model-stage > .mockup-chooser-intro,
+  .mockup-chooser-style-stage > .mockup-chooser-intro {
+    display: none;
+  }
+
+  .mockup-chooser-model-description {
+    display: none;
+  }
+
+  .mockup-chooser-model-card {
+    min-height: 128px;
+  }
+
+  .mockup-chooser-cover-image,
+  .mockup-chooser-cover-image img {
+    height: 84px;
   }
 }
 

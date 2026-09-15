@@ -127,10 +127,7 @@ export default function MockupModelChooser({ options, initialOption, fixed = fal
     <div className="mockup-chooser-shell">
       <header className="mockup-chooser-heading">
         <div className="mockup-chooser-brand"><span className="mockup-chooser-brand-mark" aria-hidden="true" /><span>Album studio</span></div>
-        {onCancel && <button type="button" className="mockup-chooser-cancel" onClick={onCancel}>Annulla</button>}
-      </header>
-
-      <div className="mockup-chooser-stepper" aria-label="Avanzamento configurazione">
+        <div className="mockup-chooser-stepper" aria-label="Avanzamento configurazione">
         <span className={`mockup-chooser-step ${displayStage === 'models' ? 'is-current' : 'is-complete'}`}>
           <span className="mockup-chooser-step-index">{displayStage === 'models' ? '1' : <Check size={13} aria-hidden="true" />}</span> Modello
         </span>
@@ -138,7 +135,9 @@ export default function MockupModelChooser({ options, initialOption, fixed = fal
         <span className={`mockup-chooser-step ${displayStage === 'styles' ? 'is-current' : ''}`}>
           <span className="mockup-chooser-step-index">2</span> Copertina
         </span>
-      </div>
+        </div>
+        {onCancel && <button type="button" className="mockup-chooser-cancel" onClick={onCancel}>Annulla</button>}
+      </header>
 
       {displayStage === 'models' && (
         <section className="mockup-chooser-model-stage" aria-labelledby="mockup-model-heading">

@@ -32,7 +32,7 @@ export default function MockupOfferEditor({
     if (!keys.length) return;
     void publish(mode, keys.map(key => { const [labId, modelId] = key.split('/'); return { labId, modelId }; })).then(success => { if (success) setSelected(null); });
   }
-  return <div className="border rounded p-3 space-y-3">
+  return <div className="mockup-offer-editor space-y-3">
     <Button variant="outline" disabled={disabled} onClick={() => { setExpanded(!expanded); if (!expanded) void labs.refetch(); }}>Configura modello fotolibro</Button>
     <p className="text-sm">{mode === 'fixed'
       ? 'Un solo modello, ereditato automaticamente da tutte le versioni del fotolibro.'

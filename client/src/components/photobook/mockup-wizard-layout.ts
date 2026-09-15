@@ -112,6 +112,7 @@ export function installMockupWizard(doc: Document, mobile = false) {
       body[data-wizard] #wizard-slot .wizard-summary-card details button{border:1px solid #b9cbc0;border-radius:8px;background:#fff;color:#335e56;font-weight:700}
       body[data-wizard][data-wizard-readonly=true][data-wizard-panel=summary] .panel-content>section{display:none!important}
       body[data-wizard][data-wizard-readonly=true][data-wizard-panel=summary] #wizard-slot{display:block!important}
+      body[data-wizard][data-wizard-readonly=true] aside:before,body[data-wizard-mobile][data-wizard-readonly=true] aside:before{content:'IL TUO ALBUM  ·  SOLA LETTURA';color:#bd6853}
       body[data-wizard][data-wizard-readonly=true] .download-bar{display:block!important;margin-top:10px;border-top:1px solid #d9dfd8;padding-top:10px}
       body[data-wizard][data-wizard-readonly=true] .download-bar #downloadClient{min-height:44px;background:#335e56;color:#fff}
      body[data-wizard] .wizard-views{gap:3px!important;padding:4px;border:1px solid #ffffffb8;border-radius:12px;background:#fffffff0;box-shadow:0 8px 20px #263d3b18}
@@ -190,7 +191,7 @@ export function installMockupWizard(doc: Document, mobile = false) {
        body[data-wizard-mobile] .wizard-iconbar button b {font-size:11px}
        body[data-wizard-mobile] .wizard-help {position:absolute;right:10px;top:10px;width:38px;min-width:38px;padding:0!important;background:#fffffff0;border:1px solid #d9dfd8!important;box-shadow:0 5px 14px #263d3b12;pointer-events:auto}
       body[data-wizard-mobile] .wizard-view-message {position:absolute;top:9px;left:10px;padding:4px 7px;font-size:11px;background:#faf8f3e8;border-radius:4px}
-      body[data-wizard-mobile] .wizard-gesture-guide {pointer-events:auto;position:absolute;top:12px;left:12px;right:52px;max-width:300px;max-height:calc(100% - 65px);overflow:auto;background:#faf8f3;border:1px solid #c9d2cb;border-radius:10px;box-shadow:0 5px 25px #263c3325;padding:12px;color:#29413f;font-size:13px}
+      body[data-wizard-mobile] .wizard-gesture-guide {pointer-events:auto;position:absolute;top:40px;left:12px;right:52px;max-width:300px;max-height:calc(100% - 65px);overflow:auto;background:#faf8f3;border:1px solid #c9d2cb;border-radius:10px;box-shadow:0 5px 25px #263c3325;padding:12px;color:#29413f;font-size:13px}
       body[data-wizard-mobile] .wizard-gesture-guide p {font-size:12px;line-height:1.6;margin:7px 0}
       body[data-wizard-mobile] .wizard-gesture-guide button {min-height:44px;float:right;background:#527684;color:white;font-size:12px;padding:7px 14px}
       body[data-wizard-mobile] .wizard-gesture-guide:after {content:'';display:block;clear:both}

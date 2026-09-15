@@ -529,14 +529,16 @@ try {
   } else {
     assert.equal(viewerSoftwareRenderer, true, `Il gate SwiftShader non usa un renderer software: ${viewerWebglInfo.renderer}`);
   }
-  const nextButton = mockupFrame.locator('#wizard-actions-slot button').nth(1);
+  // In sola lettura le azioni del wizard non offrono invio né salvataggio:
+  // il cliente arriva al riepilogo (direttamente o con "Avanti") e trova solo il download.
+  await mockupFrame.locator('#wizard-actions-slot button').first().waitFor({ state: 'visible' });
   for (let attempt = 0; attempt < 6; attempt += 1) {
-    await nextButton.waitFor({ state: 'attached' });
-    assert.equal(await nextButton.isVisible(), true, `Azione wizard non visibile al tentativo ${attempt + 1}`);
-    const actionLabel = (await nextButton.textContent())?.trim() || '';
-    if (!/^Avanti/.test(actionLabel)) break;
-    await nextButton.click({ noWaitAfter: true });
+    const nextButton = mockupFrame.locator('#wizard-actions-slot button', { hasText: /^Avanti/ });
+    if (await nextButton.count() === 0) break;
+    await nextButton.first().click({ noWaitAfter: true });
   }
+  assert.equal(await mockupFrame.getByRole('button', { name: /Invia allo studio/ }).count(), 0, 'Invia allo studio visibile in sola lettura');
+  assert.equal(await mockupFrame.getByRole('button', { name: /Salva bozza/ }).count(), 0, 'Salva bozza visibile in sola lettura');
   const downloadButton = mockupFrame.locator('#downloadClient');
   await downloadButton.waitFor({ state: 'visible' });
   assert.equal(await downloadButton.isDisabled(), false);
