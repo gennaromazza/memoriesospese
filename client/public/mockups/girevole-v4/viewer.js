@@ -45,6 +45,27 @@ const camera = new THREE.PerspectiveCamera(36, 1, .005, 20);
 const controls = new OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controls.enablePan = false;
 controls.minDistance = .45; controls.maxDistance = 3;
 if (phoneView) { controls.minDistance = .09; controls.enablePan = true; controls.panSpeed = .8; }
+let fatalReported = false;
+const reportFatal = (message = 'Anteprima 3D interrotta') => {
+  if (fatalReported) return;
+  fatalReported = true;
+  document.body.dataset.ready = 'false';
+  $('status').textContent = 'Anteprima 3D interrotta. Riprova a caricare.';
+  renderer.setAnimationLoop(null);
+  notify('fatal-error', { message });
+};
+renderer.domElement.addEventListener('webglcontextlost', event => {
+  event.preventDefault();
+  reportFatal('Il contesto WebGL dell’anteprima non è più disponibile');
+}, false);
+if (embedded) {
+  window.addEventListener('error', event => {
+    if (document.body.dataset.ready === 'true') reportFatal(event.error?.message || event.message || 'Errore del renderer 3D');
+  });
+  window.addEventListener('unhandledrejection', event => {
+    if (document.body.dataset.ready === 'true') reportFatal(event.reason?.message || String(event.reason || 'Errore del renderer 3D'));
+  });
+}
 
 // Metri: album provvisorio 40 × 30 chiuso. Cornice 48 × 37; asse verticale centrale.
 // Luce interna .444 m > diagonale del supporto sqrt(.432² + .08²): rotazione libera.

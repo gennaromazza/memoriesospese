@@ -22,6 +22,7 @@ interface Props { photobookId: string; version: number; token?: string; readOnly
 type WizardStepId = MockupWizardStepDefinition['id'];
 const MOCKUP_RENDERER_READY_TIMEOUT_MS = Number(import.meta.env.VITE_MOCKUP_RENDERER_READY_TIMEOUT_MS || 45_000);
 
+const MOCKUP_RENDERER_RECOVERY_MESSAGE = 'L’anteprima 3D si è interrotta. Riprova a caricarla.';
 export default function PhotobookMockup({ photobookId, version, token, readOnly = false, summary = false, compact = false, onOpenChange }: Props) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -248,13 +249,13 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   }, [open, token, isPhone]);
   useEffect(() => { wizard?.refresh(); }, [wizard, configuration, busy, renderBusy, editable]);
   useEffect(() => {
-    if (!open || !token || !viewerStarted || choosing || ready || !state.data) return;
+    if (!open || !token || !viewerStarted || choosing || ready || rendererError || !state.data) return;
     const timeout = window.setTimeout(() => {
       setRenderBusy(false);
       setRendererError('L’anteprima non ha terminato il caricamento in tempo.');
     }, MOCKUP_RENDERER_READY_TIMEOUT_MS);
     return () => window.clearTimeout(timeout);
-  }, [open, viewerStarted, choosing, ready, generation, renderer.id, state.data]);
+  }, [open, viewerStarted, choosing, ready, rendererError, generation, renderer.id, state.data]);
   useEffect(() => {
     if (!mobile && token && ready && !renderBusy && !busy && editable && !selection && !initializing.current && state.data?.offer?.options.length === 1) chooseOption(state.data.offer.options[0]);
   }, [token, ready, renderBusy, busy, editable, selection, state.data?.offer]);
@@ -262,11 +263,23 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   useEffect(() => {
     const receive = (event: MessageEvent) => {
       if (event.origin !== window.location.origin || event.source !== frame.current?.contentWindow || event.data?.channel !== 'memorie-mockup-v1') return;
-      if (event.data.type === 'ready') { setRendererError(''); setReady(true); }
+       if (event.data.type === 'ready') { setRendererError(''); setReady(true); }
       if (event.data.type === 'busy') setRenderBusy(event.data.busy === true);
       const waiter = exportWaiter.current;
       if (event.data.type === 'exported' && waiter && event.data.requestId === waiter.id) { waiter.resolve({ previews: event.data.previews, configuration: event.data.configuration }); exportWaiter.current = null; }
       if (event.data.type === 'export-error' && waiter && event.data.requestId === waiter.id) { waiter.reject(new Error('Impossibile generare le viste')); exportWaiter.current = null; }
+       if (event.data.type === 'fatal-error') {
+         const waiter = exportWaiter.current;
+         if (waiter) {
+           waiter.reject(new Error(MOCKUP_RENDERER_RECOVERY_MESSAGE));
+           exportWaiter.current = null;
+         }
+         setBusy(false);
+         setReady(false);
+         setRenderBusy(false);
+         setWizard(null);
+         setRendererError(MOCKUP_RENDERER_RECOVERY_MESSAGE);
+       }
       if (event.data.type === 'error') { setMessage(String(event.data.message)); setRenderBusy(true); }
       if (event.data.type === 'change') {
         setDraftCoverLayout(String(event.data.configuration?.coverLayout || ''));
@@ -560,7 +573,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
         {!token && message && adminPanel(<p role="status" className="rounded border p-3 text-sm">{message}</p>)}
         {token && rendererError && !choosing && <section className="m-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-950 space-y-2" data-testid="mockup-renderer-error" role="alert"><h2 className="font-semibold">Anteprima non disponibile</h2><p className="text-sm">{rendererError} Le tue scelte salvate sono al sicuro.</p><Button variant="outline" onClick={retryRenderer}>Riprova a caricare l’anteprima</Button></section>}
         {token && !rendererError && (!ready || !wizard) && !choosing && <p role="status" className="p-4 text-sm">Preparazione del tuo configuratore…</p>}
-        {(!mobile || viewerStarted) && <iframe key={`${renderer.id}-${generation}`} ref={frame} title={`Configuratore 3D ${renderer.name}`} src={`${import.meta.env.BASE_URL}mockups/${renderer.path}`} sandbox="allow-scripts allow-same-origin allow-downloads" style={{ visibility: token && (!ready || !wizard) ? 'hidden' : undefined }} aria-hidden={token && (!ready || !wizard) ? true : undefined} className={`${token ? 'w-full min-h-0 flex-1 border-0' : 'mockup-admin-viewer'} ${busy ? 'pointer-events-none' : ''}`} />}
+         {(!mobile || viewerStarted) && <iframe key={`${renderer.id}-${generation}`} ref={frame} title={`Configuratore 3D ${renderer.name}`} src={`${import.meta.env.BASE_URL}mockups/${renderer.path}`} sandbox="allow-scripts allow-same-origin allow-downloads" style={{ visibility: token && (!ready || !wizard || !!rendererError) ? 'hidden' : undefined }} aria-hidden={token && (!ready || !wizard || !!rendererError) ? true : undefined} className={`${token ? 'w-full min-h-0 flex-1 border-0' : 'mockup-admin-viewer'} ${busy ? 'pointer-events-none' : ''}`} />}
         {token && wizard && createPortal(<>
            {editable && ready && !renderBusy && configurationIssue && !isModelStep && !isMaterialStep && <p role="status" className="wizard-validation">{configurationIssue}</p>}
            {mobile && <div className="wizard-step-heading" aria-live="polite"><span>{activeStepIndex + 1} / {wizardSteps.length}</span><strong>{activeStep.title}</strong></div>}

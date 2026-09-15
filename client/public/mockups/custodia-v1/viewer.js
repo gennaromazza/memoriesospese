@@ -15,6 +15,27 @@ let hostOption=null;
 const notifyHost=(type,payload={})=>{if(embedded)window.parent.postMessage({channel:'memorie-mockup-v1',type,...payload},window.location.origin);};
 const canvas=$('viewport'),stage=canvas.parentElement;
 const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
+let fatalReported=false;
+const reportFatal=(message='Anteprima 3D interrotta')=>{
+ if(fatalReported)return;
+ fatalReported=true;
+ document.body.dataset.ready='false';
+ $('status').textContent='Anteprima 3D interrotta. Riprova a caricare.';
+ renderer.setAnimationLoop(null);
+ notifyHost('fatal-error',{message});
+};
+canvas.addEventListener('webglcontextlost',event=>{
+ event.preventDefault();
+ reportFatal('Il contesto WebGL dell’anteprima non è più disponibile');
+},false);
+if(embedded){
+ window.addEventListener('error',event=>{
+  if(document.body.dataset.ready==='true')reportFatal(event.error?.message||event.message||'Errore del renderer 3D');
+ });
+ window.addEventListener('unhandledrejection',event=>{
+  if(document.body.dataset.ready==='true')reportFatal(event.reason?.message||String(event.reason||'Errore del renderer 3D'));
+ });
+}
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));
 renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=.95;
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;

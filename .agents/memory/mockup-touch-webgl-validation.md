@@ -38,3 +38,9 @@ Il harness amministrativo completo può inoltre restare occupato nel primo expor
 **Why:** il percorso completo combina molte esportazioni WebGL e può superare il budget del runner senza fornire un segnale utile sulla fase appena modificata.
 
 **How to apply:** per nuove asserzioni di contenuto del mockup, mantenere il test nel punto del wizard che esercita direttamente la configurazione interessata e usare il gate lifecycle separatamente per la copertura cliente già stabile.
+
+Nel runner Chromium/SwiftShader il gate touch completo può fallire prima dei controlli successivi su bounding box del layout mobile o bloccarsi durante la sostituzione di un renderer, anche con il viewer pronto. Per validare una recovery WebGL, mantenere le asserzioni nel gate versionato ma usare, se necessario, una prova focalizzata che arrivi direttamente al punto del renderer.
+
+**Why:** questi fallimenti dipendono dalla sincronizzazione e dal carico del renderer software, non dal contratto dei messaggi di recovery; confonderli con una regressione della recovery nasconde l’esito utile del test.
+
+**How to apply:** distinguere sempre il primo checkpoint fallito dal percorso WebGL testato; riportare il limite del runner senza rimuovere o indebolire le asserzioni permanenti dell’harness.
