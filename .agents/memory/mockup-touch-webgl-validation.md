@@ -15,6 +15,12 @@ Per i cambi renderer, i gate delle route devono avviare il proprio timeout solo 
 
 **How to apply:** mantenere sempre un timeout globale più ampio dei budget per fase, ma con timeout separati per gate, readiness, gesture e cleanup; in caso di timeout riportare almeno fase, titolo iframe, stato ready, layout wizard e disponibilità WebGL.
 
+Per Playwright WebKit su Nix, aggiungere le ABI Ubuntu richieste (in particolare ICU 74 e libjpeg 8) a `replit.nix`, ma non creare symlink ABI-incompatibili. Il controllo `ldconfig` di Playwright non riconosce sempre i percorsi Nix: il runner WebKit deve saltarlo solo dopo avere verificato l'avvio reale. I plugin GStreamer ereditati dalla shell GTK possono caricare libsoup 2 insieme a libsoup 3 del bundle WebKit e causare un abort; azzerare i percorsi plugin solo nel processo del test.
+
+**Why:** il bundle WebKit Playwright funziona con le librerie Nix corrette, ma il probe Debian e i plugin globali possono fallire prima o durante l'avvio pur senza un problema dell'applicazione.
+
+**How to apply:** per nuovi harness WebKit, usare un ambiente di lancio isolato e verificare prima un avvio headless; se il test cambia solo il viewport per simulare la rotazione, aggiornare anche `screen.orientation` nel contesto WebKit perché il browser non sempre lo cambia automaticamente.
+
 Per testare un timeout di readiness del client senza aggiungere 45–90 secondi reali al percorso touch, avanzare il clock Playwright dopo aver trattenuto la richiesta del renderer; riprenderlo subito dopo il retry prima di continuare la navigazione.
 
 **Why:** il renderer software può già consumare gran parte del budget globale, mentre un clock lasciato in pausa blocca timer e aggiornamenti delle pagine successive.

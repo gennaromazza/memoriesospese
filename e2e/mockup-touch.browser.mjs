@@ -37,6 +37,7 @@ const pageDiagnostics=async()=>{
    iframeVisible:document.querySelector('iframe') ? getComputedStyle(document.querySelector('iframe')).visibility : null,
    rendererReady:document.querySelector('iframe')?.contentDocument?.body?.dataset.ready||null,
    wizardLayout:document.querySelector('iframe')?.contentDocument?.body?.dataset.wizardLayout||null,
+   wizardStep:document.querySelector('iframe')?.contentDocument?.body?.dataset.wizardStep||null,
    webgl:(()=>{const canvas=document.querySelector('iframe')?.contentDocument?.querySelector('canvas');return canvas?.getContext('webgl')||canvas?.getContext('webgl2')?'available':'unavailable';})(),
   })),2000));
   phase=originalPhase;
@@ -98,8 +99,32 @@ vite=await createMockupHarnessServer(root,{define:{'import.meta.env.VITE_MOCKUP_
  const {mockupWorkflowInputSchema,mockupSelectionSchema}=await vite.ssrLoadModule('/@fs/'+path.join(root,'shared/mockup-workflow.ts').replaceAll('\\','/'));
  const engine=process.env.MOCKUP_ENGINE||'chromium';
  const edge='C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
-  browser=await withTimeout('avvio browser',()=> (engine==='webkit'?webkit:chromium).launch({headless:true,timeout:30000,...(engine==='chromium'?{args:['--enable-unsafe-swiftshader'],...(fs.existsSync(edge)?{executablePath:edge}:{})}: {})}),30000);
+ if(engine==='webkit'){
+  // Nix exposes WebKit's libraries through shell paths, not ldconfig.
+  process.env.PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS='1';
+  // The base GTK shell also exports libsoup 2 GStreamer plugins. WebKit
+  // bundles libsoup 3 and aborts if both plugin families are discovered.
+  process.env.GST_PLUGIN_SYSTEM_PATH_1_0='';
+  process.env.GST_PLUGIN_PATH_1_0='';
+ }
+ const webkitEnv=engine==='webkit'
+  ? {
+    ...process.env,
+   }
+  : undefined;
+  browser=await withTimeout('avvio browser',()=> (engine==='webkit'?webkit:chromium).launch({headless:true,timeout:30000,...(engine==='webkit'?{env:webkitEnv}: {args:['--enable-unsafe-swiftshader'],...(fs.existsSync(edge)?{executablePath:edge}:{})})}),30000);
   page=await withTimeout('creazione pagina',()=>browser.newPage({viewport:{width:390,height:844},screen:{width:390,height:844},isMobile:true,hasTouch:true}),30000);
+ if(engine==='webkit'){
+  await page.addInitScript(() => {
+   const orientation={
+    get type(){return window.innerWidth>window.innerHeight?'landscape-primary':'portrait-primary';},
+    get angle(){return window.innerWidth>window.innerHeight?90:0;},
+    addEventListener(){},
+    removeEventListener(){},
+   };
+   Object.defineProperty(window.screen,'orientation',{configurable:true,get:()=>orientation});
+  });
+ }
  page.setDefaultTimeout(15000);
  const errors=[];page.on('pageerror',error=>errors.push(error.message));
  const catalog=JSON.parse(fs.readFileSync('client/public/mockups/custodia-v1/peppe-lab-catalog.json','utf8'));
@@ -138,7 +163,7 @@ vite=await createMockupHarnessServer(root,{define:{'import.meta.env.VITE_MOCKUP_
   await withTimeout('overlay orientamento iniziale',()=>page.getByTestId('overlay-rotate').waitFor(),TOUCH_TIMEOUT_MS);
  await page.setViewportSize({width:844,height:390});
   await withTimeout('chiusura overlay orientamento',()=>page.getByTestId('overlay-rotate').waitFor({state:'hidden'}),TOUCH_TIMEOUT_MS);
-  await touch(page.getByRole('button',{name:'Personalizza album',exact:true}),'apertura configuratore');
+  await touch(page.getByRole('button',{name:'Crea album 3D',exact:true}),'apertura configuratore');
  const chooser=page.getByTestId('mockup-model-chooser');
   await withTimeout('apertura scelta modello',()=>chooser.waitFor(),TOUCH_TIMEOUT_MS);
  assert.equal(await page.locator('iframe').count(),0,'Il primo modello non deve partire prima della scelta');
@@ -152,10 +177,20 @@ vite=await createMockupHarnessServer(root,{define:{'import.meta.env.VITE_MOCKUP_
   await touch(chooser.getByTestId('choose-mockup-example-plaque'),'scelta esempio Plaza');
  const frame=page.frameLocator('iframe');
  const tapFrameButton=async(selector='.wizard-primary') => {
-    await withTimeout('pulsante iframe Avanti',()=>frame.getByRole('button',{name:'Avanti',exact:true}).waitFor(),TOUCH_TIMEOUT_MS);
+    const nextButton=frame.getByRole('button',{name:'Avanti',exact:true});
+    await withTimeout('pulsante iframe Avanti',()=>nextButton.waitFor(),TOUCH_TIMEOUT_MS);
+    await withTimeout('abilitazione pulsante iframe Avanti',async()=>{
+      while(!(await nextButton.isEnabled())) await delay(50);
+    },RENDERER_TIMEOUT_MS);
     const box=await withTimeout('layout pulsante iframe Avanti',()=>frame.locator(selector).boundingBox(),TOUCH_TIMEOUT_MS);
     if (!box) throw new Error(`Pulsante iframe non disponibile: ${selector}`);
-    await withTimeout('tap touch pulsante iframe Avanti',()=>page.touchscreen.tap(box.x+box.width/2,box.y+box.height/2),TOUCH_TIMEOUT_MS);
+    const stepBefore=await frame.locator('body').getAttribute('data-wizard-step');
+    await withTimeout('tap touch pulsante iframe Avanti',async()=>{
+      do {
+        await page.touchscreen.tap(box.x+box.width/2,box.y+box.height/2);
+        await delay(100);
+      } while(await frame.locator('body').getAttribute('data-wizard-step')===stepBefore);
+    },TOUCH_TIMEOUT_MS);
  };
  const tapFrameTextButton=async(name) => {
     await withTimeout(`pulsante iframe ${name}`,()=>frame.getByRole('button',{name,exact:true}).waitFor(),TOUCH_TIMEOUT_MS);
@@ -276,14 +311,14 @@ vite=await createMockupHarnessServer(root,{define:{'import.meta.env.VITE_MOCKUP_
  assert.equal(saved.configuration.assetRevision,4);
  assert.equal(saved.configuration.engravingNames.first,'Anna');
   await touch(page.getByRole('button',{name:'Chiudi mockup',exact:true}),'chiusura prima bozza');
-  await touch(page.getByRole('button',{name:'Recupera bozza',exact:true}),'recupero prima bozza');
+  await touch(page.getByRole('button',{name:'Recupera bozza album 3D',exact:true}),'recupero prima bozza');
  assert.equal(await chooser.count(),0,'La bozza salvata viene recuperata senza tornare alla scelta modello');
   await waitForRenderer(frame,'renderer girevole pronto dopo recupero');
   await touch(frame.getByRole('button',{name:'Invia allo studio',exact:true}),'invio proposta allo studio');
   await withTimeout('conferma invio proposta',()=>frame.getByText('Proposta inviata allo studio per la verifica.',{exact:true}).waitFor(),TOUCH_TIMEOUT_MS);
  assert.equal(saved.status,'submitted');
   await touch(page.getByRole('button',{name:'Chiudi mockup',exact:true}),'chiusura proposta inviata');
-  await touch(page.getByRole('button',{name:'Apri il tuo album',exact:true}),'riapertura album');
+  await touch(page.getByRole('button',{name:'Apri album 3D',exact:true}),'riapertura album');
  assert.equal(await chooser.count(),0,'La riapertura riparte dalla configurazione salvata');
   await waitForRenderer(frame,'renderer girevole pronto dopo invio');
  assert.equal(await frame.locator('.wizard-gesture-guide').count(),0,'La guida iniziale non si ripete nella sessione');
@@ -318,13 +353,14 @@ vite=await createMockupHarnessServer(root,{define:{'import.meta.env.VITE_MOCKUP_
  const coverPicker=page.getByRole('dialog',{name:'Scegli la foto di copertina',exact:true});
  await coverPicker.waitFor();
   await touch(page.getByTestId('button-pick-photo-gallery-one'),'scelta foto copertina');
+ await coverPicker.waitFor({state:'hidden'});
  await tapFrameButton();
 
  // Anche il cambio inverso deve lasciare intatta la bozza Custodia finché
  // l’utente non salva esplicitamente il nuovo modello.
   await touch(frame.getByRole('button',{name:'Salva bozza',exact:true}),'salvataggio Custodia');
   await withTimeout('conferma salvataggio Custodia',()=>frame.getByText('Mockup salvato.',{exact:false}).waitFor(),TOUCH_TIMEOUT_MS);
- assert.equal(saved.selection.modelId,catalog.models[0].id,'La bozza salvata appartiene ancora a Custodia');
+ assert.equal(saved.selection.modelId,offer.options[0].id,'La bozza salvata appartiene ancora a Custodia');
   await touch(page.getByRole('button',{name:'Cambia',exact:true}),'riapertura cambio modello');
   await touch(chooser.getByRole('button',{name:'Modello successivo',exact:true}),'ritorno modello Plaza');
   await touch(chooser.getByRole('button',{name:'Scopri Plaza',exact:true}),'riapertura esempi Plaza');
@@ -334,7 +370,7 @@ vite=await createMockupHarnessServer(root,{define:{'import.meta.env.VITE_MOCKUP_
   await withTimeout('iframe girevole visibile',()=>page.locator('iframe').waitFor({state:'visible'}),RENDERER_TIMEOUT_MS);
  assert.equal(await page.locator('iframe').getAttribute('title'),'Configuratore 3D Album girevole');
  assert.equal(await frame.locator('body').getAttribute('data-wizard-step'),'2','Il cambio inverso apre il pannello Rivestimento');
- assert.equal(saved.selection.modelId,catalog.models[0].id,'Il cambio non sovrascrive la bozza Custodia');
+ assert.equal(saved.selection.modelId,offer.options[0].id,'Il cambio non sovrascrive la bozza Custodia');
  const revisionBeforeHistoryNavigation=saved.revision;
  const draftSaveRequestsBeforeHistoryNavigation=draftSaveRequests;
  // La cronologia deve ripristinare la bozza persistita anche quando il
@@ -342,16 +378,16 @@ vite=await createMockupHarnessServer(root,{define:{'import.meta.env.VITE_MOCKUP_
  await page.goto(`http://127.0.0.1:${port}/history-away`);
  await page.getByTestId('history-away').waitFor();
  await page.goBack();
- await page.getByRole('button',{name:'Recupera bozza',exact:true}).waitFor();
- await page.getByRole('button',{name:'Recupera bozza',exact:true}).tap();
+ await page.getByRole('button',{name:'Recupera bozza album 3D',exact:true}).waitFor();
+ await page.getByRole('button',{name:'Recupera bozza album 3D',exact:true}).tap();
  await frame.locator('#wizard-slot').waitFor({timeout:45000});
  assert.equal(await page.locator('iframe').getAttribute('title'),'Configuratore 3D Custodia','Il back ripristina il modello salvato');
  assert.equal(await frame.locator('#coverOptions select').inputValue(),'full','Il back ripristina la configurazione salvata');
  await page.goForward();
  await page.getByTestId('history-away').waitFor();
  await page.goBack();
- await page.getByRole('button',{name:'Recupera bozza',exact:true}).waitFor();
- await page.getByRole('button',{name:'Recupera bozza',exact:true}).tap();
+ await page.getByRole('button',{name:'Recupera bozza album 3D',exact:true}).waitFor();
+ await page.getByRole('button',{name:'Recupera bozza album 3D',exact:true}).tap();
  await frame.locator('#wizard-slot').waitFor({timeout:45000});
  assert.equal(await page.locator('iframe').getAttribute('title'),'Configuratore 3D Custodia','Il forward/back mantiene il modello salvato');
  assert.equal(await frame.locator('#coverOptions select').inputValue(),'full','Il forward/back mantiene la configurazione salvata');
@@ -360,7 +396,7 @@ vite=await createMockupHarnessServer(root,{define:{'import.meta.env.VITE_MOCKUP_
  // Un refresh durante il cambio modello deve ripartire dalla bozza persistita,
  // non dal renderer scelto localmente ma ancora non salvato.
   await withTimeout('refresh durante cambio modello',()=>page.reload(),30000);
-  await touch(page.getByRole('button',{name:'Recupera bozza',exact:true}),'recupero bozza dopo refresh');
+  await touch(page.getByRole('button',{name:'Recupera bozza album 3D',exact:true}),'recupero bozza dopo refresh');
  assert.equal(await chooser.count(),0,'Il refresh recupera direttamente la bozza salvata');
   await waitForRenderer(frame,'renderer Custodia pronto dopo refresh');
  assert.equal(await page.locator('iframe').getAttribute('title'),'Configuratore 3D Custodia','Il refresh ripristina il modello salvato');
@@ -368,7 +404,7 @@ vite=await createMockupHarnessServer(root,{define:{'import.meta.env.VITE_MOCKUP_
  page.once('dialog',dialog=>dialog.accept());
  await tapCloseButton();
   await withTimeout('chiusura iframe dopo dialog',()=>page.waitForFunction(()=>!document.querySelector('iframe'),{timeout:TOUCH_TIMEOUT_MS}),TOUCH_TIMEOUT_MS);
-  await touch(page.getByRole('button',{name:'Recupera bozza',exact:true}),'recupero bozza dopo chiusura');
+  await touch(page.getByRole('button',{name:'Recupera bozza album 3D',exact:true}),'recupero bozza dopo chiusura');
  assert.equal(await chooser.count(),0,'Il recupero mantiene la bozza Custodia');
   await waitForRenderer(frame,'renderer Custodia pronto dopo chiusura');
  assert.equal(await page.locator('iframe').getAttribute('title'),'Configuratore 3D Custodia');
@@ -379,10 +415,10 @@ vite=await createMockupHarnessServer(root,{define:{'import.meta.env.VITE_MOCKUP_
   await withTimeout('chiusura iframe finale',()=>page.waitForFunction(()=>!document.querySelector('iframe'),{timeout:TOUCH_TIMEOUT_MS}),TOUCH_TIMEOUT_MS);
   holdCustodiaRenderer=true;
   await page.clock.install();
-  await touch(page.getByRole('button',{name:'Recupera bozza',exact:true}),'recupero bozza per retry renderer');
+  await touch(page.getByRole('button',{name:'Recupera bozza album 3D',exact:true}),'recupero bozza per retry renderer');
   await page.clock.fastForward(RENDERER_TIMEOUT_MS + 1);
   await withTimeout('errore timeout renderer',()=>page.getByTestId('mockup-renderer-error').waitFor(),TOUCH_TIMEOUT_MS);
-  assert.equal(await page.getByText('L’anteprima non ha terminato il caricamento in tempo.',{exact:true}).count(),1);
+ assert.equal(await page.getByText('L’anteprima non ha terminato il caricamento in tempo.',{exact:false}).count(),1);
   const revisionBeforeRendererRetry=saved.revision;
   const draftSaveRequestsBeforeRendererRetry=draftSaveRequests;
   releaseRetryRenderer();

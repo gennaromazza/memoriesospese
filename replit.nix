@@ -33,5 +33,48 @@
     pkgs.nspr
     pkgs.nss
     pkgs.glib
+    # Playwright WebKit 26.5 is built against the Ubuntu 24.04 WebKit
+    # runtime. Keep its native ABI available in the reproducible Nix shell.
+    pkgs.gst_all_1.gstreamer
+    pkgs.gst_all_1.gst-plugins-base
+    pkgs.gst_all_1.gst-plugins-good
+    pkgs.gst_all_1.gst-plugins-bad
+    pkgs.gst_all_1.gst-plugins-ugly
+    pkgs.gst_all_1.gst-libav
+    pkgs.gtk4
+    pkgs.harfbuzz
+    pkgs.vulkan-loader
+    pkgs.graphene
+    pkgs.icu74
+    pkgs.systemd
+    pkgs.libxml2
+    pkgs.sqlite
+    pkgs.libxslt
+    pkgs.lcms2
+    pkgs.libevent
+    pkgs.libopus
+    pkgs.libgcrypt
+    pkgs.libgpg-error
+    pkgs.flite
+    pkgs.libwebp
+    pkgs.libavif
+    pkgs.libepoxy
+    pkgs.wayland
+    pkgs.libmanette
+    pkgs.enchant
+    pkgs.hyphen
+    pkgs.libsecret
+    pkgs.libpsl
+    pkgs.nghttp2
+    pkgs.woff2
+    pkgs.libglvnd
+    pkgs.x264
+    pkgs.libtasn1
+    pkgs.stdenv.cc.cc
+    pkgs.libjpeg8
+    pkgs.harfbuzzFull
+    pkgs.libpng
+    pkgs.zlib
+    pkgs.x264.lib
   ];
 }
