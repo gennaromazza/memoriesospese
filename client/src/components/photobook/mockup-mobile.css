@@ -15,6 +15,18 @@
 [data-mobile-mockup="true"] .mockup-header-links button {border-color:#d9dfd8;background:#fff;color:#52645e}
 [data-mobile-mockup="true"] .mockup-mobile-body {background:#f3f5f0}
 [data-mobile-mockup="true"] .mockup-mobile-body>iframe {background:#edf1ec}
+.mockup-configurator-body {background:#f3f5f0}
+.mockup-progress {background:#fff;border-color:#d9dfd8!important}
+.mockup-progress-summary {display:flex;align-items:center;justify-content:space-between;gap:12px}
+.mockup-progress-summary p {margin:0;color:#263d3b}
+.mockup-progress-summary>span {color:#335e56;font-size:11px;font-weight:700}
+.mockup-progress-steps {display:flex;gap:5px;margin-top:10px;overflow-x:auto;padding-bottom:1px;scrollbar-width:none}
+.mockup-progress-steps span {display:flex;min-width:88px;align-items:center;gap:5px;color:#87938d;font-size:10px;white-space:nowrap}
+.mockup-progress-steps b {display:grid;width:20px;height:20px;flex:0 0 20px;place-items:center;border:1px solid #d9dfd8;border-radius:50%;font-size:10px}
+.mockup-progress-steps em {font-style:normal;overflow:hidden;text-overflow:ellipsis}
+.mockup-progress-steps span.is-done,.mockup-progress-steps span.is-current {color:#335e56;font-weight:700}
+.mockup-progress-steps span.is-done b {border-color:#9bb7a7;background:#e8f0eb}
+.mockup-progress-steps span.is-current b {border-color:#335e56;background:#335e56;color:#fff}
 [data-mobile-mockup="true"] .mockup-rotate {position:absolute;inset:0;z-index:10;background:linear-gradient(145deg,#eef3ee,#faf8f3 58%,#e8efea);display:flex;align-items:center;justify-content:center;padding:24px;text-align:center}
 [data-mobile-mockup="true"] .mockup-rotate-card {display:flex;max-width:340px;flex-direction:column;align-items:center;gap:10px;padding:28px 24px;border:1px solid #d9dfd8;border-radius:20px;background:#fffffff2;box-shadow:0 18px 48px #263d3b1c}
 [data-mobile-mockup="true"] .mockup-rotate-card .mockup-mobile-eyebrow {margin-bottom:2px}

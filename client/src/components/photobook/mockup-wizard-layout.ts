@@ -52,7 +52,11 @@ export function installMockupWizard(doc: Document, mobile = false) {
     body[data-wizard] main {display:grid!important;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(120px,40%) minmax(0,1fr);height:100%;min-height:0}
     body[data-wizard] .workspace {grid-row:1;display:block;min-height:0}
     body[data-wizard] .stage {height:100%;min-height:0;position:relative}
-    body[data-wizard] aside {grid-row:2;padding:14px;min-height:0;overflow:hidden;border:0}
+      body[data-wizard] aside {grid-row:2;padding:14px;min-height:0;overflow:hidden;border:0}
+      body[data-wizard] .workspace {background:#edf1ec;position:relative}
+      body[data-wizard] .workspace:before {content:'ANTEPRIMA LIVE  ·  clicca e trascina per ruotare';position:absolute;top:12px;left:14px;z-index:2;padding:6px 9px;border:1px solid #d9dfd8;border-radius:999px;background:#fffffff0;color:#335e56;font-size:10px;font-weight:800;letter-spacing:.07em;pointer-events:none}
+      body[data-wizard] aside {background:#fff!important;border-left:1px solid #d8ded7}
+      body[data-wizard] aside:before {content:'CONFIGURA IL MODELLO';display:block;padding:0 0 10px;border-bottom:1px solid #e1e6df;color:#335e56;font-size:10px;font-weight:800;letter-spacing:.1em}
     body[data-wizard] .panel-content {max-height:none;min-height:0;overflow:auto;overscroll-behavior:contain;padding:0 4px 12px 0}
     body[data-wizard] button,body[data-wizard] select,body[data-wizard] input:not([type=range]) {min-height:44px;font-size:16px}
     body[data-wizard] input:not([type=range]):not([type=checkbox]) {width:100%}
@@ -94,7 +98,7 @@ export function installMockupWizard(doc: Document, mobile = false) {
      body[data-wizard] .wizard-views{gap:3px!important;padding:4px;border:1px solid #ffffffb8;border-radius:12px;background:#fffffff0;box-shadow:0 8px 20px #263d3b18}
      body[data-wizard] .wizard-views button{min-height:36px;border:0;border-radius:8px;color:#596b65;background:transparent;font-size:11px;font-weight:600}
      body[data-wizard] .wizard-views button:hover{color:#234943;background:#eef2ed}
-     @media(min-width:768px){body[data-wizard] main{grid-template-columns:minmax(0,1.4fr) minmax(300px,1fr);grid-template-rows:minmax(0,1fr)}body[data-wizard] aside{grid-row:1;grid-column:2;padding:22px}body[data-wizard] .workspace{grid-column:1}}
+      @media(min-width:768px){body[data-wizard] main{grid-template-columns:minmax(0,1.4fr) minmax(300px,1fr);grid-template-rows:minmax(0,1fr)}body[data-wizard] aside{grid-row:1;grid-column:2;padding:22px}body[data-wizard] .workspace{grid-column:1}}
     @media(max-width:767px) and (max-height:380px){body[data-wizard] main{grid-template-rows:minmax(100px,35%) minmax(0,1fr)}body[data-wizard] .wizard-views button:nth-child(3){display:none}}
   `;
   doc.head.append(style);
@@ -104,14 +108,14 @@ export function installMockupWizard(doc: Document, mobile = false) {
     mobileStyle.dataset.mockupWizardStyle = 'true';
     mobileStyle.dataset.mockupWizardStyleKind = 'mobile';
     mobileStyle.textContent = `
-      body[data-wizard-mobile] main {grid-template-columns:minmax(0,1fr) clamp(250px,42%,410px)!important;grid-template-rows:minmax(0,1fr)!important}
+       body[data-wizard-mobile] main {grid-template-columns:minmax(0,1fr) clamp(250px,42%,410px)!important;grid-template-rows:minmax(0,1fr)!important;height:100%!important;min-height:0!important;box-sizing:border-box}
       body[data-wizard-mobile][data-viewer-expanded=true] main {grid-template-columns:minmax(0,1fr)!important}
       body[data-wizard-mobile][data-viewer-expanded=true] aside {display:none!important}
       body[data-wizard-mobile] .wizard-validation {padding:8px;border-left:3px solid #b97422;background:#fff3dc;font-size:12px!important}
        body[data-wizard-mobile] .workspace {grid-column:1;grid-row:1;display:block!important;overflow:hidden;position:relative;background:#edf1ec}
        body[data-wizard-mobile] .workspace:before {content:'ANTEPRIMA LIVE  ·  trascina per ruotare';position:absolute;top:10px;left:12px;z-index:2;padding:5px 8px;border:1px solid #d9dfd8;border-radius:999px;background:#fffffff0;color:#335e56;font-size:9px;font-weight:800;letter-spacing:.08em;pointer-events:none}
       body[data-wizard-mobile] .stage {position:relative!important;min-height:0!important;height:100%!important}
-       body[data-wizard-mobile] aside {grid-column:2;grid-row:1;display:flex;flex-direction:column;padding:12px 14px 0!important;border-left:1px solid #d8ded7;background:#fff!important;overflow:hidden!important}
+        body[data-wizard-mobile] aside {grid-column:2;grid-row:1;display:flex;flex-direction:column;height:100%!important;min-height:0!important;box-sizing:border-box;padding:12px 14px 0!important;border-left:1px solid #d8ded7;background:#fff!important;overflow:hidden!important}
        body[data-wizard-mobile] aside:before {content:'CONFIGURA IL MODELLO';display:block;flex:0 0 auto;padding:0 0 8px;border-bottom:1px solid #e1e6df;color:#335e56;font-size:10px;font-weight:800;letter-spacing:.1em}
        body[data-wizard-mobile] .panel-content {flex:1;min-height:0!important;max-height:none!important;scrollbar-gutter:auto;padding:0 3px 10px 0}
       body[data-wizard-mobile] .badge {display:none}
@@ -150,9 +154,9 @@ export function installMockupWizard(doc: Document, mobile = false) {
       body[data-wizard-mobile] .wizard-message {font-size:11px;margin:0 0 5px!important;max-height:40px;overflow:auto;overflow-wrap:anywhere}
       body[data-wizard-mobile] .wizard-unsaved {font-size:11px;display:block;margin-bottom:4px;color:#765f32}
       body[data-wizard-mobile] #wizard-controls-slot {position:absolute;inset:0;pointer-events:none}
-       body[data-wizard-mobile] .wizard-iconbar {position:absolute;bottom:10px;left:10px;right:10px;display:flex;gap:4px;padding:4px;border:1px solid #ffffffb8;border-radius:12px;background:#fffffff0;box-shadow:0 8px 20px #263d3b18;pointer-events:auto;overflow-x:auto;scrollbar-width:none}
+        body[data-wizard-mobile] .wizard-iconbar {position:absolute;bottom:10px;left:10px;right:10px;height:44px;box-sizing:border-box;display:flex;gap:4px;padding:0;border:1px solid #ffffffb8;border-radius:12px;background:#fffffff0;box-shadow:0 8px 20px #263d3b18;pointer-events:auto;overflow-x:auto;scrollbar-width:none}
        body[data-wizard-mobile] .wizard-iconbar button {flex-shrink:0}
-       body[data-wizard-mobile] .wizard-iconbar button,body[data-wizard-mobile] .wizard-help {position:relative;width:auto;min-width:43px;height:38px;min-height:38px;gap:5px;padding:0 9px!important;border:0!important;border-radius:8px!important;background:transparent;display:flex;align-items:center;justify-content:center;color:#596b65;font-size:10px;font-weight:600;isolation:isolate}
+        body[data-wizard-mobile] .wizard-iconbar button,body[data-wizard-mobile] .wizard-help {position:relative;width:auto;min-width:43px;height:44px;min-height:44px;gap:5px;padding:0 9px!important;border:0!important;border-radius:8px!important;background:transparent;display:flex;align-items:center;justify-content:center;color:#596b65;font-size:10px;font-weight:600;isolation:isolate}
        body[data-wizard-mobile] .wizard-iconbar button:before,body[data-wizard-mobile] .wizard-help:before {display:none}
        body[data-wizard-mobile] .wizard-iconbar button span {position:static;width:auto;height:auto;overflow:visible;clip-path:none}
        body[data-wizard-mobile] .wizard-iconbar button:hover {background:#eef2ed}
