@@ -94,7 +94,16 @@ export function installMockupWizard(doc: Document, mobile = false) {
      body[data-wizard] .wizard-step-heading span{color:#335e56;font-weight:700;letter-spacing:.04em}
      body[data-wizard] .wizard-cards button,body[data-wizard] .wizard-model{border:1px solid #d9dfd8;border-radius:10px;background:#fff;color:#263d3b;transition:border-color .15s,background .15s,box-shadow .15s}
      body[data-wizard] .wizard-cards button:hover,body[data-wizard] .wizard-model:hover,body[data-wizard] .wizard-cards button[aria-pressed=true],body[data-wizard] .wizard-model[aria-pressed=true]{border-color:#335e56;background:#f3f5f0;box-shadow:0 0 0 2px #335e5618}
-     body[data-wizard] .wizard-photo-actions button,body[data-wizard] .download-bar #downloadClient{border:1px solid #d9dfd8;border-radius:9px;background:#fff;color:#335e56;font-weight:600}
+      body[data-wizard] .wizard-photo-actions button,body[data-wizard] .download-bar #downloadClient{border:1px solid #d9dfd8;border-radius:9px;background:#fff;color:#335e56;font-weight:600}
+      body[data-wizard] #wizard-slot .wizard-summary-card{display:flex;flex-direction:column;gap:9px;border:1px solid #d9dfd8;border-radius:14px;padding:18px;background:linear-gradient(145deg,#f3f5f0,#fbfaf6);color:#263d3b}
+      body[data-wizard] #wizard-slot .wizard-summary-kicker{color:#335e56;font-size:10px;font-weight:800;letter-spacing:.12em}
+      body[data-wizard] #wizard-slot .wizard-summary-card h3{margin:0!important;font:600 24px/1.1 Georgia,serif!important}
+      body[data-wizard] #wizard-slot .wizard-summary-card>p{margin:0!important;color:#52645e;font-size:13px!important;line-height:1.5}
+      body[data-wizard] #wizard-slot .wizard-summary-card .wizard-summary-status{padding:8px 10px!important;border-radius:8px;background:#e8f0eb;color:#335e56;font-size:11px!important;font-weight:700}
+      body[data-wizard] #wizard-slot .wizard-summary-card .wizard-summary-note{color:#71807b;font-size:11px!important}
+      body[data-wizard] #wizard-slot .wizard-summary-card details{margin-top:3px;border-top:1px solid #d9dfd8;padding-top:8px}
+      body[data-wizard] #wizard-slot .wizard-summary-card details summary{min-height:36px;padding:7px 0;color:#335e56;font-size:12px;font-weight:700}
+      body[data-wizard] #wizard-slot .wizard-summary-card details button{border:1px solid #b9cbc0;border-radius:8px;background:#fff;color:#335e56;font-weight:700}
      body[data-wizard] .wizard-views{gap:3px!important;padding:4px;border:1px solid #ffffffb8;border-radius:12px;background:#fffffff0;box-shadow:0 8px 20px #263d3b18}
      body[data-wizard] .wizard-views button{min-height:36px;border:0;border-radius:8px;color:#596b65;background:transparent;font-size:11px;font-weight:600}
      body[data-wizard] .wizard-views button:hover{color:#234943;background:#eef2ed}
@@ -127,6 +136,9 @@ export function installMockupWizard(doc: Document, mobile = false) {
        body[data-wizard-mobile] .panel-content>section[data-wizard-panel-active="false"],
        body[data-wizard-mobile] #detailPanel>[data-wizard-panel-active="false"] {display:none!important}
       body[data-wizard-mobile] #wizard-slot h3 {font-size:17px;margin-bottom:6px}
+       body[data-wizard-mobile] #wizard-slot .wizard-summary-card {gap:6px;padding:12px}
+       body[data-wizard-mobile] #wizard-slot .wizard-summary-card h3 {font-size:18px!important}
+       body[data-wizard-mobile] #wizard-slot .wizard-summary-card>p {font-size:12px!important}
       body[data-wizard-mobile] #wizard-slot p {font-size:13px;margin:6px 0}
       body[data-wizard-mobile] .materials {grid-template-columns:repeat(2,minmax(0,1fr))}
       body[data-wizard-mobile] #fabricPanel>h2 {display:none}
