@@ -34,3 +34,9 @@ Keep the parent download anchor mounted briefly after triggering it; immediate r
 **Why:** the same-origin parent trigger fixes iframe sandbox restrictions, but a synchronous remove can still lose the download event under load.
 
 **How to apply:** use a short delayed cleanup for generated anchors and keep the browser gate watching the actual download event.
+
+Animated WebGL canvases can keep Playwright element/page screenshots waiting for visual stability until timeout under SwiftShader. For a pixel-presence assertion, read the canvas with `toDataURL()` in the page; reserve screenshots for renderers whose animation loop is paused.
+
+**Why:** disabling CSS animations does not stop a Three.js render loop, so screenshot stability checks can hang even when the renderer is healthy.
+
+**How to apply:** use `canvas.toDataURL()` for close-up smoke checks, then validate the real downloaded report for its expected embedded preview count and per-renderer image format.
