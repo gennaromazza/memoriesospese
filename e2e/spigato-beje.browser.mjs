@@ -28,9 +28,9 @@ async function verifyRenderer(browser, port, renderer) {
 
   assert.equal(await page.locator('#configurationSummary').textContent().then(text => text?.includes(renderer.summaryText)), true);
   assert.equal(await page.locator('#downloadClient').isDisabled(), false);
-   assert.equal(assetRequests.some(url => url.endsWith('/spigato-beje-r3.png')), true, `${renderer.name}: texture colore r3 non richiesta`);
-   assert.equal(assetRequests.some(url => url.endsWith('/spigato-beje-height-r3.png')), true, `${renderer.name}: height map r3 non richiesta`);
-   assert.equal(assetRequests.some(url => /spigato-beje(?:-height)?\.png$/.test(url)), false, `${renderer.name}: richiesto un asset precedente a r3`);
+   assert.equal(assetRequests.some(url => url.endsWith('/spigato-beje-r4.png')), true, `${renderer.name}: texture colore r4 non richiesta`);
+   assert.equal(assetRequests.some(url => url.endsWith('/spigato-beje-height-r4.png')), true, `${renderer.name}: height map r4 non richiesta`);
+   assert.equal(assetRequests.some(url => /spigato-beje(?:-height)?\.png$/.test(url)), false, `${renderer.name}: richiesto un asset precedente a r4`);
 
   if (renderer.closeUp) await renderer.closeUp(page);
   await page.waitForTimeout(250);
@@ -80,7 +80,7 @@ try {
       for (let index = 0; index < 3; index += 1) await page.locator('#plus').dispatchEvent('click');
     },
   });
-   console.log('Spigato Beje OK: Custodia v1 e Girevole v4 hanno caricato colore/height r3, vista ravvicinata ed export senza errori.');
+   console.log('Spigato Beje OK: Custodia v1 e Girevole v4 hanno caricato colore/height r4, vista ravvicinata ed export senza errori.');
 } finally {
   await browser?.close();
   await vite.close();
