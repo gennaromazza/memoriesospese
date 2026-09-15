@@ -186,6 +186,24 @@ export interface MockupWizardStepDefinition {
   panel: 'model' | 'material' | 'structure' | 'cover' | 'box-glass' | 'summary' | string;
 }
 
+export interface MockupCoverExample {
+  layout: string;
+  title: string;
+  description: string;
+  image: string;
+}
+
+export interface MockupRendererDefinition {
+  id: string;
+  name: string;
+  assetRevision: number;
+  coverLayouts: readonly string[];
+  defaultCoverLayout: string;
+  path: string;
+  wizardSteps: readonly MockupWizardStepDefinition[];
+  coverExamples: readonly MockupCoverExample[];
+}
+
 const CUSTODIA_WIZARD_STEPS: readonly MockupWizardStepDefinition[] = [
   { id: 'model', title: 'Modello', description: 'Scegli il modello proposto dallo studio.', nativeStep: 1, panel: 'model' },
   { id: 'material', title: 'Rivestimento', description: 'Scegli il tessuto e il rivestimento della custodia.', nativeStep: 2, panel: 'material' },
@@ -202,7 +220,39 @@ const ROTATING_WIZARD_STEPS: readonly MockupWizardStepDefinition[] = [
   { id: 'summary', title: 'Riepilogo e invio', description: 'Controlla tutte le scelte prima di salvare o inviare la proposta.', nativeStep: 6, panel: 'summary' },
 ];
 
+function defineRenderer<T extends MockupRendererDefinition>(renderer: T): T {
+  const layouts = new Set(renderer.coverLayouts);
+  const examples = new Set(renderer.coverExamples.map(example => example.layout));
+  if (
+    layouts.size !== renderer.coverLayouts.length
+    || examples.size !== renderer.coverExamples.length
+    || layouts.size !== examples.size
+    || renderer.coverLayouts.some(layout => !examples.has(layout))
+  ) {
+    throw new Error(`Cover examples incomplete for renderer ${renderer.id}`);
+  }
+  return renderer;
+}
+
 export const MOCKUP_RENDERERS = [
-  { ...MOCKUP_MODEL, path: 'custodia-v1/index.html', wizardSteps: CUSTODIA_WIZARD_STEPS },
-  { ...ROTATING_MOCKUP_MODEL, path: 'girevole-v4/index.html', wizardSteps: ROTATING_WIZARD_STEPS },
+  defineRenderer({
+    ...MOCKUP_MODEL,
+    path: 'custodia-v1/index.html',
+    wizardSteps: CUSTODIA_WIZARD_STEPS,
+    coverExamples: [
+      { layout: 'oblique', title: 'Foto e tessuto', description: 'La tua foto incontra il tessuto con un taglio obliquo.', image: 'custodia-oblique.webp' },
+      { layout: 'full', title: 'Foto grande', description: 'La tua fotografia protagonista su tutta la copertina.', image: 'custodia-full.webp' },
+    ],
+  }),
+  defineRenderer({
+    ...ROTATING_MOCKUP_MODEL,
+    path: 'girevole-v4/index.html',
+    wizardSteps: ROTATING_WIZARD_STEPS,
+    coverExamples: [
+      { layout: 'full', title: 'Foto grande', description: 'La tua fotografia su tutta la copertina dell’album.', image: 'girevole-full.webp' },
+      { layout: 'plaque', title: 'Incisione con i vostri nomi', description: 'Placchetta in legno, iniziali e decorazione botanica.', image: 'girevole-plaque.webp' },
+      { layout: 'photo-plaque', title: 'Foto piccola sul tessuto', description: 'Una fotografia centrale nel formato della placchetta.', image: 'girevole-photo-plaque.webp' },
+      { layout: 'split-photo-fabric', title: 'Foto e tessuto inciso', description: 'Una metà con la tua foto e una metà in tessuto con il monogramma inciso.', image: 'girevole-split-photo-fabric.svg' },
+    ],
+  }),
 ] as const;

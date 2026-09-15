@@ -149,6 +149,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     if (!editable) return;
     if (viewerStarted && (!ready || renderBusy || busy)) return;
     if (viewerStarted && option.rendererId !== renderer.id && dirty && !window.confirm('Cambiando tipo di album, alcune personalizzazioni non sono compatibili. Vuoi proseguire? La revisione già salvata resta conservata.')) return;
+    const targetRenderer = MOCKUP_RENDERERS.find(item => item.id === option.rendererId) || renderer;
     pendingLayout.current = layout;
     // La scelta dei caroselli non contiene fotografie o nomi dimostrativi.
     if (!viewerStarted) {
@@ -157,7 +158,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       setWizard(null); setConfiguration(null); setReady(false); setRenderBusy(true); setGeneration(g => g + 1);
       setDirty(true); setViewerStarted(true);
     } else chooseOption(option);
-    setStep(renderer.wizardSteps.find(item => item.id === 'material')?.id || renderer.wizardSteps.find(item => item.id !== 'model')?.id || renderer.wizardSteps[0].id); setChoosing(false); setHomeOpen(false); setMessage(''); setViewMessage('');
+    setStep(targetRenderer.wizardSteps.find(item => item.id === 'material')?.id || targetRenderer.wizardSteps.find(item => item.id !== 'model')?.id || targetRenderer.wizardSteps[0].id); setChoosing(false); setHomeOpen(false); setMessage(''); setViewMessage('');
   }
 
   function chooseOption(option: MockupOption) {

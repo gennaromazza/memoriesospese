@@ -318,8 +318,8 @@ try {
   await page.getByText('Modello scelto dallo studio', { exact: true }).waitFor();
   await page.getByText('Il modello dell’album è già definito; puoi scegliere soltanto le sue personalizzazioni.', { exact: true }).waitFor();
   await page.getByRole('button', { name: /Apri mockup/ }).click();
-  await page.getByRole('heading', { name: 'Il modello scelto per il tuo album', exact: true }).waitFor();
-  await page.getByText('Questo modello è stato scelto dallo studio. Continua per personalizzare copertina e contenuti.', { exact: true }).waitFor();
+  await page.getByRole('heading', { name: 'Come vuoi vestirlo?', exact: true }).waitFor();
+  await page.getByText('Scelto dallo studio', { exact: true }).waitFor();
   assert.equal(await page.getByRole('heading', { name: 'Quale album preferisci?', exact: true }).count(), 0);
   assert.equal(await page.getByRole('button', { name: /Scopri Album Alternativo/ }).count(), 0);
   if (!realGpu) await page.screenshot({ path: 'work/photobook-client-fixed-model.png' });
@@ -330,8 +330,8 @@ try {
   saved = null;
   await reloadClient();
   await page.getByRole('button', { name: /Apri mockup/ }).click();
-  await page.getByRole('heading', { name: 'Quale album preferisci?', exact: true }).waitFor();
-  await page.getByRole('button', { name: 'Scopri Album Alternativo', exact: true }).waitFor();
+  await page.getByRole('heading', { name: /Che storia vuoi/ }).waitFor();
+  await page.getByRole('button', { name: 'Scegli Album Alternativo', exact: true }).waitFor();
   if (!realGpu) await page.screenshot({ path: 'work/photobook-client-model-choice.png' });
 
   // Tutti gli stati visibili al cliente.
