@@ -312,6 +312,48 @@ try {
     await page.getByTestId('photobook-mockup').waitFor();
   }
 
+  async function assertMobileWizardControls(cycle) {
+    const mockupFrame = page.frameLocator('iframe[title^="Configuratore 3D"]');
+    await mockupFrame.locator('body[data-wizard-mobile="true"][data-wizard-layout="ready"]').waitFor();
+    assert.equal(await mockupFrame.locator('#wizard-slot').count(), 1, `Ciclo ${cycle}: slot principale duplicato`);
+    assert.equal(await mockupFrame.locator('#wizard-actions-slot').count(), 1, `Ciclo ${cycle}: slot azioni duplicato`);
+    assert.equal(await mockupFrame.locator('#wizard-controls-slot').count(), 1, `Ciclo ${cycle}: slot comandi duplicato`);
+    assert.equal(await mockupFrame.locator('.wizard-mobile-actions').count(), 1, `Ciclo ${cycle}: azioni wizard duplicate`);
+    assert.equal(await mockupFrame.locator('.wizard-iconbar').count(), 1, `Ciclo ${cycle}: barra comandi duplicata`);
+    assert.equal(await mockupFrame.locator('#wizard-home').count(), 1, `Ciclo ${cycle}: pannello casa duplicato`);
+    assert.equal(await mockupFrame.locator('.download-bar').count(), 1, `Ciclo ${cycle}: barra download duplicata`);
+    assert.equal(await mockupFrame.locator('#downloadClient').count(), 1, `Ciclo ${cycle}: controllo download duplicato`);
+    assert.equal(await mockupFrame.locator('#downloadStatus').count(), 1, `Ciclo ${cycle}: stato download duplicato`);
+    assert.equal(await mockupFrame.locator('#coverOptions select').count(), 1, `Ciclo ${cycle}: selettore originale copertina duplicato`);
+    const coverMirrorCount = await mockupFrame.locator('#coverOptions .wizard-cards').count();
+    assert.equal(coverMirrorCount, 1, `Ciclo ${cycle}: mirror copertina duplicato`);
+    assert.equal(
+      await mockupFrame.locator('#coverOptions .wizard-cards button').count(),
+      await mockupFrame.locator('#coverOptions select option').count(),
+      `Ciclo ${cycle}: numero mirror copertina inatteso`,
+    );
+    assert.equal(
+      await mockupFrame.locator('#downloadClient').evaluate(button => typeof button.onclick === 'function'),
+      true,
+      `Ciclo ${cycle}: handler download non ripristinato`,
+    );
+
+    await mockupFrame.locator('#front').evaluate(element => {
+      element.dataset.lifecycleClicks = '0';
+      element.addEventListener('click', () => {
+        element.dataset.lifecycleClicks = String(
+          Number(element.dataset.lifecycleClicks || 0) + 1,
+        );
+      }, { once: true });
+    });
+    await mockupFrame.getByRole('button', { name: 'Fronte', exact: true }).click();
+    assert.equal(
+      await mockupFrame.locator('#front').getAttribute('data-lifecycle-clicks'),
+      '1',
+      `Ciclo ${cycle}: il comando Fronte non attiva il controllo originale`,
+    );
+  }
+
   // Modello fisso: messaggio dello studio e nessuna scelta tra modelli.
   lifecycleStage = 'fixed model messaging';
   await reloadClient();
@@ -389,6 +431,34 @@ try {
   await reloadClient();
   await page.getByText(`Bozza · revisione ${confirmedRevision + 1}`, { exact: true }).waitFor();
   await page.getByText('Bozza salvata: puoi riprenderla quando vuoi oppure inviarla allo studio per la verifica.', { exact: true }).waitFor();
+
+  // Il layout mobile sposta i controlli del renderer nei portali del wizard:
+  // due aperture complete verificano che alla riapertura restino una sola
+  // copia, gli handler originali e il download ancora collegato.
+  lifecycleStage = 'mobile wizard close and reopen';
+  await page.evaluate(() => {
+    Object.defineProperty(window.screen, 'orientation', {
+      configurable: true,
+      value: {
+        type: 'landscape-primary',
+        angle: 90,
+        addEventListener() {},
+        removeEventListener() {},
+      },
+    });
+    window.dispatchEvent(new Event('orientationchange'));
+  });
+  for (let cycle = 1; cycle <= 2; cycle += 1) {
+    await page.getByRole('button', { name: /Apri mockup/ }).click();
+    await assertMobileWizardControls(cycle);
+    await page.getByRole('button', { name: 'Chiudi mockup', exact: true }).click();
+    await page.locator('iframe[title^="Configuratore 3D"]').waitFor({ state: 'detached' });
+    assert.equal(
+      await page.locator('iframe[title^="Configuratore 3D"]').count(),
+      0,
+      `Ciclo ${cycle}: il renderer non è stato rimosso alla chiusura`,
+    );
+  }
 
   // Blocco stampa: UI esplicitamente sola lettura e API di modifica rifiutata.
   lifecycleStage = 'print lock and read-only API';
