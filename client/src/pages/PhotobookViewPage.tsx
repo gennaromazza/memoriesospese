@@ -39,6 +39,11 @@ import PhotobookMarkCanvas, {
   hapticFeedback,
   type CanvasMark,
 } from '@/components/photobook/PhotobookMarkCanvas';
+import {
+  PhotobookEmptyState,
+  PhotobookErrorState,
+  PhotobookLoadingState,
+} from '@/components/photobook/PhotobookUiStates';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -340,7 +345,7 @@ export default function PhotobookViewPage() {
     noteTextareaRef.current?.blur();
   }, [isTouchPhone, isPortraitPhone, noteMode]);
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['/api/photobooks/by-token', token, selectedVersion],
     queryFn: () => getPhotobookByToken(token, selectedVersion ?? undefined),
     enabled: !!token,
@@ -357,7 +362,12 @@ export default function PhotobookViewPage() {
     return () => window.removeEventListener('beforeunload', warn);
   }, [drafts.size, activeMark]);
 
-  const { data: galleryData } = useQuery({
+  const {
+    data: galleryData,
+    isLoading: galleryLoading,
+    isError: galleryError,
+    refetch: refetchGallery,
+  } = useQuery({
     queryKey: ['/api/photobooks/by-token', token, 'gallery-photos'],
     queryFn: () => getPhotobookGalleryPhotosByToken(token),
     enabled: !!data,
@@ -737,25 +747,17 @@ export default function PhotobookViewPage() {
   };
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-stone-50">
-        <Loader2 className="h-8 w-8 animate-spin text-stone-400" />
-      </div>
-    );
+    return <div className="min-h-screen bg-stone-50 px-4 py-16"><PhotobookLoadingState label="Caricamento fotolibro…" /></div>;
   }
 
   if (isError || !data) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-stone-50 p-6">
-        <Card className="max-w-md w-full">
-          <CardContent className="py-10 text-center space-y-2">
-            <BookImage className="h-10 w-10 mx-auto text-stone-400" />
-            <h1 className="font-semibold text-lg">Fotolibro non trovato</h1>
-            <p className="text-sm text-muted-foreground">
-              Il link non è valido o è scaduto. Contatta il tuo fotografo.
-            </p>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-stone-50 px-4 py-16">
+        <PhotobookErrorState
+          title="Fotolibro non disponibile"
+          message={error instanceof Error && error.message ? error.message : 'Il link non è valido, è scaduto o il servizio non risponde.'}
+          onRetry={() => void refetch()}
+        />
       </div>
     );
   }
@@ -864,6 +866,12 @@ export default function PhotobookViewPage() {
           isTouchPhone ? 'px-1 py-1 space-y-1' : 'max-w-4xl px-2 sm:px-4 space-y-4 sm:space-y-6 py-4 sm:py-6'
         }`}
       >
+        {pages.length === 0 && (
+          <PhotobookEmptyState
+            title="Nessuna pagina disponibile"
+            message="Lo studio non ha ancora pubblicato le pagine di questa versione. Riprova più tardi o contatta il fotografo."
+          />
+        )}
         {!isTouchPhone && photobook.versions.length > 1 && <Card className="border-blue-200 bg-blue-50"><CardContent className="py-3 space-y-2 text-sm">
           <p className="font-semibold">{isCurrentVersion ? `Stai vedendo la versione aggiornata ${data.version}` : `Versione precedente ${data.version} · sola lettura`}</p>
           <p>Le versioni precedenti sono conservate. Scegli una versione dal menu in alto per confrontare le pagine; le nuove richieste si inviano solo sulla versione attuale.</p>
@@ -1384,7 +1392,11 @@ export default function PhotobookViewPage() {
               className="w-24 h-24 rounded-md object-cover border mx-auto"
             />
           )}
+          <label htmlFor="photobook-request-note" className="text-sm font-medium">
+            Nota per lo studio
+          </label>
           <Textarea
+            id="photobook-request-note"
             ref={noteTextareaRef}
             value={note}
             onChange={(e) => setNote(e.target.value)}
@@ -1527,7 +1539,7 @@ export default function PhotobookViewPage() {
 
       {/* Picker foto sostitutiva */}
       <PhotobookPhotoPicker
-        open={pickerOpen}
+        open={pickerOpen && !galleryLoading && !galleryError}
         onOpenChange={setPickerOpen}
         photos={photos}
         chapters={chapters}
@@ -1537,6 +1549,31 @@ export default function PhotobookViewPage() {
           setNoteMode('replace');
         }}
       />
+      {pickerOpen && galleryLoading && (
+        <Dialog open onOpenChange={setPickerOpen}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Caricamento galleria</DialogTitle>
+              <DialogDescription>Attendi il caricamento delle foto disponibili.</DialogDescription>
+            </DialogHeader>
+            <PhotobookLoadingState label="Caricamento foto…" />
+          </DialogContent>
+        </Dialog>
+      )}
+      {pickerOpen && galleryError && (
+        <Dialog open onOpenChange={setPickerOpen}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Galleria non disponibile</DialogTitle>
+            </DialogHeader>
+            <PhotobookErrorState
+              title="Non riesco a caricare le foto"
+              message="La galleria è temporaneamente non disponibile."
+              onRetry={() => void refetchGallery()}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Conferma invio */}
       <Dialog

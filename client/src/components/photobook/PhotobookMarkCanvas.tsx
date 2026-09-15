@@ -450,6 +450,8 @@ export default function PhotobookMarkCanvas({
         {farStrokeHint && (
           <div
             className="absolute inset-x-2 bottom-2 bg-amber-50/95 backdrop-blur-sm border border-amber-300 text-amber-900 rounded-md px-3 py-2 text-xs font-medium shadow-md text-center"
+            role="status"
+            aria-live="polite"
             data-testid="hint-far-stroke"
           >
             Hai già disegnato una X: confermala prima di segnarne un'altra.
@@ -478,6 +480,7 @@ export default function PhotobookMarkCanvas({
               onClick={clearPending}
               className="absolute top-2 right-2 flex items-center justify-center bg-white/90 backdrop-blur-sm rounded-full w-7 h-7 text-stone-500 shadow-md border"
               title="Esci dalla modalità disegno"
+              aria-label="Esci dalla modalità disegno"
               data-testid="button-deactivate-pen"
             >
               <XIcon className="h-4 w-4" />
@@ -489,7 +492,7 @@ export default function PhotobookMarkCanvas({
       {hasPending && (
         // Barra fissa in basso: resta visibile anche quando la pagina è più
         // alta dello schermo (es. telefono in orizzontale)
-        <div className="fixed inset-x-0 bottom-0 z-40 bg-white/95 backdrop-blur-sm border-t shadow-lg">
+        <div className="fixed inset-x-0 bottom-0 z-40 bg-white/95 backdrop-blur-sm border-t shadow-lg pb-[env(safe-area-inset-bottom)]" role="region" aria-label="Conferma segno">
           <div className="max-w-4xl mx-auto px-3 py-2.5 flex items-center gap-2 justify-end">
             <span
               className="inline-block w-3 h-3 rounded-full border shrink-0"

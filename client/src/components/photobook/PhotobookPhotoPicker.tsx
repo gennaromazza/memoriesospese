@@ -179,6 +179,7 @@ export default function PhotobookPhotoPicker({
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               ref={searchInputRef}
+              aria-label="Cerca foto per nome"
               placeholder="Cerca per nome file..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -188,7 +189,7 @@ export default function PhotobookPhotoPicker({
           </div>
           {chapters.length > 0 && (
             <Select value={chapterFilter} onValueChange={setChapterFilter}>
-              <SelectTrigger className="sm:w-56" data-testid="select-photo-chapter">
+              <SelectTrigger aria-label="Filtra foto per capitolo" className="sm:w-56 min-h-10" data-testid="select-photo-chapter">
                 <SelectValue placeholder="Tutti i capitoli" />
               </SelectTrigger>
               <SelectContent>
@@ -228,6 +229,8 @@ export default function PhotobookPhotoPicker({
                         ? 'border-primary ring-2 ring-primary/40'
                         : 'border-transparent hover:border-primary/60'
                     }`}
+                    aria-label={`Seleziona foto ${p.name}`}
+                    aria-pressed={currentPhotoId === p.id}
                     data-testid={`button-pick-photo-${p.id}`}
                   >
                     <PickerThumb photo={p} />

@@ -480,9 +480,18 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     : !saved.selection ? 'Associa un modello dalla scheda Modifica e salva prima di confermare.'
     : saved.status === 'confirmed' ? 'Questa revisione è già confermata. Puoi scaricare la conferma qui sotto.'
     : !ready || renderBusy ? 'Attendi il caricamento dell’anteprima prima di confermare.' : '';
-  if (token && state.isError) return compact ? <button className="text-xs underline" onClick={() => void state.refetch()}>Riprova a caricare l’album</button> : null;
+  if (token && state.isError) return compact
+    ? <button className="min-h-11 text-xs underline" onClick={() => void state.refetch()}>Riprova a caricare l’album</button>
+    : <section className="mockup-renderer-error" role="alert" data-testid="photobook-mockup-error">
+      <span className="mockup-card-kicker">ALBUM NON DISPONIBILE</span>
+      <h2>Non riesco a caricare il mockup</h2>
+      <p>La proposta potrebbe essere temporaneamente non disponibile. Le pagine del fotolibro non sono state modificate.</p>
+      <Button variant="outline" className="min-h-11" onClick={() => void state.refetch()}>Riprova</Button>
+    </section>;
   if (token && !state.data?.enabled) {
-    if (state.isLoading) return null;
+    if (state.isLoading) return compact
+      ? <span className="mockup-compact-pending" role="status">Caricamento mockup…</span>
+      : <section className="mockup-pending-card" role="status"><span className="mockup-card-kicker">CARICAMENTO</span><h2>Caricamento proposta album</h2><p>Stiamo verificando la proposta preparata dallo studio.</p></section>;
     return compact
       ? <span className="mockup-compact-pending">Mockup in preparazione</span>
       : <section className="mockup-pending-card" data-testid="photobook-mockup-pending" role="status"><span className="mockup-card-kicker">PROSSIMO PASSAGGIO</span><h2>Personalizzazione in preparazione</h2><p>Le pagine sono approvate. Lo studio sta preparando la proposta per l’album: riceverai un aggiornamento quando potrai personalizzare copertina, rivestimento e scritte.</p></section>;

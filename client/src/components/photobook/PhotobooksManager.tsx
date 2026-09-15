@@ -90,6 +90,12 @@ import {
   FileText,
 } from 'lucide-react';
 import PhotobookTutorial from '@/components/photobook/PhotobookTutorial';
+import {
+  CopyFeedbackButton,
+  PhotobookEmptyState,
+  PhotobookErrorState,
+  PhotobookLoadingState,
+} from '@/components/photobook/PhotobookUiStates';
 import LabFileUploader from '@/components/jobs/operativo/LabFileUploader';
 import type { Job } from '@shared/jobs-types';
 import {
@@ -158,7 +164,7 @@ export default function PhotobooksManager({
   >({});
   const [transferError, setTransferError] = useState<string | null>(null);
 
-  const { data: books = [], isLoading } = useQuery({
+  const { data: books = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['/api/photobooks'],
     queryFn: listPhotobooks,
   });
@@ -399,11 +405,6 @@ export default function PhotobooksManager({
     setNewGalleryId(selectPhotobookGalleryForJob(job, galleries, newGalleryId));
   };
 
-  const copyLink = (book: Photobook) => {
-    navigator.clipboard.writeText(photobookClientLink(book));
-    toast({ title: 'Link copiato', description: 'Invia questo link al cliente per la revisione.' });
-  };
-
   const filteredGalleries = galleries.filter((g) =>
     g.name.toLowerCase().includes(gallerySearch.trim().toLowerCase()),
   );
@@ -442,16 +443,11 @@ export default function PhotobooksManager({
       )}
 
       {isLoading ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
+        <PhotobookLoadingState label="Caricamento fotolibri…" />
+      ) : isError ? (
+        <PhotobookErrorState title="Fotolibri non disponibili" message="Non riesco a caricare l'elenco dei fotolibri." onRetry={() => void refetch()} />
       ) : books.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            <BookImage className="h-10 w-10 mx-auto mb-3 opacity-40" />
-            Nessun fotolibro ancora creato.
-          </CardContent>
-        </Card>
+        <PhotobookEmptyState title="Nessun fotolibro ancora creato" message="Crea il primo fotolibro per collegare una galleria e inviare le pagine al cliente." />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {books.map((book) => {
@@ -518,10 +514,7 @@ export default function PhotobooksManager({
                       <Pencil className="h-3.5 w-3.5 mr-1.5" />
                       Apri Editor
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => copyLink(book)}>
-                      <Copy className="h-3.5 w-3.5 mr-1.5" />
-                      Link Cliente
-                    </Button>
+                    <CopyFeedbackButton text={photobookClientLink(book)} label="Copia link cliente" />
                     <Button
                       size="sm"
                       variant="outline"
@@ -570,6 +563,7 @@ export default function PhotobooksManager({
                       size="sm"
                       variant="ghost"
                       className="text-destructive hover:text-destructive"
+                      aria-label={`Elimina fotolibro ${book.name}`}
                       onClick={() => setDeleteTarget(book)}
                       data-testid={`button-delete-photobook-${book.id}`}
                     >
@@ -973,7 +967,7 @@ export default function PhotobooksManager({
 function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book: Photobook }) {
   const { toast } = useToast();
   const [supplementalUploading, setSupplementalUploading] = useState(false);
-  const { data: shipment, isLoading } = useQuery<LabShipment>({
+  const { data: shipment, isLoading, isError, refetch } = useQuery<LabShipment>({
     queryKey: ['/api/lab-shipments', shipmentId],
     queryFn: () => getShipment(shipmentId),
     staleTime: 60 * 1000,
@@ -1014,6 +1008,17 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
       <div className="mt-3 rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground flex items-center gap-2">
         <Loader2 className="h-3.5 w-3.5 animate-spin" />
         Caricamento spedizione…
+      </div>
+    );
+  }
+  if (isError) {
+    return (
+      <div className="mt-3 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm" role="alert">
+        <p className="font-medium">Stato della spedizione non disponibile</p>
+        <p className="mt-1 text-muted-foreground">Il fotolibro resta in gestione, ma non riesco a leggere il trasferimento.</p>
+        <Button variant="outline" size="sm" className="mt-2 min-h-10" onClick={() => void refetch()}>
+          <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Riprova
+        </Button>
       </div>
     );
   }

@@ -9,6 +9,12 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import {
+  CopyFeedbackButton,
+  PhotobookEmptyState,
+  PhotobookErrorState,
+  PhotobookLoadingState,
+} from './PhotobookUiStates';
+import {
   listPhotobookChangeRequests,
   updatePhotobookChangeRequest,
   type PhotobookChangeRequest,
@@ -28,14 +34,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  Check,
   ChevronDown,
-  Copy,
-  Loader2,
   MessageSquareText,
   Replace,
   Trash2,
-  BookImage,
 } from 'lucide-react';
 
 const TYPE_LABEL: Record<string, string> = {
@@ -71,39 +73,6 @@ function requestLine(r: PhotobookChangeRequest): string {
   return `${base}${orig} → MODIFICA: ${r.note}`;
 }
 
-/** Pulsantino copia negli appunti con feedback ✓ per 1.5s. */
-function CopyNameButton({ text, testId }: { text: string; testId: string }) {
-  const [copied, setCopied] = useState(false);
-  const { toast } = useToast();
-  return (
-    <button
-      type="button"
-      onClick={async () => {
-        try {
-          await navigator.clipboard.writeText(text);
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1500);
-        } catch {
-          toast({
-            title: 'Copia non riuscita',
-            description: 'Copia il nome manualmente.',
-            variant: 'destructive',
-          });
-        }
-      }}
-      className="inline-flex items-center justify-center w-5 h-5 rounded border bg-white hover:bg-stone-50 text-stone-500 shrink-0 align-middle"
-      title={`Copia "${text}"`}
-      data-testid={testId}
-    >
-      {copied ? (
-        <Check className="h-3 w-3 text-green-600" />
-      ) : (
-        <Copy className="h-3 w-3" />
-      )}
-    </button>
-  );
-}
-
 export default function PhotobookChangesScreen() {
   const { toast } = useToast();
   const [statusFilter, setStatusFilter] = useState<'all' | PhotobookChangeRequestStatus>('pending');
@@ -117,7 +86,7 @@ export default function PhotobookChangesScreen() {
       return next;
     });
 
-  const { data: requests = [], isLoading } = useQuery({
+  const { data: requests = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['/api/photobooks/requests'],
     queryFn: listPhotobookChangeRequests,
     // Le richieste arrivano dai clienti in qualsiasi momento: niente cache
@@ -172,7 +141,7 @@ export default function PhotobookChangesScreen() {
 
   const copyList = (group: BookGroup, version: number) => {
     const pages = group.versions.get(version);
-    if (!pages) return;
+    if (!pages) return '';
     const lines: string[] = [
       `MODIFICHE FOTOLIBRO — ${group.photobookName} (v${version})`,
       `Cliente: ${group.clientName}${group.galleryName ? ` · Galleria: ${group.galleryName}` : ''}`,
@@ -184,8 +153,7 @@ export default function PhotobookChangesScreen() {
         lines.push(`- ${requestLine(r)}`);
       }
     }
-    navigator.clipboard.writeText(lines.join('\n'));
-    toast({ title: 'Elenco copiato', description: 'Incollalo dove preferisci (email, note, ecc.).' });
+    return lines.join('\n');
   };
 
   const typeIcon = (type: string) =>
@@ -203,8 +171,10 @@ export default function PhotobookChangesScreen() {
         <p className="text-sm text-muted-foreground">
           Richieste di modifica inviate dai clienti dalle pagine di revisione fotolibro.
         </p>
-        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
-          <SelectTrigger className="w-44" data-testid="select-status-filter">
+        <label className="flex items-center gap-2 text-sm font-medium">
+          <span>Stato richieste</span>
+          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
+          <SelectTrigger aria-label="Filtra richieste per stato" className="w-44" data-testid="select-status-filter">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -213,20 +183,19 @@ export default function PhotobookChangesScreen() {
             <SelectItem value="rejected">Rifiutate</SelectItem>
             <SelectItem value="all">Tutte</SelectItem>
           </SelectContent>
-        </Select>
+          </Select>
+        </label>
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
+        <PhotobookLoadingState label="Caricamento richieste…" />
+      ) : isError ? (
+        <PhotobookErrorState title="Richieste non disponibili" message="Non riesco a caricare le modifiche dei clienti." onRetry={() => void refetch()} />
       ) : groups.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            <BookImage className="h-10 w-10 mx-auto mb-3 opacity-40" />
-            Nessuna richiesta {statusFilter !== 'all' ? `(${STATUS_LABEL[statusFilter as PhotobookChangeRequestStatus].toLowerCase()})` : ''}.
-          </CardContent>
-        </Card>
+        <PhotobookEmptyState
+          title="Nessuna richiesta"
+          message={statusFilter !== 'all' ? `Non ci sono richieste ${STATUS_LABEL[statusFilter as PhotobookChangeRequestStatus].toLowerCase()}.` : 'Le richieste inviate dai clienti appariranno qui.'}
+        />
       ) : (
         groups.map((group) => {
           const requestCount = Array.from(group.versions.values()).reduce(
@@ -273,10 +242,11 @@ export default function PhotobookChangesScreen() {
                     <div key={version} className="border rounded-md p-3 space-y-3">
                       <div className="flex items-center justify-between gap-2">
                         <Badge variant="secondary">Versione {version}</Badge>
-                        <Button size="sm" variant="outline" onClick={() => copyList(group, version)} data-testid={`button-copy-list-${group.key}-${version}`}>
-                          <Copy className="h-3.5 w-3.5 mr-1.5" />
-                          Copia elenco
-                        </Button>
+                        <CopyFeedbackButton
+                          text={copyList(group, version)}
+                          label="Copia elenco"
+                          testId={`button-copy-list-${group.key}-${version}`}
+                        />
                       </div>
 
                       {sortedPages.map((pn) => {
@@ -352,8 +322,9 @@ export default function PhotobookChangesScreen() {
                                 </div>
                                 {r.originalPhotoName && (
                                   <p className="text-xs text-muted-foreground break-all flex items-center gap-1.5 flex-wrap">
-                                    <CopyNameButton
+                                    <CopyFeedbackButton
                                       text={r.originalPhotoName}
+                                      label="Copia nome"
                                       testId={`button-copy-original-${r.id}`}
                                     />
                                     Foto: {r.originalPhotoName}
@@ -361,8 +332,9 @@ export default function PhotobookChangesScreen() {
                                 )}
                                 {r.replacementPhotoName && (
                                   <p className="text-xs text-muted-foreground break-all flex items-center gap-1.5 flex-wrap">
-                                    <CopyNameButton
+                                    <CopyFeedbackButton
                                       text={r.replacementPhotoName}
+                                      label="Copia nome"
                                       testId={`button-copy-replacement-${r.id}`}
                                     />
                                     Sostituire con: {r.replacementPhotoName}
@@ -376,7 +348,7 @@ export default function PhotobookChangesScreen() {
                                   statusMutation.mutate({ id: r.id, status: v as PhotobookChangeRequestStatus })
                                 }
                               >
-                                <SelectTrigger className="w-36 h-8 text-xs shrink-0" data-testid={`select-request-status-${r.id}`}>
+                                <SelectTrigger aria-label={`Stato richiesta per pagina ${r.pageNumber}`} disabled={statusMutation.isPending} className="w-36 h-10 text-xs shrink-0" data-testid={`select-request-status-${r.id}`}>
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>

@@ -7,6 +7,12 @@
 
 import { useRef, useState } from 'react';
 import PhotobookMockup from '@/components/photobook/PhotobookMockup';
+import {
+  CopyFeedbackButton,
+  PhotobookEmptyState,
+  PhotobookErrorState,
+  PhotobookLoadingState,
+} from '@/components/photobook/PhotobookUiStates';
 import { useParams, useLocation } from 'wouter';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
@@ -34,7 +40,6 @@ import {
 } from '@/components/ui/select';
 import {
   ArrowLeft,
-  Copy,
   Layers,
   Loader2,
   Trash2,
@@ -51,7 +56,7 @@ export default function PhotobookEditorPage() {
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
 
-  const { data: book, isLoading: bookLoading } = useQuery({
+  const { data: book, isLoading: bookLoading, isError: bookError, refetch: refetchBook } = useQuery({
     queryKey: ['/api/photobooks', id],
     queryFn: () => getPhotobook(id),
     enabled: !!id,
@@ -59,13 +64,13 @@ export default function PhotobookEditorPage() {
 
   const version = selectedVersion ?? book?.versions.filter(v => v.status === 'draft').at(-1)?.version ?? book?.currentVersion ?? 1;
 
-  const { data: pages = [], isLoading: pagesLoading } = useQuery({
+  const { data: pages = [], isLoading: pagesLoading, isError: pagesError, refetch: refetchPages } = useQuery({
     queryKey: ['/api/photobooks', id, 'pages', version],
     queryFn: () => listPhotobookPages(id, version),
     enabled: !!book,
   });
 
-  const { data: photos = [] } = useQuery({
+  const { data: photos = [], isError: photosError, refetch: refetchPhotos } = useQuery({
     queryKey: ['/api/photobooks', id, 'gallery-photos'],
     queryFn: () => listPhotobookGalleryPhotos(id),
     enabled: !!book,
@@ -153,19 +158,28 @@ export default function PhotobookEditorPage() {
     onSettled: () => { queryClient.invalidateQueries({ queryKey: ['/api/photobooks', id] }); queryClient.invalidateQueries({ queryKey: ['/api/photobooks'] }); },
   });
 
-  if (bookLoading || !book) {
+  if (bookLoading) {
+    return <div className="min-h-screen bg-muted/30 px-4 py-16"><PhotobookLoadingState label="Caricamento fotolibro…" /></div>;
+  }
+
+  if (bookError || !book) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        {bookLoading ? (
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        ) : (
-          <p className="text-muted-foreground">Fotolibro non trovato</p>
-        )}
+      <div className="min-h-screen bg-muted/30 px-4 py-16">
+        <PhotobookErrorState
+          title="Fotolibro non disponibile"
+          message="Controlla il link o riprova a caricare la scheda."
+          onRetry={() => void refetchBook()}
+        />
       </div>
     );
   }
 
-  const busy = !!uploadProgress || publishMutation.isPending;
+  const busy =
+    !!uploadProgress ||
+    publishMutation.isPending ||
+    newVersionMutation.isPending ||
+    setCurrentVersionMutation.isPending ||
+    deletePageMutation.isPending;
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -189,19 +203,20 @@ export default function PhotobookEditorPage() {
             <p className="text-xs text-muted-foreground truncate">
               {book.galleryName} {book.clientName ? `· ${book.clientName}` : ''} · {photos.length} foto in galleria
             </p>
+            {photosError && (
+              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-destructive" role="alert">
+                <span>Galleria non disponibile.</span>
+                <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => void refetchPhotos()}>
+                  Riprova
+                </Button>
+              </div>
+            )}
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              navigator.clipboard.writeText(photobookClientLink(book));
-              toast({ title: 'Link copiato', description: 'Invia questo link al cliente.' });
-            }}
-            data-testid="button-copy-client-link"
-          >
-            <Copy className="h-3.5 w-3.5 mr-1.5" />
-            Link Cliente
-          </Button>
+           <CopyFeedbackButton
+             text={photobookClientLink(book)}
+             label="Copia link cliente"
+             testId="button-copy-client-link"
+           />
         </div>
 
         {/* Barra versioni + upload */}
@@ -209,13 +224,13 @@ export default function PhotobookEditorPage() {
         <Card>
           <p className="px-4 pt-4 text-sm">1. Crea una nuova bozza. 2. Carica tutte le pagine e controllale. 3. Pubblica: solo allora il cliente vedrà la nuova versione e riceverà l’email.</p>
           <CardContent className="pt-4 flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Versione:</span>
+             <div className="flex items-center gap-2">
+               <label htmlFor="photobook-version" className="text-sm text-muted-foreground">Versione:</label>
               <Select
                 value={String(version)}
                 onValueChange={(v) => { if (!busy) setSelectedVersion(Number(v)); }}
               >
-                <SelectTrigger className="w-40" data-testid="select-version">
+                 <SelectTrigger id="photobook-version" aria-label="Versione da modificare" className="w-40" data-testid="select-version">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -275,7 +290,7 @@ export default function PhotobookEditorPage() {
               ) : (
                 <Upload className="h-4 w-4 mr-2" />
               )}
-              Carica pagine JPEG
+               Carica pagine
             </Button>
           </CardContent>
         </Card>
@@ -290,16 +305,12 @@ export default function PhotobookEditorPage() {
         )}
 
         {/* Griglia pagine */}
-        {pagesLoading ? (
-          <div className="flex justify-center py-12">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
+         {pagesLoading ? (
+           <PhotobookLoadingState label="Caricamento pagine…" />
+         ) : pagesError ? (
+           <PhotobookErrorState title="Pagine non disponibili" message="Non riesco a leggere questa versione." onRetry={() => void refetchPages()} />
         ) : pages.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center text-muted-foreground">
-              Nessuna pagina in questa versione. Carica i JPEG delle pagine del fotolibro.
-            </CardContent>
-          </Card>
+           <PhotobookEmptyState title="Nessuna pagina in questa versione" message="Carica le immagini delle pagine per preparare la revisione del cliente." />
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {pages.map((page) => (
@@ -319,7 +330,7 @@ export default function PhotobookEditorPage() {
                       size="sm"
                       variant="ghost"
                       className="text-destructive hover:text-destructive"
-                      title="Elimina pagina"
+                       aria-label={`Elimina pagina ${page.pageNumber}`}
                       disabled={deletePageMutation.isPending}
                       onClick={() => {
                         if (confirm(`Eliminare la pagina ${page.pageNumber}?`)) {
