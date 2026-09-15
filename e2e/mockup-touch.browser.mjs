@@ -133,6 +133,8 @@ vite=await createMockupHarnessServer(root,{define:{'import.meta.env.VITE_MOCKUP_
  const photoId='33333333-3333-4333-8333-333333333333';
  const photo=await sharp({create:{width:600,height:400,channels:3,background:'#ccbbaa'}}).png().toBuffer();
   let saved=null,locked=false;
+  const history=[];
+  const archiveSavedRevision=()=>{if(saved) history.unshift(structuredClone(saved));};
   let holdCustodiaRenderer=false;
  let draftSaveRequests=0;
  await page.route('**/api/**',route=>{
@@ -142,8 +144,9 @@ vite=await createMockupHarnessServer(root,{define:{'import.meta.env.VITE_MOCKUP_
    if(url.pathname.endsWith('/by-token/mockup-test-token')) return route.fulfill({json:{photobook:{id:'book',name:'Album test',currentVersion:1,approval:{version:1},versions:[{version:1,pageCount:0}],locked},version:1,pages:[],requests:[]}});
    if(url.pathname.endsWith('/gallery-photo')) return route.fulfill({json:{id:photoId,name:'Foto prova',source:'gallery',width:600,height:400}});
    if(url.pathname.includes('/photos/')) return route.fulfill({contentType:'image/png',body:photo});
-   if(url.pathname.endsWith('/submit')) {const data=mockupWorkflowInputSchema.parse(route.request().postDataJSON());assert.equal(data.revision,saved.revision);saved={...saved,revision:saved.revision+1,status:'submitted'};return route.fulfill({json:saved});}
-   if(route.request().method()==='PUT'){draftSaveRequests++;const data=route.request().postDataJSON();mockupConfigurationSchema.parse(data.configuration);mockupSelectionSchema.parse(data.selection);assert.equal(data.revision,saved?.revision||0);saved={version:1,status:'draft',updatedAt:new Date().toISOString(),...data,revision:(saved?.revision||0)+1};return route.fulfill({json:saved});}
+    if(url.pathname.endsWith('/history')) return route.fulfill({json:history});
+    if(url.pathname.endsWith('/submit')) {const data=mockupWorkflowInputSchema.parse(route.request().postDataJSON());assert.equal(data.revision,saved.revision);archiveSavedRevision();saved={...saved,revision:saved.revision+1,status:'submitted'};return route.fulfill({json:saved});}
+    if(route.request().method()==='PUT'){draftSaveRequests++;const data=route.request().postDataJSON();mockupConfigurationSchema.parse(data.configuration);mockupSelectionSchema.parse(data.selection);assert.equal(data.revision,saved?.revision||0);archiveSavedRevision();saved={version:1,status:'draft',updatedAt:new Date().toISOString(),...data,revision:(saved?.revision||0)+1};return route.fulfill({json:saved});}
    return route.fulfill({json:{version:1,enabled:true,editable:!locked,saved,offer}});
  });
  await page.route('**/test-photo.png',route=>route.fulfill({contentType:'image/png',body:photo}));
@@ -170,11 +173,11 @@ vite=await createMockupHarnessServer(root,{define:{'import.meta.env.VITE_MOCKUP_
  await page.setViewportSize({width:390,height:844});
  assert.equal(await page.getByTestId('mockup-rotate').count(),0,'I caroselli sono usabili anche in verticale');
  await page.setViewportSize({width:844,height:390});
-  await touch(chooser.getByRole('button',{name:'Modello successivo',exact:true}),'scorrimento modello Plaza');
-  await touch(chooser.getByRole('button',{name:'Scopri Plaza',exact:true}),'apertura esempi Plaza');
+  await touch(chooser.getByRole('button',{name:'Scegli Plaza',exact:true}),'scelta modello Plaza');
  assert.equal(await chooser.getAttribute('data-chooser-stage'),'styles');
  assert.equal(await page.locator('iframe').count(),0,'Le varianti sono statiche e non caricano il 3D');
   await touch(chooser.getByTestId('choose-mockup-example-plaque'),'scelta esempio Plaza');
+  await touch(chooser.getByRole('button',{name:'Continua',exact:true}),'conferma esempio Plaza');
  const frame=page.frameLocator('iframe');
  const tapFrameButton=async(selector='.wizard-primary') => {
     const nextButton=frame.getByRole('button',{name:'Avanti',exact:true});
@@ -333,11 +336,10 @@ vite=await createMockupHarnessServer(root,{define:{'import.meta.env.VITE_MOCKUP_
  assert.equal(saved.revision,3,'Nuova revisione dopo precedente invio, che ha creato la revisione 2');
  // Il cambio modello ritorna ai due caroselli, con renderer esistente nascosto fino alla scelta.
   await touch(page.getByRole('button',{name:'Cambia',exact:true}),'apertura cambio modello');
-  await touch(chooser.getByRole('button',{name:'Modello precedente',exact:true}),'scorrimento modello Custodia');
-  await touch(chooser.getByRole('button',{name:'Scopri Custodia',exact:true}),'apertura esempi Custodia');
+  await touch(chooser.getByRole('button',{name:'Scegli Custodia',exact:true}),'scelta modello Custodia');
  assert.equal(await chooser.getByTestId('choose-mockup-example-plaque').count(),0,'Nessuna incisione non supportata su Custodia');
-  await touch(chooser.getByRole('button',{name:'Esempio successivo',exact:true}),'scorrimento esempi Custodia');
   await touch(chooser.getByTestId('choose-mockup-example-full'),'scelta esempio Custodia');
+  await touch(chooser.getByRole('button',{name:'Continua',exact:true}),'conferma esempio Custodia');
  assert.equal(await page.locator('iframe').isVisible(),false,'Nascondere il renderer durante il cambio');
  releaseRenderer();
   await waitForRenderer(frame,'renderer Custodia pronto');
@@ -362,8 +364,7 @@ vite=await createMockupHarnessServer(root,{define:{'import.meta.env.VITE_MOCKUP_
   await withTimeout('conferma salvataggio Custodia',()=>frame.getByText('Mockup salvato.',{exact:false}).waitFor(),TOUCH_TIMEOUT_MS);
  assert.equal(saved.selection.modelId,offer.options[0].id,'La bozza salvata appartiene ancora a Custodia');
   await touch(page.getByRole('button',{name:'Cambia',exact:true}),'riapertura cambio modello');
-  await touch(chooser.getByRole('button',{name:'Modello successivo',exact:true}),'ritorno modello Plaza');
-  await touch(chooser.getByRole('button',{name:'Scopri Plaza',exact:true}),'riapertura esempi Plaza');
+  await touch(chooser.getByRole('button',{name:'Scegli Plaza',exact:true}),'ritorno modello Plaza');
   await touch(chooser.getByTestId('choose-mockup-example-plaque'),'ritorno esempio Plaza');
  assert.equal(await page.locator('iframe').isVisible(),false,'Nascondere il renderer Custodia durante il cambio inverso');
   await waitForRenderer(frame,'renderer girevole pronto dopo cambio inverso');
@@ -409,6 +410,18 @@ vite=await createMockupHarnessServer(root,{define:{'import.meta.env.VITE_MOCKUP_
   await waitForRenderer(frame,'renderer Custodia pronto dopo chiusura');
  assert.equal(await page.locator('iframe').getAttribute('title'),'Configuratore 3D Custodia');
  assert.equal(await frame.locator('#coverOptions select').inputValue(),'full','Il recupero ripristina la copertina Custodia');
+  // Lo storico è riservato allo studio: aprilo dopo il refresh e verifica che
+  // contenga solo le revisioni archiviate da salvataggi intenzionali.
+  await page.goto(`http://127.0.0.1:${port}/?admin=1`);
+  await touch(page.getByRole('button',{name:'Apri mockup Custodia',exact:true}),'apertura verifica storico');
+  await page.getByText('Revisioni, documenti e invio al laboratorio',{exact:true}).click();
+  await touch(page.getByRole('button',{name:'Storico revisioni',exact:true}),'apertura storico revisioni');
+  const historyEntries=page.locator('text=/^r\\d+ ·/');
+  await withTimeout('caricamento storico revisioni',()=>historyEntries.first().waitFor(),TOUCH_TIMEOUT_MS);
+  assert.equal(await historyEntries.count(),draftSaveRequests,'Lo storico contiene una voce per ogni salvataggio deliberato');
+  assert.deepEqual(await historyEntries.evaluateAll(entries=>entries.map(entry=>Number(entry.textContent.match(/^r(\\d+)/)[1]))),[3,2,1],'Lo storico contiene solo le revisioni salvate intenzionalmente');
+  assert.equal(saved.revision,revisionBeforeHistoryNavigation,'Aprire lo storico non crea una revisione');
+  assert.equal(draftSaveRequests,draftSaveRequestsBeforeHistoryNavigation,'Aprire lo storico non invia una PUT');
 
   await page.waitForTimeout(500);
   await tapCloseButton();
