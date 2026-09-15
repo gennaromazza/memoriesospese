@@ -526,27 +526,46 @@ export default function ConsultationTemplatesManager() {
         },
       );
 
-      if (!response.ok) {
-        const body = await response.text();
-        let message = "Upload fallito";
+      const contentType = response.headers.get("content-type") || "";
+      const responseBody = await response.text();
+      const parseJsonBody = () => {
+        if (!responseBody.trim()) return null;
         try {
-          const parsed = JSON.parse(body) as { error?: unknown; message?: unknown };
+          return JSON.parse(responseBody) as {
+            error?: unknown;
+            message?: unknown;
+            imageUrl?: unknown;
+          };
+        } catch {
+          return null;
+        }
+      };
+
+      if (!response.ok) {
+        let message = "Upload fallito";
+        const parsed = parseJsonBody();
+        if (parsed) {
           if (typeof parsed.error === "string") message = parsed.error;
           else if (typeof parsed.message === "string") message = parsed.message;
-        } catch {
-          if (body.trim()) message = body.trim();
+        } else if (responseBody.trim() && !contentType.includes("text/html")) {
+          message = responseBody.trim();
+        } else if (response.status === 404) {
+          message =
+            "Endpoint upload non disponibile. Aggiorna la pagina e riprova.";
+        } else {
+          message = `Il server non ha restituito una risposta API valida (HTTP ${response.status}).`;
         }
         throw new Error(message);
       }
 
-      const body = await response.text();
-      let data: { imageUrl?: unknown };
-      try {
-        data = JSON.parse(body) as { imageUrl?: unknown };
-      } catch {
-        throw new Error("Risposta upload non valida");
+      if (!contentType.includes("application/json")) {
+        throw new Error(
+          "Il server non ha restituito una risposta API valida. Aggiorna la pagina e riprova.",
+        );
       }
-      if (typeof data.imageUrl !== "string" || !data.imageUrl) {
+
+      const data = parseJsonBody();
+      if (typeof data?.imageUrl !== "string" || !data.imageUrl) {
         throw new Error("Risposta upload non valida");
       }
 
