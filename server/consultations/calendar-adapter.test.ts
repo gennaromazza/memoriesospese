@@ -26,6 +26,9 @@ vi.mock("../calendar-engine/google-sync", () => ({
 
 // Import AFTER the mock is registered.
 import {
+  consultationTemplateToAvailabilityConfig,
+  getConsultationMinLeadWorkingDays,
+  isConsultationDateTooSoon,
   getAllExistingEvents,
   getConsultationUnavailableDates,
 } from "./calendar-adapter";
@@ -109,6 +112,59 @@ function makeTemplate(
 // "now" = Monday 2026-06-15 09:00 Europe/Rome (07:00 UTC, CEST = UTC+2).
 const NOW = new Date("2026-06-15T07:00:00Z");
 
+describe("consultation lead configuration", () => {
+  it("uses preparation-only lead days", () => {
+    const config = consultationTemplateToAvailabilityConfig(
+      makeTemplate({ giorniPreparazione: 2 }),
+    );
+    expect(config.minLeadWorkingDays).toBe(2);
+  });
+
+  it("preserves legacy postproduction-only lead days", () => {
+    const config = consultationTemplateToAvailabilityConfig(
+      makeTemplate({ giorniPostproduzione: 3 }),
+    );
+    expect(config.minLeadWorkingDays).toBe(3);
+  });
+
+  it("uses the maximum positive lead when both fields are present", () => {
+    expect(
+      getConsultationMinLeadWorkingDays({
+        giorniPreparazione: 4,
+        giorniPostproduzione: 2,
+      }),
+    ).toBe(4);
+    expect(
+      getConsultationMinLeadWorkingDays({
+        giorniPreparazione: 1,
+        giorniPostproduzione: 5,
+      }),
+    ).toBe(5);
+    expect(
+      getConsultationMinLeadWorkingDays({
+        giorniPreparazione: 2,
+        giorniPostproduzione: 0,
+      }),
+    ).toBe(2);
+  });
+
+  it("shares the too-soon decision used by create and slot endpoints", () => {
+    const earliest = new Date("2026-06-18T00:00:00+02:00");
+    expect(
+      isConsultationDateTooSoon(
+        new Date("2026-06-17T00:00:00+02:00"),
+        earliest,
+      ),
+    ).toBe(true);
+    expect(
+      isConsultationDateTooSoon(
+        new Date("2026-06-18T00:00:00+02:00"),
+        earliest,
+      ),
+    ).toBe(false);
+  });
+});
+
 describe("getConsultationUnavailableDates", () => {
   beforeEach(() => {
     h.googleEvents = [];
@@ -149,6 +205,18 @@ describe("getConsultationUnavailableDates", () => {
     expect(result).toContain("2026-06-16"); // before earliest
     expect(result).toContain("2026-06-17"); // before earliest
     expect(result).not.toContain("2026-06-18"); // earliest bookable → available
+  });
+
+  it("marks days before the earliest-bookable date (preparation lead) as unavailable", async () => {
+    const result = await getConsultationUnavailableDates(
+      makeTemplate({ giorniPreparazione: 2 }),
+      "2026-06-16",
+      "2026-06-18",
+      makeEmptyDb(),
+    );
+    expect(result).toContain("2026-06-16");
+    expect(result).toContain("2026-06-17");
+    expect(result).not.toContain("2026-06-18");
   });
 
   it("blocks the day AFTER an all-day event when the template enables it", async () => {

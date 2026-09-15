@@ -38,7 +38,7 @@ export interface AvailabilityConfig {
   /**
    * Minimum lead time in WORKING days before a date is bookable.
    * Counting starts the day after "today" and skips Sundays and any day that
-   * has an all-day event (postproduction lead). Used by the consultation
+   * has an all-day event (preparation lead). Used by the consultation
    * "visione" flow. When 0/undefined the rule is disabled.
    */
   minLeadWorkingDays?: number;

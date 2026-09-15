@@ -128,7 +128,7 @@ export async function getAvailableSlotsForDate(
 
 /**
  * Compute the earliest bookable date (start of day, Europe/Rome) given a number
- * of postproduction lead WORKING days.
+ * of preparation lead WORKING days.
  *
  * Counting starts the day AFTER `now` and skips:
  *  - Sundays (Luxon weekday 7)
@@ -139,7 +139,7 @@ export async function getAvailableSlotsForDate(
  * and "today" is returned.
  *
  * @param now Reference "today"
- * @param leadWorkingDays Required postproduction working days
+ * @param leadWorkingDays Required preparation working days
  * @param allDayDates Set of "yyyy-MM-dd" (Europe/Rome) days with an all-day event
  * @returns DateTime at start of the earliest bookable day (Europe/Rome)
  */

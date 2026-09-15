@@ -28,8 +28,6 @@ import {
   getEventById,
   updateEvent,
 } from "./google-calendar.js";
-import multer from "multer";
-import { saveWithDownloadToken } from "./storage-download-url.js";
 import { runReminderCheck } from "./reminder-routes.js";
 import {
   CONSULTATION_TIME_ZONE,
@@ -39,6 +37,11 @@ import {
   validateConsultationSchedule,
 } from "./services/consultation-datetime.js";
 import { clearCalendarEventCache } from "./services/calendar-event-cache.js";
+import {
+  uploadTemplateImage,
+  saveTemplateImage,
+  TemplateImageUploadError,
+} from "./consultations/template-image-upload.js";
 
 const router = express.Router();
 
@@ -372,28 +375,6 @@ async function getConflictDetails(
     conflicts
   };
 }
-
-/**
- * Multer setup per upload immagini template
- */
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 5 * 1024 * 1024, // 5 MB max per immagine
-    files: 1,
-    fields: 0,
-    parts: 1,
-    fieldNestingDepth: 0,
-  } as NonNullable<multer.Options["limits"]> & { fieldNestingDepth: number },
-  fileFilter: (req, file, cb) => {
-    const allowedMimes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
-    if (allowedMimes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error("Solo immagini JPEG, PNG o WebP sono consentite"));
-    }
-  },
-});
 
 /**
  * ========================================
@@ -1756,7 +1737,12 @@ router.post("/v2/create", async (req, res) => {
     }
 
     // Step 3: Validate template via adapter
-    const { consultationTemplateToAvailabilityConfig, validateConsultationTemplate } = await import('./consultations/calendar-adapter.js');
+    const {
+      consultationTemplateToAvailabilityConfig,
+      validateConsultationTemplate,
+      getConsultationEarliestBookableDate,
+      isConsultationDateTooSoon,
+    } = await import('./consultations/calendar-adapter.js');
 
     if (!validateConsultationTemplate(template)) {
       return res.status(400).json({
@@ -1778,6 +1764,32 @@ router.post("/v2/create", async (req, res) => {
       return res.status(400).json({
         error: "Data o orario non validi",
         message: "Controlla data, ora di inizio e ora di fine.",
+      });
+    }
+
+    // Enforce lead time server-side as well: a direct POST must not be able
+    // to bypass the public availability calendar.
+    const earliest =
+      config.minLeadWorkingDays && config.minLeadWorkingDays > 0
+        ? await getConsultationEarliestBookableDate(
+            config,
+            DateTime.now().setZone(CONSULTATION_TIME_ZONE).toJSDate(),
+            db,
+          )
+        : null;
+    if (
+      earliest &&
+      isConsultationDateTooSoon(
+        dateObj.startOf("day").toJSDate(),
+        earliest.toJSDate(),
+      )
+    ) {
+      return res.status(422).json({
+        error: "Data troppo ravvicinata",
+        reason: "too-soon",
+        unavailableReason: "too-soon",
+        message:
+          "Questa data non è ancora prenotabile: è necessario lasciare tempo per la preparazione",
       });
     }
 
@@ -2803,7 +2815,7 @@ router.post(
   "/templates/:id/upload-image",
   authenticateFirebase,
   requireAdmin,
-  upload.single("image"),
+  uploadTemplateImage,
   async (req: AuthRequest, res) => {
     try {
       const { email } = req.user!;
@@ -2814,67 +2826,30 @@ router.post(
       }
 
       const { id } = req.params;
-
-      // Verifica template esistente
-      const template = await consultationService.getTemplateById(id);
-      if (!template) {
-        return res.status(404).json({ error: "Template non trovato" });
-      }
-
-      // Limite 10 immagini per template
-      const currentImages = template.imageUrls || [];
-      if (currentImages.length >= 10) {
-        return res.status(400).json({
-          error: "Limite raggiunto",
-          message: "Massimo 10 immagini per template",
-        });
-      }
-
-      if (!req.file) {
-        return res.status(400).json({ error: "Nessun file caricato" });
-      }
-
-      const bucket = storage.bucket();
-      const timestamp = Date.now();
-      const safeName = req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
-      const storagePath = `consultation-templates/${id}/${timestamp}_${safeName}`;
-
-      // ✅ URL stabile con firebaseStorageDownloadTokens: non dipende dalla
-      // chiave del service account (i signed URL diventano 403 se la chiave
-      // viene ruotata/revocata)
-      const signedUrl = await saveWithDownloadToken(
-        bucket,
-        storagePath,
-        req.file.buffer,
-        req.file.mimetype,
-        {
-          uploadedAt: new Date().toISOString(),
-          originalName: req.file.originalname,
-          templateId: id,
-        },
-      );
-
-      // Aggiorna template con nuovo URL
-      await consultationService.updateTemplate(id, {
-        imageUrls: [...currentImages, signedUrl],
+      const result = await saveTemplateImage(id, req.file, {
+        getTemplateById: consultationService.getTemplateById,
+        updateTemplate: consultationService.updateTemplate,
+        getBucket: () => storage.bucket(),
+        saveWithDownloadToken: async (bucket, path, buffer, contentType, metadata) =>
+          (await import("./storage-download-url.js")).saveWithDownloadToken(
+            bucket as any,
+            path,
+            buffer,
+            contentType,
+            metadata,
+          ),
       });
-
-      console.log(
-        `✅ Immagine caricata per template ${id}: ${req.file.originalname}`,
-      );
 
       res.json({
         message: "Immagine caricata con successo",
-        imageUrl: signedUrl,
+        imageUrl: result.imageUrl,
       });
     } catch (error: any) {
-      console.error(
-        "[POST /templates/:id/upload-image] Errore:",
-        error.message,
-      );
-
-      if (error.message.includes("Solo immagini")) {
-        return res.status(400).json({ error: error.message });
+      if (error instanceof TemplateImageUploadError && error.status < 500) {
+        return res.status(error.status).json({
+          error: error.message,
+          code: error.code,
+        });
       }
 
       res.status(500).json({ error: "Errore upload immagine" });
@@ -3352,8 +3327,15 @@ router.post("/v2/available-slots", async (req, res) => {
     }
 
     // Step 2: Import Calendar Engine modules
-    const { consultationTemplateToAvailabilityConfig, validateConsultationTemplate, getAllExistingEvents, getAllDayDatesInRange } = await import('./consultations/calendar-adapter.js');
-    const { getAvailableSlotsForDate, getUnavailabilityReason, computeEarliestBookableDate } = await import('./calendar-engine/index.js');
+    const {
+      consultationTemplateToAvailabilityConfig,
+      validateConsultationTemplate,
+      getAllExistingEvents,
+      getAllDayDatesInRange,
+      getConsultationEarliestBookableDate,
+      isConsultationDateTooSoon,
+    } = await import('./consultations/calendar-adapter.js');
+    const { getAvailableSlotsForDate, getUnavailabilityReason } = await import('./calendar-engine/index.js');
     // Step 3: Validate template
     if (!validateConsultationTemplate(template)) {
       return res.status(400).json({
@@ -3380,7 +3362,43 @@ router.post("/v2/available-slots", async (req, res) => {
     // (Google Calendar busy periods + Job/Booking Firestore bloccanti)
     const existingEvents = await getAllExistingEvents(dayStart, dayEnd, db);
 
-    // Step 7: Check for all-day closures
+    // Step 7: Apply the shared lead rule before checking other unavailability
+    // reasons, so every date before the earliest date consistently reports
+    // "too-soon".
+    if (config.minLeadWorkingDays && config.minLeadWorkingDays > 0) {
+      const nowRome = DateTime.now().setZone(CONSULTATION_TIME_ZONE);
+      const leadAllDayDates = await getAllDayDatesInRange(
+        nowRome.startOf("day").toJSDate(),
+        nowRome
+          .plus({ days: config.minLeadWorkingDays * 2 + 21 })
+          .endOf("day")
+          .toJSDate(),
+        db,
+      );
+      const earliest = await getConsultationEarliestBookableDate(
+        config,
+        nowRome.toJSDate(),
+        db,
+        leadAllDayDates,
+      );
+      if (
+        earliest &&
+        isConsultationDateTooSoon(
+          dateObj.startOf("day").toJSDate(),
+          earliest.toJSDate(),
+        )
+      ) {
+        return res.json({
+          date,
+          slots: [],
+          unavailableReason: "too-soon",
+          message:
+            "Questa data non è ancora prenotabile: è necessario lasciare tempo per la preparazione",
+        } as SlotsResponse);
+      }
+    }
+
+    // Step 8: Check for all-day closures
     // Lo studio è chiuso tutto il giorno se ESISTE un evento all-day, sia esso
     // un evento Google all-day OPPURE un Job all-day del CRM in stato bloccante.
     // Prima si controllava solo Google (hasAllDayEvent): i Job all-day la cui copia
@@ -3413,37 +3431,6 @@ router.post("/v2/available-slots", async (req, res) => {
           unavailableReason: 'day-after-all-day',
           message: 'Lo studio non è disponibile il giorno successivo a un evento che dura tutta la giornata'
         } as SlotsResponse);
-      }
-    }
-
-    // Step 7.6: Lead minimo di post-produzione (gg lavorativi, salta domeniche + giorni con all-day)
-    if (config.minLeadWorkingDays && config.minLeadWorkingDays > 0) {
-      const nowRome = DateTime.now().setZone("Europe/Rome");
-      const calendarDaysUntil = dateObj.startOf("day").diff(nowRome.startOf("day"), "days").days;
-      // Enforcement preciso solo quando la data è abbastanza vicina da poter essere bloccata dal lead
-      if (calendarDaysUntil <= config.minLeadWorkingDays + 14) {
-        const windowStart = nowRome.startOf("day").toJSDate();
-        const windowEnd = nowRome
-          .plus({ days: config.minLeadWorkingDays * 2 + 21 })
-          .endOf("day")
-          .toJSDate();
-        const leadAllDayDates = await getAllDayDatesInRange(windowStart, windowEnd, db);
-        const earliest = computeEarliestBookableDate(
-          nowRome.toJSDate(),
-          config.minLeadWorkingDays,
-          leadAllDayDates
-        );
-        if (dateObj.startOf("day") < earliest) {
-          console.log(
-            `[POST /v2/available-slots] 🚫 Data prima della prima prenotabile (${earliest.toFormat("yyyy-MM-dd")})`
-          );
-          return res.json({
-            date,
-            slots: [],
-            unavailableReason: 'too-soon',
-            message: 'Questa data non è ancora prenotabile: è necessario lasciare il tempo per la post-produzione'
-          } as SlotsResponse);
-        }
       }
     }
 

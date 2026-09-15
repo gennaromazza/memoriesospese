@@ -70,6 +70,8 @@ export function consultationTemplateToAvailabilityConfig(
     }
   }
   
+  const minLeadWorkingDays = getConsultationMinLeadWorkingDays(template);
+
   return {
     timezone: 'Europe/Rome',
     slotDurationMinutes: template.durataMinuti || 60,
@@ -78,12 +80,40 @@ export function consultationTemplateToAvailabilityConfig(
     excludedDates: [], // Consultations don't have specific excluded dates
     bufferBeforeMinutes: 0, // No buffer for consultations
     bufferAfterMinutes: 0,
-    // Auto-invito consulenza visione: lead postproduzione + blocco giorno dopo all-day
-    minLeadWorkingDays: template.giorniPostproduzione && template.giorniPostproduzione > 0
-      ? template.giorniPostproduzione
-      : undefined,
+    // Tempo necessario sia per la preparazione sia per la postproduzione.
+    // I template legacy valorizzano solo giorniPostproduzione.
+    minLeadWorkingDays: minLeadWorkingDays > 0 ? minLeadWorkingDays : undefined,
     blockDayAfterAllDayEvent: template.bloccaGiornoDopoEventoGiornataIntera === true
   };
+}
+
+/**
+ * Normalizza il lead effettivo della consulenza.
+ *
+ * I due campi sono indipendenti: un valore assente/zero in uno non deve
+ * annullare un valore positivo nell'altro.
+ */
+export function getConsultationMinLeadWorkingDays(
+  template: Pick<ConsultationTemplate, "giorniPreparazione" | "giorniPostproduzione">,
+): number {
+  const preparation = Number(template.giorniPreparazione);
+  const postproduction = Number(template.giorniPostproduzione);
+
+  return Math.max(
+    0,
+    Number.isFinite(preparation) ? preparation : 0,
+    Number.isFinite(postproduction) ? postproduction : 0,
+  );
+}
+
+export function isConsultationDateTooSoon(
+  requestedDate: Date,
+  earliestBookableDate: Date | null,
+): boolean {
+  return (
+    earliestBookableDate !== null &&
+    requestedDate.getTime() < earliestBookableDate.getTime()
+  );
 }
 
 /**
@@ -91,7 +121,7 @@ export function consultationTemplateToAvailabilityConfig(
  * all-day event in [rangeStart, rangeEnd]. Aggregates Google Calendar all-day
  * events and CRM all-day Jobs (consultations/bookings are never all-day).
  *
- * Used to compute the postproduction lead (which skips all-day days) and to
+ * Used to compute the preparation lead (which skips all-day days) and to
  * detect the day-after-all-day block.
  */
 export async function getAllDayDatesInRange(
@@ -125,15 +155,53 @@ export async function getAllDayDatesInRange(
 }
 
 /**
+ * Calcola la prima data prenotabile usando la stessa regola del Calendar
+ * Engine per tutti gli endpoint delle consulenze.
+ *
+ * `allDayDates` può essere passato quando il chiamante ha già caricato gli
+ * eventi (come il calendario mensile), evitando una seconda lettura.
+ */
+export async function getConsultationEarliestBookableDate(
+  config: AvailabilityConfig,
+  now: Date,
+  db: any,
+  allDayDates?: Set<string>,
+): Promise<import("luxon").DateTime | null> {
+  if (!config.minLeadWorkingDays || config.minLeadWorkingDays <= 0) {
+    return null;
+  }
+
+  const { DateTime } = await import("luxon");
+  const nowRome = DateTime.fromJSDate(now).setZone("Europe/Rome");
+  const dates =
+    allDayDates ??
+    (await getAllDayDatesInRange(
+      nowRome.startOf("day").toJSDate(),
+      nowRome
+        .plus({ days: config.minLeadWorkingDays * 2 + 21 })
+        .endOf("day")
+        .toJSDate(),
+      db,
+    ));
+  const { computeEarliestBookableDate } = await import("../calendar-engine/index.js");
+
+  return computeEarliestBookableDate(
+    nowRome.toJSDate(),
+    config.minLeadWorkingDays,
+    dates,
+  );
+}
+
+/**
  * Calcola, per un intervallo di date, quali giorni NON hanno alcuno slot consulenza
  * disponibile. Riusa la stessa logica del Calendar Engine V2 del singolo giorno
  * (POST /v2/available-slots) ma carica gli eventi Google + Firestore UNA sola volta
- * per l'intero intervallo (e per la finestra di lead post-produzione, se attiva),
+ * per l'intero intervallo (e per la finestra di lead, se attiva),
  * invece di una chiamata per giorno.
  *
  * Un giorno è considerato NON disponibile se:
  *  - è nel passato (prima di oggi, Europe/Rome);
- *  - cade prima della prima data prenotabile (lead di post-produzione);
+ *  - cade prima della prima data prenotabile (tempo di preparazione);
  *  - è il giorno successivo a un evento all-day (se il template lo blocca);
  *  - non produce alcuno slot: giorno chiuso, escluso, evento all-day (Google o Job
  *    CRM) che copre il giorno, oppure tutti gli slot già occupati (sold-out).
@@ -147,7 +215,7 @@ export async function getConsultationUnavailableDates(
   db: any
 ): Promise<string[]> {
   const { DateTime } = await import('luxon');
-  const { getAvailableSlotsForDate, computeEarliestBookableDate } = await import('../calendar-engine/index.js');
+  const { getAvailableSlotsForDate } = await import('../calendar-engine/index.js');
 
   const config = consultationTemplateToAvailabilityConfig(template);
 
@@ -160,7 +228,7 @@ export async function getConsultationUnavailableDates(
 
   // Finestra di fetch = unione di:
   //  - [rangeStart - 1 giorno, rangeEnd]  (il -1 serve alla regola "giorno dopo all-day")
-  //  - [oggi, oggi + lead*2 + 21]         (solo se è configurato un lead post-produzione)
+  //  - [oggi, oggi + lead*2 + 21]         (solo se è configurato un lead)
   let fetchStartDT = rangeStart.minus({ days: 1 });
   let fetchEndDT = rangeEnd;
   if (hasLead) {
@@ -187,10 +255,13 @@ export async function getConsultationUnavailableDates(
     }
   }
 
-  // Prima data prenotabile (lead post-produzione), se configurato
-  const earliest = hasLead
-    ? computeEarliestBookableDate(nowRome.toJSDate(), config.minLeadWorkingDays!, allDayDates)
-    : null;
+  // Prima data prenotabile: stessa regola condivisa dalle API slot e create.
+  const earliest = await getConsultationEarliestBookableDate(
+    config,
+    nowRome.toJSDate(),
+    db,
+    allDayDates,
+  );
 
   const unavailable: string[] = [];
   let day = rangeStart.startOf('day');
@@ -207,8 +278,11 @@ export async function getConsultationUnavailableDates(
       continue;
     }
 
-    // (b) Prima della prima data prenotabile (lead post-produzione)
-    if (earliest && day < earliest) {
+    // (b) Prima della prima data prenotabile (tempo di preparazione)
+    if (
+      earliest &&
+      isConsultationDateTooSoon(day.toJSDate(), earliest.toJSDate())
+    ) {
       unavailable.push(dayStr);
       day = day.plus({ days: 1 });
       continue;

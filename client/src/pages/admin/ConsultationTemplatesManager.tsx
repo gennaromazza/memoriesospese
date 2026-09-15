@@ -475,31 +475,42 @@ export default function ConsultationTemplatesManager() {
 
   // Image upload handlers
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.currentTarget;
     const file = e.target.files?.[0];
-    if (!file || !editingTemplate) return;
-
-    // Client validation
-    const currentImages = formData.imageUrls || [];
-    if (currentImages.length >= 10) {
-      toast({
-        variant: "destructive",
-        title: "Limite raggiunto",
-        description: "Massimo 10 immagini per template",
-      });
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast({
-        variant: "destructive",
-        title: "File troppo grande",
-        description: "Dimensione massima 5MB per immagine",
-      });
-      return;
-    }
-
-    setUploadingImage(true);
     try {
+      if (!file || !editingTemplate) return;
+
+      // Client validation (mirror the exact server MIME allow-list).
+      const currentImages = formData.imageUrls || [];
+      if (currentImages.length >= 10) {
+        toast({
+          variant: "destructive",
+          title: "Limite raggiunto",
+          description: "Massimo 10 immagini per template",
+        });
+        return;
+      }
+
+      const allowedMimes = new Set(["image/jpeg", "image/png", "image/webp"]);
+      if (!allowedMimes.has(file.type)) {
+        toast({
+          variant: "destructive",
+          title: "Formato non supportato",
+          description: "Sono consentiti solo file JPEG, PNG o WebP",
+        });
+        return;
+      }
+
+      if (file.size > 5 * 1024 * 1024) {
+        toast({
+          variant: "destructive",
+          title: "File troppo grande",
+          description: "Dimensione massima 5 MiB per immagine",
+        });
+        return;
+      }
+
+      setUploadingImage(true);
       const formDataUpload = new FormData();
       formDataUpload.append("image", file);
 
@@ -516,15 +527,32 @@ export default function ConsultationTemplatesManager() {
       );
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Upload fallito");
+        const body = await response.text();
+        let message = "Upload fallito";
+        try {
+          const parsed = JSON.parse(body) as { error?: unknown; message?: unknown };
+          if (typeof parsed.error === "string") message = parsed.error;
+          else if (typeof parsed.message === "string") message = parsed.message;
+        } catch {
+          if (body.trim()) message = body.trim();
+        }
+        throw new Error(message);
       }
 
-      const data = await response.json();
+      const body = await response.text();
+      let data: { imageUrl?: unknown };
+      try {
+        data = JSON.parse(body) as { imageUrl?: unknown };
+      } catch {
+        throw new Error("Risposta upload non valida");
+      }
+      if (typeof data.imageUrl !== "string" || !data.imageUrl) {
+        throw new Error("Risposta upload non valida");
+      }
 
       setFormData((prev) => ({
         ...prev,
-        imageUrls: [...(prev.imageUrls || []), data.imageUrl],
+        imageUrls: [...(prev.imageUrls || []), data.imageUrl as string],
       }));
 
       // Invalida cache template
@@ -535,9 +563,6 @@ export default function ConsultationTemplatesManager() {
         title: "Immagine caricata",
         description: "Immagine aggiunta con successo",
       });
-
-      // Reset input
-      e.target.value = "";
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : "Upload fallito";
@@ -548,6 +573,9 @@ export default function ConsultationTemplatesManager() {
       });
     } finally {
       setUploadingImage(false);
+      // Always clear the native input, including validation/network failures,
+      // so selecting the same file retries the upload.
+      input.value = "";
     }
   };
 
@@ -1437,7 +1465,7 @@ export default function ConsultationTemplatesManager() {
                   <div className="flex items-center gap-4">
                     <Input
                       type="file"
-                      accept="image/*"
+                       accept="image/jpeg,image/png,image/webp"
                       onChange={handleImageUpload}
                       disabled={uploadingImage || (formData.imageUrls?.length ?? 0) >= 10}
                       className="max-w-xs"
