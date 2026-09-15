@@ -1,0 +1,77 @@
+Questo codice GLSL/Three.js presenta 3 bug critici che possono causare errori di compilazione dello shader (GLSL compilation error) o comportamenti imprevisti.
+
+1. Dichiarazione delle estensioni GLSL (Crash su WebGL 1 / GLSL 100)
+Funzioni come textureSize, textureGrad, dFdx e dFdy richiedono GLSL 300 es (WebGL 2). Se il materiale usata GLSL 100 (default su vecchie versioni di Three.js o con MeshBasicMaterial/MeshStandardMaterial non convertiti), il compiler fallirà immediatamente.
+
+Soluzione: Assicurarsi che Three.js compili in GLSL 300 o aggiungere le estensioni standard (#extension GL_OES_standard_derivatives : enable).
+
+2. Variabili non definite nei frammenti di Three.js (vBumpMapUv e bumpMap)
+Nel blocco normal_fragment_maps, fai riferimento a vBumpMapUv e bumpMap. Tuttavia:
+
+Se il materiale usa una Normal Map (normalMap) e non una Bump Map (bumpMap), la variabile bumpMap e vBumpMapUv non esistono nello shader, generando un errore di sintassi (undeclared identifier).
+
+Nei frammenti standard di Three.js dedicati alle Normal Maps, le coordinate UV si chiamano solitamente vNormalMapUv o vUv.
+
+3. Mancata gestione del fallback per texture nulle
+Se sampleFabric viene eseguita quando map non è ancora caricata o è nulla, la chiamata a textureSize(fabric, 0) potrebbe causare comportamenti indefiniti su alcune GPU.
+
+Soluzione Corretta
+Ecco la versione corretta che previene i crash controllando il tipo di mappa e garantendo la compatibilità delle UV:
+
+JavaScript
+const fabricSamplingShader = `
+// Supporto per derivate se in GLSL 100
+#ifndef derivatesDefined
+  #extension GL_OES_standard_derivatives : enable
+#endif
+
+vec4 sampleFabric(sampler2D fabric, vec2 uv) {
+  vec2 dx = dFdx(uv);
+  vec2 dy = dFdy(uv);
+  vec2 textureSizeUv = vec2(textureSize(fabric, 0));
+  float footprint = max(length(dx * textureSizeUv), length(dy * textureSizeUv));
+  
+  float mipSmoothing = 1.0 + 1.2 * smoothstep(0.75, 3.0, footprint);
+  return textureGrad(fabric, uv, dx * mipSmoothing, dy * mipSmoothing);
+}
+`;
+
+export function installFabricSampling(material, THREE) {
+  material.onBeforeCompile = shader => {
+    // 1. Sostituzione campionamento Map principale
+    const mapFragment = THREE.ShaderChunk.map_fragment
+      .replace('texture2D( map, vMapUv )', 'sampleFabric(map, vMapUv)')
+      .replace('texture2D( map, vUv )', 'sampleFabric(map, vUv)');
+
+    // 2. Correzione sicura per Normal / Bump Maps
+    // Identifica la variabile UV corretta presente nel materiale
+    const normalUvVar = material.normalMap ? 'vNormalMapUv' : (material.bumpMap ? 'vBumpMapUv' : 'vUv');
+    const mapVar = material.normalMap ? 'normalMap' : 'bumpMap';
+
+    let normalFragment = THREE.ShaderChunk.normal_fragment_maps;
+    if (material.normalMap || material.bumpMap) {
+      normalFragment = normalFragment.replace(
+        'dHdxy_fwd(), faceDirection',
+        `dHdxy_fwd() * (1.0 - smoothstep(0.75, 2.5,
+          max(length(dFdx(${normalUvVar}) * vec2(textureSize(${mapVar}, 0))),
+              length(dFdy(${normalUvVar}) * vec2(textureSize(${mapVar}, 0)))))),
+         faceDirection`
+      );
+    }
+
+    // 3. Iniezione nello Shader
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>\n${fabricSamplingShader}`)
+      .replace('#include <map_fragment>', mapFragment)
+      .replace('#include <normal_fragment_maps>', normalFragment);
+  };
+
+  material.customProgramCacheKey = () => 'fabric-mirrored-mip-v7';
+  material.needsUpdate = true;
+}
+Come verificare il corretto funzionamento
+Verifica WebGL2: Assicurati che il tuo WebGLRenderer sia inizializzato su un canvas WebGL 2 (default nelle versioni recenti di Three.js).
+
+Verifica console: Controlla che la console sviluppatore non mostri errori di tipo gl.compileShader.
+
+Controllo visivo: Allontana la telecamera dall'oggetto con la texture tessuto per verificare l'assenza di effetto moiré o sfarfallio (aliasing).
