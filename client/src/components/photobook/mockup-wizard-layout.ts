@@ -80,7 +80,21 @@ export function installMockupWizard(doc: Document, mobile = false) {
     body[data-wizard] #wizard-slot .wizard-photo-actions {display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
     body[data-wizard] #wizard-slot .wizard-photo-actions button {flex:1}
     body[data-wizard] #wizard-slot p {margin:8px 0 12px}
-    @media(min-width:768px){body[data-wizard] main{grid-template-columns:minmax(0,1.4fr) minmax(300px,1fr);grid-template-rows:minmax(0,1fr)}body[data-wizard] aside{grid-row:1;grid-column:2;padding:22px}body[data-wizard] .workspace{grid-column:1}}
+     body[data-wizard] aside{background:#fff!important;border-left:1px solid #d9dfd8!important}
+     body[data-wizard] .panel-content{padding:0 5px 14px 0!important}
+     body[data-wizard] #wizard-slot{padding:12px 0 4px}
+     body[data-wizard] #wizard-slot h3{margin:0 0 7px!important;color:#263d3b;font:600 20px/1.15 Georgia,serif!important}
+     body[data-wizard] #wizard-slot>p{color:#71807b;font-size:12px!important;line-height:1.45}
+     body[data-wizard] .wizard-step-heading{color:#263d3b;border-bottom:1px solid #e1e6df}
+     body[data-wizard] .wizard-step-heading strong{font-weight:700}
+     body[data-wizard] .wizard-step-heading span{color:#335e56;font-weight:700;letter-spacing:.04em}
+     body[data-wizard] .wizard-cards button,body[data-wizard] .wizard-model{border:1px solid #d9dfd8;border-radius:10px;background:#fff;color:#263d3b;transition:border-color .15s,background .15s,box-shadow .15s}
+     body[data-wizard] .wizard-cards button:hover,body[data-wizard] .wizard-model:hover,body[data-wizard] .wizard-cards button[aria-pressed=true],body[data-wizard] .wizard-model[aria-pressed=true]{border-color:#335e56;background:#f3f5f0;box-shadow:0 0 0 2px #335e5618}
+     body[data-wizard] .wizard-photo-actions button,body[data-wizard] .download-bar #downloadClient{border:1px solid #d9dfd8;border-radius:9px;background:#fff;color:#335e56;font-weight:600}
+     body[data-wizard] .wizard-views{gap:3px!important;padding:4px;border:1px solid #ffffffb8;border-radius:12px;background:#fffffff0;box-shadow:0 8px 20px #263d3b18}
+     body[data-wizard] .wizard-views button{min-height:36px;border:0;border-radius:8px;color:#596b65;background:transparent;font-size:11px;font-weight:600}
+     body[data-wizard] .wizard-views button:hover{color:#234943;background:#eef2ed}
+     @media(min-width:768px){body[data-wizard] main{grid-template-columns:minmax(0,1.4fr) minmax(300px,1fr);grid-template-rows:minmax(0,1fr)}body[data-wizard] aside{grid-row:1;grid-column:2;padding:22px}body[data-wizard] .workspace{grid-column:1}}
     @media(max-width:767px) and (max-height:380px){body[data-wizard] main{grid-template-rows:minmax(100px,35%) minmax(0,1fr)}body[data-wizard] .wizard-views button:nth-child(3){display:none}}
   `;
   doc.head.append(style);
@@ -133,12 +147,14 @@ export function installMockupWizard(doc: Document, mobile = false) {
       body[data-wizard-mobile] .wizard-message {font-size:11px;margin:0 0 5px!important;max-height:40px;overflow:auto;overflow-wrap:anywhere}
       body[data-wizard-mobile] .wizard-unsaved {font-size:11px;display:block;margin-bottom:4px;color:#765f32}
       body[data-wizard-mobile] #wizard-controls-slot {position:absolute;inset:0;pointer-events:none}
-      body[data-wizard-mobile] .wizard-iconbar {position:absolute;bottom:5px;left:7px;right:7px;display:flex;gap:2px;pointer-events:auto;overflow-x:auto;scrollbar-width:none}
-      body[data-wizard-mobile] .wizard-iconbar button {flex-shrink:0}
-      body[data-wizard-mobile] .wizard-iconbar button, body[data-wizard-mobile] .wizard-help {position:relative;width:44px;height:44px;min-height:44px;padding:0!important;border:0!important;background:transparent;display:flex;align-items:center;justify-content:center;color:#29413f;isolation:isolate}
-      body[data-wizard-mobile] .wizard-iconbar button:before,body[data-wizard-mobile] .wizard-help:before {content:'';position:absolute;inset:5px;border:1px solid #c9d2cb;border-radius:5px;background:#faf8f3;z-index:-1}
-      body[data-wizard-mobile] .wizard-iconbar button span {position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
-      body[data-wizard-mobile] .wizard-help {position:absolute;right:5px;top:5px;pointer-events:auto}
+       body[data-wizard-mobile] .wizard-iconbar {position:absolute;bottom:10px;left:10px;right:10px;display:flex;gap:4px;padding:4px;border:1px solid #ffffffb8;border-radius:12px;background:#fffffff0;box-shadow:0 8px 20px #263d3b18;pointer-events:auto;overflow-x:auto;scrollbar-width:none}
+       body[data-wizard-mobile] .wizard-iconbar button {flex-shrink:0}
+       body[data-wizard-mobile] .wizard-iconbar button,body[data-wizard-mobile] .wizard-help {position:relative;width:auto;min-width:43px;height:38px;min-height:38px;gap:5px;padding:0 9px!important;border:0!important;border-radius:8px!important;background:transparent;display:flex;align-items:center;justify-content:center;color:#596b65;font-size:10px;font-weight:600;isolation:isolate}
+       body[data-wizard-mobile] .wizard-iconbar button:before,body[data-wizard-mobile] .wizard-help:before {display:none}
+       body[data-wizard-mobile] .wizard-iconbar button span {position:static;width:auto;height:auto;overflow:visible;clip-path:none}
+       body[data-wizard-mobile] .wizard-iconbar button:hover {background:#eef2ed}
+       body[data-wizard-mobile] .wizard-iconbar button b {font-size:11px}
+       body[data-wizard-mobile] .wizard-help {position:absolute;right:10px;top:10px;width:38px;min-width:38px;padding:0!important;background:#fffffff0;border:1px solid #d9dfd8!important;box-shadow:0 5px 14px #263d3b12;pointer-events:auto}
       body[data-wizard-mobile] .wizard-view-message {position:absolute;top:9px;left:10px;padding:4px 7px;font-size:11px;background:#faf8f3e8;border-radius:4px}
       body[data-wizard-mobile] .wizard-gesture-guide {pointer-events:auto;position:absolute;top:12px;left:12px;right:52px;max-width:300px;max-height:calc(100% - 65px);overflow:auto;background:#faf8f3;border:1px solid #c9d2cb;border-radius:10px;box-shadow:0 5px 25px #263c3325;padding:12px;color:#29413f;font-size:13px}
       body[data-wizard-mobile] .wizard-gesture-guide p {font-size:12px;line-height:1.6;margin:7px 0}
@@ -146,7 +162,7 @@ export function installMockupWizard(doc: Document, mobile = false) {
       body[data-wizard-mobile] .wizard-gesture-guide:after {content:'';display:block;clear:both}
       body[data-wizard-mobile] .download-bar {padding:4px 0;margin:0}
       body[data-wizard-mobile] .download-bar #downloadClient {background:transparent;color:#46666a;font-size:12px;text-align:left}
-      @media(max-height:270px){body[data-wizard-mobile] .wizard-nav button span{display:none}body[data-wizard-mobile] .wizard-gesture-guide{font-size:12px}}
+       @media(max-height:270px){body[data-wizard-mobile] .wizard-nav button span{display:none}body[data-wizard-mobile] .wizard-gesture-guide{font-size:12px}}
     `;
     doc.head.append(mobileStyle);
   }

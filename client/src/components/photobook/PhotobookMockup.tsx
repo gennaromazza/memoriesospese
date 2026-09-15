@@ -500,8 +500,12 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       {token && !mobile && <div className="mockup-progress shrink-0 border-b px-3 py-2" aria-live="polite"><p className="text-sm font-medium">Passaggio {activeStepIndex + 1} di {wizardSteps.length} · {activeStep.title}</p><div className="mt-2 flex gap-1" aria-hidden="true">{wizardSteps.map((item, index) => <span key={item.id} className={`h-1 flex-1 rounded ${index <= activeStepIndex ? 'bg-primary' : 'bg-muted'}`} />)}</div></div>}
       {mobile && choosing && state.data?.offer && <MockupModelChooser options={state.data.offer.options} initialOption={selectedOption} fixed={state.data.modelMode === 'fixed'} onChoose={chooseExample} onCancel={viewerStarted ? () => setChoosing(false) : undefined} />}
       <div style={mobile && choosing ? { display: 'none' } : undefined} className={token ? 'min-h-0 flex-1 flex flex-col overflow-hidden' : 'mockup-admin-body'} data-testid="mockup-dialog-body">
-      {!token && <div className="mockup-admin-panel" ref={setAdminSlot}>
-        <nav className="sticky top-0 z-10 bg-background flex flex-wrap gap-1 border-b pb-3" aria-label="Gestione proposta album">
+       {!token && <div className="mockup-admin-panel" ref={setAdminSlot}>
+         <div className="mockup-admin-panel-heading">
+           <div><span>Gestione studio</span><strong>Controllo proposta</strong></div>
+           <small>{title} · versione {version}</small>
+         </div>
+         <nav className="mockup-admin-tabs" aria-label="Gestione proposta album">
           {([['review', 'Verifica'], ['edit', 'Modifica'], ['offer', 'Modelli disponibili']] as const).map(([tab, label]) => <Button key={tab} size="sm" variant={adminTab === tab ? 'default' : 'outline'} aria-pressed={adminTab === tab} onClick={() => setAdminTab(tab)}>{label}</Button>)}
         </nav>
       </div>}
@@ -569,14 +573,14 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
           </>}
         </div>, wizard.actionsSlot)}
         {mobile && wizard && createPortal(<>
-          <div className="wizard-iconbar" aria-label="Comandi vista album">
-            <button aria-label="Fronte" onClick={() => viewAction('front')}><b aria-hidden="true">F</b></button>
-            <button aria-label="Retro" onClick={() => viewAction('back')}><b aria-hidden="true">R</b></button>
-            <button aria-label="Estrai o reinserisci album" onClick={() => viewAction('extract')}><LogOut size={17} /><span>Estrai</span></button>
-            {hasBoxGlassStep && <button aria-label="Avvia o ferma rotazione scrigno" onClick={() => viewAction('rotate')}><Rotate3D size={17} /></button>}
-            <button aria-label="Ingrandisci album" onClick={() => viewAction('plus')}><ZoomIn size={17} /><span>Zoom +</span></button>
-            <button aria-label="Riduci album" onClick={() => viewAction('minus')}><ZoomOut size={17} /><span>Zoom −</span></button>
-            <button aria-label="Reimposta vista" onClick={() => viewAction('reset')}><RotateCcw size={17} /><span>Reimposta</span></button>
+           <div className="wizard-iconbar" aria-label="Comandi vista album">
+             <button aria-label="Fronte" onClick={() => viewAction('front')}><b aria-hidden="true">F</b><span>Fronte</span></button>
+             <button aria-label="Retro" onClick={() => viewAction('back')}><b aria-hidden="true">R</b><span>Retro</span></button>
+             <button aria-label="Estrai o reinserisci album" onClick={() => viewAction('extract')}><LogOut size={17} /><span>Estrai</span></button>
+             {hasBoxGlassStep && <button aria-label="Avvia o ferma rotazione scrigno" onClick={() => viewAction('rotate')}><Rotate3D size={17} /><span>Ruota</span></button>}
+             <button aria-label="Ingrandisci album" onClick={() => viewAction('plus')}><ZoomIn size={17} /><span>Zoom +</span></button>
+             <button aria-label="Riduci album" onClick={() => viewAction('minus')}><ZoomOut size={17} /><span>Zoom −</span></button>
+             <button aria-label="Reimposta vista" onClick={() => viewAction('reset')}><RotateCcw size={17} /><span>Reset</span></button>
           </div>
           <button className="wizard-help" aria-label="Guida ai gesti" onClick={() => setGuideOpen(!guideOpen)}><HelpCircle size={18} /></button>
           {viewMessage && <span className="wizard-view-message" role="status">{viewMessage}</span>}

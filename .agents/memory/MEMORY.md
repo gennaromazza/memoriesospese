@@ -54,3 +54,4 @@
 - [Mockup renderer standalone tabs](mockup-renderer-standalone-tabs.md) — le tab interne devono funzionare nel renderer HTML standalone; il wizard può solo sincronizzarle.
 - [Mockup texture tiling](mockup-texture-tiling.md) — RepeatWrapping richiede bordi colore/height raccordati; mantenere invariata la scala fisica quando si rigenera un asset seamless.
 - [Validazione .replit protetto](dot-replit-validation.md) — sostituire `.replit` tramite file temporaneo completo e `verifyAndReplaceDotReplit`, mai con edit diretto.
+- [Stile nel renderer photobook](mockup-iframe-styling.md) — i controlli del wizard sono in iframe: il CSS va iniettato da installMockupWizard, non solo nella shell React.
