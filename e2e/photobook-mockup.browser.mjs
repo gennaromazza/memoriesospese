@@ -229,6 +229,29 @@ try{
    button.click();
   },label);
  }
+  async function assertAdminHierarchy() {
+    check('gerarchia pannello admin');
+    await page.locator('.mockup-admin-panel-heading strong').filter({hasText:'Controllo proposta'}).waitFor();
+    const metrics=await page.evaluate(()=>{
+      const panel=document.querySelector('.mockup-admin-panel')?.getBoundingClientRect();
+      const heading=document.querySelector('.mockup-admin-panel-heading')?.getBoundingClientRect();
+      const tabs=document.querySelector('.mockup-admin-tabs')?.getBoundingClientRect();
+      return {
+        panelWidth:panel?.width||0,
+        panelRight:panel?.right||0,
+        headingWidth:heading?.width||0,
+        tabsWidth:tabs?.width||0,
+        tabsRight:tabs?.right||0,
+        tabCount:document.querySelectorAll('.mockup-admin-tabs button').length,
+        viewportWidth:window.innerWidth,
+        horizontalOverflow:document.documentElement.scrollWidth>window.innerWidth,
+      };
+    });
+    assert.equal(metrics.tabCount,3,'Il pannello admin deve avere tre tab nominate');
+    assert.ok(metrics.panelWidth>0&&metrics.headingWidth>0&&metrics.tabsWidth>0,'Gerarchia admin non visibile');
+    assert.ok(metrics.tabsRight<=metrics.panelRight+1&&metrics.tabsRight<=metrics.viewportWidth+1,`Tab admin oltre il pannello o il viewport: ${JSON.stringify(metrics)}`);
+    assert.equal(metrics.horizontalOverflow,false,`Overflow orizzontale nel pannello admin: ${JSON.stringify(metrics)}`);
+  }
  async function open(query='?admin'){
    check(`navigazione ${query}`);
   await page.goto(`http://127.0.0.1:${port}/${query}`);
@@ -240,6 +263,7 @@ try{
   catch(error){console.error(await page.locator('body').innerText());console.error(await page.frameLocator('iframe').locator('body').innerText());throw error;}
   if(query.includes('admin')) {
    await page.getByRole('heading',{name:'Verifica proposta album',exact:true}).waitFor();
+    await assertAdminHierarchy();
    assert.equal(await page.getByLabel('Cosa deve correggere il cliente?').count(),0);
    const before=await domRect('iframe');
    await page.evaluate(()=>{const panel=document.querySelector('.mockup-admin-panel');if(panel)panel.scrollTop=panel.scrollHeight;});
