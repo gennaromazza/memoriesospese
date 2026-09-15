@@ -129,6 +129,10 @@ export function installMockupWizard(doc: Document, mobile = false) {
     mobileStyle.dataset.mockupWizardStyleKind = 'mobile';
     mobileStyle.textContent = `
        body[data-wizard-mobile] main {grid-template-columns:minmax(0,1fr) clamp(250px,42%,410px)!important;grid-template-rows:minmax(0,1fr)!important;height:100%!important;min-height:0!important;box-sizing:border-box}
+       @media (orientation: portrait) {
+         body[data-wizard-mobile] main {grid-template-columns:minmax(0,1fr)!important;grid-template-rows:minmax(220px,42%) minmax(0,1fr)!important}
+         body[data-wizard-mobile] aside {grid-column:1;grid-row:2;border-left:0;border-top:1px solid #d8ded7;padding:10px 12px 0!important}
+       }
       body[data-wizard-mobile][data-viewer-expanded=true] main {grid-template-columns:minmax(0,1fr)!important}
       body[data-wizard-mobile][data-viewer-expanded=true] aside {display:none!important}
       body[data-wizard-mobile] .wizard-validation {padding:8px;border-left:3px solid #b97422;background:#fff3dc;font-size:12px!important}

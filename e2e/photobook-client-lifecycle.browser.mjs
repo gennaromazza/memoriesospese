@@ -448,6 +448,9 @@ try {
     });
     window.dispatchEvent(new Event('orientationchange'));
   });
+  // Questo ciclo verifica il montaggio/smontaggio del wizard in landscape;
+  // il percorso portrait senza blocco di orientamento è coperto dal test touch.
+  await page.setViewportSize({ width: 844, height: 390 });
   for (let cycle = 1; cycle <= 2; cycle += 1) {
     await page.getByRole('button', { name: /Apri mockup/ }).click();
     await assertMobileWizardControls(cycle);

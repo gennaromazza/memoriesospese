@@ -163,16 +163,14 @@ vite=await createMockupHarnessServer(root,{define:{'import.meta.env.VITE_MOCKUP_
   releaseRotating=rotatingGate.release;
   await page.route('**/mockups/girevole-v4/viewer.js',async route=>{rotatingGate.start();await rotatingGate.promise;await route.continue();});
   await withTimeout('caricamento pagina cliente',()=>page.goto(`http://127.0.0.1:${port}/fotolibro/mockup-test-token`),30000);
-  await withTimeout('overlay orientamento iniziale',()=>page.getByTestId('overlay-rotate').waitFor(),TOUCH_TIMEOUT_MS);
- await page.setViewportSize({width:844,height:390});
-  await withTimeout('chiusura overlay orientamento',()=>page.getByTestId('overlay-rotate').waitFor({state:'hidden'}),TOUCH_TIMEOUT_MS);
+   await withTimeout('pagina cliente pronta in verticale',()=>page.getByRole('button',{name:'Crea album 3D',exact:true}).waitFor(),TOUCH_TIMEOUT_MS);
   await touch(page.getByRole('button',{name:'Crea album 3D',exact:true}),'apertura configuratore');
  const chooser=page.getByTestId('mockup-model-chooser');
   await withTimeout('apertura scelta modello',()=>chooser.waitFor(),TOUCH_TIMEOUT_MS);
  assert.equal(await page.locator('iframe').count(),0,'Il primo modello non deve partire prima della scelta');
  await page.setViewportSize({width:390,height:844});
  assert.equal(await page.getByTestId('mockup-rotate').count(),0,'I caroselli sono usabili anche in verticale');
- await page.setViewportSize({width:844,height:390});
+  await page.setViewportSize({width:844,height:390});
   await touch(chooser.getByRole('button',{name:'Scegli Plaza',exact:true}),'scelta modello Plaza');
  assert.equal(await chooser.getAttribute('data-chooser-stage'),'styles');
  assert.equal(await page.locator('iframe').count(),0,'Le varianti sono statiche e non caricano il 3D');
@@ -217,10 +215,15 @@ vite=await createMockupHarnessServer(root,{define:{'import.meta.env.VITE_MOCKUP_
   await waitForRenderer(frame,'renderer girevole pronto');
   await touch(frame.getByRole('button',{name:'Ho capito',exact:true}),'chiusura guida gestuale');
   await withTimeout('applicazione copertina iniziale',()=>page.waitForFunction(()=>document.querySelector('iframe')?.contentDocument.querySelector('#coverLayout')?.value==='plaque',{timeout:RENDERER_TIMEOUT_MS}),RENDERER_TIMEOUT_MS);
- await page.setViewportSize({width:390,height:844});
-  await withTimeout('overlay mobile dopo caricamento',()=>page.getByTestId('mockup-rotate').waitFor(),TOUCH_TIMEOUT_MS);
- await page.setViewportSize({width:844,height:390});
-  await withTimeout('overlay nascosto in orizzontale',()=>page.getByTestId('mockup-rotate').waitFor({state:'hidden'}),TOUCH_TIMEOUT_MS);
+  await page.setViewportSize({width:390,height:844});
+   await withTimeout('configuratore disponibile in verticale dopo caricamento',()=>frame.locator('body[data-wizard-mobile="true"]').waitFor(),TOUCH_TIMEOUT_MS);
+   assert.equal(await page.getByTestId('mockup-rotate').count(),0,'Il mockup non blocca il telefono in verticale');
+   const portraitStage=await frame.locator('.stage').boundingBox();
+   const portraitNext=await frame.getByRole('button',{name:'Avanti',exact:true}).boundingBox();
+   const portraitViewport=await page.locator('[data-mobile-mockup="true"]').boundingBox();
+   assert.ok(portraitStage && portraitStage.height>180,'In verticale l’anteprima 3D mantiene uno spazio utile');
+   assert.ok(portraitNext && portraitViewport && portraitNext.y>=portraitViewport.y && portraitNext.y+portraitNext.height<=portraitViewport.y+portraitViewport.height+1,'In verticale il pulsante Avanti resta raggiungibile');
+  await page.setViewportSize({width:844,height:390});
  // L'album mantiene l'intera altezza disponibile: comandi dentro il canvas, azioni nel pannello.
  for (const viewport of [{width:844,height:300},{width:667,height:280},{width:844,height:390}]) {
    await page.setViewportSize(viewport); await page.waitForTimeout(250);
@@ -300,10 +303,9 @@ vite=await createMockupHarnessServer(root,{define:{'import.meta.env.VITE_MOCKUP_
  await page.setViewportSize({width:390,height:844});
  assert.equal(await page.getByTestId('mockup-rotate').count(),0);
  assert.equal(await page.getByTestId('overlay-rotate').count(),0);
-  await touch(page.getByTestId('button-pick-photo-gallery-one'),'scelta foto dalla galleria');
-  await withTimeout('overlay mobile dopo galleria',()=>page.getByTestId('mockup-rotate').waitFor(),TOUCH_TIMEOUT_MS);
- await page.setViewportSize({width:844,height:390});
-  await withTimeout('overlay galleria nascosto',()=>page.getByTestId('mockup-rotate').waitFor({state:'hidden'}),TOUCH_TIMEOUT_MS);
+   await touch(page.getByTestId('button-pick-photo-gallery-one'),'scelta foto dalla galleria');
+   assert.equal(await page.getByTestId('mockup-rotate').count(),0,'La galleria non riattiva il blocco portrait');
+  await page.setViewportSize({width:844,height:390});
   await touch(frame.getByRole('button',{name:'Avanti',exact:true}),'passaggio riepilogo');
   await touch(frame.getByRole('button',{name:'Indietro',exact:true}),'ritorno dal riepilogo');
  assert.equal(await frame.locator('body').getAttribute('data-wizard-step'),'5','Si torna indietro dal riepilogo');

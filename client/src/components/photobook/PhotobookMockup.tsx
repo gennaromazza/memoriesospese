@@ -16,7 +16,7 @@ import MockupOfferEditor from './MockupOfferEditor';
 import { MOCKUP_RENDERERS, type MockupWizardStepDefinition } from '@shared/mockup-catalog';
 import type { MockupOption } from '@shared/mockup-workflow';
 import MockupModelChooser from './MockupModelChooser';
-import { ArrowLeft, ArrowRight, HelpCircle, Home, LogOut, Maximize, Minimize, Rotate3D, RotateCcw, Smartphone, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { ArrowLeft, ArrowRight, HelpCircle, Home, LogOut, Maximize, Minimize, Rotate3D, RotateCcw, X, ZoomIn, ZoomOut } from 'lucide-react';
 
 interface Props { photobookId: string; version: number; token?: string; readOnly?: boolean; summary?: boolean; compact?: boolean; onOpenChange?: (open: boolean) => void }
 type WizardStepId = MockupWizardStepDefinition['id'];
@@ -31,7 +31,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   const [askingChanges, setAskingChanges] = useState(false);
   const adminPanel = (content: ReactNode) => adminSlot ? createPortal(content, adminSlot) : null;
   useEffect(() => { onOpenChange?.(open); return () => onOpenChange?.(false); }, [open, onOpenChange]);
-  const { isPhone, isPortrait } = usePhoneOrientation();
+  const { isPhone } = usePhoneOrientation();
   const mobile = !!token && isPhone;
   const [choosing, setChoosing] = useState(false);
   const [viewerStarted, setViewerStarted] = useState(false);
@@ -507,16 +507,6 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
      {!compact && <div className="mockup-status-card" role="status" data-status={saved?.status || 'draft'}><div className="mockup-status-card-heading"><strong>{saved ? MOCKUP_STATUS_LABELS[saved.status || 'draft'] : fixedModel ? 'Modello scelto dallo studio' : 'Personalizzazione pronta'}</strong>{saved && <span>{` · revisione ${saved.revision}`}</span>}</div><p>{clientStatusMessage}</p>{fixedModel && !saved && <small>Il modello dell’album è già definito; puoi scegliere soltanto le sue personalizzazioni.</small>}</div>}
     <Dialog open={open} onOpenChange={next => { if (!next) closeConfigurator(); }}>
     <DialogContent ref={dialog} data-mockup-dialog="true" data-mobile-mockup={mobile ? 'true' : undefined} className="flex flex-col gap-0 p-0 sm:p-0 w-screen sm:w-[96vw] max-w-none sm:max-w-[1500px] h-[100dvh] sm:h-[94dvh] max-h-[100dvh] rounded-none sm:rounded-lg overflow-hidden [&>button]:hidden" onInteractOutside={event => event.preventDefault()}>
-      {mobile && isPortrait && !picker && !choosing && <div className="mockup-rotate" role="alert" data-testid="mockup-rotate">
-        <div className="mockup-rotate-card">
-          <span className="mockup-mobile-eyebrow">Configuratore album</span>
-          <div className="mockup-rotate-icon" aria-hidden="true"><Smartphone size={30} /><RotateCcw size={19} /></div>
-          <p className="mockup-rotate-title">Ruota il telefono</p>
-          <p className="mockup-rotate-copy">In orizzontale avrai spazio per vedere l’album, cambiare vista e personalizzare la copertina.</p>
-          <p className="mockup-rotate-note">Le tue scelte e la bozza restano conservate.</p>
-          <Button variant="outline" disabled={busy} onClick={closeConfigurator}>Chiudi mockup</Button>
-        </div>
-      </div>}
        <div className="mockup-header flex shrink-0 items-center justify-between gap-3 border-b p-3 sm:p-4">
          <div className={`min-w-0 ${mobile ? 'mockup-mobile-title' : ''}`}>
            {mobile && !choosing && <span className="mockup-mobile-eyebrow">Configuratore album</span>}
