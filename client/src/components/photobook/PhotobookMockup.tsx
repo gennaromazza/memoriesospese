@@ -16,7 +16,7 @@ import MockupOfferEditor from './MockupOfferEditor';
 import { MOCKUP_RENDERERS, type MockupWizardStepDefinition } from '@shared/mockup-catalog';
 import type { MockupOption } from '@shared/mockup-workflow';
 import MockupModelChooser from './MockupModelChooser';
-import { ArrowLeft, ArrowRight, HelpCircle, Home, LogOut, Maximize, Minimize, Rotate3D, RotateCcw, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { ArrowLeft, ArrowRight, HelpCircle, Home, LogOut, Maximize, Minimize, Rotate3D, RotateCcw, Smartphone, X, ZoomIn, ZoomOut } from 'lucide-react';
 
 interface Props { photobookId: string; version: number; token?: string; readOnly?: boolean; summary?: boolean; compact?: boolean; onOpenChange?: (open: boolean) => void }
 type WizardStepId = MockupWizardStepDefinition['id'];
@@ -491,15 +491,29 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     {!compact && <div className={`rounded-md border p-3 text-sm ${saved?.status === 'changes_requested' ? 'border-amber-300 bg-amber-50 text-amber-950' : saved?.status === 'confirmed' ? 'border-green-300 bg-green-50 text-green-950' : 'border-muted bg-muted/40 text-muted-foreground'}`} role="status"><p className="font-medium">{saved ? `${MOCKUP_STATUS_LABELS[saved.status || 'draft']} · revisione ${saved.revision}` : fixedModel ? 'Modello scelto dallo studio' : 'Personalizzazione pronta'}</p><p className="mt-1">{clientStatusMessage}</p>{fixedModel && !saved && <p className="mt-1">Il modello dell’album è già definito; puoi scegliere soltanto le sue personalizzazioni.</p>}</div>}
     <Dialog open={open} onOpenChange={next => { if (!next) closeConfigurator(); }}>
     <DialogContent ref={dialog} data-mobile-mockup={mobile ? 'true' : undefined} className="flex flex-col gap-0 p-0 sm:p-0 w-screen sm:w-[96vw] max-w-none sm:max-w-[1500px] h-[100dvh] sm:h-[94dvh] max-h-[100dvh] rounded-none sm:rounded-lg overflow-hidden [&>button]:hidden" onInteractOutside={event => event.preventDefault()}>
-      {mobile && isPortrait && !picker && !choosing && <div className="mockup-rotate" role="alert" data-testid="mockup-rotate"><p>Ruota il telefono in orizzontale</p><p>Avrai più spazio per vedere l’album e personalizzarlo. Le tue scelte restano conservate.</p><Button disabled={busy} onClick={closeConfigurator}>Chiudi mockup</Button></div>}
-      <div className="mockup-header flex shrink-0 items-center justify-between gap-3 border-b p-3 sm:p-4">
-        <div className="min-w-0"><DialogTitle>{!token ? 'Verifica proposta album' : mobile ? choosing ? fixedModel ? 'Modello del tuo album' : 'Scegli il tuo album' : title : 'Personalizza il tuo album'}</DialogTitle><DialogDescription className={mobile ? 'sr-only' : undefined}>{title} · versione fotolibro {version}{!token && saved ? ` · revisione mockup ${saved.revision}` : ''}</DialogDescription></div>
+      {mobile && isPortrait && !picker && !choosing && <div className="mockup-rotate" role="alert" data-testid="mockup-rotate">
+        <div className="mockup-rotate-card">
+          <span className="mockup-mobile-eyebrow">Configuratore album</span>
+          <div className="mockup-rotate-icon" aria-hidden="true"><Smartphone size={30} /><RotateCcw size={19} /></div>
+          <p className="mockup-rotate-title">Ruota il telefono</p>
+          <p className="mockup-rotate-copy">In orizzontale avrai spazio per vedere l’album, cambiare vista e personalizzare la copertina.</p>
+          <p className="mockup-rotate-note">Le tue scelte e la bozza restano conservate.</p>
+          <Button variant="outline" disabled={busy} onClick={closeConfigurator}>Chiudi mockup</Button>
+        </div>
+      </div>}
+       <div className="mockup-header flex shrink-0 items-center justify-between gap-3 border-b p-3 sm:p-4">
+         <div className={`min-w-0 ${mobile ? 'mockup-mobile-title' : ''}`}>
+           {mobile && !choosing && <span className="mockup-mobile-eyebrow">Configuratore album</span>}
+           <DialogTitle>{!token ? 'Verifica proposta album' : mobile ? choosing ? fixedModel ? 'Modello del tuo album' : 'Scegli il tuo album' : title : 'Personalizza il tuo album'}</DialogTitle>
+           <DialogDescription className={mobile ? 'sr-only' : undefined}>{title} · versione fotolibro {version}{!token && saved ? ` · revisione mockup ${saved.revision}` : ''}</DialogDescription>
+           {mobile && !choosing && <div className="mockup-mobile-header-meta" aria-live="polite"><span>Passaggio {activeStepIndex + 1} di {wizardSteps.length}</span><span>{dirty ? 'Bozza da salvare' : saved ? MOCKUP_STATUS_LABELS[saved.status || 'draft'] : 'Bozza pronta'}</span></div>}
+         </div>
         {mobile && !choosing && <div className="mockup-header-links"><Button variant="ghost" disabled={!editable || busy || renderBusy || !ready || !state.data?.offer?.options.length} onClick={() => { setViewerExpanded(false); setChoosing(true); }}>{fixedModel ? 'Vedi modello' : 'Cambia'}</Button><Button variant="outline" aria-pressed={homeOpen} disabled={!ready || busy || renderBusy} onClick={() => { setViewerExpanded(false); setHomeOpen(!homeOpen); setGuideOpen(false); }}><Home size={15} />{homeOpen ? 'Solo album' : 'In casa'}</Button><Button variant="outline" aria-label={viewerExpanded ? 'Torna alle opzioni' : 'Espandi anteprima'} aria-pressed={viewerExpanded} disabled={!ready} onClick={() => { setViewerExpanded(!viewerExpanded); setGuideOpen(false); }}>{viewerExpanded ? <><Minimize size={15} /> Opzioni</> : <Maximize size={15} />}</Button></div>}
         <Button variant="outline" className={mobile ? 'mockup-close' : 'min-h-11'} aria-label={mobile ? 'Chiudi mockup' : undefined} disabled={busy} onClick={closeConfigurator}>{mobile ? <X size={18} /> : 'Chiudi'}</Button>
       </div>
       {token && !mobile && <div className="mockup-progress shrink-0 border-b px-3 py-2" aria-live="polite"><p className="text-sm font-medium">Passaggio {activeStepIndex + 1} di {wizardSteps.length} · {activeStep.title}</p><div className="mt-2 flex gap-1" aria-hidden="true">{wizardSteps.map((item, index) => <span key={item.id} className={`h-1 flex-1 rounded ${index <= activeStepIndex ? 'bg-primary' : 'bg-muted'}`} />)}</div></div>}
       {mobile && choosing && state.data?.offer && <MockupModelChooser options={state.data.offer.options} initialOption={selectedOption} fixed={state.data.modelMode === 'fixed'} onChoose={chooseExample} onCancel={viewerStarted ? () => setChoosing(false) : undefined} />}
-      <div style={mobile && choosing ? { display: 'none' } : undefined} className={token ? 'min-h-0 flex-1 flex flex-col overflow-hidden' : 'mockup-admin-body'} data-testid="mockup-dialog-body">
+       <div style={mobile && choosing ? { display: 'none' } : undefined} className={token ? 'mockup-mobile-body min-h-0 flex-1 flex flex-col overflow-hidden' : 'mockup-admin-body'} data-testid="mockup-dialog-body">
        {!token && <div className="mockup-admin-panel" ref={setAdminSlot}>
          <div className="mockup-admin-panel-heading">
            <div><span>Gestione studio</span><strong>Controllo proposta</strong></div>

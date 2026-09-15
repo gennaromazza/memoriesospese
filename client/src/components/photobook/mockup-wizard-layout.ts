@@ -108,10 +108,12 @@ export function installMockupWizard(doc: Document, mobile = false) {
       body[data-wizard-mobile][data-viewer-expanded=true] main {grid-template-columns:minmax(0,1fr)!important}
       body[data-wizard-mobile][data-viewer-expanded=true] aside {display:none!important}
       body[data-wizard-mobile] .wizard-validation {padding:8px;border-left:3px solid #b97422;background:#fff3dc;font-size:12px!important}
-      body[data-wizard-mobile] .workspace {grid-column:1;grid-row:1;display:block!important;overflow:hidden}
+       body[data-wizard-mobile] .workspace {grid-column:1;grid-row:1;display:block!important;overflow:hidden;position:relative;background:#edf1ec}
+       body[data-wizard-mobile] .workspace:before {content:'ANTEPRIMA LIVE  ·  trascina per ruotare';position:absolute;top:10px;left:12px;z-index:2;padding:5px 8px;border:1px solid #d9dfd8;border-radius:999px;background:#fffffff0;color:#335e56;font-size:9px;font-weight:800;letter-spacing:.08em;pointer-events:none}
       body[data-wizard-mobile] .stage {position:relative!important;min-height:0!important;height:100%!important}
-      body[data-wizard-mobile] aside {grid-column:2;grid-row:1;display:flex;flex-direction:column;padding:8px 10px 0!important;border-left:1px solid #d8ded7;overflow:hidden!important}
-      body[data-wizard-mobile] .panel-content {flex:1;min-height:0!important;max-height:none!important;scrollbar-gutter:auto;padding:0 3px 10px 0}
+       body[data-wizard-mobile] aside {grid-column:2;grid-row:1;display:flex;flex-direction:column;padding:12px 14px 0!important;border-left:1px solid #d8ded7;background:#fff!important;overflow:hidden!important}
+       body[data-wizard-mobile] aside:before {content:'CONFIGURA IL MODELLO';display:block;flex:0 0 auto;padding:0 0 8px;border-bottom:1px solid #e1e6df;color:#335e56;font-size:10px;font-weight:800;letter-spacing:.1em}
+       body[data-wizard-mobile] .panel-content {flex:1;min-height:0!important;max-height:none!important;scrollbar-gutter:auto;padding:0 3px 10px 0}
       body[data-wizard-mobile] .badge {display:none}
       body[data-wizard-mobile] button {font-size:13px}
       body[data-wizard-mobile] .wizard-cards {gap:6px;margin:6px 0}
@@ -135,8 +137,9 @@ export function installMockupWizard(doc: Document, mobile = false) {
        body[data-wizard][data-wizard-mobile][data-wizard-home="true"] :is(#fabricPanel,#detailPanel,#summaryPanel) {display:none!important}
       body[data-wizard-mobile] #summaryPanel>h2, body[data-wizard-mobile] #photoStatus {display:none}
       body[data-wizard-mobile] #engravingPreview {max-height:110px;object-fit:contain}
-      body[data-wizard-mobile] #wizard-actions-slot {flex-shrink:0;border-top:1px solid #d8ded7;background:#faf8f3;margin:0 -10px;padding:7px 10px}
-      body[data-wizard-mobile] .wizard-step-heading {display:flex;align-items:center;gap:8px;position:sticky;top:0;z-index:1;background:#faf8f3;padding:5px 0 9px;font-size:13px}
+       body[data-wizard-mobile] #wizard-actions-slot {flex-shrink:0;border-top:1px solid #d8ded7;background:#fbfaf6;margin:0 -14px;padding:8px 14px}
+       body[data-wizard-mobile] .wizard-mobile-actions {display:flex;flex-direction:column;gap:5px}
+       body[data-wizard-mobile] .wizard-step-heading {display:flex;align-items:center;gap:8px;position:sticky;top:0;z-index:1;background:#fff;padding:7px 0 10px;border-bottom:1px solid #e1e6df;font-size:13px}
       body[data-wizard-mobile] .wizard-step-heading span {font-size:11px;color:#657770}
       body[data-wizard-mobile] .wizard-nav {display:flex;gap:6px;justify-content:space-between}
       body[data-wizard-mobile] .wizard-nav button,body[data-wizard-mobile] .wizard-mobile-actions>button {display:flex;align-items:center;justify-content:center;gap:4px;min-height:44px;padding:7px 9px;border-radius:6px;font-size:12px;white-space:normal}
