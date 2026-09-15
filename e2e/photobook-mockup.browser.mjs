@@ -276,6 +276,43 @@ try{
  }
   phase('custodia: modifica iniziale, foto e download');
   let frame=await open();
+  if (process.env.MOCKUP_ADMIN_ONLY === '1') {
+    phase('admin: salvataggio, azioni di verifica e layout responsive');
+    await frame.getByRole('button',{name:'Dettagli',exact:true}).dispatchEvent('click');
+    await setFrameValue('#topText','Controllo admin');
+    await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(button=>button.textContent?.trim()==='Salva mockup'&&!button.disabled));
+    await page.getByRole('button',{name:'Salva mockup',exact:true}).dispatchEvent('click');
+    await page.getByText('Mockup salvato.',{exact:false}).waitFor();
+    assert.equal(saved.configuration.topText,'Controllo admin');
+    await page.getByRole('button',{name:'Verifica',exact:true}).dispatchEvent('click');
+    assert.equal(await page.getByRole('button',{name:'Conferma mockup',exact:true}).isVisible(),true);
+    assert.equal(await page.getByRole('button',{name:'Conferma mockup',exact:true}).isDisabled(),true);
+    await page.getByText('Associa un modello dalla scheda Modifica', {exact:false}).waitFor();
+    await page.setViewportSize({width:390,height:844});
+    frame=await open('?admin');
+    await assertAdminHierarchy();
+    const narrowMetrics=await page.evaluate(()=>{
+      const panel=document.querySelector('.mockup-admin-panel')?.getBoundingClientRect();
+      const tabs=document.querySelector('.mockup-admin-tabs')?.getBoundingClientRect();
+      return {
+        panelWidth:panel?.width||0,
+        tabsWidth:tabs?.width||0,
+        viewportWidth:window.innerWidth,
+        documentWidth:document.documentElement.scrollWidth,
+      };
+    });
+    assert.ok(narrowMetrics.panelWidth>0&&narrowMetrics.panelWidth<=narrowMetrics.viewportWidth+1,`Pannello admin non contenuto nel mobile: ${JSON.stringify(narrowMetrics)}`);
+    assert.ok(narrowMetrics.tabsWidth<=narrowMetrics.panelWidth+1,`Tab admin oltre il pannello mobile: ${JSON.stringify(narrowMetrics)}`);
+    await page.getByRole('button',{name:'Verifica',exact:true}).dispatchEvent('click');
+    await page.getByRole('button',{name:'Richiedi modifiche al cliente',exact:true}).dispatchEvent('click');
+    await page.getByLabel('Cosa deve correggere il cliente?').fill('Centra la foto');
+    assert.equal(await page.getByRole('button',{name:'Invia richiesta di modifiche',exact:true}).isEnabled(),true);
+    assert.deepEqual(errors,[]);
+    console.log('Browser OK: pannello admin verificato su desktop e mobile; salvataggio, stato conferma e richiesta modifiche disponibili.');
+    await browser?.close();
+    await vite.close();
+    process.exit(0);
+  }
  await frame.getByRole('button',{name:'Dettagli',exact:true}).dispatchEvent('click');
  await page.waitForFunction(()=>document.querySelector('iframe')?.contentDocument?.getElementById('topText')?.value==='Custodia test');
  assert.equal(await page.getByRole('button',{name:'Salva mockup'}).isDisabled(),true);
