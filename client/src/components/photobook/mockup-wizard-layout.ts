@@ -101,9 +101,19 @@ export function installMockupWizard(doc: Document, mobile = false) {
       body[data-wizard] #wizard-slot .wizard-summary-card>p{margin:0!important;color:#52645e;font-size:13px!important;line-height:1.5}
       body[data-wizard] #wizard-slot .wizard-summary-card .wizard-summary-status{padding:8px 10px!important;border-radius:8px;background:#e8f0eb;color:#335e56;font-size:11px!important;font-weight:700}
       body[data-wizard] #wizard-slot .wizard-summary-card .wizard-summary-note{color:#71807b;font-size:11px!important}
+      body[data-wizard] #wizard-slot .wizard-summary-card--readonly{border-color:#c8dbe4;background:linear-gradient(145deg,#eef6f8,#fbfaf6)}
+      body[data-wizard] #wizard-slot .wizard-summary-card--readonly .wizard-summary-status{background:#eef6f8;color:#526e79}
+      body[data-wizard] #wizard-slot .wizard-summary-details{display:flex;flex-direction:column;gap:7px;margin:3px 0 0}
+      body[data-wizard] #wizard-slot .wizard-summary-details div{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid #e1e6df;padding-bottom:7px}
+      body[data-wizard] #wizard-slot .wizard-summary-details dt{color:#71807b;font-size:10px;text-transform:uppercase}
+      body[data-wizard] #wizard-slot .wizard-summary-details dd{margin:0;color:#263d3b;font-size:11px;font-weight:700;text-align:right}
       body[data-wizard] #wizard-slot .wizard-summary-card details{margin-top:3px;border-top:1px solid #d9dfd8;padding-top:8px}
       body[data-wizard] #wizard-slot .wizard-summary-card details summary{min-height:36px;padding:7px 0;color:#335e56;font-size:12px;font-weight:700}
       body[data-wizard] #wizard-slot .wizard-summary-card details button{border:1px solid #b9cbc0;border-radius:8px;background:#fff;color:#335e56;font-weight:700}
+      body[data-wizard][data-wizard-readonly=true][data-wizard-panel=summary] .panel-content>section{display:none!important}
+      body[data-wizard][data-wizard-readonly=true][data-wizard-panel=summary] #wizard-slot{display:block!important}
+      body[data-wizard][data-wizard-readonly=true] .download-bar{display:block!important;margin-top:10px;border-top:1px solid #d9dfd8;padding-top:10px}
+      body[data-wizard][data-wizard-readonly=true] .download-bar #downloadClient{min-height:44px;background:#335e56;color:#fff}
      body[data-wizard] .wizard-views{gap:3px!important;padding:4px;border:1px solid #ffffffb8;border-radius:12px;background:#fffffff0;box-shadow:0 8px 20px #263d3b18}
      body[data-wizard] .wizard-views button{min-height:36px;border:0;border-radius:8px;color:#596b65;background:transparent;font-size:11px;font-weight:600}
      body[data-wizard] .wizard-views button:hover{color:#234943;background:#eef2ed}
@@ -139,6 +149,11 @@ export function installMockupWizard(doc: Document, mobile = false) {
        body[data-wizard-mobile] #wizard-slot .wizard-summary-card {gap:6px;padding:12px}
        body[data-wizard-mobile] #wizard-slot .wizard-summary-card h3 {font-size:18px!important}
        body[data-wizard-mobile] #wizard-slot .wizard-summary-card>p {font-size:12px!important}
+       body[data-wizard-mobile] .wizard-readonly-actions {display:flex;flex-direction:column;gap:7px;border-top:1px solid #d9dfd8;padding-top:8px}
+       body[data-wizard-mobile] .wizard-readonly-copy {display:flex;flex-direction:column;gap:2px;padding:2px 0;color:#52645e;font-size:11px}
+       body[data-wizard-mobile] .wizard-readonly-copy strong {color:#263d3b;font:600 17px/1.1 Georgia,serif}
+       body[data-wizard-mobile] .wizard-readonly-copy span {color:#335e56;font-size:9px;font-weight:800;letter-spacing:.12em}
+       body[data-wizard-mobile] .wizard-readonly-copy p {margin:0!important;font-size:11px!important}
       body[data-wizard-mobile] #wizard-slot p {font-size:13px;margin:6px 0}
       body[data-wizard-mobile] .materials {grid-template-columns:repeat(2,minmax(0,1fr))}
       body[data-wizard-mobile] #fabricPanel>h2 {display:none}
@@ -303,6 +318,7 @@ export function installMockupWizard(doc: Document, mobile = false) {
     delete doc.body.dataset.wizardHome;
     delete doc.body.dataset.wizardStep;
     delete doc.body.dataset.viewerExpanded;
+     delete doc.body.dataset.wizardReadonly;
     style.remove();
     mobileStyle?.remove();
   },
@@ -312,6 +328,7 @@ export function installMockupWizard(doc: Document, mobile = false) {
       refresh();
     },
     expanded(open: boolean) { doc.body.dataset.viewerExpanded = String(open); },
+    readOnly(value: boolean) { doc.body.dataset.wizardReadonly = String(value); },
     home(open: boolean) {
       if (!mobile) return;
       doc.body.dataset.wizardHome = String(open);

@@ -6,5 +6,6 @@ export const modules: ModuleMap = {
   "./components/mockups/photobook-chooser/Editorial.tsx": () => import("../components/mockups/photobook-chooser/Editorial.tsx"),
   "./components/mockups/photobook-chooser/MobileFirst.tsx": () => import("../components/mockups/photobook-chooser/MobileFirst.tsx"),
   "./components/mockups/photobook-configurator/AdminClarity.tsx": () => import("../components/mockups/photobook-configurator/AdminClarity.tsx"),
-  "./components/mockups/photobook-configurator/Current.tsx": () => import("../components/mockups/photobook-configurator/Current.tsx")
+  "./components/mockups/photobook-configurator/Current.tsx": () => import("../components/mockups/photobook-configurator/Current.tsx"),
+  "./components/mockups/photobook-flow/PhotobookFlowStates.tsx": () => import("../components/mockups/photobook-flow/PhotobookFlowStates.tsx")
 };

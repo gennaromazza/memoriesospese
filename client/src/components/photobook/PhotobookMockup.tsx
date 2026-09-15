@@ -178,6 +178,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   }, [ready, token, mobile]);
 
   useEffect(() => { wizard?.step(activeStep); }, [wizard, activeStep]);
+  useEffect(() => { wizard?.readOnly(!!token && !editable); }, [wizard, token, editable]);
   // Solo presentazione amministrativa: renderer e relativi handler restano gli stessi.
   useEffect(() => {
     const doc = frame.current?.contentDocument;
@@ -591,16 +592,31 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
             </>}
             {!mobile && isCoverStep && <><h3>{activeStep.title}</h3><p>{activeStep.description}</p>{draftCoverLayout !== 'plaque' ? <div className="wizard-photo-actions"><button disabled={!editable || busy || !ready || renderBusy} onClick={() => { setPhotoSide('front'); upload.current?.click(); }}>Carica una foto</button><button disabled={!editable || busy || !ready || renderBusy} onClick={() => { setPhotoSide('front'); setPicker(true); }}>Scegli dalla galleria</button></div> : <p>Le iniziali vengono create automaticamente dai nomi.</p>}{!configuration && editable && <p role="status">Per proseguire, aggiungi la foto richiesta dalla copertina.</p>}</>}
             {!mobile && isBoxGlassStep && <><h3>{activeStep.title}</h3><p>{activeStep.description}</p>{draftBackCover === 'photo' ? <div className="wizard-photo-actions"><button disabled={!editable || busy || !ready || renderBusy} onClick={() => { setPhotoSide('back'); upload.current?.click(); }}>Carica una foto</button><button disabled={!editable || busy || !ready || renderBusy} onClick={() => { setPhotoSide('back'); setPicker(true); }}>Scegli dalla galleria</button></div> : <p>Il plexiglass resta trasparente finché non scegli la stampa fotografica nel pannello a destra.</p>}{!photoStepValid && editable && <p role="status">Scegli una foto per continuare.</p>}</>}
-            {isSummaryStep && <section className="wizard-summary-card">{!mobile && <><span className="wizard-summary-kicker">ULTIMO PASSAGGIO</span><h3>Controlla e invia allo studio</h3><p>{title} · versione fotolibro {version}</p></>}{saved && <p className="wizard-summary-status">{MOCKUP_STATUS_LABELS[saved.status || 'draft']} · revisione {saved.revision}{saved.note && ` · ${saved.note}`}</p>}<p>{mobile ? 'Controlla le scelte qui sotto. L’invio non avvia la stampa.' : 'L’invio chiede la verifica allo studio: non manda l’album in stampa. Puoi creare altre revisioni finché lo studio non avvia la stampa.'}</p>{!mobile && <p className="wizard-summary-note">Materiali e proporzioni dell’anteprima sono indicativi.</p>}<details><summary>Recupera la proposta dello studio</summary><button disabled={busy} onClick={reloadWizard}>Ricarica proposta</button></details></section>}
+             {isSummaryStep && <section className={`wizard-summary-card ${!editable ? 'wizard-summary-card--readonly' : ''}`}>
+               <span className="wizard-summary-kicker">{!editable ? `REVISIONE ${saved?.revision || version} · CONSERVATA` : 'ULTIMO PASSAGGIO'}</span>
+               <h3>{!editable ? 'Consultazione' : 'Controlla e invia allo studio'}</h3>
+               <p>{title} · versione fotolibro {version}</p>
+               {saved && <p className="wizard-summary-status">{MOCKUP_STATUS_LABELS[saved.status || 'draft']} · revisione {saved.revision}{saved.note && ` · ${saved.note}`}</p>}
+               <p>{!editable ? 'Questa revisione è confermata e non può essere modificata. Puoi esplorare l’album e scaricare le viste.' : mobile ? 'Controlla le scelte qui sotto. L’invio non avvia la stampa.' : 'L’invio chiede la verifica allo studio: non manda l’album in stampa. Puoi creare altre revisioni finché lo studio non avvia la stampa.'}</p>
+               {!editable && saved && <dl className="wizard-summary-details">
+                 <div><dt>Modello</dt><dd>{saved.option?.name || title}</dd></div>
+                 <div><dt>Copertina</dt><dd>{saved.configuration?.coverLayout === 'plaque' ? 'Piastra con incisione' : saved.configuration?.coverLayout === 'photo-plaque' ? 'Foto formato piastra' : 'Foto a tutta copertina'}</dd></div>
+                 <div><dt>Stato</dt><dd>{MOCKUP_STATUS_LABELS[saved.status || 'draft']}</dd></div>
+               </dl>}
+               {!mobile && editable && <p className="wizard-summary-note">Materiali e proporzioni dell’anteprima sono indicativi.</p>}
+               {editable && <details><summary>Recupera la proposta dello studio</summary><button disabled={busy} onClick={reloadWizard}>Ricarica proposta</button></details>}
+             </section>}
         </>, wizard.slot)}
         {mobile && wizard && createPortal(<div className="wizard-mobile-actions">
           {message && <p role="status" className="wizard-message">{message}</p>}
           {!message && dirty && <span className="wizard-unsaved">Modifiche da salvare</span>}
-          {!editable && <span className="wizard-unsaved">Sola lettura</span>}
-          {homeOpen ? <button onClick={() => setHomeOpen(false)}><ArrowLeft size={15} /> Torna a personalizzare</button> : <>
-           <div className="wizard-nav"><button aria-label={activeStepIndex <= 1 && editable && state.data?.offer?.options.length ? 'Torna alla scelta modello' : 'Indietro'} disabled={busy || (activeStepIndex === 0 && (!editable || !state.data?.offer?.options.length))} onClick={previousStep}><ArrowLeft size={17} /><span>Indietro</span></button>{activeStepIndex < wizardSteps.length - 1 ? <button className="wizard-primary" disabled={!nextAllowed} onClick={() => setStep(wizardSteps[activeStepIndex + 1].id)}>Avanti <ArrowRight size={16} /></button> : <button className="wizard-primary" disabled={!editable || busy || renderBusy || !configuration || !selectedOption || (!dirty && ['submitted', 'confirmed'].includes(saved?.status || ''))} onClick={submitWizard}>Invia allo studio</button>}</div>
-           {isSummaryStep && <button className="wizard-save" disabled={!editable || busy || renderBusy || !configuration || !dirty || (!!state.data?.offer && !selectedOption)} onClick={save}>Salva bozza</button>}
-          </>}
+           {homeOpen ? <button onClick={() => setHomeOpen(false)}><ArrowLeft size={15} /> Torna a personalizzare</button> : !editable ? <div className="wizard-readonly-actions">
+             <div className="wizard-readonly-copy"><span>REVISIONE CONSERVATA</span><strong>Sola lettura</strong><p>Puoi esplorare l’album e scaricare le viste.</p></div>
+             <div className="wizard-nav"><button aria-label="Indietro" disabled={busy || activeStepIndex === 0} onClick={previousStep}><ArrowLeft size={17} /><span>Indietro</span></button></div>
+           </div> : <>
+             <div className="wizard-nav"><button aria-label={activeStepIndex <= 1 && editable && state.data?.offer?.options.length ? 'Torna alla scelta modello' : 'Indietro'} disabled={busy || (activeStepIndex === 0 && (!editable || !state.data?.offer?.options.length))} onClick={previousStep}><ArrowLeft size={17} /><span>Indietro</span></button>{activeStepIndex < wizardSteps.length - 1 ? <button className="wizard-primary" disabled={!nextAllowed} onClick={() => setStep(wizardSteps[activeStepIndex + 1].id)}>Avanti <ArrowRight size={16} /></button> : <button className="wizard-primary" disabled={!editable || busy || renderBusy || !configuration || !selectedOption || (!dirty && ['submitted', 'confirmed'].includes(saved?.status || ''))} onClick={submitWizard}>Invia allo studio</button>}</div>
+             {isSummaryStep && <button className="wizard-save" disabled={!editable || busy || renderBusy || !configuration || !dirty || (!!state.data?.offer && !selectedOption)} onClick={save}>Salva bozza</button>}
+           </>}
         </div>, wizard.actionsSlot)}
         {mobile && wizard && createPortal(<>
            <div className="wizard-iconbar" aria-label="Comandi vista album">
