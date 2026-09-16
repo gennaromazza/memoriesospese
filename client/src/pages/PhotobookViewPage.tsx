@@ -108,11 +108,20 @@ function PageLightbox({
   const dragRef = useRef<{ startX: number; startY: number; baseX: number; baseY: number } | null>(
     null,
   );
+  const pointersRef = useRef(new Map<number, { x: number; y: number }>());
+  const pinchStartRef = useRef<{
+    dist: number;
+    zoom: number;
+    mid: { x: number; y: number };
+    offset: { x: number; y: number };
+  } | null>(null);
   const page = pages[index];
 
   const resetView = () => {
     setZoom(1);
     setOffset({ x: 0, y: 0 });
+    pinchStartRef.current = null;
+    pointersRef.current.clear();
   };
   const goTo = (i: number) => {
     if (i < 0 || i >= pages.length) return;
@@ -202,32 +211,58 @@ function PageLightbox({
 
       {/* Area immagine */}
       <div
-        className="flex-1 min-h-0 overflow-hidden relative"
+        className="flex-1 min-h-0 overflow-hidden relative touch-none"
         onWheel={(e) => {
           e.preventDefault();
           applyZoom(zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15));
         }}
         onDoubleClick={() => applyZoom(zoom > 1 ? 1 : 2.5)}
         onPointerDown={(e) => {
-          if (zoom <= 1) return;
           (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
-          dragRef.current = {
-            startX: e.clientX,
-            startY: e.clientY,
-            baseX: offset.x,
-            baseY: offset.y,
-          };
+          pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+          if (pointersRef.current.size === 2) {
+            const [a, b] = Array.from(pointersRef.current.values());
+            pinchStartRef.current = {
+              dist: Math.hypot(a.x - b.x, a.y - b.y) || 1,
+              zoom,
+              mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+              offset: { ...offset },
+            };
+            dragRef.current = null;
+          } else if (pointersRef.current.size === 1) {
+            dragRef.current = {
+              startX: e.clientX,
+              startY: e.clientY,
+              baseX: offset.x,
+              baseY: offset.y,
+            };
+          }
         }}
         onPointerMove={(e) => {
+          if (pointersRef.current.has(e.pointerId)) {
+            pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+          }
+          if (pinchStartRef.current && pointersRef.current.size === 2) {
+            const [a, b] = Array.from(pointersRef.current.values());
+            const start = pinchStartRef.current;
+            const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+            const newZoom = clampZoom(start.zoom * (dist / start.dist));
+            setZoom(newZoom);
+            return;
+          }
           const d = dragRef.current;
           if (!d) return;
           setOffset({ x: d.baseX + (e.clientX - d.startX), y: d.baseY + (e.clientY - d.startY) });
         }}
-        onPointerUp={() => {
-          dragRef.current = null;
+        onPointerUp={(e) => {
+          pointersRef.current.delete(e.pointerId);
+          if (pointersRef.current.size < 2) pinchStartRef.current = null;
+          if (pointersRef.current.size === 0) dragRef.current = null;
         }}
-        onPointerCancel={() => {
-          dragRef.current = null;
+        onPointerCancel={(e) => {
+          pointersRef.current.delete(e.pointerId);
+          if (pointersRef.current.size < 2) pinchStartRef.current = null;
+          if (pointersRef.current.size === 0) dragRef.current = null;
         }}
         style={{ cursor: zoom > 1 ? (dragRef.current ? 'grabbing' : 'grab') : 'zoom-in' }}
       >
@@ -995,18 +1030,16 @@ export default function PhotobookViewPage() {
                 <p className="text-xs font-medium text-stone-500 uppercase tracking-wide">
                   Pagina {page.pageNumber}
                 </p>
-                {!isTouchPhone && (
-                  <button
-                    type="button"
-                    className="flex items-center gap-1 text-[11px] text-stone-500 hover:text-stone-800 rounded-md px-1.5 py-0.5 hover:bg-stone-100"
-                    title="Vedi a schermo intero (con zoom)"
-                    onClick={() => setLightboxIdx(pageIdx)}
-                    data-testid={`button-fullscreen-${page.id}`}
-                  >
-                    <Maximize2 className="h-3.5 w-3.5" />
-                    Schermo intero
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className="flex items-center gap-1 text-[11px] text-stone-500 hover:text-stone-800 rounded-md px-1.5 py-0.5 hover:bg-stone-100"
+                  title="Vedi a schermo intero (con zoom)"
+                  onClick={() => setLightboxIdx(pageIdx)}
+                  data-testid={`button-fullscreen-${page.id}`}
+                >
+                  <Maximize2 className="h-3.5 w-3.5" />
+                  Schermo intero
+                </button>
                 {pageSent.map((r) => (
                   <span
                     key={r.id}
@@ -1110,8 +1143,8 @@ export default function PhotobookViewPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Lightbox desktop: pagina a schermo intero con zoom e navigazione */}
-      {!isTouchPhone && lightboxIdx !== null && (
+      {/* Lightbox: pagina a schermo intero con zoom, pinch-to-zoom e navigazione */}
+      {lightboxIdx !== null && (
         <PageLightbox
           pages={pages}
           index={Math.min(lightboxIdx, pages.length - 1)}
