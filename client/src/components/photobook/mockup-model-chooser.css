@@ -50,8 +50,15 @@
   .mockup-chooser-carousel { padding-left: 14px; }
   .mockup-chooser-card { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; }
   .mockup-chooser-description { padding: 16px; }
-  .mockup-chooser-description h3, .mockup-chooser-model-name { font-size: 26px; }
-  .mockup-chooser-description p, .mockup-chooser-model-copy { font-size: 14px; }
-  .mockup-chooser-choose { margin-top: 12px; width: 100%; }
+  .mockup-chooser-description h3, .mockup-chooser-model-name { font-size: 24px; }
+  .mockup-chooser-description p, .mockup-chooser-model-copy { font-size: 13px; }
+  .mockup-chooser-choose { margin-top: 10px; width: 100%; }
   .mockup-chooser-navigation { gap: 8px; }
+}
+
+@media (orientation: portrait) and (max-height: 700px) {
+  .mockup-chooser-card { grid-template-rows: minmax(0, 180px) auto; }
+  .mockup-chooser-description { padding: 10px 12px; }
+  .mockup-chooser-description h3, .mockup-chooser-model-name { font-size: 19px; margin: 3px 0; }
+  .mockup-chooser-choose { margin-top: 6px; min-height: 40px; }
 }

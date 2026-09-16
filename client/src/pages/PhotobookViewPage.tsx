@@ -764,20 +764,6 @@ export default function PhotobookViewPage() {
 
   return (
     <div className={`min-h-screen bg-stone-50 ${isTouchPhone ? 'pb-2' : 'pb-28'}`}>
-      {/* Le pagine richiedono il telefono orizzontale; i modali di servizio
-          restano utilizzabili in entrambi gli orientamenti, senza perdere dati. */}
-      {isPortraitPhone && !mockupOpen && !helpOpen && !noteMode && !pickerOpen && !confirmOpen && !clearAllOpen && !jumpOpen && !activeMark && !approveOpen && !deleteSentTarget && createPortal(
-        <div
-          className="fixed inset-0 z-[200] bg-stone-100 flex flex-col items-center justify-center gap-4 p-8 text-center"
-          data-testid="overlay-rotate"
-        >
-          <Smartphone className="h-6 w-6 shrink-0 rotate-90" />
-          <p>
-            Ruota il telefono in orizzontale per visualizzare le pagine e personalizzare il tuo album.
-          </p>
-        </div>, document.body
-      )}
-
       {/* Header */}
       <header className="bg-white border-b sticky top-0 z-20">
         <div
@@ -864,6 +850,22 @@ export default function PhotobookViewPage() {
           isTouchPhone ? 'px-1 py-1 space-y-1' : 'max-w-4xl px-2 sm:px-4 space-y-4 sm:space-y-6 py-4 sm:py-6'
         }`}
       >
+        {isTouchPhone && isApproved && isCurrentVersion && (
+          <Card className="border-emerald-300 bg-emerald-50/80 shadow-sm mx-1 my-2" data-testid="card-photobook-mockup-mobile">
+            <CardContent className="p-3.5 flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                <h2 className="font-semibold text-stone-900 text-sm">Personalizza il tuo album in 3D</h2>
+              </div>
+              <p className="text-xs text-stone-600">
+                Pagine approvate! Ora puoi scegliere tessuti, colori, copertina e retro con anteprima interattiva.
+              </p>
+              <div className="pt-1">
+                <PhotobookMockup key={`mobile-main-${photobook.id}-${data.version}`} photobookId={photobook.id} version={data.version} token={token} readOnly={isLocked} onOpenChange={setMockupOpen} />
+              </div>
+            </CardContent>
+          </Card>
+        )}
         {!isTouchPhone && photobook.versions.length > 1 && <Card className="border-blue-200 bg-blue-50"><CardContent className="py-3 space-y-2 text-sm">
           <p className="font-semibold">{isCurrentVersion ? `Stai vedendo la versione aggiornata ${data.version}` : `Versione precedente ${data.version} · sola lettura`}</p>
           <p>Le versioni precedenti sono conservate. Scegli una versione dal menu in alto per confrontare le pagine; le nuove richieste si inviano solo sulla versione attuale.</p>

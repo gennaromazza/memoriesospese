@@ -1,211 +1,894 @@
-// Adattatore di sola presentazione per i renderer same-origin esistenti.
-// I controlli restano nel loro documento, con gli handler e gli ID originali.
+// Adattatore di presentazione Mobile-First per i visualizzatori 3D.
+// I controlli e gli eventi restano collegati al DOM del visualizzatore con gli handler originali.
+
 export function installMockupWizard(doc: Document, mobile = false) {
   const content = doc.querySelector<HTMLElement>('.panel-content');
   const stage = doc.querySelector<HTMLElement>('.stage');
   if (!content || !stage) throw new Error('Interfaccia del modello non disponibile');
-  const slot = doc.createElement('div'); slot.id = 'wizard-slot'; content.prepend(slot);
-  const actionsSlot = doc.createElement('div'); actionsSlot.id = 'wizard-actions-slot';
-  const controlsSlot = doc.createElement('div'); controlsSlot.id = 'wizard-controls-slot';
-  if (mobile) {
-    content.parentElement?.append(actionsSlot); stage.append(controlsSlot);
-    const download = doc.querySelector('.download-bar'); if (download) content.append(download);
-    // Il selettore nativo del file è nascosto anche quando i selettori CSS
-    // dello step rendono visibili i figli di Dettagli (Custodia usa CSS, non hidden).
-    for (const id of ['coverUpload', 'backUpload', 'restorePhoto', 'photoStatus']) {
-      const element = doc.getElementById(id); if (element) element.hidden = true;
-      const label = doc.querySelector<HTMLElement>(`label[for="${id}"]`); if (label) label.hidden = true;
-    }
+
+  const slot = doc.createElement('div');
+  slot.id = 'wizard-slot';
+  content.prepend(slot);
+
+  const actionsSlot = doc.createElement('div');
+  actionsSlot.id = 'wizard-actions-slot';
+
+  const controlsSlot = doc.createElement('div');
+  controlsSlot.id = 'wizard-controls-slot';
+
+  content.parentElement?.append(actionsSlot);
+  stage.append(controlsSlot);
+
+  const download = doc.querySelector('.download-bar');
+  if (download) content.append(download);
+
+  // Nasconde input file nativi
+  for (const id of ['coverUpload', 'backUpload', 'restorePhoto', 'photoStatus']) {
+    const element = doc.getElementById(id);
+    if (element) element.hidden = true;
+    const label = doc.querySelector<HTMLElement>(`label[for="${id}"]`);
+    if (label) label.hidden = true;
   }
+
   doc.body.dataset.wizard = 'true';
   if (mobile) doc.body.dataset.wizardMobile = 'true';
+
   const style = doc.createElement('style');
   style.textContent = `
-    body[data-wizard] {height:100dvh;overflow:hidden;font-size:16px}
-    body[data-wizard] header,body[data-wizard] aside>h1,body[data-wizard] aside>p,body[data-wizard] aside>nav,
-    body[data-wizard] .tools,body[data-wizard] .view-tools,body[data-wizard] .hint,body[data-wizard] .zoom {display:none!important}
-    body[data-wizard] main {display:grid!important;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(120px,40%) minmax(0,1fr);height:100%;min-height:0}
-    body[data-wizard] .workspace {grid-row:1;display:block;min-height:0}
-    body[data-wizard] .stage {height:100%;min-height:0;position:relative}
-    body[data-wizard] aside {grid-row:2;padding:14px;min-height:0;overflow:hidden;border:0}
-    body[data-wizard] .panel-content {max-height:none;min-height:0;overflow:auto;overscroll-behavior:contain;padding:0 4px 12px 0}
-    body[data-wizard] button,body[data-wizard] select,body[data-wizard] input:not([type=range]) {min-height:44px;font-size:16px}
-    body[data-wizard] input:not([type=range]):not([type=checkbox]) {width:100%}
-    body[data-wizard] .materials {grid-template-columns:repeat(3,minmax(0,1fr));max-height:none}
-    body[data-wizard] .materials button {font-size:13px;overflow-wrap:anywhere}
-    body[data-wizard] :is(.category,.material-category)>summary {cursor:default;list-style:none}
-    body[data-wizard] :is(.category,.material-category)>summary::-webkit-details-marker {display:none}
-    body[data-wizard] .badge {top:8px;left:10px;right:10px;font-size:11px}
-    body[data-wizard] .wizard-views {position:absolute;bottom:8px;left:8px;right:8px;display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
-    body[data-wizard] .wizard-views button {font-size:13px;padding:7px 10px;background:#faf8f3}
-    body[data-wizard][data-home-scene]:not([data-home-scene="none"]) .wizard-views {display:none}
-    body[data-wizard] .wizard-cards {display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
-    body[data-wizard] .wizard-cards button {flex:1 1 120px;text-align:left}
-    body[data-wizard] details>summary {min-height:44px;padding:12px 0;cursor:pointer}
-    body[data-wizard] .download-bar {display:none}
-    body[data-wizard][data-wizard-step="4"] .download-bar {display:block}
-    body[data-wizard] .panel-content>section {display:none!important}
+    /* BASE WIZARD - MOBILE-FIRST VERTICAL SPLIT */
+    body[data-wizard] {
+      margin: 0;
+      padding: 0;
+      height: 100vh !important;
+      height: 100dvh !important;
+      overflow: hidden !important;
+      font-family: system-ui, -apple-system, sans-serif;
+      color: #243d44;
+      background: #faf8f3;
+      font-size: 15px;
+    }
+    body[data-wizard] header,
+    body[data-wizard] aside > h1,
+    body[data-wizard] aside > p,
+    body[data-wizard] aside > nav,
+    body[data-wizard] .tools,
+    body[data-wizard] .view-tools,
+    body[data-wizard] .hint,
+    body[data-wizard] .zoom {
+      display: none !important;
+    }
+
+    body[data-wizard] main {
+      display: flex !important;
+      flex-direction: column !important;
+      height: 100vh !important;
+      height: 100dvh !important;
+      min-height: 0 !important;
+      overflow: hidden !important;
+      position: relative !important;
+    }
+
+    body[data-wizard] .workspace {
+      flex: 0 0 42dvh !important;
+      height: 42dvh !important;
+      min-height: 190px !important;
+      max-height: 46dvh !important;
+      width: 100% !important;
+      position: relative !important;
+      display: block !important;
+      background: #e9e8e0;
+      overflow: hidden !important;
+    }
+
+    body[data-wizard] .stage {
+      width: 100% !important;
+      height: 100% !important;
+      min-height: 0 !important;
+      position: relative !important;
+    }
+
+    body[data-wizard] canvas#viewport,
+    body[data-wizard] canvas {
+      width: 100% !important;
+      height: 100% !important;
+      display: block !important;
+      touch-action: pan-y pinch-zoom !important;
+    }
+
+    body[data-wizard] aside {
+      flex: 1 1 0% !important;
+      min-height: 0 !important;
+      display: flex !important;
+      flex-direction: column !important;
+      background: #faf8f3 !important;
+      border-top: 1px solid #d8ded7 !important;
+      border-left: 0 !important;
+      border-right: 0 !important;
+      padding: 10px 14px 0 !important;
+      overflow: hidden !important;
+    }
+
+    body[data-wizard] .panel-content {
+      flex: 1 1 0% !important;
+      min-height: 0 !important;
+      overflow-y: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+      overscroll-behavior: contain !important;
+      padding: 0 2px 14px 0 !important;
+    }
+
+    /* STEP VISIBILITY ORCHESTRATION */
+    body[data-wizard] .panel-content > section {
+      display: none !important;
+    }
+
+    /* Step 2: Tessuto (Collezione) & Step 3: Colore (Campioni) */
     body[data-wizard][data-wizard-step="2"] #fabricPanel,
-    body[data-wizard][data-wizard-step="2"] #detailPanel,
-    body[data-wizard][data-wizard-step="3"] #detailPanel,
-    body[data-wizard][data-wizard-step="4"] #summaryPanel {display:block!important}
-    body[data-wizard][data-wizard-step="2"] #detailPanel>*:not([data-wizard-material]),
-    body[data-wizard][data-wizard-step="3"] #detailPanel>[data-wizard-material] {display:none!important}
-    body[data-wizard][data-wizard-step="3"] #detailPanel>h2:first-child {display:none}
-    body[data-wizard] #wizard-home {display:none}
-    body[data-wizard][data-wizard-step="4"] #wizard-home {display:block}
-    body[data-wizard] #wizard-home section {display:block}
-    body[data-wizard] #wizard-slot h3 {font:500 20px Georgia,serif;margin:0 0 12px}
-    body[data-wizard] #wizard-slot .wizard-model {display:block;width:100%;margin:8px 0;text-align:left}
-    body[data-wizard] #wizard-slot .wizard-model small {display:block;margin-top:4px}
-    body[data-wizard] #wizard-slot .wizard-photo-actions {display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
-    body[data-wizard] #wizard-slot .wizard-photo-actions button {flex:1}
-    body[data-wizard] #wizard-slot p {margin:8px 0 12px}
-    @media(min-width:768px){body[data-wizard] main{grid-template-columns:minmax(0,1.4fr) minmax(300px,1fr);grid-template-rows:minmax(0,1fr)}body[data-wizard] aside{grid-row:1;grid-column:2;padding:22px}body[data-wizard] .workspace{grid-column:1}}
-    @media(max-width:767px) and (max-height:380px){body[data-wizard] main{grid-template-rows:minmax(100px,35%) minmax(0,1fr)}body[data-wizard] .wizard-views button:nth-child(3){display:none}}
+    body[data-wizard][data-wizard-step="3"] #fabricPanel {
+      display: block !important;
+    }
+
+    /* Step 4: Disposizione copertina */
+    body[data-wizard][data-wizard-step="4"] #detailPanel {
+      display: block !important;
+    }
+
+    /* Step 5: Personalizzazione copertina (Nomi o Foto) */
+    body[data-wizard][data-wizard-step="5"] #detailPanel {
+      display: block !important;
+    }
+
+    /* Step 6: Struttura & Retro scrigno */
+    body[data-wizard][data-wizard-step="6"] #detailPanel {
+      display: block !important;
+    }
+
+    /* Step 7: Riepilogo */
+    body[data-wizard][data-wizard-step="7"] #summaryPanel {
+      display: block !important;
+    }
+
+    /* Dettaglio filtri interni a #detailPanel */
+    body[data-wizard][data-wizard-step="4"] #detailPanel > * {
+      display: none !important;
+    }
+    body[data-wizard][data-wizard-step="4"] #detailPanel > [data-wizard-material]:not([hidden]) {
+      display: block !important;
+    }
+
+    body[data-wizard][data-wizard-step="5"] #detailPanel > * {
+      display: none !important;
+    }
+    body[data-wizard][data-wizard-step="5"] #detailPanel > #engravingControls:not([hidden]),
+    body[data-wizard][data-wizard-step="5"] #detailPanel > #photoControls:not([hidden]),
+    body[data-wizard][data-wizard-step="5"] #detailPanel > details[data-wizard-crop] {
+      display: block !important;
+    }
+
+    body[data-wizard][data-wizard-step="6"] #detailPanel > * {
+      display: none !important;
+    }
+    body[data-wizard][data-wizard-step="6"] #detailPanel > [data-wizard-frame]:not([hidden]),
+    body[data-wizard][data-wizard-step="6"] #detailPanel > [data-wizard-rear]:not([hidden]),
+    body[data-wizard][data-wizard-step="6"] #detailPanel > #backPhotoControls:not([hidden]),
+    body[data-wizard][data-wizard-step="6"] #detailPanel > details[data-wizard-crop-rear] {
+      display: block !important;
+    }
+
+    /* COMPONENTI DEL WIZARD */
+    body[data-wizard] #wizard-slot h3 {
+      font: 600 17px/1.3 Georgia, serif;
+      margin: 0 0 6px;
+      color: #243d44;
+    }
+    body[data-wizard] #wizard-slot p {
+      margin: 0 0 12px;
+      color: #5c6f68;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    body[data-wizard] .wizard-validation {
+      padding: 8px 12px;
+      border-left: 3px solid #b97422;
+      background: #fff3dc;
+      color: #7b4e12;
+      font-size: 12px !important;
+      border-radius: 0 6px 6px 0;
+      margin-bottom: 10px;
+    }
+
+    /* CARD DI SCELTA ATOMICA */
+    body[data-wizard] .wizard-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 8px;
+      margin: 10px 0 14px;
+    }
+    body[data-wizard] .wizard-cards button {
+      min-height: 52px;
+      padding: 10px 12px;
+      border: 1px solid #d2d9d4;
+      border-radius: 10px;
+      background: #ffffff;
+      color: #243d44;
+      font-size: 13px;
+      font-weight: 500;
+      text-align: left;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: all 0.15s ease;
+    }
+    body[data-wizard] .wizard-cards button:hover {
+      background: #f1f5f2;
+      border-color: #517b79;
+    }
+    body[data-wizard] .wizard-cards button[aria-pressed="true"] {
+      border: 2px solid #335e56;
+      background: #eaf1ef;
+      font-weight: 600;
+    }
+
+    /* FAMIGLIE TESSUTO (STEP 2) */
+    body[data-wizard] .wizard-family-selector {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      margin: 8px 0;
+    }
+    body[data-wizard] .wizard-family-card {
+      min-height: 58px;
+      padding: 12px 14px;
+      border: 1px solid #d2d9d4;
+      border-radius: 10px;
+      background: #ffffff;
+      color: #243d44;
+      text-align: left;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      transition: all 0.15s ease;
+    }
+    body[data-wizard] .wizard-family-card:hover {
+      border-color: #517b79;
+      background: #f4f7f5;
+    }
+    body[data-wizard] .wizard-family-card[aria-pressed="true"] {
+      border: 2px solid #335e56;
+      background: #eaf1ef;
+    }
+    body[data-wizard] .wizard-family-card strong {
+      display: block;
+      font-size: 14px;
+      color: #243d44;
+    }
+    body[data-wizard] .wizard-family-card span {
+      display: block;
+      font-size: 11px;
+      color: #637571;
+      margin-top: 2px;
+    }
+    body[data-wizard] .wizard-family-card .wizard-family-badge {
+      font-size: 11px;
+      font-weight: 600;
+      color: #335e56;
+      background: #dfece7;
+      padding: 4px 8px;
+      border-radius: 6px;
+      white-space: nowrap;
+    }
+
+    /* STEP 2 vs STEP 3 DIALOG */
+    body[data-wizard][data-wizard-step="2"] .wizard-family-selector {
+      display: grid !important;
+    }
+    body[data-wizard][data-wizard-step="2"] .material-category {
+      display: none !important;
+    }
+    body[data-wizard][data-wizard-step="3"] .wizard-family-selector {
+      display: none !important;
+    }
+    body[data-wizard][data-wizard-step="3"] .material-category {
+      display: none !important;
+      border: 0;
+      padding: 0;
+      margin: 0;
+    }
+    body[data-wizard][data-wizard-step="3"] .material-category[open] {
+      display: block !important;
+    }
+    body[data-wizard][data-wizard-step="3"] .material-category > summary {
+      display: none !important;
+    }
+
+    /* GRIGLIA COLORI (STEP 3) */
+    body[data-wizard] .materials {
+      display: grid !important;
+      grid-template-columns: repeat(auto-fill, minmax(95px, 1fr)) !important;
+      gap: 8px !important;
+      padding: 6px 0 !important;
+      max-height: none !important;
+    }
+    body[data-wizard] .materials button {
+      min-height: 70px;
+      padding: 6px;
+      border: 1px solid #d2d9d4;
+      border-radius: 8px;
+      background: #ffffff;
+      color: #243d44;
+      font-size: 11px;
+      text-align: center;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      overflow: hidden;
+      transition: all 0.15s ease;
+    }
+    body[data-wizard] .materials button:hover {
+      border-color: #517b79;
+    }
+    body[data-wizard] .materials button[aria-pressed="true"] {
+      border: 2px solid #335e56 !important;
+      background: #eaf1ef !important;
+      font-weight: 600;
+      box-shadow: 0 2px 8px rgba(51, 94, 86, 0.15);
+    }
+    body[data-wizard] .materials .swatch {
+      width: 100%;
+      height: 32px;
+      border-radius: 4px;
+      background-size: cover;
+      background-position: center;
+    }
+
+    /* CAMBIA COLLEZIONE BREADCRUMB */
+    body[data-wizard] .wizard-family-breadcrumb {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      padding: 7px 10px;
+      margin-bottom: 8px;
+      border: 1px dashed #b7c7be;
+      border-radius: 8px;
+      background: #f4f6f4;
+      color: #335e56;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    /* CONTROLLI INCISIONE E NOMI */
+    body[data-wizard] #engravingControls input,
+    body[data-wizard] input:not([type=range]):not([type=checkbox]) {
+      width: 100%;
+      min-height: 44px;
+      padding: 9px 12px;
+      border: 1px solid #becbc1;
+      border-radius: 8px;
+      font-size: 15px;
+      background: #ffffff;
+      margin-bottom: 8px;
+    }
+    body[data-wizard] #engravingPreview {
+      max-height: 120px;
+      object-fit: contain;
+      width: 100%;
+      border-radius: 6px;
+      margin-top: 6px;
+    }
+
+    /* PULSANTI FOTO */
+    body[data-wizard] .wizard-photo-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin: 10px 0;
+    }
+    body[data-wizard] .wizard-photo-actions button {
+      flex: 1 1 140px;
+      min-height: 46px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 1px solid #527684;
+      background: #ffffff;
+      color: #243d44;
+      font-weight: 500;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    body[data-wizard] .wizard-photo-actions button:hover {
+      background: #f0f5f7;
+    }
+
+    /* RITAGLIO FINE (ACCORDION) */
+    body[data-wizard] details[data-wizard-crop],
+    body[data-wizard] details[data-wizard-crop-rear] {
+      border: 1px solid #d8ded7;
+      border-radius: 8px;
+      padding: 4px 10px;
+      margin: 8px 0;
+      background: #ffffff;
+    }
+    body[data-wizard] details[data-wizard-crop] > summary,
+    body[data-wizard] details[data-wizard-crop-rear] > summary {
+      font-size: 12px;
+      color: #4a635e;
+      cursor: pointer;
+      padding: 8px 0;
+    }
+
+    /* RIEPILOGO & HOME */
+    body[data-wizard] #summaryPanel h2 {
+      display: none;
+    }
+    body[data-wizard] #configurationSummary {
+      white-space: pre-line;
+      font-size: 13px;
+      line-height: 1.5;
+      padding: 12px;
+      background: #ffffff;
+      border: 1px solid #d8ded7;
+      border-radius: 10px;
+      margin: 8px 0;
+    }
+    body[data-wizard] #wizard-home {
+      display: none;
+      margin-top: 10px;
+    }
+    body[data-wizard][data-wizard-step="7"] #wizard-home {
+      display: block;
+    }
+    body[data-wizard] .download-bar {
+      display: none !important;
+    }
+    body[data-wizard][data-wizard-step="7"] .download-bar {
+      display: block !important;
+      padding-top: 8px;
+    }
+
+    /* BARRA AZIONI INFERIORE */
+    body[data-wizard] #wizard-actions-slot {
+      flex-shrink: 0;
+      border-top: 1px solid #d8ded7;
+      background: #faf8f3;
+      padding: 8px 12px max(8px, env(safe-area-inset-bottom));
+    }
+    body[data-wizard] .wizard-mobile-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    body[data-wizard] .wizard-nav {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+    }
+    body[data-wizard] .wizard-nav button {
+      min-height: 44px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px 14px;
+      cursor: pointer;
+      border: 1px solid #b7c7be;
+      background: #ffffff;
+      color: #243d44;
+    }
+    body[data-wizard] .wizard-nav button:first-child {
+      flex: 0 0 auto;
+    }
+    body[data-wizard] .wizard-nav button:last-child {
+      flex: 1 1 auto;
+    }
+    body[data-wizard] .wizard-nav .wizard-primary {
+      background: #335e56 !important;
+      color: #ffffff !important;
+      border-color: #335e56 !important;
+      font-weight: 600 !important;
+    }
+    body[data-wizard] .wizard-nav .wizard-primary:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    body[data-wizard] .wizard-save {
+      width: 100%;
+      min-height: 40px;
+      border: 0;
+      background: transparent;
+      color: #46666a;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    body[data-wizard] .wizard-save:hover {
+      text-decoration: underline;
+    }
+
+    /* CONTROLLI 3D SULLO STAGE */
+    body[data-wizard] #wizard-controls-slot {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+    body[data-wizard] .wizard-iconbar {
+      position: absolute;
+      bottom: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      background: rgba(250, 248, 243, 0.92);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(200, 212, 207, 0.9);
+      border-radius: 9999px;
+      padding: 3px 6px;
+      box-shadow: 0 3px 12px rgba(36, 61, 68, 0.1);
+      pointer-events: auto;
+      z-index: 10;
+      max-width: calc(100% - 16px);
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    body[data-wizard] .wizard-iconbar button {
+      width: 36px;
+      height: 36px;
+      min-height: 36px;
+      border-radius: 50%;
+      border: 0;
+      background: transparent;
+      color: #243d44;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    body[data-wizard] .wizard-iconbar button:hover,
+    body[data-wizard] .wizard-iconbar button:active {
+      background: rgba(0, 0, 0, 0.08);
+    }
+    body[data-wizard] .wizard-iconbar button span {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+    body[data-wizard] .wizard-help {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 1px solid #d2dcd7;
+      background: rgba(250, 248, 243, 0.88);
+      backdrop-filter: blur(6px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #243d44;
+      pointer-events: auto;
+      cursor: pointer;
+      z-index: 10;
+    }
+    body[data-wizard] .wizard-view-message {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      padding: 4px 9px;
+      font-size: 11px;
+      font-weight: 500;
+      background: rgba(250, 248, 243, 0.92);
+      border: 1px solid #d2dcd7;
+      border-radius: 6px;
+      color: #243d44;
+      z-index: 10;
+    }
+    body[data-wizard] .wizard-gesture-guide {
+      pointer-events: auto;
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      right: 50px;
+      max-width: 290px;
+      max-height: calc(100% - 60px);
+      overflow-y: auto;
+      background: #faf8f3;
+      border: 1px solid #c9d2cb;
+      border-radius: 10px;
+      box-shadow: 0 4px 20px rgba(36, 61, 68, 0.2);
+      padding: 12px;
+      color: #243d44;
+      font-size: 12px;
+      z-index: 20;
+    }
+    body[data-wizard] .wizard-gesture-guide p {
+      margin: 6px 0 10px;
+      line-height: 1.5;
+    }
+    body[data-wizard] .wizard-gesture-guide button {
+      float: right;
+      background: #335e56;
+      color: #ffffff;
+      border: 0;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    body[data-wizard] .badge {
+      display: none !important;
+    }
+
+    /* ADATTAMENTO RESPONSIVE PER SCHERMI DESKTOP / WIDE */
+    @media (min-width: 900px) {
+      body[data-wizard] main {
+        flex-direction: row !important;
+      }
+      body[data-wizard] .workspace {
+        flex: 1 1 0% !important;
+        height: 100% !important;
+        max-height: none !important;
+      }
+      body[data-wizard] aside {
+        flex: 0 0 clamp(350px, 36%, 460px) !important;
+        border-top: 0 !important;
+        border-left: 1px solid #d8ded7 !important;
+        padding: 16px 20px 0 !important;
+      }
+    }
   `;
   doc.head.append(style);
-  if (mobile) {
-    const mobileStyle = doc.createElement('style');
-    mobileStyle.textContent = `
-      body[data-wizard-mobile] main {grid-template-columns:minmax(0,1fr) clamp(250px,42%,410px)!important;grid-template-rows:minmax(0,1fr)!important}
-      body[data-wizard-mobile][data-viewer-expanded=true] main {grid-template-columns:minmax(0,1fr)!important}
-      body[data-wizard-mobile][data-viewer-expanded=true] aside {display:none!important}
-      body[data-wizard-mobile] .wizard-validation {padding:8px;border-left:3px solid #b97422;background:#fff3dc;font-size:12px!important}
-      body[data-wizard-mobile] .workspace {grid-column:1;grid-row:1;display:block!important;overflow:hidden}
-      body[data-wizard-mobile] .stage {position:relative!important;min-height:0!important;height:100%!important}
-      body[data-wizard-mobile] aside {grid-column:2;grid-row:1;display:flex;flex-direction:column;padding:8px 10px 0!important;border-left:1px solid #d8ded7;overflow:hidden!important}
-      body[data-wizard-mobile] .panel-content {flex:1;min-height:0!important;max-height:none!important;scrollbar-gutter:auto;padding:0 3px 10px 0}
-      body[data-wizard-mobile] .badge {display:none}
-      body[data-wizard-mobile] button {font-size:13px}
-      body[data-wizard-mobile] .wizard-cards {gap:6px;margin:6px 0}
-      body[data-wizard-mobile] .wizard-cards button {flex:1 1 100%;padding:9px;font-size:13px}
-      body[data-wizard-mobile] .download-bar {display:none!important}
-      body[data-wizard-mobile][data-wizard-step="6"] .download-bar {display:block!important}
-      body[data-wizard-mobile] #wizard-slot h3 {font-size:17px;margin-bottom:6px}
-      body[data-wizard-mobile] #wizard-slot p {font-size:13px;margin:6px 0}
-      body[data-wizard-mobile] .materials {grid-template-columns:repeat(2,minmax(0,1fr))}
-      body[data-wizard-mobile] #fabricPanel>h2 {display:none}
-      body[data-wizard-mobile] .category summary,body[data-wizard-mobile] .material-category summary {cursor:pointer;list-style:disclosure-closed;padding:10px}
-      body[data-wizard-mobile] details[open]>summary {list-style:disclosure-open}
-      body[data-wizard][data-wizard-mobile][data-wizard-step] :is(#fabricPanel,#detailPanel,#summaryPanel) {display:none!important}
-      body[data-wizard][data-wizard-mobile][data-wizard-step="2"] #fabricPanel,
-      body[data-wizard][data-wizard-mobile][data-wizard-step="3"] #detailPanel,
-      body[data-wizard][data-wizard-mobile][data-wizard-step="4"] #detailPanel,
-      body[data-wizard][data-wizard-mobile][data-wizard-step="5"] #detailPanel,
-      body[data-wizard][data-wizard-mobile][data-wizard-step="6"] #summaryPanel {display:block!important}
-      body[data-wizard][data-wizard-mobile][data-wizard-step] #detailPanel>* {display:none!important}
-      body[data-wizard][data-wizard-mobile][data-wizard-step="3"] #detailPanel>[data-wizard-frame]:not([hidden]),
-      body[data-wizard][data-wizard-mobile][data-wizard-step="4"] #detailPanel>*:not([data-wizard-frame]):not([data-wizard-rear]):not([hidden]):not(h2),
-      body[data-wizard][data-wizard-mobile][data-wizard-step="5"] #detailPanel>[data-wizard-rear]:not([hidden]) {display:block!important}
-      body[data-wizard][data-wizard-mobile] #wizard-home {display:none}
-      body[data-wizard][data-wizard-mobile][data-wizard-home="true"] #wizard-home {display:block}
-      body[data-wizard-mobile][data-wizard-home="true"] #wizard-home>summary {display:none}
-      body[data-wizard-mobile][data-wizard-home="true"] #wizard-slot,
-      body[data-wizard-mobile][data-wizard-home="true"] .download-bar,
-      body[data-wizard-mobile][data-wizard-home="true"] #wizard-controls-slot {display:none!important}
-      body[data-wizard][data-wizard-mobile][data-wizard-home="true"][data-wizard-step] :is(#fabricPanel,#detailPanel,#summaryPanel) {display:none!important}
-      body[data-wizard-mobile] #summaryPanel>h2, body[data-wizard-mobile] #photoStatus {display:none}
-      body[data-wizard-mobile] #engravingPreview {max-height:110px;object-fit:contain}
-      body[data-wizard-mobile] #wizard-actions-slot {flex-shrink:0;border-top:1px solid #d8ded7;background:#faf8f3;margin:0 -10px;padding:7px 10px}
-      body[data-wizard-mobile] .wizard-step-heading {display:flex;align-items:center;gap:8px;position:sticky;top:0;z-index:1;background:#faf8f3;padding:5px 0 9px;font-size:13px}
-      body[data-wizard-mobile] .wizard-step-heading span {font-size:11px;color:#657770}
-      body[data-wizard-mobile] .wizard-nav {display:flex;gap:6px;justify-content:space-between}
-      body[data-wizard-mobile] .wizard-nav button,body[data-wizard-mobile] .wizard-mobile-actions>button {display:flex;align-items:center;justify-content:center;gap:4px;min-height:44px;padding:7px 9px;border-radius:6px;font-size:12px;white-space:normal}
-      body[data-wizard-mobile] .wizard-nav button:first-child {flex:0 0 auto}
-      body[data-wizard-mobile] .wizard-nav button:last-child {flex:1}
-      body[data-wizard-mobile] .wizard-nav .wizard-primary {background:#527684;color:white;border-color:#527684}
-      body[data-wizard-mobile] .wizard-save {width:100%;min-height:44px!important;border:0;padding:4px!important;background:transparent;color:#46666a}
-      body[data-wizard-mobile] .wizard-message {font-size:11px;margin:0 0 5px!important;max-height:40px;overflow:auto;overflow-wrap:anywhere}
-      body[data-wizard-mobile] .wizard-unsaved {font-size:11px;display:block;margin-bottom:4px;color:#765f32}
-      body[data-wizard-mobile] #wizard-controls-slot {position:absolute;inset:0;pointer-events:none}
-      body[data-wizard-mobile] .wizard-iconbar {position:absolute;bottom:5px;left:7px;right:7px;display:flex;gap:2px;pointer-events:auto;overflow-x:auto;scrollbar-width:none}
-      body[data-wizard-mobile] .wizard-iconbar button {flex-shrink:0}
-      body[data-wizard-mobile] .wizard-iconbar button, body[data-wizard-mobile] .wizard-help {position:relative;width:44px;height:44px;min-height:44px;padding:0!important;border:0!important;background:transparent;display:flex;align-items:center;justify-content:center;color:#29413f;isolation:isolate}
-      body[data-wizard-mobile] .wizard-iconbar button:before,body[data-wizard-mobile] .wizard-help:before {content:'';position:absolute;inset:5px;border:1px solid #c9d2cb;border-radius:5px;background:#faf8f3;z-index:-1}
-      body[data-wizard-mobile] .wizard-iconbar button span {position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
-      body[data-wizard-mobile] .wizard-help {position:absolute;right:5px;top:5px;pointer-events:auto}
-      body[data-wizard-mobile] .wizard-view-message {position:absolute;top:9px;left:10px;padding:4px 7px;font-size:11px;background:#faf8f3e8;border-radius:4px}
-      body[data-wizard-mobile] .wizard-gesture-guide {pointer-events:auto;position:absolute;top:12px;left:12px;right:52px;max-width:300px;max-height:calc(100% - 65px);overflow:auto;background:#faf8f3;border:1px solid #c9d2cb;border-radius:10px;box-shadow:0 5px 25px #263c3325;padding:12px;color:#29413f;font-size:13px}
-      body[data-wizard-mobile] .wizard-gesture-guide p {font-size:12px;line-height:1.6;margin:7px 0}
-      body[data-wizard-mobile] .wizard-gesture-guide button {min-height:44px;float:right;background:#527684;color:white;font-size:12px;padding:7px 14px}
-      body[data-wizard-mobile] .wizard-gesture-guide:after {content:'';display:block;clear:both}
-      body[data-wizard-mobile] .download-bar {padding:4px 0;margin:0}
-      body[data-wizard-mobile] .download-bar #downloadClient {background:transparent;color:#46666a;font-size:12px;text-align:left}
-      @media(max-height:270px){body[data-wizard-mobile] .wizard-nav button span{display:none}body[data-wizard-mobile] .wizard-gesture-guide{font-size:12px}}
-    `;
-    doc.head.append(mobileStyle);
+
+  // CONFIGURAZIONE SCHEDE ATOMICHE FAMIGLIE TESSUTO (STEP 2 e 3)
+  const fabricPanel = doc.getElementById('fabricPanel');
+  const materialsDiv = doc.getElementById('materials');
+  let selectedFamily = '';
+  let onFamilySelectCallback: ((family: string) => void) | null = null;
+
+  if (fabricPanel && materialsDiv) {
+    const categories = Array.from(materialsDiv.querySelectorAll<HTMLDetailsElement>('.category, .material-category'));
+    const familySelector = doc.createElement('div');
+    familySelector.className = 'wizard-family-selector';
+
+    const familyDescriptions: Record<string, string> = {
+      alcantara: 'Morbido, setoso e vellutato al tatto',
+      cablo: 'Tessuto contemporaneo con trama a rilievo',
+      city: 'Trama urbana moderna, robusta e compatta',
+      mist: 'Tessuto naturale a grana fine e raffinato',
+    };
+
+    categories.forEach(cat => {
+      const summary = cat.querySelector('summary');
+      const text = summary?.textContent || '';
+      const familyName = text.split('·')[0]?.trim() || 'Tessuto';
+      const countText = text.split('·')[1]?.trim() || '';
+      const key = familyName.toLowerCase();
+
+      const btn = doc.createElement('button');
+      btn.type = 'button';
+      btn.className = 'wizard-family-card';
+      btn.dataset.family = familyName;
+      btn.innerHTML = `
+        <div>
+          <strong>${familyName}</strong>
+          <span>${familyDescriptions[key] || 'Collezione di rivestimenti coordinati'}</span>
+        </div>
+        <span class="wizard-family-badge">${countText || 'Scegli'} →</span>
+      `;
+
+      btn.onclick = () => {
+        selectedFamily = familyName;
+        categories.forEach(c => (c.open = false));
+        cat.open = true;
+        updateFamilySelection();
+        onFamilySelectCallback?.(familyName);
+      };
+
+      familySelector.append(btn);
+
+      // Aggiungi breadcrumb di ritorno all'inizio di ogni categoria per lo step 3
+      const breadcrumb = doc.createElement('button');
+      breadcrumb.type = 'button';
+      breadcrumb.className = 'wizard-family-breadcrumb';
+      breadcrumb.innerHTML = `<span>Collezione: <strong>${familyName}</strong></span><span>Cambia tessuto ↺</span>`;
+      breadcrumb.onclick = () => {
+        onFamilySelectCallback?.('back-to-families');
+      };
+      cat.prepend(breadcrumb);
+    });
+
+    fabricPanel.prepend(familySelector);
+
+    function updateFamilySelection() {
+      familySelector.querySelectorAll<HTMLButtonElement>('.wizard-family-card').forEach(b => {
+        b.setAttribute('aria-pressed', String(b.dataset.family === selectedFamily));
+      });
+    }
+
+    // Inizializza la famiglia attiva in base al materiale correntemente selezionato
+    const activeMaterialBtn = materialsDiv.querySelector<HTMLButtonElement>('.materials button[aria-pressed="true"]');
+    if (activeMaterialBtn) {
+      const parentCat = activeMaterialBtn.closest<HTMLDetailsElement>('.category, .material-category');
+      if (parentCat) {
+        parentCat.open = true;
+        const sumText = parentCat.querySelector('summary')?.textContent || '';
+        selectedFamily = sumText.split('·')[0]?.trim() || '';
+        updateFamilySelection();
+      }
+    } else if (categories[0]) {
+      categories[0].open = true;
+      const sumText = categories[0].querySelector('summary')?.textContent || '';
+      selectedFamily = sumText.split('·')[0]?.trim() || '';
+      updateFamilySelection();
+    }
   }
+
+  // TRASFORMAZIONE SELETTORI IN CARDS TOUCH-FRIENDLY
   const detail = doc.getElementById('detailPanel');
   const mirrors: { select: HTMLSelectElement; buttons: HTMLButtonElement[] }[] = [];
-  for (const id of ['frameFinish', 'coverLayout', 'coverOptions', ...(mobile ? ['backCover'] : [])]) {
+
+  for (const id of ['frameFinish', 'coverLayout', 'coverOptions', 'backCover']) {
     const element = doc.getElementById(id);
     if (!element || !detail?.contains(element)) continue;
     const group = id === 'backCover' ? 'wizardRear' : 'wizardMaterial';
     element.dataset[group] = 'true';
     if (id === 'frameFinish') element.dataset.wizardFrame = 'true';
+
     const label = doc.querySelector<HTMLElement>(`label[for="${id}"]`);
     if (label) label.dataset[group] = 'true';
     if (label && id === 'frameFinish') label.dataset.wizardFrame = 'true';
+
     if (element.tagName !== 'SELECT') continue;
     const select = element as HTMLSelectElement;
-    const cards = doc.createElement('div'); cards.className = 'wizard-cards'; cards.dataset[group] = 'true';
+    const cards = doc.createElement('div');
+    cards.className = 'wizard-cards';
+    cards.dataset[group] = 'true';
     if (id === 'frameFinish') cards.dataset.wizardFrame = 'true';
-    cards.setAttribute('role', 'group'); cards.setAttribute('aria-label', label?.textContent || id);
+    cards.setAttribute('role', 'group');
+    cards.setAttribute('aria-label', label?.textContent || id);
+
     const buttons = Array.from(select.options).map(option => {
-      const button = doc.createElement('button'); button.type = 'button'; button.textContent = option.text;
-      button.onclick = () => { select.value = option.value; select.dispatchEvent(new Event('change', { bubbles: true })); refresh(); };
-      cards.append(button); return button;
+      const button = doc.createElement('button');
+      button.type = 'button';
+      button.textContent = option.text;
+      button.onclick = () => {
+        select.value = option.value;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        refresh();
+      };
+      cards.append(button);
+      return button;
     });
-    select.hidden = true; select.after(cards); mirrors.push({ select, buttons });
+    select.hidden = true;
+    select.after(cards);
+    mirrors.push({ select, buttons });
   }
-  // Il ritaglio fine resta disponibile, ma non occupa il percorso principale.
-  for (const [ids, title] of [[['photoZoom', 'photoX', 'photoY'], 'Sistema la foto di copertina'], [['backZoom', 'backX', 'backY'], 'Sistema la foto del retro']] as const) {
-    const first = doc.getElementById(ids[0]); if (!first) continue;
-    const adjust = doc.createElement('details'); const summary = doc.createElement('summary'); summary.textContent = title; adjust.append(summary);
-    const firstLabel = doc.querySelector(`label[for="${ids[0]}"]`); (firstLabel || first).before(adjust);
-    for (const id of ids) { const label = doc.querySelector(`label[for="${id}"]`); const input = doc.getElementById(id); if (label) adjust.append(label); if (input) adjust.append(input); }
+
+  // Raggruppamento slider foto
+  for (const [ids, title, isRear] of [
+    [['photoZoom', 'photoX', 'photoY'], 'Regola inquadratura e zoom copertina', false],
+    [['backZoom', 'backX', 'backY'], 'Regola inquadratura foto sul retro', true],
+  ] as const) {
+    const first = doc.getElementById(ids[0]);
+    if (!first) continue;
+    const adjust = doc.createElement('details');
+    adjust.dataset[isRear ? 'wizardCropRear' : 'wizardCrop'] = 'true';
+    const summary = doc.createElement('summary');
+    summary.textContent = title;
+    adjust.append(summary);
+    const firstLabel = doc.querySelector(`label[for="${ids[0]}"]`);
+    (firstLabel || first).before(adjust);
+    for (const id of ids) {
+      const label = doc.querySelector(`label[for="${id}"]`);
+      const input = doc.getElementById(id);
+      if (label) adjust.append(label);
+      if (input) adjust.append(input);
+    }
   }
-  doc.querySelectorAll<HTMLDetailsElement>('.category,.material-category').forEach(group => { group.open = !mobile; if (!mobile) group.querySelector('summary')?.addEventListener('click', event => event.preventDefault()); });
-  if (mobile) {
-    const back = doc.getElementById('backPhotoControls'); if (back) back.dataset.wizardRear = 'true';
-  }
+
+  const backPhotoControls = doc.getElementById('backPhotoControls');
+  if (backPhotoControls) backPhotoControls.dataset.wizardRear = 'true';
+
   const home = doc.getElementById('homePanel');
-  if (home) { const wrap = doc.createElement('details'); wrap.id = 'wizard-home'; const title = doc.createElement('summary'); title.textContent = 'Vedi in casa · facoltativo'; wrap.append(title); content.append(wrap); wrap.append(home); home.hidden = false; }
-  const views = doc.createElement('div'); views.className = 'wizard-views';
-  for (const [id, label] of [['front', 'Fronte'], ['back', 'Retro'], ['reset', 'Reimposta vista'], ...(mobile ? [['plus', 'Zoom +'], ['minus', 'Zoom −']] : [])]) {
-    const button = doc.createElement('button'); button.type = 'button'; button.textContent = label; button.onclick = () => { doc.getElementById(id)?.click(); refresh(); }; views.append(button);
+  if (home) {
+    const wrap = doc.createElement('details');
+    wrap.id = 'wizard-home';
+    const title = doc.createElement('summary');
+    title.textContent = 'Vedi in casa · facoltativo';
+    wrap.append(title);
+    content.append(wrap);
+    wrap.append(home);
+    home.hidden = false;
   }
-  const extraction = doc.getElementById('extract') as HTMLInputElement | null;
-  if (extraction) { const button = doc.createElement('button'); button.type = 'button'; button.dataset.extractPreset = 'true'; button.textContent = 'Estrai album'; button.onclick = () => { extraction.value = Number(extraction.value) ? '0' : '100'; extraction.dispatchEvent(new Event('input', { bubbles: true })); refresh(); }; views.append(button); }
-  if (!mobile) stage.append(views);
+
   function refresh() {
-    mirrors.forEach(({ select, buttons }) => buttons.forEach((button, index) => { button.disabled = select.disabled; button.setAttribute('aria-pressed', String(select.selectedIndex === index)); }));
-    const extractButton = views.querySelector<HTMLButtonElement>('[data-extract-preset]');
-    if (extractButton && extraction) extractButton.textContent = Number(extraction.value) ? 'Reinserisci album' : 'Estrai album';
+    mirrors.forEach(({ select, buttons }) =>
+      buttons.forEach((button, index) => {
+        button.disabled = select.disabled;
+        button.setAttribute('aria-pressed', String(select.selectedIndex === index));
+      }),
+    );
   }
+
   const observer = new MutationObserver(refresh);
   mirrors.forEach(({ select }) => observer.observe(select, { attributes: true, attributeFilter: ['disabled'] }));
+
   let previousHome = 'sideboard';
-  return { slot, actionsSlot, controlsSlot, refresh, dispose() { observer.disconnect(); },
+
+  return {
+    slot,
+    actionsSlot,
+    controlsSlot,
+    refresh,
+    dispose() {
+      observer.disconnect();
+    },
+    onFamilySelect(callback: (family: string) => void) {
+      onFamilySelectCallback = callback;
+    },
     view(action: 'front' | 'back' | 'reset' | 'plus' | 'minus' | 'extract' | 'rotate') {
-      if (action === 'extract' && extraction) { extraction.value = Number(extraction.value) ? '0' : '100'; extraction.dispatchEvent(new Event('input', { bubbles: true })); }
-      else doc.getElementById(action)?.click();
+      const extraction = doc.getElementById('extract') as HTMLInputElement | null;
+      if (action === 'extract' && extraction) {
+        extraction.value = Number(extraction.value) ? '0' : '100';
+        extraction.dispatchEvent(new Event('input', { bubbles: true }));
+      } else {
+        doc.getElementById(action)?.click();
+      }
       refresh();
     },
-    expanded(open: boolean) { doc.body.dataset.viewerExpanded = String(open); },
+    expanded(open: boolean) {
+      doc.body.dataset.viewerExpanded = String(open);
+    },
     home(open: boolean) {
-      if (!mobile) return;
       doc.body.dataset.wizardHome = String(open);
-      const wrapper = doc.querySelector<HTMLDetailsElement>('#wizard-home'); if (wrapper) wrapper.open = open;
+      const wrapper = doc.querySelector<HTMLDetailsElement>('#wizard-home');
+      if (wrapper) wrapper.open = open;
       const select = doc.querySelector<HTMLSelectElement>('#homeScene');
-      if (select && open && select.value === 'none') { select.value = previousHome; select.dispatchEvent(new Event('change', { bubbles: true })); }
-      else if (select && !open && select.value !== 'none') { previousHome = select.value; select.value = 'none'; select.dispatchEvent(new Event('change', { bubbles: true })); }
+      if (select && open && select.value === 'none') {
+        select.value = previousHome;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+      } else if (select && !open && select.value !== 'none') {
+        previousHome = select.value;
+        select.value = 'none';
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+      }
       content.scrollTop = 0;
-    }, step(value: number) {
-    doc.body.dataset.wizardStep = String(value);
-    if (!mobile && value === 4) doc.getElementById('summaryPanel')?.after(slot); else content.prepend(slot);
-    if (mobile && (value === 4 || value === 5)) doc.getElementById(value === 5 ? 'back' : 'front')?.click();
-    content.scrollTop = 0; refresh();
-  } };
+    },
+    step(value: number) {
+      doc.body.dataset.wizardStep = String(value);
+
+      if (value === 7) {
+        doc.getElementById('summaryPanel')?.after(slot);
+      } else {
+        content.prepend(slot);
+      }
+
+      // Auto-rotazione assistita in base alla scheda
+      if (value === 4 || value === 5) {
+        doc.getElementById('front')?.click();
+      } else if (value === 6) {
+        doc.getElementById('back')?.click();
+      } else if (value === 7) {
+        doc.getElementById('reset')?.click();
+      }
+
+      content.scrollTop = 0;
+      refresh();
+    },
+  };
 }

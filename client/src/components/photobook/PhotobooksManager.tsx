@@ -90,6 +90,7 @@ import {
   FileText,
 } from 'lucide-react';
 import PhotobookTutorial from '@/components/photobook/PhotobookTutorial';
+import PhotobookMockup from '@/components/photobook/PhotobookMockup';
 import LabFileUploader from '@/components/jobs/operativo/LabFileUploader';
 import type { Job } from '@shared/jobs-types';
 import {
@@ -509,7 +510,7 @@ export default function PhotobooksManager({
                     {currentVer?.pageCount ?? 0} pagine · {book.versions.length}{' '}
                     {book.versions.length === 1 ? 'versione' : 'versioni'}
                   </p>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Button
                       size="sm"
                       onClick={() => navigate(`/admin/photobooks/${book.id}`)}
@@ -518,6 +519,12 @@ export default function PhotobooksManager({
                       <Pencil className="h-3.5 w-3.5 mr-1.5" />
                       Apri Editor
                     </Button>
+                    <PhotobookMockup
+                      key={`manager-mockup-${book.id}-${book.currentVersion}`}
+                      photobookId={book.id}
+                      version={book.currentVersion}
+                      compact={true}
+                    />
                     <Button size="sm" variant="outline" onClick={() => copyLink(book)}>
                       <Copy className="h-3.5 w-3.5 mr-1.5" />
                       Link Cliente

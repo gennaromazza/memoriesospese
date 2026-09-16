@@ -29,7 +29,13 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   const adminPanel = (content: ReactNode) => adminSlot ? createPortal(content, adminSlot) : null;
   useEffect(() => { onOpenChange?.(open); return () => onOpenChange?.(false); }, [open, onOpenChange]);
   const { isPhone, isPortrait } = usePhoneOrientation();
-  const mobile = !!token && isPhone;
+  const [isNarrow, setIsNarrow] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
+  useEffect(() => {
+    const handle = () => setIsNarrow(window.innerWidth < 768);
+    window.addEventListener('resize', handle);
+    return () => window.removeEventListener('resize', handle);
+  }, []);
+  const mobile = isPhone || isNarrow;
   const [choosing, setChoosing] = useState(false);
   const [viewerStarted, setViewerStarted] = useState(false);
   const [homeOpen, setHomeOpen] = useState(false);
@@ -117,7 +123,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     setAdminTab('review');
     setChoosing(mobile && editable && !saved && !!state.data?.offer?.options.length);
     setViewerStarted(!mobile || !!saved || !state.data?.offer?.options.length);
-    setStep(mobile ? 2 : 1); setOpen(true);
+    setStep(2); setOpen(true);
     let guideSeen = false;
     try { guideSeen = sessionStorage.getItem('mockup-touch-guide') === 'seen'; } catch { /* Guida disponibile anche senza storage locale. */ }
     setGuideOpen(mobile && !guideSeen);
@@ -149,9 +155,21 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
 
   useEffect(() => {
     if (!token || !ready || !frame.current?.contentDocument) return;
-    try { const layout = installMockupWizard(frame.current.contentDocument, mobile); layout.step(step); setWizard(layout); return () => layout.dispose(); }
+    try {
+      const layout = installMockupWizard(frame.current.contentDocument, mobile);
+      layout.step(step);
+      layout.onFamilySelect((family) => {
+        if (family === 'back-to-families') {
+          setStep(2);
+        } else {
+          setStep(3);
+        }
+      });
+      setWizard(layout);
+      return () => layout.dispose();
+    }
     catch (error) { setMessage((error as Error).message); }
-  }, [ready, token]);
+  }, [ready, token, mobile]);
 
   useEffect(() => { wizard?.step(step); }, [wizard, step]);
   // Solo presentazione amministrativa: renderer e relativi handler restano gli stessi.
@@ -161,14 +179,20 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     doc.body.dataset.adminMode = adminTab;
     const style = doc.createElement('style');
     style.textContent = `
-      body[data-admin-mode]{height:100dvh;overflow:hidden}
+      body[data-admin-mode]{height:100dvh;overflow:hidden;background:#faf8f3;font-family:system-ui,-apple-system,sans-serif}
       body[data-admin-mode] header{display:none!important}
       body[data-admin-mode=edit] header{display:flex!important;height:42px;padding:4px 12px;justify-content:flex-end}
       body[data-admin-mode=edit] header strong,body[data-admin-mode=edit] header span{display:none}
       body[data-admin-mode] main{height:100dvh!important;min-height:0!important;display:grid!important;grid-template-columns:minmax(0,1fr)!important}
       body[data-admin-mode] aside{display:none!important}
-      body[data-admin-mode=edit] main{height:calc(100dvh - 42px)!important;grid-template-columns:minmax(215px,32%) minmax(0,1fr)!important}
-      body[data-admin-mode=edit] aside{display:flex!important;min-height:0;overflow:hidden;padding:12px}
+      body[data-admin-mode=edit] main{height:calc(100dvh - 42px)!important;display:flex!important;flex-direction:column!important}
+      body[data-admin-mode=edit] .workspace{flex:0 0 45%!important;height:45%!important;min-height:160px!important}
+      body[data-admin-mode=edit] aside{display:flex!important;flex:1 1 0%!important;min-height:0!important;overflow-y:auto!important;padding:10px!important}
+      @media (min-width: 768px) {
+        body[data-admin-mode=edit] main{flex-direction:row!important}
+        body[data-admin-mode=edit] aside{flex:0 0 clamp(240px,30%,320px)!important}
+        body[data-admin-mode=edit] .workspace{flex:1 1 0%!important;height:100%!important;max-height:none!important}
+      }
       body[data-admin-mode] .panel-content{max-height:none;min-height:0}
       body[data-admin-mode] .workspace{display:grid!important;grid-template-rows:minmax(0,1fr) auto;min-height:0;overflow:hidden}
       body[data-admin-mode] .stage{height:100%!important;min-height:0!important;position:relative!important}
@@ -210,19 +234,6 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     const timer = window.setTimeout(() => setViewMessage(''), 2500);
     return () => window.clearTimeout(timer);
   }, [viewMessage]);
-  useEffect(() => {
-    if (!open || !token || !window.visualViewport) return;
-    const viewport = window.visualViewport;
-    const resize = () => {
-      const element = dialog.current; if (!element) return;
-      if (!isPhone && window.innerWidth >= 768) { element.style.removeProperty('height'); element.style.removeProperty('top'); return; }
-      element.style.setProperty('height', `${viewport.height}px`, 'important');
-      element.style.top = `${viewport.offsetTop + viewport.height / 2}px`;
-    };
-    const initialResize = requestAnimationFrame(resize);
-    resize(); viewport.addEventListener('resize', resize); viewport.addEventListener('scroll', resize);
-    return () => { cancelAnimationFrame(initialResize); viewport.removeEventListener('resize', resize); viewport.removeEventListener('scroll', resize); };
-  }, [open, token, isPhone]);
   useEffect(() => { wizard?.refresh(); }, [wizard, configuration, busy, renderBusy, editable]);
   useEffect(() => {
     if (!mobile && token && ready && !renderBusy && !busy && editable && !selection && !initializing.current && state.data?.offer?.options.length === 1) chooseOption(state.data.offer.options[0]);
@@ -403,10 +414,23 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       setHomeOpen(false); pendingLayout.current = null;
     }
   }
-  const steps = mobile ? [2, ...(renderer.id === 'album-girevole' ? [3] : []), 4, ...(renderer.id === 'album-girevole' ? [5] : []), 6] : [1, 2, 3, 4];
-  const stepNames = mobile ? ['Modello', 'Tessuto', 'Struttura', 'Copertina', 'Plexiglass del box', 'Riepilogo e invio'] : ['Modello', 'Rivestimento e copertina', 'Foto e scritte', 'Riepilogo e invio'];
-  const lastStep = mobile ? 6 : 4;
-  const photoStepValid = mobile ? (step === 4 ? draftCoverLayout === 'plaque' || frontPhotoPresent : step === 5 ? draftBackCover !== 'photo' || backPhotoPresent : true) : step !== 3 || !!configuration;
+  const steps = renderer.id === 'album-girevole' ? [2, 3, 4, 5, 6, 7] : [2, 3, 4, 5, 7];
+  const stepNames: Record<number, string> = {
+    1: 'Modello',
+    2: 'Collezione tessuto',
+    3: 'Colore rivestimento',
+    4: 'Disposizione copertina',
+    5: 'Personalizzazione copertina',
+    6: 'Struttura e retro scrigno',
+    7: 'Riepilogo e invio',
+  };
+  const lastStep = 7;
+  const photoStepValid =
+    step === 5
+      ? draftCoverLayout === 'plaque' || frontPhotoPresent
+      : step === 6
+        ? draftBackCover !== 'photo' || backPhotoPresent
+        : true;
   const nextAllowed = ready && !renderBusy && !busy && (step === 1 ? (!state.data?.offer || !!selectedOption || !editable) : photoStepValid || !editable);
   const confirmBlock = !editable ? 'Versione in sola lettura: la conferma non è disponibile.'
     : !saved ? 'Non c’è ancora una proposta salvata. Attendi il cliente oppure preparala dalla scheda Modifica.'
@@ -421,7 +445,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     if (homeOpen) { setHomeOpen(false); return; }
     const index = steps.indexOf(step);
     if (index > 0) setStep(steps[index - 1]);
-    else if (mobile && editable && state.data?.offer?.options.length) setChoosing(true);
+    else if (editable && (state.data?.offer?.options.length || 0) > 1) setChoosing(true);
   };
   const viewAction = (action: 'front' | 'back' | 'reset' | 'plus' | 'minus' | 'extract' | 'rotate') => {
     wizard?.view(action);
@@ -429,22 +453,70 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     setViewMessage({ front: 'Vista frontale', back: 'Vista posteriore', reset: 'Vista ripristinata', plus: 'Zoom avanti', minus: 'Zoom indietro', extract: 'Estrazione album', rotate: nativeRotation?.hasAttribute('disabled') ? 'Reinserisci l’album per ruotare lo scrigno' : nativeRotation?.getAttribute('aria-pressed') === 'true' ? 'Scrigno in rotazione' : 'Rotazione ferma' }[action]);
   };
   return <section className={compact ? 'inline-flex shrink-0' : 'rounded-lg border bg-white p-4 space-y-3'} data-testid="photobook-mockup">
-    {compact ? <Button variant="outline" className="h-10 px-3 text-xs" onClick={openConfigurator}>{saved ? 'Apri il tuo album' : 'Personalizza album'}</Button> : <div className="flex flex-wrap items-center justify-between gap-2">
+    {compact ? <Button variant="outline" className="h-10 px-3 text-xs" onClick={openConfigurator}>{!token ? (saved ? 'Mockup 3D' : 'Configura 3D') : (saved ? 'Apri il tuo album' : 'Personalizza album')}</Button> : <div className="flex flex-wrap items-center justify-between gap-2">
       <div><h2 className="font-semibold">{title} · Anteprima album 3D</h2><p className="text-sm text-muted-foreground">Foto, rivestimento e scritte · versione {version}</p></div>
       <Button variant="outline" onClick={openConfigurator}>Apri mockup {title}</Button>
     </div>}
     {saved && !compact && <p className="text-sm text-muted-foreground">{MOCKUP_STATUS_LABELS[saved.status || 'draft']} · revisione {saved.revision} · versione fotolibro {version}</p>}
     <Dialog open={open} onOpenChange={next => { if (!next) closeConfigurator(); }}>
     <DialogContent ref={dialog} data-mobile-mockup={mobile ? 'true' : undefined} className="flex flex-col gap-0 p-0 sm:p-0 w-screen sm:w-[96vw] max-w-none sm:max-w-[1500px] h-[100dvh] sm:h-[94dvh] max-h-[100dvh] rounded-none sm:rounded-lg overflow-hidden [&>button]:hidden" onInteractOutside={event => event.preventDefault()}>
-      {mobile && isPortrait && !picker && !choosing && <div className="mockup-rotate" role="alert" data-testid="mockup-rotate"><p>Ruota il telefono in orizzontale</p><p>Avrai più spazio per vedere l’album e personalizzarlo. Le tue scelte restano conservate.</p><Button disabled={busy} onClick={closeConfigurator}>Chiudi mockup</Button></div>}
-      <div className="mockup-header flex shrink-0 items-center justify-between gap-3 border-b p-3 sm:p-4">
-        <div className="min-w-0"><DialogTitle>{!token ? 'Verifica proposta album' : mobile ? choosing ? 'Scegli il tuo album' : title : 'Personalizza il tuo album'}</DialogTitle><DialogDescription className={mobile ? 'sr-only' : undefined}>{title} · versione fotolibro {version}{!token && saved ? ` · revisione mockup ${saved.revision}` : ''}</DialogDescription></div>
-        {mobile && !choosing && <div className="mockup-header-links"><Button variant="ghost" disabled={!editable || busy || renderBusy || !ready || !state.data?.offer?.options.length} onClick={() => { setViewerExpanded(false); setChoosing(true); }}>Cambia</Button><Button variant="outline" aria-pressed={homeOpen} disabled={!ready || busy || renderBusy} onClick={() => { setViewerExpanded(false); setHomeOpen(!homeOpen); setGuideOpen(false); }}><Home size={15} />{homeOpen ? 'Solo album' : 'In casa'}</Button><Button variant="outline" aria-label={viewerExpanded ? 'Torna alle opzioni' : 'Espandi anteprima'} aria-pressed={viewerExpanded} disabled={!ready} onClick={() => { setViewerExpanded(!viewerExpanded); setGuideOpen(false); }}>{viewerExpanded ? <><Minimize size={15} /> Opzioni</> : <Maximize size={15} />}</Button></div>}
-        <Button variant="outline" className={mobile ? 'mockup-close' : 'min-h-11'} aria-label={mobile ? 'Chiudi mockup' : undefined} disabled={busy} onClick={closeConfigurator}>{mobile ? <X size={18} /> : 'Chiudi'}</Button>
+      <div className="mockup-header flex shrink-0 items-center justify-between gap-2 border-b px-3 sm:px-4">
+        <div className="mockup-header-title-box">
+          <DialogTitle className="text-sm sm:text-base font-semibold truncate">
+            {!token ? 'Verifica proposta album' : choosing ? 'Scegli il tuo album' : title}
+          </DialogTitle>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground truncate">
+            <span>{title}</span>
+            {wizard && !choosing && (
+              <span className="mockup-header-step-badge">
+                · Passo {steps.indexOf(step) + 1}/{steps.length}: {stepNames[step]}
+              </span>
+            )}
+          </div>
+          <DialogDescription className="sr-only">
+            {title} · versione fotolibro {version}{!token && saved ? ` · revisione mockup ${saved.revision}` : ''}
+          </DialogDescription>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          {!choosing && (
+            <div className="mockup-header-links">
+              {editable && !busy && !renderBusy && ready && (state.data?.offer?.options.length || 0) > 1 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-9 px-2 text-xs text-stone-600 hover:text-stone-900"
+                  onClick={() => { setViewerExpanded(false); setChoosing(true); }}
+                >
+                  Cambia
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 px-2 text-xs gap-1.5"
+                aria-pressed={homeOpen}
+                disabled={!ready || busy || renderBusy}
+                onClick={() => { setViewerExpanded(false); setHomeOpen(!homeOpen); setGuideOpen(false); }}
+              >
+                <Home size={14} />
+                <span className="hidden sm:inline">{homeOpen ? 'Solo album' : 'In casa'}</span>
+              </Button>
+            </div>
+          )}
+          <Button
+            variant="outline"
+            className="mockup-close"
+            aria-label="Chiudi mockup"
+            disabled={busy}
+            onClick={closeConfigurator}
+          >
+            <X size={18} />
+          </Button>
+        </div>
       </div>
-      {token && !mobile && <div className="mockup-progress shrink-0 border-b px-3 py-2" aria-live="polite"><p className="text-sm font-medium">Passaggio {steps.indexOf(step) + 1} di {steps.length} · {stepNames[step - 1]}</p><div className="mt-2 flex gap-1" aria-hidden="true">{steps.map(value => <span key={value} className={`h-1 flex-1 rounded ${value <= step ? 'bg-primary' : 'bg-muted'}`} />)}</div></div>}
-      {mobile && choosing && state.data?.offer && <MockupModelChooser options={state.data.offer.options} initialOption={selectedOption} onChoose={chooseExample} onCancel={viewerStarted ? () => setChoosing(false) : undefined} />}
-      <div style={mobile && choosing ? { display: 'none' } : undefined} className={token ? 'min-h-0 flex-1 flex flex-col overflow-hidden' : 'mockup-admin-body'} data-testid="mockup-dialog-body">
+      {token && !mobile && <div className="mockup-progress shrink-0 border-b px-3 py-2" aria-live="polite"><p className="text-sm font-medium">Passaggio {steps.indexOf(step) + 1} di {steps.length} · {stepNames[step]}</p><div className="mt-2 flex gap-1" aria-hidden="true">{steps.map(value => <span key={value} className={`h-1 flex-1 rounded ${value <= step ? 'bg-primary' : 'bg-muted'}`} />)}</div></div>}
+      {choosing && state.data?.offer && <MockupModelChooser options={state.data.offer.options} initialOption={selectedOption} onChoose={chooseExample} onCancel={viewerStarted ? () => setChoosing(false) : undefined} />}
+      <div style={choosing ? { display: 'none' } : undefined} className={token ? 'min-h-0 flex-1 flex flex-col overflow-hidden' : 'mockup-admin-body'} data-testid="mockup-dialog-body">
       {!token && <div className="mockup-admin-panel" ref={setAdminSlot}>
         <nav className="sticky top-0 z-10 bg-background flex flex-wrap gap-1 border-b pb-3" aria-label="Gestione proposta album">
           {([['review', 'Verifica'], ['edit', 'Modifica'], ['offer', 'Modelli disponibili']] as const).map(([tab, label]) => <Button key={tab} size="sm" variant={adminTab === tab ? 'default' : 'outline'} aria-pressed={adminTab === tab} onClick={() => setAdminTab(tab)}>{label}</Button>)}
@@ -488,22 +560,73 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
         {token && (!ready || !wizard) && !choosing && <p role="status" className="p-4 text-sm">Preparazione del tuo configuratore…</p>}
         {(!mobile || viewerStarted) && <iframe key={`${renderer.id}-${generation}`} ref={frame} title={`Configuratore 3D ${renderer.name}`} src={`${import.meta.env.BASE_URL}mockups/${renderer.path}`} sandbox="allow-scripts allow-same-origin allow-downloads" style={{ visibility: token && (!ready || !wizard) ? 'hidden' : undefined }} aria-hidden={token && (!ready || !wizard) ? true : undefined} className={`${token ? 'w-full min-h-0 flex-1 border-0' : 'mockup-admin-viewer'} ${busy ? 'pointer-events-none' : ''}`} />}
         {token && wizard && createPortal(<>
-          {editable && ready && !renderBusy && configurationIssue && ((mobile && [4, 5, 6].includes(step)) || (!mobile && step >= 3)) && <p role="status" className="wizard-validation">{configurationIssue}</p>}
-          {mobile && <div className="wizard-step-heading" aria-live="polite"><span>{steps.indexOf(step) + 1} / {steps.length}</span><strong>{stepNames[step - 1]}</strong></div>}
+          {editable && ready && !renderBusy && configurationIssue && ((mobile && [4, 5, 6].includes(step)) || (!mobile && step >= 4)) && <p role="status" className="wizard-validation">{configurationIssue}</p>}
+          <div className="wizard-step-heading" aria-live="polite"><span>Passo {steps.indexOf(step) + 1} di {steps.length}</span><strong>{stepNames[step] || 'Configurazione'}</strong></div>
           {step === 1 && <><h3>Scegli il tuo modello</h3><p>Trovi qui i modelli proposti dallo studio.</p>{state.data.offer?.options.map(option => <button type="button" className="wizard-model" key={`${option.labId}/${option.id}`} aria-pressed={selectedOption?.id === option.id && selectedOption?.labId === option.labId} disabled={!editable || busy || !ready || renderBusy} onClick={() => chooseOption(option)}>{option.name}<small>{option.labName} · {MOCKUP_RENDERERS.find(r => r.id === option.rendererId)?.name}</small></button>)}{!state.data.offer && <p>{title}</p>}</>}
-          {step === 2 && <>{!mobile && <h3>Rivestimento e copertina</h3>}<p>{mobile ? 'Apri una famiglia e tocca un campione.' : 'Tocca un campione per vederlo sull’album.'}</p></>}
-          {mobile && step === 3 && <p>{renderer.id === 'album-girevole' ? 'Scegli la finitura dello scrigno.' : 'La custodia usa il tessuto scelto per l’album.'}</p>}
-          {mobile && (step === 4 || step === 5) && <>{step === 5 && <p>La foto rimane sul plexiglass dello scrigno girevole, anche quando estrai l’album.</p>}{(step === 5 ? draftBackCover === 'photo' : draftCoverLayout !== 'plaque') ? <><div className="wizard-photo-actions"><button disabled={!editable || busy || !ready || renderBusy} onClick={() => { setPhotoSide(step === 5 ? 'back' : 'front'); setPicker(true); }}>Scegli dalla galleria</button></div>{!photoStepValid && editable && <p role="status">Scegli una foto per continuare.</p>}</> : step === 4 && <p>Le iniziali vengono create automaticamente dai nomi.</p>}</>}
-          {!mobile && step === 3 && <><h3>Foto e scritte</h3><p>Personalizza la copertina, non le pagine interne del fotolibro.</p>{renderer.id === 'album-girevole' && <label>Foto da personalizzare<select aria-label="Foto da personalizzare" value={photoSide} disabled={!editable || busy || picker || renderBusy} onChange={e => setPhotoSide(e.target.value === 'back' ? 'back' : 'front')}><option value="front">Copertina</option><option value="back">Retro in plexiglass</option></select></label>}{(photoSide === 'front' ? draftCoverLayout !== 'plaque' : draftBackCover === 'photo') ? <div className="wizard-photo-actions"><button disabled={!editable || busy || !ready || renderBusy} onClick={() => upload.current?.click()}>Carica una foto</button><button disabled={!editable || busy || !ready || renderBusy} onClick={() => setPicker(true)}>Scegli dalla galleria</button></div> : <p>{photoSide === 'front' ? 'Per l’incisione non serve una foto: inserisci i nomi qui sotto.' : 'Per aggiungere una foto, scegli il retro su plexiglass nella sezione Finitura retro qui sotto.'}</p>}{!configuration && editable && <p role="status">Per proseguire, aggiungi le foto richieste dalla copertina e dall’eventuale retro in plexiglass.</p>}</>}
-          {step === lastStep && <>{!mobile && <><h3>Controlla e invia allo studio</h3><p>{title} · versione fotolibro {version}</p></>}{saved && <p>{MOCKUP_STATUS_LABELS[saved.status || 'draft']} · revisione {saved.revision}{saved.note && ` · ${saved.note}`}</p>}<p>{mobile ? 'Controlla le scelte qui sotto. L’invio non avvia la stampa.' : 'L’invio chiede la verifica allo studio: non manda l’album in stampa. Puoi creare altre revisioni finché lo studio non avvia la stampa.'}</p>{!mobile && <p>Materiali e proporzioni dell’anteprima sono indicativi.</p>}<details><summary>Recupera la proposta dello studio</summary><button disabled={busy} onClick={reloadWizard}>Ricarica proposta</button></details></>}
+          {step === 2 && <><h3>Collezione tessuto</h3><p>Tocca la collezione di tessuti che preferisci per il tuo album. I colori disponibili appariranno nella schermata successiva.</p></>}
+          {step === 3 && <><h3>Colore del rivestimento</h3><p>Tocca un colore per applicarlo istantaneamente all’anteprima 3D sopra la scheda.</p></>}
+          {step === 4 && <><h3>Disposizione della copertina</h3><p>Scegli lo stile e la disposizione degli elementi sulla copertina.</p></>}
+          {step === 5 && <>
+            {draftCoverLayout === 'plaque' ? (
+              <><h3>Incisione con i vostri nomi</h3><p>Inserite i nomi da incidere sulla copertina per generare il monogramma botanico.</p></>
+            ) : (
+              <>
+                <h3>Foto di copertina</h3>
+                <p>Personalizza la fotografia per la copertina del tuo album.</p>
+                <div className="wizard-photo-actions">
+                  <button type="button" disabled={!editable || busy || !ready || renderBusy} onClick={() => { setPhotoSide('front'); setPicker(true); }}>
+                    Scegli dalla galleria
+                  </button>
+                  {!mobile && <button type="button" disabled={!editable || busy || !ready || renderBusy} onClick={() => upload.current?.click()}>Carica una foto</button>}
+                </div>
+                {!photoStepValid && editable && <p role="status" className="wizard-validation">Scegli una foto per continuare.</p>}
+              </>
+            )}
+          </>}
+          {step === 6 && <>
+            <h3>Struttura e retro dello scrigno</h3>
+            <p>Scegli la finitura della cornice rotante e l’effetto del plexiglass posteriore.</p>
+            {draftBackCover === 'photo' && (
+              <div className="wizard-photo-actions">
+                <button type="button" disabled={!editable || busy || !ready || renderBusy} onClick={() => { setPhotoSide('back'); setPicker(true); }}>
+                  Scegli foto per il retro
+                </button>
+              </div>
+            )}
+            {!photoStepValid && editable && <p role="status" className="wizard-validation">Scegli una foto per il retro in plexiglass per continuare.</p>}
+          </>}
+          {step === lastStep && <>
+            <h3>Riepilogo e conferma</h3>
+            {saved && <p>{MOCKUP_STATUS_LABELS[saved.status || 'draft']} · revisione {saved.revision}{saved.note && ` · ${saved.note}`}</p>}
+            <p>Controlla le scelte riassunte qui sotto. Puoi esplorare l'album a 360° con i comandi sullo stage 3D.</p>
+            <p className="text-xs text-stone-500">L’invio chiede la verifica allo studio: non manda l’album in stampa. Puoi creare altre revisioni finché lo studio non avvia la stampa.</p>
+            <details className="mt-2 text-xs"><summary className="cursor-pointer font-medium py-1">Recupera la proposta iniziale dello studio</summary><button type="button" className="mt-1 underline" disabled={busy} onClick={reloadWizard}>Ricarica proposta</button></details>
+          </>}
         </>, wizard.slot)}
-        {mobile && wizard && createPortal(<div className="wizard-mobile-actions">
+        {token && wizard && createPortal(<div className="wizard-mobile-actions">
           {message && <p role="status" className="wizard-message">{message}</p>}
           {!message && dirty && <span className="wizard-unsaved">Modifiche da salvare</span>}
           {!editable && <span className="wizard-unsaved">Sola lettura</span>}
-          {homeOpen ? <button onClick={() => setHomeOpen(false)}><ArrowLeft size={15} /> Torna a personalizzare</button> : <>
-          <div className="wizard-nav"><button aria-label={steps.indexOf(step) === 0 ? 'Torna alla scelta modello' : 'Indietro'} disabled={busy || (steps.indexOf(step) === 0 && (!editable || !state.data?.offer?.options.length))} onClick={previousStep}><ArrowLeft size={17} /><span>Indietro</span></button>{step < lastStep ? <button className="wizard-primary" disabled={!nextAllowed} onClick={() => setStep(steps[steps.indexOf(step) + 1])}>Avanti <ArrowRight size={16} /></button> : <button className="wizard-primary" disabled={!editable || busy || renderBusy || !configuration || !selectedOption || (!dirty && ['submitted', 'confirmed'].includes(saved?.status || ''))} onClick={submitWizard}>Invia allo studio</button>}</div>
-          {step === lastStep && <button className="wizard-save" disabled={!editable || busy || renderBusy || !configuration || !dirty || (!!state.data?.offer && !selectedOption)} onClick={save}>Salva bozza</button>}
+          {homeOpen ? <button type="button" onClick={() => setHomeOpen(false)}><ArrowLeft size={15} /> Torna alla configurazione</button> : <>
+          <div className="wizard-nav">
+            <button type="button" aria-label={steps.indexOf(step) === 0 ? 'Torna alla scelta modello' : 'Indietro'} disabled={busy || (steps.indexOf(step) === 0 && (!editable || (state.data?.offer?.options.length || 0) <= 1))} onClick={previousStep}>
+              <ArrowLeft size={17} /><span>Indietro</span>
+            </button>
+            {step < lastStep ? (
+              <button type="button" className="wizard-primary" disabled={!nextAllowed} onClick={() => setStep(steps[steps.indexOf(step) + 1])}>
+                Avanti <ArrowRight size={16} />
+              </button>
+            ) : (
+              <button type="button" className="wizard-primary" disabled={!editable || busy || renderBusy || !configuration || !selectedOption || (!dirty && ['submitted', 'confirmed'].includes(saved?.status || ''))} onClick={submitWizard}>
+                Invia allo studio per verifica
+              </button>
+            )}
+          </div>
+          {step === lastStep && (
+            <button type="button" className="wizard-save" disabled={!editable || busy || renderBusy || !configuration || !dirty || (!!state.data?.offer && !selectedOption)} onClick={save}>
+              Salva bozza
+            </button>
+          )}
           </>}
         </div>, wizard.actionsSlot)}
         {mobile && wizard && createPortal(<>
