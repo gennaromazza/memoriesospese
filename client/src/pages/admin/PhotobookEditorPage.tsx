@@ -7,6 +7,7 @@
 
 import { useRef, useState } from 'react';
 import PhotobookMockup from '@/components/photobook/PhotobookMockup';
+import PhotobookConfirmDialog from '@/components/photobook/PhotobookConfirmDialog';
 import {
   CopyFeedbackButton,
   PhotobookEmptyState,
@@ -55,6 +56,9 @@ export default function PhotobookEditorPage() {
 
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
+  const [deletePageTarget, setDeletePageTarget] = useState<{ id: string; pageNumber: number } | null>(null);
+  const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
+  const [currentVersionTarget, setCurrentVersionTarget] = useState<number | null>(null);
 
   const { data: book, isLoading: bookLoading, isError: bookError, refetch: refetchBook } = useQuery({
     queryKey: ['/api/photobooks', id],
@@ -243,13 +247,13 @@ export default function PhotobookEditorPage() {
                 </SelectContent>
               </Select>
             </div>
-            {book.versions.find(v => v.version === version)?.status === 'draft' && <Button disabled={busy || publishMutation.isPending || !pages.length || book.locked} onClick={() => { if (window.confirm(`Pubblicare la versione ${version} con ${pages.length} pagine e avvisare il cliente?`)) publishMutation.mutate(); }}>Pubblica versione e avvisa cliente</Button>}
+            {book.versions.find(v => v.version === version)?.status === 'draft' && <Button disabled={busy || publishMutation.isPending || !pages.length || book.locked} onClick={() => setPublishConfirmOpen(true)}>Pubblica versione e avvisa cliente</Button>}
             {version !== book.currentVersion && book.versions.find(v => v.version === version)?.status !== 'draft' && (
               <Button
                 size="sm"
                 variant="outline"
                 disabled={busy || book.locked || setCurrentVersionMutation.isPending || publishMutation.isPending}
-                onClick={() => setCurrentVersionMutation.mutate(version)}
+                onClick={() => setCurrentVersionTarget(version)}
               >
                 <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
                 Rendi visibile al cliente
@@ -332,11 +336,7 @@ export default function PhotobookEditorPage() {
                       className="text-destructive hover:text-destructive"
                        aria-label={`Elimina pagina ${page.pageNumber}`}
                       disabled={deletePageMutation.isPending}
-                      onClick={() => {
-                        if (confirm(`Eliminare la pagina ${page.pageNumber}?`)) {
-                          deletePageMutation.mutate(page.id);
-                        }
-                      }}
+                      onClick={() => setDeletePageTarget({ id: page.id, pageNumber: page.pageNumber })}
                       data-testid={`button-delete-page-${page.pageNumber}`}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -348,6 +348,47 @@ export default function PhotobookEditorPage() {
           </div>
         )}
       </div>
+      <PhotobookConfirmDialog
+        open={publishConfirmOpen}
+        onOpenChange={setPublishConfirmOpen}
+        title={`Pubblicare la versione ${version}?`}
+        description={`La versione verrà mostrata al cliente con ${pages.length} pagine e partirà la notifica prevista.`}
+        confirmLabel="Pubblica versione"
+        onConfirm={() => {
+          setPublishConfirmOpen(false);
+          publishMutation.mutate();
+        }}
+        pending={publishMutation.isPending}
+      />
+      <PhotobookConfirmDialog
+        open={currentVersionTarget !== null}
+        onOpenChange={(open) => !open && setCurrentVersionTarget(null)}
+        title="Rendere visibile questa versione?"
+        description="Il cliente vedrà questa versione come quella attuale. La versione precedente resterà conservata."
+        confirmLabel="Rendi visibile"
+        onConfirm={() => {
+          if (currentVersionTarget === null) return;
+          const target = currentVersionTarget;
+          setCurrentVersionTarget(null);
+          setCurrentVersionMutation.mutate(target);
+        }}
+        pending={setCurrentVersionMutation.isPending}
+      />
+      <PhotobookConfirmDialog
+        open={deletePageTarget !== null}
+        onOpenChange={(open) => !open && setDeletePageTarget(null)}
+        title={`Eliminare la pagina ${deletePageTarget?.pageNumber ?? ''}?`}
+        description="La pagina verrà rimossa da questa versione del fotolibro. L’azione non si può annullare."
+        confirmLabel="Elimina pagina"
+        destructive
+        onConfirm={() => {
+          if (!deletePageTarget) return;
+          const target = deletePageTarget;
+          setDeletePageTarget(null);
+          deletePageMutation.mutate(target.id);
+        }}
+        pending={deletePageMutation.isPending}
+      />
     </div>
   );
 }

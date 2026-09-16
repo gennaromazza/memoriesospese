@@ -9,6 +9,7 @@ import { createUrl } from '@/lib/config';
 import { getPhotobookGalleryPhotosByToken, listPhotobookGalleryPhotos } from '@/lib/photobooks';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import PhotobookConfirmDialog from './PhotobookConfirmDialog';
 import PhotobookPhotoPicker from './PhotobookPhotoPicker';
 import { mockupConfigurationSchema, type MockupConfiguration, type MockupPayload, type MockupPhoto, type SavedMockup } from '@shared/mockup-types';
 import { MOCKUP_STATUS_LABELS, optionFor, type MockupOfferMode, type MockupSelection } from '@shared/mockup-workflow';
@@ -29,6 +30,12 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   const [adminTab, setAdminTab] = useState<'review' | 'edit' | 'offer'>('review');
   const [adminSlot, setAdminSlot] = useState<HTMLDivElement | null>(null);
   const [askingChanges, setAskingChanges] = useState(false);
+  const [confirmation, setConfirmation] = useState<{
+    title: string;
+    description: string;
+    confirmLabel: string;
+    onConfirm: () => void;
+  } | null>(null);
   const adminPanel = (content: ReactNode) => adminSlot ? createPortal(content, adminSlot) : null;
   useEffect(() => { onOpenChange?.(open); return () => onOpenChange?.(false); }, [open, onOpenChange]);
   const { isPhone } = usePhoneOrientation();
@@ -120,15 +127,27 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     revision.current = value.revision;
     queryClient.setQueryData<MockupPayload>(stateKey, previous => previous ? { ...previous, saved: value } : previous);
   };
-  function closeConfigurator() {
-    if (busy) return;
-    if (dirty && !window.confirm('Chiudere il configuratore e abbandonare le modifiche non salvate?')) return;
+  function closeConfiguratorNow() {
     setOpen(false); setPicker(false); setReady(false); setRenderBusy(true); setRendererError('');
     setDirty(false); setConfiguration(null); setRendererOverride(null); setSelection(undefined);
     setDraftCoverLayout(''); setDraftBackCover(''); setFrontPhotoPresent(false); setBackPhotoPresent(false);
     pendingOption.current = null; currentPhoto.current = undefined; initializing.current = true;
     setHistory(null); setNote(''); setMessage(''); setPhotoSide('front'); setAskingChanges(false); setViewerExpanded(false);
     setStep('model'); setWizard(null); setChoosing(false); setViewerStarted(false); setHomeOpen(false); setGuideOpen(false); pendingLayout.current = null;
+  }
+
+  function closeConfigurator() {
+    if (busy) return;
+    if (dirty) {
+      setConfirmation({
+        title: 'Abbandonare le modifiche?',
+        description: 'Le personalizzazioni non salvate verranno perse. La revisione già salvata resterà disponibile.',
+        confirmLabel: 'Abbandona modifiche',
+        onConfirm: closeConfiguratorNow,
+      });
+      return;
+    }
+    closeConfiguratorNow();
   }
 
   function openConfigurator() {
@@ -148,10 +167,18 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     void state.refetch();
   }
 
-  function chooseExample(option: MockupOption, layout: string) {
+  function chooseExample(option: MockupOption, layout: string, skipConfirmation = false) {
     if (!editable) return;
     if (viewerStarted && (!ready || renderBusy || busy)) return;
-    if (viewerStarted && option.rendererId !== renderer.id && dirty && !window.confirm('Cambiando tipo di album, alcune personalizzazioni non sono compatibili. Vuoi proseguire? La revisione già salvata resta conservata.')) return;
+    if (!skipConfirmation && viewerStarted && option.rendererId !== renderer.id && dirty) {
+      setConfirmation({
+        title: 'Cambiare tipo di album?',
+        description: 'Alcune personalizzazioni non sono compatibili con il nuovo modello. La revisione già salvata resterà conservata.',
+        confirmLabel: 'Cambia modello',
+        onConfirm: () => chooseExample(option, layout, true),
+      });
+      return;
+    }
     const targetRenderer = MOCKUP_RENDERERS.find(item => item.id === option.rendererId) || renderer;
     pendingLayout.current = layout;
     // La scelta dei caroselli non contiene fotografie o nomi dimostrativi.
@@ -441,8 +468,17 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     const persisted = dirty ? await save() : saved;
     if (persisted) await action('/submit', undefined, persisted);
   }
-  async function reloadWizard() {
-    if (busy || (dirty && !window.confirm('Ricaricare la proposta e abbandonare le modifiche non salvate?'))) return;
+  async function reloadWizard(skipConfirmation = false) {
+    if (busy) return;
+    if (!skipConfirmation && dirty) {
+      setConfirmation({
+        title: 'Ricaricare la proposta?',
+        description: 'Le modifiche non salvate verranno abbandonate e verrà ricaricata la proposta dello studio.',
+        confirmLabel: 'Ricarica proposta',
+        onConfirm: () => void reloadWizard(true),
+      });
+      return;
+    }
     const fresh = await state.refetch();
     if (!fresh.isError) {
       pendingOption.current = null; setRendererOverride(null); setDirty(false); setReady(false); setRendererError('');
@@ -541,11 +577,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
           {([['review', 'Verifica'], ['edit', 'Modifica'], ['offer', 'Modelli disponibili']] as const).map(([tab, label]) => <Button key={tab} size="sm" variant={adminTab === tab ? 'default' : 'outline'} aria-pressed={adminTab === tab} onClick={() => setAdminTab(tab)}>{label}</Button>)}
         </nav>
       </div>}
-      {open && !token && adminPanel(<Button variant="ghost" size="sm" disabled={busy} onClick={async () => {
-        if (dirty && !window.confirm('Ricaricare la proposta e abbandonare le modifiche non salvate?')) return;
-        const fresh = await state.refetch();
-        if (!fresh.isError) { pendingOption.current = null; setRendererOverride(null); setDirty(false); setReady(false); setRendererError(''); setRenderBusy(true); setGeneration(g => g + 1); }
-      }}>Ricarica proposta</Button>)}
+      {open && !token && adminPanel(<Button variant="ghost" size="sm" disabled={busy} onClick={() => void reloadWizard()}>Ricarica proposta</Button>)}
      {saved && !token && adminPanel(<div className="mockup-admin-saved-card"><div className="mockup-admin-saved-heading"><strong>{MOCKUP_STATUS_LABELS[saved.status || 'draft']}</strong><span>Revisione {saved.revision}</span></div><p>{saved.option?.labName} {saved.option && '·'} {saved.option?.name} {saved.option && '·'} {saved.option?.materials.find(m => m.id === saved.configuration.materialId)?.label}</p><p>Ultima modifica: {saved.updatedBy === 'client' ? 'Cliente tramite link' : saved.updatedBy === 'studio' ? 'Studio' : 'Non registrato'} · {new Date(saved.updatedAt).toLocaleString('it-IT')}</p>{saved.note && <p>Note: {saved.note}</p>}</div>)}
     {open && <>
        {state.isLoading && <p className="mockup-inline-state" role="status"><span className="mockup-state-dot" />Caricamento configurazione…</p>}
@@ -605,7 +637,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
                  <div><dt>Stato</dt><dd>{MOCKUP_STATUS_LABELS[saved.status || 'draft']}</dd></div>
                </dl>}
                {!mobile && editable && <p className="wizard-summary-note">Materiali e proporzioni dell’anteprima sono indicativi.</p>}
-               {editable && <details><summary>Recupera la proposta dello studio</summary><button disabled={busy} onClick={reloadWizard}>Ricarica proposta</button></details>}
+               {editable && <details><summary>Recupera la proposta dello studio</summary><button disabled={busy} onClick={() => void reloadWizard()}>Ricarica proposta</button></details>}
              </section>}
         </>, wizard.slot)}
         {mobile && wizard && createPortal(<div className="wizard-mobile-actions">
@@ -662,6 +694,20 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
         setPicker(false);
         void selectPhoto(() => request('/gallery-photo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ photoId: photo.id }) }));
       }} />
+      <PhotobookConfirmDialog
+        open={!!confirmation}
+        onOpenChange={(open) => {
+          if (!open) setConfirmation(null);
+        }}
+        title={confirmation?.title || ''}
+        description={confirmation?.description || ''}
+        confirmLabel={confirmation?.confirmLabel || 'Conferma'}
+        onConfirm={() => {
+          const action = confirmation?.onConfirm;
+          setConfirmation(null);
+          action?.();
+        }}
+      />
     </>}
       </div>
      {!mobile && (token || adminTab === 'edit' || dirty) && <div className="mockup-actions">

@@ -8,7 +8,7 @@
  * viene caricato uno snapshot JPEG di ogni pagina con le X disegnate.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import PhotobookMockup from '@/components/photobook/PhotobookMockup';
 import { createPortal } from 'react-dom';
 import { usePhoneOrientation } from '@/hooks/use-phone-orientation';
@@ -39,6 +39,7 @@ import PhotobookMarkCanvas, {
   hapticFeedback,
   type CanvasMark,
 } from '@/components/photobook/PhotobookMarkCanvas';
+import PhotobookConfirmDialog from '@/components/photobook/PhotobookConfirmDialog';
 import {
   PhotobookEmptyState,
   PhotobookErrorState,
@@ -102,17 +103,22 @@ function PageLightbox({
   index,
   onIndexChange,
   onClose,
+  returnFocusRef,
 }: {
   pages: { url: string; displayUrl?: string | null; pageNumber: number }[];
   index: number;
   onIndexChange: (i: number) => void;
   onClose: () => void;
+  returnFocusRef?: RefObject<HTMLElement | null>;
 }) {
   const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const dragRef = useRef<{ startX: number; startY: number; baseX: number; baseY: number } | null>(
     null,
   );
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   const page = pages[index];
 
   const resetView = () => {
@@ -132,17 +138,47 @@ function PageLightbox({
   };
 
   useEffect(() => {
+    const focusTimer = window.setTimeout(() => {
+      (dialogRef.current?.querySelector<HTMLElement>('[data-testid="button-lightbox-close"]') ||
+        dialogRef.current)?.focus();
+    }, 0);
+    return () => {
+      window.clearTimeout(focusTimer);
+      window.setTimeout(() => returnFocusRef?.current?.focus(), 0);
+    };
+  }, [returnFocusRef]);
+
+  useEffect(() => {
+    const getFocusable = () =>
+      Array.from(
+        dialogRef.current?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+        ) || [],
+      );
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current();
       else if (e.key === 'ArrowLeft') goTo(index - 1);
       else if (e.key === 'ArrowRight') goTo(index + 1);
       else if (e.key === '+' || e.key === '=') applyZoom(zoom * 1.25);
       else if (e.key === '-') applyZoom(zoom / 1.25);
       else if (e.key === '0') resetView();
+      else if (e.key === 'Tab') {
+        const focusable = getFocusable();
+        if (!focusable.length) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  });
+  }, [index, zoom]);
 
   // Blocca lo scroll della pagina sottostante
   useEffect(() => {
@@ -157,12 +193,17 @@ function PageLightbox({
 
   return createPortal(
     <div
+      ref={dialogRef}
       className="fixed inset-0 z-[150] bg-stone-950/95 flex flex-col select-none"
       data-testid="lightbox-page"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="photobook-lightbox-title"
+      tabIndex={-1}
     >
       {/* Barra superiore */}
-      <div className="flex items-center justify-between px-4 py-2 text-white shrink-0">
-        <p className="text-sm font-medium">
+      <div className="flex items-center justify-between px-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 text-white shrink-0">
+        <p id="photobook-lightbox-title" className="text-sm font-medium">
           Pagina {page.pageNumber} · {index + 1} di {pages.length}
         </p>
         <div className="flex items-center gap-1">
@@ -253,7 +294,7 @@ function PageLightbox({
         type="button"
         onClick={() => goTo(index - 1)}
         disabled={index === 0}
-        className="absolute left-3 top-1/2 -translate-y-1/2 h-11 w-11 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 disabled:opacity-25"
+        className="absolute left-[max(0.75rem,env(safe-area-inset-left))] top-1/2 -translate-y-1/2 h-11 w-11 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 disabled:opacity-25"
         aria-label="Pagina precedente"
         data-testid="button-lightbox-prev"
       >
@@ -263,7 +304,7 @@ function PageLightbox({
         type="button"
         onClick={() => goTo(index + 1)}
         disabled={index >= pages.length - 1}
-        className="absolute right-3 top-1/2 -translate-y-1/2 h-11 w-11 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 disabled:opacity-25"
+        className="absolute right-[max(0.75rem,env(safe-area-inset-right))] top-1/2 -translate-y-1/2 h-11 w-11 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 disabled:opacity-25"
         aria-label="Pagina successiva"
         data-testid="button-lightbox-next"
       >
@@ -337,6 +378,8 @@ export default function PhotobookViewPage() {
   const noteTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   // Lightbox desktop: indice della pagina aperta a schermo intero
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
+  const lightboxTriggerRef = useRef<HTMLElement | null>(null);
+  const [versionChangeTarget, setVersionChangeTarget] = useState<number | null>(null);
 
   // Le note funzionano in entrambi gli orientamenti; il focus resta esplicito
   // sul telefono per non occupare subito lo schermo con la tastiera.
@@ -768,7 +811,7 @@ export default function PhotobookViewPage() {
     <div className={`min-h-screen bg-stone-50 ${isTouchPhone ? 'pb-2' : 'pb-28'}`}>
       {/* Le pagine richiedono il telefono orizzontale; i modali di servizio
           restano utilizzabili in entrambi gli orientamenti, senza perdere dati. */}
-      {isPortraitPhone && !mockupOpen && !helpOpen && !noteMode && !pickerOpen && !confirmOpen && !clearAllOpen && !jumpOpen && !activeMark && !approveOpen && !deleteSentTarget && createPortal(
+      {isPortraitPhone && !mockupOpen && !helpOpen && !noteMode && !pickerOpen && !confirmOpen && !clearAllOpen && !jumpOpen && !activeMark && !approveOpen && !deleteSentTarget && versionChangeTarget === null && createPortal(
         <div
           className="fixed inset-x-0 bottom-0 top-[52px] z-[15] bg-stone-100 flex flex-col items-center justify-center gap-4 p-8 text-center"
           data-testid="overlay-rotate"
@@ -806,11 +849,13 @@ export default function PhotobookViewPage() {
                 value={String(data.version)}
                 disabled={submitMutation.isPending}
                 onValueChange={(v) => {
+                  const nextVersion = Number(v);
                   if (drafts.size > 0 || activeMark) {
-                    if (!window.confirm('Cambiare versione e abbandonare le richieste non ancora inviate?')) return;
+                    setVersionChangeTarget(nextVersion);
+                    return;
                   }
                   setDrafts(new Map()); setActiveMark(null); setNoteMode(null); setNote(''); setPendingReplacement(null); setPickerOpen(false); setConfirmOpen(false); setSlideIdx(0);
-                  setSelectedVersion(Number(v) === photobook.currentVersion ? null : Number(v));
+                  setSelectedVersion(nextVersion === photobook.currentVersion ? null : nextVersion);
                 }}
               >
                 <SelectTrigger
@@ -1007,7 +1052,10 @@ export default function PhotobookViewPage() {
                     type="button"
                     className="flex items-center gap-1 text-[11px] text-stone-500 hover:text-stone-800 rounded-md px-1.5 py-0.5 hover:bg-stone-100"
                     title="Vedi a schermo intero (con zoom)"
-                    onClick={() => setLightboxIdx(pageIdx)}
+                    onClick={(event) => {
+                      lightboxTriggerRef.current = event.currentTarget;
+                      setLightboxIdx(pageIdx);
+                    }}
                     data-testid={`button-fullscreen-${page.id}`}
                   >
                     <Maximize2 className="h-3.5 w-3.5" />
@@ -1124,6 +1172,7 @@ export default function PhotobookViewPage() {
           index={Math.min(lightboxIdx, pages.length - 1)}
           onIndexChange={setLightboxIdx}
           onClose={() => setLightboxIdx(null)}
+          returnFocusRef={lightboxTriggerRef}
         />
       )}
 
@@ -1211,6 +1260,30 @@ export default function PhotobookViewPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <PhotobookConfirmDialog
+        open={versionChangeTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setVersionChangeTarget(null);
+        }}
+        title="Cambiare versione?"
+        description="Le richieste e le bozze non ancora inviate verranno abbandonate. Le richieste già inviate resteranno intatte."
+        confirmLabel="Cambia versione"
+        onConfirm={() => {
+          if (versionChangeTarget === null) return;
+          const nextVersion = versionChangeTarget;
+          setDrafts(new Map());
+          setActiveMark(null);
+          setNoteMode(null);
+          setNote('');
+          setPendingReplacement(null);
+          setPickerOpen(false);
+          setConfirmOpen(false);
+          setSlideIdx(0);
+          setSelectedVersion(nextVersion === photobook.currentVersion ? null : nextVersion);
+          setVersionChangeTarget(null);
+        }}
+      />
 
       {/* Bozze su smartphone: nessuna barra fissa (coprirebbe la pagina e in
           modalità disegno lo scroll è bloccato). Solo un bottone flottante che
