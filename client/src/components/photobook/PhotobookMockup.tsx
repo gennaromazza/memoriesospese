@@ -400,6 +400,47 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `mockup-v${version}-r${rev}.html`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 10_000);
     } catch (error) { setMessage((error as Error).message); }
   }
+  async function previewRevision(item: SavedMockup) {
+    if (!ready || !frame.current?.contentWindow) return;
+    setBusy(true);
+    setMessage(`Caricamento revisione r${item.revision}…`);
+    try {
+      const cfg = item.configuration;
+      let photo;
+      if (cfg.photoAssetId) {
+        try {
+          const blob = await (await request(`/photos/${cfg.photoAssetId}`)).blob();
+          photo = { id: cfg.photoAssetId, name: `Foto r${item.revision}`, source: 'saved' as const, blob };
+        } catch {}
+      }
+      let backPhoto;
+      if ('backPhotoAssetId' in cfg && cfg.backPhotoAssetId) {
+        try {
+          const blob = await (await request(`/photos/${cfg.backPhotoAssetId}`)).blob();
+          backPhoto = { id: cfg.backPhotoAssetId, name: `Foto retro r${item.revision}`, source: 'saved' as const, blob };
+        } catch {}
+      }
+      if (item.selection) setSelection(item.selection);
+      if (item.option && item.option.rendererId !== renderer.id) {
+        setRendererOverride(item.option.rendererId);
+      }
+      apply({ configuration: cfg, photo, backPhoto, option: item.option || saved?.option, readOnly: !editable });
+      setMessage(`Visualizzazione revisione r${item.revision} (${MOCKUP_STATUS_LABELS[item.status || 'draft']}).`);
+    } catch (error) {
+      setMessage(`Impossibile caricare la revisione: ${(error as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function restoreRevisionAsActive(item: SavedMockup) {
+    if (!editable) return;
+    if (!window.confirm(`Vuoi impostare la revisione r${item.revision} come configurazione attiva da modificare e salvare?`)) return;
+    await previewRevision(item);
+    setConfiguration(item.configuration);
+    if (item.selection) setSelection(item.selection);
+    setDirty(true);
+    setMessage(`Revisione r${item.revision} caricata come bozza attiva. Premi Salva mockup per confermare.`);
+  }
   async function submitWizard() {
     if (busy || renderBusy || !editable || !configuration || !selectedOption) return;
     const persisted = dirty ? await save() : saved;
@@ -652,11 +693,40 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
             <Button variant="outline" disabled={busy} onClick={async () => { try { setHistory(await (await request('/history')).json()); } catch (error) { setMessage((error as Error).message); } }}>Storico revisioni</Button>
             {saved?.status === 'confirmed' && <Button variant="outline" disabled={busy || dirty} onClick={() => action('/reconcile-attachment')}>Verifica allegato Drive dopo un errore</Button>}
           </div>
-          {history && <div className="max-h-60 overflow-auto text-sm">
+          {history && <div className="max-h-60 overflow-auto text-sm space-y-1">
             {!history.length && <p>Nessuna revisione precedente.</p>}
-            {history.map(item => <div className="border-t py-2" key={item.revision}>
-              r{item.revision} · {MOCKUP_STATUS_LABELS[item.status || 'draft']} · {item.option?.name || 'Custodia'} · {item.updatedBy === 'client' ? 'Cliente' : 'Studio'} · {new Date(item.updatedAt).toLocaleString('it-IT')}
-              {item.status === 'confirmed' && <><Button size="sm" variant="link" onClick={() => downloadReport(item.revision)}>Scarica conferma</Button><Button size="sm" variant="link" disabled={busy || dirty} onClick={() => action('/reconcile-attachment', item.revision)}>Verifica allegato Drive</Button></>}
+            {history.map(item => <div
+              className="border rounded p-2 bg-stone-50 hover:bg-stone-100 cursor-pointer transition-colors space-y-1"
+              key={item.revision}
+              onClick={() => void previewRevision(item)}
+              title="Clicca per esaminare questa revisione in 3D"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold text-stone-900">
+                  r{item.revision} · {MOCKUP_STATUS_LABELS[item.status || 'draft']}
+                </span>
+                <span className="text-[11px] text-stone-500">
+                  {item.updatedBy === 'client' ? 'Cliente' : 'Studio'} · {new Date(item.updatedAt).toLocaleString('it-IT')}
+                </span>
+              </div>
+              <p className="text-xs text-stone-600 truncate">
+                {item.option?.labName} {item.option && '·'} {item.option?.name || 'Custodia'} {item.note ? `· ${item.note}` : ''}
+              </p>
+              <div className="flex items-center gap-1.5 pt-1" onClick={e => e.stopPropagation()}>
+                <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => void previewRevision(item)}>
+                  Esamina in 3D
+                </Button>
+                {editable && (
+                  <Button size="sm" variant="outline" className="h-7 text-xs px-2 text-emerald-700 border-emerald-300 hover:bg-emerald-50" onClick={() => void restoreRevisionAsActive(item)}>
+                    Ripristina come attiva
+                  </Button>
+                )}
+                {item.status === 'confirmed' && (
+                  <Button size="sm" variant="link" className="h-7 text-xs p-0 text-blue-700" onClick={() => downloadReport(item.revision)}>
+                    Scarica conferma
+                  </Button>
+                )}
+              </div>
             </div>)}
           </div>}
           </details>
