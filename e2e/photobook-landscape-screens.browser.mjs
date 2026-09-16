@@ -85,6 +85,50 @@ try {
       assert.ok(firstCard && firstCard.y + firstCard.height <= bar.y + 1, `${label}: la prima card è coperta dalla barra azioni`);
       assert.ok(firstCard.y >= 0, `${label}: prima card sopra il viewport`);
     };
+    const captureWizardStages = async frame => {
+      const stages = [
+        ['wizard-rivestimento', 'material'],
+        ['wizard-struttura', 'structure'],
+        ['wizard-copertina', 'cover'],
+        ['wizard-scrigno', 'box-glass'],
+        ['wizard-riepilogo', 'summary'],
+      ];
+      const clickNext = async (panel) => {
+        const next = scenario.mobile
+          ? frame.getByRole('button', { name: 'Avanti', exact: true })
+          : page.getByRole('button', { name: 'Avanti', exact: true });
+        await next.waitFor({ state: 'visible' });
+        for (let attempt = 0; attempt < 80 && !(await next.isEnabled()); attempt += 1) {
+          await page.waitForTimeout(250);
+        }
+        assert.equal(await next.isEnabled(), true, `Pulsante Avanti disabilitato nello stage ${panel}`);
+        await next.click();
+      };
+      const currentPanel = await frame.locator('body').getAttribute('data-wizard-panel');
+      if (currentPanel === 'model') {
+        await clickNext(currentPanel);
+      }
+      for (let index = 0; index < stages.length; index += 1) {
+        const [name, panel] = stages[index];
+        await frame.locator(`body[data-wizard-panel="${panel}"]`).waitFor({ timeout: 20000 });
+        if (panel === 'cover') {
+          const coverSelect = frame.locator('#coverLayout');
+          if (await coverSelect.count()) {
+            await coverSelect.evaluate((select) => {
+              const element = select;
+              element.value = 'plaque';
+              element.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+            await page.waitForTimeout(400);
+          }
+        }
+        await page.waitForTimeout(350);
+        await shot(name);
+        if (index < stages.length - 1) {
+          await clickNext(panel);
+        }
+      }
+    };
 
     // 1. Chooser, scelta libera: stage Modello, poi Copertina.
     await page.goto(`http://127.0.0.1:${port}/?client&case=chooser`);
@@ -113,12 +157,16 @@ try {
       await frame.locator('body[data-wizard-layout="ready"]').waitFor({ timeout: 90000 });
       await page.waitForTimeout(1500);
       await shot('wizard-configura');
+      await captureWizardStages(frame);
       assert.equal(await frame.locator('.wizard-mobile-actions').count(), 1, 'Azioni wizard mancanti');
     } else {
       const frame = page.frameLocator('iframe[title^="Configuratore 3D"]');
       await frame.locator('body[data-wizard-layout="ready"]').waitFor({ timeout: 90000 });
       await page.waitForTimeout(1500);
       await shot('wizard-configura');
+      // La matrice degli stage segue il percorso cliente landscape, dove il
+      // renderer girevole viene scelto dal chooser. Il desktop mantiene qui
+      // la schermata iniziale già coperta dal controllo di sola lettura.
     }
 
     // 3. Sola lettura (confermato) con album-girevole, 6 passaggi.

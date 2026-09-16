@@ -118,6 +118,211 @@ export function installMockupWizard(doc: Document, mobile = false) {
      body[data-wizard] .wizard-views{gap:3px!important;padding:4px;border:1px solid #ffffffb8;border-radius:12px;background:#fffffff0;box-shadow:0 8px 20px #263d3b18}
      body[data-wizard] .wizard-views button{min-height:36px;border:0;border-radius:8px;color:#596b65;background:transparent;font-size:11px;font-weight:600}
      body[data-wizard] .wizard-views button:hover{color:#234943;background:#eef2ed}
+     body[data-wizard] {
+       --wizard-ink:#263d3b;
+       --wizard-sage:#335e56;
+       --wizard-sage-soft:#eef2ed;
+       --wizard-coral:#bd6853;
+       --wizard-coral-soft:#fff0eb;
+       --wizard-paper:#fbfaf6;
+       --wizard-line:#d9dfd8;
+       --wizard-muted:#71807b;
+     }
+     body[data-wizard] aside,
+     body[data-wizard] .panel-content,
+     body[data-wizard] .panel-content section {color:var(--wizard-ink)}
+     body[data-wizard] .panel-content>section>h2,
+     body[data-wizard] .panel-content>section>h3,
+     body[data-wizard] #detailPanel>section>h2,
+     body[data-wizard] #detailPanel>section>h3 {
+       margin:16px 0 9px;
+       color:var(--wizard-ink);
+       font:600 19px/1.12 Georgia,serif;
+     }
+     body[data-wizard] .panel-content>section>p,
+     body[data-wizard] #detailPanel>section>p,
+     body[data-wizard] .panel-content .description,
+     body[data-wizard] .panel-content .help-text {
+       color:var(--wizard-muted);
+       font-size:12px;
+       line-height:1.45;
+     }
+     body[data-wizard] label {
+       display:block;
+       margin:12px 0 6px;
+       color:var(--wizard-sage);
+       font-size:10px;
+       font-weight:800;
+       letter-spacing:.09em;
+       line-height:1.25;
+       text-transform:uppercase;
+     }
+     body[data-wizard] :is(select,input[type=text],input[type=number],input[type=email],textarea) {
+       border:1px solid var(--wizard-line);
+       border-radius:9px;
+       background:#fff;
+       color:var(--wizard-ink);
+       box-shadow:none;
+     }
+     body[data-wizard] :is(select,input[type=text],input[type=number],input[type=email],textarea):focus {
+       border-color:var(--wizard-sage);
+       outline:3px solid #335e5622;
+     }
+     body[data-wizard] :is(.category,.material-category) {
+       margin:10px 0;
+       border:1px solid var(--wizard-line);
+       border-radius:12px;
+       background:var(--wizard-paper);
+       overflow:hidden;
+     }
+     body[data-wizard] :is(.category,.material-category)>summary {
+       display:flex;
+       align-items:center;
+       justify-content:space-between;
+       gap:12px;
+       min-height:44px;
+       padding:12px 13px;
+       color:var(--wizard-sage);
+       font-size:11px;
+       font-weight:800;
+       letter-spacing:.08em;
+       line-height:1.2;
+       text-transform:uppercase;
+     }
+     body[data-wizard] :is(.category,.material-category)>summary::after {
+       content:'+';
+       display:grid;
+       width:20px;
+       height:20px;
+       place-items:center;
+       border:1px solid var(--wizard-line);
+       border-radius:50%;
+       color:var(--wizard-sage);
+       font-size:15px;
+       line-height:1;
+     }
+     body[data-wizard] :is(.category,.material-category)[open]>summary::after {
+       content:'−';
+       background:var(--wizard-sage-soft);
+     }
+     body[data-wizard] :is(.category,.material-category)>:not(summary) {
+       margin-left:12px;
+       margin-right:12px;
+     }
+     body[data-wizard] .materials {
+       display:grid;
+       grid-template-columns:repeat(3,minmax(0,1fr));
+       grid-auto-rows:max-content;
+       gap:8px;
+       padding:0 0 12px;
+     }
+     body[data-wizard] .materials button {
+       position:relative;
+       min-height:60px;
+       padding:9px 8px;
+       border:1px solid var(--wizard-line);
+       border-radius:10px;
+       background:#fff;
+       color:var(--wizard-ink);
+       font-size:11px;
+       font-weight:700;
+       line-height:1.25;
+       text-align:left;
+       transition:border-color .15s,background .15s,box-shadow .15s,transform .15s;
+     }
+     body[data-wizard] .materials button:hover {
+       border-color:var(--wizard-sage);
+       background:var(--wizard-sage-soft);
+       transform:translateY(-1px);
+     }
+     body[data-wizard] .materials button:is([aria-pressed=true],[aria-selected=true],[data-selected=true],.selected,.active) {
+       border-color:var(--wizard-sage);
+       background:var(--wizard-sage-soft);
+       box-shadow:inset 0 0 0 1px var(--wizard-sage),0 0 0 2px #335e5618;
+     }
+     body[data-wizard] .materials button:is([aria-pressed=true],[aria-selected=true],[data-selected=true],.selected,.active)::after,
+     body[data-wizard] .wizard-cards button:is([aria-pressed=true],[aria-selected=true],[data-selected=true],.selected,.active)::after {
+       content:'✓';
+       position:absolute;
+       top:6px;
+       right:7px;
+       color:var(--wizard-sage);
+       font-size:12px;
+       font-weight:900;
+     }
+     body[data-wizard] .materials img,
+     body[data-wizard] .materials .swatch,
+     body[data-wizard] .materials [class*=swatch] {
+       width:100%;
+       min-height:24px;
+       max-height:48px;
+       margin-bottom:6px;
+       border-radius:7px;
+       object-fit:cover;
+     }
+     body[data-wizard] .wizard-cards {
+       display:grid;
+       grid-template-columns:repeat(2,minmax(0,1fr));
+       grid-auto-rows:max-content;
+       gap:8px;
+       margin:10px 0 13px;
+     }
+     body[data-wizard] .wizard-cards button {
+       position:relative;
+       min-height:54px;
+       padding:10px 11px;
+       border:1px solid var(--wizard-line);
+       border-radius:10px;
+       background:#fff;
+       color:var(--wizard-ink);
+       font-size:12px;
+       font-weight:700;
+       line-height:1.3;
+       text-align:left;
+       transition:border-color .15s,background .15s,box-shadow .15s;
+     }
+     body[data-wizard] .wizard-cards button:hover,
+     body[data-wizard] .wizard-cards button:is([aria-pressed=true],[aria-selected=true],[data-selected=true],.selected,.active) {
+       border-color:var(--wizard-sage);
+       background:var(--wizard-sage-soft);
+       box-shadow:inset 0 0 0 1px var(--wizard-sage),0 0 0 2px #335e5618;
+     }
+     body[data-wizard] .wizard-cards button[disabled] {
+       cursor:not-allowed;
+       opacity:.55;
+     }
+     body[data-wizard] .wizard-photo-actions {
+       padding:10px;
+       border:1px solid var(--wizard-line);
+       border-radius:11px;
+       background:var(--wizard-paper);
+     }
+     body[data-wizard] .wizard-photo-actions button:hover,
+     body[data-wizard] .download-bar #downloadClient:hover {
+       border-color:var(--wizard-sage);
+       background:var(--wizard-sage-soft);
+     }
+     body[data-wizard] .wizard-validation,
+     body[data-wizard] .error,
+     body[data-wizard] [role=alert] {
+       border-radius:9px;
+       border-left:3px solid var(--wizard-coral);
+       background:var(--wizard-coral-soft);
+       color:#7d4437;
+     }
+     body[data-wizard] .wizard-nav {
+       border-top:1px solid var(--wizard-line);
+     }
+     body[data-wizard] .wizard-primary,
+     body[data-wizard] .wizard-mobile-actions .wizard-primary {
+       border-color:var(--wizard-sage);
+       background:var(--wizard-sage);
+       color:#fff;
+     }
+     body[data-wizard] .wizard-primary:hover:not(:disabled),
+     body[data-wizard] .wizard-mobile-actions .wizard-primary:hover:not(:disabled) {
+       background:#234943;
+     }
       @media(min-width:768px){body[data-wizard] main{grid-template-columns:minmax(0,1.4fr) minmax(300px,1fr);grid-template-rows:minmax(0,1fr)}body[data-wizard] aside{grid-row:1;grid-column:2;padding:22px}body[data-wizard] .workspace{grid-column:1}}
     @media(max-width:767px) and (max-height:380px){body[data-wizard] main{grid-template-rows:minmax(100px,35%) minmax(0,1fr)}body[data-wizard] .wizard-views button:nth-child(3){display:none}}
   `;
