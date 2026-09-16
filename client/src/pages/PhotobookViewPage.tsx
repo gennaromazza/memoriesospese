@@ -8,7 +8,7 @@
  * viene caricato uno snapshot JPEG di ogni pagina con le X disegnate.
  */
 
-import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import PhotobookMockup from '@/components/photobook/PhotobookMockup';
 import { createPortal } from 'react-dom';
 import { usePhoneOrientation } from '@/hooks/use-phone-orientation';
@@ -39,12 +39,6 @@ import PhotobookMarkCanvas, {
   hapticFeedback,
   type CanvasMark,
 } from '@/components/photobook/PhotobookMarkCanvas';
-import PhotobookConfirmDialog from '@/components/photobook/PhotobookConfirmDialog';
-import {
-  PhotobookEmptyState,
-  PhotobookErrorState,
-  PhotobookLoadingState,
-} from '@/components/photobook/PhotobookUiStates';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -103,27 +97,31 @@ function PageLightbox({
   index,
   onIndexChange,
   onClose,
-  returnFocusRef,
 }: {
   pages: { url: string; displayUrl?: string | null; pageNumber: number }[];
   index: number;
   onIndexChange: (i: number) => void;
   onClose: () => void;
-  returnFocusRef?: RefObject<HTMLElement | null>;
 }) {
   const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const dragRef = useRef<{ startX: number; startY: number; baseX: number; baseY: number } | null>(
     null,
   );
-  const dialogRef = useRef<HTMLDivElement | null>(null);
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  const pointersRef = useRef(new Map<number, { x: number; y: number }>());
+  const pinchStartRef = useRef<{
+    dist: number;
+    zoom: number;
+    mid: { x: number; y: number };
+    offset: { x: number; y: number };
+  } | null>(null);
   const page = pages[index];
 
   const resetView = () => {
     setZoom(1);
     setOffset({ x: 0, y: 0 });
+    pinchStartRef.current = null;
+    pointersRef.current.clear();
   };
   const goTo = (i: number) => {
     if (i < 0 || i >= pages.length) return;
@@ -138,47 +136,17 @@ function PageLightbox({
   };
 
   useEffect(() => {
-    const focusTimer = window.setTimeout(() => {
-      (dialogRef.current?.querySelector<HTMLElement>('[data-testid="button-lightbox-close"]') ||
-        dialogRef.current)?.focus();
-    }, 0);
-    return () => {
-      window.clearTimeout(focusTimer);
-      window.setTimeout(() => returnFocusRef?.current?.focus(), 0);
-    };
-  }, [returnFocusRef]);
-
-  useEffect(() => {
-    const getFocusable = () =>
-      Array.from(
-        dialogRef.current?.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
-        ) || [],
-      );
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCloseRef.current();
+      if (e.key === 'Escape') onClose();
       else if (e.key === 'ArrowLeft') goTo(index - 1);
       else if (e.key === 'ArrowRight') goTo(index + 1);
       else if (e.key === '+' || e.key === '=') applyZoom(zoom * 1.25);
       else if (e.key === '-') applyZoom(zoom / 1.25);
       else if (e.key === '0') resetView();
-      else if (e.key === 'Tab') {
-        const focusable = getFocusable();
-        if (!focusable.length) return;
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [index, zoom]);
+  });
 
   // Blocca lo scroll della pagina sottostante
   useEffect(() => {
@@ -193,17 +161,12 @@ function PageLightbox({
 
   return createPortal(
     <div
-      ref={dialogRef}
       className="fixed inset-0 z-[150] bg-stone-950/95 flex flex-col select-none"
       data-testid="lightbox-page"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="photobook-lightbox-title"
-      tabIndex={-1}
     >
       {/* Barra superiore */}
-      <div className="flex items-center justify-between px-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 text-white shrink-0">
-        <p id="photobook-lightbox-title" className="text-sm font-medium">
+      <div className="flex items-center justify-between px-4 py-2 text-white shrink-0">
+        <p className="text-sm font-medium">
           Pagina {page.pageNumber} · {index + 1} di {pages.length}
         </p>
         <div className="flex items-center gap-1">
@@ -248,32 +211,58 @@ function PageLightbox({
 
       {/* Area immagine */}
       <div
-        className="flex-1 min-h-0 overflow-hidden relative"
+        className="flex-1 min-h-0 overflow-hidden relative touch-none"
         onWheel={(e) => {
           e.preventDefault();
           applyZoom(zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15));
         }}
         onDoubleClick={() => applyZoom(zoom > 1 ? 1 : 2.5)}
         onPointerDown={(e) => {
-          if (zoom <= 1) return;
           (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
-          dragRef.current = {
-            startX: e.clientX,
-            startY: e.clientY,
-            baseX: offset.x,
-            baseY: offset.y,
-          };
+          pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+          if (pointersRef.current.size === 2) {
+            const [a, b] = Array.from(pointersRef.current.values());
+            pinchStartRef.current = {
+              dist: Math.hypot(a.x - b.x, a.y - b.y) || 1,
+              zoom,
+              mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+              offset: { ...offset },
+            };
+            dragRef.current = null;
+          } else if (pointersRef.current.size === 1) {
+            dragRef.current = {
+              startX: e.clientX,
+              startY: e.clientY,
+              baseX: offset.x,
+              baseY: offset.y,
+            };
+          }
         }}
         onPointerMove={(e) => {
+          if (pointersRef.current.has(e.pointerId)) {
+            pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+          }
+          if (pinchStartRef.current && pointersRef.current.size === 2) {
+            const [a, b] = Array.from(pointersRef.current.values());
+            const start = pinchStartRef.current;
+            const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+            const newZoom = clampZoom(start.zoom * (dist / start.dist));
+            setZoom(newZoom);
+            return;
+          }
           const d = dragRef.current;
           if (!d) return;
           setOffset({ x: d.baseX + (e.clientX - d.startX), y: d.baseY + (e.clientY - d.startY) });
         }}
-        onPointerUp={() => {
-          dragRef.current = null;
+        onPointerUp={(e) => {
+          pointersRef.current.delete(e.pointerId);
+          if (pointersRef.current.size < 2) pinchStartRef.current = null;
+          if (pointersRef.current.size === 0) dragRef.current = null;
         }}
-        onPointerCancel={() => {
-          dragRef.current = null;
+        onPointerCancel={(e) => {
+          pointersRef.current.delete(e.pointerId);
+          if (pointersRef.current.size < 2) pinchStartRef.current = null;
+          if (pointersRef.current.size === 0) dragRef.current = null;
         }}
         style={{ cursor: zoom > 1 ? (dragRef.current ? 'grabbing' : 'grab') : 'zoom-in' }}
       >
@@ -294,7 +283,7 @@ function PageLightbox({
         type="button"
         onClick={() => goTo(index - 1)}
         disabled={index === 0}
-        className="absolute left-[max(0.75rem,env(safe-area-inset-left))] top-1/2 -translate-y-1/2 h-11 w-11 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 disabled:opacity-25"
+        className="absolute left-3 top-1/2 -translate-y-1/2 h-11 w-11 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 disabled:opacity-25"
         aria-label="Pagina precedente"
         data-testid="button-lightbox-prev"
       >
@@ -304,7 +293,7 @@ function PageLightbox({
         type="button"
         onClick={() => goTo(index + 1)}
         disabled={index >= pages.length - 1}
-        className="absolute right-[max(0.75rem,env(safe-area-inset-right))] top-1/2 -translate-y-1/2 h-11 w-11 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 disabled:opacity-25"
+        className="absolute right-3 top-1/2 -translate-y-1/2 h-11 w-11 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 disabled:opacity-25"
         aria-label="Pagina successiva"
         data-testid="button-lightbox-next"
       >
@@ -378,8 +367,6 @@ export default function PhotobookViewPage() {
   const noteTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   // Lightbox desktop: indice della pagina aperta a schermo intero
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
-  const lightboxTriggerRef = useRef<HTMLElement | null>(null);
-  const [versionChangeTarget, setVersionChangeTarget] = useState<number | null>(null);
 
   // Le note funzionano in entrambi gli orientamenti; il focus resta esplicito
   // sul telefono per non occupare subito lo schermo con la tastiera.
@@ -388,7 +375,7 @@ export default function PhotobookViewPage() {
     noteTextareaRef.current?.blur();
   }, [isTouchPhone, isPortraitPhone, noteMode]);
 
-  const { data, isLoading, isError, error, refetch } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['/api/photobooks/by-token', token, selectedVersion],
     queryFn: () => getPhotobookByToken(token, selectedVersion ?? undefined),
     enabled: !!token,
@@ -405,12 +392,7 @@ export default function PhotobookViewPage() {
     return () => window.removeEventListener('beforeunload', warn);
   }, [drafts.size, activeMark]);
 
-  const {
-    data: galleryData,
-    isLoading: galleryLoading,
-    isError: galleryError,
-    refetch: refetchGallery,
-  } = useQuery({
+  const { data: galleryData } = useQuery({
     queryKey: ['/api/photobooks/by-token', token, 'gallery-photos'],
     queryFn: () => getPhotobookGalleryPhotosByToken(token),
     enabled: !!data,
@@ -790,17 +772,25 @@ export default function PhotobookViewPage() {
   };
 
   if (isLoading) {
-    return <div className="min-h-screen bg-stone-50 px-4 py-16"><PhotobookLoadingState label="Caricamento fotolibro…" /></div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-stone-50">
+        <Loader2 className="h-8 w-8 animate-spin text-stone-400" />
+      </div>
+    );
   }
 
   if (isError || !data) {
     return (
-      <div className="min-h-screen bg-stone-50 px-4 py-16">
-        <PhotobookErrorState
-          title="Fotolibro non disponibile"
-          message={error instanceof Error && error.message ? error.message : 'Il link non è valido, è scaduto o il servizio non risponde.'}
-          onRetry={() => void refetch()}
-        />
+      <div className="min-h-screen flex items-center justify-center bg-stone-50 p-6">
+        <Card className="max-w-md w-full">
+          <CardContent className="py-10 text-center space-y-2">
+            <BookImage className="h-10 w-10 mx-auto text-stone-400" />
+            <h1 className="font-semibold text-lg">Fotolibro non trovato</h1>
+            <p className="text-sm text-muted-foreground">
+              Il link non è valido o è scaduto. Contatta il tuo fotografo.
+            </p>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -809,20 +799,6 @@ export default function PhotobookViewPage() {
 
   return (
     <div className={`min-h-screen bg-stone-50 ${isTouchPhone ? 'pb-2' : 'pb-28'}`}>
-      {/* Le pagine richiedono il telefono orizzontale; i modali di servizio
-          restano utilizzabili in entrambi gli orientamenti, senza perdere dati. */}
-      {isPortraitPhone && !mockupOpen && !helpOpen && !noteMode && !pickerOpen && !confirmOpen && !clearAllOpen && !jumpOpen && !activeMark && !approveOpen && !deleteSentTarget && versionChangeTarget === null && createPortal(
-        <div
-          className="fixed inset-x-0 bottom-0 top-[52px] z-[15] bg-stone-100 flex flex-col items-center justify-center gap-4 p-8 text-center"
-          data-testid="overlay-rotate"
-        >
-          <Smartphone className="h-6 w-6 shrink-0 rotate-90" />
-          <p>
-            Ruota il telefono in orizzontale per visualizzare le pagine. Per creare l’album 3D usa il pulsante nella barra in alto.
-          </p>
-        </div>, document.body
-      )}
-
       {/* Header */}
       <header className="bg-white border-b sticky top-0 z-20">
         <div
@@ -849,13 +825,11 @@ export default function PhotobookViewPage() {
                 value={String(data.version)}
                 disabled={submitMutation.isPending}
                 onValueChange={(v) => {
-                  const nextVersion = Number(v);
                   if (drafts.size > 0 || activeMark) {
-                    setVersionChangeTarget(nextVersion);
-                    return;
+                    if (!window.confirm('Cambiare versione e abbandonare le richieste non ancora inviate?')) return;
                   }
                   setDrafts(new Map()); setActiveMark(null); setNoteMode(null); setNote(''); setPendingReplacement(null); setPickerOpen(false); setConfirmOpen(false); setSlideIdx(0);
-                  setSelectedVersion(nextVersion === photobook.currentVersion ? null : nextVersion);
+                  setSelectedVersion(Number(v) === photobook.currentVersion ? null : Number(v));
                 }}
               >
                 <SelectTrigger
@@ -911,11 +885,21 @@ export default function PhotobookViewPage() {
           isTouchPhone ? 'px-1 py-1 space-y-1' : 'max-w-4xl px-2 sm:px-4 space-y-4 sm:space-y-6 py-4 sm:py-6'
         }`}
       >
-        {pages.length === 0 && (
-          <PhotobookEmptyState
-            title="Nessuna pagina disponibile"
-            message="Lo studio non ha ancora pubblicato le pagine di questa versione. Riprova più tardi o contatta il fotografo."
-          />
+        {isTouchPhone && isApproved && isCurrentVersion && (
+          <Card className="border-emerald-300 bg-emerald-50/80 shadow-sm mx-1 my-2" data-testid="card-photobook-mockup-mobile">
+            <CardContent className="p-3.5 flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                <h2 className="font-semibold text-stone-900 text-sm">Personalizza il tuo album in 3D</h2>
+              </div>
+              <p className="text-xs text-stone-600">
+                Pagine approvate! Ora puoi scegliere tessuti, colori, copertina e retro con anteprima interattiva.
+              </p>
+              <div className="pt-1">
+                <PhotobookMockup key={`mobile-main-${photobook.id}-${data.version}`} photobookId={photobook.id} version={data.version} token={token} readOnly={isLocked} onOpenChange={setMockupOpen} />
+              </div>
+            </CardContent>
+          </Card>
         )}
         {!isTouchPhone && photobook.versions.length > 1 && <Card className="border-blue-200 bg-blue-50"><CardContent className="py-3 space-y-2 text-sm">
           <p className="font-semibold">{isCurrentVersion ? `Stai vedendo la versione aggiornata ${data.version}` : `Versione precedente ${data.version} · sola lettura`}</p>
@@ -923,7 +907,7 @@ export default function PhotobookViewPage() {
           {!isCurrentVersion && <Button variant="outline" onClick={() => { setSelectedVersion(null); setSlideIdx(0); }}>Torna alla versione attuale</Button>}
         </CardContent></Card>}
         {!isTouchPhone && <details className="rounded-lg border bg-white p-3 text-sm"><summary className="cursor-pointer font-medium min-h-9">Come controllare il tuo fotolibro · guida passo passo</summary>
-          <ol className="list-decimal pl-5 space-y-2 mt-2"><li>Sfoglia tutte le pagine con le frecce.</li><li>Per una correzione, tocca “Segna una X”, indica la foto e descrivi cosa cambiare.</li><li>Invia le richieste: finché restano in bozza lo studio non le riceve.</li><li>Quando le pagine vanno bene, approva l’impaginato. Lo studio prepara poi la proposta dell’album; quando è disponibile, personalizza copertina e box con “Apri mockup”.</li></ol>
+          <ol className="list-decimal pl-5 space-y-2 mt-2"><li>Sfoglia tutte le pagine con le frecce.</li><li>Per una correzione, tocca “Segna una X”, indica la foto e descrivi cosa cambiare.</li><li>Invia le richieste: finché restano in bozza lo studio non le riceve.</li><li>Quando le pagine vanno bene, approva l’impaginato. Poi personalizza copertina e box con “Apri mockup”: potrai modificarli fino all’invio in stampa.</li></ol>
         </details>}
         {!isTouchPhone && isApproved && <PhotobookMockup key={`${photobook.id}-${data.version}`} photobookId={photobook.id} version={data.version} token={token} readOnly={isLocked || !isCurrentVersion} onOpenChange={setMockupOpen} />}
         {isLocked && !isTouchPhone && (
@@ -948,10 +932,9 @@ export default function PhotobookViewPage() {
               <div className="space-y-1">
                 <p className="font-semibold text-green-800">Impaginato approvato</p>
                 <p className="text-sm text-green-700">
-                  Le pagine di questa versione sono approvate. Il prossimo passaggio è
-                  la personalizzazione di album e box con il mockup, non la stampa.
-                  Quando lo studio avrà preparato la proposta potrai aprirla qui. Per
-                  altre modifiche alle pagine, contatta il tuo fotografo.
+                  Le pagine di questa versione sono approvate. Ora puoi personalizzare
+                  album e box con il mockup, fino all'invio in stampa. Per altre
+                  modifiche alle pagine, contatta il tuo fotografo.
                 </p>
               </div>
             </CardContent>
@@ -1047,21 +1030,16 @@ export default function PhotobookViewPage() {
                 <p className="text-xs font-medium text-stone-500 uppercase tracking-wide">
                   Pagina {page.pageNumber}
                 </p>
-                {!isTouchPhone && (
-                  <button
-                    type="button"
-                    className="flex items-center gap-1 text-[11px] text-stone-500 hover:text-stone-800 rounded-md px-1.5 py-0.5 hover:bg-stone-100"
-                    title="Vedi a schermo intero (con zoom)"
-                    onClick={(event) => {
-                      lightboxTriggerRef.current = event.currentTarget;
-                      setLightboxIdx(pageIdx);
-                    }}
-                    data-testid={`button-fullscreen-${page.id}`}
-                  >
-                    <Maximize2 className="h-3.5 w-3.5" />
-                    Schermo intero
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className="flex items-center gap-1 text-[11px] text-stone-500 hover:text-stone-800 rounded-md px-1.5 py-0.5 hover:bg-stone-100"
+                  title="Vedi a schermo intero (con zoom)"
+                  onClick={() => setLightboxIdx(pageIdx)}
+                  data-testid={`button-fullscreen-${page.id}`}
+                >
+                  <Maximize2 className="h-3.5 w-3.5" />
+                  Schermo intero
+                </button>
                 {pageSent.map((r) => (
                   <span
                     key={r.id}
@@ -1160,19 +1138,18 @@ export default function PhotobookViewPage() {
             <li>Quando le pagine vanno bene, tocca <strong>Approva pagine</strong>. Poi puoi scegliere modello, copertina e box da <strong>Personalizza album</strong>.</li>
           </ol>
           <p className="text-sm text-muted-foreground">Il menu versione in alto conserva le pagine precedenti in sola lettura. Se lo studio pubblica una nuova versione, approva prima le nuove pagine: il mockup salvato non viene cancellato.</p>
-          <p className="text-sm text-muted-foreground">Approvare le pagine non manda l'album in stampa. Quando lo studio conferma il mockup puoi ancora creare una nuova revisione fino alla stampa, ma ogni modifica richiederà una nuova verifica. Per cambiare pagine già approvate contatta lo studio.</p>
+          <p className="text-sm text-muted-foreground">Approvare le pagine non manda l'album in stampa. Il mockup resta modificabile fino alla stampa; per cambiare pagine già approvate contatta lo studio.</p>
           <DialogFooter><Button className="h-11" onClick={() => setHelpOpen(false)}>Ho capito</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Lightbox desktop: pagina a schermo intero con zoom e navigazione */}
-      {!isTouchPhone && lightboxIdx !== null && (
+      {/* Lightbox: pagina a schermo intero con zoom, pinch-to-zoom e navigazione */}
+      {lightboxIdx !== null && (
         <PageLightbox
           pages={pages}
           index={Math.min(lightboxIdx, pages.length - 1)}
           onIndexChange={setLightboxIdx}
           onClose={() => setLightboxIdx(null)}
-          returnFocusRef={lightboxTriggerRef}
         />
       )}
 
@@ -1260,30 +1237,6 @@ export default function PhotobookViewPage() {
           </div>
         </DialogContent>
       </Dialog>
-
-      <PhotobookConfirmDialog
-        open={versionChangeTarget !== null}
-        onOpenChange={(open) => {
-          if (!open) setVersionChangeTarget(null);
-        }}
-        title="Cambiare versione?"
-        description="Le richieste e le bozze non ancora inviate verranno abbandonate. Le richieste già inviate resteranno intatte."
-        confirmLabel="Cambia versione"
-        onConfirm={() => {
-          if (versionChangeTarget === null) return;
-          const nextVersion = versionChangeTarget;
-          setDrafts(new Map());
-          setActiveMark(null);
-          setNoteMode(null);
-          setNote('');
-          setPendingReplacement(null);
-          setPickerOpen(false);
-          setConfirmOpen(false);
-          setSlideIdx(0);
-          setSelectedVersion(nextVersion === photobook.currentVersion ? null : nextVersion);
-          setVersionChangeTarget(null);
-        }}
-      />
 
       {/* Bozze su smartphone: nessuna barra fissa (coprirebbe la pagina e in
           modalità disegno lo scroll è bloccato). Solo un bottone flottante che
@@ -1429,12 +1382,8 @@ export default function PhotobookViewPage() {
           // (visualViewport) e scorre al suo interno.
           // Il cliente apre la tastiera toccando il campo, in entrambi gli orientamenti.
           onOpenAutoFocus={(e) => {
-            if (isTouchPhone) {
-              e.preventDefault();
-              (e.currentTarget as HTMLElement).focus({ preventScroll: true });
-            }
+            if (isTouchPhone) e.preventDefault();
           }}
-          tabIndex={-1}
           className={`max-w-sm overflow-y-auto ${
             isTouchPhone ? 'top-2 translate-y-0 max-h-[80dvh]' : 'max-h-[90dvh]'
           } ${isTouchPhone && keyboardHeight ? 'p-3 gap-2' : ''}`}
@@ -1469,11 +1418,7 @@ export default function PhotobookViewPage() {
               className="w-24 h-24 rounded-md object-cover border mx-auto"
             />
           )}
-          <label htmlFor="photobook-request-note" className="text-sm font-medium">
-            Nota per lo studio
-          </label>
           <Textarea
-            id="photobook-request-note"
             ref={noteTextareaRef}
             value={note}
             onChange={(e) => setNote(e.target.value)}
@@ -1616,7 +1561,7 @@ export default function PhotobookViewPage() {
 
       {/* Picker foto sostitutiva */}
       <PhotobookPhotoPicker
-        open={pickerOpen && !galleryLoading && !galleryError}
+        open={pickerOpen}
         onOpenChange={setPickerOpen}
         photos={photos}
         chapters={chapters}
@@ -1626,32 +1571,6 @@ export default function PhotobookViewPage() {
           setNoteMode('replace');
         }}
       />
-      {pickerOpen && galleryLoading && (
-        <Dialog open onOpenChange={setPickerOpen}>
-          <DialogContent className="max-w-sm">
-            <DialogHeader>
-              <DialogTitle>Caricamento galleria</DialogTitle>
-              <DialogDescription>Attendi il caricamento delle foto disponibili.</DialogDescription>
-            </DialogHeader>
-            <PhotobookLoadingState label="Caricamento foto…" />
-          </DialogContent>
-        </Dialog>
-      )}
-      {pickerOpen && galleryError && (
-        <Dialog open onOpenChange={setPickerOpen}>
-          <DialogContent className="max-w-sm">
-            <DialogHeader>
-              <DialogTitle>Galleria non disponibile</DialogTitle>
-              <DialogDescription>La galleria non è temporaneamente disponibile. Puoi ritentare il caricamento.</DialogDescription>
-            </DialogHeader>
-            <PhotobookErrorState
-              title="Non riesco a caricare le foto"
-              message="La galleria è temporaneamente non disponibile."
-              onRetry={() => void refetchGallery()}
-            />
-          </DialogContent>
-        </Dialog>
-      )}
 
       {/* Conferma invio */}
       <Dialog

@@ -304,7 +304,7 @@ const home = installHomeScenes({ scene, camera, controls, ground, product, album
   beforeEnter() { homePose = { x: album.position.x, angle: pivot.rotation.y, automatic }; album.position.x = 0; pivot.rotation.y = 0; automatic = false; },
   afterLeave() { album.position.x = homePose.x; pivot.rotation.y = homePose.angle; automatic = homePose.automatic; }
 });
-new ResizeObserver(() => { const stage = $('viewport').parentElement; renderer.setSize(stage.clientWidth, stage.clientHeight, false); camera.aspect = stage.clientWidth / stage.clientHeight; camera.updateProjectionMatrix(); view(); }).observe($('viewport').parentElement);
+new ResizeObserver(() => { if (exporting) return; const stage = $('viewport').parentElement; renderer.setSize(stage.clientWidth, stage.clientHeight, false); camera.aspect = stage.clientWidth / stage.clientHeight; camera.updateProjectionMatrix(); view(); }).observe($('viewport').parentElement);
 let last = 0;
 const renderLoop = time => { if (automatic) { const angle = ((THREE.MathUtils.radToDeg(pivot.rotation.y) + Math.min(time - last, 100) * .018 + 180) % 360) - 180; $('rotation').value = angle; setRotation(angle); } last = time; controls.update(); home.update(); renderer.render(scene, camera); };
 renderer.setAnimationLoop(renderLoop);

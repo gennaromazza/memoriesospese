@@ -1,558 +1,1058 @@
-// Adattatore di sola presentazione per i renderer same-origin esistenti.
-// I controlli restano nel loro documento, con gli handler e gli ID originali.
-import type { MockupWizardStepDefinition } from '@shared/mockup-catalog';
+// Adattatore di presentazione Mobile-First per i visualizzatori 3D.
+// I controlli e gli eventi restano collegati al DOM del visualizzatore con gli handler originali.
 
 export function installMockupWizard(doc: Document, mobile = false) {
-  let content = doc.querySelector<HTMLElement>('.panel-content');
+  const content = doc.querySelector<HTMLElement>('.panel-content');
   const stage = doc.querySelector<HTMLElement>('.stage');
-  if (!content) {
-    const aside = doc.querySelector<HTMLElement>('aside');
-    const sections = aside ? Array.from(aside.querySelectorAll<HTMLElement>(':scope > section')) : [];
-    const firstSection = sections[0];
-    if (aside && firstSection && sections.length) {
-      content = doc.createElement('div');
-      content.className = 'panel-content';
-      firstSection.before(content);
-      sections.forEach(section => content?.append(section));
-    }
-  }
   if (!content || !stage) throw new Error('Interfaccia del modello non disponibile');
-  const download = doc.getElementById('downloadClient');
-  if (download && !download.closest('.download-bar')) {
+
+  const slot = doc.createElement('div');
+  slot.id = 'wizard-slot';
+  content.prepend(slot);
+
+  const actionsSlot = doc.createElement('div');
+  actionsSlot.id = 'wizard-actions-slot';
+
+  const controlsSlot = doc.createElement('div');
+  controlsSlot.id = 'wizard-controls-slot';
+
+  content.parentElement?.append(actionsSlot);
+  stage.append(controlsSlot);
+
+  const downloadControl = doc.getElementById('downloadClient');
+  if (downloadControl && !downloadControl.closest('.download-bar')) {
     const bar = doc.createElement('div');
     bar.className = 'download-bar';
-    download.before(bar);
-    bar.append(download);
+    downloadControl.before(bar);
+    bar.append(downloadControl);
     const status = doc.getElementById('downloadStatus');
-    if (status && status.parentElement !== bar) bar.append(status);
+    if (status) bar.append(status);
   }
-  const slot = doc.createElement('div'); slot.id = 'wizard-slot'; content.prepend(slot);
-  const actionsSlot = doc.createElement('div'); actionsSlot.id = 'wizard-actions-slot';
-  const controlsSlot = doc.createElement('div'); controlsSlot.id = 'wizard-controls-slot';
-  if (mobile) {
-    content.parentElement?.append(actionsSlot); stage.append(controlsSlot);
-    const download = doc.querySelector('.download-bar'); if (download) content.append(download);
-    // Il selettore nativo del file è nascosto anche quando i selettori CSS
-    // dello step rendono visibili i figli di Dettagli (Custodia usa CSS, non hidden).
-    for (const id of ['coverUpload', 'backUpload', 'restorePhoto', 'photoStatus']) {
-      const element = doc.getElementById(id); if (element) element.hidden = true;
-      const label = doc.querySelector<HTMLElement>(`label[for="${id}"]`); if (label) label.hidden = true;
-    }
+  const download = doc.querySelector('.download-bar');
+  if (download) content.append(download);
+
+  // Nasconde input file nativi
+  for (const id of ['coverUpload', 'backUpload', 'restorePhoto', 'photoStatus']) {
+    const element = doc.getElementById(id);
+    if (element) element.hidden = true;
+    const label = doc.querySelector<HTMLElement>(`label[for="${id}"]`);
+    if (label) label.hidden = true;
   }
+
   doc.body.dataset.wizard = 'true';
-  doc.body.dataset.wizardLayout = 'installing';
   if (mobile) doc.body.dataset.wizardMobile = 'true';
+
   const style = doc.createElement('style');
   style.dataset.mockupWizardStyle = 'true';
   style.dataset.mockupWizardStyleKind = 'base';
   style.textContent = `
-    body[data-wizard] {height:100dvh;overflow:hidden;font-size:16px}
-    body[data-wizard] header,body[data-wizard] aside>h1,body[data-wizard] aside>p,body[data-wizard] aside>nav,
-    body[data-wizard] .tools,body[data-wizard] .view-tools,body[data-wizard] .hint,body[data-wizard] .zoom {display:none!important}
-    body[data-wizard] main {display:grid!important;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(120px,40%) minmax(0,1fr);height:100%;min-height:0}
-    body[data-wizard] .workspace {grid-row:1;display:block;min-height:0}
-    body[data-wizard] .stage {height:100%;min-height:0;position:relative}
-      body[data-wizard] aside {grid-row:2;padding:14px;min-height:0;overflow:hidden;border:0}
-      body[data-wizard] .workspace {background:#edf1ec;position:relative}
-      body[data-wizard] .workspace:before {content:'ANTEPRIMA LIVE  ·  clicca e trascina per ruotare';position:absolute;top:12px;left:14px;z-index:2;padding:6px 9px;border:1px solid #d9dfd8;border-radius:999px;background:#fffffff0;color:#335e56;font-size:10px;font-weight:800;letter-spacing:.07em;pointer-events:none}
-      body[data-wizard] aside {background:#fff!important;border-left:1px solid #d8ded7}
-      body[data-wizard] aside:before {content:'CONFIGURA IL MODELLO';display:block;padding:0 0 10px;border-bottom:1px solid #e1e6df;color:#335e56;font-size:10px;font-weight:800;letter-spacing:.1em}
-    body[data-wizard] .panel-content {max-height:none;min-height:0;overflow:auto;overscroll-behavior:contain;padding:0 4px 12px 0}
-    body[data-wizard] button,body[data-wizard] select,body[data-wizard] input:not([type=range]) {min-height:44px;font-size:16px}
-    body[data-wizard] input:not([type=range]):not([type=checkbox]) {width:100%}
-    body[data-wizard] .materials {grid-template-columns:repeat(3,minmax(0,1fr));max-height:none}
-    body[data-wizard] .materials button {font-size:13px;overflow-wrap:anywhere}
-    body[data-wizard] :is(.category,.material-category)>summary {cursor:default;list-style:none}
-    body[data-wizard] :is(.category,.material-category)>summary::-webkit-details-marker {display:none}
-    body[data-wizard] .badge {top:8px;left:10px;right:10px;font-size:11px}
-    body[data-wizard] .wizard-views {position:absolute;bottom:8px;left:8px;right:8px;display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
-    body[data-wizard] .wizard-views button {font-size:13px;padding:7px 10px;background:#faf8f3}
-    body[data-wizard][data-home-scene]:not([data-home-scene="none"]) .wizard-views {display:none}
-    body[data-wizard] .wizard-cards {display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
-    body[data-wizard] .wizard-cards button {flex:1 1 120px;text-align:left}
-    body[data-wizard] details>summary {min-height:44px;padding:12px 0;cursor:pointer}
-    body[data-wizard] .download-bar {display:none}
-    body[data-wizard][data-wizard-panel="summary"] .download-bar {display:block}
-    body[data-wizard] .panel-content>section[data-wizard-panel-active="false"],
-    body[data-wizard] #detailPanel>[data-wizard-panel-active="false"] {display:none!important}
-    body[data-wizard] #wizard-home {display:none}
-    body[data-wizard][data-wizard-panel="summary"] #wizard-home {display:block}
-    body[data-wizard] #wizard-home section {display:block}
-    body[data-wizard] #wizard-slot h3 {font:500 20px Georgia,serif;margin:0 0 12px}
-    body[data-wizard] #wizard-slot .wizard-model {display:block;width:100%;margin:8px 0;text-align:left}
-    body[data-wizard] #wizard-slot .wizard-model small {display:block;margin-top:4px}
-    body[data-wizard] #wizard-slot .wizard-photo-actions {display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
-    body[data-wizard] #wizard-slot .wizard-photo-actions button {flex:1}
-    body[data-wizard] #wizard-slot p {margin:8px 0 12px}
-     body[data-wizard] aside{background:#fff!important;border-left:1px solid #d9dfd8!important}
-     body[data-wizard] .panel-content{padding:0 5px 14px 0!important}
-     body[data-wizard] #wizard-slot{padding:12px 0 4px}
-     body[data-wizard] #wizard-slot h3{margin:0 0 7px!important;color:#263d3b;font:600 20px/1.15 Georgia,serif!important}
-     body[data-wizard] #wizard-slot>p{color:#71807b;font-size:12px!important;line-height:1.45}
-     body[data-wizard] .wizard-step-heading{color:#263d3b;border-bottom:1px solid #e1e6df}
-     body[data-wizard] .wizard-step-heading strong{font-weight:700}
-     body[data-wizard] .wizard-step-heading span{color:#335e56;font-weight:700;letter-spacing:.04em}
-     body[data-wizard] .wizard-cards button,body[data-wizard] .wizard-model{border:1px solid #d9dfd8;border-radius:10px;background:#fff;color:#263d3b;transition:border-color .15s,background .15s,box-shadow .15s}
-     body[data-wizard] .wizard-cards button:hover,body[data-wizard] .wizard-model:hover,body[data-wizard] .wizard-cards button[aria-pressed=true],body[data-wizard] .wizard-model[aria-pressed=true]{border-color:#335e56;background:#f3f5f0;box-shadow:0 0 0 2px #335e5618}
-      body[data-wizard] .wizard-photo-actions button,body[data-wizard] .download-bar #downloadClient{border:1px solid #d9dfd8;border-radius:9px;background:#fff;color:#335e56;font-weight:600}
-      body[data-wizard] #wizard-slot .wizard-summary-card{display:flex;flex-direction:column;gap:9px;border:1px solid #d9dfd8;border-radius:14px;padding:18px;background:linear-gradient(145deg,#f3f5f0,#fbfaf6);color:#263d3b}
-      body[data-wizard] #wizard-slot .wizard-summary-kicker{color:#335e56;font-size:10px;font-weight:800;letter-spacing:.12em}
-      body[data-wizard] #wizard-slot .wizard-summary-card h3{margin:0!important;font:600 24px/1.1 Georgia,serif!important}
-      body[data-wizard] #wizard-slot .wizard-summary-card>p{margin:0!important;color:#52645e;font-size:13px!important;line-height:1.5}
-      body[data-wizard] #wizard-slot .wizard-summary-card .wizard-summary-status{padding:8px 10px!important;border-radius:8px;background:#e8f0eb;color:#335e56;font-size:11px!important;font-weight:700}
-      body[data-wizard] #wizard-slot .wizard-summary-card .wizard-summary-note{color:#71807b;font-size:11px!important}
-      body[data-wizard] #wizard-slot .wizard-summary-card--readonly{border-color:#c8dbe4;background:linear-gradient(145deg,#eef6f8,#fbfaf6)}
-      body[data-wizard] #wizard-slot .wizard-summary-card--readonly .wizard-summary-status{background:#eef6f8;color:#526e79}
-      body[data-wizard] #wizard-slot .wizard-summary-details{display:flex;flex-direction:column;gap:7px;margin:3px 0 0}
-      body[data-wizard] #wizard-slot .wizard-summary-details div{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid #e1e6df;padding-bottom:7px}
-      body[data-wizard] #wizard-slot .wizard-summary-details dt{color:#71807b;font-size:10px;text-transform:uppercase}
-      body[data-wizard] #wizard-slot .wizard-summary-details dd{margin:0;color:#263d3b;font-size:11px;font-weight:700;text-align:right}
-      body[data-wizard] #wizard-slot .wizard-summary-card details{margin-top:3px;border-top:1px solid #d9dfd8;padding-top:8px}
-      body[data-wizard] #wizard-slot .wizard-summary-card details summary{min-height:36px;padding:7px 0;color:#335e56;font-size:12px;font-weight:700}
-      body[data-wizard] #wizard-slot .wizard-summary-card details button{border:1px solid #b9cbc0;border-radius:8px;background:#fff;color:#335e56;font-weight:700}
-      body[data-wizard][data-wizard-readonly=true][data-wizard-panel=summary] .panel-content>section{display:none!important}
-      body[data-wizard][data-wizard-readonly=true][data-wizard-panel=summary] #wizard-slot{display:block!important}
-      body[data-wizard][data-wizard-readonly=true] aside:before,body[data-wizard-mobile][data-wizard-readonly=true] aside:before{content:'IL TUO ALBUM  ·  SOLA LETTURA';color:#bd6853}
-      body[data-wizard][data-wizard-readonly=true] .download-bar{display:block!important;margin-top:10px;border-top:1px solid #d9dfd8;padding-top:10px}
-      body[data-wizard][data-wizard-readonly=true] .download-bar #downloadClient{min-height:44px;background:#335e56;color:#fff}
-     body[data-wizard] .wizard-views{gap:3px!important;padding:4px;border:1px solid #ffffffb8;border-radius:12px;background:#fffffff0;box-shadow:0 8px 20px #263d3b18}
-     body[data-wizard] .wizard-views button{min-height:36px;border:0;border-radius:8px;color:#596b65;background:transparent;font-size:11px;font-weight:600}
-     body[data-wizard] .wizard-views button:hover{color:#234943;background:#eef2ed}
-     body[data-wizard] {
-       --wizard-ink:#263d3b;
-       --wizard-sage:#335e56;
-       --wizard-sage-soft:#eef2ed;
-       --wizard-coral:#bd6853;
-       --wizard-coral-soft:#fff0eb;
-       --wizard-paper:#fbfaf6;
-       --wizard-line:#d9dfd8;
-       --wizard-muted:#71807b;
-     }
-     body[data-wizard] aside,
-     body[data-wizard] .panel-content,
-     body[data-wizard] .panel-content section {color:var(--wizard-ink)}
-     body[data-wizard] .panel-content>section>h2,
-     body[data-wizard] .panel-content>section>h3,
-     body[data-wizard] #detailPanel>section>h2,
-     body[data-wizard] #detailPanel>section>h3 {
-       margin:16px 0 9px;
-       color:var(--wizard-ink);
-       font:600 19px/1.12 Georgia,serif;
-     }
-     body[data-wizard] .panel-content>section>p,
-     body[data-wizard] #detailPanel>section>p,
-     body[data-wizard] .panel-content .description,
-     body[data-wizard] .panel-content .help-text {
-       color:var(--wizard-muted);
-       font-size:12px;
-       line-height:1.45;
-     }
-     body[data-wizard] label {
-       display:block;
-       margin:12px 0 6px;
-       color:var(--wizard-sage);
-       font-size:10px;
-       font-weight:800;
-       letter-spacing:.09em;
-       line-height:1.25;
-       text-transform:uppercase;
-     }
-     body[data-wizard] :is(select,input[type=text],input[type=number],input[type=email],textarea) {
-       border:1px solid var(--wizard-line);
-       border-radius:9px;
-       background:#fff;
-       color:var(--wizard-ink);
-       box-shadow:none;
-     }
-     body[data-wizard] :is(select,input[type=text],input[type=number],input[type=email],textarea):focus {
-       border-color:var(--wizard-sage);
-       outline:3px solid #335e5622;
-     }
-     body[data-wizard] :is(.category,.material-category) {
-       margin:10px 0;
-       border:1px solid var(--wizard-line);
-       border-radius:12px;
-       background:var(--wizard-paper);
-       overflow:hidden;
-     }
-     body[data-wizard] :is(.category,.material-category)>summary {
-       display:flex;
-       align-items:center;
-       justify-content:space-between;
-       gap:12px;
-       min-height:44px;
-       padding:12px 13px;
-       color:var(--wizard-sage);
-       font-size:11px;
-       font-weight:800;
-       letter-spacing:.08em;
-       line-height:1.2;
-       text-transform:uppercase;
-     }
-     body[data-wizard] :is(.category,.material-category)>summary::after {
-       content:'+';
-       display:grid;
-       width:20px;
-       height:20px;
-       place-items:center;
-       border:1px solid var(--wizard-line);
-       border-radius:50%;
-       color:var(--wizard-sage);
-       font-size:15px;
-       line-height:1;
-     }
-     body[data-wizard] :is(.category,.material-category)[open]>summary::after {
-       content:'−';
-       background:var(--wizard-sage-soft);
-     }
-     body[data-wizard] :is(.category,.material-category)>:not(summary) {
-       margin-left:12px;
-       margin-right:12px;
-     }
-     body[data-wizard] .materials {
-       display:grid;
-       grid-template-columns:repeat(3,minmax(0,1fr));
-       grid-auto-rows:max-content;
-       gap:8px;
-       padding:0 0 12px;
-     }
-     body[data-wizard] .materials button {
-       position:relative;
-       min-height:60px;
-       padding:9px 8px;
-       border:1px solid var(--wizard-line);
-       border-radius:10px;
-       background:#fff;
-       color:var(--wizard-ink);
-       font-size:11px;
-       font-weight:700;
-       line-height:1.25;
-       text-align:left;
-       transition:border-color .15s,background .15s,box-shadow .15s,transform .15s;
-     }
-     body[data-wizard] .materials button:hover {
-       border-color:var(--wizard-sage);
-       background:var(--wizard-sage-soft);
-       transform:translateY(-1px);
-     }
-     body[data-wizard] .materials button:is([aria-pressed=true],[aria-selected=true],[data-selected=true],.selected,.active) {
-       border-color:var(--wizard-sage);
-       background:var(--wizard-sage-soft);
-       box-shadow:inset 0 0 0 1px var(--wizard-sage),0 0 0 2px #335e5618;
-     }
-     body[data-wizard] .materials button:is([aria-pressed=true],[aria-selected=true],[data-selected=true],.selected,.active)::after,
-     body[data-wizard] .wizard-cards button:is([aria-pressed=true],[aria-selected=true],[data-selected=true],.selected,.active)::after {
-       content:'✓';
-       position:absolute;
-       top:6px;
-       right:7px;
-       color:var(--wizard-sage);
-       font-size:12px;
-       font-weight:900;
-     }
-     body[data-wizard] .materials img,
-     body[data-wizard] .materials .swatch,
-     body[data-wizard] .materials [class*=swatch] {
-       width:100%;
-       min-height:24px;
-       max-height:48px;
-       margin-bottom:6px;
-       border-radius:7px;
-       object-fit:cover;
-     }
-     body[data-wizard] .wizard-cards {
-       display:grid;
-       grid-template-columns:repeat(2,minmax(0,1fr));
-       grid-auto-rows:max-content;
-       gap:8px;
-       margin:10px 0 13px;
-     }
-     body[data-wizard] .wizard-cards button {
-       position:relative;
-       min-height:54px;
-       padding:10px 11px;
-       border:1px solid var(--wizard-line);
-       border-radius:10px;
-       background:#fff;
-       color:var(--wizard-ink);
-       font-size:12px;
-       font-weight:700;
-       line-height:1.3;
-       text-align:left;
-       transition:border-color .15s,background .15s,box-shadow .15s;
-     }
-     body[data-wizard] .wizard-cards button:hover,
-     body[data-wizard] .wizard-cards button:is([aria-pressed=true],[aria-selected=true],[data-selected=true],.selected,.active) {
-       border-color:var(--wizard-sage);
-       background:var(--wizard-sage-soft);
-       box-shadow:inset 0 0 0 1px var(--wizard-sage),0 0 0 2px #335e5618;
-     }
-     body[data-wizard] .wizard-cards button[disabled] {
-       cursor:not-allowed;
-       opacity:.55;
-     }
-     body[data-wizard] .wizard-photo-actions {
-       padding:10px;
-       border:1px solid var(--wizard-line);
-       border-radius:11px;
-       background:var(--wizard-paper);
-     }
-     body[data-wizard] .wizard-photo-actions button:hover,
-     body[data-wizard] .download-bar #downloadClient:hover {
-       border-color:var(--wizard-sage);
-       background:var(--wizard-sage-soft);
-     }
-     body[data-wizard] .wizard-validation,
-     body[data-wizard] .error,
-     body[data-wizard] [role=alert] {
-       border-radius:9px;
-       border-left:3px solid var(--wizard-coral);
-       background:var(--wizard-coral-soft);
-       color:#7d4437;
-     }
-     body[data-wizard] .wizard-nav {
-       border-top:1px solid var(--wizard-line);
-     }
-     body[data-wizard] .wizard-primary,
-     body[data-wizard] .wizard-mobile-actions .wizard-primary {
-       border-color:var(--wizard-sage);
-       background:var(--wizard-sage);
-       color:#fff;
-     }
-     body[data-wizard] .wizard-primary:hover:not(:disabled),
-     body[data-wizard] .wizard-mobile-actions .wizard-primary:hover:not(:disabled) {
-       background:#234943;
-     }
-      @media(min-width:768px){body[data-wizard] main{grid-template-columns:minmax(0,1.4fr) minmax(300px,1fr);grid-template-rows:minmax(0,1fr)}body[data-wizard] aside{grid-row:1;grid-column:2;padding:22px}body[data-wizard] .workspace{grid-column:1}}
-    @media(max-width:767px) and (max-height:380px){body[data-wizard] main{grid-template-rows:minmax(100px,35%) minmax(0,1fr)}body[data-wizard] .wizard-views button:nth-child(3){display:none}}
+    /* BASE WIZARD - MOBILE-FIRST VERTICAL SPLIT */
+    body[data-wizard] {
+      margin: 0;
+      padding: 0;
+      height: 100vh !important;
+      height: 100dvh !important;
+      overflow: hidden !important;
+      font-family: system-ui, -apple-system, sans-serif;
+      color: #243d44;
+      background: #faf8f3;
+      font-size: 15px;
+    }
+    body[data-wizard] header,
+    body[data-wizard] aside > h1,
+    body[data-wizard] aside > p,
+    body[data-wizard] aside > nav,
+    body[data-wizard] .tools,
+    body[data-wizard] .view-tools,
+    body[data-wizard] .hint,
+    body[data-wizard] .zoom {
+      display: none !important;
+    }
+
+    body[data-wizard] main {
+      display: flex !important;
+      flex-direction: column !important;
+      height: 100vh !important;
+      height: 100dvh !important;
+      min-height: 0 !important;
+      overflow: hidden !important;
+      position: relative !important;
+    }
+
+    body[data-wizard] .workspace {
+      flex: 0 0 42dvh !important;
+      height: 42dvh !important;
+      min-height: 190px !important;
+      max-height: 46dvh !important;
+      width: 100% !important;
+      position: relative !important;
+      display: block !important;
+      background: #e9e8e0;
+      overflow: hidden !important;
+    }
+
+    body[data-wizard] .stage {
+      width: 100% !important;
+      height: 100% !important;
+      min-height: 0 !important;
+      position: relative !important;
+    }
+
+    body[data-wizard] canvas#viewport,
+    body[data-wizard] canvas {
+      width: 100% !important;
+      height: 100% !important;
+      display: block !important;
+      touch-action: pan-y pinch-zoom !important;
+    }
+
+    body[data-wizard] aside {
+      flex: 1 1 0% !important;
+      min-height: 0 !important;
+      display: flex !important;
+      flex-direction: column !important;
+      background: #faf8f3 !important;
+      border-top: 1px solid #d8ded7 !important;
+      border-left: 0 !important;
+      border-right: 0 !important;
+      padding: 10px 14px 0 !important;
+      overflow: hidden !important;
+    }
+
+    body[data-wizard] .panel-content {
+      flex: 1 1 0% !important;
+      min-height: 0 !important;
+      overflow-y: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+      overscroll-behavior: contain !important;
+      padding: 0 2px 48px 0 !important;
+    }
+
+    /* STEP VISIBILITY ORCHESTRATION */
+    body[data-wizard] .panel-content > section {
+      display: none !important;
+    }
+
+    /* Step 2: Collezione Tessuto */
+    body[data-wizard][data-wizard-step="2"] #fabricPanel {
+      display: block !important;
+    }
+    body[data-wizard][data-wizard-step="2"] .wizard-family-selector {
+      display: grid !important;
+    }
+    body[data-wizard][data-wizard-step="2"] :is(.category, .material-category) {
+      display: none !important;
+    }
+
+    /* Step 3: Colore Rivestimento */
+    body[data-wizard][data-wizard-step="3"] #fabricPanel {
+      display: block !important;
+    }
+    body[data-wizard][data-wizard-step="3"] .wizard-family-selector {
+      display: none !important;
+    }
+    body[data-wizard][data-wizard-step="3"] :is(.category, .material-category) {
+      display: none !important;
+      border: 0 !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+    body[data-wizard][data-wizard-step="3"] :is(.category, .material-category)[open] {
+      display: block !important;
+    }
+    body[data-wizard][data-wizard-step="3"] :is(.category, .material-category) > summary {
+      display: none !important;
+    }
+
+    /* Step 4: Struttura dello Scrigno (Cornice legno, bianco, tessuto) */
+    body[data-wizard][data-wizard-step="4"] #detailPanel {
+      display: block !important;
+    }
+    body[data-wizard][data-wizard-step="4"] #detailPanel > * {
+      display: none !important;
+    }
+    body[data-wizard][data-wizard-step="4"] #detailPanel > [data-wizard-frame]:not([hidden]) {
+      display: block !important;
+    }
+
+    /* Step 5: Disposizione della Copertina (Placchetta, Foto grande, Foto placchetta / Obliquo) */
+    body[data-wizard][data-wizard-step="5"] #detailPanel {
+      display: block !important;
+    }
+    body[data-wizard][data-wizard-step="5"] #detailPanel > * {
+      display: none !important;
+    }
+    body[data-wizard][data-wizard-step="5"] #detailPanel > [data-wizard-cover-layout]:not([hidden]) {
+      display: block !important;
+    }
+
+    /* Step 6: Personalizzazione Copertina (Nomi incisione placchetta o Foto con pulsante galleria) */
+    body[data-wizard][data-wizard-step="6"] #detailPanel {
+      display: block !important;
+    }
+    body[data-wizard][data-wizard-step="6"] #detailPanel > * {
+      display: none !important;
+    }
+    body[data-wizard][data-wizard-step="6"] #detailPanel > #engravingControls:not([hidden]),
+    body[data-wizard][data-wizard-step="6"] #detailPanel > #photoControls:not([hidden]),
+    body[data-wizard][data-wizard-step="6"] #detailPanel > details[data-wizard-crop] {
+      display: block !important;
+    }
+
+    /* Step 7: Retro dello Scrigno (Plexiglass trasparente vs Stampa foto) */
+    body[data-wizard][data-wizard-step="7"] #detailPanel {
+      display: block !important;
+    }
+    body[data-wizard][data-wizard-step="7"] #detailPanel > * {
+      display: none !important;
+    }
+    body[data-wizard][data-wizard-step="7"] #detailPanel > [data-wizard-rear]:not([hidden]),
+    body[data-wizard][data-wizard-step="7"] #detailPanel > #backPhotoControls:not([hidden]),
+    body[data-wizard][data-wizard-step="7"] #detailPanel > details[data-wizard-crop-rear] {
+      display: block !important;
+    }
+
+    /* Step 8: Ambientazione nella tua casa */
+    body[data-wizard][data-wizard-step="8"] #homePanel {
+      display: block !important;
+    }
+    body[data-wizard] #homePanel h2 {
+      display: none !important;
+    }
+    body[data-wizard] #homePanel label[for="homeScene"] {
+      display: none !important;
+    }
+
+    /* Step 9 mobile: stage compatto per mostrare subito il pulsante di download senza scroll */
+    body[data-wizard-mobile][data-wizard-step="9"] .workspace {
+      flex: 0 0 18dvh !important;
+      height: 18dvh !important;
+      min-height: 90px !important;
+      max-height: 22dvh !important;
+      transition: flex 0.2s ease, height 0.2s ease;
+    }
+    body[data-wizard-mobile][data-wizard-step="9"][data-workspace-expanded="true"] .workspace {
+      flex: 0 0 52dvh !important;
+      height: 52dvh !important;
+      max-height: 58dvh !important;
+    }
+    .wizard-expand-toggle {
+      position: absolute;
+      top: 8px;
+      right: 50px;
+      background: rgba(250, 248, 243, 0.9);
+      border: 1px solid #d2dcd7;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 11px;
+      font-weight: 500;
+      color: #243d44;
+      cursor: pointer;
+      z-index: 10;
+      display: none;
+    }
+    body[data-wizard-mobile][data-wizard-step="9"] .wizard-expand-toggle {
+      display: block;
+    }
+
+    /* Step 9: Riepilogo e Invio */
+    body[data-wizard][data-wizard-step="9"] #summaryPanel {
+      display: block !important;
+    }
+    body[data-wizard][data-wizard-step="9"] .download-bar {
+      display: block !important;
+      padding-top: 8px;
+    }
+
+    /* COMPONENTI DEL WIZARD */
+    body[data-wizard] #wizard-slot h3 {
+      font: 600 17px/1.3 Georgia, serif;
+      margin: 0 0 6px;
+      color: #243d44;
+    }
+    body[data-wizard] #wizard-slot p {
+      margin: 0 0 12px;
+      color: #5c6f68;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    body[data-wizard] .wizard-validation {
+      padding: 8px 12px;
+      border-left: 3px solid #b97422;
+      background: #fff3dc;
+      color: #7b4e12;
+      font-size: 12px !important;
+      border-radius: 0 6px 6px 0;
+      margin-bottom: 10px;
+    }
+
+    /* CARD DI SCELTA ATOMICA */
+    body[data-wizard] .wizard-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 8px;
+      margin: 10px 0 14px;
+    }
+    body[data-wizard] .wizard-cards button {
+      min-height: 52px;
+      padding: 10px 12px;
+      border: 1px solid #d2d9d4;
+      border-radius: 10px;
+      background: #ffffff;
+      color: #243d44;
+      font-size: 13px;
+      font-weight: 500;
+      text-align: left;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: all 0.15s ease;
+    }
+    body[data-wizard] .wizard-cards button:hover {
+      background: #f1f5f2;
+      border-color: #517b79;
+    }
+    body[data-wizard] .wizard-cards button[aria-pressed="true"] {
+      border: 2px solid #335e56;
+      background: #eaf1ef;
+      font-weight: 600;
+    }
+
+    /* FAMIGLIE TESSUTO (STEP 2) */
+    body[data-wizard] .wizard-family-selector {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      margin: 8px 0;
+    }
+    body[data-wizard] .wizard-family-card {
+      min-height: 58px;
+      padding: 12px 14px;
+      border: 1px solid #d2d9d4;
+      border-radius: 10px;
+      background: #ffffff;
+      color: #243d44;
+      text-align: left;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      transition: all 0.15s ease;
+    }
+    body[data-wizard] .wizard-family-card:hover {
+      border-color: #517b79;
+      background: #f4f7f5;
+    }
+    body[data-wizard] .wizard-family-card[aria-pressed="true"] {
+      border: 2px solid #335e56;
+      background: #eaf1ef;
+    }
+    body[data-wizard] .wizard-family-card strong {
+      display: block;
+      font-size: 14px;
+      color: #243d44;
+    }
+    body[data-wizard] .wizard-family-card span {
+      display: block;
+      font-size: 11px;
+      color: #637571;
+      margin-top: 2px;
+    }
+    body[data-wizard] .wizard-family-card .wizard-family-badge {
+      font-size: 11px;
+      font-weight: 600;
+      color: #335e56;
+      background: #dfece7;
+      padding: 4px 8px;
+      border-radius: 6px;
+      white-space: nowrap;
+    }
+
+    /* GRIGLIA COLORI (STEP 3) */
+    body[data-wizard] .materials {
+      display: grid !important;
+      grid-template-columns: repeat(auto-fill, minmax(95px, 1fr)) !important;
+      gap: 8px !important;
+      padding: 6px 0 !important;
+      max-height: none !important;
+    }
+    body[data-wizard] .materials button {
+      min-height: 70px;
+      padding: 6px;
+      border: 1px solid #d2d9d4;
+      border-radius: 8px;
+      background: #ffffff;
+      color: #243d44;
+      font-size: 11px;
+      text-align: center;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      overflow: hidden;
+      transition: all 0.15s ease;
+    }
+    body[data-wizard] .materials button:hover {
+      border-color: #517b79;
+    }
+    body[data-wizard] .materials button[aria-pressed="true"] {
+      border: 2px solid #335e56 !important;
+      background: #eaf1ef !important;
+      font-weight: 600;
+      box-shadow: 0 2px 8px rgba(51, 94, 86, 0.15);
+    }
+    body[data-wizard] .materials .swatch {
+      width: 100%;
+      height: 32px;
+      border-radius: 4px;
+      background-size: cover;
+      background-position: center;
+    }
+
+    /* CAMBIA COLLEZIONE BREADCRUMB */
+    body[data-wizard] .wizard-family-breadcrumb {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      padding: 7px 10px;
+      margin-bottom: 8px;
+      border: 1px dashed #b7c7be;
+      border-radius: 8px;
+      background: #f4f6f4;
+      color: #335e56;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    /* CONTROLLI INCISIONE E NOMI */
+    body[data-wizard] #engravingControls input,
+    body[data-wizard] input:not([type=range]):not([type=checkbox]) {
+      width: 100%;
+      min-height: 44px;
+      padding: 9px 12px;
+      border: 1px solid #becbc1;
+      border-radius: 8px;
+      font-size: 15px;
+      background: #ffffff;
+      margin-bottom: 8px;
+    }
+    body[data-wizard] #engravingPreview {
+      max-height: 120px;
+      object-fit: contain;
+      width: 100%;
+      border-radius: 6px;
+      margin-top: 6px;
+    }
+
+    /* PULSANTI FOTO */
+    body[data-wizard] .wizard-photo-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin: 10px 0;
+    }
+    body[data-wizard] .wizard-photo-actions button {
+      flex: 1 1 140px;
+      min-height: 46px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 1px solid #527684;
+      background: #ffffff;
+      color: #243d44;
+      font-weight: 500;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    body[data-wizard] .wizard-photo-actions button:hover {
+      background: #f0f5f7;
+    }
+
+    /* RITAGLIO FINE (ACCORDION) */
+    body[data-wizard] details[data-wizard-crop],
+    body[data-wizard] details[data-wizard-crop-rear] {
+      border: 1px solid #d8ded7;
+      border-radius: 8px;
+      padding: 4px 10px;
+      margin: 8px 0;
+      background: #ffffff;
+    }
+    body[data-wizard] details[data-wizard-crop] > summary,
+    body[data-wizard] details[data-wizard-crop-rear] > summary {
+      font-size: 12px;
+      color: #4a635e;
+      cursor: pointer;
+      padding: 8px 0;
+    }
+
+    /* RIEPILOGO & HOME */
+    body[data-wizard] #summaryPanel h2 {
+      display: none;
+    }
+    body[data-wizard] #configurationSummary {
+      white-space: pre-line;
+      font-size: 13px;
+      line-height: 1.5;
+      padding: 12px;
+      background: #ffffff;
+      border: 1px solid #d8ded7;
+      border-radius: 10px;
+      margin: 8px 0;
+    }
+    body[data-wizard] #wizard-home {
+      display: none;
+      margin-top: 10px;
+    }
+    body[data-wizard] .download-bar {
+      display: none !important;
+    }
+    body[data-wizard][data-wizard-readonly="true"] .download-bar {
+      display: block !important;
+    }
+
+    /* BARRA AZIONI INFERIORE */
+    body[data-wizard] #wizard-actions-slot {
+      flex-shrink: 0;
+      border-top: 1px solid #d8ded7;
+      background: #faf8f3;
+      padding: 8px 12px max(8px, env(safe-area-inset-bottom));
+    }
+    body[data-wizard] .wizard-mobile-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    body[data-wizard] .wizard-nav {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+    }
+    body[data-wizard] .wizard-nav button {
+      min-height: 44px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px 14px;
+      cursor: pointer;
+      border: 1px solid #b7c7be;
+      background: #ffffff;
+      color: #243d44;
+    }
+    body[data-wizard] .wizard-nav button:first-child {
+      flex: 0 0 auto;
+    }
+    body[data-wizard] .wizard-nav button:last-child {
+      flex: 1 1 auto;
+    }
+    body[data-wizard] .wizard-nav .wizard-primary {
+      background: #335e56 !important;
+      color: #ffffff !important;
+      border-color: #335e56 !important;
+      font-weight: 600 !important;
+    }
+    body[data-wizard] .wizard-nav .wizard-primary:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    body[data-wizard] .wizard-save {
+      width: 100%;
+      min-height: 40px;
+      border: 0;
+      background: transparent;
+      color: #46666a;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    body[data-wizard] .wizard-save:hover {
+      text-decoration: underline;
+    }
+
+    /* CONTROLLI 3D SULLO STAGE */
+    body[data-wizard] #wizard-controls-slot {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+    body[data-wizard] .wizard-iconbar {
+      position: absolute;
+      bottom: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      background: rgba(250, 248, 243, 0.92);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(200, 212, 207, 0.9);
+      border-radius: 9999px;
+      padding: 3px 6px;
+      box-shadow: 0 3px 12px rgba(36, 61, 68, 0.1);
+      pointer-events: auto;
+      z-index: 10;
+      max-width: calc(100% - 16px);
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    body[data-wizard] .wizard-iconbar button {
+      width: 36px;
+      height: 36px;
+      min-height: 36px;
+      border-radius: 50%;
+      border: 0;
+      background: transparent;
+      color: #243d44;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    body[data-wizard] .wizard-iconbar button:hover,
+    body[data-wizard] .wizard-iconbar button:active {
+      background: rgba(0, 0, 0, 0.08);
+    }
+    body[data-wizard] .wizard-iconbar button span {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+    body[data-wizard] .wizard-help {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 1px solid #d2dcd7;
+      background: rgba(250, 248, 243, 0.88);
+      backdrop-filter: blur(6px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #243d44;
+      pointer-events: auto;
+      cursor: pointer;
+      z-index: 10;
+    }
+    body[data-wizard] .wizard-view-message {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      padding: 4px 9px;
+      font-size: 11px;
+      font-weight: 500;
+      background: rgba(250, 248, 243, 0.92);
+      border: 1px solid #d2dcd7;
+      border-radius: 6px;
+      color: #243d44;
+      z-index: 10;
+    }
+    body[data-wizard] .wizard-gesture-guide {
+      pointer-events: auto;
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      right: 50px;
+      max-width: 290px;
+      max-height: calc(100% - 60px);
+      overflow-y: auto;
+      background: #faf8f3;
+      border: 1px solid #c9d2cb;
+      border-radius: 10px;
+      box-shadow: 0 4px 20px rgba(36, 61, 68, 0.2);
+      padding: 12px;
+      color: #243d44;
+      font-size: 12px;
+      z-index: 20;
+    }
+    body[data-wizard] .wizard-gesture-guide p {
+      margin: 6px 0 10px;
+      line-height: 1.5;
+    }
+    body[data-wizard] .wizard-gesture-guide button {
+      float: right;
+      background: #335e56;
+      color: #ffffff;
+      border: 0;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    body[data-wizard] .badge {
+      display: none !important;
+    }
+
+    /* ADATTAMENTO RESPONSIVE PER SCHERMI DESKTOP / WIDE */
+    @media (min-width: 900px) {
+      body[data-wizard] main {
+        flex-direction: row !important;
+      }
+      body[data-wizard] .workspace {
+        flex: 1 1 0% !important;
+        height: 100% !important;
+        max-height: none !important;
+      }
+      body[data-wizard] aside {
+        flex: 0 0 clamp(350px, 36%, 460px) !important;
+        border-top: 0 !important;
+        border-left: 1px solid #d8ded7 !important;
+        padding: 16px 20px 0 !important;
+      }
+    }
   `;
   doc.head.append(style);
-  let mobileStyle: HTMLStyleElement | undefined;
-  if (mobile) {
-    mobileStyle = doc.createElement('style');
+  const mobileStyle = mobile ? doc.createElement('style') : null;
+  if (mobileStyle) {
     mobileStyle.dataset.mockupWizardStyle = 'true';
     mobileStyle.dataset.mockupWizardStyleKind = 'mobile';
     mobileStyle.textContent = `
-       body[data-wizard-mobile] main {grid-template-columns:minmax(0,1fr) clamp(250px,42%,410px)!important;grid-template-rows:minmax(0,1fr)!important;height:100%!important;min-height:0!important;box-sizing:border-box}
-       @media (orientation: portrait) {
-         body[data-wizard-mobile] main {grid-template-columns:minmax(0,1fr)!important;grid-template-rows:minmax(220px,42%) minmax(0,1fr)!important}
-         body[data-wizard-mobile] aside {grid-column:1;grid-row:2;border-left:0;border-top:1px solid #d8ded7;padding:10px 12px 0!important}
-       }
-      body[data-wizard-mobile][data-viewer-expanded=true] main {grid-template-columns:minmax(0,1fr)!important}
-      body[data-wizard-mobile][data-viewer-expanded=true] aside {display:none!important}
-      body[data-wizard-mobile] .wizard-validation {padding:8px;border-left:3px solid #b97422;background:#fff3dc;font-size:12px!important}
-       body[data-wizard-mobile] .workspace {grid-column:1;grid-row:1;display:block!important;overflow:hidden;position:relative;background:#edf1ec}
-       body[data-wizard-mobile] .workspace:before {content:'ANTEPRIMA LIVE  ·  trascina per ruotare';position:absolute;top:10px;left:12px;z-index:2;padding:5px 8px;border:1px solid #d9dfd8;border-radius:999px;background:#fffffff0;color:#335e56;font-size:9px;font-weight:800;letter-spacing:.08em;pointer-events:none}
-      body[data-wizard-mobile] .stage {position:relative!important;min-height:0!important;height:100%!important}
-        body[data-wizard-mobile] aside {grid-column:2;grid-row:1;display:flex;flex-direction:column;height:100%!important;min-height:0!important;box-sizing:border-box;padding:12px 14px 0!important;border-left:1px solid #d8ded7;background:#fff!important;overflow:hidden!important}
-       body[data-wizard-mobile] aside:before {content:'CONFIGURA IL MODELLO';display:block;flex:0 0 auto;padding:0 0 8px;border-bottom:1px solid #e1e6df;color:#335e56;font-size:10px;font-weight:800;letter-spacing:.1em}
-       body[data-wizard-mobile] .panel-content {flex:1;min-height:0!important;max-height:none!important;scrollbar-gutter:auto;padding:0 3px 10px 0}
-      body[data-wizard-mobile] .badge {display:none}
-      body[data-wizard-mobile] button {font-size:13px}
-      body[data-wizard-mobile] .wizard-cards {gap:6px;margin:6px 0}
-      body[data-wizard-mobile] .wizard-cards button {flex:1 1 100%;padding:9px;font-size:13px}
-      body[data-wizard-mobile] .download-bar {display:none!important}
-       body[data-wizard-mobile][data-wizard-panel="summary"] .download-bar {display:block!important}
-       body[data-wizard-mobile] .panel-content>section[data-wizard-panel-active="false"],
-       body[data-wizard-mobile] #detailPanel>[data-wizard-panel-active="false"] {display:none!important}
-      body[data-wizard-mobile] #wizard-slot h3 {font-size:17px;margin-bottom:6px}
-       body[data-wizard-mobile] #wizard-slot .wizard-summary-card {gap:6px;padding:12px}
-       body[data-wizard-mobile] #wizard-slot .wizard-summary-card h3 {font-size:18px!important}
-       body[data-wizard-mobile] #wizard-slot .wizard-summary-card>p {font-size:12px!important}
-       body[data-wizard-mobile] .wizard-readonly-actions {display:flex;flex-direction:column;gap:7px;border-top:1px solid #d9dfd8;padding-top:8px}
-       body[data-wizard-mobile] .wizard-readonly-copy {display:flex;flex-direction:column;gap:2px;padding:2px 0;color:#52645e;font-size:11px}
-       body[data-wizard-mobile] .wizard-readonly-copy strong {color:#263d3b;font:600 17px/1.1 Georgia,serif}
-       body[data-wizard-mobile] .wizard-readonly-copy span {color:#335e56;font-size:9px;font-weight:800;letter-spacing:.12em}
-       body[data-wizard-mobile] .wizard-readonly-copy p {margin:0!important;font-size:11px!important}
-      body[data-wizard-mobile] #wizard-slot p {font-size:13px;margin:6px 0}
-      body[data-wizard-mobile] .materials {grid-template-columns:repeat(2,minmax(0,1fr))}
-      body[data-wizard-mobile] #fabricPanel>h2 {display:none}
-      body[data-wizard-mobile] .category summary,body[data-wizard-mobile] .material-category summary {cursor:pointer;list-style:disclosure-closed;padding:10px}
-      body[data-wizard-mobile] details[open]>summary {list-style:disclosure-open}
-      body[data-wizard][data-wizard-mobile] #wizard-home {display:none}
-      body[data-wizard][data-wizard-mobile][data-wizard-home="true"] #wizard-home {display:block}
-      body[data-wizard-mobile][data-wizard-home="true"] #wizard-home>summary {display:none}
-      body[data-wizard-mobile][data-wizard-home="true"] #wizard-slot,
-      body[data-wizard-mobile][data-wizard-home="true"] .download-bar,
-      body[data-wizard-mobile][data-wizard-home="true"] #wizard-controls-slot {display:none!important}
-       body[data-wizard][data-wizard-mobile][data-wizard-home="true"] :is(#fabricPanel,#detailPanel,#summaryPanel) {display:none!important}
-      body[data-wizard-mobile] #summaryPanel>h2, body[data-wizard-mobile] #photoStatus {display:none}
-      body[data-wizard-mobile] #engravingPreview {max-height:110px;object-fit:contain}
-       body[data-wizard-mobile] #wizard-actions-slot {flex-shrink:0;border-top:1px solid #d8ded7;background:#fbfaf6;margin:0 -14px;padding:8px 14px}
-       body[data-wizard-mobile] .wizard-mobile-actions {display:flex;flex-direction:column;gap:5px}
-       body[data-wizard-mobile] .wizard-step-heading {display:flex;align-items:center;gap:8px;position:sticky;top:0;z-index:1;background:#fff;padding:7px 0 10px;border-bottom:1px solid #e1e6df;font-size:13px}
-      body[data-wizard-mobile] .wizard-step-heading span {font-size:11px;color:#657770}
-      body[data-wizard-mobile] .wizard-nav {display:flex;gap:6px;justify-content:space-between}
-      body[data-wizard-mobile] .wizard-nav button,body[data-wizard-mobile] .wizard-mobile-actions>button {display:flex;align-items:center;justify-content:center;gap:4px;min-height:44px;padding:7px 9px;border-radius:6px;font-size:12px;white-space:normal}
-      body[data-wizard-mobile] .wizard-nav button:first-child {flex:0 0 auto}
-      body[data-wizard-mobile] .wizard-nav button:last-child {flex:1}
-      body[data-wizard-mobile] .wizard-nav .wizard-primary {background:#527684;color:white;border-color:#527684}
-      body[data-wizard-mobile] .wizard-save {width:100%;min-height:44px!important;border:0;padding:4px!important;background:transparent;color:#46666a}
-      body[data-wizard-mobile] .wizard-message {font-size:11px;margin:0 0 5px!important;max-height:40px;overflow:auto;overflow-wrap:anywhere}
-      body[data-wizard-mobile] .wizard-unsaved {font-size:11px;display:block;margin-bottom:4px;color:#765f32}
-      body[data-wizard-mobile] #wizard-controls-slot {position:absolute;inset:0;pointer-events:none}
-        body[data-wizard-mobile] .wizard-iconbar {position:absolute;bottom:10px;left:10px;right:10px;height:44px;box-sizing:border-box;display:flex;gap:4px;padding:0;border:1px solid #ffffffb8;border-radius:12px;background:#fffffff0;box-shadow:0 8px 20px #263d3b18;pointer-events:auto;overflow-x:auto;scrollbar-width:none}
-       body[data-wizard-mobile] .wizard-iconbar button {flex-shrink:0}
-        body[data-wizard-mobile] .wizard-iconbar button,body[data-wizard-mobile] .wizard-help {position:relative;width:auto;min-width:43px;height:44px;min-height:44px;gap:5px;padding:0 9px!important;border:0!important;border-radius:8px!important;background:transparent;display:flex;align-items:center;justify-content:center;color:#596b65;font-size:10px;font-weight:600;isolation:isolate}
-       body[data-wizard-mobile] .wizard-iconbar button:before,body[data-wizard-mobile] .wizard-help:before {display:none}
-       body[data-wizard-mobile] .wizard-iconbar button span {position:static;width:auto;height:auto;overflow:visible;clip-path:none}
-       body[data-wizard-mobile] .wizard-iconbar button:hover {background:#eef2ed}
-       body[data-wizard-mobile] .wizard-iconbar button b {font-size:11px}
-       body[data-wizard-mobile] .wizard-help {position:absolute;right:10px;top:10px;width:38px;min-width:38px;padding:0!important;background:#fffffff0;border:1px solid #d9dfd8!important;box-shadow:0 5px 14px #263d3b12;pointer-events:auto}
-      body[data-wizard-mobile] .wizard-view-message {position:absolute;top:9px;left:10px;padding:4px 7px;font-size:11px;background:#faf8f3e8;border-radius:4px}
-      body[data-wizard-mobile] .wizard-gesture-guide {pointer-events:auto;position:absolute;top:40px;left:12px;right:52px;max-width:300px;max-height:calc(100% - 65px);overflow:auto;background:#faf8f3;border:1px solid #c9d2cb;border-radius:10px;box-shadow:0 5px 25px #263c3325;padding:12px;color:#29413f;font-size:13px}
-      body[data-wizard-mobile] .wizard-gesture-guide p {font-size:12px;line-height:1.6;margin:7px 0}
-      body[data-wizard-mobile] .wizard-gesture-guide button {min-height:44px;float:right;background:#527684;color:white;font-size:12px;padding:7px 14px}
-      body[data-wizard-mobile] .wizard-gesture-guide:after {content:'';display:block;clear:both}
-      body[data-wizard-mobile] .download-bar {padding:4px 0;margin:0}
-      body[data-wizard-mobile] .download-bar #downloadClient {background:transparent;color:#46666a;font-size:12px;text-align:left}
-       @media(max-height:270px){body[data-wizard-mobile] .wizard-nav button span{display:none}body[data-wizard-mobile] .wizard-gesture-guide{font-size:12px}}
+      body[data-wizard-mobile] {
+        -webkit-tap-highlight-color: transparent;
+      }
     `;
     doc.head.append(mobileStyle);
   }
-  const detail = doc.getElementById('detailPanel');
-  const fabric = doc.getElementById('fabricPanel');
-  const summaryPanel = doc.getElementById('summaryPanel');
-  const mirrors: { select: HTMLSelectElement; buttons: HTMLButtonElement[] }[] = [];
-  type WizardPanel = MockupWizardStepDefinition['panel'];
-  const mark = (element: HTMLElement | null, panel: WizardPanel) => {
-    if (!element) return;
-    element.dataset.wizardPanel = panel;
-    if (element.id) {
-      const label = doc.querySelector<HTMLElement>(`label[for="${element.id}"]`);
-      if (label) label.dataset.wizardPanel = panel;
-    }
-  };
-  const markById = (id: string, panel: WizardPanel) => mark(doc.getElementById(id), panel);
-  if (fabric) fabric.dataset.wizardPanel = 'material';
-  if (summaryPanel) summaryPanel.dataset.wizardPanel = 'summary';
-  if (detail) {
-    detail.dataset.wizardPanel = 'detail';
-    Array.from(detail.children).forEach(child => {
-      const element = child as HTMLElement;
-      if (element.tagName !== 'H2' && !element.dataset.wizardPanel && !element.dataset.detailTab && !element.dataset.detailPanelSection) element.dataset.wizardPanel = 'cover';
+
+  // CONFIGURAZIONE SCHEDE ATOMICHE FAMIGLIE TESSUTO (STEP 2 e 3)
+  const fabricPanel = doc.getElementById('fabricPanel');
+  const materialsDiv = doc.getElementById('materials');
+  let selectedFamily = '';
+  let onFamilySelectCallback: ((family: string) => void) | null = null;
+
+  if (fabricPanel && materialsDiv) {
+    const categories = Array.from(materialsDiv.querySelectorAll<HTMLDetailsElement>('.category, .material-category'));
+    const familySelector = doc.createElement('div');
+    familySelector.className = 'wizard-family-selector';
+
+    const familyDescriptions: Record<string, string> = {
+      alcantara: 'Morbido, setoso e vellutato al tatto',
+      cablo: 'Tessuto contemporaneo con trama a rilievo',
+      city: 'Trama urbana moderna, robusta e compatta',
+      mist: 'Tessuto naturale a grana fine e raffinato',
+    };
+
+    categories.forEach(cat => {
+      const summary = cat.querySelector('summary');
+      const text = summary?.textContent || '';
+      const familyName = text.split('·')[0]?.trim() || 'Tessuto';
+      const countText = text.split('·')[1]?.trim() || '';
+      const key = familyName.toLowerCase();
+
+      const btn = doc.createElement('button');
+      btn.type = 'button';
+      btn.className = 'wizard-family-card';
+      btn.dataset.family = familyName;
+      btn.innerHTML = `
+        <div>
+          <strong>${familyName}</strong>
+          <span>${familyDescriptions[key] || 'Collezione di rivestimenti coordinati'}</span>
+        </div>
+        <span class="wizard-family-badge">${countText || 'Scegli'} →</span>
+      `;
+
+      btn.onclick = () => {
+        selectedFamily = familyName;
+        categories.forEach(c => (c.open = false));
+        cat.open = true;
+        updateFamilySelection();
+        onFamilySelectCallback?.(familyName);
+      };
+
+      familySelector.append(btn);
+
+      // Aggiungi breadcrumb di ritorno all'inizio di ogni categoria per lo step 3
+      const breadcrumb = doc.createElement('button');
+      breadcrumb.type = 'button';
+      breadcrumb.className = 'wizard-family-breadcrumb';
+      breadcrumb.innerHTML = `<span>Collezione: <strong>${familyName}</strong></span><span>Cambia tessuto ↺</span>`;
+      breadcrumb.onclick = () => {
+        onFamilySelectCallback?.('back-to-families');
+      };
+      cat.prepend(breadcrumb);
     });
+
+    fabricPanel.prepend(familySelector);
+
+    function updateFamilySelection() {
+      familySelector.querySelectorAll<HTMLButtonElement>('.wizard-family-card').forEach(b => {
+        b.setAttribute('aria-pressed', String(b.dataset.family === selectedFamily));
+      });
+    }
+
+    // Inizializza la famiglia attiva in base al materiale correntemente selezionato
+    const activeMaterialBtn = materialsDiv.querySelector<HTMLButtonElement>('.materials button[aria-pressed="true"]');
+    if (activeMaterialBtn) {
+      const parentCat = activeMaterialBtn.closest<HTMLDetailsElement>('.category, .material-category');
+      if (parentCat) {
+        parentCat.open = true;
+        const sumText = parentCat.querySelector('summary')?.textContent || '';
+        selectedFamily = sumText.split('·')[0]?.trim() || '';
+        updateFamilySelection();
+      }
+    } else if (categories[0]) {
+      categories[0].open = true;
+      const sumText = categories[0].querySelector('summary')?.textContent || '';
+      selectedFamily = sumText.split('·')[0]?.trim() || '';
+      updateFamilySelection();
+    }
   }
-  markById('frameFinish', 'structure');
-  markById('coverLayout', 'cover');
-  markById('coverOptions', 'cover');
-  markById('photoControls', 'cover');
-  markById('engravingControls', 'cover');
-  markById('backCover', 'box-glass');
-  markById('backPhotoControls', 'box-glass');
-  for (const id of ['coverUpload', 'photoStatus', 'restorePhoto', 'photoZoom', 'photoX', 'photoY', 'topText', 'bottomText', 'firstName', 'secondName']) markById(id, 'cover');
-  for (const id of ['backUpload', 'backPhotoStatus', 'backZoom', 'backX', 'backY']) markById(id, 'box-glass');
-  const detailPanels = new Set<WizardPanel>(['structure', 'cover', 'box-glass']);
-  const detailTabs = detail ? Array.from(detail.querySelectorAll<HTMLButtonElement>('[data-detail-tab]')) : [];
-  const detailSections = detail ? Array.from(detail.querySelectorAll<HTMLElement>('[data-detail-panel-section]')) : [];
-  const detailPanelId = (panel: WizardPanel) => panel === 'structure' ? 'structurePanel' : panel === 'cover' ? 'coverPanel' : panel === 'box-glass' ? 'boxPanel' : '';
-  const selectDetailTab = (panelId: string) => {
+
+  // TRASFORMAZIONE SELETTORI IN CARDS TOUCH-FRIENDLY E SEPARAZIONE RIGOROSA
+  const detail = doc.getElementById('detailPanel');
+  const detailTabs = Array.from(doc.querySelectorAll<HTMLElement>('[data-detail-tab]'));
+  const detailSections = detail
+    ? Array.from(detail.querySelectorAll<HTMLElement>('[data-detail-panel-section]'))
+    : [];
+  const detailPanelId = (panel: string) =>
+    panel === 'structure' ? 'structurePanel'
+      : panel === 'cover' ? 'coverPanel'
+        : panel === 'box-glass' ? 'boxPanel'
+          : '';
+  const selectDetailTab = (panel: string) => {
+    const panelId = detailPanelId(panel);
+    if (!panelId) return;
     detailTabs.forEach(tab => tab.setAttribute('aria-selected', String(tab.dataset.detailTab === panelId)));
     detailSections.forEach(section => { section.hidden = section.id !== panelId; });
   };
-  detailTabs.forEach(tab => tab.addEventListener('click', () => selectDetailTab(tab.dataset.detailTab || '')));
-  if (detailSections.length) selectDetailTab('structurePanel');
-  const syncPanel = (panel: WizardPanel) => {
-    doc.body.dataset.wizardPanel = panel;
-    if (fabric) { fabric.hidden = false; fabric.dataset.wizardPanelActive = String(panel === 'material'); }
-    if (detail) {
-      detail.hidden = false;
-      detail.dataset.wizardPanelActive = String(detailPanels.has(panel));
-      if (detailSections.length) selectDetailTab(detailPanelId(panel) || 'structurePanel');
-      else Array.from(detail.children).forEach(child => {
-        const element = child as HTMLElement;
-        if (element.tagName !== 'H2' && element.dataset.wizardPanel) element.dataset.wizardPanelActive = String(element.dataset.wizardPanel === panel);
-      });
-    }
-    if (summaryPanel) { summaryPanel.hidden = false; summaryPanel.dataset.wizardPanelActive = String(panel === 'summary'); }
-  };
-  for (const id of ['frameFinish', 'coverLayout', 'coverOptions', 'photoControls', 'engravingControls', 'backCover', 'backPhotoControls']) {
-    const element = doc.getElementById(id);
-    if (element?.dataset.wizardPanel) mark(element, element.dataset.wizardPanel as WizardPanel);
-  }
-  for (const id of ['frameFinish', 'coverLayout', 'coverOptions', ...(mobile ? ['backCover'] : [])]) {
+  const mirrors: { select: HTMLSelectElement; buttons: HTMLButtonElement[] }[] = [];
+
+  for (const id of ['frameFinish', 'coverLayout', 'coverOptions', 'backCover']) {
     const element = doc.getElementById(id);
     if (!element || !detail?.contains(element)) continue;
-    const group = element.dataset.wizardPanel || 'cover';
+
+    // Distinzione rigorosa: struttura frame vs disposizione copertina vs retro
+    let group = 'wizardMaterial';
+    if (id === 'frameFinish') group = 'wizardFrame';
+    else if (id === 'coverLayout' || id === 'coverOptions') group = 'wizardCoverLayout';
+    else if (id === 'backCover') group = 'wizardRear';
+
+    element.dataset[group] = 'true';
     const label = doc.querySelector<HTMLElement>(`label[for="${id}"]`);
+    if (label) label.dataset[group] = 'true';
+
     if (element.tagName !== 'SELECT') continue;
     const select = element as HTMLSelectElement;
-     const cards = doc.createElement('div'); cards.className = 'wizard-cards';
-     cards.dataset.wizardPanel = group;
-    cards.setAttribute('role', 'group'); cards.setAttribute('aria-label', label?.textContent || id);
+    const cards = doc.createElement('div');
+    cards.className = 'wizard-cards';
+    cards.dataset[group] = 'true';
+    cards.setAttribute('role', 'group');
+    cards.setAttribute('aria-label', label?.textContent || id);
+
     const buttons = Array.from(select.options).map(option => {
-      const button = doc.createElement('button'); button.type = 'button'; button.textContent = option.text;
-      button.onclick = () => { select.value = option.value; select.dispatchEvent(new Event('change', { bubbles: true })); refresh(); };
-      cards.append(button); return button;
+      const button = doc.createElement('button');
+      button.type = 'button';
+      button.textContent = option.text;
+      button.onclick = () => {
+        select.value = option.value;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        refresh();
+      };
+      cards.append(button);
+      return button;
     });
-    select.hidden = true; select.after(cards); mirrors.push({ select, buttons });
+    select.hidden = true;
+    select.after(cards);
+    mirrors.push({ select, buttons });
   }
-  // Il ritaglio fine resta disponibile, ma non occupa il percorso principale.
-  for (const [ids, title] of [[['photoZoom', 'photoX', 'photoY'], 'Sistema la foto di copertina'], [['backZoom', 'backX', 'backY'], 'Sistema la foto del retro']] as const) {
-    const first = doc.getElementById(ids[0]); if (!first) continue;
-    const adjust = doc.createElement('details'); const summary = doc.createElement('summary'); summary.textContent = title; adjust.append(summary);
-    const firstLabel = doc.querySelector(`label[for="${ids[0]}"]`); (firstLabel || first).before(adjust);
-    for (const id of ids) { const label = doc.querySelector(`label[for="${id}"]`); const input = doc.getElementById(id); if (label) adjust.append(label); if (input) adjust.append(input); }
+
+  // Raggruppamento slider foto
+  for (const [ids, title, isRear] of [
+    [['photoZoom', 'photoX', 'photoY'], 'Regola inquadratura e zoom copertina', false],
+    [['backZoom', 'backX', 'backY'], 'Regola inquadratura foto sul retro', true],
+  ] as const) {
+    const first = doc.getElementById(ids[0]);
+    if (!first) continue;
+    const adjust = doc.createElement('details');
+    adjust.dataset[isRear ? 'wizardCropRear' : 'wizardCrop'] = 'true';
+    const summary = doc.createElement('summary');
+    summary.textContent = title;
+    adjust.append(summary);
+    const firstLabel = doc.querySelector(`label[for="${ids[0]}"]`);
+    (firstLabel || first).before(adjust);
+    for (const id of ids) {
+      const label = doc.querySelector(`label[for="${id}"]`);
+      const input = doc.getElementById(id);
+      if (label) adjust.append(label);
+      if (input) adjust.append(input);
+    }
   }
-  doc.querySelectorAll<HTMLDetailsElement>('.category,.material-category').forEach(group => { group.open = !mobile; if (!mobile) group.querySelector('summary')?.addEventListener('click', event => event.preventDefault()); });
-  if (mobile) {
-    const back = doc.getElementById('backPhotoControls'); if (back) back.dataset.wizardRear = 'true';
-  }
+
+  const backPhotoControls = doc.getElementById('backPhotoControls');
+  if (backPhotoControls) backPhotoControls.dataset.wizardRear = 'true';
+
   const home = doc.getElementById('homePanel');
-  if (home) { const wrap = doc.createElement('details'); wrap.id = 'wizard-home'; const title = doc.createElement('summary'); title.textContent = 'Vedi in casa · facoltativo'; wrap.append(title); content.append(wrap); wrap.append(home); home.hidden = false; }
-  const views = doc.createElement('div'); views.className = 'wizard-views';
-  for (const [id, label] of [['front', 'Fronte'], ['back', 'Retro'], ['reset', 'Reimposta vista'], ...(mobile ? [['plus', 'Zoom +'], ['minus', 'Zoom −']] : [])]) {
-    const button = doc.createElement('button'); button.type = 'button'; button.textContent = label; button.onclick = () => { doc.getElementById(id)?.click(); refresh(); }; views.append(button);
+  if (home) {
+    home.hidden = false;
+    const homeWrapper = doc.createElement('details');
+    homeWrapper.id = 'wizard-home';
+    const homeTitle = doc.createElement('summary');
+    homeTitle.textContent = 'Vedi in casa · facoltativo';
+    homeWrapper.append(homeTitle, home);
+    content.append(homeWrapper);
+
+    const homeSelect = home.querySelector<HTMLSelectElement>('#homeScene');
+    if (homeSelect) {
+      const sceneCards = doc.createElement('div');
+      sceneCards.className = 'wizard-cards';
+      sceneCards.setAttribute('role', 'group');
+      sceneCards.setAttribute('aria-label', 'Ambientazione nella tua casa');
+
+      const sceneLabels: Record<string, { label: string; desc: string }> = {
+        none: { label: 'Solo album', desc: 'Vista ravvicinata studio' },
+        sideboard: { label: 'Madia moderna', desc: 'Appoggiato su mobile living' },
+        living: { label: 'Parete salotto', desc: 'Integrazione parete attrezzata' },
+        warm: { label: 'Living con doghe', desc: 'Ambiente contemporaneo legno' },
+        console: { label: 'Consolle ingresso', desc: 'Elemento arredo all’ingresso' },
+      };
+
+      const sceneButtons = Array.from(homeSelect.options).map(option => {
+        const btn = doc.createElement('button');
+        btn.type = 'button';
+        const info = sceneLabels[option.value] || { label: option.text, desc: '' };
+        btn.innerHTML = `<strong>${info.label}</strong><small style="font-size:11px;color:#637571;margin-top:2px;">${info.desc}</small>`;
+        btn.onclick = () => {
+          homeSelect.value = option.value;
+          homeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+          refresh();
+        };
+        sceneCards.append(btn);
+        return btn;
+      });
+
+      homeSelect.hidden = true;
+      homeSelect.after(sceneCards);
+      mirrors.push({ select: homeSelect, buttons: sceneButtons });
+    }
   }
-  const extraction = doc.getElementById('extract') as HTMLInputElement | null;
-  if (extraction) { const button = doc.createElement('button'); button.type = 'button'; button.dataset.extractPreset = 'true'; button.textContent = 'Estrai album'; button.onclick = () => { extraction.value = Number(extraction.value) ? '0' : '100'; extraction.dispatchEvent(new Event('input', { bubbles: true })); refresh(); }; views.append(button); }
-  if (!mobile) stage.append(views);
+
   function refresh() {
-    mirrors.forEach(({ select, buttons }) => buttons.forEach((button, index) => { button.disabled = select.disabled; button.setAttribute('aria-pressed', String(select.selectedIndex === index)); }));
-    const extractButton = views.querySelector<HTMLButtonElement>('[data-extract-preset]');
-    if (extractButton && extraction) extractButton.textContent = Number(extraction.value) ? 'Reinserisci album' : 'Estrai album';
+    mirrors.forEach(({ select, buttons }) =>
+      buttons.forEach((button, index) => {
+        button.disabled = select.disabled;
+        button.setAttribute('aria-pressed', String(select.selectedIndex === index));
+      }),
+    );
   }
+
   const observer = new MutationObserver(refresh);
   mirrors.forEach(({ select }) => observer.observe(select, { attributes: true, attributeFilter: ['disabled'] }));
+
   let previousHome = 'sideboard';
-  doc.body.dataset.wizardLayout = 'ready';
   let disposed = false;
-  return { slot, actionsSlot, controlsSlot, refresh, dispose() {
-    if (disposed) return;
-    disposed = true;
-    observer.disconnect();
-    delete doc.body.dataset.wizard;
-    delete doc.body.dataset.wizardLayout;
-    delete doc.body.dataset.wizardMobile;
-    delete doc.body.dataset.wizardPanel;
-    delete doc.body.dataset.wizardHome;
-    delete doc.body.dataset.wizardStep;
-    delete doc.body.dataset.viewerExpanded;
-     delete doc.body.dataset.wizardReadonly;
-    style.remove();
-    mobileStyle?.remove();
-  },
+  doc.body.dataset.wizardLayout = 'ready';
+  const panelForStep: Record<number, string> = {
+    2: 'material',
+    3: 'material',
+    4: 'structure',
+    5: 'cover',
+    6: 'cover',
+    7: 'box-glass',
+    8: 'home',
+    9: 'summary',
+  };
+
+  return {
+    slot,
+    actionsSlot,
+    controlsSlot,
+    refresh,
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      observer.disconnect();
+      style.remove();
+      mobileStyle?.remove();
+      slot.remove();
+      actionsSlot.remove();
+      controlsSlot.remove();
+      delete doc.body.dataset.wizard;
+      delete doc.body.dataset.wizardMobile;
+      delete doc.body.dataset.wizardLayout;
+      delete doc.body.dataset.wizardStep;
+      delete doc.body.dataset.wizardPanel;
+      delete doc.body.dataset.wizardHome;
+      delete doc.body.dataset.viewerExpanded;
+      delete doc.body.dataset.wizardReadonly;
+    },
+    onFamilySelect(callback: (family: string) => void) {
+      onFamilySelectCallback = callback;
+    },
     view(action: 'front' | 'back' | 'reset' | 'plus' | 'minus' | 'extract' | 'rotate') {
-      if (action === 'extract' && extraction) { extraction.value = Number(extraction.value) ? '0' : '100'; extraction.dispatchEvent(new Event('input', { bubbles: true })); }
-      else doc.getElementById(action)?.click();
+      const extraction = doc.getElementById('extract') as HTMLInputElement | null;
+      if (action === 'extract' && extraction) {
+        extraction.value = Number(extraction.value) ? '0' : '100';
+        extraction.dispatchEvent(new Event('input', { bubbles: true }));
+      } else {
+        doc.getElementById(action)?.click();
+      }
       refresh();
     },
-    expanded(open: boolean) { doc.body.dataset.viewerExpanded = String(open); },
-    readOnly(value: boolean) { doc.body.dataset.wizardReadonly = String(value); },
+    expanded(open: boolean) {
+      doc.body.dataset.viewerExpanded = String(open);
+    },
+    readonly(readOnly: boolean) {
+      doc.body.dataset.wizardReadonly = String(readOnly);
+    },
     home(open: boolean) {
-      if (!mobile) return;
       doc.body.dataset.wizardHome = String(open);
-      const wrapper = doc.querySelector<HTMLDetailsElement>('#wizard-home'); if (wrapper) wrapper.open = open;
+      const wrapper = doc.querySelector<HTMLDetailsElement>('#wizard-home');
+      if (wrapper) wrapper.open = open;
       const select = doc.querySelector<HTMLSelectElement>('#homeScene');
-      if (select && open && select.value === 'none') { select.value = previousHome; select.dispatchEvent(new Event('change', { bubbles: true })); }
-      else if (select && !open && select.value !== 'none') { previousHome = select.value; select.value = 'none'; select.dispatchEvent(new Event('change', { bubbles: true })); }
+      if (select && open && select.value === 'none') {
+        select.value = previousHome;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+      } else if (select && !open && select.value !== 'none') {
+        previousHome = select.value;
+        select.value = 'none';
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+      }
       content.scrollTop = 0;
-    }, step(value: MockupWizardStepDefinition) {
-    doc.body.dataset.wizardStep = String(value.nativeStep);
-    syncPanel(value.panel);
-    if (value.panel === 'summary') summaryPanel?.after(slot); else content.prepend(slot);
-    if (mobile && value.panel === 'box-glass') doc.getElementById('back')?.click();
-    else if (mobile && value.panel === 'cover') doc.getElementById('front')?.click();
-    content.scrollTop = 0; refresh();
-  } };
+    },
+    step(value: number) {
+      doc.body.dataset.wizardStep = String(value);
+      const panel = panelForStep[value] || 'material';
+      doc.body.dataset.wizardPanel = panel;
+      selectDetailTab(panel);
+
+      if (value === 9) {
+        doc.getElementById('summaryPanel')?.after(slot);
+      } else if (value === 8) {
+        doc.getElementById('homePanel')?.prepend(slot);
+      } else {
+        content.prepend(slot);
+      }
+
+      // Auto-rotazione assistita in base alla scheda
+      if (value === 4) {
+        // Struttura dello scrigno: vista d'insieme
+        doc.getElementById('reset')?.click();
+      } else if (value === 5 || value === 6) {
+        // Disposizione o personalizzazione copertina: vista frontale
+        doc.getElementById('front')?.click();
+      } else if (value === 7) {
+        // Retro dello scrigno: vista posteriore
+        doc.getElementById('back')?.click();
+      } else if (value === 9) {
+        // Riepilogo: vista d'insieme
+        doc.getElementById('reset')?.click();
+      }
+
+      content.scrollTop = 0;
+      refresh();
+    },
+  };
 }

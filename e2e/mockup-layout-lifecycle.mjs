@@ -24,6 +24,19 @@ export async function runLayoutLifecycle({ page, port }) {
     assert.equal(await lifecycleFrameLocator.locator('body[data-wizard="true"]').count(), 1);
     assert.equal(await lifecycleFrameLocator.locator('body[data-wizard-mobile="true"]').count(), mobile ? 1 : 0);
 
+    await page.getByRole('button', { name: 'Apri riepilogo', exact: true }).click();
+    await lifecycleFrameLocator.locator('body[data-wizard-step="9"]').waitFor();
+    const summaryWorkspace = await lifecycleFrameLocator.locator('.workspace').evaluate(element => {
+      const style = getComputedStyle(element);
+      return { flexBasis: style.flexBasis, height: element.getBoundingClientRect().height };
+    });
+    if (mobile) {
+      assert.ok(summaryWorkspace.height > 0 && summaryWorkspace.height < 100, `Il riepilogo mobile deve mantenere lo stage compatto: ${summaryWorkspace.height}px`);
+    } else {
+      assert.notEqual(summaryWorkspace.flexBasis, '18dvh', 'Il riepilogo desktop non deve compattare lo stage come il mobile');
+      assert.ok(summaryWorkspace.height > 100, `Il riepilogo desktop ha uno stage troppo piccolo: ${summaryWorkspace.height}px`);
+    }
+
     for (let replacement = 1; replacement <= 2; replacement++) {
       await page.getByRole('button', { name: 'Sostituisci renderer', exact: true }).click();
       await page.getByTestId('layout-lifecycle-revision').evaluate((element, expected) => {

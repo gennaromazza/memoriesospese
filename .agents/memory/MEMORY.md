@@ -45,6 +45,7 @@
 - [Admin panel browser harnesses](admin-panel-e2e-harnesses.md) — monta il componente reale e simula le API same-origin per testare UI e salvataggio senza servizi esterni.
 - [Follow-up automatici preventivi](follow-up-automation.md) — invio fail-closed con lock prima di Gmail; risposte Gmail restano manuali finché non esiste sync thread/message ID.
 - [Gmail connector SDK](gmail-connector-sdk.md) — usare il proxy SDK per Gmail; mittente, admin Firebase e calendario Service Account sono identità separate.
+- [Legacy mockup viewer exports](legacy-mockup-viewer-exports.md) — viewer girevoli legacy bypassano il wizard e il ResizeObserver può ridimensionare il canvas durante l’export.
 - [Photobook mockup model scope](photobook-mockup-model-scope.md) — il modello normale è scelto a livello fotolibro e viene ereditato da tutte le versioni; più modelli solo come eccezione esplicita.
 - [Photobook mockup confirmation lifecycle](photobook-mockup-confirmation-lifecycle.md) — la conferma dello studio non blocca il cliente; ogni modifica riapre una revisione fino alla stampa.
 - [Mockup download headless rendering](mockup-download-headless-rendering.md) — renderer condiviso, loop sospeso, dimensione adattiva e download dal parent evitano blocchi SwiftShader senza flag e2e.

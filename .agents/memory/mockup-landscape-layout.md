@@ -12,3 +12,8 @@ Trappole
 - Playwright valuta page.route dall'ultima registrata: il catch-all **/api/** va registrato prima della route specifica o inghiotte tutto.
 - I token --mockup-* devono stare sia su .mockup-entry-shell sia sul DialogContent (portal sotto body), altrimenti le sezioni admin/offer nel dialog perdono colori e bordi.
 - Il test lifecycle cerca testi esatti sulla card di stato ("Bozza · revisione N", frase read-only): i redesign del copy devono mantenere quei testi in un unico elemento.
+- Il riepilogo compatto a 18dvh è una regola mobile-only; il desktop deve mantenere lo stage base per non rendere microscopico il mockup al termine del wizard.
+
+**Why:** una regola globale dello step 9 riduceva anche il mockup desktop a una striscia dopo il completamento, senza un modo affidabile per ripristinarlo.
+
+**How to apply:** quando si modifica il riepilogo, testare sempre `data-wizard-mobile` vero e assente; verificare dimensioni effettive dello stage nello stesso test browser.

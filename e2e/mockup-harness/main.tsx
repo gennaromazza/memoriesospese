@@ -63,10 +63,12 @@ function layoutLifecycleSnapshot(doc: Document): LayoutLifecycleSnapshot {
 function LayoutLifecycleRenderer({
   revision,
   mobile,
+  summary,
   onDisposeReady,
 }: {
   revision: number;
   mobile: boolean;
+  summary: boolean;
   onDisposeReady: (dispose: () => void) => void;
 }) {
   const frame = React.useRef<HTMLIFrameElement>(null);
@@ -85,6 +87,9 @@ function LayoutLifecycleRenderer({
   }, []);
 
   React.useEffect(() => () => dispose(), [dispose]);
+  React.useEffect(() => {
+    layout.current?.step(summary ? 9 : 2);
+  }, [summary]);
 
   return <iframe
     key={revision}
@@ -96,6 +101,7 @@ function LayoutLifecycleRenderer({
       const doc = frame.current?.contentDocument;
       if (!doc) throw new Error('Renderer di test non disponibile');
       const nextLayout = installMockupWizard(doc, mobile);
+      nextLayout.step(summary ? 9 : 2);
       layout.current = nextLayout;
       layoutDocument.current = doc;
       onDisposeReady(() => dispose);
@@ -105,6 +111,7 @@ function LayoutLifecycleRenderer({
 
 function LayoutLifecycleHarness() {
   const [revision, setRevision] = React.useState(0);
+  const [summary, setSummary] = React.useState(false);
   const [dispose, setDispose] = React.useState<(() => void) | null>(null);
   const mobile = params.has('mobile');
   React.useEffect(() => {
@@ -124,8 +131,13 @@ function LayoutLifecycleHarness() {
     <button type="button" onClick={() => dispose?.()}>
       Rimuovi layout
     </button>
+    <button type="button" onClick={() => {
+      setSummary(true);
+    }}>
+      Apri riepilogo
+    </button>
     <output data-testid="layout-lifecycle-revision" data-revision={revision}>{revision}</output>
-    <LayoutLifecycleRenderer key={revision} revision={revision} mobile={mobile} onDisposeReady={setDispose} />
+    <LayoutLifecycleRenderer key={revision} revision={revision} mobile={mobile} summary={summary} onDisposeReady={setDispose} />
   </main>;
 }
 

@@ -50,6 +50,7 @@
       "textureUrl": "textures/official/alcantara-01-r4.png",
       "heightUrl": "textures/official/alcantara-01-height-r4.png",
       "textureSha256": "4b403ea4c924710bc8fbf53bd77422a5edc6ab9646e33e9d47bdf264bdc0b2b6",
+      "heightSha256": "5121ce9c2a0e8acc211ad3c3ff95785848a23db4123e6220bc6d307658a24e10",
       "nativeTextureSizePx": [
         122,
         122
@@ -74,6 +75,7 @@
       "textureUrl": "textures/official/alcantara-02-r4.png",
       "heightUrl": "textures/official/alcantara-02-height-r4.png",
       "textureSha256": "2e361a5885426a632c5b0ba5effab78ae7c44477976000429b8837de8aa50604",
+      "heightSha256": "662ad523869829b3b1903123a5ba584ceca03d0701f08862024f2057922e83d1",
       "nativeTextureSizePx": [
         122,
         122
@@ -98,6 +100,7 @@
       "textureUrl": "textures/official/alcantara-03-r4.png",
       "heightUrl": "textures/official/alcantara-03-height-r4.png",
       "textureSha256": "e1a57ded4b1554d13996b401f45097c78ff930a12011c0875c59f05612957b43",
+      "heightSha256": "a736a9fc364dd587bb803dc2dfcb29ff16740874cc67f2a713a3b2768c3aa8e0",
       "nativeTextureSizePx": [
         122,
         122
@@ -122,6 +125,7 @@
       "textureUrl": "textures/official/alcantara-04-r4.png",
       "heightUrl": "textures/official/alcantara-04-height-r4.png",
       "textureSha256": "01634beb7496107a39e35126a49375504b518be659735af89ecde641881ebbf7",
+      "heightSha256": "a31731d860f7b3b28ed70f39148e70bb65c1730db9ef622658647faca55c8b0a",
       "nativeTextureSizePx": [
         122,
         122
@@ -146,6 +150,7 @@
       "textureUrl": "textures/official/alcantara-05-r4.png",
       "heightUrl": "textures/official/alcantara-05-height-r4.png",
       "textureSha256": "868370072dedabaa6fce3aabf18e97d3d8f7f67ff5d22fb5641cf772de84614e",
+      "heightSha256": "ca11a1e02a58001da926bd27b952c3d43269ca89b87c5f157c529e37cb090f55",
       "nativeTextureSizePx": [
         121,
         121
@@ -170,6 +175,7 @@
       "textureUrl": "textures/official/alcantara-06-r4.png",
       "heightUrl": "textures/official/alcantara-06-height-r4.png",
       "textureSha256": "1d19ce5ac4cd8fcd7e381a24df0b5b003bd0b97a4107851ea4bd3e8519d1670f",
+      "heightSha256": "5b769a73fe6ad123cca14f608b62b0b4885d0bca135800687466d92aa215d640",
       "nativeTextureSizePx": [
         121,
         121
@@ -194,6 +200,7 @@
       "textureUrl": "textures/official/alcantara-07-r4.png",
       "heightUrl": "textures/official/alcantara-07-height-r4.png",
       "textureSha256": "f1a30cba73eb00e4615f59f0510b84ce0cc3183b8230bc5f85f7fd67d8c9cb50",
+      "heightSha256": "7b081ad715ad39af95e89ea985f4a39752c4963af7ba4aa475da146f6dcca59f",
       "nativeTextureSizePx": [
         120,
         120
@@ -218,6 +225,7 @@
       "textureUrl": "textures/official/alcantara-08-r4.png",
       "heightUrl": "textures/official/alcantara-08-height-r4.png",
       "textureSha256": "3729913b7cb3207b3b180fd71f8a1a5703e900506a6452d50a3a4319627b0836",
+      "heightSha256": "a428abd8cd405547e05b895cdcf5ce68e41be64d334d2c198c4a7273cda69e50",
       "nativeTextureSizePx": [
         120,
         120
@@ -242,6 +250,7 @@
       "textureUrl": "textures/official/alcantara-09-r4.png",
       "heightUrl": "textures/official/alcantara-09-height-r4.png",
       "textureSha256": "977f23de23d02c035769c284df0d0bf32ae1d7324a159f4ea4fc4a051ceda2dc",
+      "heightSha256": "22ee761cb487f620216052660b536125a638f045e5893bb0e2d0c5e1c074397f",
       "nativeTextureSizePx": [
         120,
         120
@@ -266,6 +275,7 @@
       "textureUrl": "textures/official/alcantara-10-r4.png",
       "heightUrl": "textures/official/alcantara-10-height-r4.png",
       "textureSha256": "81ec5b5daa2787437313a81cb8bbe0eaf5c18923e9bd666f35e26f7f779460d3",
+      "heightSha256": "4081ac9aa9fb87080358f1bb868a5f57d465564a67d39956054a6d93b0fe18a0",
       "nativeTextureSizePx": [
         120,
         120
@@ -290,6 +300,7 @@
       "textureUrl": "textures/official/alcantara-11-r4.png",
       "heightUrl": "textures/official/alcantara-11-height-r4.png",
       "textureSha256": "b26b91e3e150100f251a204755ccddae888fc75596376814fd1f163433bfddd5",
+      "heightSha256": "12806893ebaa8cecc28c0802aa1afdd196928cce7fde7413f5c4a6a41a83a5c9",
       "nativeTextureSizePx": [
         120,
         120
@@ -314,6 +325,7 @@
       "textureUrl": "textures/official/cablo-01-r4.png",
       "heightUrl": "textures/official/cablo-01-height-r4.png",
       "textureSha256": "41412cc14c9e02565c308c1915ec2717b2d34b8d23006c56494a60f21f2c0b6a",
+      "heightSha256": "61788818421a51db261276db61ad592ddcadb9219b28b9ad2db5fcb024e703ec",
       "nativeTextureSizePx": [
         180,
         180
@@ -338,6 +350,7 @@
       "textureUrl": "textures/official/cablo-02-r4.png",
       "heightUrl": "textures/official/cablo-02-height-r4.png",
       "textureSha256": "2a2091b3e5a028c4715a772db6678e21be5a755103b2d7a4e604d5e225100b95",
+      "heightSha256": "6572b171f85d908ea9f5e1d07230354f4ddfba821005c2d9f0571ad29630245b",
       "nativeTextureSizePx": [
         177,
         177
@@ -362,6 +375,7 @@
       "textureUrl": "textures/official/cablo-03-r4.png",
       "heightUrl": "textures/official/cablo-03-height-r4.png",
       "textureSha256": "7e8254f7ad4a9caed803f1d7747888d11bd40a73cefad37e71b1209d1e25ece7",
+      "heightSha256": "76b6119b91a68fb7e5c1e34cb467a6af39b7e8292c3a5b1b561fed4daacd8af6",
       "nativeTextureSizePx": [
         177,
         177
@@ -386,6 +400,7 @@
       "textureUrl": "textures/official/cablo-04-r4.png",
       "heightUrl": "textures/official/cablo-04-height-r4.png",
       "textureSha256": "972a3f3f2f13117570e4b8abf7f4153f52057770f12588e35956d3fea6c142a0",
+      "heightSha256": "27167abaa650a910fca18b1d3520ad3a7fad02361bbda263af54488eda4a8c99",
       "nativeTextureSizePx": [
         185,
         185
@@ -410,6 +425,7 @@
       "textureUrl": "textures/official/cablo-05-r4.png",
       "heightUrl": "textures/official/cablo-05-height-r4.png",
       "textureSha256": "847ebb32c0803c209d0d5581195011ddb97cf9d4f114882bbc34866f27a94037",
+      "heightSha256": "1ec1bb45ec0db67d20671888af7eca67322dd12c07cc42e095bc6d0fc1e7a3fa",
       "nativeTextureSizePx": [
         182,
         182
@@ -434,6 +450,7 @@
       "textureUrl": "textures/official/cablo-06-r4.png",
       "heightUrl": "textures/official/cablo-06-height-r4.png",
       "textureSha256": "8172988d1a27c698c73d044f93db334c43f957091672527be3e8e17998df16ad",
+      "heightSha256": "dffe561fabd9693af01e80ec4407a9ac7fe98ac016c461149d4506ef462e358c",
       "nativeTextureSizePx": [
         180,
         180
@@ -458,6 +475,7 @@
       "textureUrl": "textures/official/cablo-07-r4.png",
       "heightUrl": "textures/official/cablo-07-height-r4.png",
       "textureSha256": "3be5a98beac456736c4d693e68a0f25705f51dcb2465c34cfd4f705919843464",
+      "heightSha256": "4869d9662da8e058bbecb4b214168835a0f80909b251b2d8a35820344a57df2a",
       "nativeTextureSizePx": [
         177,
         177
@@ -482,6 +500,7 @@
       "textureUrl": "textures/official/cablo-08-r4.png",
       "heightUrl": "textures/official/cablo-08-height-r4.png",
       "textureSha256": "b41c80d9c8eec77519ddded9ca8852bb2e533a86566292887c6f00d97ad7a352",
+      "heightSha256": "406729289826fdeb42d6a9e9683e00e66f7f1c1f4c16fd515403bba24c9dc17f",
       "nativeTextureSizePx": [
         180,
         180
@@ -506,6 +525,7 @@
       "textureUrl": "textures/official/cablo-09-r4.png",
       "heightUrl": "textures/official/cablo-09-height-r4.png",
       "textureSha256": "ab7e73b8a65972961eea5bab6bb1cc9ca94f3df5d8cc9571d411bbedd0a6d7e7",
+      "heightSha256": "da2d0ec49a59e324967fbd91fda17199f233355c8a43e4d5d6183d4a02010cb9",
       "nativeTextureSizePx": [
         180,
         180
@@ -530,6 +550,7 @@
       "textureUrl": "textures/official/cablo-10-r4.png",
       "heightUrl": "textures/official/cablo-10-height-r4.png",
       "textureSha256": "ec4965e23525db9a1d12dd2f9ff2ab926a4cab3cf17bf80558134604d92da92c",
+      "heightSha256": "c8a3e394f331972099f1975c4d201ad3e8435c793dc9617fff84c893fe268301",
       "nativeTextureSizePx": [
         180,
         180
@@ -554,6 +575,7 @@
       "textureUrl": "textures/official/city-01-r4.png",
       "heightUrl": "textures/official/city-01-height-r4.png",
       "textureSha256": "7366a55e3526b06c94d3997fca917f743e910f48b55b20332603ad66fee7cc89",
+      "heightSha256": "a6b6e5861f37e479aee5d47fd2fa99c109ececfab67b146223abe8aa6683e52f",
       "nativeTextureSizePx": [
         180,
         180
@@ -578,6 +600,7 @@
       "textureUrl": "textures/official/city-02-r4.png",
       "heightUrl": "textures/official/city-02-height-r4.png",
       "textureSha256": "c7bdb80be63da07404e14e177c48a7cbe68d937cc2461f7eb4b310b6f68be3cf",
+      "heightSha256": "ca5a8ef8d6aa51ed45ff369e6168b1c2298d29299a897fd75fa84f2cc76571b6",
       "nativeTextureSizePx": [
         180,
         180
@@ -602,6 +625,7 @@
       "textureUrl": "textures/official/city-03-r4.png",
       "heightUrl": "textures/official/city-03-height-r4.png",
       "textureSha256": "2eeefb924180df0bb0b2368e0d85bba9ec8de5324e7316d7b3c0abee3521a984",
+      "heightSha256": "cdabacc7d0698114f33041c4bdcce2d136f3d831e4e1c0d098318ce3918ab4cc",
       "nativeTextureSizePx": [
         180,
         180
@@ -626,6 +650,7 @@
       "textureUrl": "textures/official/city-04-r4.png",
       "heightUrl": "textures/official/city-04-height-r4.png",
       "textureSha256": "4433547bbcb7af5feab76004cb32f4cf84f4a488d2502055e834b0e57d6fdcc9",
+      "heightSha256": "f13bac853efb0ea51b15368394ca0db4fc2e3b2df277ec0e804b79e41224bd0a",
       "nativeTextureSizePx": [
         184,
         184
@@ -650,6 +675,7 @@
       "textureUrl": "textures/official/city-05-r4.png",
       "heightUrl": "textures/official/city-05-height-r4.png",
       "textureSha256": "bd74eb87eccce62ef012973d87877b849373252758e5db07fed121c65bdf1a46",
+      "heightSha256": "ef4c89f37e5b704bbbf04c46a07ca7253c20247051d893c818cbdd7578dc59ba",
       "nativeTextureSizePx": [
         182,
         182
@@ -674,6 +700,7 @@
       "textureUrl": "textures/official/city-06-r4.png",
       "heightUrl": "textures/official/city-06-height-r4.png",
       "textureSha256": "bee678d2203dbedd669510f484afd3a0c0b905b16c471028c7381b987dc8792a",
+      "heightSha256": "4c89889ed20e9ef5603d00881c68c9faf1f1dab70150111c9b44fd14551839cc",
       "nativeTextureSizePx": [
         181,
         181
@@ -698,6 +725,7 @@
       "textureUrl": "textures/official/city-07-r4.png",
       "heightUrl": "textures/official/city-07-height-r4.png",
       "textureSha256": "d794c5025504d7c84930bb653a532274273c137b831123ab823ef758c7e7d26e",
+      "heightSha256": "21cd729f3dd7eb007eac1eeecaec9418fbcb7eeb194413d9106bc3b37091ca79",
       "nativeTextureSizePx": [
         181,
         181
@@ -722,6 +750,7 @@
       "textureUrl": "textures/official/city-08-r4.png",
       "heightUrl": "textures/official/city-08-height-r4.png",
       "textureSha256": "9ce9172c88c11349d85c1597fd166435565f2d4073d8794939d1b75925cf7766",
+      "heightSha256": "3cf0c9e6f5b427b8f60b623b3a454bf96276c7664d845570dcd090b40e8328ef",
       "nativeTextureSizePx": [
         185,
         185
@@ -746,6 +775,7 @@
       "textureUrl": "textures/official/mist-01-r4.png",
       "heightUrl": "textures/official/mist-01-height-r4.png",
       "textureSha256": "9c9cba6a2c9274a6604fc3ad9eb64abdd4699ad3922ae949eeb0b877397578a3",
+      "heightSha256": "854745be56f37d7da751c60c0692dfa7b6244dfc19cc45214c63e9200da6feda",
       "nativeTextureSizePx": [
         178,
         178
@@ -770,6 +800,7 @@
       "textureUrl": "textures/official/mist-02-r4.png",
       "heightUrl": "textures/official/mist-02-height-r4.png",
       "textureSha256": "c23a4dbb425f696efb1fb456bcce400cac2c4e96f71b4020dacf24b352f94778",
+      "heightSha256": "ffa3b63b374a92fbd13a4c2e8e59d24655bb00ee022caef5c8cc0d0997a5abf6",
       "nativeTextureSizePx": [
         180,
         180
@@ -794,6 +825,7 @@
       "textureUrl": "textures/official/mist-03-r4.png",
       "heightUrl": "textures/official/mist-03-height-r4.png",
       "textureSha256": "cd2ac3a63505f7a9cc4d0471a301191cdc6b59161ca1489c36d4ebf7155b57a2",
+      "heightSha256": "3fc14ebb786fbb44e045d59aba1a837ad2f1ac73f64fb910995c4f5b162bb7c9",
       "nativeTextureSizePx": [
         179,
         179
@@ -818,6 +850,7 @@
       "textureUrl": "textures/official/mist-04-r4.png",
       "heightUrl": "textures/official/mist-04-height-r4.png",
       "textureSha256": "110ea09e86fed135eb4b02434389f95f9e86c2ddfa546e4df3b36a731fb2bcd2",
+      "heightSha256": "1d715703e64c25facf2f2ce59ab4f543cc2de824796f116703f0c392e4436be0",
       "nativeTextureSizePx": [
         182,
         182
@@ -842,6 +875,7 @@
       "textureUrl": "textures/official/mist-05-r4.png",
       "heightUrl": "textures/official/mist-05-height-r4.png",
       "textureSha256": "d80395ea07ed3b4a4c0c5b85f3b004e312369f157918b0606d2d90fea4b9f306",
+      "heightSha256": "fc87edfe18a91d2f41c30b7e4cbd61e733246713eb8fc5a52fc1b184d6316c85",
       "nativeTextureSizePx": [
         178,
         178
@@ -866,6 +900,7 @@
       "textureUrl": "textures/official/mist-06-r4.png",
       "heightUrl": "textures/official/mist-06-height-r4.png",
       "textureSha256": "eb6dd6f8d3b48fd05c90167e2a7bc9e0fd055d3b727856c1527baf05ea79767d",
+      "heightSha256": "5a0a5ad895c681142fbd67f509db9fd9e94a97b3341dcb57b050c73826e716ad",
       "nativeTextureSizePx": [
         180,
         180
@@ -890,6 +925,7 @@
       "textureUrl": "textures/official/mist-07-r4.png",
       "heightUrl": "textures/official/mist-07-height-r4.png",
       "textureSha256": "f122005a6ccb96508514167a0dd7d58e96baacc43da9911c96f914059f9e49c7",
+      "heightSha256": "dded111a7a02420d285593157c44ce3c41da8cab745bfeccd9d614d790d0c48f",
       "nativeTextureSizePx": [
         180,
         180
@@ -914,6 +950,7 @@
       "textureUrl": "textures/official/mist-08-r4.png",
       "heightUrl": "textures/official/mist-08-height-r4.png",
       "textureSha256": "2a6826ee992dde1f8fd11a2cf35b4c888a675437c85a0e58855a8b518d7960b9",
+      "heightSha256": "3a1505fdcbcf0921fa4398136c07ec8c73064c6ed5b7a86910b1c5290ce5b33f",
       "nativeTextureSizePx": [
         182,
         182
@@ -938,6 +975,7 @@
       "textureUrl": "textures/official/spigato-beje-r4.png",
       "heightUrl": "textures/official/spigato-beje-height-r4.png",
       "textureSha256": "2175103673e5fe5873666a3d698e9cd73b276e19fbd141b024b476b1208373ef",
+      "heightSha256": "3fc6469ccd38635a0f73fc4040b104f94e35dbca9cc1551b63be06b55bb61387",
       "sourceTextureSizePx": [
         2078,
         1229

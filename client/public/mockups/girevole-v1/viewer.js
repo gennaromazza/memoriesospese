@@ -184,7 +184,7 @@ function view(direction = [-.5, .32, 1]) {
 $('front').onclick = () => view([0, 0, 1]); $('back').onclick = () => view([0, 0, -1]); $('spine').onclick = () => view([-1, 0, .08]);
 $('reset').onclick = () => { automatic = false; $('rotate').setAttribute('aria-pressed', 'false'); $('rotation').value = 25; setRotation(25); view(); };
 for (const [id, factor] of [['plus', .8], ['minus', 1.25]]) $(id).onclick = () => { const offset = camera.position.clone().sub(controls.target); offset.setLength(THREE.MathUtils.clamp(offset.length() * factor, .45, 3)); camera.position.copy(controls.target).add(offset); controls.update(); };
-new ResizeObserver(() => { const stage = $('viewport').parentElement; renderer.setSize(stage.clientWidth, stage.clientHeight, false); camera.aspect = stage.clientWidth / stage.clientHeight; camera.updateProjectionMatrix(); view(); }).observe($('viewport').parentElement);
+new ResizeObserver(() => { if (exporting) return; const stage = $('viewport').parentElement; renderer.setSize(stage.clientWidth, stage.clientHeight, false); camera.aspect = stage.clientWidth / stage.clientHeight; camera.updateProjectionMatrix(); view(); }).observe($('viewport').parentElement);
 let last = 0;
 const renderLoop = time => { if (automatic) { const angle = ((THREE.MathUtils.radToDeg(pivot.rotation.y) + Math.min(time - last, 100) * .018 + 180) % 360) - 180; $('rotation').value = angle; setRotation(angle); } last = time; controls.update(); renderer.render(scene, camera); };
 renderer.setAnimationLoop(renderLoop);

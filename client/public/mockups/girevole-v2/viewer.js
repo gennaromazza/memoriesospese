@@ -225,7 +225,7 @@ function extract(percent) {
 $('extract').oninput = () => extract(+$('extract').value);
 $('reset').onclick = () => { $('extract').value = 0; extract(0); $('rotation').value = 25; setRotation(25); view(); };
 for (const [id, factor] of [['plus', .8], ['minus', 1.25]]) $(id).onclick = () => { const offset = camera.position.clone().sub(controls.target); offset.setLength(THREE.MathUtils.clamp(offset.length() * factor, .45, 3)); camera.position.copy(controls.target).add(offset); controls.update(); };
-new ResizeObserver(() => { const stage = $('viewport').parentElement; renderer.setSize(stage.clientWidth, stage.clientHeight, false); camera.aspect = stage.clientWidth / stage.clientHeight; camera.updateProjectionMatrix(); view(); }).observe($('viewport').parentElement);
+new ResizeObserver(() => { if (exporting) return; const stage = $('viewport').parentElement; renderer.setSize(stage.clientWidth, stage.clientHeight, false); camera.aspect = stage.clientWidth / stage.clientHeight; camera.updateProjectionMatrix(); view(); }).observe($('viewport').parentElement);
 let last = 0;
 const renderLoop = time => { if (automatic) { const angle = ((THREE.MathUtils.radToDeg(pivot.rotation.y) + Math.min(time - last, 100) * .018 + 180) % 360) - 180; $('rotation').value = angle; setRotation(angle); } last = time; controls.update(); renderer.render(scene, camera); };
 renderer.setAnimationLoop(renderLoop);
