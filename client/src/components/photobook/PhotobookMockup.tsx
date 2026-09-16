@@ -335,7 +335,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   }, [dirty]);
 
   async function selectPhoto(operation: () => Promise<Response>) {
-    const target = mobile ? (step === 5 ? 'back' : 'front') : renderer.id === 'album-girevole' ? photoSide : 'front';
+    const target = mobile ? (step === 7 ? 'back' : 'front') : renderer.id === 'album-girevole' ? photoSide : 'front';
     setBusy(true); setMessage('Preparazione foto…');
     try {
       const photo: MockupPhoto = await (await operation()).json();
@@ -414,21 +414,22 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       setHomeOpen(false); pendingLayout.current = null;
     }
   }
-  const steps = renderer.id === 'album-girevole' ? [2, 3, 4, 5, 6, 7] : [2, 3, 4, 5, 7];
+  const steps = renderer.id === 'album-girevole' ? [2, 3, 4, 5, 6, 7, 8] : [2, 3, 5, 6, 8];
   const stepNames: Record<number, string> = {
     1: 'Modello',
     2: 'Collezione tessuto',
     3: 'Colore rivestimento',
-    4: 'Disposizione copertina',
-    5: 'Personalizzazione copertina',
-    6: 'Struttura e retro scrigno',
-    7: 'Riepilogo e invio',
+    4: 'Struttura dello scrigno',
+    5: 'Disposizione copertina',
+    6: 'Personalizzazione copertina',
+    7: 'Retro dello scrigno',
+    8: 'Riepilogo e invio',
   };
-  const lastStep = 7;
+  const lastStep = 8;
   const photoStepValid =
-    step === 5
+    step === 6
       ? draftCoverLayout === 'plaque' || frontPhotoPresent
-      : step === 6
+      : step === 7
         ? draftBackCover !== 'photo' || backPhotoPresent
         : true;
   const nextAllowed = ready && !renderBusy && !busy && (step === 1 ? (!state.data?.offer || !!selectedOption || !editable) : photoStepValid || !editable);
@@ -469,7 +470,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
             <span>{title}</span>
             {wizard && !choosing && (
               <span className="mockup-header-step-badge">
-                · Passo {steps.indexOf(step) + 1}/{steps.length}: {stepNames[step]}
+                · Passo {steps.indexOf(step) + 1}/{steps.length}
               </span>
             )}
           </div>
@@ -560,15 +561,16 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
         {token && (!ready || !wizard) && !choosing && <p role="status" className="p-4 text-sm">Preparazione del tuo configuratore…</p>}
         {(!mobile || viewerStarted) && <iframe key={`${renderer.id}-${generation}`} ref={frame} title={`Configuratore 3D ${renderer.name}`} src={`${import.meta.env.BASE_URL}mockups/${renderer.path}`} sandbox="allow-scripts allow-same-origin allow-downloads" style={{ visibility: token && (!ready || !wizard) ? 'hidden' : undefined }} aria-hidden={token && (!ready || !wizard) ? true : undefined} className={`${token ? 'w-full min-h-0 flex-1 border-0' : 'mockup-admin-viewer'} ${busy ? 'pointer-events-none' : ''}`} />}
         {token && wizard && createPortal(<>
-          {editable && ready && !renderBusy && configurationIssue && ((mobile && [4, 5, 6].includes(step)) || (!mobile && step >= 4)) && <p role="status" className="wizard-validation">{configurationIssue}</p>}
+          {editable && ready && !renderBusy && configurationIssue && ((mobile && [5, 6, 7].includes(step)) || (!mobile && step >= 5)) && <p role="status" className="wizard-validation">{configurationIssue}</p>}
           <div className="wizard-step-heading" aria-live="polite"><span>Passo {steps.indexOf(step) + 1} di {steps.length}</span><strong>{stepNames[step] || 'Configurazione'}</strong></div>
           {step === 1 && <><h3>Scegli il tuo modello</h3><p>Trovi qui i modelli proposti dallo studio.</p>{state.data.offer?.options.map(option => <button type="button" className="wizard-model" key={`${option.labId}/${option.id}`} aria-pressed={selectedOption?.id === option.id && selectedOption?.labId === option.labId} disabled={!editable || busy || !ready || renderBusy} onClick={() => chooseOption(option)}>{option.name}<small>{option.labName} · {MOCKUP_RENDERERS.find(r => r.id === option.rendererId)?.name}</small></button>)}{!state.data.offer && <p>{title}</p>}</>}
           {step === 2 && <><h3>Collezione tessuto</h3><p>Tocca la collezione di tessuti che preferisci per il tuo album. I colori disponibili appariranno nella schermata successiva.</p></>}
           {step === 3 && <><h3>Colore del rivestimento</h3><p>Tocca un colore per applicarlo istantaneamente all’anteprima 3D sopra la scheda.</p></>}
-          {step === 4 && <><h3>Disposizione della copertina</h3><p>Scegli lo stile e la disposizione degli elementi sulla copertina.</p></>}
-          {step === 5 && <>
+          {step === 4 && <><h3>Struttura dello scrigno</h3><p>Scegli la finitura della cornice che racchiude l'album.</p></>}
+          {step === 5 && <><h3>Disposizione della copertina</h3><p>Scegli lo stile e la disposizione della copertina: placchetta con incisione, foto grande a tutta copertina oppure foto formato placchetta.</p></>}
+          {step === 6 && <>
             {draftCoverLayout === 'plaque' ? (
-              <><h3>Incisione con i vostri nomi</h3><p>Inserite i nomi da incidere sulla copertina per generare il monogramma botanico.</p></>
+              <><h3>Incisione con i vostri nomi</h3><p>Inserite i nomi da incidere sulla placchetta in legno per generare il monogramma botanico.</p></>
             ) : (
               <>
                 <h3>Foto di copertina</h3>
@@ -583,9 +585,9 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
               </>
             )}
           </>}
-          {step === 6 && <>
-            <h3>Struttura e retro dello scrigno</h3>
-            <p>Scegli la finitura della cornice rotante e l’effetto del plexiglass posteriore.</p>
+          {step === 7 && <>
+            <h3>Plexiglass posteriore dello scrigno</h3>
+            <p>Scegli l'effetto del retro dello scrigno: lastra trasparente senza stampa, oppure stampa fotografica su plexiglass.</p>
             {draftBackCover === 'photo' && (
               <div className="wizard-photo-actions">
                 <button type="button" disabled={!editable || busy || !ready || renderBusy} onClick={() => { setPhotoSide('back'); setPicker(true); }}>

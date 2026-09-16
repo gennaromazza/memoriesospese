@@ -122,57 +122,95 @@ export function installMockupWizard(doc: Document, mobile = false) {
       display: none !important;
     }
 
-    /* Step 2: Tessuto (Collezione) & Step 3: Colore (Campioni) */
-    body[data-wizard][data-wizard-step="2"] #fabricPanel,
+    /* Step 2: Collezione Tessuto */
+    body[data-wizard][data-wizard-step="2"] #fabricPanel {
+      display: block !important;
+    }
+    body[data-wizard][data-wizard-step="2"] .wizard-family-selector {
+      display: grid !important;
+    }
+    body[data-wizard][data-wizard-step="2"] :is(.category, .material-category) {
+      display: none !important;
+    }
+
+    /* Step 3: Colore Rivestimento */
     body[data-wizard][data-wizard-step="3"] #fabricPanel {
       display: block !important;
     }
+    body[data-wizard][data-wizard-step="3"] .wizard-family-selector {
+      display: none !important;
+    }
+    body[data-wizard][data-wizard-step="3"] :is(.category, .material-category) {
+      display: none !important;
+      border: 0 !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+    body[data-wizard][data-wizard-step="3"] :is(.category, .material-category)[open] {
+      display: block !important;
+    }
+    body[data-wizard][data-wizard-step="3"] :is(.category, .material-category) > summary {
+      display: none !important;
+    }
 
-    /* Step 4: Disposizione copertina */
+    /* Step 4: Struttura dello Scrigno (Cornice legno, bianco, tessuto) */
     body[data-wizard][data-wizard-step="4"] #detailPanel {
       display: block !important;
     }
-
-    /* Step 5: Personalizzazione copertina (Nomi o Foto) */
-    body[data-wizard][data-wizard-step="5"] #detailPanel {
-      display: block !important;
-    }
-
-    /* Step 6: Struttura & Retro scrigno */
-    body[data-wizard][data-wizard-step="6"] #detailPanel {
-      display: block !important;
-    }
-
-    /* Step 7: Riepilogo */
-    body[data-wizard][data-wizard-step="7"] #summaryPanel {
-      display: block !important;
-    }
-
-    /* Dettaglio filtri interni a #detailPanel */
     body[data-wizard][data-wizard-step="4"] #detailPanel > * {
       display: none !important;
     }
-    body[data-wizard][data-wizard-step="4"] #detailPanel > [data-wizard-material]:not([hidden]) {
+    body[data-wizard][data-wizard-step="4"] #detailPanel > [data-wizard-frame]:not([hidden]) {
       display: block !important;
     }
 
+    /* Step 5: Disposizione della Copertina (Placchetta, Foto grande, Foto placchetta / Obliquo) */
+    body[data-wizard][data-wizard-step="5"] #detailPanel {
+      display: block !important;
+    }
     body[data-wizard][data-wizard-step="5"] #detailPanel > * {
       display: none !important;
     }
-    body[data-wizard][data-wizard-step="5"] #detailPanel > #engravingControls:not([hidden]),
-    body[data-wizard][data-wizard-step="5"] #detailPanel > #photoControls:not([hidden]),
-    body[data-wizard][data-wizard-step="5"] #detailPanel > details[data-wizard-crop] {
+    body[data-wizard][data-wizard-step="5"] #detailPanel > [data-wizard-cover-layout]:not([hidden]) {
       display: block !important;
     }
 
+    /* Step 6: Personalizzazione Copertina (Nomi incisione placchetta o Foto con pulsante galleria) */
+    body[data-wizard][data-wizard-step="6"] #detailPanel {
+      display: block !important;
+    }
     body[data-wizard][data-wizard-step="6"] #detailPanel > * {
       display: none !important;
     }
-    body[data-wizard][data-wizard-step="6"] #detailPanel > [data-wizard-frame]:not([hidden]),
-    body[data-wizard][data-wizard-step="6"] #detailPanel > [data-wizard-rear]:not([hidden]),
-    body[data-wizard][data-wizard-step="6"] #detailPanel > #backPhotoControls:not([hidden]),
-    body[data-wizard][data-wizard-step="6"] #detailPanel > details[data-wizard-crop-rear] {
+    body[data-wizard][data-wizard-step="6"] #detailPanel > #engravingControls:not([hidden]),
+    body[data-wizard][data-wizard-step="6"] #detailPanel > #photoControls:not([hidden]),
+    body[data-wizard][data-wizard-step="6"] #detailPanel > details[data-wizard-crop] {
       display: block !important;
+    }
+
+    /* Step 7: Retro dello Scrigno (Plexiglass trasparente vs Stampa foto) */
+    body[data-wizard][data-wizard-step="7"] #detailPanel {
+      display: block !important;
+    }
+    body[data-wizard][data-wizard-step="7"] #detailPanel > * {
+      display: none !important;
+    }
+    body[data-wizard][data-wizard-step="7"] #detailPanel > [data-wizard-rear]:not([hidden]),
+    body[data-wizard][data-wizard-step="7"] #detailPanel > #backPhotoControls:not([hidden]),
+    body[data-wizard][data-wizard-step="7"] #detailPanel > details[data-wizard-crop-rear] {
+      display: block !important;
+    }
+
+    /* Step 8: Riepilogo e Invio */
+    body[data-wizard][data-wizard-step="8"] #summaryPanel {
+      display: block !important;
+    }
+    body[data-wizard][data-wizard-step="8"] #wizard-home {
+      display: block !important;
+    }
+    body[data-wizard][data-wizard-step="8"] .download-bar {
+      display: block !important;
+      padding-top: 8px;
     }
 
     /* COMPONENTI DEL WIZARD */
@@ -279,29 +317,6 @@ export function installMockupWizard(doc: Document, mobile = false) {
       padding: 4px 8px;
       border-radius: 6px;
       white-space: nowrap;
-    }
-
-    /* STEP 2 vs STEP 3 DIALOG */
-    body[data-wizard][data-wizard-step="2"] .wizard-family-selector {
-      display: grid !important;
-    }
-    body[data-wizard][data-wizard-step="2"] .material-category {
-      display: none !important;
-    }
-    body[data-wizard][data-wizard-step="3"] .wizard-family-selector {
-      display: none !important;
-    }
-    body[data-wizard][data-wizard-step="3"] .material-category {
-      display: none !important;
-      border: 0;
-      padding: 0;
-      margin: 0;
-    }
-    body[data-wizard][data-wizard-step="3"] .material-category[open] {
-      display: block !important;
-    }
-    body[data-wizard][data-wizard-step="3"] .material-category > summary {
-      display: none !important;
     }
 
     /* GRIGLIA COLORI (STEP 3) */
@@ -441,15 +456,8 @@ export function installMockupWizard(doc: Document, mobile = false) {
       display: none;
       margin-top: 10px;
     }
-    body[data-wizard][data-wizard-step="7"] #wizard-home {
-      display: block;
-    }
     body[data-wizard] .download-bar {
       display: none !important;
-    }
-    body[data-wizard][data-wizard-step="7"] .download-bar {
-      display: block !important;
-      padding-top: 8px;
     }
 
     /* BARRA AZIONI INFERIORE */
@@ -738,27 +746,29 @@ export function installMockupWizard(doc: Document, mobile = false) {
     }
   }
 
-  // TRASFORMAZIONE SELETTORI IN CARDS TOUCH-FRIENDLY
+  // TRASFORMAZIONE SELETTORI IN CARDS TOUCH-FRIENDLY E SEPARAZIONE RIGOROSA
   const detail = doc.getElementById('detailPanel');
   const mirrors: { select: HTMLSelectElement; buttons: HTMLButtonElement[] }[] = [];
 
   for (const id of ['frameFinish', 'coverLayout', 'coverOptions', 'backCover']) {
     const element = doc.getElementById(id);
     if (!element || !detail?.contains(element)) continue;
-    const group = id === 'backCover' ? 'wizardRear' : 'wizardMaterial';
-    element.dataset[group] = 'true';
-    if (id === 'frameFinish') element.dataset.wizardFrame = 'true';
 
+    // Distinzione rigorosa: struttura frame vs disposizione copertina vs retro
+    let group = 'wizardMaterial';
+    if (id === 'frameFinish') group = 'wizardFrame';
+    else if (id === 'coverLayout' || id === 'coverOptions') group = 'wizardCoverLayout';
+    else if (id === 'backCover') group = 'wizardRear';
+
+    element.dataset[group] = 'true';
     const label = doc.querySelector<HTMLElement>(`label[for="${id}"]`);
     if (label) label.dataset[group] = 'true';
-    if (label && id === 'frameFinish') label.dataset.wizardFrame = 'true';
 
     if (element.tagName !== 'SELECT') continue;
     const select = element as HTMLSelectElement;
     const cards = doc.createElement('div');
     cards.className = 'wizard-cards';
     cards.dataset[group] = 'true';
-    if (id === 'frameFinish') cards.dataset.wizardFrame = 'true';
     cards.setAttribute('role', 'group');
     cards.setAttribute('aria-label', label?.textContent || id);
 
@@ -872,18 +882,24 @@ export function installMockupWizard(doc: Document, mobile = false) {
     step(value: number) {
       doc.body.dataset.wizardStep = String(value);
 
-      if (value === 7) {
+      if (value === 8) {
         doc.getElementById('summaryPanel')?.after(slot);
       } else {
         content.prepend(slot);
       }
 
       // Auto-rotazione assistita in base alla scheda
-      if (value === 4 || value === 5) {
+      if (value === 4) {
+        // Struttura dello scrigno: vista d'insieme
+        doc.getElementById('reset')?.click();
+      } else if (value === 5 || value === 6) {
+        // Disposizione o personalizzazione copertina: vista frontale
         doc.getElementById('front')?.click();
-      } else if (value === 6) {
-        doc.getElementById('back')?.click();
       } else if (value === 7) {
+        // Retro dello scrigno: vista posteriore
+        doc.getElementById('back')?.click();
+      } else if (value === 8) {
+        // Riepilogo: vista d'insieme
         doc.getElementById('reset')?.click();
       }
 
