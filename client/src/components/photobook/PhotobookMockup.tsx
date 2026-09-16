@@ -831,7 +831,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       }} />
     </>}
       </div>
-      {!mobile && (token || adminTab === 'edit' || dirty) && <div className="mockup-actions shrink-0 border-t bg-background p-3 sm:px-4 space-y-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      {!mobile && !token && (adminTab === 'edit' || dirty) && <div className="mockup-actions shrink-0 border-t bg-background p-3 sm:px-4 space-y-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         {token && message && <p role="status" className="text-sm max-h-20 overflow-auto">{message}</p>}
         {dirty && <p className="text-sm text-amber-800" role="status">Modifiche da salvare</p>}
         {token ? <><div className="flex gap-2"><Button variant="outline" className="min-h-11" disabled={step === 1 || busy || renderBusy} onClick={() => setStep(steps[steps.indexOf(step) - 1])}>Indietro</Button>{step < lastStep ? <Button className="min-h-11 flex-1" disabled={!nextAllowed} onClick={() => setStep(steps[steps.indexOf(step) + 1])}>Avanti</Button> : <Button className="min-h-11 h-auto whitespace-normal flex-1" disabled={!editable || busy || renderBusy || !configuration || !selectedOption || (!dirty && ['submitted', 'confirmed'].includes(saved?.status || ''))} onClick={submitWizard}>Invia allo studio per verifica</Button>}</div>{step === lastStep && <Button variant="ghost" className="w-full min-h-11" disabled={!editable || busy || renderBusy || !configuration || !dirty || (!!state.data?.offer && !selectedOption)} onClick={save}>Salva bozza</Button>}</> : <div className="flex flex-wrap gap-2">
