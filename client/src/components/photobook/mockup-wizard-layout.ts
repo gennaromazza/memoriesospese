@@ -201,14 +201,22 @@ export function installMockupWizard(doc: Document, mobile = false) {
       display: block !important;
     }
 
-    /* Step 8: Riepilogo e Invio */
-    body[data-wizard][data-wizard-step="8"] #summaryPanel {
+    /* Step 8: Ambientazione nella tua casa */
+    body[data-wizard][data-wizard-step="8"] #homePanel {
       display: block !important;
     }
-    body[data-wizard][data-wizard-step="8"] #wizard-home {
+    body[data-wizard] #homePanel h2 {
+      display: none !important;
+    }
+    body[data-wizard] #homePanel label[for="homeScene"] {
+      display: none !important;
+    }
+
+    /* Step 9: Riepilogo e Invio */
+    body[data-wizard][data-wizard-step="9"] #summaryPanel {
       display: block !important;
     }
-    body[data-wizard][data-wizard-step="8"] .download-bar {
+    body[data-wizard][data-wizard-step="9"] .download-bar {
       display: block !important;
       padding-top: 8px;
     }
@@ -816,14 +824,42 @@ export function installMockupWizard(doc: Document, mobile = false) {
 
   const home = doc.getElementById('homePanel');
   if (home) {
-    const wrap = doc.createElement('details');
-    wrap.id = 'wizard-home';
-    const title = doc.createElement('summary');
-    title.textContent = 'Vedi in casa · facoltativo';
-    wrap.append(title);
-    content.append(wrap);
-    wrap.append(home);
     home.hidden = false;
+    content.append(home);
+
+    const homeSelect = home.querySelector<HTMLSelectElement>('#homeScene');
+    if (homeSelect) {
+      const sceneCards = doc.createElement('div');
+      sceneCards.className = 'wizard-cards';
+      sceneCards.setAttribute('role', 'group');
+      sceneCards.setAttribute('aria-label', 'Ambientazione nella tua casa');
+
+      const sceneLabels: Record<string, { label: string; desc: string }> = {
+        none: { label: 'Solo album', desc: 'Vista ravvicinata studio' },
+        sideboard: { label: 'Madia moderna', desc: 'Appoggiato su mobile living' },
+        living: { label: 'Parete salotto', desc: 'Integrazione parete attrezzata' },
+        warm: { label: 'Living con doghe', desc: 'Ambiente contemporaneo legno' },
+        console: { label: 'Consolle ingresso', desc: 'Elemento arredo all’ingresso' },
+      };
+
+      const sceneButtons = Array.from(homeSelect.options).map(option => {
+        const btn = doc.createElement('button');
+        btn.type = 'button';
+        const info = sceneLabels[option.value] || { label: option.text, desc: '' };
+        btn.innerHTML = `<strong>${info.label}</strong><small style="font-size:11px;color:#637571;margin-top:2px;">${info.desc}</small>`;
+        btn.onclick = () => {
+          homeSelect.value = option.value;
+          homeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+          refresh();
+        };
+        sceneCards.append(btn);
+        return btn;
+      });
+
+      homeSelect.hidden = true;
+      homeSelect.after(sceneCards);
+      mirrors.push({ select: homeSelect, buttons: sceneButtons });
+    }
   }
 
   function refresh() {
@@ -882,8 +918,10 @@ export function installMockupWizard(doc: Document, mobile = false) {
     step(value: number) {
       doc.body.dataset.wizardStep = String(value);
 
-      if (value === 8) {
+      if (value === 9) {
         doc.getElementById('summaryPanel')?.after(slot);
+      } else if (value === 8) {
+        doc.getElementById('homePanel')?.prepend(slot);
       } else {
         content.prepend(slot);
       }
@@ -898,7 +936,7 @@ export function installMockupWizard(doc: Document, mobile = false) {
       } else if (value === 7) {
         // Retro dello scrigno: vista posteriore
         doc.getElementById('back')?.click();
-      } else if (value === 8) {
+      } else if (value === 9) {
         // Riepilogo: vista d'insieme
         doc.getElementById('reset')?.click();
       }

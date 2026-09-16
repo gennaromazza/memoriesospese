@@ -414,7 +414,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       setHomeOpen(false); pendingLayout.current = null;
     }
   }
-  const steps = renderer.id === 'album-girevole' ? [2, 3, 4, 5, 6, 7, 8] : [2, 3, 5, 6, 8];
+  const steps = renderer.id === 'album-girevole' ? [2, 3, 4, 5, 6, 7, 8, 9] : [2, 3, 5, 6, 8, 9];
   const stepNames: Record<number, string> = {
     1: 'Modello',
     2: 'Collezione tessuto',
@@ -423,9 +423,10 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     5: 'Disposizione copertina',
     6: 'Personalizzazione copertina',
     7: 'Retro dello scrigno',
-    8: 'Riepilogo e invio',
+    8: 'Vedi l’album in casa',
+    9: 'Riepilogo e invio',
   };
-  const lastStep = 8;
+  const lastStep = 9;
   const photoStepValid =
     step === 6
       ? draftCoverLayout === 'plaque' || frontPhotoPresent
@@ -478,7 +479,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
             {title} · versione fotolibro {version}{!token && saved ? ` · revisione mockup ${saved.revision}` : ''}
           </DialogDescription>
         </div>
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           {!choosing && (
             <div className="mockup-header-links">
               {editable && !busy && !renderBusy && ready && (state.data?.offer?.options.length || 0) > 1 && (
@@ -488,20 +489,9 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
                   className="h-9 px-2 text-xs text-stone-600 hover:text-stone-900"
                   onClick={() => { setViewerExpanded(false); setChoosing(true); }}
                 >
-                  Cambia
+                  Cambia modello
                 </Button>
               )}
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-9 px-2 text-xs gap-1.5"
-                aria-pressed={homeOpen}
-                disabled={!ready || busy || renderBusy}
-                onClick={() => { setViewerExpanded(false); setHomeOpen(!homeOpen); setGuideOpen(false); }}
-              >
-                <Home size={14} />
-                <span className="hidden sm:inline">{homeOpen ? 'Solo album' : 'In casa'}</span>
-              </Button>
             </div>
           )}
           <Button
@@ -596,6 +586,10 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
               </div>
             )}
             {!photoStepValid && editable && <p role="status" className="wizard-validation">Scegli una foto per il retro in plexiglass per continuare.</p>}
+          </>}
+          {step === 8 && <>
+            <h3>Vedi l’album nella tua casa</h3>
+            <p>Visualizza in tempo reale come si presenta il tuo album appoggiato su un mobile o nella zona living. Questo passaggio è facoltativo: puoi lasciare “Solo album” o scegliere un’ambientazione.</p>
           </>}
           {step === lastStep && <>
             <h3>Riepilogo e conferma</h3>
