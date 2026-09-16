@@ -24,10 +24,11 @@ try {
  await page.route('**/*',async route=>{
   const url=new URL(route.request().url()); if(url.hostname!=='127.0.0.1')return route.abort();
   if(url.pathname==='/page.svg')return route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400"><rect width="800" height="400" fill="#b9a58b"/></svg>'});
+   if(url.pathname==='/replacement.svg')return route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><rect width="400" height="400" fill="#9fb5a5"/></svg>'});
   if(!url.pathname.startsWith('/api/'))return route.continue();
   const pathname=url.pathname;
   if(pathname.endsWith('/publish-version')){const body=route.request().postDataJSON();assert.equal(body.version,3);assert.equal(body.expectedPageCount,1);assert.equal(body.expectedCurrentVersion,2);published=3;versions[2].status='published';notifications++;return route.fulfill({json:{ok:true,notified:true}});}
-  if(pathname.endsWith('/gallery-photos'))return route.fulfill({json:{photos:[],chapters:[]}});
+   if(pathname.endsWith('/gallery-photos'))return route.fulfill({json:{photos:[{id:'replacement-photo',name:'sostituzione.jpg',url:'/replacement.svg',thumbnailUrl:'/replacement.svg'}],chapters:[]}});
   if(pathname.endsWith('/approve')){assert.equal(route.request().method(),'POST');approvedCalls++;approval={version:published};return route.fulfill({json:{ok:true,approved:true}});}
   if(pathname.endsWith('/mockup')){const version=Number(url.searchParams.get('version'))||published;return route.fulfill({json:{version,enabled:true,editable:!locked&&version===published&&approval?.version===published,approvalRequired:version===published&&approval?.version!==published,saved:null,offer}});}
   if(pathname.includes('/by-token/')){const selected=Number(url.searchParams.get('version'))||published;return route.fulfill({json:{photobook:{...book(),versions:versions.filter(v=>v.status!=='draft')},version:selected,pages:pages(selected),requests}});}
@@ -76,6 +77,29 @@ try {
   });
   await page.waitForTimeout(100);
  };
+  const assertDialogAccessibility=async(role,title)=>{
+   const dialog=page.getByRole(role).last();
+   await dialog.waitFor();
+   const a11y=await dialog.evaluate(element=>{
+    const resolve=(attribute)=>{
+     const ids=(element.getAttribute(attribute)||'').split(/\s+/).filter(Boolean);
+     return ids.map(id=>document.getElementById(id)?.textContent?.trim()||'').filter(Boolean).join(' ');
+    };
+    return {
+     labelledBy:element.getAttribute('aria-labelledby'),
+     describedBy:element.getAttribute('aria-describedby'),
+     title:resolve('aria-labelledby'),
+     description:resolve('aria-describedby'),
+     focusInside:element.contains(document.activeElement),
+    };
+   });
+   assert.ok(a11y.labelledBy,`${role} senza nome accessibile`);
+   assert.match(a11y.title,new RegExp(title));
+   assert.ok(a11y.describedBy,`${role} senza descrizione accessibile`);
+   assert.ok(a11y.description,`${role} con descrizione vuota`);
+   assert.equal(a11y.focusInside,true,`${role} ha lasciato il focus fuori dal dialogo`);
+   return dialog;
+  };
  await page.getByTestId('button-open-approve').tap();
  await checkModalOrientations();
  await page.getByRole('button',{name:'Torna alla revisione',exact:true}).tap();
@@ -105,8 +129,18 @@ try {
  await touch.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
  await page.waitForTimeout(500);
  await page.getByTestId('button-confirm-mark').tap();
+  await assertDialogAccessibility('dialog','Pagina 1');
  await checkModalOrientations();
+  await page.getByTestId('button-action-replace').tap();
+  const pickerDialog=await assertDialogAccessibility('dialog','Scegli la foto sostitutiva');
+  const pickerLabel=await pickerDialog.getAttribute('aria-labelledby');
+  assert.equal(await page.evaluate(labelledBy=>document.activeElement?.closest('[role="dialog"]')?.getAttribute('aria-labelledby'),pickerLabel),pickerLabel);
+  await page.getByTestId('button-pick-photo-replacement-photo').tap();
+  await assertDialogAccessibility('dialog','Sostituisci foto');
+  await page.getByRole('button',{name:'Indietro',exact:true}).tap();
+  await assertDialogAccessibility('dialog','Pagina 1');
  await page.getByTestId('button-action-edit').tap();
+  await assertDialogAccessibility('dialog','Richiedi una modifica');
  await checkModalOrientations();
  assert.equal(await page.getByTestId('overlay-rotate-portrait').count(),0);
  await page.setViewportSize({width:390,height:844});
@@ -169,9 +203,11 @@ try {
  await lightboxTrigger.waitFor();
  await lightboxTrigger.click();
  await page.getByTestId('lightbox-page').waitFor();
+ await page.waitForFunction(() => document.activeElement?.getAttribute('data-testid') === 'button-lightbox-close');
  assert.equal(await page.evaluate(()=>document.activeElement?.getAttribute('data-testid')),'button-lightbox-close');
  await page.getByTestId('button-lightbox-close').click();
  await page.getByTestId('lightbox-page').waitFor({state:'hidden'});
+ await page.waitForFunction(() => document.activeElement?.getAttribute('data-testid')?.startsWith('button-fullscreen-'));
  assert.equal(await lightboxTrigger.evaluate(element=>document.activeElement===element),true);
  await page.setViewportSize({width:844,height:390});
  locked=true; await page.reload();

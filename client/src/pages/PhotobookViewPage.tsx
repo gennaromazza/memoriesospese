@@ -1429,8 +1429,12 @@ export default function PhotobookViewPage() {
           // (visualViewport) e scorre al suo interno.
           // Il cliente apre la tastiera toccando il campo, in entrambi gli orientamenti.
           onOpenAutoFocus={(e) => {
-            if (isTouchPhone) e.preventDefault();
+            if (isTouchPhone) {
+              e.preventDefault();
+              (e.currentTarget as HTMLElement).focus({ preventScroll: true });
+            }
           }}
+          tabIndex={-1}
           className={`max-w-sm overflow-y-auto ${
             isTouchPhone ? 'top-2 translate-y-0 max-h-[80dvh]' : 'max-h-[90dvh]'
           } ${isTouchPhone && keyboardHeight ? 'p-3 gap-2' : ''}`}
@@ -1638,6 +1642,7 @@ export default function PhotobookViewPage() {
           <DialogContent className="max-w-sm">
             <DialogHeader>
               <DialogTitle>Galleria non disponibile</DialogTitle>
+              <DialogDescription>La galleria non è temporaneamente disponibile. Puoi ritentare il caricamento.</DialogDescription>
             </DialogHeader>
             <PhotobookErrorState
               title="Non riesco a caricare le foto"

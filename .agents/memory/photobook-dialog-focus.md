@@ -14,3 +14,9 @@ Per simulare una tastiera virtuale nei test Chromium, ridefinire temporaneamente
 **Why:** cambiare solo la viewport CSS non riduce il visual viewport e non esercita il layout adattivo delle note.
 
 **How to apply:** usare questa simulazione insieme a un controllo dei bounds del dialogo e del footer, quindi ripristinare sempre l’altezza prima degli scenari successivi.
+
+Le asserzioni browser sul focus iniziale e sul ritorno dal lightbox devono attendere esplicitamente il cambio di `document.activeElement`: gli effetti Radix/React possono completarsi dopo che il contenuto del dialogo è già visibile o nascosto.
+
+**Why:** leggere il focus nello stesso tick della comparsa/scomparsa del portal produce falsi negativi intermittenti.
+
+**How to apply:** attendere il test id del controllo focusato con `waitForFunction`, poi verificare il focus effettivo; non sostituire l’attesa con un timeout fisso.

@@ -155,8 +155,12 @@ export default function PhotobookPhotoPicker({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         onOpenAutoFocus={(e) => {
-          if (isPhone) e.preventDefault();
+          if (isPhone) {
+            e.preventDefault();
+            (e.currentTarget as HTMLElement).focus({ preventScroll: true });
+          }
         }}
+        tabIndex={-1}
         className={`max-w-3xl h-[85vh] max-h-[85vh] flex flex-col ${isPhone ? `!w-screen !max-w-none ${kbHeight ? '' : '!h-[100dvh] !max-h-[100dvh]'} !rounded-none !p-3 !gap-2` : ''} ${
           kbHeight ? 'top-2 translate-y-0' : ''
         }`}
