@@ -114,7 +114,7 @@ export function installMockupWizard(doc: Document, mobile = false) {
       overflow-y: auto !important;
       -webkit-overflow-scrolling: touch !important;
       overscroll-behavior: contain !important;
-      padding: 0 2px 14px 0 !important;
+      padding: 0 2px 48px 0 !important;
     }
 
     /* STEP VISIBILITY ORCHESTRATION */

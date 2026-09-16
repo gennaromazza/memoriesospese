@@ -16,7 +16,7 @@ import MockupOfferEditor from './MockupOfferEditor';
 import { MOCKUP_RENDERERS } from '@shared/mockup-catalog';
 import type { MockupOption } from '@shared/mockup-workflow';
 import MockupModelChooser from './MockupModelChooser';
-import { ArrowLeft, ArrowRight, HelpCircle, Home, LogOut, Maximize, Minimize, Rotate3D, RotateCcw, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { ArrowLeft, ArrowRight, HelpCircle, Home, LogOut, Maximize, Minimize, Rotate3D, RotateCcw, Save, X, ZoomIn, ZoomOut } from 'lucide-react';
 
 interface Props { photobookId: string; version: number; token?: string; readOnly?: boolean; summary?: boolean; compact?: boolean; onOpenChange?: (open: boolean) => void }
 
@@ -659,9 +659,15 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
               </button>
             )}
           </div>
-          {step === lastStep && (
-            <button type="button" className="wizard-save" disabled={!editable || busy || renderBusy || !configuration || !dirty || (!!state.data?.offer && !selectedOption)} onClick={save}>
-              Salva bozza
+          {editable && configuration && (
+            <button
+              type="button"
+              className="w-full mt-1.5 py-2 px-3 rounded-lg border border-[#335e56] text-[#335e56] bg-white font-medium text-xs flex items-center justify-center gap-1.5 hover:bg-[#eaf1ef] transition-colors disabled:opacity-40 shadow-sm"
+              disabled={busy || renderBusy}
+              onClick={save}
+            >
+              <Save size={14} />
+              Salva bozza (per recuperarla in seguito)
             </button>
           )}
           </>}
