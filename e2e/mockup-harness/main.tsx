@@ -8,10 +8,18 @@ import LabMockupCatalog from '../../client/src/components/labs/LabMockupCatalog'
 import MockupTrack from '../../client/src/components/jobs/operativo/MockupTrack';
 import PhotobookViewPage from '../../client/src/pages/PhotobookViewPage';
 import PhotobookEditorPage from '../../client/src/pages/admin/PhotobookEditorPage';
+import { auth } from '../../client/src/lib/firebase';
 import { Route } from 'wouter';
 import '../../client/src/index.css';
 const params = new URLSearchParams(location.search);
 queryClient.setDefaultOptions({ queries: { retry: false } });
+if (params.has('admin')) {
+  Object.defineProperty(auth, 'currentUser', {
+    configurable: true,
+    get: () => ({ getIdToken: async () => 'mock-admin-token' }),
+  });
+  auth.authStateReady = async () => undefined;
+}
 
 const LAYOUT_LIFECYCLE_FIXTURE = `<!doctype html>
   <html><head></head><body>

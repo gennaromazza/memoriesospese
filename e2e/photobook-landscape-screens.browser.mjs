@@ -40,6 +40,7 @@ const portraitViewports = [
   { name: 'portrait-320x640', viewport: { width: 320, height: 640 } },
   { name: 'portrait-390x844', viewport: { width: 390, height: 844 } },
 ];
+const adminViewports = viewports.filter(({ name }) => name === 'landscape-1024x478' || name === 'desktop-1366x800');
 
 const vite = await createMockupHarnessServer(root);
 let browser;
@@ -191,6 +192,103 @@ try {
     assert.deepEqual(errors, [], `Errori browser (${scenario.name})`);
     await context.close();
     console.log(`✓ ${scenario.name}`);
+  }
+
+  for (const scenario of adminViewports) {
+    const context = await browser.newContext({ viewport: scenario.viewport, screen: scenario.screen, isMobile: false, hasTouch: false, deviceScaleFactor: 1 });
+    const page = await context.newPage();
+    page.setDefaultTimeout(20000);
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    const adminPayload = {
+      version: 1,
+      editable: true,
+      enabled: true,
+      saved: null,
+      offer: { revision: 1, updatedAt: new Date().toISOString(), mode: 'choice', options: [option, rotatingOption] },
+      modelMode: 'choice',
+      modelSelection: null,
+    };
+    const adminLab = {
+      id: 'lab',
+      nome: 'Laboratorio test',
+      email: 'test@example.com',
+      attivo: true,
+      mockupCatalog: {
+        revision: 1,
+        materials: [{ id: material.id, label: material.label || 'Tessuto test', supplierCode: '' }],
+        models: [{
+          id: baseModel.id,
+          name: option.name,
+          supplierCode: baseModel.supplierCode || 'TEST',
+          rendererId: baseModel.id,
+          active: true,
+          materialIds: [material.id],
+        }],
+      },
+    };
+    // Il catch-all va registrato prima delle route specifiche: Playwright
+    // valuta l’ultima route registrata per prima.
+    await page.route('**/api/**', route => route.fulfill({ status: 404, json: { error: 'non previsto' } }));
+    await page.route('**/api/photobooks/book/mockup**', route => {
+      if (route.request().method() !== 'GET') return route.fulfill({ status: 409, json: { error: 'Solo lettura nel test' } });
+      return route.fulfill({ json: adminPayload });
+    });
+    await page.route('**/api/labs**', route => route.fulfill({ json: [adminLab] }));
+    await page.route('**/mockups/**/index.html', route => route.fulfill({
+      contentType: 'text/html',
+      body: '<!doctype html><html><body data-admin-test-renderer="true"></body></html>',
+    }));
+    await page.goto(`http://127.0.0.1:${port}/?admin`);
+    await page.getByRole('button', { name: /Apri mockup/ }).click();
+    await page.locator('.mockup-admin-panel').waitFor();
+    await page.locator('iframe[title^="Configuratore 3D"] body').count().catch(() => undefined);
+    await page.waitForTimeout(1200);
+
+    const assertAdminPanelFits = async label => {
+      const bounds = await page.locator('.mockup-admin-panel').evaluate(element => {
+        const rect = element.getBoundingClientRect();
+        return { top: rect.top, bottom: rect.bottom, viewport: window.innerHeight };
+      });
+      assert.ok(bounds.top >= -1, `${scenario.name} ${label}: pannello admin sopra il viewport`);
+      assert.ok(bounds.bottom <= bounds.viewport + 1, `${scenario.name} ${label}: pannello admin sotto il bordo del viewport`);
+      const tabs = await page.locator('.mockup-admin-tabs').boundingBox();
+      assert.ok(tabs && tabs.y >= -1 && tabs.y + tabs.height <= scenario.viewport.height + 1, `${scenario.name} ${label}: tab admin fuori viewport`);
+    };
+    const shotAdmin = label => page.screenshot({ path: path.join(outDir, `${scenario.name}-admin-${label}.jpg`), type: 'jpeg', quality: 80 });
+
+    const clickAdminTab = async label => {
+      const tab = page.getByRole('button', { name: label, exact: true });
+      await tab.evaluate(element => element.click());
+      for (let attempt = 0; attempt < 40 && (await tab.getAttribute('aria-pressed')) !== 'true'; attempt += 1) {
+        await page.waitForTimeout(100);
+      }
+      assert.equal(await tab.getAttribute('aria-pressed'), 'true', `${scenario.name}: tab ${label} non attiva`);
+    };
+    await clickAdminTab('Verifica');
+    await assertAdminPanelFits('verifica');
+    await shotAdmin('verifica');
+
+    await clickAdminTab('Modifica');
+    await assertAdminPanelFits('modifica');
+    await shotAdmin('modifica');
+
+    const offerTab = page.getByRole('button', { name: 'Modelli disponibili', exact: true });
+    await clickAdminTab('Modelli disponibili');
+    const offerEditor = page.locator('.mockup-offer-editor');
+    await offerEditor.waitFor({ state: 'attached' });
+    const editorStyle = await offerEditor.evaluate(element => {
+      const style = getComputedStyle(element);
+      return { borderColor: style.borderTopColor, color: style.color, backgroundColor: style.backgroundColor };
+    });
+    assert.equal(editorStyle.borderColor, 'rgb(217, 223, 216)', `${scenario.name}: bordo MockupOfferEditor non coerente`);
+    assert.equal(editorStyle.color, 'rgb(38, 61, 59)', `${scenario.name}: testo MockupOfferEditor non coerente`);
+    assert.equal(editorStyle.backgroundColor, 'rgb(255, 255, 255)', `${scenario.name}: sfondo MockupOfferEditor non coerente`);
+    await assertAdminPanelFits('modelli disponibili');
+    await shotAdmin('modelli-disponibili');
+    assert.deepEqual(errors, [], `Errori browser admin (${scenario.name})`);
+    await context.close();
+    console.log(`✓ ${scenario.name} admin`);
   }
 
   for (const scenario of portraitViewports) {
