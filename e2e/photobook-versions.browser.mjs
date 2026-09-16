@@ -58,6 +58,24 @@ try {
    assert.ok(bounds && bounds.x>=-1 && bounds.y>=-1 && bounds.x+bounds.width<=viewport.width+1 && bounds.y+bounds.height<=viewport.height+1,JSON.stringify({viewport,bounds}));
   }
  };
+ const simulateVirtualKeyboard=async(height)=>{
+  await page.evaluate((nextHeight)=>{
+   const viewport=window.visualViewport;
+   if(!viewport) throw new Error('visualViewport non disponibile');
+   Object.defineProperty(viewport,'height',{configurable:true,value:nextHeight});
+   viewport.dispatchEvent(new Event('resize'));
+  },height);
+  await page.waitForTimeout(100);
+ };
+ const restoreVirtualKeyboard=async()=>{
+  await page.evaluate(()=>{
+   const viewport=window.visualViewport;
+   if(!viewport) return;
+   Object.defineProperty(viewport,'height',{configurable:true,value:window.innerHeight});
+   viewport.dispatchEvent(new Event('resize'));
+  });
+  await page.waitForTimeout(100);
+ };
  await page.getByTestId('button-open-approve').tap();
  await checkModalOrientations();
  await page.getByRole('button',{name:'Torna alla revisione',exact:true}).tap();
@@ -94,6 +112,13 @@ try {
  await page.setViewportSize({width:390,height:844});
  assert.equal(await page.getByTestId('overlay-rotate').count(),0);
  await page.getByTestId('input-request-note').fill('Schiarire questa foto');
+ await simulateVirtualKeyboard(430);
+ const noteDialog=page.getByRole('dialog').last();
+ const noteDialogBounds=await noteDialog.boundingBox();
+ assert.ok(noteDialogBounds && noteDialogBounds.y>=-1 && noteDialogBounds.y+noteDialogBounds.height<=844+1,JSON.stringify({noteDialogBounds}));
+ const noteFooterDirection=await page.getByTestId('button-save-draft').evaluate(element=>getComputedStyle(element.parentElement).flexDirection);
+ assert.equal(noteFooterDirection,'row','Il footer della nota deve restare raggiungibile con la tastiera virtuale');
+ await restoreVirtualKeyboard();
  await page.setViewportSize({width:844,height:390});
  assert.equal(await page.getByTestId('input-request-note').inputValue(),'Schiarire questa foto');
  await page.getByTestId('button-save-draft').tap();
@@ -106,6 +131,13 @@ try {
  await page.getByTestId('select-client-version').tap();
  await page.getByRole('option',{name:'Versione 1',exact:true}).tap();
  await checkModalOrientations('alertdialog');
+ const versionConfirm=page.getByRole('alertdialog').last();
+ const versionConfirmStyle=await versionConfirm.evaluate(element=>{
+  const style=getComputedStyle(element);
+  return {paddingBottom:parseFloat(style.paddingBottom),maxHeight:style.maxHeight};
+ });
+ assert.ok(versionConfirmStyle.paddingBottom>=24,'La conferma versione deve rispettare una zona sicura inferiore');
+ assert.match(versionConfirmStyle.maxHeight,/dvh|px/);
  await page.getByRole('alertdialog').getByRole('button',{name:'Annulla',exact:true}).tap();
  await page.getByTestId('photobook-header-status').filter({hasText:'Versione 2 aggiornata · da approvare'}).waitFor();
  await page.getByTestId('select-client-version').tap();
@@ -141,6 +173,7 @@ try {
  await page.getByTestId('button-lightbox-close').click();
  await page.getByTestId('lightbox-page').waitFor({state:'hidden'});
  assert.equal(await lightboxTrigger.evaluate(element=>document.activeElement===element),true);
+ await page.setViewportSize({width:844,height:390});
  locked=true; await page.reload();
  await page.getByTestId('photobook-header-status').filter({hasText:'Versione 2 · in stampa'}).waitFor();
  assert.equal(await page.getByTestId('button-open-approve').count(),0);
