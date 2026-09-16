@@ -44,3 +44,9 @@ Nel runner Chromium/SwiftShader il gate touch completo può fallire prima dei co
 **Why:** questi fallimenti dipendono dalla sincronizzazione e dal carico del renderer software, non dal contratto dei messaggi di recovery; confonderli con una regressione della recovery nasconde l’esito utile del test.
 
 **How to apply:** distinguere sempre il primo checkpoint fallito dal percorso WebGL testato; riportare il limite del runner senza rimuovere o indebolire le asserzioni permanenti dell’harness.
+
+Per verificare il wizard cliente dopo una sostituzione del renderer, usare il percorso reale dell’iframe e simulare il messaggio `fatal-error` seguito dal retry; una fixture minima non copre i portali React né il ripristino del pannello attivo.
+
+**Why:** la sostituzione può lasciare il renderer WebGL funzionante ma scollegare navigazione, tab e comandi vista del cliente; il solo conteggio degli stili non rileva questa regressione.
+
+**How to apply:** mantenere una sequenza SwiftShader con almeno due recovery nello stesso dialogo aperto e verificare pannello, azioni mobile e comandi Fronte/Retro sul nuovo iframe; separare queste asserzioni dai test di export più lenti.

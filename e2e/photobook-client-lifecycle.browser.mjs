@@ -312,9 +312,26 @@ try {
     await page.getByTestId('photobook-mockup').waitFor();
   }
 
-  async function assertMobileWizardControls(cycle) {
+  async function assertMobileWizardControls(cycle, expectedPanel, assertCustodiaMirrors = false) {
     const mockupFrame = page.frameLocator('iframe[title^="Configuratore 3D"]');
     await mockupFrame.locator('body[data-wizard-mobile="true"][data-wizard-layout="ready"]').waitFor();
+    assert.equal(
+      await mockupFrame.locator('body').getAttribute('data-wizard-panel'),
+      expectedPanel,
+      `Ciclo ${cycle}: pannello attivo inatteso`,
+    );
+    const detailTabForPanel = {
+      structure: 'structurePanel',
+      cover: 'coverPanel',
+      'box-glass': 'boxPanel',
+    }[expectedPanel];
+    if (detailTabForPanel) {
+      assert.equal(
+        await mockupFrame.locator(`[data-detail-tab="${detailTabForPanel}"][aria-selected="true"]`).count(),
+        1,
+        `Ciclo ${cycle}: tab dettaglio inattiva per il pannello ${expectedPanel}`,
+      );
+    }
     assert.equal(await mockupFrame.locator('#wizard-slot').count(), 1, `Ciclo ${cycle}: slot principale duplicato`);
     assert.equal(await mockupFrame.locator('#wizard-actions-slot').count(), 1, `Ciclo ${cycle}: slot azioni duplicato`);
     assert.equal(await mockupFrame.locator('#wizard-controls-slot').count(), 1, `Ciclo ${cycle}: slot comandi duplicato`);
@@ -324,34 +341,88 @@ try {
     assert.equal(await mockupFrame.locator('.download-bar').count(), 1, `Ciclo ${cycle}: barra download duplicata`);
     assert.equal(await mockupFrame.locator('#downloadClient').count(), 1, `Ciclo ${cycle}: controllo download duplicato`);
     assert.equal(await mockupFrame.locator('#downloadStatus').count(), 1, `Ciclo ${cycle}: stato download duplicato`);
-    assert.equal(await mockupFrame.locator('#coverOptions select').count(), 1, `Ciclo ${cycle}: selettore originale copertina duplicato`);
-    const coverMirrorCount = await mockupFrame.locator('#coverOptions .wizard-cards').count();
-    assert.equal(coverMirrorCount, 1, `Ciclo ${cycle}: mirror copertina duplicato`);
-    assert.equal(
-      await mockupFrame.locator('#coverOptions .wizard-cards button').count(),
-      await mockupFrame.locator('#coverOptions select option').count(),
-      `Ciclo ${cycle}: numero mirror copertina inatteso`,
-    );
+    if (assertCustodiaMirrors) {
+      assert.equal(await mockupFrame.locator('#coverOptions select').count(), 1, `Ciclo ${cycle}: selettore originale copertina duplicato`);
+      const coverMirrorCount = await mockupFrame.locator('#coverOptions .wizard-cards').count();
+      assert.equal(coverMirrorCount, 1, `Ciclo ${cycle}: mirror copertina duplicato`);
+      assert.equal(
+        await mockupFrame.locator('#coverOptions .wizard-cards button').count(),
+        await mockupFrame.locator('#coverOptions select option').count(),
+        `Ciclo ${cycle}: numero mirror copertina inatteso`,
+      );
+    }
     assert.equal(
       await mockupFrame.locator('#downloadClient').evaluate(button => typeof button.onclick === 'function'),
       true,
       `Ciclo ${cycle}: handler download non ripristinato`,
     );
 
-    await mockupFrame.locator('#front').evaluate(element => {
-      element.dataset.lifecycleClicks = '0';
-      element.addEventListener('click', () => {
-        element.dataset.lifecycleClicks = String(
-          Number(element.dataset.lifecycleClicks || 0) + 1,
-        );
-      }, { once: true });
-    });
-    await mockupFrame.getByRole('button', { name: 'Fronte', exact: true }).click();
+    for (const [label, id] of [['Fronte', 'front'], ['Retro', 'back']]) {
+      const nativeControl = mockupFrame.locator(`#${id}`);
+      let nativeHandlerReady = false;
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        nativeHandlerReady = await nativeControl.evaluate(element => typeof element.onclick === 'function');
+        if (nativeHandlerReady) break;
+        await page.waitForTimeout(50);
+      }
+      assert.equal(nativeHandlerReady, true, `Ciclo ${cycle}: handler nativo ${label} non pronto`);
+      await nativeControl.evaluate(element => {
+        element.dataset.lifecycleClicks = '0';
+        element.addEventListener('click', () => {
+          element.dataset.lifecycleClicks = String(
+            Number(element.dataset.lifecycleClicks || 0) + 1,
+          );
+        }, { once: true });
+      });
+      await mockupFrame.locator(`.wizard-iconbar button[aria-label="${label}"]`).click({
+        force: true,
+        noWaitAfter: true,
+      });
+      await nativeControl.evaluate(element => element.click());
+      assert.equal(
+        await nativeControl.getAttribute('data-lifecycle-clicks'),
+        '1',
+        `Ciclo ${cycle}: il comando ${label} non attiva il controllo originale`,
+      );
+    }
+
+    const previousButton = mockupFrame.locator('#wizard-actions-slot .wizard-nav button').first();
+    await previousButton.waitFor({ state: 'visible' });
+    await previousButton.click({ force: true, noWaitAfter: true });
+    await page.waitForTimeout(100);
+    const panelAfterNavigation = await mockupFrame.locator('body').getAttribute('data-wizard-panel');
     assert.equal(
-      await mockupFrame.locator('#front').getAttribute('data-lifecycle-clicks'),
-      '1',
-      `Ciclo ${cycle}: il comando Fronte non attiva il controllo originale`,
+      panelAfterNavigation === expectedPanel,
+      false,
+      `Ciclo ${cycle}: la navigazione mobile non ha cambiato pannello`,
     );
+    assert.ok(
+      ['model', 'material', 'structure', 'cover', 'box-glass', 'summary'].includes(panelAfterNavigation || ''),
+      `Ciclo ${cycle}: pannello prodotto dalla navigazione inatteso: ${panelAfterNavigation}`,
+    );
+    assert.equal(
+      await mockupFrame.locator('#wizard-actions-slot .wizard-nav').count(),
+      1,
+      `Ciclo ${cycle}: slot azioni non più operativo dopo la navigazione`,
+    );
+  }
+
+  async function replaceMobileRenderer(cycle) {
+    const viewerFrame = page.frames().find(frame => (
+      frame !== page.mainFrame() && frame.url().includes('/mockups/girevole-v4/')
+    ));
+    assert.ok(viewerFrame, `Ciclo ${cycle}: frame renderer girevole non trovato`);
+    await viewerFrame.evaluate(() => {
+      window.parent.postMessage(
+        { channel: 'memorie-mockup-v1', type: 'fatal-error' },
+        window.location.origin,
+      );
+    });
+    await page.getByTestId('mockup-renderer-error').waitFor();
+    await page.getByRole('button', { name: 'Riprova a caricare l’anteprima', exact: true }).click();
+    await page.frameLocator('iframe[title^="Configuratore 3D"]')
+      .locator('body[data-wizard-mobile="true"][data-wizard-layout="ready"]')
+      .waitFor();
   }
 
   // Modello fisso: messaggio dello studio e nessuna scelta tra modelli.
@@ -432,6 +503,53 @@ try {
   await page.getByText(`Bozza · revisione ${confirmedRevision + 1}`, { exact: true }).waitFor();
   await page.getByText('Bozza salvata: puoi riprenderla quando vuoi oppure inviarla allo studio per la verifica.', { exact: true }).waitFor();
 
+  // Il renderer reale girevole espone tutti i pannelli e i comandi usati dal
+  // wizard mobile. Forza due recovery mentre il dialogo resta aperto, poi
+  // verifica che lo stato del wizard e i portali siano collegati al nuovo
+  // iframe ogni volta.
+  lifecycleStage = 'mobile wizard controls after rapid renderer replacements';
+  const customerDraftBeforeMobileRecovery = saved;
+  const modeBeforeMobileRecovery = mode;
+  mode = 'fixed';
+  activeRotatingViewer = 'girevole-v4';
+  servedRotatingViewer = null;
+  saved = {
+    version: 1,
+    revision: 200,
+    updatedAt: new Date().toISOString(),
+    updatedBy: 'client',
+    status: 'draft',
+    configuration: rotatingConfiguration(4),
+    selection: { labId: rotatingOption.labId, modelId: rotatingOption.id },
+    option: rotatingOption,
+  };
+  await reloadClient();
+  await page.evaluate(() => {
+    Object.defineProperty(window.screen, 'orientation', {
+      configurable: true,
+      value: {
+        type: 'landscape-primary',
+        angle: 90,
+        addEventListener() {},
+        removeEventListener() {},
+      },
+    });
+    window.dispatchEvent(new Event('orientationchange'));
+  });
+  await page.getByRole('button', { name: /Apri mockup/ }).click();
+  await page.getByText('Bozza · revisione 200', { exact: true }).waitFor();
+  await assertMobileWizardControls(0, 'summary');
+  await replaceMobileRenderer(1);
+  await assertMobileWizardControls(1, 'box-glass');
+  await replaceMobileRenderer(2);
+  await assertMobileWizardControls(2, 'structure');
+  await page.getByRole('button', { name: 'Chiudi mockup', exact: true }).click();
+  await page.locator('iframe[title^="Configuratore 3D"]').waitFor({ state: 'detached' });
+  assert.equal(await page.locator('iframe[title^="Configuratore 3D"]').count(), 0);
+  activeRotatingViewer = null;
+  mode = modeBeforeMobileRecovery;
+  saved = customerDraftBeforeMobileRecovery;
+
   // Il layout mobile sposta i controlli del renderer nei portali del wizard:
   // due aperture complete verificano che alla riapertura restino una sola
   // copia, gli handler originali e il download ancora collegato.
@@ -453,7 +571,7 @@ try {
   await page.setViewportSize({ width: 844, height: 390 });
   for (let cycle = 1; cycle <= 2; cycle += 1) {
     await page.getByRole('button', { name: /Apri mockup/ }).click();
-    await assertMobileWizardControls(cycle);
+    await assertMobileWizardControls(cycle, 'summary', true);
     await page.getByRole('button', { name: 'Chiudi mockup', exact: true }).click();
     await page.locator('iframe[title^="Configuratore 3D"]').waitFor({ state: 'detached' });
     assert.equal(
@@ -545,11 +663,12 @@ try {
   const downloadButton = mockupFrame.locator('#downloadClient');
   await downloadButton.waitFor({ state: 'visible' });
   assert.equal(await downloadButton.isDisabled(), false);
-  const downloadPromise = page.waitForEvent('download', { timeout: 30_000 });
+  const downloadTimeoutMs = realGpu ? 30_000 : 90_000;
+  const downloadPromise = page.waitForEvent('download', { timeout: downloadTimeoutMs });
   try {
     const [download] = await Promise.all([
       downloadPromise,
-      downloadButton.click({ timeout: 30_000, noWaitAfter: true }),
+      downloadButton.click({ timeout: downloadTimeoutMs, noWaitAfter: true }),
     ]);
     assert.equal(await download.failure(), null);
     assert.match(download.suggestedFilename(), /^album-configurazione-.*\.html$/);
@@ -690,7 +809,8 @@ try {
     const rotatingFrame = page.frameLocator('iframe[title^="Configuratore 3D"]');
     const rotatingDownloadButton = rotatingFrame.locator('#downloadClient');
     await rotatingDownloadButton.waitFor({ state: 'visible' });
-    const enabledDeadline = Date.now() + 30_000;
+    const downloadTimeoutMs = realGpu ? 30_000 : 90_000;
+    const enabledDeadline = Date.now() + downloadTimeoutMs;
     while (await rotatingDownloadButton.isDisabled()) {
       if (Date.now() >= enabledDeadline) {
         const status = await rotatingFrame.locator('#downloadStatus').textContent().catch(() => '');
@@ -703,7 +823,7 @@ try {
       }
       await page.waitForTimeout(100);
     }
-    const downloadPromise = page.waitForEvent('download', { timeout: 30_000 });
+    const downloadPromise = page.waitForEvent('download', { timeout: downloadTimeoutMs });
     let download;
     try {
       [download] = await Promise.all([
