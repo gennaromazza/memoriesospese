@@ -212,6 +212,38 @@ export function installMockupWizard(doc: Document, mobile = false) {
       display: none !important;
     }
 
+    /* Step 9: Riepilogo e Invio - Stage compatto a 18dvh per mostrare subito il pulsante di download senza scroll */
+    body[data-wizard][data-wizard-step="9"] .workspace {
+      flex: 0 0 18dvh !important;
+      height: 18dvh !important;
+      min-height: 90px !important;
+      max-height: 22dvh !important;
+      transition: flex 0.2s ease, height 0.2s ease;
+    }
+    body[data-wizard][data-wizard-step="9"][data-workspace-expanded="true"] .workspace {
+      flex: 0 0 52dvh !important;
+      height: 52dvh !important;
+      max-height: 58dvh !important;
+    }
+    .wizard-expand-toggle {
+      position: absolute;
+      top: 8px;
+      right: 50px;
+      background: rgba(250, 248, 243, 0.9);
+      border: 1px solid #d2dcd7;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 11px;
+      font-weight: 500;
+      color: #243d44;
+      cursor: pointer;
+      z-index: 10;
+      display: none;
+    }
+    body[data-wizard][data-wizard-step="9"] .wizard-expand-toggle {
+      display: block;
+    }
+
     /* Step 9: Riepilogo e Invio */
     body[data-wizard][data-wizard-step="9"] #summaryPanel {
       display: block !important;

@@ -16,12 +16,19 @@ import MockupOfferEditor from './MockupOfferEditor';
 import { MOCKUP_RENDERERS } from '@shared/mockup-catalog';
 import type { MockupOption } from '@shared/mockup-workflow';
 import MockupModelChooser from './MockupModelChooser';
+import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, ArrowRight, HelpCircle, Home, LogOut, Maximize, Minimize, Rotate3D, RotateCcw, Save, X, ZoomIn, ZoomOut } from 'lucide-react';
 
 interface Props { photobookId: string; version: number; token?: string; readOnly?: boolean; summary?: boolean; compact?: boolean; onOpenChange?: (open: boolean) => void }
 
 export default function PhotobookMockup({ photobookId, version, token, readOnly = false, summary = false, compact = false, onOpenChange }: Props) {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
+  useEffect(() => {
+    if (!message) return;
+    const timer = window.setTimeout(() => setMessage(''), 3500);
+    return () => window.clearTimeout(timer);
+  }, [message]);
   const [open, setOpen] = useState(false);
   const [adminTab, setAdminTab] = useState<'review' | 'edit' | 'offer'>('review');
   const [adminSlot, setAdminSlot] = useState<HTMLDivElement | null>(null);
@@ -351,7 +358,9 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     setBusy(true); setMessage('Salvataggio…');
     try {
       const saved: SavedMockup = await (await request('', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: revision.current, configuration, ...(state.data?.offer ? { selection, offerRevision: state.data.offer.revision } : {}) }) })).json();
-      recordSaved(saved); setDirty(false); await state.refetch({ throwOnError: true }); setMessage('Mockup salvato. Il salvataggio non equivale alla conferma dello studio.');
+      recordSaved(saved); setDirty(false); await state.refetch({ throwOnError: true });
+      setMessage('Bozza salvata con successo.');
+      toast({ title: 'Bozza salvata', description: 'Le tue modifiche sono state salvate e conservate.' });
       return saved;
     } catch (error) { setMessage(`Salvataggio non completato: ${(error as Error).message}`); }
     finally { setBusy(false); }
@@ -641,8 +650,6 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
           </>}
         </>, wizard.slot)}
         {token && wizard && createPortal(<div className="wizard-mobile-actions">
-          {message && <p role="status" className="wizard-message">{message}</p>}
-          {!message && dirty && <span className="wizard-unsaved">Modifiche da salvare</span>}
           {!editable && <span className="wizard-unsaved">Sola lettura</span>}
           {homeOpen ? <button type="button" onClick={() => setHomeOpen(false)}><ArrowLeft size={15} /> Torna alla configurazione</button> : <>
           <div className="wizard-nav">
