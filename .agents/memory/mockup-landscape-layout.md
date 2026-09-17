@@ -9,6 +9,9 @@ Regole
 
 Trappole
 - Griglie di card composte da <button> in una colonna scrollabile: Chromium distribuisce le righe auto come se fossero stretch e clippa il contenuto; serve grid-auto-rows: max-content oltre ad align-content: start.
+- Le griglie dentro uno stage flex possono collassare a 0px se hanno overflow:auto e flex-shrink attivo; lasciare lo scroll allo stage, usare flex: 0 0 auto sulla griglia e mantenere target touch di almeno 44px.
+- Why: il chooser sembrava non navigabile perché la card restava nel DOM ma il punto di tap era coperto dal contenitore dello stage.
+- How to apply: per modelli e copertine verificare sempre bounding box e hit target in 320×640, 390×844 e 844×390, non solo la presenza del bottone.
 - Playwright valuta page.route dall'ultima registrata: il catch-all **/api/** va registrato prima della route specifica o inghiotte tutto.
 - I token --mockup-* devono stare sia su .mockup-entry-shell sia sul DialogContent (portal sotto body), altrimenti le sezioni admin/offer nel dialog perdono colori e bordi.
 - Il test lifecycle cerca testi esatti sulla card di stato ("Bozza · revisione N", frase read-only): i redesign del copy devono mantenere quei testi in un unico elemento.
