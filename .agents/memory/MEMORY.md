@@ -59,3 +59,4 @@
 - [Mockup landscape layout](mockup-landscape-layout.md) — chooser a due zone con barra azioni in flusso (mai fixed); grid-auto-rows su card-button; token su dialog portalato; test screens in landscape/portrait.
 - [Photobook dialog focus](photobook-dialog-focus.md) — conferme con wrapper AlertDialog; lifecycle focus del lightbox separato da zoom/navigazione per evitare ritorni prematuri al trigger.
 - [Plaza LED a doppia cornice](plaza-led-double-frame.md) — il Plaza è distinto dal girevole attuale: doppia cornice e LED a U su alto, lato interno e base.
+- [Pubblicazione offerta mockup](mockup-offer-publish-callback.md) — mantenere separati mode e selections nel callback admin fino al payload /offer.

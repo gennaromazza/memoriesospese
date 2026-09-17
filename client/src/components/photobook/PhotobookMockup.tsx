@@ -644,9 +644,9 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       {state.isLoading && <p role="status">Caricamento configurazione…</p>}
       {state.isError && <p role="alert">{(state.error as Error).message}</p>}
       {state.data && <>
-        {!token && adminPanel(<div hidden={adminTab !== 'offer'}><p className="text-sm mb-3">Scegli quali modelli proporre nel link di questo cliente. Questa sezione non conferma il suo mockup.</p><MockupOfferEditor offer={state.data.offer} disabled={readOnly || busy || dirty} publish={async selections => {
+        {!token && adminPanel(<div hidden={adminTab !== 'offer'}><p className="text-sm mb-3">Scegli quali modelli proporre nel link di questo cliente. Questa sezione non conferma il suo mockup.</p><MockupOfferEditor offer={state.data.offer} modelMode={state.data.modelMode} modelSelection={state.data.modelSelection} disabled={readOnly || busy || dirty} publish={async (mode, selections) => {
           setBusy(true);
-          try { await request('/offer', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: state.data?.offer?.revision || 0, savedRevision: saved?.revision || 0, selections }) }); await state.refetch({ throwOnError: true }); setReady(false); setGeneration(g => g + 1); setMessage('Proposta pubblicata nel link cliente.'); return true; }
+          try { await request('/offer', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: state.data?.offer?.revision || 0, savedRevision: saved?.revision || 0, mode, selections }) }); await state.refetch({ throwOnError: true }); setReady(false); setGeneration(g => g + 1); setMessage('Proposta pubblicata nel link cliente.'); return true; }
           catch (error) { setMessage((error as Error).message); return false; }
           finally { setBusy(false); }
         }} /></div>)}

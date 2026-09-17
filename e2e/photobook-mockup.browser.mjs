@@ -64,8 +64,8 @@ try{
   if(url.pathname.endsWith('/labs'))return route.fulfill({json:[{id:'lab',nome:'Laboratorio test',attivo:true,mockupCatalog:labCatalog}]});
   if(url.pathname.endsWith('/mockup-catalog')){if(request.method()==='PUT'){labCatalog={...request.postDataJSON(),revision:labCatalog.revision+1};}return route.fulfill({json:labCatalog});}
   if(url.pathname.endsWith('/offer')){
-   const body=request.postDataJSON();assert.equal(body.savedRevision,saved.revision);
-   offer={revision:(offer?.revision||0)+1,updatedAt:new Date().toISOString(),options:body.selections.map(s=>{const entry=labCatalog.models.find(m=>m.id===s.modelId);assert.ok(entry);return {...entry,labId:s.labId,labName:'Laboratorio test',materials:labCatalog.materials.filter(m=>entry.materialIds.includes(m.id))};})};
+    const body=request.postDataJSON();assert.equal(body.savedRevision,saved.revision);assert.equal(body.mode,'choice');
+    offer={revision:(offer?.revision||0)+1,updatedAt:new Date().toISOString(),mode:body.mode,options:body.selections.map(s=>{const entry=labCatalog.models.find(m=>m.id===s.modelId);assert.ok(entry);return {...entry,labId:s.labId,labName:'Laboratorio test',materials:labCatalog.materials.filter(m=>entry.materialIds.includes(m.id))};})};
    saved={...saved,revision:saved.revision+1,status:'draft'};return route.fulfill({json:offer});
   }
   if(url.pathname.endsWith('/submit')||url.pathname.endsWith('/request-changes')){if(url.pathname.endsWith('/submit'))submissions++;assert.equal(request.postDataJSON().revision,saved.revision);saved={...saved,revision:saved.revision+1,note:request.postDataJSON().note,status:url.pathname.endsWith('/submit')?'submitted':'changes_requested'};return route.fulfill({json:saved});}
