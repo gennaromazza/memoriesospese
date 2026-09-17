@@ -1,0 +1,119 @@
+🔴 Bug critici
+1. I refine() dei modelli rotanti/plaza usano MOCKUP_MODEL.variants invece del modello giusto
+ts
+const rotatingConfigurationSchema = rotatingConfigurationBase
+  .refine(c => MOCKUP_MODEL.variants.some(v => v.id === c.materialId && v.appearanceRevision === c.appearanceRevision), '...')
+// ❌ dovrebbe essere ROTATING_MOCKUP_MODEL.variants
+Idem per:
+
+rotatingPlexConfigurationSchema
+
+rotatingMonogramConfigurationSchema
+
+rotatingBoxConfigurationSchema
+
+plazaConfigurationBase (qui è ancora più grave: dovrebbe usare PLAZA_MOCKUP_MODEL.variants)
+
+Solo custodiaConfigurationSchema è corretto (usa MOCKUP_MODEL.variants, che è il suo modello).
+
+Effetto: qualsiasi materialId valido per il modello rotante/plaza ma non presente tra le varianti di MOCKUP_MODEL viene rifiutato con 'Revisione del rivestimento non disponibile'. Se i due cataloghi hanno set di varianti diversi (probabile), il parse fallisce sempre → setConfiguration(parsed.success ? parsed.data : null) → configuration = null → il pulsante "Salva mockup" resta disabilitato e la validazione del passo 5/6/7 mostra il messaggio generico.
+
+Fix:
+
+ts
+const rotatingConfigurationSchema = rotatingConfigurationBase
+  .refine(c => ROTATING_MOCKUP_MODEL.variants.some(...), '...');
+// e così via, ognuno col proprio modello
+const plazaConfigurationBase = z.object({...})
+  .refine(c => PLAZA_MOCKUP_MODEL.variants.some(...), '...');
+2. JSON.stringify(parsed) !== JSON.stringify(saved.configuration) è fragile con le union
+Nel componente:
+
+tsx
+const renderedConfiguration = mockupConfigurationSchema.parse(result.configuration);
+if (JSON.stringify(renderedConfiguration) !== JSON.stringify(saved.configuration)) throw ...
+Con z.union([...]) e .refine():
+
+L'ordine delle chiavi del risultato dipende da quale ramo della union matcha per primo, non dall'ordine dell'input.
+
+plazaConfigurationBase è sia base estesa che ramo della union. Se plaza matcha un ramo precedente per una svista dello schema, l'oggetto viene ricostruito in ordine diverso.
+
+engravingNames è .optional(): se salvato senza chiave, il parse produce comunque un oggetto senza chiave (ok), ma se il server restituisce engravingNames: undefined esplicitamente, JSON.stringify lo omette in entrambi — ok in quel caso, ma è un confronto fragile.
+
+Suggerimento: confronta con una funzione stabile (es. JSON.stringify dopo un deep-sort delle chiavi) o confronta zod-parsed vs zod-parsed su entrambi i lati.
+
+🟠 Bug logici
+3. plazaConfigurationBase è ZodObject ma viene usato anche come base estesa
+ts
+const plazaConfigurationBase = z.object({...}).strict()
+  .refine(...).refine(...).refine(...);   // ⚠️ ZodEffects, non più ZodObject
+// ...
+export const mockupConfigurationSchema = z.union([..., plazaConfigurationBase]);
+Non è rotto ora perché non lo estendi. Ma il nome Base suggerisce che dovrebbe restare estendibile. Il giorno in cui qualcuno scrive plazaConfigurationBase.extend({...}) esplode a runtime. Suggerimento: separa in plazaConfigurationObject (ZodObject puro) e plazaConfigurationSchema (con i refine), come hai fatto per rotatingPlexConfigurationBase vs rotatingPlexConfigurationSchema.
+
+4. rotatingBoxConfigurationSchema come ramo annidato di union
+ts
+const rotatingBoxConfigurationSchema = z.union([
+  rotatingBoxConfigurationBase,                                        // rev 4, senza incisioni
+  rotatingBoxConfigurationBase.extend({ engravingNames: ... }).strict() // rev 4, con incisioni
+]).refine(...).refine(...).refine(...);
+// ...
+z.union([custodia, rotating, rotatingPlex, rotatingMonogram, rotatingBox, plaza])
+Due problemi:
+
+.refine() su z.union(...) restituisce ZodEffects<ZodUnion>, che dentro un'altra union è ok ma produce messaggi d'errore molto rumorosi (le issue dei rami falliti vengono aggregate e l'ultimo errore mostrato è spesso criptico).
+
+Se in futuro aggiungi un campo opzionale a rotatingBoxConfigurationBase, il primo ramo (senza incisioni) matcherà sempre e il secondo non verrà mai usato — silenziosamente.
+
+Meglio: un solo object schema con engravingNames: z.object({...}).strict().optional() (come in plazaConfigurationBase), e refine condizionale se serve.
+
+5. MockupPhoto dichiara width/height obbligatori, ma il client non li valida
+Nel componente:
+
+tsx
+const photo: MockupPhoto = await (await operation()).json();
+Nessun mockupPhotoSchema.safeParse. Se il server cambia forma, tutto il resto si rompe silenziosamente (TS non protegge a runtime). Aggiungi uno schema Zod anche per MockupPhoto e SavedMockup.
+
+6. custodiaConfigurationSchema.photoAssetId è non-nullable, gli altri sì
+ts
+// custodia
+photoAssetId: z.string().uuid(),        // obbligatorio
+// rotanti/plaza
+photoAssetId: z.string().uuid().nullable(),
+Il componente tratta il campo uniformemente con !!event.data.configuration?.photoAssetId. Va bene a runtime, ma:
+
+Nel caso custodia, se photoAssetId è null/assente, il parse fallisce completamente e setConfiguration(null). Il messaggio configurationIssue prova a spiegare "Manca la foto di copertina", ma solo se il parse è fallito per quel motivo; invece fallisce per invalid_type e il messaggio generico prende il sopravvento.
+
+Se l'intento è "custodia senza foto", la schema non lo permette. Se non è voluto, allinea a .nullable().
+
+7. MockupPayload.offer e modelMode non allineati al consumo
+ts
+offer?: MockupOffer | null;
+modelMode?: MockupOfferMode;
+Nel componente:
+
+tsx
+const fixedModel = state.data?.modelMode === 'fixed';
+...
+{!token && !!state.data.offer && adminPanel(...)}   // manca optional chaining
+state.data.offer senza ?. funziona perché il blocco è dentro state.data && ..., ma è fragile. Meglio state.data?.offer.
+
+🟡 Minor
+appearanceRevision non validato per range: z.number().int() senza .min(0) — accetta negativi.
+
+topText/bottomText: .max(50) senza .trim(), quindi " " passa. Se l'UI mostra "obbligatorio", va bene, ma verifica.
+
+engravingNames.first/second: .trim().max(50) — il trim avviene dopo il controllo di lunghezza? No, in Zod .trim() è una trasformazione e .max() si applica dopo. Ordinamento corretto.
+
+mockupConfigurationSchema union order: plazaConfigurationBase è ultimo, quindi per una config plaza si tenta prima custodia (modelId literal mismatch), poi rotating (mismatch), rotatingPlex (mismatch), rotatingMonogram (mismatch), rotatingBox (mismatch), poi plaza (match). Funziona, ma è O(6) parse tentati ad ogni chiamata. Irrilevante per performance, rilevante per chiarezza: potresti usare z.discriminatedUnion('modelId', [...]) — ma non puoi perché i rami hanno assetRevision diversi come literal. Potresti discriminare su (modelId, assetRevision) con un preprocess.
+
+Priorità
+Fix dei refine con il modello corretto (bug #1) — è quasi certamente la causa del "non riesco a salvare/confermare".
+
+Rendere stabile il confronto JSON.stringify in confirm() (#2).
+
+Separare ZodObject da ZodEffects per plaza (#3).
+
+Semplificare rotatingBox union (#4).
+
+Aggiungere schema runtime per MockupPhoto/SavedMockup (#5).

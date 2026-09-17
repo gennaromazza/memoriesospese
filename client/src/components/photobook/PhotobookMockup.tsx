@@ -10,16 +10,25 @@ import { getPhotobookGalleryPhotosByToken, listPhotobookGalleryPhotos } from '@/
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import PhotobookPhotoPicker from './PhotobookPhotoPicker';
-import { mockupConfigurationSchema, type MockupConfiguration, type MockupPayload, type MockupPhoto, type SavedMockup } from '@shared/mockup-types';
+import { mockupConfigurationSchema, mockupPhotoSchema, type MockupConfiguration, type MockupPayload, type MockupPhoto, type SavedMockup } from '@shared/mockup-types';
 import { MOCKUP_STATUS_LABELS, optionFor, type MockupSelection } from '@shared/mockup-workflow';
 import MockupOfferEditor from './MockupOfferEditor';
 import { MOCKUP_RENDERERS } from '@shared/mockup-catalog';
 import type { MockupOption } from '@shared/mockup-workflow';
 import MockupModelChooser from './MockupModelChooser';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, ArrowRight, HelpCircle, Home, LogOut, Maximize, Minimize, Rotate3D, RotateCcw, Save, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { ArrowLeft, ArrowRight, HelpCircle, LogOut, Rotate3D, RotateCcw, Save, X, ZoomIn, ZoomOut } from 'lucide-react';
 
 interface Props { photobookId: string; version: number; token?: string; readOnly?: boolean; summary?: boolean; compact?: boolean; onOpenChange?: (open: boolean) => void }
+type RuntimePhoto = { id: string; name: string; source: string; blob: Blob };
+
+function stableSerialize(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableSerialize).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stableSerialize((value as Record<string, unknown>)[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value) ?? 'undefined';
+}
 
 function exposeReadonlyDownload(doc: Document) {
   const button = doc.getElementById('downloadClient');
@@ -44,7 +53,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   const [askingChanges, setAskingChanges] = useState(false);
   const adminPanel = (content: ReactNode) => adminSlot ? createPortal(content, adminSlot) : null;
   useEffect(() => { onOpenChange?.(open); return () => onOpenChange?.(false); }, [open, onOpenChange]);
-  const { isPhone, isPortrait } = usePhoneOrientation();
+  const { isPhone } = usePhoneOrientation();
   const [isNarrow, setIsNarrow] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
   useEffect(() => {
     const handle = () => setIsNarrow(window.innerWidth < 768);
@@ -91,7 +100,8 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   const [generation, setGeneration] = useState(0);
   const [rendererOverride, setRendererOverride] = useState<string | null>(null);
   const pendingOption = useRef<MockupOption | null>(null);
-  const currentPhoto = useRef<{ id: string; name: string; source: string; blob: Blob }>();
+  const currentPhoto = useRef<RuntimePhoto>();
+  const pendingPreview = useRef<{ configuration: MockupConfiguration; photo?: RuntimePhoto; backPhoto?: RuntimePhoto; option?: MockupOption } | null>(null);
   const exportWaiter = useRef<{ id: string; resolve: (previews: unknown) => void; reject: (error: Error) => void } | null>(null);
   const base = token ? `/api/photobooks/by-token/${encodeURIComponent(token)}/mockup` : `/api/photobooks/${encodeURIComponent(photobookId)}/mockup`;
   async function request(path = '', init: RequestInit = {}) {
@@ -146,15 +156,16 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     setOpen(false); setPicker(false); setReady(false); setRenderBusy(true); setRendererError('');
     setDirty(false); setConfiguration(null); setRendererOverride(null); setSelection(undefined);
     setDraftCoverLayout(''); setDraftBackCover(''); setFrontPhotoPresent(false); setBackPhotoPresent(false);
-    pendingOption.current = null; currentPhoto.current = undefined; initializing.current = true;
+    pendingOption.current = null; pendingPreview.current = null; currentPhoto.current = undefined; initializing.current = true;
     setHistory(null); setNote(''); setMessage(''); setPhotoSide('front'); setAskingChanges(false); setViewerExpanded(false);
     setStep(1); setWizard(null); setChoosing(false); setViewerStarted(false); setHomeOpen(false); setGuideOpen(false); pendingLayout.current = null;
   }
 
   function openConfigurator() {
     setAdminTab('review');
-    setChoosing(mobile && editable && !saved && !!state.data?.offer?.options.length);
-    setViewerStarted(!mobile || !!saved || !state.data?.offer?.options.length);
+    const hasOffer = !!state.data?.offer?.options.length;
+    setChoosing(mobile && editable && !saved && hasOffer);
+    setViewerStarted(!mobile || !!saved || (!!state.data && !hasOffer));
     setStep(mobile && saved && (saved.status === 'draft' || !editable) ? lastStep : 2); setOpen(true);
     let guideSeen = false;
     try { guideSeen = sessionStorage.getItem('mockup-touch-guide') === 'seen'; } catch { /* Guida disponibile anche senza storage locale. */ }
@@ -162,10 +173,20 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     void state.refetch();
   }
 
+  useEffect(() => {
+    if (!open || !mobile || saved || viewerStarted || !state.data) return;
+    if (state.data.offer?.options.length) {
+      if (editable) setChoosing(true);
+    } else {
+      setViewerStarted(true);
+    }
+  }, [open, mobile, editable, saved?.revision, viewerStarted, state.data?.offer?.revision]);
+
   function chooseExample(option: MockupOption, layout: string) {
     if (!editable) return;
     if (viewerStarted && (!ready || renderBusy || busy)) return;
     if (viewerStarted && option.rendererId !== renderer.id && dirty && !window.confirm('Cambiando tipo di album, alcune personalizzazioni non sono compatibili. Vuoi proseguire? La revisione già salvata resta conservata.')) return;
+    pendingPreview.current = null;
     pendingLayout.current = layout;
     // La scelta dei caroselli non contiene fotografie o nomi dimostrativi.
     if (!viewerStarted) {
@@ -177,6 +198,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   }
 
   function chooseOption(option: MockupOption) {
+    pendingPreview.current = null;
     setSelection({ labId: option.labId, modelId: option.id }); setDirty(true); setPhotoSide('front');
     if (option.rendererId !== renderer.id) {
       pendingOption.current = option; setRendererOverride(option.rendererId); setWizard(null);
@@ -273,7 +295,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   useEffect(() => { wizard?.refresh(); }, [wizard, configuration, busy, renderBusy, editable]);
   useEffect(() => {
     if (!mobile && token && ready && !renderBusy && !busy && editable && !selection && !initializing.current && state.data?.offer?.options.length === 1) chooseOption(state.data.offer.options[0]);
-  }, [token, ready, renderBusy, busy, editable, selection, state.data?.offer]);
+  }, [token, ready, renderBusy, busy, editable, selection, configuration, state.data?.offer]);
 
   useEffect(() => {
     const receive = (event: MessageEvent) => {
@@ -321,37 +343,45 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     initializing.current = true;
     const saved = state.data.saved;
     const nextOption = pendingOption.current;
+    const pending = pendingPreview.current;
     pendingOption.current = null;
-    if (!nextOption) setSelection(saved?.selection);
+    pendingPreview.current = null;
+    if (!nextOption && !pending) setSelection(saved?.selection);
     revision.current = saved?.revision || 0;
     const restore = async () => {
       try {
-        let photo = nextOption ? currentPhoto.current : undefined;
-        if (!nextOption && saved?.configuration.photoAssetId) {
+        let photo = pending?.photo || (nextOption ? currentPhoto.current : undefined);
+        if (!nextOption && !pending && saved?.configuration.photoAssetId) {
           const blob = await (await request(`/photos/${saved.configuration.photoAssetId}`)).blob();
           photo = { id: saved.configuration.photoAssetId, name: 'Foto salvata', source: 'saved', blob };
         }
-        let backPhoto;
-        if (!nextOption && saved && 'backPhotoAssetId' in saved.configuration && saved.configuration.backPhotoAssetId) {
+        let backPhoto = pending?.backPhoto;
+        if (!nextOption && !pending && saved && 'backPhotoAssetId' in saved.configuration && saved.configuration.backPhotoAssetId) {
           const id = saved.configuration.backPhotoAssetId;
           backPhoto = { id, name: 'Foto retro salvata', source: 'saved', blob: await (await request(`/photos/${id}`)).blob() };
         }
         if (!cancelled) {
           currentPhoto.current = photo;
-          apply({ configuration: nextOption ? undefined : saved?.configuration, photo, backPhoto, option: nextOption || saved?.option, readOnly: !editable });
+          apply({
+            configuration: pending?.configuration || (nextOption ? undefined : saved?.configuration),
+            photo,
+            backPhoto,
+            option: pending?.option || nextOption || saved?.option,
+            readOnly: !editable,
+          });
         }
       } catch (error) { if (!cancelled) setMessage((error as Error).message); }
     };
     void restore();
     return () => { cancelled = true; };
-  }, [ready]);
+  }, [ready, state.data?.saved?.revision, state.data?.offer?.revision, editable]);
 
   useEffect(() => {
     if (ready) frame.current?.contentWindow?.postMessage({ channel: 'memorie-mockup-v1', type: 'lock', readOnly: busy || !editable }, window.location.origin);
   }, [ready, busy, editable]);
 
   useEffect(() => {
-    if (!ready || !readOnly) return;
+    if (!ready || !readOnly || !state.data) return;
     let cancelled = false;
     apply({ readOnly: true });
     const freezeSaved = async () => {
@@ -371,7 +401,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     };
     void freezeSaved();
     return () => { cancelled = true; };
-  }, [readOnly]);
+  }, [ready, readOnly, state.data?.saved?.revision]);
 
   useEffect(() => {
     if (!dirty) return;
@@ -384,7 +414,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     const target = mobile ? (step === 7 ? 'back' : 'front') : renderer.id === 'album-girevole' || renderer.id === 'plaza-led' ? photoSide : 'front';
     setBusy(true); setMessage('Preparazione foto…');
     try {
-      const photo: MockupPhoto = await (await operation()).json();
+      const photo: MockupPhoto = mockupPhotoSchema.parse(await (await operation()).json());
       const blob = await (await request(`/photos/${photo.id}`)).blob();
       if (target === 'front') currentPhoto.current = { ...photo, blob };
       apply({ [target === 'back' ? 'backPhoto' : 'photo']: { ...photo, blob }, readOnly: !editable });
@@ -392,7 +422,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     } catch (error) { setMessage((error as Error).message); }
     finally { setBusy(false); }
   }
-  async function save() {
+  async function save(): Promise<SavedMockup | undefined> {
     if (!configuration || !editable) return;
     setBusy(true); setMessage('Salvataggio…');
     try {
@@ -429,12 +459,14 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       const exported = await new Promise<unknown>((resolve, reject) => {
         const id = crypto.randomUUID();
         const timeout = window.setTimeout(() => { exportWaiter.current = null; reject(new Error('Generazione delle viste scaduta. Riprova.')); }, 45_000);
+        const target = frame.current?.contentWindow;
+        if (!target) { clearTimeout(timeout); reject(new Error('Anteprima non disponibile. Riprova a caricare il mockup.')); return; }
         exportWaiter.current = { id, resolve: value => { clearTimeout(timeout); resolve(value); }, reject: error => { clearTimeout(timeout); reject(error); } };
-        frame.current?.contentWindow?.postMessage({ channel: 'memorie-mockup-v1', type: 'export', requestId: id }, window.location.origin);
+        target.postMessage({ channel: 'memorie-mockup-v1', type: 'export', requestId: id }, window.location.origin);
       });
       const result = exported as { previews: unknown; configuration: unknown };
       const renderedConfiguration = mockupConfigurationSchema.parse(result.configuration);
-      if (JSON.stringify(renderedConfiguration) !== JSON.stringify(saved.configuration)) throw new Error('Le viste non corrispondono al mockup salvato. Salva le modifiche prima di confermare.');
+      if (stableSerialize(renderedConfiguration) !== stableSerialize(saved.configuration)) throw new Error('Le viste non corrispondono al mockup salvato. Salva le modifiche prima di confermare.');
       const response = await request('/confirm', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: JSON.stringify({ revision: saved.revision, previews: result.previews, configuration: renderedConfiguration }) });
       recordSaved(await response.json());
       const fresh = await state.refetch({ throwOnError: true }); revision.current = fresh.data?.saved?.revision || revision.current;
@@ -470,9 +502,17 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       }
       if (item.selection) setSelection(item.selection);
       if (item.option && item.option.rendererId !== renderer.id) {
+        pendingPreview.current = { configuration: cfg, photo, backPhoto, option: item.option || saved?.option };
         setRendererOverride(item.option.rendererId);
+        setWizard(null);
+        setConfiguration(null);
+        setReady(false);
+        setRenderBusy(true);
+        setGeneration(g => g + 1);
+      } else {
+        pendingPreview.current = null;
+        apply({ configuration: cfg, photo, backPhoto, option: item.option || saved?.option, readOnly: !editable });
       }
-      apply({ configuration: cfg, photo, backPhoto, option: item.option || saved?.option, readOnly: !editable });
       setMessage(`Visualizzazione revisione r${item.revision} (${MOCKUP_STATUS_LABELS[item.status || 'draft']}).`);
     } catch (error) {
       setMessage(`Impossibile caricare la revisione: ${(error as Error).message}`);
@@ -498,7 +538,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     if (busy || (dirty && !window.confirm('Ricaricare la proposta e abbandonare le modifiche non salvate?'))) return;
     const fresh = await state.refetch();
     if (!fresh.isError) {
-      pendingOption.current = null; setRendererOverride(null); setDirty(false); setReady(false);
+      pendingOption.current = null; pendingPreview.current = null; setRendererOverride(null); setDirty(false); setReady(false);
       setRenderBusy(true); setWizard(null); setStep(mobile ? 2 : 1); setGeneration(g => g + 1); setMessage('');
       setHomeOpen(false); pendingLayout.current = null;
     }
@@ -513,6 +553,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     setHomeOpen(false);
     setGuideOpen(false);
     setMessage('');
+    pendingPreview.current = null;
     pendingLayout.current = null;
   }
   const steps = renderer.id === 'album-girevole' || renderer.id === 'plaza-led' ? [2, 3, 4, 5, 6, 7, 9] : [2, 3, 5, 6, 9];
@@ -547,8 +588,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   const previousStep = () => {
     if (homeOpen) { setHomeOpen(false); return; }
     const index = steps.indexOf(step);
-    if (step === 7 && (renderer.id === 'album-girevole' || renderer.id === 'plaza-led')) setStep(4);
-    else if (index > 0) setStep(steps[index - 1]);
+    if (index > 0) setStep(steps[index - 1]);
     else if (editable && (state.data?.offer?.options.length || 0) > 1) setChoosing(true);
   };
   const viewAction = (action: 'front' | 'back' | 'reset' | 'plus' | 'minus' | 'extract' | 'rotate') => {
@@ -559,8 +599,8 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   return <section className={compact ? 'inline-flex shrink-0' : 'rounded-lg border bg-white p-4 space-y-3'} data-testid="photobook-mockup">
     {compact ? <Button variant="outline" className="h-10 px-3 text-xs" onClick={openConfigurator}>{!token ? (saved ? 'Mockup 3D' : 'Configura 3D') : (saved ? 'Apri il tuo album' : 'Personalizza album')}</Button> : <div className="flex flex-wrap items-center justify-between gap-2">
       <div><h2 className="font-semibold">{title} · Anteprima album 3D</h2><p className="text-sm text-muted-foreground">Foto, rivestimento e scritte · versione {version}</p></div>
-      <Button variant="outline" onClick={openConfigurator}>Apri mockup {title}</Button>
-    </div>}
+       <Button variant="outline" onClick={openConfigurator}>Apri mockup {title}</Button>
+     </div>}
      {saved && !compact && !token && <p className="text-sm text-muted-foreground">{MOCKUP_STATUS_LABELS[saved.status || 'draft']} · revisione {saved.revision} · versione fotolibro {version}</p>}
      {!compact && token && <div className="mockup-status-card" role="status" data-status={saved?.status || 'draft'}>
        <div className="mockup-status-card-heading">
@@ -573,7 +613,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     <Dialog open={open} onOpenChange={next => { if (!next) closeConfigurator(); }}>
     <DialogContent ref={dialog} data-mobile-mockup={mobile ? 'true' : undefined} className="flex flex-col gap-0 p-0 sm:p-0 w-screen sm:w-[96vw] max-w-none sm:max-w-[1500px] h-[100dvh] sm:h-[94dvh] max-h-[100dvh] rounded-none sm:rounded-lg overflow-hidden [&>button]:hidden" onInteractOutside={event => event.preventDefault()}>
       <div className="mockup-header flex shrink-0 items-center justify-between gap-2 border-b px-3 sm:px-4">
-        <div className="mockup-header-title-box">
+         <div className="mockup-header-title-box">
           <DialogTitle className="text-sm sm:text-base font-semibold truncate">
             {!token ? 'Verifica proposta album' : choosing ? 'Scegli il tuo album' : title}
           </DialogTitle>
@@ -584,7 +624,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
                 · Passo {steps.indexOf(step) + 1}/{steps.length}
               </span>
             )}
-          </div>
+           </div>
           <DialogDescription className="sr-only">
             {title} · versione fotolibro {version}{!token && saved ? ` · revisione mockup ${saved.revision}` : ''}
           </DialogDescription>
@@ -632,12 +672,12 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       {!token && <div className="mockup-admin-panel" ref={setAdminSlot}>
         <nav className="sticky top-0 z-10 bg-background flex flex-wrap gap-1 border-b pb-3" aria-label="Gestione proposta album">
           {([['review', 'Verifica'], ['edit', 'Modifica'], ['offer', 'Modelli disponibili']] as const).map(([tab, label]) => <Button key={tab} size="sm" variant={adminTab === tab ? 'default' : 'outline'} aria-pressed={adminTab === tab} onClick={() => setAdminTab(tab)}>{label}</Button>)}
-        </nav>
-      </div>}
+         </nav>
+       </div>}
       {open && !token && adminPanel(<Button variant="ghost" size="sm" disabled={busy} onClick={async () => {
         if (dirty && !window.confirm('Ricaricare la proposta e abbandonare le modifiche non salvate?')) return;
         const fresh = await state.refetch();
-        if (!fresh.isError) { pendingOption.current = null; setRendererOverride(null); setDirty(false); setReady(false); setRenderBusy(true); setGeneration(g => g + 1); }
+        if (!fresh.isError) { pendingOption.current = null; pendingPreview.current = null; setRendererOverride(null); setDirty(false); setReady(false); setRenderBusy(true); setGeneration(g => g + 1); }
       }}>Ricarica proposta</Button>)}
     {saved && !token && adminPanel(<div className="rounded-lg bg-muted/50 p-3 text-sm space-y-2"><p className="font-semibold">{MOCKUP_STATUS_LABELS[saved.status || 'draft']} · revisione {saved.revision}</p><p>{saved.option?.labName} {saved.option && '·'} {saved.option?.name} {saved.option && '·'} {saved.option?.materials.find(m => m.id === saved.configuration.materialId)?.label}</p><p>Ultima modifica: {saved.updatedBy === 'client' ? 'Cliente tramite link' : saved.updatedBy === 'studio' ? 'Studio' : 'Non registrato'} · {new Date(saved.updatedAt).toLocaleString('it-IT')}</p>{saved.note && <p>Note: {saved.note}</p>}</div>)}
     {open && <>
@@ -681,7 +721,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
         {token && wizard && createPortal(<>
           {editable && ready && !renderBusy && configurationIssue && ((mobile && [5, 6, 7].includes(step)) || (!mobile && step >= 5)) && <p role="status" className="wizard-validation">{configurationIssue}</p>}
           <div className="wizard-step-heading" aria-live="polite"><span>Passo {steps.indexOf(step) + 1} di {steps.length}</span><strong>{stepNames[step] || 'Configurazione'}</strong></div>
-          {step === 1 && <><h3>Scegli il tuo modello</h3><p>Trovi qui i modelli proposti dallo studio.</p>{state.data.offer?.options.map(option => <button type="button" className="wizard-model" key={`${option.labId}/${option.id}`} aria-pressed={selectedOption?.id === option.id && selectedOption?.labId === option.labId} disabled={!editable || busy || !ready || renderBusy} onClick={() => chooseOption(option)}>{option.name}<small>{option.labName} · {MOCKUP_RENDERERS.find(r => r.id === option.rendererId)?.name}</small></button>)}{!state.data.offer && <p>{title}</p>}</>}
+         {step === 1 && <><h3>Scegli il tuo modello</h3><p>Trovi qui i modelli proposti dallo studio.</p>{state.data?.offer?.options.map(option => <button type="button" className="wizard-model" key={`${option.labId}/${option.id}`} aria-pressed={selectedOption?.id === option.id && selectedOption?.labId === option.labId} disabled={!editable || busy || !ready || renderBusy} onClick={() => chooseOption(option)}>{option.name}<small>{option.labName} · {MOCKUP_RENDERERS.find(r => r.id === option.rendererId)?.name}</small></button>)}{!state.data?.offer && <p>{title}</p>}</>}
           {step === 2 && <><h3>Collezione tessuto</h3><p>Tocca la collezione di tessuti che preferisci per il tuo album. I colori disponibili appariranno nella schermata successiva.</p></>}
           {step === 3 && <><h3>Colore del rivestimento</h3><p>Tocca un colore per applicarlo istantaneamente all’anteprima 3D sopra la scheda.</p></>}
           {step === 4 && <><h3>Struttura dello scrigno</h3><p>Scegli la finitura della cornice che racchiude l'album.</p></>}
@@ -742,7 +782,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
               <button type="button" className="wizard-primary" disabled={!editable || busy || renderBusy || !configuration || !selectedOption || (!dirty && ['submitted', 'confirmed'].includes(saved?.status || ''))} onClick={submitWizard}>
                 Invia allo studio per verifica
               </button>
-            ) : <span className="wizard-unsaved">Sola lettura</span>}
+             ) : <span className="wizard-unsaved">Sola lettura</span>}
           </div>
           {editable && configuration && (
             <button
@@ -832,12 +872,11 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     </>}
       </div>
       {!mobile && !token && (adminTab === 'edit' || dirty) && <div className="mockup-actions shrink-0 border-t bg-background p-3 sm:px-4 space-y-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-        {token && message && <p role="status" className="text-sm max-h-20 overflow-auto">{message}</p>}
         {dirty && <p className="text-sm text-amber-800" role="status">Modifiche da salvare</p>}
-        {token ? <><div className="flex gap-2"><Button variant="outline" className="min-h-11" disabled={step === 1 || busy || renderBusy} onClick={() => setStep(steps[steps.indexOf(step) - 1])}>Indietro</Button>{step < lastStep ? <Button className="min-h-11 flex-1" disabled={!nextAllowed} onClick={() => setStep(steps[steps.indexOf(step) + 1])}>Avanti</Button> : <Button className="min-h-11 h-auto whitespace-normal flex-1" disabled={!editable || busy || renderBusy || !configuration || !selectedOption || (!dirty && ['submitted', 'confirmed'].includes(saved?.status || ''))} onClick={submitWizard}>Invia allo studio per verifica</Button>}</div>{step === lastStep && <Button variant="ghost" className="w-full min-h-11" disabled={!editable || busy || renderBusy || !configuration || !dirty || (!!state.data?.offer && !selectedOption)} onClick={save}>Salva bozza</Button>}</> : <div className="flex flex-wrap gap-2">
+         <div className="flex flex-wrap gap-2">
           <Button className="min-h-11 flex-1 sm:flex-none" disabled={!editable || busy || renderBusy || !configuration || !dirty || (!!state.data?.offer && !selectedOption)} onClick={save}>Salva mockup</Button>
-          <p className="text-sm text-muted-foreground self-center">{dirty ? 'Salva le modifiche, poi torna in Verifica per confermarle.' : 'Nessuna modifica da salvare. Per approvare usa Conferma mockup nella scheda Verifica.'}</p>
-        </div>}
+           <p className="text-sm text-muted-foreground self-center">{dirty ? 'Salva le modifiche, poi torna in Verifica per confermarle.' : 'Nessuna modifica da salvare. Per approvare usa Conferma mockup nella scheda Verifica.'}</p>
+         </div>
       </div>}
     </DialogContent>
     </Dialog>

@@ -1,0 +1,60 @@
+ Bug aperto: openConfigurator marca viewerStarted=true prima dei dati
+La funzione non è cambiata:
+
+tsx
+function openConfigurator() {
+  setAdminTab('review');
+  setChoosing(mobile && editable && !saved && !!state.data?.offer?.options.length);
+  setViewerStarted(!mobile || !!saved || !state.data?.offer?.options.length);   // ⚠️
+  setStep(...);
+  setOpen(true);
+  ...
+  void state.refetch();
+}
+Scenario tipico: l'utente ha summary=false (query disabilitata finché open è false). Al primo click state.data è undefined, quindi:
+
+saved = undefined
+
+!state.data?.offer?.options.length → !undefined → true
+
+viewerStarted = !mobile || !!saved || true → sempre true
+
+Quindi choosing=false e viewerStarted=true. Quando arriva il payload con offer.options, l'effect correttivo:
+
+tsx
+useEffect(() => {
+  if (!open || !mobile || !editable || saved || viewerStarted || !state.data?.offer?.options.length) return;
+  setChoosing(true);
+}, [open, mobile, editable, saved?.revision, viewerStarted, state.data?.offer?.revision]);
+esce per viewerStarted === true e non imposta mai choosing. Su mobile, al primo avvio, il chooser del modello non appare mai: l'utente finisce direttamente nel viewer 3D senza aver scelto un modello.
+
+Fix:
+
+tsx
+function openConfigurator() {
+  setAdminTab('review');
+  if (state.data) {
+    setChoosing(mobile && editable && !saved && !!state.data.offer?.options.length);
+    setViewerStarted(!mobile || !!saved || !state.data.offer?.options.length);
+  }
+  // se state.data non è ancora caricato, lascia i default (false/false):
+  // l'effect sopra farà partire choosing quando arriva il payload.
+  setStep(mobile && saved && (saved.status === 'draft' || !editable) ? lastStep : 2);
+  setOpen(true);
+  ...
+  void state.refetch();
+}
+Alternativa: sostituisci viewerStarted nella guardia dell'effect con un flag dedicato "l'utente ha scelto un modello" (es. selection != null o pendingOption.current != null), così non dipende da state.data.
+
+🟡 Residui
+Import inutilizzati: Home, Maximize, Minimize da lucide-react e isPortrait da usePhoneOrientation. Con noUnusedLocals: true in tsconfig la build non passa. Rimuovili.
+
+confirm() – confronto fragile:
+
+tsx
+if (JSON.stringify(renderedConfiguration) !== JSON.stringify(saved.configuration)) throw ...
+Con mockupConfigurationSchema costruito come z.union([...]) di ZodEffects, il parse può ricostruire le chiavi in ordine diverso (o aggiungere chiavi opzionali in posizioni diverse) anche quando i valori sono identici. Dopo il fix degli schemi plaza/rotatingBox (dove alcune refine erroneamente usano MOCKUP_MODEL.variants), questo confronto darà falsi negativi con messaggio "Le viste non corrispondono al mockup salvato". Sostituiscilo con un deep-equal stabile (ordina le chiavi, o parse entrambi i lati con lo stesso schema).
+
+restore effect: triggerato da [ready, state.data?.saved?.revision, state.data?.offer?.revision, editable]. In save() fai sia recordSaved() (che cambia saved.revision in cache) sia state.refetch() (che riporta lo stesso valore). L'effect riparte due volte e ri-applica la configurazione. Funziona per via di initializing.current, ma valuta di accorpare in un unico passaggio (o di usare revision.current come guardia prima di rifare apply).
+
+save() firma: ritorna implicitamente Promise<SavedMockup | undefined> ma è dichiarata come Promise<SavedMockup> (implicito). Non è un errore perché TS inferisce il tipo reale, ma submitWizard deve sempre controllare if (persisted), e lo fa. Solo per chiarezza: aggiungi | undefined alla firma esplicita.

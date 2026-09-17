@@ -169,12 +169,16 @@ export const MOCKUP_MODEL = {
 export const ROTATING_MOCKUP_MODEL = {
   id: 'album-girevole', name: 'Album girevole', assetRevision: 4,
   coverLayouts: ['full', 'plaque', 'photo-plaque', 'split-photo-fabric'], defaultCoverLayout: 'plaque',
+  // Il renderer legacy usa il catalogo tessuti della Custodia.
+  variants: MOCKUP_MODEL.variants,
 } as const;
 
 // Identità distinta: il Plaza ha una doppia cornice e una meccanica propria.
 export const PLAZA_MOCKUP_MODEL = {
   id: 'plaza-led', name: 'Plaza LED', assetRevision: 1,
   coverLayouts: ['full', 'plaque', 'photo-plaque', 'split-photo-fabric'], defaultCoverLayout: 'plaque',
+  // Il renderer legacy usa il catalogo tessuti della Custodia.
+  variants: MOCKUP_MODEL.variants,
 } as const;
 
 /**

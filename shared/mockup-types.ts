@@ -2,6 +2,9 @@ import { z } from 'zod';
 import { MOCKUP_MODEL, PLAZA_MOCKUP_MODEL, ROTATING_MOCKUP_MODEL } from './mockup-catalog';
 import type { MockupOffer, MockupOfferMode, MockupOption, MockupSelection, MockupStatus } from './mockup-workflow';
 
+const isCatalogMaterial = (variants: readonly { readonly id: string; readonly appearanceRevision: number }[], materialId: string, appearanceRevision: number) =>
+  variants.some(v => v.id === materialId && v.appearanceRevision === appearanceRevision);
+
 const custodiaConfigurationSchema = z.object({
   modelId: z.literal(MOCKUP_MODEL.id),
   assetRevision: z.literal(MOCKUP_MODEL.assetRevision),
@@ -12,7 +15,7 @@ const custodiaConfigurationSchema = z.object({
   bottomText: z.string().max(50),
   photoAssetId: z.string().uuid(),
   crop: z.object({ zoom: z.number().min(1).max(3), x: z.number().min(0).max(1), y: z.number().min(0).max(1) }).strict(),
-}).strict().refine(c => MOCKUP_MODEL.variants.some(v => v.id === c.materialId && v.appearanceRevision === c.appearanceRevision), 'Revisione del rivestimento non disponibile');
+}).strict().refine(c => isCatalogMaterial(MOCKUP_MODEL.variants, c.materialId, c.appearanceRevision), 'Revisione del rivestimento non disponibile');
 
 const rotatingConfigurationBase = z.object({
   modelId: z.literal(ROTATING_MOCKUP_MODEL.id), assetRevision: z.literal(1),
@@ -23,7 +26,7 @@ const rotatingConfigurationBase = z.object({
   photoAssetId: z.string().uuid().nullable(),
   crop: z.object({ zoom: z.number().min(1).max(3), x: z.number().min(0).max(1), y: z.number().min(0).max(1) }).strict(),
 }).strict();
-const rotatingConfigurationSchema = rotatingConfigurationBase.refine(c => MOCKUP_MODEL.variants.some(v => v.id === c.materialId && v.appearanceRevision === c.appearanceRevision), 'Revisione del rivestimento non disponibile')
+const rotatingConfigurationSchema = rotatingConfigurationBase.refine(c => isCatalogMaterial(ROTATING_MOCKUP_MODEL.variants, c.materialId, c.appearanceRevision), 'Revisione del rivestimento non disponibile')
   .refine(c => c.coverLayout === 'plaque' || !!c.photoAssetId, 'Seleziona una foto per questa copertina');
 const rotatingPlexConfigurationBase = rotatingConfigurationBase.extend({
   assetRevision: z.literal(2),
@@ -31,26 +34,27 @@ const rotatingPlexConfigurationBase = rotatingConfigurationBase.extend({
   backPhotoAssetId: z.string().uuid().nullable(),
   backCrop: z.object({ zoom: z.number().min(1).max(3), x: z.number().min(0).max(1), y: z.number().min(0).max(1) }).strict(),
 }).strict();
-const rotatingPlexConfigurationSchema = rotatingPlexConfigurationBase.refine(c => MOCKUP_MODEL.variants.some(v => v.id === c.materialId && v.appearanceRevision === c.appearanceRevision), 'Revisione del rivestimento non disponibile')
+const rotatingPlexConfigurationSchema = rotatingPlexConfigurationBase.refine(c => isCatalogMaterial(ROTATING_MOCKUP_MODEL.variants, c.materialId, c.appearanceRevision), 'Revisione del rivestimento non disponibile')
   .refine(c => c.coverLayout === 'plaque' || !!c.photoAssetId, 'Seleziona una foto per questa copertina')
   .refine(c => c.backCover === 'fabric' || !!c.backPhotoAssetId, 'Seleziona una foto per il retro in plexiglass');
 const rotatingMonogramConfigurationSchema = rotatingPlexConfigurationBase.extend({
   assetRevision: z.literal(3),
   engravingNames: z.object({ first: z.string().trim().max(50), second: z.string().trim().max(50) }).strict(),
-}).strict().refine(c => MOCKUP_MODEL.variants.some(v => v.id === c.materialId && v.appearanceRevision === c.appearanceRevision), 'Revisione del rivestimento non disponibile')
+}).strict().refine(c => isCatalogMaterial(ROTATING_MOCKUP_MODEL.variants, c.materialId, c.appearanceRevision), 'Revisione del rivestimento non disponibile')
   .refine(c => c.coverLayout === 'plaque' || !!c.photoAssetId, 'Seleziona una foto per questa copertina')
   .refine(c => c.backCover === 'fabric' || !!c.backPhotoAssetId, 'Seleziona una foto per il retro in plexiglass');
 // Revisione 4: la foto è stampata sul plexiglass dello scrigno rotante, non sul libro.
 // Il valore storico `fabric` indica la lastra trasparente, con il tessuto dell'album visibile.
 // Le due forme conservano anche le incisioni a righe precedenti senza inventare nomi.
-const rotatingBoxConfigurationBase = rotatingPlexConfigurationBase.extend({ assetRevision: z.literal(4) }).strict();
-const rotatingBoxConfigurationSchema = z.union([
-  rotatingBoxConfigurationBase,
-  rotatingBoxConfigurationBase.extend({ engravingNames: z.object({ first: z.string().trim().max(50), second: z.string().trim().max(50) }).strict() }).strict(),
-]).refine(c => MOCKUP_MODEL.variants.some(v => v.id === c.materialId && v.appearanceRevision === c.appearanceRevision), 'Revisione del rivestimento non disponibile')
+const engravingNamesSchema = z.object({ first: z.string().trim().max(50), second: z.string().trim().max(50) }).strict();
+const rotatingBoxConfigurationBase = rotatingPlexConfigurationBase.extend({
+  assetRevision: z.literal(4),
+  engravingNames: engravingNamesSchema.optional(),
+}).strict();
+const rotatingBoxConfigurationSchema = rotatingBoxConfigurationBase.refine(c => isCatalogMaterial(ROTATING_MOCKUP_MODEL.variants, c.materialId, c.appearanceRevision), 'Revisione del rivestimento non disponibile')
   .refine(c => c.coverLayout === 'plaque' || !!c.photoAssetId, 'Seleziona una foto per questa copertina')
   .refine(c => c.backCover === 'fabric' || !!c.backPhotoAssetId, 'Seleziona una foto per il plexiglass dello scrigno');
-const plazaConfigurationBase = z.object({
+const plazaConfigurationObject = z.object({
   modelId: z.literal(PLAZA_MOCKUP_MODEL.id), assetRevision: z.literal(1),
   materialId: z.string(), appearanceRevision: z.number().int(),
   coverLayout: z.enum(['full', 'plaque', 'photo-plaque', 'split-photo-fabric']),
@@ -61,16 +65,25 @@ const plazaConfigurationBase = z.object({
   backCover: z.enum(['fabric', 'photo']),
   backPhotoAssetId: z.string().uuid().nullable(),
   backCrop: z.object({ zoom: z.number().min(1).max(3), x: z.number().min(0).max(1), y: z.number().min(0).max(1) }).strict(),
-  engravingNames: z.object({ first: z.string().trim().max(50), second: z.string().trim().max(50) }).strict().optional(),
+  engravingNames: engravingNamesSchema.optional(),
   ledEnabled: z.boolean(),
-}).strict()
-  .refine(c => MOCKUP_MODEL.variants.some(v => v.id === c.materialId && v.appearanceRevision === c.appearanceRevision), 'Revisione del rivestimento non disponibile')
+}).strict();
+const plazaConfigurationSchema = plazaConfigurationObject
+  .refine(c => isCatalogMaterial(PLAZA_MOCKUP_MODEL.variants, c.materialId, c.appearanceRevision), 'Revisione del rivestimento non disponibile')
   .refine(c => c.coverLayout === 'plaque' || !!c.photoAssetId, 'Seleziona una foto per questa copertina')
   .refine(c => c.backCover === 'fabric' || !!c.backPhotoAssetId, 'Seleziona una foto per il plexiglass dello scrigno');
-export const mockupConfigurationSchema = z.union([custodiaConfigurationSchema, rotatingConfigurationSchema, rotatingPlexConfigurationSchema, rotatingMonogramConfigurationSchema, rotatingBoxConfigurationSchema, plazaConfigurationBase]);
+export const mockupConfigurationSchema = z.union([custodiaConfigurationSchema, rotatingConfigurationSchema, rotatingPlexConfigurationSchema, rotatingMonogramConfigurationSchema, rotatingBoxConfigurationSchema, plazaConfigurationSchema]);
 
 export type MockupConfiguration = z.infer<typeof mockupConfigurationSchema>;
 export interface MockupPhoto { id: string; name: string; source: 'upload' | 'gallery'; photoId?: string; width: number; height: number }
+export const mockupPhotoSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  source: z.enum(['upload', 'gallery']),
+  photoId: z.string().optional(),
+  width: z.number().finite(),
+  height: z.number().finite(),
+}).strict();
 export interface SavedMockup {
   revision: number; version: number; configuration: MockupConfiguration; updatedAt: string;
   status?: MockupStatus; updatedBy?: 'studio' | 'client'; selection?: MockupSelection;
