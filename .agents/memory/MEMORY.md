@@ -58,3 +58,4 @@
 - [Stile nel renderer photobook](mockup-iframe-styling.md) — i controlli del wizard sono in iframe: il CSS va iniettato da installMockupWizard, non solo nella shell React.
 - [Mockup landscape layout](mockup-landscape-layout.md) — chooser a due zone con barra azioni in flusso (mai fixed); grid-auto-rows su card-button; token su dialog portalato; test screens in landscape/portrait.
 - [Photobook dialog focus](photobook-dialog-focus.md) — conferme con wrapper AlertDialog; lifecycle focus del lightbox separato da zoom/navigazione per evitare ritorni prematuri al trigger.
+- [Plaza LED a doppia cornice](plaza-led-double-frame.md) — il Plaza è distinto dal girevole attuale: doppia cornice e LED a U su alto, lato interno e base.
