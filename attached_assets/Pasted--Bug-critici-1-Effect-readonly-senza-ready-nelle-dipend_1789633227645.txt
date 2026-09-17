@@ -1,0 +1,87 @@
+🔴 Bug critici
+1. Effect readonly senza ready nelle dipendenze
+tsx
+useEffect(() => {
+  if (!ready || !readOnly) return;
+  ...
+  void freezeSaved();
+  return () => { cancelled = true; };
+}, [readOnly]); // ❌ manca `ready`
+L'effetto viene eseguito solo quando readOnly cambia. Se readOnly è già true al mount e ready diventa true dopo (tipico: l'iframe carica dopo), l'effetto esce subito per !ready e non viene più rieseguito. Il blocco "sola lettura" non applica mai la configurazione salvata.
+
+Fix: aggiungi ready alle deps (e valuta editable/state.data).
+
+2. Restore iniziale senza state.data nelle dipendenze
+tsx
+useEffect(() => {
+  if (!ready || !state.data) return;
+  ...
+  void restore();
+  return () => { cancelled = true; };
+}, [ready]); // ❌ manca `state.data`
+Stesso pattern. Se state.data (query) arriva dopo che ready è diventato true (rete lenta, refetch() appena aperto il dialog), l'effetto esce e non viene mai rieseguito → la configurazione salvata non viene applicata. Il wizard mostra i default.
+
+Fix:
+
+tsx
+}, [ready, state.data?.saved?.revision, state.data?.offer?.revision]);
+(meglio ancora usare state.data?.saved con un ref di guardia per non applicare due volte).
+
+3. previewRevision applica prima del remount dell'iframe
+tsx
+if (item.option && item.option.rendererId !== renderer.id) {
+  setRendererOverride(item.option.rendererId); // ⏳ async
+}
+apply({ configuration: cfg, photo, backPhoto, option: item.option || saved?.option, readOnly: !editable }); // ❌ eseguito subito
+setRendererOverride provoca un re-render che cambia la key dell'iframe (${renderer.id}-${generation}) → l'iframe viene smontato e rimontato. La apply() viene inviata sincronicamente alla vecchia contentWindow, che sta per essere distrutta → il messaggio si perde.
+
+Fix: quando cambia il renderer, salva i dati in pendingOption/ref e applica nell'effect [ready] (come fa già chooseOption), non chiamare apply() direttamente.
+
+🟠 Bug logici
+4. Codice morto nella barra azioni desktop
+tsx
+{!mobile && !token && (adminTab === 'edit' || dirty) && <div className="mockup-actions ...">
+  {token && message && <p>...</p>}          {/* ❌ token è sempre false qui */}
+  ...
+  {token ? <><div ...>...</div></> : <div ...>...</div>}  {/* ❌ branch token morto */}
+</div>}
+Il blocco è gated da !token, quindi tutta la parte token ? ... : non viene mai eseguita per gli utenti con token. Se l'intento era mostrare i comandi Indietro/Avanti/Invia su desktop anche per il cliente, questa barra non li mostrerà mai. O è codice copiato per errore, o manca il render corretto per il caso token && !mobile.
+
+5. initializing.current come guardia di effect
+tsx
+useEffect(() => {
+  if (!mobile && token && ready && ... && !initializing.current && ...) {
+    chooseOption(state.data.offer.options[0]);
+  }
+}, [token, ready, renderBusy, busy, editable, selection, state.data?.offer]);
+initializing.current è una ref: quando il message handler la porta a false non causa re-render, quindi questo effect non viene rivalutato. Se il primo change dell'iframe arriva dopo l'effect, l'auto-selezione dell'unico modello non parte.
+
+Fix: usa uno useState (es. initialized) oppure aggiungi setGeneration(g => g+1) per forzare il rerun.
+
+6. previousStep salta passi
+tsx
+if (step === 7 && (renderer.id === 'album-girevole' || renderer.id === 'plaza-led')) setStep(4);
+else if (index > 0) setStep(steps[index - 1]);
+Con steps = [2,3,4,5,6,7,9] da step 7 si torna a step 4, saltando 6 (foto copertina) e 5 (disposizione). Se non è voluto, dovrebbe essere steps[index - 1] (→ 6). Verifica l'intento.
+
+🟡 Minor
+adminSlot: usare setAdminSlot come ref causa re-render ad ogni mount/unmount dell'elemento (React chiama il setter con null in cleanup). Meglio useRef + useCallback.
+
+Import duplicati da @shared/mockup-workflow (righe separate): unifila.
+
+postMessage senza guardia su contentWindow: in confirm() se frame.current?.contentWindow è null, la Promise attende 45s prima di fallire; meglio rifiutare subito.
+
+save() ritorna undefined in caso di errore: submitWizard gestisce già if (persisted), ok, ma la firma Promise<SavedMockup> è bugiarda (dovrebbe essere Promise<SavedMockup | undefined>).
+
+openConfigurator: se state.data è ancora undefined, setViewerStarted(!mobile || !!saved || !undefined) → true, quindi su mobile potrebbe saltare la scelta modello finché i dati non arrivano.
+
+Priorità di fix
+Aggiungi ready alle deps dell'effect readonly.
+
+Aggiungi state.data alle deps dell'effect di restore.
+
+Correggi previewRevision per il cambio renderer.
+
+Verifica il dead code della barra azioni !token.
+
+Sposta initializing da ref a state.
