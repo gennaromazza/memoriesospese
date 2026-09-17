@@ -27,9 +27,13 @@ export async function buildMockupReport(saved: SavedMockup, previews: z.infer<ty
     if (saved.configuration.assetRevision >= 4) rows.push(['Plexiglass posteriore dello scrigno girevole', saved.configuration.backCover === 'photo' ? 'Foto a tutta superficie; rimane sullo scrigno quando l’album viene estratto' : 'Trasparente, senza stampa'], ['Retro album', 'Tessuto coordinato']);
     else rows.push(['Retro album', saved.configuration.backCover === 'photo' ? 'Foto a tutta superficie su plexiglass' : 'Tessuto coordinato']);
   }
-  if ('engravingNames' in saved.configuration && engravedCover) {
-    rows[5] = ['Primo nome inciso', saved.configuration.engravingNames.first];
-    rows[6] = ['Secondo nome inciso', saved.configuration.engravingNames.second];
+  if ('ledEnabled' in saved.configuration) {
+    rows.push(['Illuminazione LED Plaza', saved.configuration.ledEnabled ? 'Accesa · percorso a U sulla doppia cornice' : 'Spenta']);
+  }
+  const engravingNames = 'engravingNames' in saved.configuration ? saved.configuration.engravingNames : undefined;
+  if (engravingNames && engravedCover) {
+    rows[5] = ['Primo nome inciso', engravingNames.first];
+    rows[6] = ['Secondo nome inciso', engravingNames.second];
     rows.push(['Grafica incisione', 'Monogramma botanico con iniziali automatiche']);
   }
   const images: string[] = [];

@@ -171,6 +171,12 @@ export const ROTATING_MOCKUP_MODEL = {
   coverLayouts: ['full', 'plaque', 'photo-plaque', 'split-photo-fabric'], defaultCoverLayout: 'plaque',
 } as const;
 
+// Identità distinta: il Plaza ha una doppia cornice e una meccanica propria.
+export const PLAZA_MOCKUP_MODEL = {
+  id: 'plaza-led', name: 'Plaza LED', assetRevision: 1,
+  coverLayouts: ['full', 'plaque', 'photo-plaque', 'split-photo-fabric'], defaultCoverLayout: 'plaque',
+} as const;
+
 /**
  * Step semantici del wizard cliente.
  *
@@ -253,6 +259,17 @@ export const MOCKUP_RENDERERS = [
       { layout: 'plaque', title: 'Incisione con i vostri nomi', description: 'Placchetta in legno, iniziali e decorazione botanica.', image: 'girevole-plaque.webp' },
       { layout: 'photo-plaque', title: 'Foto piccola sul tessuto', description: 'Una fotografia centrale nel formato della placchetta.', image: 'girevole-photo-plaque.webp' },
       { layout: 'split-photo-fabric', title: 'Foto e tessuto inciso', description: 'Una metà con la tua foto e una metà in tessuto con il monogramma inciso.', image: 'girevole-split-photo-fabric.svg' },
+    ],
+  }),
+  defineRenderer({
+    ...PLAZA_MOCKUP_MODEL,
+    path: 'plaza-v1/index.html',
+    wizardSteps: ROTATING_WIZARD_STEPS,
+    coverExamples: [
+      { layout: 'full', title: 'Foto grande', description: 'La tua fotografia sulla cornice mobile del Plaza.', image: 'girevole-full.webp' },
+      { layout: 'plaque', title: 'Incisione con i vostri nomi', description: 'La placchetta centrale sull’album estraibile.', image: 'girevole-plaque.webp' },
+      { layout: 'photo-plaque', title: 'Foto piccola sul tessuto', description: 'Una fotografia centrale nel formato della placchetta.', image: 'girevole-photo-plaque.webp' },
+      { layout: 'split-photo-fabric', title: 'Foto e tessuto inciso', description: 'Foto e tessuto coordinato sulla cornice mobile.', image: 'girevole-split-photo-fabric.svg' },
     ],
   }),
 ] as const;

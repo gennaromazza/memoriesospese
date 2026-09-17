@@ -381,7 +381,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   }, [dirty]);
 
   async function selectPhoto(operation: () => Promise<Response>) {
-    const target = mobile ? (step === 7 ? 'back' : 'front') : renderer.id === 'album-girevole' ? photoSide : 'front';
+    const target = mobile ? (step === 7 ? 'back' : 'front') : renderer.id === 'album-girevole' || renderer.id === 'plaza-led' ? photoSide : 'front';
     setBusy(true); setMessage('Preparazione foto…');
     try {
       const photo: MockupPhoto = await (await operation()).json();
@@ -515,7 +515,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     setMessage('');
     pendingLayout.current = null;
   }
-  const steps = renderer.id === 'album-girevole' ? [2, 3, 4, 5, 6, 7, 9] : [2, 3, 5, 6, 9];
+  const steps = renderer.id === 'album-girevole' || renderer.id === 'plaza-led' ? [2, 3, 4, 5, 6, 7, 9] : [2, 3, 5, 6, 9];
   const stepNames: Record<number, string> = {
     1: 'Modello',
     2: 'Collezione tessuto',
@@ -547,7 +547,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   const previousStep = () => {
     if (homeOpen) { setHomeOpen(false); return; }
     const index = steps.indexOf(step);
-    if (step === 7 && renderer.id === 'album-girevole') setStep(4);
+    if (step === 7 && (renderer.id === 'album-girevole' || renderer.id === 'plaza-led')) setStep(4);
     else if (index > 0) setStep(steps[index - 1]);
     else if (editable && (state.data?.offer?.options.length || 0) > 1) setChoosing(true);
   };
@@ -658,7 +658,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
         {!token && adminPanel(<p className="text-xs text-muted-foreground">Qui verifichi copertina e box, non le pagine interne. La conferma non avvia la stampa.</p>)}
          {!editable && token && <p role="status">Questa versione è in sola lettura: puoi esplorare l’album e scaricare le viste.</p>}
          {!editable && !token && !mobile && adminPanel(<p role="status" className="text-sm">Versione in sola lettura: puoi esplorare l’album e consultare le conferme.</p>)}
-        {!token && renderer.id === 'album-girevole' && adminPanel(<div hidden={adminTab !== 'edit'}><label className="block text-sm">Foto da personalizzare<select aria-label="Foto da personalizzare" className="block border rounded p-2 mt-1" value={photoSide} disabled={!editable || busy || picker || renderBusy} onChange={e => setPhotoSide(e.target.value === 'back' ? 'back' : 'front')}><option value="front">Copertina</option><option value="back">Plexiglass dello scrigno</option></select></label></div>)}
+        {!token && (renderer.id === 'album-girevole' || renderer.id === 'plaza-led') && adminPanel(<div hidden={adminTab !== 'edit'}><label className="block text-sm">Foto da personalizzare<select aria-label="Foto da personalizzare" className="block border rounded p-2 mt-1" value={photoSide} disabled={!editable || busy || picker || renderBusy} onChange={e => setPhotoSide(e.target.value === 'back' ? 'back' : 'front')}><option value="front">Copertina album</option><option value="back">Telaio fisso posteriore</option></select></label></div>)}
         {!token && adminPanel(<div hidden={adminTab !== 'edit'}><p className="text-sm mb-3">Modifica i dettagli nell’anteprima, poi salva la nuova revisione. Per approvarla torna in Verifica.</p><div className="flex flex-wrap gap-2">
           <Button variant="outline" disabled={!editable || busy || !ready || renderBusy} onClick={() => upload.current?.click()}>Carica una foto</Button>
           <Button variant="outline" disabled={!editable || busy || !ready || renderBusy} onClick={() => setPicker(true)}>Scegli dalla galleria</Button>
@@ -762,7 +762,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
             <button aria-label="Fronte" onClick={() => viewAction('front')}><b aria-hidden="true">F</b></button>
             <button aria-label="Retro" onClick={() => viewAction('back')}><b aria-hidden="true">R</b></button>
             <button aria-label="Estrai o reinserisci album" onClick={() => viewAction('extract')}><LogOut size={17} /><span>Estrai</span></button>
-            {renderer.id === 'album-girevole' && <button aria-label="Avvia o ferma rotazione scrigno" onClick={() => viewAction('rotate')}><Rotate3D size={17} /></button>}
+            {(renderer.id === 'album-girevole' || renderer.id === 'plaza-led') && <button aria-label="Avvia o ferma rotazione scrigno" onClick={() => viewAction('rotate')}><Rotate3D size={17} /></button>}
             <button aria-label="Ingrandisci album" onClick={() => viewAction('plus')}><ZoomIn size={17} /><span>Zoom +</span></button>
             <button aria-label="Riduci album" onClick={() => viewAction('minus')}><ZoomOut size={17} /><span>Zoom −</span></button>
             <button aria-label="Reimposta vista" onClick={() => viewAction('reset')}><RotateCcw size={17} /><span>Reimposta</span></button>

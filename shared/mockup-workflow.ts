@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { MOCKUP_MODEL, ROTATING_MOCKUP_MODEL } from './mockup-catalog';
+import { MOCKUP_MODEL, PLAZA_MOCKUP_MODEL, ROTATING_MOCKUP_MODEL } from './mockup-catalog';
 
 export const mockupIdSchema = z.string().min(1).max(128).regex(/^[a-zA-Z0-9_-]+$/);
 const materialSchema = z.object({
@@ -10,7 +10,7 @@ const materialSchema = z.object({
 export const labMockupModelSchema = z.object({
   id: z.string().uuid(), name: z.string().trim().min(1).max(100),
   supplierCode: z.string().trim().max(100),
-  rendererId: z.union([z.literal(MOCKUP_MODEL.id), z.literal(ROTATING_MOCKUP_MODEL.id)]).nullable(),
+  rendererId: z.union([z.literal(MOCKUP_MODEL.id), z.literal(ROTATING_MOCKUP_MODEL.id), z.literal(PLAZA_MOCKUP_MODEL.id)]).nullable(),
   active: z.boolean(),
   materialIds: z.array(z.string().uuid()).max(38).refine(items => new Set(items).size === items.length),
 }).strict().refine(model => !model.rendererId || model.materialIds.length > 0, 'Seleziona almeno un rivestimento');
