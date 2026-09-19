@@ -1,3 +1,4 @@
+import { I_NOBILI_MATERIALS } from './i-nobili-catalog';
 // Generato dal catalogo del prototipo Custodia; ID originali conservati.
 export const MOCKUP_MODEL = {
   "id": "15870135-cc65-5c61-8db0-ccccd8529a77",
@@ -175,10 +176,10 @@ export const ROTATING_MOCKUP_MODEL = {
 
 // Identità distinta: il Plaza ha una doppia cornice e una meccanica propria.
 export const PLAZA_MOCKUP_MODEL = {
-  id: 'plaza-led', name: 'Plaza LED', assetRevision: 1,
+  id: 'plaza-led', name: 'Plaza LED', assetRevision: 2,
   coverLayouts: ['full', 'plaque', 'photo-plaque', 'split-photo-fabric'], defaultCoverLayout: 'plaque',
   // Il renderer legacy usa il catalogo tessuti della Custodia.
-  variants: MOCKUP_MODEL.variants,
+  variants: [...MOCKUP_MODEL.variants, ...I_NOBILI_MATERIALS],
 } as const;
 
 /**
@@ -267,13 +268,13 @@ export const MOCKUP_RENDERERS = [
   }),
   defineRenderer({
     ...PLAZA_MOCKUP_MODEL,
-    path: 'plaza-v1/index.html',
+    path: 'plaza-v2/index.html',
     wizardSteps: ROTATING_WIZARD_STEPS,
     coverExamples: [
-      { layout: 'full', title: 'Foto grande', description: 'La tua fotografia sulla cornice mobile del Plaza.', image: 'girevole-full.webp' },
-      { layout: 'plaque', title: 'Incisione con i vostri nomi', description: 'La placchetta centrale sull’album estraibile.', image: 'girevole-plaque.webp' },
-      { layout: 'photo-plaque', title: 'Foto piccola sul tessuto', description: 'Una fotografia centrale nel formato della placchetta.', image: 'girevole-photo-plaque.webp' },
-      { layout: 'split-photo-fabric', title: 'Foto e tessuto inciso', description: 'Foto e tessuto coordinato sulla cornice mobile.', image: 'girevole-split-photo-fabric.svg' },
+      { layout: 'full', title: 'Foto grande', description: 'La tua fotografia sulla cornice mobile del Plaza.', image: 'plaza-full.webp' },
+      { layout: 'plaque', title: 'Incisione con i vostri nomi', description: 'La placchetta centrale sull’album estraibile.', image: 'plaza-plaque.webp' },
+      { layout: 'photo-plaque', title: 'Foto piccola sul tessuto', description: 'Una fotografia centrale nel formato della placchetta.', image: 'plaza-photo-plaque.webp' },
+      { layout: 'split-photo-fabric', title: 'Foto, tessuto e placchetta', description: 'Foto a destra e placchetta con nomi sulla copertina in tessuto.', image: 'plaza-split-photo-fabric.webp' },
     ],
   }),
 ] as const;

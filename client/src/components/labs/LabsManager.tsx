@@ -493,7 +493,7 @@ export default function LabsManager() {
       <Dialog open={!!catalogLab} onOpenChange={() => setCatalogLab(null)}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Modelli album · {catalogLab?.nome}</DialogTitle><DialogDescription>Catalogo e rivestimenti disponibili presso questo laboratorio.</DialogDescription></DialogHeader>
-          {catalogLab && <LabMockupCatalog key={catalogLab.id} labId={catalogLab.id} />}
+          {catalogLab && <LabMockupCatalog key={catalogLab.id} labId={catalogLab.id} labName={catalogLab.nome} />}
         </DialogContent>
       </Dialog>
       <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>

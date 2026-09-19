@@ -24,17 +24,25 @@ export async function buildMockupReport(saved: SavedMockup, previews: z.infer<ty
   ];
   if ('frameFinish' in saved.configuration) rows.push(['Finitura struttura', { wood: 'Legno naturale', white: 'Bianco', fabric: `Tessuto · ${material.label}` }[saved.configuration.frameFinish]], ['Dimensioni', 'Formato dichiarato 30 × 80 cm; proporzioni della struttura indicative']);
   if ('backCover' in saved.configuration) {
-    if (saved.configuration.assetRevision >= 4) rows.push(['Plexiglass posteriore dello scrigno girevole', saved.configuration.backCover === 'photo' ? 'Foto a tutta superficie; rimane sullo scrigno quando l’album viene estratto' : 'Trasparente, senza stampa'], ['Retro album', 'Tessuto coordinato']);
+    if ((saved.configuration.modelId === 'plaza-led' && saved.configuration.assetRevision >= 2) || saved.configuration.assetRevision >= 4) rows.push(['Plexiglass posteriore dello scrigno girevole', saved.configuration.backCover === 'photo' ? 'Foto a tutta superficie; rimane sullo scrigno quando l’album viene estratto' : 'Trasparente, senza stampa'], ['Retro album', 'Tessuto coordinato']);
     else rows.push(['Retro album', saved.configuration.backCover === 'photo' ? 'Foto a tutta superficie su plexiglass' : 'Tessuto coordinato']);
   }
   if ('ledEnabled' in saved.configuration) {
     rows.push(['Illuminazione LED Plaza', saved.configuration.ledEnabled ? 'Accesa · percorso a U sulla doppia cornice' : 'Spenta']);
   }
   const engravingNames = 'engravingNames' in saved.configuration ? saved.configuration.engravingNames : undefined;
+  if (saved.configuration.modelId === 'plaza-led' && saved.configuration.assetRevision >= 2) {
+    rows.push(['Placchetta laterale superiore in plexiglass', engravingNames?.first || 'Senza nome'], ['Placchetta laterale inferiore in plexiglass', engravingNames?.second || 'Senza nome']);
+  }
   if (engravingNames && engravedCover) {
     rows[5] = ['Primo nome inciso', engravingNames.first];
     rows[6] = ['Secondo nome inciso', engravingNames.second];
-    rows.push(['Grafica incisione', 'Monogramma botanico con iniziali automatiche']);
+    rows.push(['Grafica incisione', saved.configuration.modelId === 'plaza-led' && saved.configuration.assetRevision >= 2 && saved.configuration.coverLayout === 'split-photo-fabric' ? 'Nomi incisi sulla placchetta' : 'Monogramma botanico con iniziali automatiche']);
+  }
+  if (saved.configuration.modelId === 'plaza-led') {
+    const innerId = saved.configuration.innerMaterialId || saved.configuration.materialId;
+    const inner = option.materials.find(m => m.id === innerId);
+    rows.push(['Telaio esterno e album', `${material.label} · ${material.supplierCode}`], ['Telaio interno', `${inner?.label || 'Non disponibile'} · ${inner?.supplierCode || ''}`]);
   }
   const images: string[] = [];
   for (const preview of previews) {

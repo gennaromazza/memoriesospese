@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 // Ambientazioni esplorative condivise. Le unità sono metri; nessun dato d'ordine.
-export function installHomeScenes({ scene, camera, controls, ground, product, album, beforeEnter, afterLeave }) {
+export function installHomeScenes({ scene, camera, controls, ground, product, album, beforeEnter, afterLeave, productLighting = false }) {
   const room = new THREE.Group(); room.visible = false; scene.add(room);
   const furniture = new THREE.MeshPhysicalMaterial({ color: '#c6bbaa', roughness: .72 });
   const fronts = furniture.clone();
@@ -157,10 +157,10 @@ export function installHomeScenes({ scene, camera, controls, ground, product, al
   function applyLighting() {
     if (!active) return;
     const evening = lighting.value === 'evening';
-    baseLights.forEach((light, i) => light.intensity = saved.lights[i] * (evening ? .28 : .85));
-    scene.environmentIntensity = saved.environmentIntensity * (evening ? .65 : 1);
+    baseLights.forEach((light, i) => light.intensity = saved.lights[i] * (evening ? (productLighting ? .14 : .28) : .85));
+    scene.environmentIntensity = saved.environmentIntensity * (evening ? (productLighting ? .22 : .65) : 1);
     ledMaterial.emissiveIntensity = evening ? 3 : 0;
-    ledLights.forEach(light => light.intensity = evening ? .22 : 0);
+    ledLights.forEach(light => light.intensity = evening && !productLighting ? .22 : 0);
     document.body.dataset.homeLighting = lighting.value;
   }
   lighting.onchange = applyLighting;

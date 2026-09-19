@@ -149,5 +149,5 @@ const app = location.pathname === '/history-away'
     ? <Route path="/fotolibro/:token"><PhotobookViewPage /></Route>
     : location.pathname.startsWith('/admin/photobooks/')
       ? <Route path="/admin/photobooks/:id"><PhotobookEditorPage /></Route>
-      : <main className="max-w-6xl mx-auto p-4">{params.has('catalog') ? <LabMockupCatalog labId="lab" /> : params.has('job') ? <MockupTrack jobId="job" /> : <PhotobookMockup photobookId="book" version={1} token={params.has('admin') ? undefined : 'mockup-test-token'} readOnly={params.has('readonly')} />}</main>;
+      : <main className="max-w-6xl mx-auto p-4">{params.has('catalog') ? <LabMockupCatalog labId="lab" labName={params.has('nobili') ? 'I Nobili' : 'Laboratorio'} /> : params.has('job') ? <MockupTrack jobId="job" /> : <PhotobookMockup photobookId="book" version={1} token={params.has('admin') ? undefined : 'mockup-test-token'} readOnly={params.has('readonly')} />}</main>;
 createRoot(document.getElementById('root')!).render(<QueryClientProvider client={queryClient}>{app}</QueryClientProvider>);

@@ -1,3 +1,4 @@
+import { I_NOBILI_MATERIALS } from '../shared/i-nobili-catalog';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import express from 'express';
 import type { AddressInfo } from 'node:net';
@@ -38,6 +39,36 @@ describe('Catalogo laboratori e protezioni spedizione mockup', () => {
     expect((await request('/labs/lab/mockup-catalog', 'GET', undefined, '')).status).toBe(401);
     expect((await request('/labs/lab/mockup-catalog', 'PUT', catalog, 'client')).status).toBe(403);
     expect(await request('/labs/lab/mockup-catalog').then(r => r.json())).toEqual({ revision: 0, materials: [], models: [] });
+  });
+  it('rejects Nobili materials and even inactive Plaza models in another laboratory', async () => {
+    const v = I_NOBILI_MATERIALS[0];
+    const material = { id: v.id, label: v.label, supplierCode: v.supplierCode };
+    const foreign = { ...catalog, materials: [material], models: [] };
+    expect((await request('/labs/lab/mockup-catalog', 'PUT', foreign)).status).toBe(400);
+    expect((await request('/labs/lab/mockup-catalog', 'PUT', { ...catalog, models: [{ ...catalog.models[0], rendererId: 'plaza-led', active: false }] })).status).toBe(400);
+    expect(h.docs.get('labs/lab').mockupCatalog).toBeUndefined();
+    h.docs.get('labs/lab').mockupCatalog = { ...foreign, models: [{ ...catalog.models[0], rendererId: 'plaza-led', materialIds: [v.id] }] };
+    expect(await request('/labs/lab/mockup-catalog').then(r => r.json())).toMatchObject({ materials: [], models: [] });
+  });
+  it('rejects fabrics unsupported by an existing renderer even in the correct lab', async () => {
+    const v = I_NOBILI_MATERIALS[0];
+    h.docs.get('labs/lab').nome = 'I Nobili';
+    expect((await request('/labs/lab/mockup-catalog', 'PUT', { ...catalog, materials: [{ id: v.id, label: v.label, supplierCode: v.supplierCode }], models: [{ ...catalog.models[0], materialIds: [v.id] }] })).status).toBe(400);
+  });
+  it('imports 86 Nobili materials only into i Nobili, idempotently and without changing other models', async () => {
+    const path = '/labs/lab/mockup-catalog/import-i-nobili';
+    expect((await request(path, 'POST', {}, '')).status).toBe(401);
+    expect((await request(path, 'POST', {}, 'client')).status).toBe(403);
+    expect((await request(path, 'POST', {})).status).toBe(400);
+    h.docs.set('labs/lab', { nome: 'I Nobili', mockupCatalog: catalog });
+    expect((await request(path, 'POST', {})).status).toBe(200);
+    const imported = structuredClone(h.docs.get('labs/lab').mockupCatalog);
+    expect(imported.materials).toHaveLength(87);
+    expect(imported.models[0]).toEqual(catalog.models[0]);
+    expect(imported.models[1].materialIds).toHaveLength(86);
+    expect(imported.materials.some((m: any) => m.supplierCode === 'T03')).toBe(true);
+    expect((await request(path, 'POST', {})).status).toBe(200);
+    expect(h.docs.get('labs/lab').mockupCatalog).toEqual(imported);
   });
   it('salva nomi e campionario comuni, rifiuta una revisione obsoleta o materiali estranei', async () => {
     expect((await request('/labs/lab/mockup-catalog', 'PUT', catalog)).status).toBe(200);

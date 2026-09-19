@@ -157,7 +157,7 @@ export function installMockupWizard(doc: Document, mobile = false) {
       padding: 0 !important;
       margin: 0 !important;
     }
-    body[data-wizard][data-wizard-step="3"] :is(.category, .material-category)[open] {
+    body[data-wizard][data-wizard-step="3"] :is(.category, .material-category)[open]:not([hidden]) {
       display: block !important;
     }
     body[data-wizard][data-wizard-step="3"] :is(.category, .material-category) > summary {
@@ -320,6 +320,7 @@ export function installMockupWizard(doc: Document, mobile = false) {
     }
 
     /* FAMIGLIE TESSUTO (STEP 2) */
+    body[data-wizard] .wizard-family-card[hidden] { display: none !important; }
     body[data-wizard] .wizard-family-selector {
       display: grid;
       grid-template-columns: 1fr;
@@ -507,6 +508,9 @@ export function installMockupWizard(doc: Document, mobile = false) {
       display: none;
       margin-top: 10px;
     }
+    body[data-wizard][data-wizard-home="true"] #wizard-home { display: block !important; }
+    body[data-wizard][data-wizard-home="true"] #homePanel { display: block !important; }
+    body[data-wizard][data-wizard-home="true"] .panel-content > :is(#fabricPanel, #detailPanel, #summaryPanel) { display: none !important; }
     body[data-wizard] .download-bar {
       display: none !important;
     }
@@ -730,6 +734,9 @@ export function installMockupWizard(doc: Document, mobile = false) {
   // CONFIGURAZIONE SCHEDE ATOMICHE FAMIGLIE TESSUTO (STEP 2 e 3)
   const fabricPanel = doc.getElementById('fabricPanel');
   const materialsDiv = doc.getElementById('materials');
+  const familyCards: { category: HTMLDetailsElement; button: HTMLButtonElement }[] = [];
+  const syncFamilies = () => familyCards.forEach(({ category, button }) => { button.hidden = category.hidden; });
+  const familyObserver = new MutationObserver(syncFamilies);
   let selectedFamily = '';
   let onFamilySelectCallback: ((family: string) => void) | null = null;
 
@@ -772,6 +779,9 @@ export function installMockupWizard(doc: Document, mobile = false) {
         onFamilySelectCallback?.(familyName);
       };
 
+      btn.hidden = cat.hidden;
+      familyCards.push({ category: cat, button: btn });
+      familyObserver.observe(cat, { attributes: true, attributeFilter: ['hidden'] });
       familySelector.append(btn);
 
       // Aggiungi breadcrumb di ritorno all'inizio di ogni categoria per lo step 3
@@ -785,7 +795,8 @@ export function installMockupWizard(doc: Document, mobile = false) {
       cat.prepend(breadcrumb);
     });
 
-    fabricPanel.prepend(familySelector);
+    if (doc.getElementById('fabricTarget')) materialsDiv.before(familySelector);
+    else fabricPanel.prepend(familySelector);
 
     function updateFamilySelection() {
       familySelector.querySelectorAll<HTMLButtonElement>('.wizard-family-card').forEach(b => {
@@ -974,6 +985,7 @@ export function installMockupWizard(doc: Document, mobile = false) {
       if (disposed) return;
       disposed = true;
       observer.disconnect();
+      familyObserver.disconnect();
       style.remove();
       mobileStyle?.remove();
       slot.remove();

@@ -1,3 +1,4 @@
+import { visibleCatalogForLab } from '@shared/mockup-workflow';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getAllLabs } from '@/lib/labs';
@@ -21,7 +22,7 @@ export default function MockupOfferEditor({
   const [selected, setSelected] = useState<string[] | null>(null);
   const [mode, setMode] = useState<MockupOfferMode>(modelMode || offer?.mode || (offer?.options.length === 1 ? 'fixed' : 'choice'));
   const labs = useQuery({ queryKey: ['mockup-labs-catalog'], queryFn: () => getAllLabs(true), enabled: expanded });
-  const choices = (labs.data || []).map(lab => ({ ...lab, models: ((lab as typeof lab & { mockupCatalog?: LabMockupCatalog }).mockupCatalog?.models || []).filter(m => m.active && m.rendererId) }));
+  const choices = (labs.data || []).map(lab => ({ ...lab, models: visibleCatalogForLab((lab as typeof lab & { mockupCatalog?: LabMockupCatalog }).mockupCatalog || { revision: 0, models: [], materials: [] }, lab.nome).models.filter(m => m.active && m.rendererId && m.materialIds.length) }));
   const selection = selected || offer?.options.map(o => `${o.labId}/${o.id}`) || [];
   const fixedKey = selected?.[0] || (modelSelection
     ? `${modelSelection.labId}/${modelSelection.modelId}`

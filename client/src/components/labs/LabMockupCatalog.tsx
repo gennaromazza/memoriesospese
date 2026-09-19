@@ -1,3 +1,4 @@
+import { I_NOBILI_MATERIALS } from '@shared/i-nobili-catalog';
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
@@ -5,10 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PhotobookErrorState, PhotobookLoadingState } from '@/components/photobook/PhotobookUiStates';
 import { MOCKUP_RENDERERS } from '@shared/mockup-catalog';
-import { labMockupCatalogSchema, type LabMockupCatalog as Catalog, type LabMockupModel } from '@shared/mockup-workflow';
+import { isNobiliLab, materialFitsRenderer, labMockupCatalogSchema, type LabMockupCatalog as Catalog, type LabMockupModel } from '@shared/mockup-workflow';
 import seed from '../../../public/mockups/custodia-v1/peppe-lab-catalog.json';
 
-export default function LabMockupCatalog({ labId }: { labId: string }) {
+export default function LabMockupCatalog({ labId, labName }: { labId: string; labName: string }) {
+  const nobili = isNobiliLab(labName);
+  const renderers = MOCKUP_RENDERERS.filter(r => r.id !== 'plaza-led' || nobili);
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<Catalog | null>(null);
   const [busy, setBusy] = useState(false);
@@ -18,14 +21,23 @@ export default function LabMockupCatalog({ labId }: { labId: string }) {
   const query = useQuery<Catalog>({ queryKey: [base], queryFn: async () => (await apiRequest('GET', base)).json() });
   const catalog = draft || query.data;
   const update = (id: string, patch: Partial<LabMockupModel>) => catalog && setDraft({ ...catalog, models: catalog.models.map(m => m.id === id ? { ...m, ...patch } : m) });
-  const importMaterials = () => catalog && setDraft({ ...catalog, materials: seed.variants.map(v => catalog.materials.find(m => m.id === v.id) || { id: v.id, label: v.label, supplierCode: v.supplierCode || '' }) });
+  const importMaterials = () => catalog && setDraft({ ...catalog, materials: [...catalog.materials, ...seed.variants.filter(v => !catalog.materials.some(m => m.id === v.id)).map(v => ({ id: v.id, label: v.label, supplierCode: v.supplierCode || '' }))] });
+  async function importNobili() {
+    setBusy(true);
+    try {
+      const saved: Catalog = await (await apiRequest('POST', `${base}/import-i-nobili`, {})).json();
+      queryClient.setQueryData([base], saved); void queryClient.invalidateQueries({ queryKey: ['mockup-labs-catalog'] }); setDraft(null);
+      setMessage('86 campioni i Nobili importati e associati a Plaza LED.');
+    } catch (error) { setMessage((error as Error).message); }
+    finally { setBusy(false); }
+  }
   async function save() {
     const parsed = labMockupCatalogSchema.safeParse(catalog);
     if (!parsed.success) { setMessage('Controlla i nomi e seleziona almeno un rivestimento per ogni modello 3D.'); return; }
     setBusy(true);
     try {
       const saved: Catalog = await (await apiRequest('PUT', base, parsed.data)).json();
-      queryClient.setQueryData([base], saved); setDraft(null); setEditingId(null);
+      queryClient.setQueryData([base], saved); void queryClient.invalidateQueries({ queryKey: ['mockup-labs-catalog'] }); setDraft(null); setEditingId(null);
       setMessage('Catalogo salvato. Le proposte già pubblicate non sono state cambiate.');
     }
     catch (error) { setMessage((error as Error).message); }
@@ -59,18 +71,20 @@ export default function LabMockupCatalog({ labId }: { labId: string }) {
       {editingId === model.id && <fieldset id={`model-${model.id}`} disabled={busy} className="p-4 space-y-3 border-t">
        <label htmlFor={`model-name-${model.id}`} className="block">Nome mostrato al cliente<Input id={`model-name-${model.id}`} maxLength={100} value={model.name} onChange={e => update(model.id, { name: e.target.value })} /></label>
        <label htmlFor={`model-code-${model.id}`} className="block">Codice modello del fornitore (facoltativo)<Input id={`model-code-${model.id}`} maxLength={100} value={model.supplierCode} onChange={e => update(model.id, { supplierCode: e.target.value })} /></label>
-       <label htmlFor={`model-renderer-${model.id}`} className="block">Modello 3D<select id={`model-renderer-${model.id}`} aria-label={`Modello 3D per ${model.name || 'nuovo modello'}`} className="block border rounded p-2 w-full min-h-10" value={model.rendererId || ''} onChange={e => update(model.id, { rendererId: MOCKUP_RENDERERS.find(r => r.id === e.target.value)?.id || null, materialIds: e.target.value && !model.materialIds.length ? catalog.materials.map(m => m.id) : model.materialIds })}><option value="">Da integrare — non proponibile al cliente</option>{MOCKUP_RENDERERS.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
+       <label htmlFor={`model-renderer-${model.id}`} className="block">Modello 3D<select id={`model-renderer-${model.id}`} aria-label={`Modello 3D per ${model.name || 'nuovo modello'}`} className="block border rounded p-2 w-full min-h-10" value={model.rendererId || ''} onChange={e => update(model.id, { rendererId: MOCKUP_RENDERERS.find(r => r.id === e.target.value)?.id || null, materialIds: (e.target.value && !model.materialIds.length ? catalog.materials.map(m => m.id) : model.materialIds).filter(id => materialFitsRenderer(e.target.value || null, id)) })}><option value="">Da integrare — non proponibile al cliente</option>{renderers.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
        <label htmlFor={`model-active-${model.id}`} className="flex items-center gap-2"><input id={`model-active-${model.id}`} type="checkbox" checked={model.active} onChange={e => update(model.id, { active: e.target.checked })} />Disponibile nel catalogo</label>
       {model.rendererId && <details><summary className="cursor-pointer">Rivestimenti compatibili del laboratorio ({model.materialIds.length})</summary>
         {!catalog.materials.length && <p>Importa prima il campionario qui sotto.</p>}
-        {catalog.materials.map(material => <label key={material.id} className="flex gap-2 py-1"><input type="checkbox" checked={model.materialIds.includes(material.id)} onChange={e => update(model.id, { materialIds: e.target.checked ? [...model.materialIds, material.id] : model.materialIds.filter(id => id !== material.id) })} />{material.label}</label>)}
+        {catalog.materials.filter(material => materialFitsRenderer(model.rendererId, material.id)).map(material => <label key={material.id} className="flex gap-2 py-1"><input type="checkbox" checked={model.materialIds.includes(material.id)} onChange={e => update(model.id, { materialIds: e.target.checked ? [...model.materialIds, material.id] : model.materialIds.filter(id => id !== material.id) })} />{material.label}</label>)}
       </details>}
       <p className="text-xs text-muted-foreground">Le modifiche saranno applicate con “Salva catalogo”. Per non proporre più questo modello, togli la disponibilità senza perdere i suoi dati.</p>
     </fieldset>}</section>)}
     {catalog && <details className="border rounded p-3"><summary className="cursor-pointer">Campionario del laboratorio ({catalog.materials.length})</summary>
       <p className="text-xs my-2">Nomi e codici sono comuni ai modelli di questo laboratorio. Importa Custodia solo nell’anagrafica del suo fornitore reale.</p>
-      <Button variant="outline" disabled={busy} onClick={importMaterials}>Importa campionario Custodia / Peppe Lab</Button>
-      {catalog.materials.map(material => <div key={material.id} className="grid sm:grid-cols-2 gap-2 py-2"><Input disabled={busy} aria-label={`Nome ${material.label}`} maxLength={100} value={material.label} onChange={e => setDraft({ ...catalog, materials: catalog.materials.map(m => m.id === material.id ? { ...m, label: e.target.value } : m) })} /><Input disabled={busy} aria-label={`Codice fornitore ${material.label}`} maxLength={100} placeholder="Codice fornitore" value={material.supplierCode} onChange={e => setDraft({ ...catalog, materials: catalog.materials.map(m => m.id === material.id ? { ...m, supplierCode: e.target.value } : m) })} /></div>)}
+      <Button className="h-auto whitespace-normal text-left" variant="outline" disabled={busy} onClick={importMaterials}>Importa campionario Custodia / Peppe Lab</Button>
+      <div className="flex flex-wrap gap-2">{nobili && <Button className="h-auto whitespace-normal text-left" variant="outline" disabled={busy || !!draft} onClick={importNobili}>Importa i Nobili · 86 campioni e Plaza LED</Button>}</div>
+      {nobili && draft && <p className="text-xs">Salva o annulla le modifiche prima di importare i Nobili.</p>}
+      {catalog.materials.map(material => <div key={material.id} className="grid sm:grid-cols-2 gap-2 py-2"><Input disabled={busy} aria-label={`Nome ${material.label}`} maxLength={100} value={material.label} onChange={e => setDraft({ ...catalog, materials: catalog.materials.map(m => m.id === material.id ? { ...m, label: e.target.value } : m) })} /><Input disabled={busy} aria-label={`Codice fornitore ${material.label}`} maxLength={100} placeholder="Codice fornitore" value={material.supplierCode} onChange={e => setDraft({ ...catalog, materials: catalog.materials.map(m => m.id === material.id ? { ...m, supplierCode: e.target.value } : m) })} />{I_NOBILI_MATERIALS.find(v => v.id === material.id) && <a className="text-sm underline" target="_blank" rel="noopener noreferrer" href={I_NOBILI_MATERIALS.find(v => v.id === material.id)!.sampleUrl}>Vedi campione dal catalogo · {material.supplierCode}</a>}</div>)}
     </details>}
     <div className="sticky bottom-0 z-10 border-t bg-background py-3 space-y-2">
       <div className="flex flex-wrap items-center gap-2">

@@ -55,10 +55,12 @@ const rotatingBoxConfigurationSchema = rotatingBoxConfigurationBase.refine(c => 
   .refine(c => c.coverLayout === 'plaque' || !!c.photoAssetId, 'Seleziona una foto per questa copertina')
   .refine(c => c.backCover === 'fabric' || !!c.backPhotoAssetId, 'Seleziona una foto per il plexiglass dello scrigno');
 const plazaConfigurationObject = z.object({
-  modelId: z.literal(PLAZA_MOCKUP_MODEL.id), assetRevision: z.literal(1),
+  modelId: z.literal(PLAZA_MOCKUP_MODEL.id), assetRevision: z.union([z.literal(1), z.literal(2)]),
   materialId: z.string(), appearanceRevision: z.number().int(),
+  innerMaterialId: z.string().uuid().optional(), innerAppearanceRevision: z.number().int().optional(),
   coverLayout: z.enum(['full', 'plaque', 'photo-plaque', 'split-photo-fabric']),
-  frameFinish: z.enum(['wood', 'white', 'fabric']),
+  // Old Plaza choices are normalized when reopening or saving: this product only has matching fabric.
+  frameFinish: z.enum(['wood', 'white', 'fabric']).transform(() => 'fabric' as const),
   topText: z.string().max(50), bottomText: z.string().max(50),
   photoAssetId: z.string().uuid().nullable(),
   crop: z.object({ zoom: z.number().min(1).max(3), x: z.number().min(0).max(1), y: z.number().min(0).max(1) }).strict(),
@@ -69,6 +71,7 @@ const plazaConfigurationObject = z.object({
   ledEnabled: z.boolean(),
 }).strict();
 const plazaConfigurationSchema = plazaConfigurationObject
+  .refine(c => c.innerMaterialId === undefined ? c.innerAppearanceRevision === undefined : isCatalogMaterial(PLAZA_MOCKUP_MODEL.variants, c.innerMaterialId, c.innerAppearanceRevision ?? -1), 'Rivestimento interno non disponibile')
   .refine(c => isCatalogMaterial(PLAZA_MOCKUP_MODEL.variants, c.materialId, c.appearanceRevision), 'Revisione del rivestimento non disponibile')
   .refine(c => c.coverLayout === 'plaque' || !!c.photoAssetId, 'Seleziona una foto per questa copertina')
   .refine(c => c.backCover === 'fabric' || !!c.backPhotoAssetId, 'Seleziona una foto per il plexiglass dello scrigno');
