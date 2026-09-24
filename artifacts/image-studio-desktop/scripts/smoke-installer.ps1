@@ -34,11 +34,15 @@ try {
     if (-not (Test-Path $file)) { throw "Elemento assente dopo l'installazione: $file" }
   }
 
-  $process = Start-Process -FilePath $appExe -PassThru
-  Start-Sleep -Seconds 12
+  $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
+  $listener.Start()
+  $debugPort = $listener.LocalEndpoint.Port
+  $listener.Stop()
+  $process = Start-Process -FilePath $appExe -ArgumentList "--remote-debugging-port=$debugPort" -PassThru
+  node (Join-Path $PSScriptRoot 'check-renderer.mjs') $debugPort
   $process.Refresh()
   if ($process.HasExited) { throw "L'app si è chiusa subito dopo l'avvio (exit code $($process.ExitCode))." }
-  Write-Host 'Installazione, collegamenti e avvio: OK'
+  Write-Host 'Installazione, collegamenti e schermata di login: OK'
 }
 finally {
   if ($process -and -not $process.HasExited) {
