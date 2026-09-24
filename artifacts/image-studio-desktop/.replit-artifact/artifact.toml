@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/desktop/"
+title = "Image Studio Desktop"
+description = "Applicazione desktop Windows per amministrare gallerie, foto, capitoli, selezioni cliente e upload affidabili sugli stessi dati di Image Studio."
+version = "1.0.0"
+id = "artifacts/image-studio-desktop"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/desktop/" ]
+localPort = 21541
+
+[services.development]
+run = "pnpm --filter @workspace/image-studio-desktop run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/image-studio-desktop", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/image-studio-desktop/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21541"
+BASE_PATH = "/desktop/"
