@@ -24,7 +24,7 @@ declare global {
         },
         onProgress: (progress: { loaded: number; total: number; progress: number }) => void,
       ): Promise<{ success: boolean; size: number }>;
-      cancelUpload(requestId: string): Promise<{ success: boolean }>;
+       cancelUpload(requestId: string): Promise<{ success: boolean }>;
       openExternal(url: string): Promise<void>;
     };
   }

@@ -1,28 +1,34 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useLocation } from 'wouter';
-import { useGallery, useUpdateGallery, useDeleteGallery, useGalleryPhotos, useGalleryChapters, useDeletePhoto, useCreateChapter, useCustomerSelection, useConfigureSelection, useUnlockSelection, useResetSelection } from '../../lib/api-hooks';
+import { useGallery, useUpdateGallery, useDeleteGallery, useCustomerSelection, useConfigureSelection, useUnlockSelection, useResetSelection, useClients, useJobs, useProducts, useSelectionResults, useSelectionHistory, useUpdateGallerySecrets, useShareGallery } from '../../lib/api-hooks';
+import { CoverControls, PhotosTab } from './organization';
 import { useUploadQueue } from '../../lib/uploadQueue';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Camera, Settings, UploadCloud, Images, Trash2, ArrowLeft, Loader2, CheckCircle2, AlertCircle, Share, Play, Pause, RefreshCw } from 'lucide-react';
+import { UploadCloud, Trash2, ArrowLeft, Loader2, CheckCircle2, AlertCircle, Share, Play, Pause, RefreshCw, Copy, Check, LockKeyhole } from 'lucide-react';
 import { selectFolderNative } from '../../lib/native';
+import { browserFolderChapter, supportedUploadImage } from '../../lib/folderChapter';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Progress } from '@/components/ui/progress';
 
 export default function GalleryWorkspace({ id }: { id: string }) {
   const [, setLocation] = useLocation();
   const { data: gallery, isLoading, error } = useGallery(id);
   const updateGallery = useUpdateGallery(id);
   const deleteGallery = useDeleteGallery();
+  const shareGallery = useShareGallery(id);
+  const [shareEmail, setShareEmail] = useState('');
   
   if (isLoading) return <div className="p-8 flex justify-center text-muted-foreground"><Loader2 className="animate-spin" /></div>;
-  if (error || !gallery) return <div className="p-8 text-destructive">Error loading gallery {id}</div>;
+  if (error || !gallery) return <div className="p-8 text-destructive">Impossibile caricare la galleria. Riprova aggiornando la pagina.</div>;
 
   const handleDelete = () => {
     deleteGallery.mutate(id, {
-      onSuccess: () => setLocation('/')
+      onSuccess: () => setLocation('/'),
+      onError: e => window.alert(`Eliminazione non riuscita: ${e.message}`)
     });
   };
 
@@ -37,10 +43,13 @@ export default function GalleryWorkspace({ id }: { id: string }) {
           <div className="flex items-center gap-3">
             <Badge variant={gallery.status === 'published' ? 'default' : 'secondary'} className="capitalize">{gallery.status === 'draft' ? 'Bozza' : gallery.status === 'published' ? 'Pubblicata' : 'Archiviata'}</Badge>
             {gallery.publicUrl && (
-              <Button variant="outline" size="sm" onClick={() => window.open(gallery.publicUrl, '_blank')}>
-                <Share className="w-4 h-4 mr-2" />
-                Visualizza Pubblica
-              </Button>
+              <div className="flex items-center gap-2">
+                <Input value={shareEmail} onChange={e => setShareEmail(e.target.value)} placeholder="Email cliente" className="h-9 w-44" type="email" />
+                <Button variant="outline" size="sm" disabled={shareGallery.isPending || !shareEmail.includes('@')} onClick={() => shareGallery.mutate({ to: shareEmail }, { onSuccess: () => { setShareEmail(''); window.open(gallery.publicUrl, '_blank'); }, onError: (e: Error) => window.alert(`Condivisione non riuscita: ${e.message}`) })}>
+                  <Share className="w-4 h-4 mr-2" />
+                  {shareGallery.isPending ? 'Condivisione...' : 'Condividi / visualizza'}
+                </Button>
+              </div>
             )}
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -100,10 +109,9 @@ export default function GalleryWorkspace({ id }: { id: string }) {
     </div>
   );
 }
-
 function OverviewTab({ gallery, updateGallery }: { gallery: any, updateGallery: any }) {
   const handleStatusToggle = () => {
-    updateGallery.mutate({ status: gallery.status === 'published' ? 'draft' : 'published' });
+    updateGallery.mutate({ status: gallery.status === 'published' ? 'draft' : 'published' }, { onError: (e: Error) => window.alert(`Operazione non riuscita: ${e.message}`) });
   };
 
   return (
@@ -163,8 +171,10 @@ function OverviewTab({ gallery, updateGallery }: { gallery: any, updateGallery: 
     </div>
   );
 }
-
 function SettingsTab({ gallery, updateGallery }: { gallery: any, updateGallery: any }) {
+  const { data: clients = [] } = useClients();
+  const { data: jobs = [] } = useJobs();
+  const updateSecrets = useUpdateGallerySecrets(gallery.id);
   const [formData, setFormData] = useState({
     name: gallery.name || '',
     eventDate: gallery.eventDate || '',
@@ -173,92 +183,123 @@ function SettingsTab({ gallery, updateGallery }: { gallery: any, updateGallery: 
     category: gallery.category || '',
     jobId: gallery.jobId || '',
     publicUrl: gallery.publicUrl || '',
-    passwordEnabled: gallery.passwordEnabled || false,
-    pinEnabled: gallery.pinEnabled || false,
     specialTheme: gallery.specialTheme || '',
-    coverUrl: gallery.coverUrl || '',
-    mobileCoverUrl: gallery.mobileCoverUrl || '',
-    headerStyle: gallery.headerStyle || ''
+    headerStyle: gallery.headerStyle || '',
+    accessMode: gallery.accessMode || (gallery.pinEnabled ? 'pin' : gallery.passwordEnabled ? 'password' : 'open'),
+    passwordEnabled: gallery.passwordEnabled === true,
+    pinEnabled: gallery.pinEnabled === true,
+    clientId: gallery.clientIds?.[0] || '',
+    clientIds: gallery.clientIds || [],
   });
+  const [secret, setSecret] = useState('');
+  const [secretError, setSecretError] = useState('');
+  const [copied, setCopied] = useState(false);
   
   const handleSave = () => {
-    updateGallery.mutate(formData);
+    const accessMode = formData.accessMode;
+    setSecretError('');
+    const originalMode = gallery.accessMode || (gallery.pinEnabled ? 'pin' : gallery.passwordEnabled ? 'password' : 'open');
+    const accessChanged = accessMode !== originalMode;
+    if (accessChanged && accessMode !== 'open' && !secret.trim()) {
+      setSecretError(`Inserisci ${accessMode === 'password' ? 'una password' : 'un PIN'} prima di attivare la protezione.`);
+      return;
+    }
+    const { accessMode: _accessMode, passwordEnabled: _passwordEnabled, pinEnabled: _pinEnabled, clientId: _clientId, ...settings } = formData;
+    updateGallery.mutate({
+      ...settings,
+    }, { onSuccess: () => {
+      if (!accessChanged && !secret.trim()) { window.alert('Impostazioni salvate.'); return; }
+      const payload = accessMode === 'open'
+        ? { accessMode, password: null, specialPin: null }
+        : accessMode === 'password' ? { accessMode, password: secret } : { accessMode, specialPin: secret };
+      updateSecrets.mutate(payload, { onSuccess: () => { setSecret(''); window.alert('Impostazioni salvate.'); }, onError: (e: Error) => setSecretError(`Credenziale non salvata: ${e.message}`) });
+    }, onError: (e: Error) => setSecretError(`Salvataggio non riuscito: ${e.message}`) });
+  };
+  const copyPublicLink = async () => {
+    if (!gallery.publicUrl) return;
+    try {
+      await navigator.clipboard.writeText(gallery.publicUrl);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch { window.alert('Impossibile copiare il link.'); }
   };
 
   return (
     <div className="max-w-2xl space-y-6 pb-20">
       <div className="bg-card border border-border p-6 rounded-xl shadow-sm space-y-4">
-        <h3 className="font-medium text-foreground text-lg mb-4">Basic Information</h3>
+        <h3 className="font-medium text-foreground text-lg mb-4">Informazioni galleria</h3>
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2 col-span-2">
-            <Label>Gallery Name</Label>
+            <Label>Nome galleria</Label>
             <Input value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
           </div>
           <div className="space-y-2">
-            <Label>Event Date</Label>
+            <Label>Data evento</Label>
             <Input type="date" value={formData.eventDate} onChange={e => setFormData({ ...formData, eventDate: e.target.value })} />
           </div>
           <div className="space-y-2">
-            <Label>Location</Label>
+            <Label>Luogo</Label>
             <Input value={formData.location} onChange={e => setFormData({ ...formData, location: e.target.value })} />
           </div>
           <div className="space-y-2 col-span-2">
-            <Label>Description</Label>
+            <Label>Descrizione</Label>
             <Input value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} />
           </div>
           <div className="space-y-2">
-            <Label>Category</Label>
+            <Label>Categoria</Label>
             <Input value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} />
           </div>
           <div className="space-y-2">
             <Label>Job ID</Label>
-            <Input value={formData.jobId} onChange={e => setFormData({ ...formData, jobId: e.target.value })} />
+            <select className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm" value={formData.jobId} onChange={e => setFormData({ ...formData, jobId: e.target.value })}>
+              <option value="">Nessun job</option>
+              {jobs.map((job: any) => <option key={job.id} value={job.id}>{job.title || job.name || job.id}</option>)}
+            </select>
+          </div>
+          <div className="space-y-2 col-span-2">
+            <Label>Cliente</Label>
+            <select className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm" value={formData.clientId} onChange={e => setFormData({ ...formData, clientId: e.target.value, clientIds: e.target.value ? [e.target.value] : [] })}>
+              <option value="">Nessun cliente</option>
+              {clients.map((client: any) => <option key={client.id} value={client.id}>{client.name || client.nome || client.email || client.id}</option>)}
+            </select>
           </div>
         </div>
       </div>
 
       <div className="bg-card border border-border p-6 rounded-xl shadow-sm space-y-4">
-        <h3 className="font-medium text-foreground text-lg mb-4">Appearance</h3>
+        <h3 className="font-medium text-foreground text-lg mb-4">Aspetto</h3>
+        <CoverControls gallery={gallery} />
         <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2 col-span-2">
-            <Label>Desktop Cover URL</Label>
-            <Input value={formData.coverUrl} onChange={e => setFormData({ ...formData, coverUrl: e.target.value })} />
-          </div>
-          <div className="space-y-2 col-span-2">
-            <Label>Mobile Cover URL</Label>
-            <Input value={formData.mobileCoverUrl} onChange={e => setFormData({ ...formData, mobileCoverUrl: e.target.value })} />
-          </div>
           <div className="space-y-2">
-            <Label>Header Style</Label>
+            <Label>Stile intestazione</Label>
             <Input value={formData.headerStyle} onChange={e => setFormData({ ...formData, headerStyle: e.target.value })} />
           </div>
           <div className="space-y-2">
-            <Label>Special Theme</Label>
+            <Label>Tema speciale</Label>
             <Input value={formData.specialTheme} onChange={e => setFormData({ ...formData, specialTheme: e.target.value })} />
           </div>
         </div>
       </div>
 
       <div className="bg-card border border-border p-6 rounded-xl shadow-sm space-y-4">
-        <h3 className="font-medium text-foreground text-lg mb-4">Access Control</h3>
-        <div className="flex items-center justify-between">
-          <div>
-            <Label>Password Protection</Label>
-            <p className="text-sm text-muted-foreground">Require a password to view the gallery.</p>
-          </div>
-          <input type="checkbox" className="w-5 h-5 accent-primary" checked={formData.passwordEnabled} onChange={e => setFormData({ ...formData, passwordEnabled: e.target.checked })} />
+        <h3 className="font-medium text-foreground text-lg mb-4">Controllo accesso</h3>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground"><LockKeyhole className="w-4 h-4" /> Scegli come il cliente accederà alla galleria.</div>
+        <div className="space-y-2">
+          <Label>Modalità di accesso</Label>
+          <select className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm" value={formData.accessMode} onChange={e => setFormData({ ...formData, accessMode: e.target.value as 'open'|'password'|'pin' })}>
+            <option value="open">Pubblico (senza protezione)</option>
+            <option value="password">Password</option>
+            <option value="pin">PIN / tema speciale</option>
+          </select>
         </div>
-        <div className="flex items-center justify-between">
-          <div>
-            <Label>PIN Protection</Label>
-            <p className="text-sm text-muted-foreground">Require a PIN code to view the gallery.</p>
-          </div>
-          <input type="checkbox" className="w-5 h-5 accent-primary" checked={formData.pinEnabled} onChange={e => setFormData({ ...formData, pinEnabled: e.target.checked })} />
-        </div>
+        {formData.accessMode !== 'open' && <div className="space-y-2"><Label>{formData.accessMode === 'password' ? 'Nuova password' : 'Nuovo PIN'}</Label><Input type={formData.accessMode === 'password' ? 'password' : 'text'} inputMode={formData.accessMode === 'pin' ? 'numeric' : undefined} value={secret} onChange={e => setSecret(e.target.value)} placeholder="Inserisci una nuova credenziale" /></div>}
+        <p className="text-xs text-muted-foreground">Per sicurezza la credenziale attuale non viene mai caricata. Inserisci una nuova credenziale per salvarla.</p>
+        {secretError && <p className="text-sm text-destructive">{secretError}</p>}
+        {gallery.publicUrl && <Button type="button" variant="outline" onClick={copyPublicLink}>{copied ? <Check className="w-4 h-4 mr-2" /> : <Copy className="w-4 h-4 mr-2" />}{copied ? 'Link copiato' : 'Copia link pubblico'}</Button>}
       </div>
 
       <Button onClick={handleSave} disabled={updateGallery.isPending}>
-        {updateGallery.isPending ? 'Saving...' : 'Save Changes'}
+        {updateGallery.isPending ? 'Salvataggio...' : 'Salva modifiche'}
       </Button>
     </div>
   );
@@ -267,18 +308,42 @@ function SettingsTab({ gallery, updateGallery }: { gallery: any, updateGallery: 
 function SelectionTab({ gallery }: { gallery: any }) {
   const galleryId = gallery.id;
   const { data: selection, isLoading } = useCustomerSelection(galleryId);
+  const { data: catalogProducts = [] } = useProducts();
+  const { data: selectionResults = [] } = useSelectionResults(galleryId);
+  const { data: selectionHistory = [] } = useSelectionHistory(galleryId);
   const configure = useConfigureSelection(galleryId);
   const unlock = useUnlockSelection(galleryId);
   const reset = useResetSelection(galleryId);
   
   const [formData, setFormData] = useState({
+    enabled: selection?.enabled ?? gallery.selectionMode !== undefined,
+    unlimited: selection?.unlimited ?? false,
     mode: selection?.mode || 'like',
     requiredCount: selection?.requiredCount || 0,
     deadline: selection?.deadline ? new Date(selection.deadline).toISOString().split('T')[0] : ''
   });
+  const [productRequirements, setProductRequirements] = useState<Array<{ prodottoId: string; prodottoNome: string; prodottoNumeroFoto: number }>>([]);
+  useEffect(() => {
+    if (!selection) return;
+    setFormData({
+      enabled: selection.enabled ?? true,
+      unlimited: selection.unlimited ?? false,
+      mode: selection.mode || 'like',
+      requiredCount: selection.requiredCount || 0,
+      deadline: selection.deadline ? new Date(selection.deadline).toISOString().split('T')[0] : ''
+    });
+  }, [galleryId, selection?.mode, selection?.requiredCount, selection?.deadline, selection?.enabled, selection?.unlimited]);
+  useEffect(() => {
+    const source = selection?.productRequirements || selection?.products || gallery.productRequirements || [];
+    setProductRequirements(source.map((product: any) => ({
+      prodottoId: product.prodottoId || product.id || '',
+      prodottoNome: product.prodottoNome || product.nome || product.name || 'Prodotto',
+      prodottoNumeroFoto: Number(product.prodottoNumeroFoto ?? product.numeroFoto ?? 0),
+    })));
+  }, [galleryId, selection?.productRequirements, selection?.products, gallery.productRequirements]);
 
   const handleSave = () => {
-    configure.mutate(formData);
+    configure.mutate({ ...formData, productRequirements }, { onSuccess: () => window.alert('Selezione salvata.'), onError: (e: Error) => window.alert(`Salvataggio non riuscito: ${e.message}`) });
   };
 
   if (isLoading) return <div className="p-8 text-muted-foreground">Caricamento dati di selezione...</div>;
@@ -288,6 +353,10 @@ function SelectionTab({ gallery }: { gallery: any }) {
       <div className="bg-card border border-border p-6 rounded-xl shadow-sm space-y-4">
         <h3 className="font-medium text-foreground text-lg mb-4">Configurazione Selezione</h3>
         <div className="grid grid-cols-2 gap-4">
+          <div className="col-span-2 flex items-center gap-2">
+            <input id="selection-enabled" type="checkbox" checked={formData.enabled} onChange={e => setFormData({ ...formData, enabled: e.target.checked })} />
+            <Label htmlFor="selection-enabled">Abilita selezione cliente</Label>
+          </div>
           <div className="space-y-2">
             <Label>Modalità Selezione</Label>
             <select className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" value={formData.mode} onChange={e => setFormData({ ...formData, mode: e.target.value as 'like'|'dislike' })}>
@@ -297,7 +366,11 @@ function SelectionTab({ gallery }: { gallery: any }) {
           </div>
           <div className="space-y-2">
             <Label>Numero Foto Richieste</Label>
-            <Input type="number" value={formData.requiredCount} onChange={e => setFormData({ ...formData, requiredCount: parseInt(e.target.value, 10) || 0 })} />
+            <Input type="number" min={0} disabled={formData.unlimited} value={formData.requiredCount} onChange={e => setFormData({ ...formData, requiredCount: parseInt(e.target.value, 10) || 0 })} />
+          </div>
+          <div className="col-span-2 flex items-center gap-2">
+            <input id="selection-unlimited" type="checkbox" checked={formData.unlimited} onChange={e => setFormData({ ...formData, unlimited: e.target.checked, requiredCount: e.target.checked ? 0 : formData.requiredCount })} />
+            <Label htmlFor="selection-unlimited">Selezione libera (senza limite)</Label>
           </div>
           <div className="space-y-2">
             <Label>Scadenza (Opzionale)</Label>
@@ -310,6 +383,37 @@ function SelectionTab({ gallery }: { gallery: any }) {
       </div>
 
       <div className="bg-card border border-border p-6 rounded-xl shadow-sm space-y-4">
+        <h3 className="font-medium text-foreground text-lg">Prodotti e risultati</h3>
+        <p className="text-sm text-muted-foreground">Associa prodotti del catalogo e definisci quante foto deve selezionare il cliente per ciascuno.</p>
+        <div className="space-y-2">
+          {productRequirements.map((product, index) => (
+            <div key={`${product.prodottoId || 'custom'}-${index}`} className="grid grid-cols-[1fr_120px_auto] gap-2 items-center">
+              <span className="text-sm truncate">{product.prodottoNome}</span>
+              <Input type="number" min={0} value={product.prodottoNumeroFoto} onChange={e => setProductRequirements(rows => rows.map((row, i) => i === index ? { ...row, prodottoNumeroFoto: Math.max(0, Number(e.target.value) || 0) } : row))} aria-label={`Foto per ${product.prodottoNome}`} />
+              <Button type="button" variant="ghost" size="sm" onClick={() => setProductRequirements(rows => rows.filter((_, i) => i !== index))}>Rimuovi</Button>
+            </div>
+          ))}
+          <div className="flex gap-2">
+            <select className="flex-1 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm" value="" onChange={e => {
+              const selected = catalogProducts.find((product: any) => product.id === e.target.value);
+              if (selected && !productRequirements.some(product => product.prodottoId === selected.id)) setProductRequirements(rows => [...rows, { prodottoId: selected.id, prodottoNome: selected.name || selected.nome || selected.title || selected.id, prodottoNumeroFoto: Number(selected.numeroFoto || selected.photoCount || 0) }]);
+            }}>
+              <option value="">Aggiungi prodotto dal catalogo…</option>
+              {catalogProducts.filter((product: any) => !productRequirements.some(current => current.prodottoId === product.id)).map((product: any) => <option key={product.id} value={product.id}>{product.name || product.nome || product.title || product.id}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="text-xs text-muted-foreground">Totale foto richieste dai prodotti: {productRequirements.reduce((sum, product) => sum + product.prodottoNumeroFoto, 0)}</div>
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div><span className="text-muted-foreground">Risultato cliente:</span> <strong>{selection?.selectedCount || 0} foto</strong></div>
+          <div><span className="text-muted-foreground">Stato:</span> <strong>{selection?.locked ? 'Completato e bloccato' : 'In corso'}</strong></div>
+        </div>
+        {selectionResults.length > 0 && <div className="space-y-2"><h4 className="text-sm font-medium">Risultati dettagliati</h4>{selectionResults.slice(0, 100).map((result: any, index: number) => <div key={result.id || result.photoId || index} className="flex justify-between rounded border p-2 text-xs"><span>{result.photoName || result.name || result.photoId || `Foto ${index + 1}`}</span><span className="text-muted-foreground">{result.selection || result.action || (result.selected ? 'Selezionata' : 'Non selezionata')}</span></div>)}</div>}
+        {selectionHistory.length > 0 && <div className="space-y-2"><h4 className="text-sm font-medium">Cronologia dal server</h4>{selectionHistory.slice(0, 10).map((entry: any, index: number) => <div key={entry.id || index} className="flex justify-between rounded border p-2 text-xs"><span>{entry.label || entry.action || `Revisione ${index + 1}`}</span><span className="text-muted-foreground">{entry.timestamp ? new Date(entry.timestamp).toLocaleString() : ''}</span></div>)}</div>}
+        {selection?.snapshots?.length ? <div className="space-y-2"><h4 className="text-sm font-medium">Cronologia</h4>{selection.snapshots.map((snap: any, index: number) => <div key={index} className="flex justify-between rounded border p-2 text-xs"><span>{snap.label || `Revisione ${index + 1}`}</span><span className="text-muted-foreground">{snap.selectedCount ?? 0} foto{snap.timestamp ? ` · ${new Date(snap.timestamp).toLocaleString()}` : ''}</span></div>)}</div> : null}
+      </div>
+
+      <div className="bg-card border border-border p-6 rounded-xl shadow-sm space-y-4">
         <h3 className="font-medium text-foreground text-lg mb-4">Stato Selezione</h3>
         <div className="grid grid-cols-2 gap-4 text-sm mb-4">
           <div><span className="text-muted-foreground">Selezionate:</span> <span className="font-medium">{selection?.selectedCount || 0} / {selection?.requiredCount || 0}</span></div>
@@ -318,7 +422,7 @@ function SelectionTab({ gallery }: { gallery: any }) {
         
         <div className="flex gap-3">
           {selection?.locked && (
-            <Button variant="outline" onClick={() => unlock.mutate()} disabled={unlock.isPending}>
+            <Button variant="outline" onClick={() => unlock.mutate(undefined, { onSuccess: () => window.alert('Selezione sbloccata.'), onError: (e: Error) => window.alert(e.message) })} disabled={unlock.isPending}>
               {unlock.isPending ? 'Sblocco in corso...' : 'Sblocca Selezione'}
             </Button>
           )}
@@ -333,7 +437,7 @@ function SelectionTab({ gallery }: { gallery: any }) {
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Annulla</AlertDialogCancel>
-                <AlertDialogAction onClick={() => reset.mutate()} className="bg-destructive text-destructive-foreground">Ripristina</AlertDialogAction>
+                <AlertDialogAction onClick={() => reset.mutate(undefined, { onSuccess: () => window.alert('Selezione ripristinata.'), onError: (e: Error) => window.alert(e.message) })} className="bg-destructive text-destructive-foreground">Ripristina</AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
@@ -344,8 +448,9 @@ function SelectionTab({ gallery }: { gallery: any }) {
 }
 
 function UploadTab({ galleryId }: { galleryId: string }) {
-  const { items, addItem, clearCompleted, pauseItem, resumeItem, retryItem } = useUploadQueue();
+  const { items, addItem, clearCompleted, pauseItem, resumeItem, retryItem, concurrency, setConcurrency, aggregateProgress } = useUploadQueue();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
   const galleryItems = items.filter(i => i.galleryId === galleryId);
 
   const handleSelectFiles = () => {
@@ -353,34 +458,43 @@ function UploadTab({ galleryId }: { galleryId: string }) {
   };
 
   const handleNativeFolder = async () => {
-    const files = await selectFolderNative();
-    if (files) {
-      files.forEach(f => {
-        addItem({
-          fileName: f.fileName,
-          relativePath: f.relativePath,
-          absolutePath: f.absolutePath,
-          chapterName: f.chapterName || 'Senza capitolo',
-          size: f.size,
-          galleryId
+    try {
+      const files = await selectFolderNative();
+      if (files) {
+        files.forEach(f => {
+          addItem({
+            fileName: f.fileName,
+            relativePath: f.relativePath,
+            absolutePath: f.absolutePath,
+            chapterName: f.chapterName || 'Senza capitolo',
+            size: f.size,
+            galleryId
+          });
         });
-      });
+      }
+    } catch (e) {
+      window.alert(`Impossibile aprire la cartella: ${(e as Error).message}`);
     }
   };
 
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
+      let skipped = 0;
       Array.from(e.target.files).forEach(f => {
+        if (!supportedUploadImage(f.name)) { skipped++; return; }
         addItem({
           fileName: f.name,
           relativePath: f.webkitRelativePath || f.name,
-          chapterName: f.webkitRelativePath ? f.webkitRelativePath.split('/')[0] : 'Default',
+          chapterName: browserFolderChapter(f.webkitRelativePath),
           size: f.size,
           galleryId,
-          fileObj: f
+          fileObj: f,
+          contentType: f.type,
         });
       });
+      if (skipped) window.alert(`${skipped} file ignorati: sono supportati JPG, PNG, WebP, GIF e HEIC/HEIF. TIFF non è supportato.`);
     }
+    e.target.value = '';
   };
 
   return (
@@ -393,14 +507,27 @@ function UploadTab({ galleryId }: { galleryId: string }) {
         <div className="flex gap-4">
           <Button onClick={handleSelectFiles} variant="outline">Seleziona File</Button>
           <Button onClick={handleNativeFolder}>Seleziona Cartella</Button>
-          <input type="file" ref={fileInputRef} className="hidden" multiple accept="image/*" onChange={onFileChange} {...{ webkitdirectory: "", directory: "" } as any} />
+          <Button onClick={() => folderInputRef.current?.click()} variant="outline">Cartella dal browser</Button>
+          <input type="file" ref={fileInputRef} className="hidden" multiple accept=".jpg,.jpeg,.png,.webp,.gif,.heic,.heif" onChange={onFileChange} />
+          <input type="file" ref={folderInputRef} className="hidden" multiple accept=".jpg,.jpeg,.png,.webp,.gif,.heic,.heif" onChange={onFileChange} {...{ webkitdirectory: "", directory: "" } as any} />
         </div>
       </div>
 
       {galleryItems.length > 0 && (
         <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden flex flex-col max-h-[500px]">
           <div className="p-4 border-b border-border flex items-center justify-between bg-muted/30">
-            <h3 className="font-medium text-sm">Coda di Caricamento ({galleryItems.length})</h3>
+            <div className="flex-1 mr-6">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-medium text-sm">Coda di Caricamento ({galleryItems.length})</h3>
+                <span className="text-xs text-muted-foreground">{aggregateProgress}% complessivo</span>
+              </div>
+              <Progress value={aggregateProgress} className="h-2" />
+              <div className="flex items-center gap-3 mt-3">
+                <Label htmlFor="upload-concurrency" className="text-xs text-muted-foreground whitespace-nowrap">Upload simultanei</Label>
+                <Input id="upload-concurrency" type="number" min={1} max={8} value={concurrency} onChange={e => setConcurrency(Number(e.target.value))} className="h-7 w-16 text-xs" />
+                <span className="text-xs text-muted-foreground">1–8</span>
+              </div>
+            </div>
             <Button variant="ghost" size="sm" onClick={clearCompleted}>Rimuovi Completati</Button>
           </div>
           <div className="flex-1 overflow-y-auto p-2 space-y-1">
@@ -410,7 +537,10 @@ function UploadTab({ galleryId }: { galleryId: string }) {
                   {item.status === 'success' ? <CheckCircle2 className="w-4 h-4 text-sage" /> : item.status === 'error' ? <AlertCircle className="w-4 h-4 text-destructive" /> : item.status === 'duplicate' ? <AlertCircle className="w-4 h-4 text-orange-500" /> : item.status === 'paused' ? <Pause className="w-4 h-4 text-muted-foreground" /> : (item.status === 'uploading' || item.status === 'hashing') ? <Loader2 className="w-4 h-4 text-primary animate-spin" /> : <div className="w-4 h-4 rounded-full border-2 border-muted-foreground/30" />}
                   <div className="flex flex-col">
                     <span className="text-sm font-medium truncate">{item.fileName}</span>
-                    <span className="text-xs text-muted-foreground">{item.chapterName} • {item.status}{item.error ? ` - ${item.error}` : ''}</span>
+                    <span className="text-xs text-muted-foreground">{item.chapterName} • {{
+                      pending: 'In attesa', hashing: 'Verifica file', uploading: 'Caricamento', paused: 'In pausa',
+                      success: 'Completato', duplicate: 'Già presente', error: 'Errore'
+                    }[item.status]}{item.error ? ` - ${item.error}` : ''}</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
@@ -436,80 +566,6 @@ function UploadTab({ galleryId }: { galleryId: string }) {
               </div>
             ))}
           </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function PhotosTab({ galleryId }: { galleryId: string }) {
-  const { data: photos, isLoading: loadingPhotos } = useGalleryPhotos(galleryId);
-  const { data: chapters, isLoading: loadingChapters } = useGalleryChapters(galleryId);
-  const deletePhoto = useDeletePhoto();
-  const createChapter = useCreateChapter(galleryId);
-
-  const handleAddChapter = () => {
-    const title = window.prompt("Inserisci il titolo del capitolo:");
-    if (title) {
-      createChapter.mutate({ title, order: chapters?.length || 0 });
-    }
-  };
-
-  if (loadingPhotos || loadingChapters) return <div className="p-8 text-muted-foreground">Caricamento foto...</div>;
-
-  return (
-    <div className="space-y-6 pb-20">
-      <div className="flex justify-between items-center bg-card p-4 rounded-xl border border-border shadow-sm">
-        <h3 className="font-medium text-sm">Tutte le Foto ({photos?.length || 0}) in {chapters?.length || 0} capitoli</h3>
-        <Button variant="outline" size="sm" onClick={handleAddChapter} disabled={createChapter.isPending}>
-          Aggiungi Capitolo
-        </Button>
-      </div>
-      
-      {photos?.length === 0 ? (
-        <div className="text-center p-12 bg-card rounded-xl border border-border border-dashed">
-          <Images className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-          <p className="text-muted-foreground">Nessuna foto caricata finora.</p>
-        </div>
-      ) : (
-        <div className="space-y-8">
-          {(chapters?.length ? chapters : [{ id: 'default', title: 'Senza capitolo', galleryId, order: 0, photoCount: photos?.length || 0 }]).map(chapter => {
-            const chapterPhotos = photos?.filter(p => p.chapterId === chapter.id || (chapter.id === 'default' && !p.chapterId)) || [];
-            
-            if (chapterPhotos.length === 0) return null;
-
-            return (
-              <div key={chapter.id} className="space-y-4">
-                <h4 className="font-medium text-foreground border-b border-border pb-2">{chapter.title}</h4>
-                <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                  {chapterPhotos.map(photo => (
-                    <div key={photo.id} className="group relative aspect-square bg-muted rounded-lg overflow-hidden border border-border shadow-sm">
-                      <img src={photo.thumbnailUrl || photo.url} alt={photo.name} className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="destructive" size="icon">
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Eliminare la foto?</AlertDialogTitle>
-                              <AlertDialogDescription>Questa azione non può essere annullata.</AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Annulla</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => deletePhoto.mutate({ galleryId, photoId: photo.id })} className="bg-destructive text-destructive-foreground">Elimina</AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
         </div>
       )}
     </div>

@@ -1,12 +1,11 @@
 import { app, BrowserWindow, dialog, ipcMain, net, protocol, shell } from "electron";
-import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { readdir, stat } from "node:fs/promises";
+import { stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { hashFile, walkFolder } from "./file-operations.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".heic", ".tif", ".tiff"]);
 const activeUploads = new Map();
 const rendererRoot = path.resolve(__dirname, "..", "dist", "public");
 
@@ -15,42 +14,6 @@ const rendererRoot = path.resolve(__dirname, "..", "dist", "public");
 protocol.registerSchemesAsPrivileged([
   { scheme: "app", privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } },
 ]);
-
-async function walkFolder(root, current = root) {
-  const entries = await readdir(current, { withFileTypes: true });
-  const files = [];
-  for (const entry of entries) {
-    const absolutePath = path.join(current, entry.name);
-    if (entry.isDirectory()) {
-      files.push(...await walkFolder(root, absolutePath));
-      continue;
-    }
-    const extension = path.extname(entry.name).toLowerCase();
-    if (!IMAGE_EXTENSIONS.has(extension)) continue;
-    const info = await stat(absolutePath);
-    const relativePath = path.relative(root, absolutePath);
-    files.push({
-      absolutePath,
-      relativePath,
-      fileName: entry.name,
-      chapterName: path.dirname(relativePath) === "." ? null : path.dirname(relativePath).split(path.sep)[0],
-      size: info.size,
-      lastModified: info.mtimeMs,
-    });
-  }
-  return files;
-}
-
-async function hashFile(filePath) {
-  const hash = createHash("sha256");
-  await new Promise((resolve, reject) => {
-    const stream = createReadStream(filePath);
-    stream.on("data", chunk => hash.update(chunk));
-    stream.on("end", resolve);
-    stream.on("error", reject);
-  });
-  return hash.digest("hex");
-}
 
 ipcMain.handle("desktop:select-folder", async () => {
   const selection = await dialog.showOpenDialog({
@@ -68,6 +31,8 @@ ipcMain.handle("desktop:upload-file", async (event, { requestId, filePath, uploa
   activeUploads.set(requestId, controller);
   let uploaded = 0;
   const stream = createReadStream(filePath);
+  const abortStream = () => stream.destroy(new Error("Upload aborted"));
+  controller.signal.addEventListener("abort", abortStream, { once: true });
   stream.on("data", chunk => {
     uploaded += chunk.length;
     event.sender.send(`desktop:upload-progress:${requestId}`, {
@@ -87,6 +52,7 @@ ipcMain.handle("desktop:upload-file", async (event, { requestId, filePath, uploa
     if (!response.ok) throw new Error(`Upload non riuscito (${response.status})`);
     return { success: true, size: info.size };
   } finally {
+    controller.signal.removeEventListener("abort", abortStream);
     activeUploads.delete(requestId);
   }
 });

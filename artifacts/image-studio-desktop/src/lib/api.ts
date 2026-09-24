@@ -2,7 +2,7 @@ import { auth } from './firebase';
 
 const API_ORIGIN =
   import.meta.env.VITE_API_BASE_URL ||
-  (window.location.protocol === 'file:' ? 'https://imagestudiofotografico.com' : '');
+  (typeof window !== 'undefined' && window.location.protocol === 'file:' ? 'https://imagestudiofotografico.com' : '');
 const API_BASE = `${API_ORIGIN}/api/desktop`;
 
 export async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise<T> {

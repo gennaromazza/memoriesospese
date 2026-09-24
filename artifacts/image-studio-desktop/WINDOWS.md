@@ -10,7 +10,15 @@
 
 La pipeline `.github/workflows/image-studio-windows.yml` esegue gli stessi passaggi su
 `windows-latest`, verifica in modo automatico installazione silenziosa, avvio,
-collegamenti e disinstallazione, e pubblica l'installer come artifact della run.
+collegamenti e disinstallazione. Solo dopo il superamento dello smoke test
+pubblica l'installer e `SHA256SUMS.txt` come artifact della run. La versione nel
+nome dell'installer deve corrispondere a `package.json`; un `.exe` locale
+precedente, specialmente `0.0.0`, **non** è la build convalidata.
+Per scaricare: aprire **Actions → Image Studio Windows installer → run riuscita
+del commit finale → Artifacts → image-studio-windows-installer**. Estrarre lo
+ZIP e confrontare l'hash SHA-256 di PowerShell
+`(Get-FileHash .\Image-Studio-Gallerie-*-x64.exe -Algorithm SHA256).Hash`
+con il valore in `SHA256SUMS.txt`. Non utilizzare un artifact di run fallita.
 Il runner GitHub ospitato è Windows Server: questo controllo **non sostituisce**
 le prove su PC Windows 10 e Windows 11.
 Su un PC di prova con PowerShell, dopo aver scaricato l'installer `.exe` dal
@@ -69,3 +77,28 @@ Per ogni PC registrare versione OS, SHA-256 dell'installer, esito e data:
 Il workflow automatico non inserisce credenziali Firebase e non può effettuare i
 passaggi di login o upload; questi esiti vanno raccolti sui due PC prima di
 affermare che il supporto Windows 10/11 sia verificato.
+
+## Stato di rilascio
+
+Al 24 settembre 2026: il runner Windows ha eseguito con successo una run della
+versione **0.0.3** (run 35987237966), antecedente a queste modifiche; **non**
+convalida la versione 0.0.4. L'installer locale
+`release/Image-Studio-Gallerie-0.0.0-x64.exe` è incompleto e non supera
+il controllo di dimensione: non scaricarlo né distribuirlo. Non è disponibile
+un checksum né un link artifact di una run riuscita sul codice 0.0.4.
+I test isolati locali delle route desktop (14) e della persistenza coda (1)
+passano; il typecheck desktop passa. Il typecheck complessivo dell'API
+riscontra errori preesistenti fuori dalle route desktop.
+
+I test isolati locali non costituiscono una build Windows. Prima di fornire
+un link a una run come installer di prova verificare che **il commit finale**
+sia sul repository GitHub, che la run Windows sia riuscita, che il checksum
+provenga dalla stessa run, e che l'API pubblicata corrisponda al client:
+preflight `OPTIONS` con `Origin: app://image-studio` e
+`Access-Control-Request-Headers: authorization,content-type`, più disponibilità
+autenticata delle route desktop. Un `401` ottenuto usando un token invalido
+non basta a provare che la route esista: anche una route inesistente può
+rispondere `401` prima del routing. Fino alla pubblicazione del backend e
+alla prova con un account amministratore **non dichiarare utilizzabile** il
+nuovo installer. Il collaudo su PC Windows 10/11 e la firma restano ulteriori
+condizioni per un rilascio pubblico affidabile.

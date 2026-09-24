@@ -15,6 +15,10 @@ if ($InstallerPath) {
   $installer = $installers[0]
 }
 if ($installer.Length -lt 10MB) { throw "Installer incompleto: $($installer.Length) byte." }
+$version = (Get-Content (Join-Path $PSScriptRoot '../package.json') -Raw | ConvertFrom-Json).version
+if ($installer.Name -ne "Image-Studio-Gallerie-$version-x64.exe") {
+  throw "Versione installer non corrispondente al package.json ($version): $($installer.Name)"
+}
 
 $tempRoot = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [System.IO.Path]::GetTempPath() }
 $installDir = Join-Path $tempRoot 'ImageStudioGallerieSmoke'

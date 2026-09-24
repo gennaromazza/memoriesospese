@@ -1,224 +1,134 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useRef, useMemo } from 'react';
 import { fetchApi } from './api';
+import { restoreUploadQueue, serializeUploadQueue, resumeUploadItem } from './uploadQueuePersistence';
 
 export type UploadStatus = 'pending' | 'hashing' | 'uploading' | 'paused' | 'success' | 'duplicate' | 'error';
-
 export interface UploadItem {
-  id: string;
-  fileName: string;
-  relativePath: string;
-  absolutePath?: string;
-  chapterName: string;
-  size: number;
-  hash?: string;
-  status: UploadStatus;
-  progress: number;
-  retries: number;
-  error?: string;
-  galleryId: string;
-  fileObj?: File;
-  contentType?: string;
+  id: string; fileName: string; relativePath: string; absolutePath?: string;
+  chapterName: string; size: number; hash?: string; status: UploadStatus;
+  progress: number; retries: number; error?: string; galleryId: string;
+  fileObj?: File; contentType?: string;
 }
-
 interface UploadQueueState {
-  items: UploadItem[];
-  concurrency: number;
+  items: UploadItem[]; concurrency: number; aggregateProgress: number;
   addItem: (item: Omit<UploadItem, 'id' | 'status' | 'progress' | 'retries'>) => void;
   updateItem: (id: string, updates: Partial<UploadItem>) => void;
-  removeItem: (id: string) => void;
-  setConcurrency: (val: number) => void;
-  clearCompleted: () => void;
-  pauseItem: (id: string) => void;
-  resumeItem: (id: string) => void;
-  retryItem: (id: string) => void;
+  removeItem: (id: string) => void; setConcurrency: (val: number) => void;
+  clearCompleted: () => void; pauseItem: (id: string) => void;
+  resumeItem: (id: string) => void; retryItem: (id: string) => void;
 }
+const empty: UploadQueueState = {
+  items: [], concurrency: 3, aggregateProgress: 0, addItem: () => {}, updateItem: () => {},
+  removeItem: () => {}, setConcurrency: () => {}, clearCompleted: () => {},
+  pauseItem: () => {}, resumeItem: () => {}, retryItem: () => {},
+};
+const UploadQueueContext = createContext<UploadQueueState>(empty);
+const mimeFor = (name: string, supplied?: string) => supplied || ({
+  png: 'image/png', webp: 'image/webp', gif: 'image/gif', heic: 'image/heic',
+  heif: 'image/heif',
+  jpg: 'image/jpeg', jpeg: 'image/jpeg',
+} as Record<string, string>)[name.split('.').pop()?.toLowerCase() || ''];
 
-const UploadQueueContext = createContext<UploadQueueState>({
-  items: [],
-  concurrency: 3,
-  addItem: () => {},
-  updateItem: () => {},
-  removeItem: () => {},
-  setConcurrency: () => {},
-  clearCompleted: () => {},
-  pauseItem: () => {},
-  resumeItem: () => {},
-  retryItem: () => {},
-});
+function browserUpload(url: string, file: File, contentType: string, signal: AbortSignal,
+  onProgress: (percent: number) => void): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const abort = () => xhr.abort();
+    signal.addEventListener('abort', abort, { once: true });
+    xhr.open('PUT', url);
+    xhr.setRequestHeader('Content-Type', contentType);
+    xhr.upload.onprogress = e => { if (e.lengthComputable) onProgress(Math.round(e.loaded / e.total * 100)); };
+    xhr.onload = () => xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Upload to storage failed: ${xhr.status}`));
+    xhr.onerror = () => reject(new Error('Upload to storage failed'));
+    xhr.onabort = () => reject(new DOMException('Upload aborted', 'AbortError'));
+    xhr.send(file);
+  });
+}
 
 export function UploadQueueProvider({ children }: { children: ReactNode }) {
-  const [items, setItems] = useState<UploadItem[]>(() => {
-    const stored = localStorage.getItem('uploadQueue');
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored) as UploadItem[];
-        return parsed.map(i => ({
-          ...i,
-          status: (i.status === 'hashing' || i.status === 'uploading') ? 'paused' : i.status,
-        }));
-      } catch (e) {}
-    }
-    return [];
-  });
-
-  const [concurrency, setConcurrencyState] = useState(() => {
-    const stored = localStorage.getItem('uploadConcurrency');
-    return stored ? parseInt(stored, 10) || 3 : 3;
-  });
-
-  const itemsRef = useRef(items);
-  itemsRef.current = items;
-
-  useEffect(() => {
-    const toSave = items.map(({ fileObj, ...rest }) => rest);
-    localStorage.setItem('uploadQueue', JSON.stringify(toSave));
-  }, [items]);
-
-  const setConcurrency = (val: number) => {
-    setConcurrencyState(val);
-    localStorage.setItem('uploadConcurrency', val.toString());
+  const [items, setItems] = useState<UploadItem[]>(() => restoreUploadQueue(localStorage.getItem('uploadQueue')));
+  const [concurrency, setConcurrencyState] = useState(() => Math.max(1, Math.min(8, Number(localStorage.getItem('uploadConcurrency')) || 3)));
+  const itemsRef = useRef(items); itemsRef.current = items;
+  const controllers = useRef(new Map<string, AbortController>());
+  useEffect(() => { localStorage.setItem('uploadQueue', serializeUploadQueue(items)); }, [items]);
+  const updateItem = (id: string, updates: Partial<UploadItem>) => setItems(prev => prev.map(i => i.id === id ? { ...i, ...updates } : i));
+  const setConcurrency = (value: number) => {
+    const val = Math.max(1, Math.min(8, Math.round(value) || 1));
+    setConcurrencyState(val); localStorage.setItem('uploadConcurrency', String(val));
   };
-
-  const addItem = (item: Omit<UploadItem, 'id' | 'status' | 'progress' | 'retries'>) => {
-    setItems(prev => [...prev, { ...item, id: Math.random().toString(36).substring(7), status: 'pending', progress: 0, retries: 0 }]);
-  };
-
-  const updateItem = (id: string, updates: Partial<UploadItem>) => {
-    setItems(prev => prev.map(i => i.id === id ? { ...i, ...updates } : i));
-  };
-
+  const addItem = (item: Omit<UploadItem, 'id' | 'status' | 'progress' | 'retries'>) =>
+    setItems(prev => [...prev, { ...item, id: crypto.randomUUID(), status: 'pending', progress: 0, retries: 0 }]);
   const removeItem = (id: string) => {
+    controllers.current.get(id)?.abort();
+    controllers.current.delete(id);
     setItems(prev => prev.filter(i => i.id !== id));
   };
-
-  const clearCompleted = () => {
-    setItems(prev => prev.filter(i => i.status !== 'success' && i.status !== 'duplicate'));
+  const clearCompleted = () => setItems(prev => prev.filter(i => i.status !== 'success' && i.status !== 'duplicate'));
+  const pauseItem = (id: string) => {
+    controllers.current.get(id)?.abort();
+    // Native abort is a real transfer cancellation; resume starts a new transfer.
+    void window.imageStudioDesktop?.cancelUpload(id).catch(() => undefined);
+    updateItem(id, { status: 'paused' });
   };
-
-  const pauseItem = (id: string) => updateItem(id, { status: 'paused' });
-  const resumeItem = (id: string) => {
-    const it = itemsRef.current.find(i => i.id === id);
-    if (it && (it.status === 'paused' || it.status === 'error')) {
-      updateItem(id, { status: 'pending', error: undefined });
-    }
-  };
-  const retryItem = (id: string) => {
-    updateItem(id, { status: 'pending', error: undefined, retries: 0 });
-  };
+  const resumeItem = (id: string) => setItems(prev => resumeUploadItem(prev, id));
+  const retryItem = (id: string) => updateItem(id, { status: 'pending', error: undefined, retries: 0 });
 
   const processItem = async (item: UploadItem) => {
-    updateItem(item.id, { status: 'hashing' });
+    const controller = new AbortController(); controllers.current.set(item.id, controller);
+    const current = () => itemsRef.current.find(i => i.id === item.id);
     try {
+      updateItem(item.id, { status: 'hashing', error: undefined });
       let hash = item.hash;
       if (!hash) {
-        if (window.imageStudioDesktop && window.imageStudioDesktop.hashFile && item.absolutePath) {
-          hash = await window.imageStudioDesktop.hashFile(item.absolutePath);
-        } else if (item.fileObj) {
-          const buffer = await item.fileObj.arrayBuffer();
-          const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
-          hash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
-        } else {
-          throw new Error('Cannot hash file');
-        }
-        
-        if (itemsRef.current.find(i => i.id === item.id)?.status === 'paused') return;
+        if (item.absolutePath && window.imageStudioDesktop?.hashFile) hash = await window.imageStudioDesktop.hashFile(item.absolutePath);
+        else if (item.fileObj) hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await item.fileObj.arrayBuffer()))).map(b => b.toString(16).padStart(2, '0')).join('');
+        else throw new Error('Browser file unavailable after restart; please select it again');
+        if (controller.signal.aborted || current()?.status === 'paused') return;
         updateItem(item.id, { hash });
       }
-
-      updateItem(item.id, { status: 'uploading', progress: 10 });
-      
-      const sessionRes = await fetchApi<any>(`/galleries/${item.galleryId}/upload-sessions`, {
-        method: 'POST',
-        body: JSON.stringify({
-          fileName: item.fileName,
-          relativePath: item.relativePath,
-          chapterName: item.chapterName,
-          size: item.size,
-          contentHash: hash,
-          contentType: item.contentType || item.fileObj?.type || 'image/jpeg'
-        })
+      const contentType = mimeFor(item.fileName, item.contentType);
+      if (!contentType) throw new Error(`Unsupported image format: ${item.fileName}`);
+      updateItem(item.id, { status: 'uploading', progress: 0, contentType });
+      const session = await fetchApi<any>(`/galleries/${item.galleryId}/upload-sessions`, {
+        method: 'POST', signal: controller.signal, body: JSON.stringify({ fileName: item.fileName, relativePath: item.relativePath,
+          chapterName: item.chapterName, size: item.size, contentHash: hash, contentType }),
       });
-
-      if (itemsRef.current.find(i => i.id === item.id)?.status === 'paused') return;
-      
-      const signedUrl = sessionRes.uploadUrl;
-      const storagePath = sessionRes.storagePath;
-      
-      if (signedUrl) {
-        updateItem(item.id, { progress: 50 });
-        if (window.imageStudioDesktop && window.imageStudioDesktop.uploadFile && item.absolutePath) {
-          await window.imageStudioDesktop.uploadFile(
-            {
-              requestId: item.id,
-              filePath: item.absolutePath,
-              uploadUrl: signedUrl,
-              contentType: item.contentType || 'image/jpeg',
-            },
-            ({ progress }) => updateItem(item.id, { progress }),
-          );
-        } else if (item.fileObj) {
-          const res = await fetch(signedUrl, {
-            method: 'PUT',
-            body: item.fileObj
-          });
-          if (!res.ok) throw new Error(`Upload to storage failed: ${res.status}`);
-        } else {
-          throw new Error('No file object or native uploader available');
-        }
+      if (controller.signal.aborted || current()?.status === 'paused') return;
+      if (session.uploadUrl) {
+        const progress = (p: number) => updateItem(item.id, { progress: Math.round(p * 0.9) });
+        if (item.absolutePath && window.imageStudioDesktop?.uploadFile) {
+          await window.imageStudioDesktop.uploadFile({ requestId: item.id, filePath: item.absolutePath, uploadUrl: session.uploadUrl, contentType },
+            ({ progress: p }) => progress(p));
+        } else if (item.fileObj) await browserUpload(session.uploadUrl, item.fileObj, contentType, controller.signal, progress);
+        else throw new Error('No file object or native uploader available');
       }
-
-      if (itemsRef.current.find(i => i.id === item.id)?.status === 'paused') return;
-
-      updateItem(item.id, { progress: 90 });
+      if (controller.signal.aborted || current()?.status === 'paused') return;
+      if (!session.storagePath) throw new Error('Upload session did not return a storage path');
+      updateItem(item.id, { progress: 95 });
       await fetchApi(`/galleries/${item.galleryId}/photos/finalize`, {
-        method: 'POST',
-        body: JSON.stringify({
-          storagePath,
-          name: item.fileName,
-          originalName: item.fileName,
-          contentHash: hash,
-          size: item.size,
-          contentType: item.contentType || item.fileObj?.type || 'image/jpeg',
-          chapterName: item.chapterName,
-        })
+        method: 'POST', signal: controller.signal, body: JSON.stringify({ storagePath: session.storagePath, name: item.fileName, originalName: item.fileName,
+          contentHash: hash, size: item.size, contentType, chapterName: item.chapterName }),
       });
-
-      updateItem(item.id, { status: 'success', progress: 100 });
+      updateItem(item.id, { status: 'success', progress: 100, error: undefined });
     } catch (err: any) {
-      if (err.message.includes('409')) {
-        updateItem(item.id, { status: 'duplicate', progress: 100 });
-      } else {
-        const currentItem = itemsRef.current.find(i => i.id === item.id);
-        if (currentItem && currentItem.status !== 'paused') {
-          if (currentItem.retries < 3) {
-            updateItem(item.id, { status: 'pending', retries: currentItem.retries + 1, error: err.message });
-          } else {
-            updateItem(item.id, { status: 'error', error: err.message });
-          }
-        }
+      if (controller.signal.aborted || err?.name === 'AbortError' || current()?.status === 'paused') return;
+      const message = err instanceof Error ? err.message : String(err);
+      if (/409|duplicate/i.test(message)) updateItem(item.id, { status: 'duplicate', progress: 100, error: undefined });
+      else {
+        const retries = (current()?.retries || 0) + 1;
+        updateItem(item.id, retries <= 3 ? { status: 'pending', retries, error: message } : { status: 'error', retries, error: message });
       }
-    }
+    } finally { controllers.current.delete(item.id); }
   };
-
   useEffect(() => {
-    const activeCount = items.filter(i => i.status === 'hashing' || i.status === 'uploading').length;
-    const pendingItems = items.filter(i => i.status === 'pending');
-
-    if (activeCount < concurrency && pendingItems.length > 0) {
-      const toStart = pendingItems.slice(0, concurrency - activeCount);
-      toStart.forEach(item => {
-        processItem(item);
-      });
-    }
+    const active = items.filter(i => i.status === 'hashing' || i.status === 'uploading').length;
+    items.filter(i => i.status === 'pending').slice(0, Math.max(0, concurrency - active)).forEach(processItem);
   }, [items, concurrency]);
-
-  return (
-    <UploadQueueContext.Provider value={{ items, concurrency, addItem, updateItem, removeItem, setConcurrency, clearCompleted, pauseItem, resumeItem, retryItem }}>
-      {children}
-    </UploadQueueContext.Provider>
-  );
+  const aggregateProgress = useMemo(() => {
+    const total = items.reduce((sum, item) => sum + Math.max(0, item.size), 0);
+    return total ? Math.round(items.reduce((sum, item) =>
+      sum + Math.max(0, item.size) * Math.max(0, Math.min(100, item.progress)), 0) / total) : 0;
+  }, [items]);
+  return <UploadQueueContext.Provider value={{ items, concurrency, aggregateProgress, addItem, updateItem, removeItem, setConcurrency, clearCompleted, pauseItem, resumeItem, retryItem }}>{children}</UploadQueueContext.Provider>;
 }
-
-export function useUploadQueue() {
-  return useContext(UploadQueueContext);
-}
+export function useUploadQueue() { return useContext(UploadQueueContext); }
