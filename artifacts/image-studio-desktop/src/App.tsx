@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react';
+import { type ReactNode, useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
@@ -20,11 +20,12 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
   const { user, loading } = useAuth();
   const [, setLocation] = useLocation();
 
+  useEffect(() => {
+    if (!loading && !user) setLocation('/login');
+  }, [loading, user, setLocation]);
+
   if (loading) return null;
-  if (!user) {
-    setLocation('/login');
-    return null;
-  }
+  if (!user) return null;
   
   return <Component />;
 }
