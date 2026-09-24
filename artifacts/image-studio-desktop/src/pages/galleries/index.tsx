@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useGalleries } from '../../lib/api-hooks';
+import { useClients, useGalleries, useJobs } from '../../lib/api-hooks';
+import { clientLabel, jobLabel } from '../../lib/gallery-associations';
 import { Link } from 'wouter';
 import { Plus, Search, MapPin, Calendar, Camera } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -11,6 +12,8 @@ export default function GalleriesList() {
   const [status, setStatus] = useState<string>('');
   
   const { data: galleries, isLoading, error } = useGalleries(search, status);
+  const { data: clients = [] } = useClients();
+  const { data: jobs = [] } = useJobs();
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-off-white">
@@ -28,7 +31,7 @@ export default function GalleriesList() {
         
         <div className="flex gap-4 items-center">
           <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input 
               placeholder="Cerca gallerie o clienti..." 
               className="pl-9 bg-background"
@@ -92,6 +95,9 @@ export default function GalleriesList() {
                     </h3>
                     
                     <div className="space-y-2 mt-3 text-sm text-muted-foreground flex-1">
+                      {gallery.jobId && (
+                        <p className="truncate">Job: {jobLabel(jobs.find(job => job.id === gallery.jobId) || { id: gallery.jobId })}</p>
+                      )}
                       {gallery.eventDate && (
                         <div className="flex items-center gap-2">
                           <Calendar className="w-4 h-4" />
@@ -109,7 +115,10 @@ export default function GalleriesList() {
                     <div className="mt-4 pt-4 border-t border-border flex items-center justify-between text-sm text-foreground">
                       <span className="font-medium">{gallery.photoCount || 0} foto</span>
                       <span className="text-muted-foreground truncate max-w-[120px]">
-                        {gallery.clientNames?.join(', ') || 'Nessun cliente'}
+                        {gallery.clientIds?.map(id => {
+                          const client = clients.find(item => item.id === id);
+                          return client ? clientLabel(client) : id;
+                        }).join(', ') || gallery.clientNames?.join(', ') || 'Nessun cliente'}
                       </span>
                     </div>
                   </div>

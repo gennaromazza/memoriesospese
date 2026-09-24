@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useLocation } from 'wouter';
-import { useGallery, useUpdateGallery, useDeleteGallery, useCustomerSelection, useConfigureSelection, useUnlockSelection, useResetSelection, useClients, useJobs, useProducts, useSelectionResults, useSelectionHistory, useUpdateGallerySecrets, useShareGallery } from '../../lib/api-hooks';
+import { useGallery, useUpdateGallery, useDeleteGallery, useCustomerSelection, useConfigureSelection, useUnlockSelection, useResetSelection, useClients, useJobs, useProducts, useSelectionResults, useSelectionHistory, useUpdateGallerySecrets } from '../../lib/api-hooks';
 import { CoverControls, PhotosTab } from './organization';
 import { useUploadQueue } from '../../lib/uploadQueue';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -8,19 +8,20 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { UploadCloud, Trash2, ArrowLeft, Loader2, CheckCircle2, AlertCircle, Share, Play, Pause, RefreshCw, Copy, Check, LockKeyhole } from 'lucide-react';
+import { UploadCloud, Trash2, ArrowLeft, Loader2, CheckCircle2, AlertCircle, Play, Pause, RefreshCw, Copy, Check, LockKeyhole } from 'lucide-react';
 import { selectFolderNative } from '../../lib/native';
 import { browserFolderChapter, supportedUploadImage } from '../../lib/folderChapter';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Progress } from '@/components/ui/progress';
+import { GalleryAssociationFields } from './association-fields';
+import { clientLabel, jobLabel } from '../../lib/gallery-associations';
+import { ShareGalleryForm } from './share-gallery-form';
 
 export default function GalleryWorkspace({ id }: { id: string }) {
   const [, setLocation] = useLocation();
   const { data: gallery, isLoading, error } = useGallery(id);
   const updateGallery = useUpdateGallery(id);
   const deleteGallery = useDeleteGallery();
-  const shareGallery = useShareGallery(id);
-  const [shareEmail, setShareEmail] = useState('');
   
   if (isLoading) return <div className="p-8 flex justify-center text-muted-foreground"><Loader2 className="animate-spin" /></div>;
   if (error || !gallery) return <div className="p-8 text-destructive">Impossibile caricare la galleria. Riprova aggiornando la pagina.</div>;
@@ -42,14 +43,8 @@ export default function GalleryWorkspace({ id }: { id: string }) {
           </button>
           <div className="flex items-center gap-3">
             <Badge variant={gallery.status === 'published' ? 'default' : 'secondary'} className="capitalize">{gallery.status === 'draft' ? 'Bozza' : gallery.status === 'published' ? 'Pubblicata' : 'Archiviata'}</Badge>
-            {gallery.publicUrl && (
-              <div className="flex items-center gap-2">
-                <Input value={shareEmail} onChange={e => setShareEmail(e.target.value)} placeholder="Email cliente" className="h-9 w-44" type="email" />
-                <Button variant="outline" size="sm" disabled={shareGallery.isPending || !shareEmail.includes('@')} onClick={() => shareGallery.mutate({ to: shareEmail }, { onSuccess: () => { setShareEmail(''); window.open(gallery.publicUrl, '_blank'); }, onError: (e: Error) => window.alert(`Condivisione non riuscita: ${e.message}`) })}>
-                  <Share className="w-4 h-4 mr-2" />
-                  {shareGallery.isPending ? 'Condivisione...' : 'Condividi / visualizza'}
-                </Button>
-              </div>
+            {(gallery.publicUrl || gallery.code) && (
+              <ShareGalleryForm key={gallery.id} gallery={gallery} />
             )}
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -110,6 +105,13 @@ export default function GalleryWorkspace({ id }: { id: string }) {
   );
 }
 function OverviewTab({ gallery, updateGallery }: { gallery: any, updateGallery: any }) {
+  const { data: clients = [] } = useClients();
+  const { data: jobs = [] } = useJobs();
+  const linkedClients = (gallery.clientIds || gallery.clientiIds || []).map((id: string) => {
+    const client = clients.find(item => item.id === id);
+    return client ? clientLabel(client) : id;
+  });
+  const job = jobs.find(item => item.id === gallery.jobId);
   const handleStatusToggle = () => {
     updateGallery.mutate({ status: gallery.status === 'published' ? 'draft' : 'published' }, { onError: (e: Error) => window.alert(`Operazione non riuscita: ${e.message}`) });
   };
@@ -133,7 +135,8 @@ function OverviewTab({ gallery, updateGallery }: { gallery: any, updateGallery: 
             <div className="grid grid-cols-3 text-muted-foreground"><span className="col-span-1">Data</span><span className="col-span-2 text-foreground">{gallery.eventDate || '-'}</span></div>
             <div className="grid grid-cols-3 text-muted-foreground"><span className="col-span-1">Luogo</span><span className="col-span-2 text-foreground">{gallery.location || '-'}</span></div>
             <div className="grid grid-cols-3 text-muted-foreground"><span className="col-span-1">Categoria</span><span className="col-span-2 text-foreground">{gallery.category || '-'}</span></div>
-            <div className="grid grid-cols-3 text-muted-foreground"><span className="col-span-1">ID Lavoro</span><span className="col-span-2 text-foreground truncate">{gallery.jobId || '-'}</span></div>
+            <div className="grid grid-cols-3 text-muted-foreground"><span className="col-span-1">Job</span><span className="col-span-2 text-foreground">{job ? jobLabel(job) : gallery.jobId || 'Nessun Job'}</span></div>
+            <div className="grid grid-cols-3 text-muted-foreground"><span className="col-span-1">Clienti</span><span className="col-span-2 text-foreground">{linkedClients.join(', ') || 'Nessun cliente'}</span></div>
           </div>
         </div>
         
@@ -172,8 +175,6 @@ function OverviewTab({ gallery, updateGallery }: { gallery: any, updateGallery: 
   );
 }
 function SettingsTab({ gallery, updateGallery }: { gallery: any, updateGallery: any }) {
-  const { data: clients = [] } = useClients();
-  const { data: jobs = [] } = useJobs();
   const updateSecrets = useUpdateGallerySecrets(gallery.id);
   const [formData, setFormData] = useState({
     name: gallery.name || '',
@@ -188,14 +189,15 @@ function SettingsTab({ gallery, updateGallery }: { gallery: any, updateGallery: 
     accessMode: gallery.accessMode || (gallery.pinEnabled ? 'pin' : gallery.passwordEnabled ? 'password' : 'open'),
     passwordEnabled: gallery.passwordEnabled === true,
     pinEnabled: gallery.pinEnabled === true,
-    clientId: gallery.clientIds?.[0] || '',
     clientIds: gallery.clientIds || [],
   });
   const [secret, setSecret] = useState('');
   const [secretError, setSecretError] = useState('');
   const [copied, setCopied] = useState(false);
+  const saving = updateGallery.isPending || updateSecrets.isPending;
   
   const handleSave = () => {
+    if (saving) return;
     const accessMode = formData.accessMode;
     setSecretError('');
     const originalMode = gallery.accessMode || (gallery.pinEnabled ? 'pin' : gallery.passwordEnabled ? 'password' : 'open');
@@ -204,7 +206,7 @@ function SettingsTab({ gallery, updateGallery }: { gallery: any, updateGallery: 
       setSecretError(`Inserisci ${accessMode === 'password' ? 'una password' : 'un PIN'} prima di attivare la protezione.`);
       return;
     }
-    const { accessMode: _accessMode, passwordEnabled: _passwordEnabled, pinEnabled: _pinEnabled, clientId: _clientId, ...settings } = formData;
+    const { accessMode: _accessMode, passwordEnabled: _passwordEnabled, pinEnabled: _pinEnabled, ...settings } = formData;
     updateGallery.mutate({
       ...settings,
     }, { onSuccess: () => {
@@ -212,7 +214,12 @@ function SettingsTab({ gallery, updateGallery }: { gallery: any, updateGallery: 
       const payload = accessMode === 'open'
         ? { accessMode, password: null, specialPin: null }
         : accessMode === 'password' ? { accessMode, password: secret } : { accessMode, specialPin: secret };
-      updateSecrets.mutate(payload, { onSuccess: () => { setSecret(''); window.alert('Impostazioni salvate.'); }, onError: (e: Error) => setSecretError(`Credenziale non salvata: ${e.message}`) });
+      updateSecrets.mutate(payload, {
+        onSuccess: () => { setSecret(''); window.alert('Impostazioni salvate.'); },
+        onError: (e: Error) => setSecretError(e.message.includes('API route not found')
+          ? 'Le altre impostazioni sono state salvate, ma la password non è stata salvata: il server pubblicato non ha ancora questa funzione. Pubblica la versione aggiornata dell’API e riprova.'
+          : `Le altre impostazioni sono state salvate, ma la credenziale no: ${e.message}`),
+      });
     }, onError: (e: Error) => setSecretError(`Salvataggio non riuscito: ${e.message}`) });
   };
   const copyPublicLink = async () => {
@@ -230,39 +237,33 @@ function SettingsTab({ gallery, updateGallery }: { gallery: any, updateGallery: 
         <h3 className="font-medium text-foreground text-lg mb-4">Informazioni galleria</h3>
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2 col-span-2">
-            <Label>Nome galleria</Label>
-            <Input value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+            <Label htmlFor="gallery-name">Nome galleria</Label>
+            <Input id="gallery-name" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
           </div>
           <div className="space-y-2">
-            <Label>Data evento</Label>
-            <Input type="date" value={formData.eventDate} onChange={e => setFormData({ ...formData, eventDate: e.target.value })} />
+            <Label htmlFor="gallery-event-date">Data evento</Label>
+            <Input id="gallery-event-date" type="date" value={formData.eventDate} onChange={e => setFormData({ ...formData, eventDate: e.target.value })} />
           </div>
           <div className="space-y-2">
-            <Label>Luogo</Label>
-            <Input value={formData.location} onChange={e => setFormData({ ...formData, location: e.target.value })} />
+            <Label htmlFor="gallery-location">Luogo</Label>
+            <Input id="gallery-location" value={formData.location} onChange={e => setFormData({ ...formData, location: e.target.value })} />
           </div>
           <div className="space-y-2 col-span-2">
-            <Label>Descrizione</Label>
-            <Input value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} />
+            <Label htmlFor="gallery-description">Descrizione</Label>
+            <Input id="gallery-description" value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} />
           </div>
           <div className="space-y-2">
-            <Label>Categoria</Label>
-            <Input value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} />
+            <Label htmlFor="gallery-category">Categoria</Label>
+            <Input id="gallery-category" value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} />
           </div>
-          <div className="space-y-2">
-            <Label>Job ID</Label>
-            <select className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm" value={formData.jobId} onChange={e => setFormData({ ...formData, jobId: e.target.value })}>
-              <option value="">Nessun job</option>
-              {jobs.map((job: any) => <option key={job.id} value={job.id}>{job.title || job.name || job.id}</option>)}
-            </select>
-          </div>
-          <div className="space-y-2 col-span-2">
-            <Label>Cliente</Label>
-            <select className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm" value={formData.clientId} onChange={e => setFormData({ ...formData, clientId: e.target.value, clientIds: e.target.value ? [e.target.value] : [] })}>
-              <option value="">Nessun cliente</option>
-              {clients.map((client: any) => <option key={client.id} value={client.id}>{client.name || client.nome || client.email || client.id}</option>)}
-            </select>
-          </div>
+        </div>
+        <div className="border-t border-border pt-4">
+          <GalleryAssociationFields
+            idPrefix="gallery-settings"
+            jobId={formData.jobId}
+            clientIds={formData.clientIds}
+            onChange={(jobId, clientIds) => setFormData(current => ({ ...current, jobId, clientIds }))}
+          />
         </div>
       </div>
 
@@ -271,12 +272,12 @@ function SettingsTab({ gallery, updateGallery }: { gallery: any, updateGallery: 
         <CoverControls gallery={gallery} />
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label>Stile intestazione</Label>
-            <Input value={formData.headerStyle} onChange={e => setFormData({ ...formData, headerStyle: e.target.value })} />
+            <Label htmlFor="gallery-header-style">Stile intestazione</Label>
+            <Input id="gallery-header-style" value={formData.headerStyle} onChange={e => setFormData({ ...formData, headerStyle: e.target.value })} />
           </div>
           <div className="space-y-2">
-            <Label>Tema speciale</Label>
-            <Input value={formData.specialTheme} onChange={e => setFormData({ ...formData, specialTheme: e.target.value })} />
+            <Label htmlFor="gallery-special-theme">Tema speciale</Label>
+            <Input id="gallery-special-theme" value={formData.specialTheme} onChange={e => setFormData({ ...formData, specialTheme: e.target.value })} />
           </div>
         </div>
       </div>
@@ -285,21 +286,21 @@ function SettingsTab({ gallery, updateGallery }: { gallery: any, updateGallery: 
         <h3 className="font-medium text-foreground text-lg mb-4">Controllo accesso</h3>
         <div className="flex items-center gap-2 text-sm text-muted-foreground"><LockKeyhole className="w-4 h-4" /> Scegli come il cliente accederà alla galleria.</div>
         <div className="space-y-2">
-          <Label>Modalità di accesso</Label>
-          <select className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm" value={formData.accessMode} onChange={e => setFormData({ ...formData, accessMode: e.target.value as 'open'|'password'|'pin' })}>
+            <Label htmlFor="gallery-access-mode">Modalità di accesso</Label>
+            <select id="gallery-access-mode" className="w-full h-11 rounded-md border border-input bg-background px-3 py-2 text-sm" value={formData.accessMode} onChange={e => setFormData({ ...formData, accessMode: e.target.value as 'open'|'password'|'pin' })}>
             <option value="open">Pubblico (senza protezione)</option>
             <option value="password">Password</option>
             <option value="pin">PIN / tema speciale</option>
           </select>
         </div>
-        {formData.accessMode !== 'open' && <div className="space-y-2"><Label>{formData.accessMode === 'password' ? 'Nuova password' : 'Nuovo PIN'}</Label><Input type={formData.accessMode === 'password' ? 'password' : 'text'} inputMode={formData.accessMode === 'pin' ? 'numeric' : undefined} value={secret} onChange={e => setSecret(e.target.value)} placeholder="Inserisci una nuova credenziale" /></div>}
+        {formData.accessMode !== 'open' && <div className="space-y-2"><Label htmlFor="gallery-secret">{formData.accessMode === 'password' ? 'Nuova password' : 'Nuovo PIN'}</Label><Input id="gallery-secret" type={formData.accessMode === 'password' ? 'password' : 'text'} inputMode={formData.accessMode === 'pin' ? 'numeric' : undefined} value={secret} onChange={e => setSecret(e.target.value)} placeholder="Inserisci una nuova credenziale" /></div>}
         <p className="text-xs text-muted-foreground">Per sicurezza la credenziale attuale non viene mai caricata. Inserisci una nuova credenziale per salvarla.</p>
         {secretError && <p className="text-sm text-destructive">{secretError}</p>}
         {gallery.publicUrl && <Button type="button" variant="outline" onClick={copyPublicLink}>{copied ? <Check className="w-4 h-4 mr-2" /> : <Copy className="w-4 h-4 mr-2" />}{copied ? 'Link copiato' : 'Copia link pubblico'}</Button>}
       </div>
 
-      <Button onClick={handleSave} disabled={updateGallery.isPending}>
-        {updateGallery.isPending ? 'Salvataggio...' : 'Salva modifiche'}
+      <Button onClick={handleSave} disabled={saving}>
+        {saving ? 'Salvataggio...' : 'Salva modifiche'}
       </Button>
     </div>
   );

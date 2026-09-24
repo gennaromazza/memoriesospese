@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useLocation } from 'wouter';
-import { useCreateGallery, useClients, useJobs } from '../../lib/api-hooks';
+import { useCreateGallery } from '../../lib/api-hooks';
+import { GalleryAssociationFields } from './association-fields';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,26 +10,23 @@ import { Textarea } from '@/components/ui/textarea';
 export default function NewGallery() {
   const [, setLocation] = useLocation();
   const create = useCreateGallery();
-  const { data: clients = [] } = useClients();
-  const { data: jobs = [] } = useJobs();
-  
   const [formData, setFormData] = useState({
     name: '',
     eventDate: '',
     location: '',
-    description: ''
-    ,clientId: ''
-    ,jobId: ''
+    description: '',
+    clientIds: [] as string[],
+    jobId: '',
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     create.mutate(
-      { ...formData, clientIds: formData.clientId ? [formData.clientId] : [], status: 'draft', archived: false, passwordEnabled: false, pinEnabled: false, photoCount: 0, chapterCount: 0 },
+      { ...formData, status: 'draft' },
       {
         onSuccess: (newGallery) => {
           setLocation(`/galleries/${newGallery.id}`);
-        }
+        },
       }
     );
   };
@@ -59,20 +57,12 @@ export default function NewGallery() {
               className="text-lg py-6"
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="clientId">Cliente</Label>
-            <select id="clientId" className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm" value={formData.clientId} onChange={e => setFormData({ ...formData, clientId: e.target.value })}>
-              <option value="">Nessun cliente</option>
-              {clients.map((client: any) => <option key={client.id} value={client.id}>{client.name || client.nome || client.email || client.id}</option>)}
-            </select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="jobId">Job</Label>
-            <select id="jobId" className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm" value={formData.jobId} onChange={e => setFormData({ ...formData, jobId: e.target.value })}>
-              <option value="">Nessun job</option>
-              {jobs.map((job: any) => <option key={job.id} value={job.id}>{job.title || job.name || job.id}</option>)}
-            </select>
-          </div>
+          <GalleryAssociationFields
+            idPrefix="new-gallery"
+            jobId={formData.jobId}
+            clientIds={formData.clientIds}
+            onChange={(jobId, clientIds) => setFormData(current => ({ ...current, jobId, clientIds }))}
+          />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">

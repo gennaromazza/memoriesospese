@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchApi } from './api';
+import type { GalleryClient, GalleryJob } from './gallery-associations';
 
 // Models
 export interface Gallery {
@@ -73,12 +74,11 @@ export interface SelectionSummary {
   productRequirements?: Array<{ prodottoId?: string; prodottoNome?: string; prodottoNumeroFoto?: number }>;
 }
 
-export interface GalleryOption { id: string; name?: string; email?: string; title?: string; }
 export function useClients() {
-  return useQuery({ queryKey: ['clients'], queryFn: () => fetchApi<any>('/clients').then(r => r.clients || r.data || r) });
+  return useQuery({ queryKey: ['clients'], queryFn: () => fetchApi<{ clients: GalleryClient[] }>('/clients').then(r => r.clients) });
 }
 export function useJobs() {
-  return useQuery({ queryKey: ['jobs'], queryFn: () => fetchApi<any>('/jobs').then(r => r.jobs || r.data || r) });
+  return useQuery({ queryKey: ['jobs'], queryFn: () => fetchApi<{ jobs: GalleryJob[] }>('/jobs').then(r => r.jobs) });
 }
 export function useProducts() {
   return useQuery({ queryKey: ['products'], queryFn: () => fetchApi<any>('/products').then(r => r.products || r.data || r) });
@@ -99,8 +99,8 @@ export function useUpdateGallerySecrets(galleryId: string) {
 }
 export function useShareGallery(galleryId: string) {
   return useMutation({
-    mutationFn: (data: { to: string; subject?: string; html?: string }) =>
-      fetchApi<{ success: boolean; shareUrl?: string }>(`/galleries/${galleryId}/share`, { method: 'POST', body: JSON.stringify(data) }),
+    mutationFn: (data: { to: string }) =>
+      fetchApi<{ success: boolean; publicUrl: string }>(`/galleries/${galleryId}/share`, { method: 'POST', body: JSON.stringify(data) }),
   });
 }
 
