@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, net, protocol, shell } from "electron";
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
@@ -8,6 +8,13 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".heic", ".tif", ".tiff"]);
 const activeUploads = new Map();
+const rendererRoot = path.resolve(__dirname, "..", "dist", "public");
+
+// A standard, secure origin lets Chromium load Vite's ES modules and gives
+// Firebase persistence a stable origin without disabling web security.
+protocol.registerSchemesAsPrivileged([
+  { scheme: "app", privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } },
+]);
 
 async function walkFolder(root, current = root) {
   const entries = await readdir(current, { withFileTypes: true });
@@ -111,10 +118,6 @@ function createWindow() {
       webSecurity: true,
     },
   });
-  win.webContents.session.webRequest.onBeforeSendHeaders((details, callback) => {
-    callback({ requestHeaders: { ...details.requestHeaders, Origin: "https://imagestudiofotografico.com" } });
-  });
-
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith("https://")) void shell.openExternal(url);
     return { action: "deny" };
@@ -124,12 +127,29 @@ function createWindow() {
   if (developmentUrl) {
     void win.loadURL(developmentUrl);
   } else {
-    const renderer = path.join(__dirname, "..", "dist", "public", "index.html");
-    void win.loadURL(pathToFileURL(renderer).toString());
+    void win.loadURL("app://image-studio/");
   }
 }
 
 app.whenReady().then(() => {
+  protocol.handle("app", request => {
+    const url = new URL(request.url);
+    if (url.hostname !== "image-studio") {
+      return new Response("Not found", { status: 404 });
+    }
+
+    const pathname = decodeURIComponent(url.pathname);
+    const resource = pathname.startsWith("/assets/") ||
+      pathname === "/favicon.svg" ||
+      pathname === "/robots.txt"
+      ? path.resolve(rendererRoot, `.${pathname}`)
+      : path.join(rendererRoot, "index.html");
+    if (resource !== path.join(rendererRoot, "index.html") &&
+        !resource.startsWith(`${rendererRoot}${path.sep}`)) {
+      return new Response("Not found", { status: 404 });
+    }
+    return net.fetch(pathToFileURL(resource).toString());
+  });
   createWindow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
