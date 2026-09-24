@@ -26,15 +26,22 @@ function FocalPreview({ url, position, onChange, ratio = '16 / 9' }: {
 }
 
 export function CoverControls({ gallery }: { gallery: Gallery }) {
-  const { data: photos = [] } = useGalleryPhotos(gallery.id);
+  const { data: photos = [], isLoading: photosLoading, error: photosError } = useGalleryPhotos(gallery.id);
   const org = useGalleryOrganization(gallery.id);
   return <div className="space-y-6">
     {(['desktop', 'mobile'] as const).map(kind =>
-      <GalleryCover key={kind} kind={kind} gallery={gallery} photos={photos} org={org} />)}
+      <GalleryCover key={kind} kind={kind} gallery={gallery} photos={photos} photosLoading={photosLoading} photosError={photosError} org={org} />)}
   </div>;
 }
 
-function GalleryCover({ kind, gallery, photos, org }: { kind: 'desktop' | 'mobile'; gallery: Gallery; photos: Photo[]; org: ReturnType<typeof useGalleryOrganization> }) {
+function GalleryCover({ kind, gallery, photos, photosLoading, photosError, org }: {
+  kind: 'desktop' | 'mobile';
+  gallery: Gallery;
+  photos: Photo[];
+  photosLoading: boolean;
+  photosError: unknown;
+  org: ReturnType<typeof useGalleryOrganization>;
+}) {
   const url = kind === 'desktop' ? gallery.coverUrl : gallery.mobileCoverUrl;
   const storedPosition = kind === 'desktop' ? gallery.focalPoint : gallery.mobileFocalPoint;
   const [selected, setSelected] = useState('');
@@ -72,10 +79,29 @@ function GalleryCover({ kind, gallery, photos, org }: { kind: 'desktop' | 'mobil
   };
   return <div className="space-y-3 border rounded-lg p-4">
     <Label>Copertina {label}</Label>
-    <select aria-label={`Scegli copertina ${label}`} className="w-full border rounded-md p-2 bg-background text-sm" value={selected} onChange={e => { setSelected(e.target.value); setPosition(center); }}>
-      <option value="">{url ? 'Copertina attuale' : 'Scegli una foto dalla galleria'}</option>
-      {photos.map(p => <option key={p.id} value={p.id}>{p.name || p.id}</option>)}
-    </select>
+    <p className="text-xs text-muted-foreground">Scegli una foto dalla galleria o carica una copertina separata.</p>
+    {photosLoading ? <p role="status" className="text-sm text-muted-foreground">Caricamento foto…</p> :
+      photosError ? <p role="alert" className="text-sm text-destructive">Impossibile caricare le foto della galleria.</p> :
+        photos.length > 0 ? (
+          <div role="radiogroup" aria-label={`Scegli copertina ${label}`} className="grid max-h-64 grid-cols-3 gap-2 overflow-y-auto rounded-md border p-2 sm:grid-cols-4">
+            {photos.map(photo => (
+              <button
+                key={photo.id}
+                type="button"
+                role="radio"
+                aria-checked={selected === photo.id}
+                aria-label={`Seleziona ${photo.name || photo.id}`}
+                onClick={() => { setSelected(photo.id); setPosition(center); }}
+                className={`overflow-hidden rounded-md border text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                  selected === photo.id ? 'border-primary ring-2 ring-primary' : 'border-border hover:border-primary/50'
+                }`}
+              >
+                <img src={photo.thumbnailUrl || photo.url} alt="" loading="lazy" className="aspect-square w-full bg-muted object-cover" />
+                <span className="block truncate px-2 py-1.5 text-xs" title={photo.name || photo.id}>{photo.name || photo.id}</span>
+              </button>
+            ))}
+          </div>
+        ) : <p className="text-sm text-muted-foreground">Non ci sono foto nella galleria. Puoi caricare una copertina separata.</p>}
     <Input aria-label={`Carica copertina ${label}`} type="file" accept="image/jpeg,image/png,image/webp" disabled={uploading} onChange={e => {
       const file = e.target.files?.[0];
       if (file) void upload(file);

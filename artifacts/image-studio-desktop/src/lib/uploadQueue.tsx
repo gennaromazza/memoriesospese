@@ -1,13 +1,18 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect, useRef, useMemo } from 'react';
 import { fetchApi } from './api';
 import { restoreUploadQueue, serializeUploadQueue, resumeUploadItem } from './uploadQueuePersistence';
+import { compressGalleryUpload } from './uploadCompression';
 
-export type UploadStatus = 'pending' | 'hashing' | 'uploading' | 'paused' | 'success' | 'duplicate' | 'error';
+export type UploadStatus = 'pending' | 'compressing' | 'hashing' | 'uploading' | 'paused' | 'success' | 'duplicate' | 'error';
 export interface UploadItem {
   id: string; fileName: string; relativePath: string; absolutePath?: string;
   chapterName: string; size: number; hash?: string; status: UploadStatus;
   progress: number; retries: number; error?: string; galleryId: string;
   fileObj?: File; contentType?: string;
+  /** Byte size actually sent to Storage (after compression). */
+  uploadSize?: number;
+  /** Non-blocking note shown to the operator (e.g. compression fallback). */
+  warning?: string;
 }
 interface UploadQueueState {
   items: UploadItem[]; concurrency: number; aggregateProgress: number;
@@ -70,44 +75,61 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
     void window.imageStudioDesktop?.cancelUpload(id).catch(() => undefined);
     updateItem(id, { status: 'paused' });
   };
-  const resumeItem = (id: string) => setItems(prev => resumeUploadItem(prev, id));
+  // Resume waits for the previous run to settle: while its controller is still
+  // registered the old read/compression has not exited yet.
+  const resumeItem = (id: string) => {
+    if (controllers.current.has(id)) return;
+    setItems(prev => resumeUploadItem(prev, id));
+  };
   const retryItem = (id: string) => updateItem(id, { status: 'pending', error: undefined, retries: 0 });
+
+  // Load the original bytes as a File: browser selections already have one,
+  // native folder selections are read through the Electron bridge.
+  const loadSourceFile = async (item: UploadItem): Promise<File> => {
+    if (item.fileObj) return item.fileObj;
+    if (item.absolutePath && window.imageStudioDesktop?.readFile) {
+      const { bytes, lastModified } = await window.imageStudioDesktop.readFile(item.absolutePath);
+      const type = mimeFor(item.fileName, item.contentType) || 'application/octet-stream';
+      return new File([new Blob([bytes as BlobPart])], item.fileName, { type, lastModified });
+    }
+    if (item.absolutePath) throw new Error('Aggiorna l\'app desktop: la compressione richiede la versione più recente');
+    throw new Error('Browser file unavailable after restart; please select it again');
+  };
 
   const processItem = async (item: UploadItem) => {
     const controller = new AbortController(); controllers.current.set(item.id, controller);
     const current = () => itemsRef.current.find(i => i.id === item.id);
+    const interrupted = () => controller.signal.aborted || current()?.status === 'paused';
     try {
-      updateItem(item.id, { status: 'hashing', error: undefined });
-      let hash = item.hash;
-      if (!hash) {
-        if (item.absolutePath && window.imageStudioDesktop?.hashFile) hash = await window.imageStudioDesktop.hashFile(item.absolutePath);
-        else if (item.fileObj) hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await item.fileObj.arrayBuffer()))).map(b => b.toString(16).padStart(2, '0')).join('');
-        else throw new Error('Browser file unavailable after restart; please select it again');
-        if (controller.signal.aborted || current()?.status === 'paused') return;
-        updateItem(item.id, { hash });
-      }
-      const contentType = mimeFor(item.fileName, item.contentType);
-      if (!contentType) throw new Error(`Unsupported image format: ${item.fileName}`);
-      updateItem(item.id, { status: 'uploading', progress: 0, contentType });
+      if (!mimeFor(item.fileName, item.contentType)) throw new Error(`Unsupported image format: ${item.fileName}`);
+      // Same pipeline as the web gallery: compress first, then hash and upload
+      // exactly the compressed bytes so the server-side size/hash checks match.
+      updateItem(item.id, { status: 'compressing', error: undefined, warning: undefined, progress: 0 });
+      const source = await loadSourceFile(item);
+      if (interrupted()) return;
+      const prepared = await compressGalleryUpload(source, controller.signal);
+      if (interrupted()) return;
+      const upload = prepared.file;
+      const contentType = upload.type || mimeFor(item.fileName, item.contentType);
+      updateItem(item.id, { status: 'hashing', uploadSize: upload.size, contentType, warning: prepared.warning });
+      const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await upload.arrayBuffer()))).map(b => b.toString(16).padStart(2, '0')).join('');
+      if (interrupted()) return;
+      updateItem(item.id, { hash, status: 'uploading', progress: 0 });
       const session = await fetchApi<any>(`/galleries/${item.galleryId}/upload-sessions`, {
         method: 'POST', signal: controller.signal, body: JSON.stringify({ fileName: item.fileName, relativePath: item.relativePath,
-          chapterName: item.chapterName, size: item.size, contentHash: hash, contentType }),
+          chapterName: item.chapterName, size: upload.size, contentHash: hash, contentType }),
       });
-      if (controller.signal.aborted || current()?.status === 'paused') return;
+      if (interrupted()) return;
       if (session.uploadUrl) {
         const progress = (p: number) => updateItem(item.id, { progress: Math.round(p * 0.9) });
-        if (item.absolutePath && window.imageStudioDesktop?.uploadFile) {
-          await window.imageStudioDesktop.uploadFile({ requestId: item.id, filePath: item.absolutePath, uploadUrl: session.uploadUrl, contentType },
-            ({ progress: p }) => progress(p));
-        } else if (item.fileObj) await browserUpload(session.uploadUrl, item.fileObj, contentType, controller.signal, progress);
-        else throw new Error('No file object or native uploader available');
+        await browserUpload(session.uploadUrl, upload, contentType, controller.signal, progress);
       }
-      if (controller.signal.aborted || current()?.status === 'paused') return;
+      if (interrupted()) return;
       if (!session.storagePath) throw new Error('Upload session did not return a storage path');
       updateItem(item.id, { progress: 95 });
       await fetchApi(`/galleries/${item.galleryId}/photos/finalize`, {
         method: 'POST', signal: controller.signal, body: JSON.stringify({ storagePath: session.storagePath, name: item.fileName, originalName: item.fileName,
-          contentHash: hash, size: item.size, contentType, chapterName: item.chapterName }),
+          contentHash: hash, size: upload.size, contentType, chapterName: item.chapterName }),
       });
       updateItem(item.id, { status: 'success', progress: 100, error: undefined });
     } catch (err: any) {
@@ -118,10 +140,13 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
         const retries = (current()?.retries || 0) + 1;
         updateItem(item.id, retries <= 3 ? { status: 'pending', retries, error: message } : { status: 'error', retries, error: message });
       }
-    } finally { controllers.current.delete(item.id); }
+    } finally {
+      // A paused item may already have been resumed with a fresh controller.
+      if (controllers.current.get(item.id) === controller) controllers.current.delete(item.id);
+    }
   };
   useEffect(() => {
-    const active = items.filter(i => i.status === 'hashing' || i.status === 'uploading').length;
+    const active = items.filter(i => i.status === 'compressing' || i.status === 'hashing' || i.status === 'uploading').length;
     items.filter(i => i.status === 'pending').slice(0, Math.max(0, concurrency - active)).forEach(processItem);
   }, [items, concurrency]);
   const aggregateProgress = useMemo(() => {

@@ -1,6 +1,6 @@
-import { app, BrowserWindow, dialog, ipcMain, net, protocol, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, shell, Tray } from "electron";
 import { createReadStream } from "node:fs";
-import { stat } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { hashFile, walkFolder } from "./file-operations.mjs";
@@ -8,6 +8,23 @@ import { hashFile, walkFolder } from "./file-operations.mjs";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const activeUploads = new Map();
 const rendererRoot = path.resolve(__dirname, "..", "dist", "public");
+const iconPath = path.join(__dirname, "..", "build", process.platform === "win32" ? "icon.ico" : "icon.png");
+let mainWindow = null;
+let tray = null;
+let isQuitting = false;
+
+// Avoid opening a second copy when the user clicks the Windows shortcut while
+// the first copy is hidden in the notification area.
+const hasInstanceLock = app.requestSingleInstanceLock();
+if (!hasInstanceLock) app.quit();
+app.on("second-instance", () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  }
+});
+app.on("before-quit", () => { isQuitting = true; });
 
 // A standard, secure origin lets Chromium load Vite's ES modules and gives
 // Firebase persistence a stable origin without disabling web security.
@@ -25,6 +42,16 @@ ipcMain.handle("desktop:select-folder", async () => {
 });
 
 ipcMain.handle("desktop:hash-file", async (_event, filePath) => hashFile(filePath));
+// The renderer compresses photos with the same algorithm as the web app, so it
+// needs the original bytes rather than a stream straight to Storage.
+ipcMain.handle("desktop:read-file", async (_event, filePath) => {
+  const info = await stat(filePath);
+  // The whole file is held in memory by the renderer while it is decoded and
+  // compressed (same as the web app); keep the per-file ceiling conservative.
+  if (info.size > 200 * 1024 * 1024) throw new Error("File troppo grande per la compressione (max 200 MB)");
+  const bytes = await readFile(filePath);
+  return { bytes, size: info.size, lastModified: Math.round(info.mtimeMs) };
+});
 ipcMain.handle("desktop:upload-file", async (event, { requestId, filePath, uploadUrl, contentType }) => {
   const info = await stat(filePath);
   const controller = new AbortController();
@@ -73,6 +100,7 @@ function createWindow() {
     height: 960,
     minWidth: 1120,
     minHeight: 720,
+    icon: iconPath,
     backgroundColor: "#f6f5f1",
     title: "Image Studio Gallerie",
     autoHideMenuBar: true,
@@ -83,6 +111,16 @@ function createWindow() {
       sandbox: true,
       webSecurity: true,
     },
+  });
+  mainWindow = win;
+  win.on("close", event => {
+    if (process.platform === "win32" && tray && !isQuitting) {
+      event.preventDefault();
+      win.hide();
+    }
+  });
+  win.on("closed", () => {
+    if (mainWindow === win) mainWindow = null;
   });
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith("https://")) void shell.openExternal(url);
@@ -98,6 +136,8 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  if (!hasInstanceLock) return;
+  if (process.platform === "win32") app.setAppUserModelId("com.imagestudio.gallerie");
   protocol.handle("app", request => {
     const url = new URL(request.url);
     if (url.hostname !== "image-studio") {
@@ -117,8 +157,33 @@ app.whenReady().then(() => {
     return net.fetch(pathToFileURL(resource).toString());
   });
   createWindow();
+  if (process.platform === "win32") {
+    tray = new Tray(iconPath);
+    tray.setToolTip("Image Studio Gallerie");
+    tray.setContextMenu(Menu.buildFromTemplate([
+      { label: "Apri Image Studio Gallerie", click: () => {
+        if (!mainWindow || mainWindow.isDestroyed()) createWindow();
+        else {
+          if (mainWindow.isMinimized()) mainWindow.restore();
+          mainWindow.show();
+          mainWindow.focus();
+        }
+      } },
+      { type: "separator" },
+      { label: "Esci", click: () => app.quit() },
+    ]));
+    tray.on("double-click", () => {
+      if (!mainWindow || mainWindow.isDestroyed()) createWindow();
+      else {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.show();
+        mainWindow.focus();
+      }
+    });
+  }
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (!mainWindow || mainWindow.isDestroyed()) createWindow();
+    else mainWindow.show();
   });
 });
 

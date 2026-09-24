@@ -297,6 +297,10 @@ importers:
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@25.9.6)(vite@7.3.6(@types/node@25.9.6)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.13)(yaml@2.9.0))
 
   artifacts/image-studio-desktop:
+    dependencies:
+      browser-image-compression:
+        specifier: 2.0.2
+        version: 2.0.2
     devDependencies:
       '@hookform/resolvers':
         specifier: ^3.10.0

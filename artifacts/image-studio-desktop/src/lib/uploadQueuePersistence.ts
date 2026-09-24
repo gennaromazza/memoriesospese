@@ -17,7 +17,10 @@ export function restoreUploadQueue(raw: string | null): UploadItem[] {
       error: !item.absolutePath && item.status !== 'success' && item.status !== 'duplicate'
         ? 'Browser file unavailable after restart; please select it again'
         : item.error,
-      status: item.status === 'hashing' || item.status === 'uploading' || item.status === 'pending'
+      // Compressed bytes never persist: a resumed item recompresses from its source.
+      hash: item.status === 'success' || item.status === 'duplicate' ? item.hash : undefined,
+      uploadSize: item.status === 'success' || item.status === 'duplicate' ? item.uploadSize : undefined,
+      status: item.status === 'compressing' || item.status === 'hashing' || item.status === 'uploading' || item.status === 'pending'
         ? 'paused' as const : item.status,
     }));
   } catch {

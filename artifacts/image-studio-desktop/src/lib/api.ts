@@ -15,7 +15,10 @@ export async function fetchApi<T>(endpoint: string, options: RequestInit = {}): 
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
+  // Endpoints starting with /api/ are shared with the web app (e.g. the
+  // centralized email routes); everything else lives under /api/desktop.
+  const url = endpoint.startsWith('/api/') ? `${API_ORIGIN}${endpoint}` : `${API_BASE}${endpoint}`;
+  const response = await fetch(url, {
     ...options,
     headers,
   });

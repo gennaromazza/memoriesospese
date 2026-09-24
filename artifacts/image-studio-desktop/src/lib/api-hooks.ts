@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchApi } from './api';
-import type { GalleryClient, GalleryJob } from './gallery-associations';
+import type { GalleryClient, GalleryJob, GalleryJobType } from './gallery-associations';
 
 // Models
 export interface Gallery {
@@ -11,7 +11,8 @@ export interface Gallery {
   eventDate?: string;
   location?: string;
   description?: string;
-  category?: string;
+  category?: string | null;
+  jobType?: string | null;
   clientIds?: string[];
   clientNames?: string[];
   jobId?: string;
@@ -80,11 +81,33 @@ export function useClients() {
 export function useJobs() {
   return useQuery({ queryKey: ['jobs'], queryFn: () => fetchApi<{ jobs: GalleryJob[] }>('/jobs').then(r => r.jobs) });
 }
+export function useJobTypes() {
+  return useQuery({ queryKey: ['job-types'], queryFn: () => fetchApi<{ jobTypes: GalleryJobType[] }>('/job-types').then(r => r.jobTypes) });
+}
 export function useProducts() {
   return useQuery({ queryKey: ['products'], queryFn: () => fetchApi<any>('/products').then(r => r.products || r.data || r) });
 }
+export interface SelectionResultPhoto {
+  id: string; name: string; exportName: string; url: string | null;
+  chapterId: string | null; chapterName: string | null; products: string[]; note: string | null;
+}
+export interface SelectionResults {
+  status: 'pending' | 'completed'; selectedPhotoIds: string[]; notes: string | null; photos: SelectionResultPhoto[];
+}
 export function useSelectionResults(galleryId: string) {
-  return useQuery({ queryKey: ['gallery', galleryId, 'selection-results'], queryFn: () => fetchApi<any>(`/galleries/${galleryId}/selection-results`).then(r => r.results || r), enabled: !!galleryId });
+  return useQuery({
+    queryKey: ['gallery', galleryId, 'selection-results'],
+    queryFn: () => fetchApi<SelectionResults>(`/galleries/${galleryId}/selection-results`),
+    enabled: !!galleryId,
+  });
+}
+/** Same centralized email route the web admin uses for "foto pronte". */
+export function useNotifyPhotosReady(galleryId: string) {
+  return useMutation({
+    mutationFn: (photoCount: number) => fetchApi<{ message?: string }>('/api/email/gallery-photos-ready', {
+      method: 'POST', body: JSON.stringify({ galleryId, photoCount }),
+    }),
+  });
 }
 export function useSelectionHistory(galleryId: string) {
   return useQuery({ queryKey: ['gallery', galleryId, 'selection-history'], queryFn: () => fetchApi<any>(`/galleries/${galleryId}/history`).then(r => r.history || r), enabled: !!galleryId });
@@ -264,6 +287,7 @@ export function useResetSelection(galleryId: string) {
     mutationFn: () => fetchApi<{ success: boolean }>(`/galleries/${galleryId}/customer-selection/reset`, { method: 'POST', body: JSON.stringify({ confirm: true }) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['gallery', galleryId, 'selection'] });
+      qc.invalidateQueries({ queryKey: ['gallery', galleryId, 'selection-results'] });
       qc.invalidateQueries({ queryKey: ['gallery', galleryId] });
     }
   });

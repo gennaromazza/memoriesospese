@@ -15,6 +15,7 @@ declare global {
       platform: string;
       selectFolder(): Promise<DesktopSelectedFile[]>;
       hashFile(filePath: string): Promise<string>;
+      readFile?(filePath: string): Promise<{ bytes: Uint8Array; size: number; lastModified: number }>;
       uploadFile(
         request: {
           requestId: string;

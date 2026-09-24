@@ -39,8 +39,12 @@ describe('desktop interrupted upload after restart', () => {
         status: 'uploading', progress: 63, retries: 1,
       };
       const restored = restoreUploadQueue(serializeUploadQueue([inFlight]));
-      expect(restored).toMatchObject([{ status: 'paused', hash, absolutePath: original, chapterName: 'Cerimonia' }]);
-      expect(resumeUploadItem(restored, 'one')).toMatchObject([{ status: 'pending', hash, absolutePath: original }]);
+      // In-flight hashes describe compressed bytes that no longer exist after a
+      // restart, so they are dropped and recomputed from the original on resume.
+      expect(restored).toMatchObject([{ status: 'paused', hash: undefined, absolutePath: original, chapterName: 'Cerimonia' }]);
+      expect(resumeUploadItem(restored, 'one')).toMatchObject([{ status: 'pending', absolutePath: original }]);
+      expect(restoreUploadQueue(serializeUploadQueue([{ ...inFlight, status: 'success', uploadSize: 3 }]))[0]).toMatchObject({ hash, uploadSize: 3 });
+      expect(restoreUploadQueue(serializeUploadQueue([{ ...inFlight, status: 'compressing' }]))[0].status).toBe('paused');
       expect(restoreUploadQueue(serializeUploadQueue([{ ...inFlight, status: 'hashing' }]))[0].status).toBe('paused');
       expect(restoreUploadQueue(serializeUploadQueue([{ ...inFlight, status: 'pending' }]))[0].status).toBe('paused');
       expect(restoreUploadQueue('invalid')).toEqual([]);

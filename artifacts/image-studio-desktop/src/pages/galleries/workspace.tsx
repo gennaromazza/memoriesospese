@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useLocation } from 'wouter';
-import { useGallery, useUpdateGallery, useDeleteGallery, useCustomerSelection, useConfigureSelection, useUnlockSelection, useResetSelection, useClients, useJobs, useProducts, useSelectionResults, useSelectionHistory, useUpdateGallerySecrets } from '../../lib/api-hooks';
+import { useGallery, useUpdateGallery, useDeleteGallery, useCustomerSelection, useConfigureSelection, useUnlockSelection, useResetSelection, useClients, useJobs, useProducts, useSelectionResults, useSelectionHistory, useUpdateGallerySecrets, useJobTypes, useNotifyPhotosReady } from '../../lib/api-hooks';
+import { SelectionResultsPanel } from './selection-results';
 import { CoverControls, PhotosTab } from './organization';
 import { useUploadQueue } from '../../lib/uploadQueue';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -107,6 +108,7 @@ export default function GalleryWorkspace({ id }: { id: string }) {
 function OverviewTab({ gallery, updateGallery }: { gallery: any, updateGallery: any }) {
   const { data: clients = [] } = useClients();
   const { data: jobs = [] } = useJobs();
+  const { data: jobTypes = [] } = useJobTypes();
   const linkedClients = (gallery.clientIds || gallery.clientiIds || []).map((id: string) => {
     const client = clients.find(item => item.id === id);
     return client ? clientLabel(client) : id;
@@ -134,7 +136,7 @@ function OverviewTab({ gallery, updateGallery }: { gallery: any, updateGallery: 
           <div className="space-y-3 text-sm">
             <div className="grid grid-cols-3 text-muted-foreground"><span className="col-span-1">Data</span><span className="col-span-2 text-foreground">{gallery.eventDate || '-'}</span></div>
             <div className="grid grid-cols-3 text-muted-foreground"><span className="col-span-1">Luogo</span><span className="col-span-2 text-foreground">{gallery.location || '-'}</span></div>
-            <div className="grid grid-cols-3 text-muted-foreground"><span className="col-span-1">Categoria</span><span className="col-span-2 text-foreground">{gallery.category || '-'}</span></div>
+            <div className="grid grid-cols-3 text-muted-foreground"><span className="col-span-1">Categoria</span><span className="col-span-2 text-foreground">{jobTypes.find(type => type.slug === gallery.jobType)?.nome || gallery.jobType || gallery.category || '-'}</span></div>
             <div className="grid grid-cols-3 text-muted-foreground"><span className="col-span-1">Job</span><span className="col-span-2 text-foreground">{job ? jobLabel(job) : gallery.jobId || 'Nessun Job'}</span></div>
             <div className="grid grid-cols-3 text-muted-foreground"><span className="col-span-1">Clienti</span><span className="col-span-2 text-foreground">{linkedClients.join(', ') || 'Nessun cliente'}</span></div>
           </div>
@@ -181,7 +183,7 @@ function SettingsTab({ gallery, updateGallery }: { gallery: any, updateGallery: 
     eventDate: gallery.eventDate || '',
     location: gallery.location || '',
     description: gallery.description || '',
-    category: gallery.category || '',
+    jobType: gallery.jobType || gallery.category || '',
     jobId: gallery.jobId || '',
     publicUrl: gallery.publicUrl || '',
     specialTheme: gallery.specialTheme || '',
@@ -209,6 +211,8 @@ function SettingsTab({ gallery, updateGallery }: { gallery: any, updateGallery: 
     const { accessMode: _accessMode, passwordEnabled: _passwordEnabled, pinEnabled: _pinEnabled, ...settings } = formData;
     updateGallery.mutate({
       ...settings,
+      jobType: formData.jobType || null,
+      category: formData.jobType || null,
     }, { onSuccess: () => {
       if (!accessChanged && !secret.trim()) { window.alert('Impostazioni salvate.'); return; }
       const payload = accessMode === 'open'
@@ -252,17 +256,16 @@ function SettingsTab({ gallery, updateGallery }: { gallery: any, updateGallery: 
             <Label htmlFor="gallery-description">Descrizione</Label>
             <Input id="gallery-description" value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="gallery-category">Categoria</Label>
-            <Input id="gallery-category" value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} />
-          </div>
         </div>
         <div className="border-t border-border pt-4">
           <GalleryAssociationFields
             idPrefix="gallery-settings"
             jobId={formData.jobId}
             clientIds={formData.clientIds}
-            onChange={(jobId, clientIds) => setFormData(current => ({ ...current, jobId, clientIds }))}
+            jobType={formData.jobType}
+            onChange={(jobId, clientIds, jobType) => setFormData(current => ({
+              ...current, jobId, clientIds, jobType: jobType ?? current.jobType,
+            }))}
           />
         </div>
       </div>
@@ -310,8 +313,9 @@ function SelectionTab({ gallery }: { gallery: any }) {
   const galleryId = gallery.id;
   const { data: selection, isLoading } = useCustomerSelection(galleryId);
   const { data: catalogProducts = [] } = useProducts();
-  const { data: selectionResults = [] } = useSelectionResults(galleryId);
+  const { data: selectionResults } = useSelectionResults(galleryId);
   const { data: selectionHistory = [] } = useSelectionHistory(galleryId);
+  const notify = useNotifyPhotosReady(galleryId);
   const configure = useConfigureSelection(galleryId);
   const unlock = useUnlockSelection(galleryId);
   const reset = useResetSelection(galleryId);
@@ -409,9 +413,19 @@ function SelectionTab({ gallery }: { gallery: any }) {
           <div><span className="text-muted-foreground">Risultato cliente:</span> <strong>{selection?.selectedCount || 0} foto</strong></div>
           <div><span className="text-muted-foreground">Stato:</span> <strong>{selection?.locked ? 'Completato e bloccato' : 'In corso'}</strong></div>
         </div>
-        {selectionResults.length > 0 && <div className="space-y-2"><h4 className="text-sm font-medium">Risultati dettagliati</h4>{selectionResults.slice(0, 100).map((result: any, index: number) => <div key={result.id || result.photoId || index} className="flex justify-between rounded border p-2 text-xs"><span>{result.photoName || result.name || result.photoId || `Foto ${index + 1}`}</span><span className="text-muted-foreground">{result.selection || result.action || (result.selected ? 'Selezionata' : 'Non selezionata')}</span></div>)}</div>}
+        <SelectionResultsPanel results={selectionResults} />
         {selectionHistory.length > 0 && <div className="space-y-2"><h4 className="text-sm font-medium">Cronologia dal server</h4>{selectionHistory.slice(0, 10).map((entry: any, index: number) => <div key={entry.id || index} className="flex justify-between rounded border p-2 text-xs"><span>{entry.label || entry.action || `Revisione ${index + 1}`}</span><span className="text-muted-foreground">{entry.timestamp ? new Date(entry.timestamp).toLocaleString() : ''}</span></div>)}</div>}
-        {selection?.snapshots?.length ? <div className="space-y-2"><h4 className="text-sm font-medium">Cronologia</h4>{selection.snapshots.map((snap: any, index: number) => <div key={index} className="flex justify-between rounded border p-2 text-xs"><span>{snap.label || `Revisione ${index + 1}`}</span><span className="text-muted-foreground">{snap.selectedCount ?? 0} foto{snap.timestamp ? ` · ${new Date(snap.timestamp).toLocaleString()}` : ''}</span></div>)}</div> : null}
+        {selection?.snapshots?.length ? <div className="space-y-2"><h4 className="text-sm font-medium">Revisioni precedenti</h4>{selection.snapshots.map((snap: any, index: number) => <div key={snap.id || index} className="flex justify-between rounded border p-2 text-xs"><span>{snap.label || `Revisione ${index + 1}`}</span><span className="text-muted-foreground">{snap.selectedPhotoIds?.length ?? snap.selectedCount ?? 0} foto{(snap.createdAt || snap.timestamp) ? ` · ${new Date(snap.createdAt || snap.timestamp).toLocaleString()}` : ''}</span></div>)}</div> : null}
+      </div>
+
+      <div className="bg-card border border-border p-6 rounded-xl shadow-sm space-y-3">
+        <h3 className="font-medium text-foreground text-lg">Avvisa il cliente</h3>
+        <p className="text-sm text-muted-foreground">Invia l'email "foto pronte" ai clienti associati alla galleria (stesso invio della webapp).</p>
+        <Button variant="outline" disabled={notify.isPending || !(gallery.photoCount > 0)} onClick={() => notify.mutate(gallery.photoCount || 0, {
+          onSuccess: r => window.alert(r.message || 'Email inviata al cliente'), onError: (e: Error) => window.alert(e.message),
+        })}>
+          {notify.isPending ? 'Invio in corso...' : 'Invia notifica foto pronte'}
+        </Button>
       </div>
 
       <div className="bg-card border border-border p-6 rounded-xl shadow-sm space-y-4">
@@ -535,19 +549,19 @@ function UploadTab({ galleryId }: { galleryId: string }) {
             {galleryItems.map(item => (
               <div key={item.id} className="flex items-center justify-between p-3 hover:bg-muted/50 rounded-md group">
                 <div className="flex items-center gap-3 overflow-hidden">
-                  {item.status === 'success' ? <CheckCircle2 className="w-4 h-4 text-sage" /> : item.status === 'error' ? <AlertCircle className="w-4 h-4 text-destructive" /> : item.status === 'duplicate' ? <AlertCircle className="w-4 h-4 text-orange-500" /> : item.status === 'paused' ? <Pause className="w-4 h-4 text-muted-foreground" /> : (item.status === 'uploading' || item.status === 'hashing') ? <Loader2 className="w-4 h-4 text-primary animate-spin" /> : <div className="w-4 h-4 rounded-full border-2 border-muted-foreground/30" />}
+                  {item.status === 'success' ? <CheckCircle2 className="w-4 h-4 text-sage" /> : item.status === 'error' ? <AlertCircle className="w-4 h-4 text-destructive" /> : item.status === 'duplicate' ? <AlertCircle className="w-4 h-4 text-orange-500" /> : item.status === 'paused' ? <Pause className="w-4 h-4 text-muted-foreground" /> : (item.status === 'uploading' || item.status === 'hashing' || item.status === 'compressing') ? <Loader2 className="w-4 h-4 text-primary animate-spin" /> : <div className="w-4 h-4 rounded-full border-2 border-muted-foreground/30" />}
                   <div className="flex flex-col">
                     <span className="text-sm font-medium truncate">{item.fileName}</span>
                     <span className="text-xs text-muted-foreground">{item.chapterName} • {{
-                      pending: 'In attesa', hashing: 'Verifica file', uploading: 'Caricamento', paused: 'In pausa',
+                      pending: 'In attesa', compressing: 'Compressione', hashing: 'Verifica file', uploading: 'Caricamento', paused: 'In pausa',
                       success: 'Completato', duplicate: 'Già presente', error: 'Errore'
-                    }[item.status]}{item.error ? ` - ${item.error}` : ''}</span>
+                    }[item.status]}{item.error ? ` - ${item.error}` : ''}{item.warning ? ` - ${item.warning}` : ''}</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
                   <span className="text-xs text-muted-foreground min-w-[3rem] text-right">{item.progress}%</span>
                   <div className="flex items-center gap-1">
-                    {(item.status === 'pending' || item.status === 'hashing' || item.status === 'uploading') && (
+                    {(item.status === 'pending' || item.status === 'compressing' || item.status === 'hashing' || item.status === 'uploading') && (
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => pauseItem(item.id)}>
                         <Pause className="w-4 h-4" />
                       </Button>

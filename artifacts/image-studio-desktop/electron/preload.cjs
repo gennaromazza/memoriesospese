@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld("imageStudioDesktop", {
   platform: process.platform,
   selectFolder: () => ipcRenderer.invoke("desktop:select-folder"),
   hashFile: filePath => ipcRenderer.invoke("desktop:hash-file", filePath),
+  readFile: filePath => ipcRenderer.invoke("desktop:read-file", filePath),
   uploadFile: (request, onProgress) => {
     const channel = `desktop:upload-progress:${request.requestId}`;
     const listener = (_event, progress) => onProgress(progress);

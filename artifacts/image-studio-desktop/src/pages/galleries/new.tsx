@@ -17,12 +17,13 @@ export default function NewGallery() {
     description: '',
     clientIds: [] as string[],
     jobId: '',
+    jobType: '',
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     create.mutate(
-      { ...formData, status: 'draft' },
+      { ...formData, jobType: formData.jobType || null, category: formData.jobType || null, status: 'draft' },
       {
         onSuccess: (newGallery) => {
           setLocation(`/galleries/${newGallery.id}`);
@@ -61,7 +62,10 @@ export default function NewGallery() {
             idPrefix="new-gallery"
             jobId={formData.jobId}
             clientIds={formData.clientIds}
-            onChange={(jobId, clientIds) => setFormData(current => ({ ...current, jobId, clientIds }))}
+            jobType={formData.jobType}
+            onChange={(jobId, clientIds, jobType) => setFormData(current => ({
+              ...current, jobId, clientIds, jobType: jobType ?? current.jobType,
+            }))}
           />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

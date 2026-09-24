@@ -1,6 +1,6 @@
 {
   "name": "@workspace/image-studio-desktop",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "private": true,
   "type": "module",
   "main": "electron/main.mjs",
@@ -59,9 +59,9 @@
     "cmdk": "^1.1.1",
     "cross-env": "^10.1.0",
     "date-fns": "^3.6.0",
-    "embla-carousel-react": "^8.6.0",
     "electron": "^39.2.7",
     "electron-builder": "^26.0.12",
+    "embla-carousel-react": "^8.6.0",
     "firebase": "^12.18.0",
     "framer-motion": "catalog:",
     "input-otp": "^1.4.2",
@@ -94,6 +94,8 @@
     "files": [
       "dist/public/**/*",
       "electron/**/*",
+      "build/icon.png",
+      "build/icon.ico",
       "package.json"
     ],
     "asar": true,
@@ -102,11 +104,13 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
-      "icon": "build/icon.png",
-      "signAndEditExecutable": false
+      "icon": "build/icon.ico",
+      "signAndEditExecutable": true
     },
     "nsis": {
       "oneClick": false,
@@ -116,5 +120,8 @@
       "shortcutName": "Image Studio Gallerie",
       "deleteAppDataOnUninstall": false
     }
+  },
+  "dependencies": {
+    "browser-image-compression": "2.0.2"
   }
 }
