@@ -1,13 +1,13 @@
 {
   "name": "@workspace/image-studio-desktop",
-  "version": "0.0.0",
+  "version": "0.0.2",
   "private": true,
   "type": "module",
   "main": "electron/main.mjs",
   "scripts": {
     "dev": "vite --config vite.config.ts --host 0.0.0.0",
     "build": "vite build --config vite.config.ts",
-    "build:desktop": "cross-env PORT=21541 BASE_PATH=./ VITE_API_BASE_URL=https://imagestudiofotografico.com vite build --config vite.config.ts",
+    "build:desktop": "cross-env PORT=21541 BASE_PATH=/ VITE_API_BASE_URL=https://imagestudiofotografico.com vite build --config vite.config.ts",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "desktop:dev": "cross-env ELECTRON_RENDERER_URL=http://localhost:21541/desktop/ electron electron/main.mjs",
