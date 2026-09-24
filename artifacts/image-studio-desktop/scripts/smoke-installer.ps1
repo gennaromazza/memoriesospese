@@ -15,6 +15,8 @@ if ($InstallerPath) {
   $installer = $installers[0]
 }
 if ($installer.Length -lt 10MB) { throw "Installer incompleto: $($installer.Length) byte." }
+$checksum = (Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+Write-Host "Installer SHA-256: $checksum  $($installer.Name)"
 $version = (Get-Content (Join-Path $PSScriptRoot '../package.json') -Raw | ConvertFrom-Json).version
 if ($installer.Name -ne "Image-Studio-Gallerie-$version-x64.exe") {
   throw "Versione installer non corrispondente al package.json ($version): $($installer.Name)"
