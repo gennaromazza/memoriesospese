@@ -55,7 +55,8 @@ jobs:
   publish-windows:
     # Temporary Actions artifacts are never an updater feed. Only an exact,
     # stable version tag may publish a public release, after Windows smoke checks.
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/image-studio-desktop-v')
+    # A -build tag produces a downloadable Actions artifact without a public release.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/image-studio-desktop-v') && !endsWith(github.ref_name, '-build')
     needs: build-windows
     runs-on: windows-latest
     permissions:
