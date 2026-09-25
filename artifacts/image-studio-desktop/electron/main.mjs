@@ -4,6 +4,7 @@ import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { hashFile, walkFolder } from "./file-operations.mjs";
+import { createUpdateController } from "./update-controller.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const activeUploads = new Map();
@@ -12,6 +13,31 @@ const iconPath = path.join(__dirname, "..", "build", process.platform === "win32
 let mainWindow = null;
 let tray = null;
 let isQuitting = false;
+let rendererBusyCount = null;
+let updates = null;
+let updateStartupError = false;
+
+const updateStatus = () => updates?.getStatus() ?? { phase: updateStartupError ? "error" : "idle" };
+const mayInstallUpdate = () => rendererBusyCount === 0 && activeUploads.size === 0;
+function installUpdate() {
+  return updates?.install() ?? { installed: false, reason: "not-ready" };
+}
+async function quitFromTray() {
+  if (!mayInstallUpdate()) {
+    const { response } = await dialog.showMessageBox({
+      type: "warning",
+      title: "Lavoro ancora in corso",
+      message: "La coda potrebbe contenere file in elaborazione o upload.",
+      detail: "Uscire adesso interromperà il lavoro in corso. Puoi lasciarla nel tray e terminare più tardi.",
+      buttons: ["Continua il lavoro", "Esci comunque"],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true,
+    });
+    if (response !== 1) return;
+  }
+  app.quit();
+}
 
 // Avoid opening a second copy when the user clicks the Windows shortcut while
 // the first copy is hidden in the notification area.
@@ -93,6 +119,36 @@ ipcMain.handle("desktop:open-external", async (_event, url) => {
   if (!["https:", "mailto:"].includes(parsed.protocol)) throw new Error("Protocollo non consentito");
   await shell.openExternal(url);
 });
+ipcMain.handle("desktop:update-status", () => updateStatus());
+ipcMain.handle("desktop:update-check", () => updates?.check() ?? updateStatus());
+ipcMain.handle("desktop:update-work-state", (event, count) => {
+  if (event.sender !== mainWindow?.webContents) return;
+  rendererBusyCount = Number.isSafeInteger(count) ? Math.max(0, count) : 0;
+  updateTrayMenu();
+});
+ipcMain.handle("desktop:update-install", event => {
+  if (event.sender !== mainWindow?.webContents) return { installed: false, reason: "not-ready" };
+  return installUpdate();
+});
+
+function updateTrayMenu() {
+  if (!tray) return;
+  const ready = updateStatus().phase === "ready";
+  tray.setToolTip(ready ? "Image Studio Gallerie — aggiornamento pronto" : "Image Studio Gallerie");
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: "Apri Image Studio Gallerie", click: () => {
+      if (!mainWindow || mainWindow.isDestroyed()) createWindow();
+      else {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.show();
+        mainWindow.focus();
+      }
+    } },
+    ...(ready ? [{ label: "Riavvia e aggiorna", enabled: mayInstallUpdate(), click: installUpdate }] : []),
+    { type: "separator" },
+    { label: "Esci", click: () => { void quitFromTray(); } },
+  ]));
+}
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -113,6 +169,7 @@ function createWindow() {
     },
   });
   mainWindow = win;
+  rendererBusyCount = null;
   win.on("close", event => {
     if (process.platform === "win32" && tray && !isQuitting) {
       event.preventDefault();
@@ -159,19 +216,7 @@ app.whenReady().then(() => {
   createWindow();
   if (process.platform === "win32") {
     tray = new Tray(iconPath);
-    tray.setToolTip("Image Studio Gallerie");
-    tray.setContextMenu(Menu.buildFromTemplate([
-      { label: "Apri Image Studio Gallerie", click: () => {
-        if (!mainWindow || mainWindow.isDestroyed()) createWindow();
-        else {
-          if (mainWindow.isMinimized()) mainWindow.restore();
-          mainWindow.show();
-          mainWindow.focus();
-        }
-      } },
-      { type: "separator" },
-      { label: "Esci", click: () => app.quit() },
-    ]));
+    updateTrayMenu();
     tray.on("double-click", () => {
       if (!mainWindow || mainWindow.isDestroyed()) createWindow();
       else {
@@ -180,6 +225,28 @@ app.whenReady().then(() => {
         mainWindow.focus();
       }
     });
+    if (app.isPackaged) {
+      void import("electron-updater").then(async module => {
+        const updater = module.autoUpdater ?? module.default?.autoUpdater;
+        if (!updater) throw new Error("electron-updater unavailable");
+        // Public GitHub Releases supply the updater feed. Unsigned NSIS builds
+        // intentionally have no Windows publisherName; metadata integrity is
+        // checked by electron-updater, but Authenticode identity is unavailable.
+        updates = createUpdateController({
+          updater,
+          getWindow: () => mainWindow,
+          canInstall: mayInstallUpdate,
+          prepareInstall: () => { isQuitting = true; },
+          cancelInstall: () => { isQuitting = false; },
+        });
+        updater.on("update-downloaded", updateTrayMenu);
+        updater.on("error", updateTrayMenu);
+      }).catch(error => {
+        console.error("Windows updater unavailable:", error);
+        updateStartupError = true;
+        mainWindow?.webContents.send("desktop:update-status", updateStatus());
+      });
+    }
   }
   app.on("activate", () => {
     if (!mainWindow || mainWindow.isDestroyed()) createWindow();

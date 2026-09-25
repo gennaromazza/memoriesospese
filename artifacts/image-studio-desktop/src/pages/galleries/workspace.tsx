@@ -17,6 +17,8 @@ import { Progress } from '@/components/ui/progress';
 import { GalleryAssociationFields } from './association-fields';
 import { clientLabel, jobLabel } from '../../lib/gallery-associations';
 import { ShareGalleryForm } from './share-gallery-form';
+import { CoverStylePicker } from './cover-style-picker';
+import { SpecialThemePicker } from './special-theme-picker';
 
 export default function GalleryWorkspace({ id }: { id: string }) {
   const [, setLocation] = useLocation();
@@ -186,9 +188,9 @@ function SettingsTab({ gallery, updateGallery }: { gallery: any, updateGallery: 
     jobType: gallery.jobType || gallery.category || '',
     jobId: gallery.jobId || '',
     publicUrl: gallery.publicUrl || '',
-    specialTheme: gallery.specialTheme || '',
-    headerStyle: gallery.headerStyle || '',
-    accessMode: gallery.accessMode || (gallery.pinEnabled ? 'pin' : gallery.passwordEnabled ? 'password' : 'open'),
+    specialTheme: gallery.specialTheme || 'none',
+    headerStyle: gallery.headerStyle || 'classico',
+    accessMode: gallery.accessMode || (gallery.pinEnabled ? 'pin' : gallery.passwordEnabled ? 'password' : 'open') as 'open' | 'password' | 'pin',
     passwordEnabled: gallery.passwordEnabled === true,
     pinEnabled: gallery.pinEnabled === true,
     clientIds: gallery.clientIds || [],
@@ -204,27 +206,34 @@ function SettingsTab({ gallery, updateGallery }: { gallery: any, updateGallery: 
     setSecretError('');
     const originalMode = gallery.accessMode || (gallery.pinEnabled ? 'pin' : gallery.passwordEnabled ? 'password' : 'open');
     const accessChanged = accessMode !== originalMode;
+    const themeChanged = formData.specialTheme !== (gallery.specialTheme || 'none');
+    if ((accessMode === 'pin') !== (formData.specialTheme !== 'none')) {
+      setSecretError('Il tema speciale richiede un PIN. Senza tema scegli password o accesso pubblico.');
+      return;
+    }
     if (accessChanged && accessMode !== 'open' && !secret.trim()) {
       setSecretError(`Inserisci ${accessMode === 'password' ? 'una password' : 'un PIN'} prima di attivare la protezione.`);
       return;
     }
-    const { accessMode: _accessMode, passwordEnabled: _passwordEnabled, pinEnabled: _pinEnabled, ...settings } = formData;
-    updateGallery.mutate({
-      ...settings,
-      jobType: formData.jobType || null,
-      category: formData.jobType || null,
-    }, { onSuccess: () => {
-      if (!accessChanged && !secret.trim()) { window.alert('Impostazioni salvate.'); return; }
-      const payload = accessMode === 'open'
-        ? { accessMode, password: null, specialPin: null }
-        : accessMode === 'password' ? { accessMode, password: secret } : { accessMode, specialPin: secret };
-      updateSecrets.mutate(payload, {
-        onSuccess: () => { setSecret(''); window.alert('Impostazioni salvate.'); },
-        onError: (e: Error) => setSecretError(e.message.includes('API route not found')
-          ? 'Le altre impostazioni sono state salvate, ma la password non è stata salvata: il server pubblicato non ha ancora questa funzione. Pubblica la versione aggiornata dell’API e riprova.'
-          : `Le altre impostazioni sono state salvate, ma la credenziale no: ${e.message}`),
-      });
-    }, onError: (e: Error) => setSecretError(`Salvataggio non riuscito: ${e.message}`) });
+    if (accessChanged && accessMode === 'open' &&
+        !window.confirm('Rimuovere la protezione? La galleria sarà accessibile senza password o PIN.')) return;
+    const { accessMode: _accessMode, passwordEnabled: _passwordEnabled, pinEnabled: _pinEnabled,
+      specialTheme: _specialTheme, ...settings } = formData;
+    const saveSettings = () => updateGallery.mutate({
+      ...settings, jobType: formData.jobType || null, category: formData.jobType || null,
+    }, { onSuccess: () => { setSecret(''); window.alert('Impostazioni salvate.'); },
+      onError: (e: Error) => setSecretError(`Accesso aggiornato, ma le altre impostazioni non sono state salvate: ${e.message}`) });
+    if (!accessChanged && !themeChanged && !secret.trim()) { saveSettings(); return; }
+    const payload = {
+      accessMode,
+      specialTheme: formData.specialTheme === 'none' ? null : formData.specialTheme,
+      ...(accessMode === 'password' && secret.trim() ? { password: secret.trim() } : {}),
+      ...(accessMode === 'pin' && secret.trim() ? { specialPin: secret.trim() } : {}),
+    };
+    updateSecrets.mutate(payload, {
+      onSuccess: saveSettings,
+      onError: (e: Error) => setSecretError(`Accesso e tema non modificati: ${e.message}`),
+    });
   };
   const copyPublicLink = async () => {
     if (!gallery.publicUrl) return;
@@ -273,16 +282,22 @@ function SettingsTab({ gallery, updateGallery }: { gallery: any, updateGallery: 
       <div className="bg-card border border-border p-6 rounded-xl shadow-sm space-y-4">
         <h3 className="font-medium text-foreground text-lg mb-4">Aspetto</h3>
         <CoverControls gallery={gallery} />
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="gallery-header-style">Stile intestazione</Label>
-            <Input id="gallery-header-style" value={formData.headerStyle} onChange={e => setFormData({ ...formData, headerStyle: e.target.value })} />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="gallery-special-theme">Tema speciale</Label>
-            <Input id="gallery-special-theme" value={formData.specialTheme} onChange={e => setFormData({ ...formData, specialTheme: e.target.value })} />
-          </div>
-        </div>
+        <CoverStylePicker
+          value={formData.headerStyle}
+          onChange={headerStyle => setFormData(current => ({ ...current, headerStyle }))}
+          coverUrl={gallery.coverUrl}
+          galleryName={formData.name}
+          eventDate={formData.eventDate}
+          location={formData.location}
+        />
+        <SpecialThemePicker
+          value={formData.specialTheme}
+          onChange={specialTheme => {
+            setFormData(current => ({ ...current, specialTheme, accessMode: specialTheme === 'none' ? 'open' : 'pin' }));
+            setSecret('');
+            setSecretError('');
+          }}
+        />
       </div>
 
       <div className="bg-card border border-border p-6 rounded-xl shadow-sm space-y-4">
@@ -290,12 +305,20 @@ function SettingsTab({ gallery, updateGallery }: { gallery: any, updateGallery: 
         <div className="flex items-center gap-2 text-sm text-muted-foreground"><LockKeyhole className="w-4 h-4" /> Scegli come il cliente accederà alla galleria.</div>
         <div className="space-y-2">
             <Label htmlFor="gallery-access-mode">Modalità di accesso</Label>
-            <select id="gallery-access-mode" className="w-full h-11 rounded-md border border-input bg-background px-3 py-2 text-sm" value={formData.accessMode} onChange={e => setFormData({ ...formData, accessMode: e.target.value as 'open'|'password'|'pin' })}>
+            <select id="gallery-access-mode" className="w-full h-11 rounded-md border border-input bg-background px-3 py-2 text-sm" value={formData.accessMode} onChange={e => {
+              const accessMode = e.target.value as 'open' | 'password' | 'pin';
+              setFormData(current => ({ ...current, accessMode, specialTheme: accessMode === 'pin' ? current.specialTheme : 'none' }));
+              setSecret('');
+              setSecretError('');
+            }}>
             <option value="open">Pubblico (senza protezione)</option>
             <option value="password">Password</option>
-            <option value="pin">PIN / tema speciale</option>
+            <option value="pin" disabled={formData.specialTheme === 'none'}>PIN / tema speciale</option>
           </select>
         </div>
+        <p className="text-xs text-muted-foreground">
+          Il tema speciale usa solo il PIN. Rimuovendo il tema, scegli una password oppure conferma l'accesso pubblico al salvataggio.
+        </p>
         {formData.accessMode !== 'open' && <div className="space-y-2"><Label htmlFor="gallery-secret">{formData.accessMode === 'password' ? 'Nuova password' : 'Nuovo PIN'}</Label><Input id="gallery-secret" type={formData.accessMode === 'password' ? 'password' : 'text'} inputMode={formData.accessMode === 'pin' ? 'numeric' : undefined} value={secret} onChange={e => setSecret(e.target.value)} placeholder="Inserisci una nuova credenziale" /></div>}
         <p className="text-xs text-muted-foreground">Per sicurezza la credenziale attuale non viene mai caricata. Inserisci una nuova credenziale per salvarla.</p>
         {secretError && <p className="text-sm text-destructive">{secretError}</p>}

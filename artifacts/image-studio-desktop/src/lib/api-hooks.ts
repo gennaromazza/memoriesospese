@@ -27,7 +27,9 @@ export interface Gallery {
   accessMode?: 'open' | 'password' | 'pin';
   passwordEnabled: boolean;
   pinEnabled: boolean;
-  specialTheme?: string;
+  specialTheme?: string | null;
+  clientiIds?: string[];
+  clienteId?: string;
   selectionMode?: 'like' | 'dislike';
   selectionRequiredCount?: number;
   selectionDeadline?: string;
@@ -75,6 +77,16 @@ export interface SelectionSummary {
   productRequirements?: Array<{ prodottoId?: string; prodottoNome?: string; prodottoNumeroFoto?: number }>;
 }
 
+export function useCreateWhatsAppHandoff(galleryId: string) {
+  return useMutation({
+    mutationFn: (clientId: string) =>
+      fetchApi<{ handoffPath: string; expiresInSeconds: number }>(`/galleries/${galleryId}/whatsapp-share`, {
+        method: 'POST',
+        body: JSON.stringify({ clientId }),
+      }),
+  });
+}
+
 export function useClients() {
   return useQuery({ queryKey: ['clients'], queryFn: () => fetchApi<{ clients: GalleryClient[] }>('/clients').then(r => r.clients) });
 }
@@ -115,7 +127,7 @@ export function useSelectionHistory(galleryId: string) {
 export function useUpdateGallerySecrets(galleryId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { accessMode: 'open' | 'password' | 'pin'; password?: string | null; specialPin?: string | null }) =>
+    mutationFn: (data: { accessMode: 'open' | 'password' | 'pin'; specialTheme?: string | null; password?: string | null; specialPin?: string | null }) =>
       fetchApi<{ success: boolean }>(`/galleries/${galleryId}/secrets`, { method: 'PUT', body: JSON.stringify(data) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['gallery', galleryId] }); }
   });

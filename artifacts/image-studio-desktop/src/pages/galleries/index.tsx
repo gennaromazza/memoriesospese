@@ -1,18 +1,19 @@
 import { useState } from 'react';
 import { useClients, useGalleries, useJobs } from '../../lib/api-hooks';
-import { clientLabel, jobLabel } from '../../lib/gallery-associations';
+import { clientLabel, galleryClientIds, jobLabel } from '../../lib/gallery-associations';
 import { Link } from 'wouter';
 import { Plus, Search, MapPin, Calendar, Camera } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { WhatsAppShareButton } from './whatsapp-share-button';
 
 export default function GalleriesList() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<string>('');
   
   const { data: galleries, isLoading, error } = useGalleries(search, status);
-  const { data: clients = [] } = useClients();
+  const { data: clients = [], isLoading: clientsLoading, isError: clientsError } = useClients();
   const { data: jobs = [] } = useJobs();
 
   return (
@@ -67,8 +68,8 @@ export default function GalleriesList() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {galleries?.map(gallery => (
-              <Link key={gallery.id} href={`/galleries/${gallery.id}`} className="group block h-full">
-                <div className="bg-card border border-border rounded-xl overflow-hidden hover:shadow-md transition-all duration-200 hover:border-primary/30 h-full flex flex-col">
+              <div key={gallery.id} className="bg-card border border-border rounded-xl overflow-hidden hover:shadow-md transition-all duration-200 hover:border-primary/30 h-full flex flex-col">
+                <Link href={`/galleries/${gallery.id}`} className="group flex flex-1 flex-col">
                   <div className="aspect-[4/3] bg-muted relative overflow-hidden flex-none">
                     {gallery.coverUrl ? (
                       <img src={gallery.coverUrl} alt={gallery.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
@@ -115,15 +116,23 @@ export default function GalleriesList() {
                     <div className="mt-4 pt-4 border-t border-border flex items-center justify-between text-sm text-foreground">
                       <span className="font-medium">{gallery.photoCount || 0} foto</span>
                       <span className="text-muted-foreground truncate max-w-[120px]">
-                        {gallery.clientIds?.map(id => {
+                        {galleryClientIds(gallery).map(id => {
                           const client = clients.find(item => item.id === id);
                           return client ? clientLabel(client) : id;
                         }).join(', ') || gallery.clientNames?.join(', ') || 'Nessun cliente'}
                       </span>
                     </div>
                   </div>
+                </Link>
+                <div className="px-5 pb-5">
+                  <WhatsAppShareButton
+                    gallery={gallery}
+                    clients={clients}
+                    clientsLoading={clientsLoading}
+                    clientsError={clientsError}
+                  />
                 </div>
-              </Link>
+              </div>
             ))}
           </div>
         )}

@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useClients, useJobs, useJobTypes } from '../../lib/api-hooks';
-import { clientLabel, jobClientIds, jobLabel, mergeJobClientIds } from '../../lib/gallery-associations';
+import { clientLabel, jobClientIds, jobLabel, jobClientNames, jobMatchesSearch, mergeJobClientIds } from '../../lib/gallery-associations';
 
 interface Props {
   idPrefix: string;
@@ -14,12 +14,25 @@ interface Props {
 
 export function GalleryAssociationFields({ idPrefix, jobId, clientIds, jobType, onChange }: Props) {
   const [search, setSearch] = useState('');
+  const [jobSearch, setJobSearch] = useState('');
   const clients = useClients();
   const jobs = useJobs();
   const types = useJobTypes();
   const selectedJob = jobs.data?.find(job => job.id === jobId);
+  const clientList = clients.data || [];
+  const matchingJobs = useMemo(() => (jobs.data || [])
+    .filter(job => jobMatchesSearch(job, clientList, jobSearch))
+    .slice(0, 30), [clientList, jobSearch, jobs.data]);
   const jobRequiredClientIds = selectedJob ? jobClientIds(selectedJob) : [];
   const requiredClientIds = new Set(jobRequiredClientIds);
+  const selectJob = (nextJobId: string) => {
+    const nextJob = jobs.data?.find(job => job.id === nextJobId);
+    const nextClientIds = nextJob ? mergeJobClientIds(clientIds, nextJob) : clientIds;
+    const nextJobType = (!jobType || jobType === 'none') && nextJob?.jobType
+      ? nextJob.jobType : jobType;
+    onChange(nextJobId, nextClientIds, nextJobType);
+    setJobSearch('');
+  };
   const visibleClients = (clients.data || []).filter(client =>
     clientIds.includes(client.id) || clientLabel(client).toLocaleLowerCase('it').includes(search.toLocaleLowerCase('it')),
   );
@@ -44,25 +57,61 @@ export function GalleryAssociationFields({ idPrefix, jobId, clientIds, jobType, 
         </p>
       </div>
       <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-job`}>Job associato</Label>
-        <select
-          id={`${idPrefix}-job`}
-          className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          value={jobId}
+        <Label htmlFor={`${idPrefix}-job-search`}>Job associato</Label>
+        <Input
+          id={`${idPrefix}-job-search`}
+          type="search"
+          value={jobSearch}
+          onChange={event => setJobSearch(event.target.value)}
+          placeholder="Cerca per nome Job o nome cliente"
+          autoComplete="off"
           disabled={jobs.isLoading || jobs.isError}
-          onChange={event => {
-            const nextJobId = event.target.value;
-            const nextJob = jobs.data?.find(job => job.id === nextJobId);
-            const nextClientIds = nextJob ? mergeJobClientIds(clientIds, nextJob) : clientIds;
-            const nextJobType = (!jobType || jobType === 'none') && nextJob?.jobType
-              ? nextJob.jobType : jobType;
-            onChange(nextJobId, nextClientIds, nextJobType);
-          }}
-        >
-          <option value="">Nessun Job</option>
-          {jobId && !jobs.data?.some(job => job.id === jobId) && <option value={jobId}>Job non disponibile ({jobId})</option>}
-          {jobs.data?.map(job => <option key={job.id} value={job.id}>{jobLabel(job)}</option>)}
-        </select>
+          aria-controls={`${idPrefix}-job-results`}
+        />
+        {selectedJob ? (
+          <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+            <div className="min-w-0">
+              <p className="truncate font-medium">{jobLabel(selectedJob)}</p>
+              {jobClientNames(selectedJob, clientList).length > 0 &&
+                <p className="truncate text-xs text-muted-foreground">{jobClientNames(selectedJob, clientList).join(', ')}</p>}
+            </div>
+            <button type="button" className="shrink-0 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+              onClick={() => onChange('', clientIds, jobType)}>
+              Rimuovi Job
+            </button>
+          </div>
+        ) : jobId ? (
+          <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+            <span className="truncate text-muted-foreground">Job non disponibile ({jobId})</span>
+            <button type="button" className="shrink-0 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+              onClick={() => onChange('', clientIds, jobType)}>
+              Rimuovi Job
+            </button>
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">Scrivi il nome del lavoro o di uno dei clienti collegati per trovarlo.</p>
+        )}
+        {jobSearch.trim() && !jobs.isLoading && !jobs.isError && (
+          matchingJobs.length > 0 ? (
+            <div id={`${idPrefix}-job-results`} role="listbox" aria-label="Risultati Job"
+              className="max-h-64 overflow-y-auto rounded-md border border-input bg-background p-1">
+              {matchingJobs.map(job => (
+                <button key={job.id} type="button" role="option" aria-selected={job.id === jobId}
+                  className="flex w-full flex-col items-start gap-0.5 rounded px-3 py-2 text-left text-sm hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  onClick={() => selectJob(job.id)}>
+                  <span className="font-medium">{jobLabel(job)}</span>
+                  {jobClientNames(job, clientList).length > 0 &&
+                    <span className="text-xs text-muted-foreground">Clienti: {jobClientNames(job, clientList).join(', ')}</span>}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p id={`${idPrefix}-job-results`} role="status" className="rounded-md border p-3 text-sm text-muted-foreground">
+              Nessun Job trovato per “{jobSearch.trim()}”.
+            </p>
+          )
+        )}
+        {matchingJobs.length === 30 && <p className="text-xs text-muted-foreground">Mostrati i primi 30 risultati. Aggiungi altri caratteri per restringere la ricerca.</p>}
         {jobs.isLoading && <p className="text-xs text-muted-foreground">Caricamento Job…</p>}
         {jobs.isError && <p role="alert" className="text-xs text-destructive">Impossibile caricare i Job. Riapri la pagina e riprova.</p>}
         {!jobs.isLoading && !jobs.isError && jobs.data?.length === 0 && <p className="text-xs text-muted-foreground">Non ci sono Job disponibili.</p>}

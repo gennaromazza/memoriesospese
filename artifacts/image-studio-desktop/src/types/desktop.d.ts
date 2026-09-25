@@ -1,5 +1,11 @@
 export {};
 
+export type DesktopUpdateStatus = {
+  phase: 'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'error';
+  version?: string;
+  percent?: number;
+};
+
 declare global {
   interface DesktopSelectedFile {
     absolutePath: string;
@@ -27,6 +33,11 @@ declare global {
       ): Promise<{ success: boolean; size: number }>;
        cancelUpload(requestId: string): Promise<{ success: boolean }>;
       openExternal(url: string): Promise<void>;
+      getUpdateStatus(): Promise<DesktopUpdateStatus>;
+      checkForUpdates(): Promise<DesktopUpdateStatus>;
+      setUpdateWorkCount(count: number): Promise<void>;
+      installUpdate(): Promise<{ installed: boolean; reason?: 'not-ready' | 'busy' | 'failed' }>;
+      onUpdateStatus(listener: (status: DesktopUpdateStatus) => void): () => void;
     };
   }
 }

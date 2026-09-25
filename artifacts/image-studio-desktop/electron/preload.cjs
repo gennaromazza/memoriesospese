@@ -14,4 +14,13 @@ contextBridge.exposeInMainWorld("imageStudioDesktop", {
   },
   cancelUpload: requestId => ipcRenderer.invoke("desktop:cancel-upload", requestId),
   openExternal: url => ipcRenderer.invoke("desktop:open-external", url),
+  getUpdateStatus: () => ipcRenderer.invoke("desktop:update-status"),
+  checkForUpdates: () => ipcRenderer.invoke("desktop:update-check"),
+  setUpdateWorkCount: count => ipcRenderer.invoke("desktop:update-work-state", count),
+  installUpdate: () => ipcRenderer.invoke("desktop:update-install"),
+  onUpdateStatus: listener => {
+    const handler = (_event, status) => listener(status);
+    ipcRenderer.on("desktop:update-status", handler);
+    return () => ipcRenderer.removeListener("desktop:update-status", handler);
+  },
 });

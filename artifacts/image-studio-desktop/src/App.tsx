@@ -7,6 +7,7 @@ import { Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { UploadQueueProvider } from './lib/uploadQueue';
 import { Layout } from './components/layout';
+import { UpdateNotice } from './components/update-notice';
 
 import Login from './pages/login';
 import GalleriesList from './pages/galleries/index';
@@ -76,6 +77,7 @@ export default function App() {
       <AuthProvider>
         <UploadQueueProvider>
           <TooltipProvider>
+            <UpdateNotice />
             <WouterRouter base={window.location.protocol === 'app:' ? '' : import.meta.env.BASE_URL.replace(/\/$/, '')}>
               <Router />
             </WouterRouter>

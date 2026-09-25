@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useCreateChapter, useDeletePhoto, useGalleryChapters, useGalleryOrganization, useGalleryPhotos, type Chapter, type Photo, type Gallery } from '../../lib/api-hooks';
 import { fetchApi } from '../../lib/api';
+import { mergePhotoSelection, photoSelectionRange } from '../../lib/gallery-photo-selection';
 
 const notifyError = (error: Error) => window.alert(`Operazione non riuscita: ${error.message}`);
 type Position = { x: number; y: number };
@@ -124,6 +125,7 @@ export function PhotosTab({ galleryId }: { galleryId: string }) {
   const create = useCreateChapter(galleryId), removePhoto = useDeletePhoto(), org = useGalleryOrganization(galleryId);
   const [filter, setFilter] = useState('all'), [search, setSearch] = useState('');
   const [selected, setSelected] = useState<string[]>([]);
+  const [rangeAnchorId, setRangeAnchorId] = useState<string | null>(null);
   const [page, setPage] = useState(48);
   const [preview, setPreview] = useState<Photo | null>(null);
   const [editing, setEditing] = useState<Chapter | 'new' | null>(null);
@@ -135,8 +137,12 @@ export function PhotosTab({ galleryId }: { galleryId: string }) {
   const unassigned = (p: Photo) => !p.chapterId || !known.has(p.chapterId);
   const visible = photos.filter(p => (filter === 'all' || (filter === 'unassigned' ? unassigned(p) : p.chapterId === filter)) &&
     (p.name || '').toLowerCase().includes(search.toLowerCase()));
-  useEffect(() => { setPage(48); setSelected([]); }, [filter, search]);
-  useEffect(() => { setSelected(current => current.filter(id => photos.some(p => p.id === id))); }, [photos]);
+  const displayedPhotos = visible.slice(0, page);
+  useEffect(() => { setPage(48); setSelected([]); setRangeAnchorId(null); }, [filter, search]);
+  useEffect(() => {
+    setSelected(current => current.filter(id => photos.some(p => p.id === id)));
+    if (rangeAnchorId && !photos.some(p => p.id === rangeAnchorId)) setRangeAnchorId(null);
+  }, [photos, rangeAnchorId]);
   const act = async (action: Promise<unknown>, message: string) => {
     try { await action; window.alert(message); } catch (e) { notifyError(e as Error); }
   };
@@ -159,7 +165,23 @@ export function PhotosTab({ galleryId }: { galleryId: string }) {
   };
   const assign = (chapterId: string | null) => {
     if (!selected.length) return;
-    void act(org.assign.mutateAsync({ photoIds: selected, chapterId }).then(() => setSelected([])), `${selected.length} foto spostate.`);
+    void act(org.assign.mutateAsync({ photoIds: selected, chapterId }).then(() => {
+      setSelected([]);
+      setRangeAnchorId(null);
+    }), `${selected.length} foto spostate.`);
+  };
+  const selectPhoto = (photoId: string, shiftKey: boolean) => {
+    const visibleIds = displayedPhotos.map(photo => photo.id);
+    const currentAnchor = rangeAnchorId && visibleIds.includes(rangeAnchorId) ? rangeAnchorId : photoId;
+    if (shiftKey) {
+      setSelected(current => mergePhotoSelection(current, photoSelectionRange(visibleIds, currentAnchor, photoId)));
+      if (!rangeAnchorId || !visibleIds.includes(rangeAnchorId)) setRangeAnchorId(photoId);
+      return;
+    }
+    setSelected(current => current.includes(photoId)
+      ? current.filter(id => id !== photoId)
+      : [...current, photoId]);
+    setRangeAnchorId(photoId);
   };
   const chapterPhotos = cover ? photos.filter(p => p.chapterId === cover.id) : [];
   const coverPreview = chapterPhotos.find(p => p.id === coverId);
@@ -210,18 +232,27 @@ export function PhotosTab({ galleryId }: { galleryId: string }) {
     </div>
     <div className="bg-card border rounded-xl p-4 flex flex-wrap items-center gap-3">
       <span className="text-sm">{selected.length} selezionate</span>
-      <Button variant="outline" size="sm" onClick={() => setSelected(visible.slice(0, page).map(p => p.id))}>Seleziona foto visibili</Button>
-      <Button variant="outline" size="sm" onClick={() => setSelected([])}>Deseleziona</Button>
+        <Button variant="outline" size="sm" onClick={() => {
+          setSelected(displayedPhotos.map(p => p.id));
+          setRangeAnchorId(null);
+        }}>Seleziona foto visibili</Button>
+        <Button variant="outline" size="sm" onClick={() => {
+          setSelected([]);
+          setRangeAnchorId(null);
+        }}>Deseleziona</Button>
       <select aria-label="Sposta foto selezionate" className="border rounded-md p-2 bg-background" value="" disabled={!selected.length || org.assign.isPending}
         onChange={e => assign(e.target.value === 'unassigned' ? null : e.target.value)}>
         <option value="">Sposta in...</option><option value="unassigned">Senza capitolo</option>
         {ordered.map(c => <option key={c.id} value={c.id}>{c.titolo || (c as any).title || (c as any).name}</option>)}
       </select>
+        <span className="w-full text-xs text-muted-foreground">
+          Clicca una foto, poi tieni premuto Maiusc mentre clicchi sull’ultima per selezionare anche quelle in mezzo.
+        </span>
     </div>
     {!visible.length ? <p className="bg-card border rounded-xl p-10 text-center text-muted-foreground">Nessuna foto trovata. Carica delle foto o modifica la ricerca.</p> :
       <><div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-3">
-        {visible.slice(0, page).map(p => <div key={p.id} className={`bg-card border-2 rounded-lg overflow-hidden ${selected.includes(p.id) ? 'border-primary' : 'border-border'}`}>
-          <button className="aspect-square w-full" onClick={() => setSelected(current => current.includes(p.id) ? current.filter(id => id !== p.id) : [...current, p.id])}
+        {displayedPhotos.map(p => <div key={p.id} className={`bg-card border-2 rounded-lg overflow-hidden ${selected.includes(p.id) ? 'border-primary' : 'border-border'}`}>
+          <button className="aspect-square w-full" onClick={event => selectPhoto(p.id, event.shiftKey)}
             aria-label={`Seleziona ${p.name}`} aria-pressed={selected.includes(p.id)}>
             <img loading="lazy" src={p.thumbnailUrl || p.url} alt={p.name} className="w-full h-full object-cover" />
           </button>
