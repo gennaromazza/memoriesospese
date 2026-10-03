@@ -63,6 +63,7 @@ export default function NewGallery() {
             jobId={formData.jobId}
             clientIds={formData.clientIds}
             jobType={formData.jobType}
+            clearJobAddedClientsOnRemove
             onChange={(jobId, clientIds, jobType) => setFormData(current => ({
               ...current, jobId, clientIds, jobType: jobType ?? current.jobType,
             }))}

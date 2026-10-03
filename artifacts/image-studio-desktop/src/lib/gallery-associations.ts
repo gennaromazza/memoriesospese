@@ -61,22 +61,74 @@ export function jobClientIds(job: GalleryJob): string[] {
 
 export function jobClientNames(job: GalleryJob, clients: GalleryClient[]): string[] {
   const clientsById = new Map(clients.map(client => [client.id, client]));
-  return jobClientIds(job)
+  const resolvedNames = jobClientIds(job)
     .map(id => clientsById.get(id))
     .filter((client): client is GalleryClient => Boolean(client))
     .map(clientLabel);
+  return [...new Set([...resolvedNames, ...(job.clientNames || [])])];
 }
 
 export function jobMatchesSearch(job: GalleryJob, clients: GalleryClient[], search: string): boolean {
   const term = search.trim().toLocaleLowerCase('it');
   if (!term) return false;
+  const clientsById = new Map(clients.map(client => [client.id, client]));
   return [
     jobLabel(job),
     job.nomeEvento,
     job.title,
     job.name,
-    ...jobClientNames(job, clients),
+    ...(job.clientNames || []),
+    ...jobClientIds(job).flatMap(id => {
+      const client = clientsById.get(id);
+      return client ? [clientLabel(client), client.email] : [];
+    }),
   ].some(value => value?.toLocaleLowerCase('it').includes(term));
+}
+
+export function suggestedJobs(
+  jobs: GalleryJob[],
+  clients: GalleryClient[],
+  search: string,
+  selectedClientIds: string[],
+): GalleryJob[] {
+  const term = search.trim();
+  if (term) return jobs.filter(job => jobMatchesSearch(job, clients, term));
+  if (selectedClientIds.length === 0) return [];
+  const selected = new Set(selectedClientIds);
+  return jobs.filter(job => jobClientIds(job).some(id => selected.has(id)));
+}
+
+export function clientMatchesSearch(client: GalleryClient, search: string): boolean {
+  const term = search.trim().toLocaleLowerCase('it');
+  if (!term) return true;
+  return [clientLabel(client), client.email]
+    .some(value => value?.toLocaleLowerCase('it').includes(term));
+}
+
+export function jobTypeAfterSelection(
+  currentType: string,
+  nextJobType: string | undefined,
+  manuallySelected: boolean,
+  wasAutomaticallySet: boolean,
+): { value: string; automaticallySet: boolean } {
+  if (manuallySelected) return { value: currentType, automaticallySet: false };
+  if (wasAutomaticallySet) {
+    return { value: nextJobType || '', automaticallySet: Boolean(nextJobType) };
+  }
+  if ((!currentType || currentType === 'none') && nextJobType) {
+    return { value: nextJobType, automaticallySet: true };
+  }
+  return { value: currentType, automaticallySet: false };
+}
+
+export function clientsAfterRemovingJob(
+  clientIds: string[],
+  autoAddedClientIds: string[],
+  removeAutoAdded: boolean,
+): string[] {
+  if (!removeAutoAdded) return clientIds;
+  const autoAdded = new Set(autoAddedClientIds);
+  return clientIds.filter(id => !autoAdded.has(id));
 }
 
 export function mergeJobClientIds(clientIds: string[], job: GalleryJob): string[] {

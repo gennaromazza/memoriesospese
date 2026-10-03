@@ -15,7 +15,7 @@ import { browserFolderChapter, supportedUploadImage } from '../../lib/folderChap
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Progress } from '@/components/ui/progress';
 import { GalleryAssociationFields } from './association-fields';
-import { clientLabel, jobLabel } from '../../lib/gallery-associations';
+import { clientLabel, galleryClientIds, jobLabel } from '../../lib/gallery-associations';
 import { ShareGalleryForm } from './share-gallery-form';
 import { CoverStylePicker } from './cover-style-picker';
 import { SpecialThemePicker } from './special-theme-picker';
@@ -90,7 +90,7 @@ export default function GalleryWorkspace({ id }: { id: string }) {
               <OverviewTab gallery={gallery} updateGallery={updateGallery} />
             </TabsContent>
             <TabsContent value="settings" className="mt-0 h-full">
-              <SettingsTab gallery={gallery} updateGallery={updateGallery} />
+              <SettingsTab key={gallery.id} gallery={gallery} updateGallery={updateGallery} />
             </TabsContent>
             <TabsContent value="upload" className="mt-0 h-full">
               <UploadTab galleryId={gallery.id} />
@@ -111,7 +111,7 @@ function OverviewTab({ gallery, updateGallery }: { gallery: any, updateGallery: 
   const { data: clients = [] } = useClients();
   const { data: jobs = [] } = useJobs();
   const { data: jobTypes = [] } = useJobTypes();
-  const linkedClients = (gallery.clientIds || gallery.clientiIds || []).map((id: string) => {
+  const linkedClients = galleryClientIds(gallery).map((id: string) => {
     const client = clients.find(item => item.id === id);
     return client ? clientLabel(client) : id;
   });
@@ -193,7 +193,7 @@ function SettingsTab({ gallery, updateGallery }: { gallery: any, updateGallery: 
     accessMode: gallery.accessMode || (gallery.pinEnabled ? 'pin' : gallery.passwordEnabled ? 'password' : 'open') as 'open' | 'password' | 'pin',
     passwordEnabled: gallery.passwordEnabled === true,
     pinEnabled: gallery.pinEnabled === true,
-    clientIds: gallery.clientIds || [],
+    clientIds: galleryClientIds(gallery),
   });
   const [secret, setSecret] = useState('');
   const [secretError, setSecretError] = useState('');
@@ -222,7 +222,7 @@ function SettingsTab({ gallery, updateGallery }: { gallery: any, updateGallery: 
     const saveSettings = () => updateGallery.mutate({
       ...settings, jobType: formData.jobType || null, category: formData.jobType || null,
     }, { onSuccess: () => { setSecret(''); window.alert('Impostazioni salvate.'); },
-      onError: (e: Error) => setSecretError(`Accesso aggiornato, ma le altre impostazioni non sono state salvate: ${e.message}`) });
+      onError: (e: Error) => setSecretError(`Impostazioni non salvate: ${e.message}`) });
     if (!accessChanged && !themeChanged && !secret.trim()) { saveSettings(); return; }
     const payload = {
       accessMode,
@@ -272,6 +272,7 @@ function SettingsTab({ gallery, updateGallery }: { gallery: any, updateGallery: 
             jobId={formData.jobId}
             clientIds={formData.clientIds}
             jobType={formData.jobType}
+            clearJobAddedClientsOnRemove={false}
             onChange={(jobId, clientIds, jobType) => setFormData(current => ({
               ...current, jobId, clientIds, jobType: jobType ?? current.jobType,
             }))}

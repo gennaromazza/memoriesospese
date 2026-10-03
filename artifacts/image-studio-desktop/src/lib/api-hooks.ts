@@ -160,7 +160,11 @@ export function useCreateGallery() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (data: Partial<Gallery>) => fetchApi<{ id: string }>('/galleries', { method: 'POST', body: JSON.stringify(data) }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['galleries'] })
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['galleries'] });
+      qc.invalidateQueries({ queryKey: ['jobs'] });
+      qc.invalidateQueries({ queryKey: ['clients'] });
+    }
   });
 }
 
@@ -168,9 +172,13 @@ export function useUpdateGallery(id: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (data: Partial<Gallery>) => fetchApi<{ success: boolean }>(`/galleries/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ['gallery', id] });
       qc.invalidateQueries({ queryKey: ['galleries'] });
+      if ('jobId' in variables || 'clientIds' in variables || 'clientiIds' in variables) {
+        qc.invalidateQueries({ queryKey: ['jobs'] });
+        qc.invalidateQueries({ queryKey: ['clients'] });
+      }
     }
   });
 }
