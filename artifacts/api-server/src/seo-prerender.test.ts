@@ -7,6 +7,7 @@ vi.mock('./firebase-admin', () => ({ db: { collection: mockCollection } }));
 
 import { buildWeddingStoryPageMeta, createSeoMiddleware } from './seo-prerender';
 const indexHtmlPath = fileURLToPath(new URL('../../image-studio-web/index.html', import.meta.url));
+import { GIFT_SHOP_FAQS } from '@shared/gift-card-landing-content';
 import {
   WEDDING_HOME_SEO,
   WEDDING_PORTFOLIO_SEO,
@@ -341,5 +342,43 @@ describe('SEO prerender wedding-first', () => {
     expect(response.body).toContain('id="blog-contextual-links-title"');
     expect(response.body).toContain('https://imagestudiofotografico.com/portfolio/matrimonio');
     expect(response.body).toContain('https://imagestudiofotografico.com/consulenze');
+  });
+});
+
+describe('pagina regalo /regala', () => {
+  async function withFlag(value: string | undefined, run: () => Promise<void>) {
+    const original = process.env.GIFT_SHOP_INDEXABLE;
+    if (value === undefined) delete process.env.GIFT_SHOP_INDEXABLE;
+    else process.env.GIFT_SHOP_INDEXABLE = value;
+    try {
+      await run();
+    } finally {
+      if (original === undefined) delete process.env.GIFT_SHOP_INDEXABLE;
+      else process.env.GIFT_SHOP_INDEXABLE = original;
+    }
+  }
+
+  it('finché non è aperta a Google resta nascosta con noindex', async () => {
+    await withFlag(undefined, async () => {
+      const { response, next } = await renderForCrawler('/regala');
+      expect(response.headers['X-Robots-Tag']).toContain('noindex');
+      expect(next).toHaveBeenCalled();
+    });
+  });
+
+  it('aperta a Google mostra titolo, testi e dati strutturati con le stesse domande della pagina', async () => {
+    await withFlag('true', async () => {
+      const { response } = await renderForCrawler('/regala');
+      const html = response.body ?? '';
+      expect(html).toContain('Idee regalo di Natale: gift card foto e tela | Image Studio');
+      expect(html).toContain('<link rel="canonical" href="https://imagestudiofotografico.com/regala"');
+      expect(html).toContain('<h1>Idee regalo di Natale: regala un ricordo che resta</h1>');
+      const blocks = [...html.matchAll(/<script type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)].map(match => JSON.parse(match[1]));
+      const flat = blocks.flat();
+      const faq = flat.find((entry: any) => entry['@type'] === 'FAQPage');
+      expect(faq.mainEntity.map((question: any) => question.name)).toEqual(GIFT_SHOP_FAQS.map(item => item.question));
+      expect(flat.some((entry: any) => entry['@type'] === 'BreadcrumbList')).toBe(true);
+      expect(html).not.toContain('noindex');
+    });
   });
 });

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { isKnownClientPath, isPrivateClientPath } from './client-routes';
 
 describe('percorsi delle gift card', () => {
@@ -8,11 +8,26 @@ describe('percorsi delle gift card', () => {
     expect(isPrivateClientPath('/regalo/K7QM-4XD2-9PTR/')).toBe(true);
   });
 
-  it('la pagina di acquisto /regala è pubblica', () => {
-    expect(isKnownClientPath('/regala')).toBe(true);
-    expect(isKnownClientPath('/regala/')).toBe(true);
-    expect(isPrivateClientPath('/regala')).toBe(false);
-    expect(isKnownClientPath('/regala/altro')).toBe(false);
+  describe('pagina di acquisto /regala', () => {
+    const original = process.env.GIFT_SHOP_INDEXABLE;
+    afterEach(() => {
+      if (original === undefined) delete process.env.GIFT_SHOP_INDEXABLE;
+      else process.env.GIFT_SHOP_INDEXABLE = original;
+    });
+
+    it('è raggiungibile ma non indicizzata finché non si decide di aprirla a Google', () => {
+      delete process.env.GIFT_SHOP_INDEXABLE;
+      expect(isKnownClientPath('/regala')).toBe(true);
+      expect(isKnownClientPath('/regala/')).toBe(true);
+      expect(isPrivateClientPath('/regala')).toBe(true);
+      expect(isKnownClientPath('/regala/altro')).toBe(false);
+    });
+
+    it('con GIFT_SHOP_INDEXABLE=true diventa una pagina pubblica indicizzabile', () => {
+      process.env.GIFT_SHOP_INDEXABLE = 'true';
+      expect(isKnownClientPath('/regala')).toBe(true);
+      expect(isPrivateClientPath('/regala')).toBe(false);
+    });
   });
 
   it('non apre percorsi inventati sotto /regalo', () => {

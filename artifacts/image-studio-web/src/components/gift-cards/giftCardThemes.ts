@@ -18,14 +18,14 @@ export interface GiftCardThemeStyle {
 export const GIFT_CARD_THEMES: Record<GiftCardThemeKey, GiftCardThemeStyle> = {
   natale: {
     name: 'Natale',
-    base: 'rosso, verde e oro',
-    ink: '#F4E7BF',
-    sub: '#C8B07A',
-    bg: 'linear-gradient(165deg,#134733 0%,#0B2D22 52%,#05160F 100%)',
-    foil: ['#F6E3A0', '#B88A2B', '#FBEFC2'],
-    seal: '#A8182C',
-    sealInk: '#FFE3E0',
-    swatches: ['#134733', '#F6E3A0', '#A8182C'],
+    base: 'velluto rosso, luci oro e verde bosco',
+    ink: '#FFF0CF',
+    sub: '#E9C27A',
+    bg: 'linear-gradient(165deg,#8E1220 0%,#6E0F1A 50%,#3A0709 100%)',
+    foil: ['#F6D58A', '#B8862B', '#FFE7A8'],
+    seal: '#1F4F3C',
+    sealInk: '#FFF0CF',
+    swatches: ['#6E0F1A', '#F2C46B', '#1F4F3C'],
   },
   carnevale: {
     name: 'Carnevale',

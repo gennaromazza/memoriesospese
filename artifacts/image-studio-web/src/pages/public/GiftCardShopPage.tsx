@@ -11,11 +11,12 @@ import {
   type GiftCardShopTypeDto,
 } from '@shared/gift-card-types';
 import { getWhatsAppLink } from '@shared/phone-utils';
+import { GIFT_SHOP_FAQS, GIFT_SHOP_SEO, GIFT_SHOP_STEPS } from '@shared/gift-card-landing-content';
 import { useStudio } from '@/context/StudioContext';
 import { useSEO } from '@/hooks/useSEO';
 import { giftCardShareUrl } from '@/components/gift-cards/GiftCardCartoncino';
-import { GiftCardAmbient, GiftCardFull, GiftCardMini, formatCardDate } from '@/components/gift-cards/GiftCardArt';
-import { giftCardThemeVars } from '@/components/gift-cards/giftCardThemes';
+import { GiftCardAmbient, GiftCardFull, GiftCardSeal } from '@/components/gift-cards/GiftCardArt';
+import { GIFT_CARD_THEMES, giftCardThemeVars } from '@/components/gift-cards/giftCardThemes';
 import { GiftCardApiError, giftCardsApi } from '@/features/gift-cards/gift-cards-api';
 import { GiftCardPayPalButtons } from '@/features/gift-cards/GiftCardPayPalButtons';
 import '@/components/gift-cards/gift-cards.css';
@@ -72,10 +73,9 @@ export default function GiftCardShopPage() {
   const whatsappUrl = whatsapp ? getWhatsAppLink(whatsapp) : '';
 
   useSEO({
-    title: `${studioName} | Regala uno shooting`,
-    description: 'Una gift card Image Studio: scegli il regalo, scrivi un messaggio e consegnalo quando vuoi.',
+    title: GIFT_SHOP_SEO.title,
+    description: GIFT_SHOP_SEO.description,
     canonical: '/regala',
-    noindex: true,
   });
 
   const shop = useQuery({ queryKey: ['gift-card-shop'], queryFn: giftCardsApi.getShop, staleTime: 60_000 });
@@ -208,7 +208,20 @@ export default function GiftCardShopPage() {
     }
   };
 
-  const theme = (done?.type ?? type)?.theme ?? 'classico';
+  // Il colore della pagina segue il tema più presente tra i regali in vendita (oggi Natale).
+  const theme = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const item of types) counts.set(item.theme, (counts.get(item.theme) ?? 0) + 1);
+    const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+    return (top as keyof typeof GIFT_CARD_THEMES | undefined) ?? 'natale';
+  }, [types]);
+  const studioAddress = studioSettings.address?.trim();
+  const studioEmail = studioSettings.email?.trim();
+  const goToPurchase = (id: string) => {
+    setTypeId(id);
+    const reduced = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.setTimeout(() => document.getElementById('acquista')?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' }), 0);
+  };
   const contact = whatsappUrl ? (
     <a className="underline" href={whatsappUrl} target="_blank" rel="noopener noreferrer">scrivici su WhatsApp</a>
   ) : (
@@ -271,44 +284,55 @@ export default function GiftCardShopPage() {
     );
   } else {
     body = (
-      <div className="gcx-shop-stack">
-        <section aria-labelledby="gcx-s1">
-          <h2 id="gcx-s1" className="gcx-step">1 · Scegli il regalo</h2>
-          <div className="gcx-choices" role="radiogroup" aria-label="Regalo">
-            {types.map(item => (
-              <button
-                key={item.id}
-                type="button"
-                role="radio"
-                aria-checked={item.id === type?.id}
-                className="gcx-choice"
-                onClick={() => setTypeId(item.id)}
-              >
-                <GiftCardMini theme={item.theme} name={item.title} small={item.line2} />
-                <span className="gcx-choice-meta">
-                  <b>{item.name}</b>
-                  <span>{formatGiftCardPrice(item.priceCents)}</span>
-                </span>
-              </button>
-            ))}
+      <>
+        <section id="idee" className="gcx-block" aria-labelledby="gcx-ideas-t">
+          <h2 id="gcx-ideas-t" className="gcx-h2">Le nostre idee regalo</h2>
+          <p className="gcx-sub">Scegli quella che farà felice chi ami: la vedi qui sotto con il tuo messaggio prima di pagare.</p>
+          <div className="gcx-ideas">
+            {types.map(item => {
+              const cover = item.items.find(entry => entry.imageUrls[0])?.imageUrls[0];
+              const selected = item.id === type?.id;
+              return (
+                <article key={item.id} className={`gcx-idea${selected ? ' gcx-idea-on' : ''}`}>
+                  <div className="gcx-idea-ph" style={cover ? undefined : { background: GIFT_CARD_THEMES[item.theme].bg }}>
+                    {cover ? <img src={cover} alt="" loading="lazy" /> : <span>{item.title}</span>}
+                  </div>
+                  <div className="gcx-idea-body">
+                    <h3>{item.title}</h3>
+                    {item.line2 ? <p className="gcx-idea-line">{item.line2}</p> : null}
+                    {item.description ? <p>{item.description}</p> : null}
+                    {item.items.length ? (
+                      <p className="gcx-idea-incl">Include: {item.items.map(entry => (entry.quantity > 1 ? `${entry.name} × ${entry.quantity}` : entry.name)).join(', ')}</p>
+                    ) : null}
+                    <div className="gcx-idea-row">
+                      <b>{formatGiftCardPrice(item.priceCents)}</b>
+                      <button type="button" className="gcx-btn-gold" aria-pressed={selected} onClick={() => goToPurchase(item.id)}>
+                        {selected ? 'Scelto' : 'Scegli'}
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
           </div>
-          {type?.description ? <p className="gcx-hint-text">{type.description}</p> : null}
         </section>
 
-        {type ? (
-          <GiftCardFull
-            theme={type.theme}
-            title={type.title}
-            line2={type.line2}
-            recipientName={recipientName.trim()}
-            message={message.trim()}
-            validUntil={type.validUntil}
-            code="••••-••••-••••"
-          />
-        ) : null}
+        <div id="acquista" className="gcx-shop-stack gcx-buy">
+          <h2 className="gcx-h2 gcx-h2-center">Personalizza e regala</h2>
+          {type ? (
+            <GiftCardFull
+              theme={type.theme}
+              title={type.title}
+              line2={type.line2}
+              recipientName={recipientName.trim()}
+              message={message.trim()}
+              validUntil={type.validUntil}
+              code="••••-••••-••••"
+            />
+          ) : null}
 
         <section className="gcx-panel" aria-labelledby="gcx-s2">
-          <h2 id="gcx-s2" className="gcx-step gcx-step-dark">2 · Personalizzalo</h2>
+          <h3 id="gcx-s2" className="gcx-step gcx-step-dark">Personalizza il regalo</h3>
           <label className="gcx-field">
             <span>Per chi è (facoltativo)</span>
             <input value={recipientName} maxLength={GIFT_CARD_NAME_MAX} onChange={event => setRecipientName(event.target.value)} placeholder="Per esempio Giulia" />
@@ -334,7 +358,7 @@ export default function GiftCardShopPage() {
         </section>
 
         <section className="gcx-panel" aria-labelledby="gcx-s3">
-          <h2 id="gcx-s3" className="gcx-step gcx-step-dark">3 · Paga</h2>
+          <h3 id="gcx-s3" className="gcx-step gcx-step-dark">Paga</h3>
           <div className="gcx-grid2">
             <label className="gcx-field">
               <span>Il tuo nome</span>
@@ -381,24 +405,103 @@ export default function GiftCardShopPage() {
           )}
           <p className="gcx-hint-text">Paghi in modo sicuro con PayPal. Non vediamo i dati della tua carta.</p>
         </section>
-      </div>
+
+        </div>
+      </>
     );
   }
 
+  const showMarketing = !done && !shop.isLoading && !!shop.data && types.length > 0;
+
   return (
-    <main className="gcx-scene" style={giftCardThemeVars(theme)}>
+    <main className="gcx-scene gcx-landing" style={giftCardThemeVars(theme)}>
       <GiftCardAmbient theme={theme} />
       <div className="gcx-scene-inner gcx-shop">
-        <header className="gcx-shop-head">
-          <div className="gcx-script">Un regalo che si scarta</div>
-          <h1>Regala uno shooting</h1>
-          <p>
-            Scegli il regalo, scrivi due righe e consegnalo quando vuoi.
-            {type?.validUntil ? ` La card che stai scegliendo è valida fino al ${formatCardDate(type.validUntil)}.` : ''}
-          </p>
-        </header>
+        {done ? null : (
+          <header className="gcx-hero">
+            <div className="gcx-bulbs" aria-hidden="true" />
+            <p className="gcx-eyebrow-l">Natale 2026 · {studioName}</p>
+            <h1>{GIFT_SHOP_SEO.h1}<span className="gcx-hero-script">{GIFT_SHOP_SEO.script}</span></h1>
+            <p className="gcx-lede">{GIFT_SHOP_SEO.lede}</p>
+            {types.length ? (
+              <div className="gcx-cta-row">
+                <a className="gcx-btn-gold" href="#idee">Scegli l'idea regalo</a>
+                <a className="gcx-btn-line" href="#come-funziona">Come funziona</a>
+              </div>
+            ) : null}
+            <ul className="gcx-proof">
+              <li>Consegna anche il 25 dicembre</li>
+              <li>Paghi in sicurezza con PayPal</li>
+              <li>Un regalo che si scarta</li>
+            </ul>
+          </header>
+        )}
         {body}
-        <p className="gcx-foot">{studioName}</p>
+
+        {showMarketing ? (
+          <>
+            <div className="gcx-stripes" aria-hidden="true" />
+            <section id="come-funziona" className="gcx-block" aria-labelledby="gcx-how-t">
+              <h2 id="gcx-how-t" className="gcx-h2">Come regalare una gift card</h2>
+              <p className="gcx-sub">Tre passaggi, dal telefono, senza creare un account.</p>
+              <ol className="gcx-how">
+                {GIFT_SHOP_STEPS.map((step, index) => (
+                  <li key={step.title}><b>{index + 1}</b><h3>{step.title}</h3><p>{step.text}</p></li>
+                ))}
+              </ol>
+            </section>
+
+            <section className="gcx-block gcx-unwrap" aria-labelledby="gcx-unwrap-t">
+              <div className="gcx-pack" role="img" aria-label="Il regalo chiuso con il sigillo">
+                <div className="gcx-seal-wrap"><GiftCardSeal theme={theme} size={72} /></div>
+              </div>
+              <div>
+                <h2 id="gcx-unwrap-t" className="gcx-h2">Un regalo che si scarta davvero</h2>
+                <p className="gcx-sub">Chi lo riceve apre il link e rompe il sigillo. Vede la card con il tuo messaggio e scopre cosa c'è dentro.</p>
+                <ul className="gcx-dots">
+                  <li>Vede i prodotti inclusi, con foto e dettagli</li>
+                  <li>Non deve pagare nulla</li>
+                  <li>Può avere anche il cartoncino stampato, da regalare in mano</li>
+                </ul>
+              </div>
+            </section>
+
+            <section className="gcx-block" aria-labelledby="gcx-why-t">
+              <h2 id="gcx-why-t" className="gcx-h2">Perché {studioName}</h2>
+              <div className="gcx-trust">
+                <div><b>Il nostro studio</b><span>{studioAddress || 'Dove si fa il regalo, vicino a te.'}</span></div>
+                <div><b>Il set di Natale</b><span>Luci, velluto rosso e decorazioni, solo per questa stagione.</span></div>
+                <div><b>Consegna quando vuoi</b><span>Anche la mattina del 25 dicembre, alle 8:00.</span></div>
+              </div>
+            </section>
+
+            <section className="gcx-block" aria-labelledby="gcx-faq-t">
+              <h2 id="gcx-faq-t" className="gcx-h2">Domande frequenti</h2>
+              {GIFT_SHOP_FAQS.map(faq => (
+                <details key={faq.question} className="gcx-faq">
+                  <summary>{faq.question}</summary>
+                  <p>{faq.answer}</p>
+                </details>
+              ))}
+            </section>
+
+            <div className="gcx-stripes" aria-hidden="true" />
+            <aside className="gcx-final">
+              <h2 className="gcx-h2 gcx-h2-center">Il regalo di Natale che resta</h2>
+              <p className="gcx-sub gcx-center-text">Scegli l'idea e consegnala quando vuoi.</p>
+              <div className="gcx-cta-row"><a className="gcx-btn-gold" href="#idee">Scegli l'idea regalo</a></div>
+            </aside>
+          </>
+        ) : null}
+
+        <footer className="gcx-foot gcx-foot-l">
+          <p>{studioName}{studioAddress ? ` · ${studioAddress}` : ''}</p>
+          <p>
+            {whatsappUrl ? <a href={whatsappUrl} target="_blank" rel="noopener noreferrer">WhatsApp</a> : null}
+            {whatsappUrl && studioEmail ? ' · ' : null}
+            {studioEmail ? <a href={`mailto:${studioEmail}`}>{studioEmail}</a> : null}
+          </p>
+        </footer>
       </div>
     </main>
   );

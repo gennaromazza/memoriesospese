@@ -367,6 +367,8 @@ export interface GiftCardShopTypeDto {
   kind: GiftCardKind;
   priceCents: number;
   theme: GiftCardThemeKey;
+  /** Prodotti del catalogo inclusi, con foto e senza prezzo. */
+  items: GiftCardItemDto[];
   /** Scadenza che avrà la card se comprata adesso. */
   validUntil: string | null;
 }

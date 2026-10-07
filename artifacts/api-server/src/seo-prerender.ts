@@ -32,6 +32,7 @@ import {
   type ResolvedSocialImage,
   type SocialImageCandidate,
 } from '../shared/social-metadata';
+import { GIFT_SHOP_FAQS, GIFT_SHOP_SEO } from '@shared/gift-card-landing-content';
 import {
   buildBlogContextualLinks,
   type BlogWeddingStoryCandidate,
@@ -461,6 +462,38 @@ function getStaticPageMeta(path: string): PageMeta | null {
       description: 'Scopri i servizi Image Studio dedicati agli ospiti e accedi rapidamente ai contatti dello studio.',
       canonical: `${BASE_URL}/ospiti`,
       bodyContent: `<h1>Area Ospiti Image Studio</h1><p>Informazioni e contatti utili per gli ospiti degli eventi fotografati da Image Studio.</p>`
+    },
+    '/regala': {
+      title: GIFT_SHOP_SEO.title,
+      description: GIFT_SHOP_SEO.description,
+      canonical: `${BASE_URL}/regala`,
+      bodyContent: `
+        <h1>${GIFT_SHOP_SEO.h1}: ${GIFT_SHOP_SEO.script}</h1>
+        <p>${GIFT_SHOP_SEO.lede}</p>
+        <h2>Domande frequenti</h2>
+        ${GIFT_SHOP_FAQS.map(faq => `<h3>${faq.question}</h3><p>${faq.answer}</p>`).join('')}
+        <p><a href="${BASE_URL}/">Image Studio Fotografico, Aversa</a></p>
+      `,
+      jsonLd: [
+        {
+          '@context': 'https://schema.org',
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            { '@type': 'ListItem', position: 1, name: 'Home', item: `${BASE_URL}/` },
+            { '@type': 'ListItem', position: 2, name: GIFT_SHOP_SEO.breadcrumb, item: `${BASE_URL}/regala` },
+          ],
+        },
+        {
+          '@context': 'https://schema.org',
+          '@type': 'FAQPage',
+          // Le stesse domande mostrate nella pagina (testi condivisi in gift-card-landing-content)
+          mainEntity: GIFT_SHOP_FAQS.map(faq => ({
+            '@type': 'Question',
+            name: faq.question,
+            acceptedAnswer: { '@type': 'Answer', text: faq.answer },
+          })),
+        },
+      ],
     },
     '/terms': {
       title: 'Termini e Condizioni | Image Studio',

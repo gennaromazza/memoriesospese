@@ -43,6 +43,11 @@ function hasTwoSegmentsAfter(prefix: string, pathname: string): boolean {
   return new RegExp(`^${prefix}/[^/]+/[^/]+$`).test(pathname);
 }
 
+/** La pagina regalo si apre a Google solo con GIFT_SHOP_INDEXABLE=true: fino ad allora resta raggiungibile ma non indicizzata. */
+function isGiftShopHidden(path: string): boolean {
+  return path === '/regala' && process.env.GIFT_SHOP_INDEXABLE !== 'true';
+}
+
 /**
  * Route groups that carry a customer, gallery or collaborator token.
  * They must remain reachable by the SPA but must never be indexed.
@@ -67,6 +72,7 @@ export function isPrivateClientPath(pathname: string): boolean {
     || hasOneSegmentAfter('/q', path)
     || hasOneSegmentAfter('/modulo', path)
     || hasOneSegmentAfter('/regalo', path)
+    || isGiftShopHidden(path)
     || hasTwoSegmentsAfter('/collaboratori/assignment', path)
     || hasOneSegmentAfter('/collaboratori/dashboard', path)
     || path === '/stampa-foto-aversa/ordine'

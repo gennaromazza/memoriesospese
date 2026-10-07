@@ -492,3 +492,17 @@ describe('clienti e prodotti nell\'acquisto online', () => {
     expect(JSON.stringify(stored.items)).not.toContain('45');
   });
 });
+
+describe('vetrina con i prodotti del catalogo', () => {
+  it('mostra foto e descrizione dei prodotti inclusi, senza prezzi, e salta quelli non più disponibili', async () => {
+    const { db, service, online } = setup();
+    db.seed('products/p1', { nome: 'Foto di Natale', descrizione: 'Nel set', prezzoFinale: 45, attivo: true, immagini: ['https://img.test/a.jpg'] });
+    db.seed('products/p2', { nome: 'Tela', descrizione: '', prezzoFinale: 30, attivo: false, immagini: [] });
+    await seedType(service, { items: [{ productId: 'p1', quantity: 1 }, { productId: 'p2', quantity: 1 }] });
+    const shop = await online.shop();
+    expect(shop.types[0].items).toEqual([
+      { productId: 'p1', quantity: 1, name: 'Foto di Natale', description: 'Nel set', imageUrls: ['https://img.test/a.jpg'] },
+    ]);
+    expect(JSON.stringify(shop.types[0].items)).not.toMatch(/45|30|prezzo/i);
+  });
+});

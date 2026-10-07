@@ -2,7 +2,7 @@ import type { GiftCardThemeKey } from '@shared/gift-card-types';
 
 /** Colori delle email per tema: le email non supportano i gradienti in modo affidabile. */
 const EMAIL_THEMES: Record<GiftCardThemeKey, { bg: string; ink: string; sub: string; accent: string; button: string; buttonInk: string }> = {
-  natale: { bg: '#0B2D22', ink: '#F4E7BF', sub: '#C8B07A', accent: '#F6E3A0', button: '#F6E3A0', buttonInk: '#2B1D04' },
+  natale: { bg: '#6E0F1A', ink: '#FFF0CF', sub: '#E9C27A', accent: '#F2C46B', button: '#F2C46B', buttonInk: '#2B0A0E' },
   carnevale: { bg: '#30114F', ink: '#FFE9C7', sub: '#E2B8FF', accent: '#FFD36B', button: '#F08A24', buttonInk: '#2B0F47' },
   'san-valentino': { bg: '#53102A', ink: '#FFE4E1', sub: '#F4B2BE', accent: '#F9D2C6', button: '#E23B5E', buttonInk: '#FFF0F0' },
   pasqua: { bg: '#E9E3FA', ink: '#33264F', sub: '#6C5A93', accent: '#8E6FCB', button: '#8E6FCB', buttonInk: '#FFFFFF' },

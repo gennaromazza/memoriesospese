@@ -269,6 +269,7 @@ export class GiftCardOnlineService {
         kind: type.kind,
         priceCents: type.priceCents,
         theme: type.theme,
+        items: await this.deps.service.catalogItems(type.items),
         validUntil: expires ? expires.toISOString() : null,
       });
     }

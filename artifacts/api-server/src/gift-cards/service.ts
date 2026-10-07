@@ -589,6 +589,24 @@ export class GiftCardService {
     };
   }
 
+  /** Prodotti del catalogo per la vetrina: solo quelli presenti e attivi, mai il prezzo. */
+  async catalogItems(items: readonly GiftCardItemInput[]): Promise<GiftCardItemDto[]> {
+    const result: GiftCardItemDto[] = [];
+    for (const item of items) {
+      const snap = await this.db.collection(PRODUCTS).doc(item.productId).get();
+      const product = snap.exists ? (snap.data() as any) : null;
+      if (!product || product.attivo === false) continue;
+      result.push({
+        productId: item.productId,
+        quantity: item.quantity,
+        name: String(product.nome || ''),
+        description: String(product.descrizione || ''),
+        imageUrls: imageList(product.immagini),
+      });
+    }
+    return result;
+  }
+
   /** Prodotti inclusi per chi riceve: dati aggiornati dal catalogo, o quelli della vendita se il prodotto non c'è più. */
   private async publicItems(stored: unknown): Promise<GiftCardItemDto[]> {
     if (!Array.isArray(stored)) return [];
