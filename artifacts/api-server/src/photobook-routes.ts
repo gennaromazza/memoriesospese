@@ -1,0 +1,2082 @@
+import type { HttpHandlerResult } from "./http-types.js";
+/**
+ * Photobook Routes — Modulo Revisione Fotolibro.
+ *
+ * Route admin (authenticateFirebase + requireAdmin): CRUD fotolibri, versioni,
+ * upload pagine JPEG su Storage (`photobooks/{id}/v{n}/`), gestione richieste.
+ *
+ * Route pubbliche a token (`/by-token/:token`): il cliente accede SOLO tramite
+ * link dedicato, mai dalla galleria pubblica. L'admin SDK bypassa le Security
+ * Rules (pattern moduli informativi).
+ *
+ * Revisione "a penna": il cliente disegna X colorate a mano libera sulla
+ * pagina; ogni X è una richiesta (replace/delete/edit) con tratti normalizzati
+ * 0–1 e colore da palette. All'invio il client carica uno snapshot JPEG della
+ * pagina con le X disegnate (`photobooks/{id}/snapshots/`).
+ */
+
+import express, { Response, Router, NextFunction } from 'express';
+import type { NamedParamsRequest as Request } from './http-types.js';
+import { randomBytes, randomUUID } from 'node:crypto';
+import sharp from 'sharp';
+import { db, storage, FieldValue } from './firebase-admin.js';
+import {
+  findOrCreateLabParentFolder,
+  createShipmentFolder,
+  uploadStreamToDriveFolder,
+  deleteDriveFile,
+} from './google-drive.js';
+import { LAB_SHIPMENT_DEFAULT_EXPIRY_DAYS } from '../shared/lab-types.js';
+import { authenticateFirebase, sendGmailEmail, getSiteBaseUrl } from './email-routes.js';
+import { loadGalleryPhotoDocs, listGalleryPhotosPublic, loadGalleryChapters } from './photobook-gallery.js';
+import { PHOTOBOOK_MARK_PALETTE, type PhotobookMarkPoint } from '../shared/photobook-types.js';
+import { refreshLabShipmentInstructions } from './lab-shipment-instructions.js';
+import { createPhotobookMockupRouter } from './photobook-mockup-routes.js';
+import { createVersionDraft, publishVersion, PhotobookVersionError } from './photobook-version-workflow.js';
+
+const router: Router = express.Router();
+
+const BOOKS_COL = 'photobooks';
+const PAGES_COL = 'photobookPages';
+const REQUESTS_COL = 'photobookChangeRequests';
+const ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
+
+function requireAdmin(req: any, res: Response, next: NextFunction): HttpHandlerResult {
+  const email = req.user?.email || '';
+  if (!ADMIN_EMAILS.includes(email)) {
+    return res.status(403).json({ error: 'Accesso riservato agli amministratori' });
+  }
+  next();
+}
+
+/** Serializza Timestamp Firestore in ISO string per il JSON. */
+function ts(v: any): string | null {
+  if (!v) return null;
+  if (typeof v.toDate === 'function') return v.toDate().toISOString();
+  if (typeof v._seconds === 'number') return new Date(v._seconds * 1000).toISOString();
+  return null;
+}
+
+function serializeBook(id: string, d: any): any {
+  return {
+    id,
+    name: d.name,
+    galleryId: d.galleryId,
+    galleryName: d.galleryName || null,
+    clientName: d.clientName || null,
+    token: d.token,
+    currentVersion: d.currentVersion,
+    locked: !!d.locked,
+    approval: d.approval
+      ? {
+          version: d.approval.version,
+          approvedAt: ts(d.approval.approvedAt) || d.approval.approvedAt || null,
+          note: d.approval.note || null,
+        }
+      : null,
+    mockupModelMode: d.mockupModelMode || null,
+    mockupModelSelection: d.mockupModelSelection || null,
+    mockupPath: d.mockupPath || 'studio',
+    mockupNotifications: d.mockupNotifications || {},
+    jobId: d.jobId || null,
+    labShipmentId: d.labShipmentId || null,
+    versions: (d.versions || []).map((v: any) => ({
+      version: v.version,
+      label: v.label || null,
+      pageCount: v.pageCount || 0,
+      status: v.status,
+      createdAt: ts(v.createdAt) || v.createdAt || null,
+    })),
+    createdAt: ts(d.createdAt),
+    updatedAt: ts(d.updatedAt),
+  };
+}
+
+function serializePage(id: string, d: any): any {
+  return {
+    id,
+    photobookId: d.photobookId,
+    version: d.version,
+    pageNumber: d.pageNumber,
+    fileName: d.fileName || null,
+    url: d.url,
+    storagePath: d.storagePath,
+    displayUrl: d.displayUrl || null,
+    displayStoragePath: d.displayStoragePath || null,
+    width: d.width || 0,
+    height: d.height || 0,
+    createdAt: ts(d.createdAt),
+    updatedAt: ts(d.updatedAt),
+  };
+}
+
+function entityClientIds(data: any): string[] {
+  const ids: unknown[] = Array.isArray(data?.clientiIds) && data.clientiIds.length > 0
+    ? data.clientiIds
+    : data?.clienteId
+      ? [data.clienteId]
+      : [];
+  const validIds = ids.filter(
+    (id: unknown): id is string => typeof id === 'string' && !!id.trim(),
+  );
+  return [...new Set<string>(validIds)];
+}
+
+export function galleryJobAssociationWarnings(
+  gallery: any,
+  galleryId: string,
+  jobId: string,
+  job: any,
+): string[] {
+  const warnings: string[] = [];
+  if (gallery.jobId && gallery.jobId !== jobId) {
+    warnings.push('La galleria è già collegata a un altro lavoro');
+  }
+
+  const jobGalleryIds = Array.isArray(job?.galleryIds)
+    ? job.galleryIds.filter((id: unknown): id is string => typeof id === 'string' && !!id)
+    : [];
+  if (jobGalleryIds.length > 0 && !jobGalleryIds.includes(galleryId)) {
+    warnings.push('La galleria scelta non è tra quelle collegate al lavoro');
+  }
+
+  const galleryClientIds = entityClientIds(gallery);
+  const jobClientIds = entityClientIds(job);
+  if (
+    galleryClientIds.length > 0 &&
+    jobClientIds.length > 0 &&
+    !galleryClientIds.some((id) => jobClientIds.includes(id))
+  ) {
+    warnings.push('I clienti della galleria non coincidono con quelli del lavoro selezionato');
+  }
+  return warnings;
+}
+
+function storagePathFromFirebaseUrl(value: unknown, expectedBucket: string): string | null {
+  if (typeof value !== 'string' || !value) return null;
+  try {
+    const url = new URL(value);
+    if (url.hostname === 'firebasestorage.googleapis.com') {
+      const bucketMatch = url.pathname.match(/^\/v0\/b\/([^/]+)\/o\//);
+      if (!bucketMatch || decodeURIComponent(bucketMatch[1]) !== expectedBucket) return null;
+      const marker = '/o/';
+      const index = url.pathname.indexOf(marker);
+      return index >= 0 ? decodeURIComponent(url.pathname.slice(index + marker.length)) : null;
+    }
+    if (url.hostname === 'storage.googleapis.com') {
+      const parts = url.pathname.split('/').filter(Boolean);
+      return parts.length >= 2 && decodeURIComponent(parts[0]) === expectedBucket
+        ? decodeURIComponent(parts.slice(1).join('/'))
+        : null;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function safeAttachmentFileName(index: number, storagePath: string): string {
+  const original = storagePath.split('/').pop() || `nota-${index + 1}.jpg`;
+  const clean = original.replace(/[^a-zA-Z0-9._-]+/g, '-').slice(-100);
+  return `nota-lavoro-${String(index + 1).padStart(2, '0')}-${clean || 'allegato.jpg'}`;
+}
+
+/**
+ * Firestore non permette array annidati: i tratti vengono salvati come
+ * [{ points: [...] }] e riconvertiti in PhotobookMarkPoint[][] per il client.
+ */
+function deserializeMarkStrokes(raw: any): PhotobookMarkPoint[][] | null {
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+  const strokes: PhotobookMarkPoint[][] = [];
+  for (const s of raw) {
+    if (Array.isArray(s)) {
+      strokes.push(s);
+    } else if (s && typeof s === 'object' && Array.isArray(s.points)) {
+      strokes.push(s.points);
+    }
+  }
+  return strokes.length > 0 ? strokes : null;
+}
+
+function serializeRequest(id: string, d: any): any {
+  return {
+    id,
+    photobookId: d.photobookId,
+    photobookName: d.photobookName || null,
+    galleryId: d.galleryId,
+    galleryName: d.galleryName || null,
+    clientName: d.clientName || null,
+    version: d.version,
+    pageId: d.pageId,
+    pageNumber: d.pageNumber,
+    type: d.type,
+    markColor: d.markColor || null,
+    markStrokes: deserializeMarkStrokes(d.markStrokes),
+    snapshotUrl: d.snapshotUrl || null,
+    replacementPhotoId: d.replacementPhotoId || null,
+    replacementPhotoName: d.replacementPhotoName || null,
+    replacementPhotoThumbnailUrl: d.replacementPhotoThumbnailUrl || null,
+    note: d.note || null,
+    status: d.status || 'pending',
+    batchId: d.batchId || null,
+    createdAt: ts(d.createdAt),
+    updatedAt: ts(d.updatedAt),
+    // Campi legacy del sistema a slot (richieste precedenti)
+    slotId: d.slotId || null,
+    originalPhotoId: d.originalPhotoId || null,
+    originalPhotoName: d.originalPhotoName || null,
+    originalPhotoThumbnailUrl: d.originalPhotoThumbnailUrl || null,
+  };
+}
+
+async function getBookByToken(token: string) {
+  if (!token || typeof token !== 'string' || token.length < 12) return null;
+  const snap = await db.collection(BOOKS_COL).where('token', '==', token).limit(1).get();
+  if (snap.empty) return null;
+  return snap.docs[0];
+}
+
+const MARK_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+const PALETTE_HEX = new Set(PHOTOBOOK_MARK_PALETTE.map((c) => c.hex.toLowerCase()));
+const MAX_STROKES_PER_MARK = 12;
+const MAX_POINTS_PER_STROKE = 600;
+
+/**
+ * Valida e normalizza i tratti di una X: 1–12 tratti, 2–600 punti ciascuno,
+ * coordinate clampate 0–1 e arrotondate a 4 decimali. Ritorna null se invalidi.
+ */
+function sanitizeMarkStrokes(raw: any): PhotobookMarkPoint[][] | null {
+  if (!Array.isArray(raw) || raw.length === 0 || raw.length > MAX_STROKES_PER_MARK) return null;
+  const strokes: PhotobookMarkPoint[][] = [];
+  for (const s of raw) {
+    if (!Array.isArray(s) || s.length < 2 || s.length > MAX_POINTS_PER_STROKE) return null;
+    const stroke: PhotobookMarkPoint[] = [];
+    for (const p of s) {
+      if (!p || typeof p !== 'object') return null;
+      const x = typeof p.x === 'number' && isFinite(p.x) ? p.x : null;
+      const y = typeof p.y === 'number' && isFinite(p.y) ? p.y : null;
+      if (x === null || y === null) return null;
+      stroke.push({
+        x: Math.round(Math.min(1, Math.max(0, x)) * 10000) / 10000,
+        y: Math.round(Math.min(1, Math.max(0, y)) * 10000) / 10000,
+      });
+    }
+    strokes.push(stroke);
+  }
+  return strokes;
+}
+
+/** Messaggio mostrato al cliente quando il fotolibro è bloccato. */
+const LOCKED_MESSAGE =
+  "L'album è stato mandato in stampa: non è più possibile apportare modifiche.";
+
+/** Messaggio mostrato al cliente quando ha già approvato l'impaginato. */
+const APPROVED_MESSAGE =
+  "Hai approvato l'impaginato: non è più possibile inviare o cancellare richieste. " +
+  'Se serve una modifica, contatta il tuo fotografo.';
+
+/** true se il cliente ha approvato la versione attualmente attiva. */
+function isApprovedForCurrent(book: any): boolean {
+  return !!book.approval && book.approval.version === book.currentVersion;
+}
+
+/** Prefisso degli URL snapshot validi per un fotolibro (anti-spoofing). */
+function snapshotUrlPrefix(photobookId: string): string {
+  const bucket = storage.bucket();
+  return (
+    `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/` +
+    encodeURIComponent(`photobooks/${photobookId}/snapshots/`)
+  );
+}
+
+// ============================================================
+// ROUTE PUBBLICHE A TOKEN (nessuna autenticazione)
+// ============================================================
+router.use('/by-token/:token/mockup', createPhotobookMockupRouter(req => getBookByToken(req.params.token as string), false, async (bookDoc, saved) => {
+  const book = bookDoc.data()!;
+  const esc = (value: unknown) => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const link = `${getSiteBaseUrl()}/admin/photobooks/${encodeURIComponent(bookDoc.id)}`;
+  await sendGmailEmail(ADMIN_EMAILS[0], `Mockup da verificare: ${book.name || 'Fotolibro'} (v${saved.version}, r${saved.revision})`,
+    `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#243d44">
+      <h2>Nuova proposta album da verificare</h2>
+      <p><strong>${esc(book.clientName || 'Il cliente')}</strong> ha inviato il mockup di <strong>${esc(book.name || 'Fotolibro')}</strong>.</p>
+      <p>Versione fotolibro: ${saved.version} · Revisione mockup: ${saved.revision}<br>Modello: ${esc(saved.option?.name || 'Album')} · Laboratorio: ${esc(saved.option?.labName || '')}</p>
+      <p><a href="${esc(link)}">Apri il fotolibro e verifica il mockup</a></p>
+      <p>La proposta è in attesa della tua verifica. L’invio non avvia la stampa.</p>
+    </div>`, undefined, { type: 'photobook_mockup_submitted', relatedDocId: bookDoc.id, relatedDocType: 'photobook', clientName: book.clientName || undefined });
+}));
+
+/** GET /by-token/:token — fotolibro + pagine della versione corrente */
+router.get('/by-token/:token', async (req: Request, res: Response) => {
+  try {
+    const bookDoc = await getBookByToken(req.params.token);
+    if (!bookDoc) return res.status(404).json({ error: 'Fotolibro non trovato' });
+    const book = bookDoc.data();
+
+    const requestedVersion = Number(req.query.version) || book.currentVersion;
+    // Il cliente può vedere solo versioni esistenti (storico consentito)
+    const visibleVersions = (book.versions || []).filter((v: any) => v.status !== 'draft');
+    const validVersions = visibleVersions.map((v: any) => v.version);
+    const version = validVersions.includes(requestedVersion) ? requestedVersion : book.currentVersion;
+
+    const pagesSnap = await db
+      .collection(PAGES_COL)
+      .where('photobookId', '==', bookDoc.id)
+      .where('version', '==', version)
+      .get();
+
+    const pages = pagesSnap.docs
+      .map((d) => serializePage(d.id, d.data()))
+      .sort((a, b) => a.pageNumber - b.pageNumber);
+
+    // Richieste già inviate per questa versione (così il cliente vede lo stato)
+    const reqSnap = await db
+      .collection(REQUESTS_COL)
+      .where('photobookId', '==', bookDoc.id)
+      .where('version', '==', version)
+      .get();
+    const requests = reqSnap.docs.map((d) => serializeRequest(d.id, d.data()));
+
+    return res.json({
+      photobook: serializeBook(bookDoc.id, { ...book, versions: visibleVersions }),
+      version,
+      pages,
+      requests,
+    });
+  } catch (error) {
+    console.error('[photobooks] Errore by-token:', error);
+    return res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+/** GET /by-token/:token/gallery-photos — foto + capitoli della galleria per la scelta sostitutiva */
+router.get('/by-token/:token/gallery-photos', async (req: Request, res: Response) => {
+  try {
+    const bookDoc = await getBookByToken(req.params.token);
+    if (!bookDoc) return res.status(404).json({ error: 'Fotolibro non trovato' });
+    const galleryId = bookDoc.data().galleryId;
+    const [photos, chapters] = await Promise.all([
+      listGalleryPhotosPublic(galleryId),
+      loadGalleryChapters(galleryId),
+    ]);
+    return res.json({ photos, chapters });
+  } catch (error) {
+    console.error('[photobooks] Errore gallery-photos by-token:', error);
+    return res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+/**
+ * POST /by-token/:token/pages/:pageId/snapshot — carica lo snapshot JPEG della
+ * pagina con le X disegnate (body raw image/jpeg). Ritorna { url }.
+ * Chiamato dal client subito prima dell'invio delle richieste.
+ */
+router.post(
+  '/by-token/:token/pages/:pageId/snapshot',
+  express.raw({ type: ['image/jpeg'], limit: '15mb' }),
+  async (req: Request, res: Response) => {
+    try {
+      const bookDoc = await getBookByToken(req.params.token);
+      if (!bookDoc) return res.status(404).json({ error: 'Fotolibro non trovato' });
+      const book = bookDoc.data();
+      if (book.locked) {
+        return res.status(403).json({ error: LOCKED_MESSAGE });
+      }
+      if (isApprovedForCurrent(book)) {
+        return res.status(403).json({ error: APPROVED_MESSAGE });
+      }
+
+      const pageDoc = await db.collection(PAGES_COL).doc(req.params.pageId).get();
+      if (!pageDoc.exists || pageDoc.data()!.photobookId !== bookDoc.id) {
+        return res.status(404).json({ error: 'Pagina non trovata' });
+      }
+      if (pageDoc.data()!.version !== book.currentVersion) {
+        return res.status(400).json({
+          error: 'Le versioni precedenti del fotolibro sono in sola lettura',
+        });
+      }
+
+      const buffer = req.body as Buffer;
+      if (!Buffer.isBuffer(buffer) || buffer.length < 500) {
+        return res.status(400).json({ error: 'Snapshot mancante o non valido' });
+      }
+      // Deve essere un JPEG reale (magic bytes FF D8)
+      if (buffer[0] !== 0xff || buffer[1] !== 0xd8) {
+        return res.status(400).json({ error: 'Formato snapshot non valido' });
+      }
+
+      const bucket = storage.bucket();
+      const downloadToken = randomUUID();
+      const storagePath = `photobooks/${bookDoc.id}/snapshots/${pageDoc.id}-${Date.now()}.jpg`;
+      await bucket.file(storagePath).save(buffer, {
+        resumable: false,
+        metadata: {
+          contentType: 'image/jpeg',
+          metadata: { firebaseStorageDownloadTokens: downloadToken },
+        },
+      });
+      const url =
+        `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/` +
+        `${encodeURIComponent(storagePath)}?alt=media&token=${downloadToken}`;
+
+      return res.json({ url });
+    } catch (error) {
+      console.error('[photobooks] Errore upload snapshot:', error);
+      return res.status(500).json({ error: 'Errore interno del server' });
+    }
+  },
+);
+
+/** POST /by-token/:token/requests — invio definitivo delle richieste di modifica */
+router.post('/by-token/:token/requests', async (req: Request, res: Response) => {
+  try {
+    const bookDoc = await getBookByToken(req.params.token);
+    if (!bookDoc) return res.status(404).json({ error: 'Fotolibro non trovato' });
+    const book = bookDoc.data();
+    if (book.locked) {
+      return res.status(403).json({ error: LOCKED_MESSAGE });
+    }
+    if (isApprovedForCurrent(book)) {
+      return res.status(403).json({ error: APPROVED_MESSAGE });
+    }
+
+    const { requests } = req.body || {};
+    if (!Array.isArray(requests) || requests.length === 0 || requests.length > 200) {
+      return res.status(400).json({ error: 'Richieste non valide' });
+    }
+
+    // Valida le pagine referenziate (devono appartenere a questo fotolibro
+    // e alla versione attuale: le versioni precedenti sono in sola lettura)
+    const pageIds = Array.from(new Set(requests.map((r: any) => String(r.pageId || ''))));
+    const pageDocs = new Map<string, any>();
+    for (const pid of pageIds) {
+      if (!pid) return res.status(400).json({ error: 'pageId mancante' });
+      const pd = await db.collection(PAGES_COL).doc(pid).get();
+      if (!pd.exists || pd.data()!.photobookId !== bookDoc.id) {
+        return res.status(400).json({ error: 'Pagina non valida' });
+      }
+      if (pd.data()!.version !== book.currentVersion) {
+        return res.status(400).json({
+          error: 'Le versioni precedenti del fotolibro sono in sola lettura',
+        });
+      }
+      pageDocs.set(pid, pd.data());
+    }
+
+    // Le foto sostitutive devono appartenere alla galleria collegata al
+    // fotolibro; nome e miniatura vengono risolti server-side (anti-spoofing)
+    const needsReplacementCheck = requests.some((r: any) => r.type === 'replace');
+    let galleryPhotosById: Map<string, { name: string; url: string; thumbnailUrl?: string | null }> | null = null;
+    if (needsReplacementCheck) {
+      const galleryDocs = await loadGalleryPhotoDocs(book.galleryId);
+      galleryPhotosById = new Map(galleryDocs.map((d) => [d.id, d]));
+    }
+
+    const validSnapshotPrefix = snapshotUrlPrefix(bookDoc.id);
+    const batchId = randomUUID();
+    const batch = db.batch();
+    const created: string[] = [];
+
+    for (const r of requests) {
+      const type = r.type;
+      if (type !== 'replace' && type !== 'delete' && type !== 'edit') {
+        return res.status(400).json({ error: `Tipo richiesta non valido: ${type}` });
+      }
+      const note = typeof r.note === 'string' ? r.note.trim().slice(0, 2000) : '';
+      if (type === 'edit' && !note) {
+        return res.status(400).json({ error: 'La nota è obbligatoria per le richieste di modifica' });
+      }
+      let replacementPhoto: { name: string; url: string; thumbnailUrl?: string | null } | null = null;
+      if (type === 'replace') {
+        if (!r.replacementPhotoId) {
+          return res.status(400).json({ error: 'Foto sostitutiva mancante' });
+        }
+        replacementPhoto = galleryPhotosById?.get(String(r.replacementPhotoId)) || null;
+        if (!replacementPhoto) {
+          return res.status(400).json({
+            error: 'La foto sostitutiva non appartiene alla galleria di questo fotolibro',
+          });
+        }
+      }
+      const pageData = pageDocs.get(String(r.pageId));
+
+      // La X disegnata: colore della palette + tratti normalizzati
+      const markColor =
+        typeof r.markColor === 'string' &&
+        MARK_COLOR_RE.test(r.markColor) &&
+        PALETTE_HEX.has(r.markColor.toLowerCase())
+          ? r.markColor.toLowerCase()
+          : null;
+      const markStrokes = sanitizeMarkStrokes(r.markStrokes);
+      if (!markColor || !markStrokes) {
+        return res.status(400).json({ error: 'Segno (X) mancante o non valido' });
+      }
+
+      // Snapshot obbligatorio: accetta solo URL generati dall'endpoint
+      // snapshot di QUESTO fotolibro (anti-spoofing)
+      const snapshotUrl =
+        typeof r.snapshotUrl === 'string' && r.snapshotUrl.startsWith(validSnapshotPrefix)
+          ? r.snapshotUrl.slice(0, 1000)
+          : null;
+      if (!snapshotUrl) {
+        return res.status(400).json({
+          error: 'Snapshot della pagina mancante o non valido: riprova l\'invio',
+        });
+      }
+
+      const ref = db.collection(REQUESTS_COL).doc();
+      created.push(ref.id);
+      batch.set(ref, {
+        photobookId: bookDoc.id,
+        photobookName: book.name || '',
+        galleryId: book.galleryId,
+        galleryName: book.galleryName || '',
+        clientName: book.clientName || '',
+        version: pageData.version,
+        pageId: String(r.pageId),
+        pageNumber: pageData.pageNumber,
+        type,
+        markColor,
+        // Firestore vieta gli array annidati: ogni tratto diventa una mappa
+        markStrokes: markStrokes.map((points) => ({ points })),
+        snapshotUrl,
+        // Metadati risolti server-side dalla galleria (mai dal client)
+        replacementPhotoId: replacementPhoto ? String(r.replacementPhotoId) : null,
+        replacementPhotoName: replacementPhoto ? replacementPhoto.name : null,
+        replacementPhotoThumbnailUrl: replacementPhoto
+          ? replacementPhoto.thumbnailUrl || replacementPhoto.url
+          : null,
+        note: note || null,
+        status: 'pending',
+        batchId,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    }
+
+    await batch.commit();
+    console.log(`📖 [photobooks] ${created.length} richieste modifica ricevute per "${book.name}" (batch ${batchId})`);
+    return res.json({ ok: true, batchId, count: created.length });
+  } catch (error) {
+    console.error('[photobooks] Errore submit richieste:', error);
+    return res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+/**
+ * DELETE /by-token/:token/requests/:requestId — il cliente cancella una
+ * richiesta già inviata (solo se il fotolibro NON è bloccato e la richiesta
+ * appartiene alla versione corrente). Il body JSON opzionale { snapshotUrl }
+ * contiene il nuovo snapshot della pagina rigenerato senza la X cancellata:
+ * viene applicato alle altre richieste rimaste sulla stessa pagina.
+ */
+router.delete('/by-token/:token/requests/:requestId', async (req: Request, res: Response) => {
+  try {
+    const bookDoc = await getBookByToken(req.params.token);
+    if (!bookDoc) return res.status(404).json({ error: 'Fotolibro non trovato' });
+    const book = bookDoc.data();
+    if (book.locked) {
+      return res.status(403).json({ error: LOCKED_MESSAGE });
+    }
+    if (isApprovedForCurrent(book)) {
+      return res.status(403).json({ error: APPROVED_MESSAGE });
+    }
+
+    const reqRef = db.collection(REQUESTS_COL).doc(req.params.requestId);
+    const reqDoc = await reqRef.get();
+    if (!reqDoc.exists || reqDoc.data()!.photobookId !== bookDoc.id) {
+      return res.status(404).json({ error: 'Richiesta non trovata' });
+    }
+    const reqData = reqDoc.data()!;
+    if (reqData.version !== book.currentVersion) {
+      return res.status(400).json({
+        error: 'Le richieste delle versioni precedenti non possono essere cancellate',
+      });
+    }
+
+    // Nuovo snapshot (facoltativo) per le richieste rimaste sulla pagina:
+    // accetta solo URL generati dall'endpoint snapshot di QUESTO fotolibro
+    const validSnapshotPrefix = snapshotUrlPrefix(bookDoc.id);
+    const newSnapshotUrl =
+      typeof req.body?.snapshotUrl === 'string' &&
+      req.body.snapshotUrl.startsWith(validSnapshotPrefix)
+        ? req.body.snapshotUrl.slice(0, 1000)
+        : null;
+
+    const siblingsSnap = await db
+      .collection(REQUESTS_COL)
+      .where('photobookId', '==', bookDoc.id)
+      .where('pageId', '==', reqData.pageId)
+      .where('version', '==', book.currentVersion)
+      .get();
+
+    const batch = db.batch();
+    batch.delete(reqRef);
+    if (newSnapshotUrl) {
+      siblingsSnap.docs.forEach((d) => {
+        if (d.id === reqRef.id) return;
+        batch.update(d.ref, {
+          snapshotUrl: newSnapshotUrl,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      });
+    }
+    await batch.commit();
+
+    console.log(
+      `📖 [photobooks] Richiesta ${reqRef.id} cancellata dal cliente per "${book.name}" (pagina ${reqData.pageNumber})`,
+    );
+    return res.json({ ok: true });
+  } catch (error) {
+    console.error('[photobooks] Errore cancellazione richiesta by-token:', error);
+    return res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+/**
+ * POST /by-token/:token/approve — il cliente approva l'impaginato della
+ * versione corrente. Dopo l'approvazione non può più inviare o cancellare
+ * richieste (finché l'admin non annulla l'approvazione o crea una nuova
+ * versione). Rifiutata se ci sono ancora richieste in attesa di lavorazione.
+ * Idempotente; body opzionale { note } (max 1000 caratteri).
+ * Invia un'email di notifica all'admin (best-effort).
+ */
+router.post('/by-token/:token/approve', async (req: Request, res: Response) => {
+  try {
+    const bookDoc = await getBookByToken(req.params.token);
+    if (!bookDoc) return res.status(404).json({ error: 'Fotolibro non trovato' });
+    const book = bookDoc.data();
+    if (book.locked) {
+      return res.status(403).json({ error: LOCKED_MESSAGE });
+    }
+    if (isApprovedForCurrent(book)) {
+      return res.json({ ok: true, alreadyApproved: true });
+    }
+
+    // Con richieste ancora "pending" sulla versione corrente l'approvazione è
+    // contraddittoria: il cliente deve prima cancellarle o aspettare l'esito.
+    const pendingSnap = await db
+      .collection(REQUESTS_COL)
+      .where('photobookId', '==', bookDoc.id)
+      .where('version', '==', book.currentVersion)
+      .where('status', '==', 'pending')
+      .limit(1)
+      .get();
+    if (!pendingSnap.empty) {
+      return res.status(409).json({
+        error:
+          'Hai ancora richieste di modifica in attesa: cancellale oppure attendi che il fotografo le lavori prima di approvare.',
+      });
+    }
+
+    const note =
+      typeof req.body?.note === 'string' && req.body.note.trim()
+        ? req.body.note.trim().slice(0, 1000)
+        : null;
+
+    // Scrittura in transazione: se nel frattempo cambia versione/blocco o
+    // arriva un'altra approvazione, non sovrascrive nulla di incoerente.
+    const ref = bookDoc.ref;
+    const result = await db.runTransaction(async (tx) => {
+      const fresh = (await tx.get(ref)).data()!;
+      if (fresh.locked) return 'locked';
+      if (fresh.currentVersion !== book.currentVersion) return 'version-changed';
+      if (isApprovedForCurrent(fresh)) return 'already';
+      tx.update(ref, {
+        approval: {
+          version: fresh.currentVersion,
+          approvedAt: FieldValue.serverTimestamp(),
+          note,
+        },
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      return 'ok';
+    });
+    if (result === 'locked') return res.status(403).json({ error: LOCKED_MESSAGE });
+    if (result === 'version-changed') {
+      return res.status(409).json({
+        error: 'Il fotolibro è stato aggiornato nel frattempo: ricarica la pagina.',
+      });
+    }
+    if (result === 'already') return res.json({ ok: true, alreadyApproved: true });
+
+    // Il campanello admin deve poter aprire direttamente il fotolibro approvato.
+    // La scrittura è best-effort e una per versione: non annulla l'approvazione.
+    try {
+      await db.collection('adminNotifications')
+        .doc(`photobook-approved-${bookDoc.id}-v${book.currentVersion}`)
+        .set({
+          type: 'photobook_approved',
+          title: 'Fotolibro approvato',
+          description: `${book.clientName || 'Il cliente'} ha approvato la versione ${book.currentVersion} di "${book.name || 'Fotolibro'}"`,
+          photobookId: bookDoc.id,
+          relatedDocId: bookDoc.id,
+          relatedDocType: 'photobook',
+          isRead: false,
+          createdAt: FieldValue.serverTimestamp(),
+          deepLink: `/admin/photobooks/${encodeURIComponent(bookDoc.id)}`,
+        });
+    } catch (notificationError) {
+      console.error('[photobooks] Notifica admin non salvata (non bloccante):', notificationError);
+    }
+
+    // Email all'admin (best-effort: l'approvazione resta valida comunque)
+    try {
+      const esc = (s: any) =>
+        String(s ?? '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      const clientName = esc(book.clientName || 'Il cliente');
+      const html = `
+        <div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#44403c">
+          <h2 style="color:#16a34a;font-weight:normal">✓ Impaginato approvato dal cliente</h2>
+          <p><strong>${clientName}</strong> ha approvato la <strong>versione ${book.currentVersion}</strong>
+          del fotolibro &laquo;${esc(book.name || 'Fotolibro')}&raquo;.</p>
+          ${note ? `<p style="border-left:3px solid #d6d3d1;padding-left:12px;color:#57534e">Nota del cliente: &laquo;${esc(note)}&raquo;</p>` : ''}
+          <p>Puoi ora mandare l'album in stampa dalla sezione Fotolibri.</p>
+          <p style="color:#a8a29e;font-size:13px;margin-top:32px">Image Studio Fotografico</p>
+        </div>`;
+      await sendGmailEmail(
+        ADMIN_EMAILS[0],
+        `✓ Fotolibro approvato: "${book.name}" (v${book.currentVersion})`,
+        html,
+        undefined,
+        {
+          type: 'photobook_approved',
+          relatedDocId: bookDoc.id,
+          relatedDocType: 'photobook',
+          clientName: book.clientName || null,
+        },
+      );
+    } catch (emailErr) {
+      console.error('[photobooks] Email approvazione non inviata (non bloccante):', emailErr);
+    }
+
+    console.log(
+      `📖 [photobooks] Impaginato "${book.name}" v${book.currentVersion} approvato dal cliente`,
+    );
+    let mockupNotification: string | undefined;
+    if (book.mockupPath === 'client') {
+      try { mockupNotification = await notifyApprovedMockup(bookDoc, book.currentVersion); }
+      catch { mockupNotification = 'uncertain'; }
+    } else {
+      try {
+        const freshBook = await ref.get();
+        const currentMockup = await ref.collection('mockups').doc(`v${book.currentVersion}`).get();
+        if (freshBook.data()?.approval?.version === book.currentVersion && currentMockup.data()?.status === 'confirmed') {
+          const confirmed = currentMockup.data() as { version: number; revision: number; status: string };
+          await notifyMockupClientStatus(freshBook, confirmed, 'confirmed');
+          const latest = await ref.get();
+          mockupNotification = latest.data()?.mockupNotifications?.[`confirmed_v${confirmed.version}_r${confirmed.revision}`]?.state || 'sent';
+        }
+      } catch { mockupNotification = 'uncertain'; }
+    }
+    return res.json({ ok: true, approved: true, mockupNotification });
+  } catch (error) {
+    console.error('[photobooks] Errore approvazione by-token:', error);
+    return res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// ============================================================
+// ROUTE ADMIN
+// ============================================================
+
+router.use(authenticateFirebase, requireAdmin);
+router.use(
+  '/:id/mockup',
+  createPhotobookMockupRouter(
+    req => db.collection(BOOKS_COL).doc(req.params.id as string).get(),
+    true,
+    undefined,
+    notifyMockupClientStatus,
+  ),
+);
+
+/** Lettura operativa senza backfill o mutazioni dei fotolibri legacy. */
+router.get('/mockup-jobs/:jobId', async (req, res): Promise<HttpHandlerResult> => {
+  try {
+    const job = await db.collection('jobs').doc(req.params.jobId).get();
+    if (!job.exists) return res.status(404).json({ error: 'Lavoro non trovato' });
+    const data = job.data()!;
+    const ids = [...new Set<string>([...(Array.isArray(data.clientiIds) ? data.clientiIds : []), ...(data.clienteId ? [data.clienteId] : [])])];
+    const clients = await Promise.all(ids.map(id => db.collection('clienti').doc(id).get()));
+    const books = await db.collection(BOOKS_COL).where('jobId', '==', job.id).get();
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.json({
+      contacts: clients.filter(c => c.exists).map(c => ({ id: c.id, name: [c.data()!.nome, c.data()!.cognome].filter(Boolean).join(' '), phone: c.data()!.whatsapp || c.data()!.cellulare1 || '' })),
+      books: books.docs.map(b => ({ id: b.id, name: b.data().name, currentVersion: b.data().currentVersion })),
+    });
+  } catch { res.status(500).json({ error: 'Impossibile caricare i mockup del lavoro' }); }
+});
+
+/** GET /requests — tutte le richieste di modifica (schermata "Modifiche Fotolibro") */
+router.get('/requests', async (req: Request, res: Response) => {
+  try {
+    const snap = await db.collection(REQUESTS_COL).get();
+    const requests = snap.docs
+      .map((d) => serializeRequest(d.id, d.data()))
+      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+    return res.json({ requests });
+  } catch (error) {
+    console.error('[photobooks] Errore lista richieste:', error);
+    return res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+/** PATCH /requests/:requestId — aggiorna lo stato di una richiesta */
+router.patch('/requests/:requestId', async (req: Request, res: Response) => {
+  try {
+    const { status } = req.body || {};
+    if (!['pending', 'done', 'rejected'].includes(status)) {
+      return res.status(400).json({ error: 'Stato non valido' });
+    }
+    const ref = db.collection(REQUESTS_COL).doc(req.params.requestId);
+    const doc = await ref.get();
+    if (!doc.exists) return res.status(404).json({ error: 'Richiesta non trovata' });
+    await ref.update({ status, updatedAt: FieldValue.serverTimestamp() });
+    return res.json({ ok: true });
+  } catch (error) {
+    console.error('[photobooks] Errore aggiornamento richiesta:', error);
+    return res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+/** GET / — lista fotolibri (con backfill lazy di jobId dalla galleria) */
+router.get('/', async (_req: Request, res: Response) => {
+  try {
+    const snap = await db.collection(BOOKS_COL).get();
+    const entries = snap.docs.map((d) => ({ id: d.id, ref: d.ref, data: d.data() }));
+
+    // Backfill una tantum: fotolibri esistenti senza jobId → risali da
+    // gallery.jobId e persisti. jobId === null (galleria orfana) viene
+    // ritentato ad ogni lista finché non risolto (o impostato a mano).
+    for (const e of entries) {
+      if (e.data.jobId) continue;
+      try {
+        const gDoc = await db.collection('galleries').doc(e.data.galleryId).get();
+        const gJobId = (gDoc.exists ? gDoc.data()?.jobId : null) || null;
+        if (gJobId || e.data.jobId === undefined) {
+          await e.ref.update({ jobId: gJobId });
+          e.data.jobId = gJobId;
+        }
+      } catch {
+        // best-effort: il backfill non deve bloccare la lista
+      }
+    }
+
+    const books = entries
+      .map((e) => serializeBook(e.id, e.data))
+      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+    return res.json({ photobooks: books });
+  } catch (error) {
+    console.error('[photobooks] Errore lista:', error);
+    return res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+/** POST / — crea fotolibro { name, galleryId, jobId, allowAssociationMismatch? } */
+router.post('/', async (req: Request, res: Response) => {
+  try {
+    const { name, galleryId, jobId, allowAssociationMismatch, mockupPath } = req.body || {};
+    if (mockupPath !== 'client' && mockupPath !== 'studio') return res.status(400).json({ error: 'Scegli chi prepara il mockup' });
+    if (
+      !name ||
+      typeof name !== 'string' ||
+      !galleryId ||
+      typeof galleryId !== 'string' ||
+      !jobId ||
+      typeof jobId !== 'string'
+    ) {
+      return res.status(400).json({ error: 'Nome, galleria e lavoro sono obbligatori' });
+    }
+
+    const galleryDoc = await db.collection('galleries').doc(galleryId).get();
+    if (!galleryDoc.exists) return res.status(404).json({ error: 'Galleria non trovata' });
+    const g = galleryDoc.data() || {};
+    const normalizedJobId = jobId.trim();
+    const jobDoc = await db.collection('jobs').doc(normalizedJobId).get();
+    if (!jobDoc.exists) return res.status(404).json({ error: 'Lavoro non trovato' });
+
+    const associationWarnings = galleryJobAssociationWarnings(
+      g,
+      galleryId,
+      normalizedJobId,
+      jobDoc.data(),
+    );
+    if (associationWarnings.length > 0 && allowAssociationMismatch !== true) {
+      return res.status(409).json({
+        error: 'I collegamenti della galleria non coincidono con il lavoro selezionato',
+        code: 'photobook_association_mismatch',
+        warnings: associationWarnings,
+      });
+    }
+
+    const token = randomBytes(24).toString('base64url');
+    const now = new Date();
+    const docData = {
+      name: name.trim(),
+      galleryId,
+      galleryName: g.name || '',
+      clientName: g.clientName || g.clientEmail || g.name || '',
+      // Il lavoro è l'associazione canonica del fotolibro. La galleria resta
+      // la sorgente delle fotografie e non viene modificata implicitamente.
+      jobId: normalizedJobId,
+      token,
+      mockupPath,
+      currentVersion: 1,
+      versions: [{ version: 1, label: null, pageCount: 0, createdAt: now }],
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+    const ref = await db.collection(BOOKS_COL).add(docData);
+    const saved = await ref.get();
+    console.log(`📖 [photobooks] Creato fotolibro "${name}" per galleria ${galleryId}`);
+    return res.json({ photobook: serializeBook(ref.id, saved.data()) });
+  } catch (error) {
+    console.error('[photobooks] Errore creazione:', error);
+    return res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+/** GET /:id — dettaglio fotolibro */
+router.get('/:id', async (req: Request, res: Response) => {
+  try {
+    const doc = await db.collection(BOOKS_COL).doc(req.params.id).get();
+    if (!doc.exists) return res.status(404).json({ error: 'Fotolibro non trovato' });
+    return res.json({ photobook: serializeBook(doc.id, doc.data()) });
+  } catch (error) {
+    console.error('[photobooks] Errore dettaglio:', error);
+    return res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+/** PATCH /:id — aggiorna nome / versione corrente / label versione */
+router.patch('/:id', async (req: Request, res: Response) => {
+  try {
+    const ref = db.collection(BOOKS_COL).doc(req.params.id);
+    const doc = await ref.get();
+    if (!doc.exists) return res.status(404).json({ error: 'Fotolibro non trovato' });
+    const data = doc.data()!;
+
+    const updates: Record<string, any> = { updatedAt: FieldValue.serverTimestamp() };
+    if (typeof req.body?.name === 'string' && req.body.name.trim()) {
+      updates.name = req.body.name.trim();
+    }
+    if (typeof req.body?.currentVersion === 'number') {
+      if (data.locked) return res.status(409).json({ error: 'Fotolibro in stampa' });
+      if ((data.versions || []).some((v: any) => v.version === req.body.currentVersion && v.status === 'draft')) return res.status(409).json({ error: 'Usa Pubblica versione per rendere visibile la bozza completa' });
+      const exists = (data.versions || []).some((v: any) => v.version === req.body.currentVersion);
+      if (!exists) return res.status(400).json({ error: 'Versione inesistente' });
+      updates.currentVersion = req.body.currentVersion;
+    }
+    if (typeof req.body?.locked === 'boolean') {
+      updates.locked = req.body.locked;
+    }
+    // Annullamento approvazione cliente (solo admin): riapre la revisione
+    if (req.body?.approval === null) {
+      updates.approval = FieldValue.delete();
+    }
+    if (req.body?.mockupPath !== undefined) {
+      if (!['client', 'studio'].includes(req.body.mockupPath)) return res.status(400).json({ error: 'Percorso mockup non valido' });
+      updates.mockupPath = req.body.mockupPath;
+    }
+    // Associazione manuale al lavoro (solo per gallerie orfane senza job)
+    if (typeof req.body?.jobId === 'string' && req.body.jobId.trim()) {
+      const jobDoc = await db.collection('jobs').doc(req.body.jobId.trim()).get();
+      if (!jobDoc.exists) return res.status(404).json({ error: 'Lavoro non trovato' });
+      updates.jobId = req.body.jobId.trim();
+    }
+    await ref.update(updates);
+    const saved = await ref.get();
+    return res.json({ photobook: serializeBook(ref.id, saved.data()) });
+  } catch (error) {
+    console.error('[photobooks] Errore aggiornamento:', error);
+    return res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+/** DELETE /:id — elimina fotolibro, pagine, richieste e file Storage (cascade) */
+router.delete('/:id', async (req: Request, res: Response) => {
+  try {
+    const ref = db.collection(BOOKS_COL).doc(req.params.id);
+    const doc = await ref.get();
+    if (!doc.exists) return res.status(404).json({ error: 'Fotolibro non trovato' });
+
+    const pagesSnap = await db.collection(PAGES_COL).where('photobookId', '==', ref.id).get();
+    const reqSnap = await db.collection(REQUESTS_COL).where('photobookId', '==', ref.id).get();
+
+    const [mockupsSnap, mockupAssetsSnap, mockupOffersSnap, mockupHistorySnap, mockupAttachmentsSnap] = await Promise.all([
+      ref.collection('mockups').get(),
+      ref.collection('mockupAssets').get(),
+      ref.collection('mockupOffers').get(),
+      ref.collection('mockupHistory').get(),
+      ref.collection('mockupAttachments').get(),
+    ]);
+
+    // Elimina i documenti in batch (max 500 per batch)
+    const allDocs = [...pagesSnap.docs, ...reqSnap.docs, ...mockupsSnap.docs, ...mockupAssetsSnap.docs, ...mockupOffersSnap.docs, ...mockupHistorySnap.docs, ...mockupAttachmentsSnap.docs, doc];
+    for (let i = 0; i < allDocs.length; i += 450) {
+      const batch = db.batch();
+      for (const d of allDocs.slice(i, i + 450)) batch.delete(d.ref);
+      await batch.commit();
+    }
+
+    // Elimina i file Storage (best-effort)
+    try {
+      await storage.bucket().deleteFiles({ prefix: `photobooks/${ref.id}/` });
+      await storage.bucket().deleteFiles({ prefix: `photobook-mockups/${ref.id}/` });
+    } catch (e) {
+      console.warn('[photobooks] Pulizia Storage fallita (non bloccante):', e);
+    }
+
+    console.log(`📖 [photobooks] Eliminato fotolibro ${ref.id} (${pagesSnap.size} pagine, ${reqSnap.size} richieste)`);
+    return res.json({ ok: true });
+  } catch (error) {
+    console.error('[photobooks] Errore eliminazione:', error);
+    return res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+/** POST /:id/versions — crea una bozza privata senza cambiare la versione corrente. */
+router.post('/:id/versions', async (req: Request, res: Response) => {
+  try {
+    const label = typeof req.body?.label === 'string' ? req.body.label.trim() : null;
+    const saved = await createVersionDraft(req.params.id, label);
+    return res.json({ photobook: serializeBook(req.params.id, saved) });
+  } catch (error) {
+    if (error instanceof PhotobookVersionError) return res.status(error.status).json({ error: error.message });
+    console.error('[photobooks] Errore nuova versione:', error);
+    return res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+/**
+ * Risolve l'email del cliente di un fotolibro: prima dalla galleria collegata
+ * (clientEmail), poi dai clienti del lavoro associato (jobId → clientiIds).
+ */
+async function resolvePhotobookClientEmail(book: any): Promise<string | null> {
+  try {
+    if (book.galleryId) {
+      const g = await db.collection('galleries').doc(book.galleryId).get();
+      const email = g.exists ? (g.data()?.clientEmail || '').trim() : '';
+      if (email) return email;
+    }
+    if (book.jobId) {
+      const jobDoc = await db.collection('jobs').doc(book.jobId).get();
+      if (jobDoc.exists) {
+        const job = jobDoc.data() || {};
+        const ids: string[] = Array.isArray(job.clientiIds)
+          ? job.clientiIds
+          : job.clienteId
+            ? [job.clienteId]
+            : [];
+        for (const cid of ids) {
+          const c = await db.collection('clienti').doc(cid).get();
+          const email = c.exists ? (c.data()?.email || '').trim() : '';
+          if (email) return email;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[photobooks] Risoluzione email cliente fallita:', e);
+  }
+  return null;
+}
+
+/** Un claim precede sempre il trasporto: in caso di risposta persa non ritentiamo alla cieca. */
+async function notifyApprovedMockup(bookDoc: FirebaseFirestore.DocumentSnapshot, version: number): Promise<string> {
+  const ref = bookDoc.ref;
+  const book = (await ref.get()).data()!;
+  if (book.mockupPath !== 'client' || book.approval?.version !== version || book.currentVersion !== version) return 'not-applicable';
+  const key = `approved_v${version}`;
+  const existing = book.mockupNotifications?.[key];
+  if (existing && !['missing-email', 'not-delivered'].includes(existing.state)) return existing.state || 'sent';
+  const email = await resolvePhotobookClientEmail(book);
+  if (!email) {
+    await db.runTransaction(async tx => {
+      const fresh = await tx.get(ref);
+      if (!fresh.data()?.mockupNotifications?.[key]) tx.update(ref, { [`mockupNotifications.${key}`]: { state: 'missing-email' } });
+    });
+    return 'missing-email';
+  }
+  const attemptId = randomUUID();
+  const claim = await db.runTransaction(async tx => {
+    const fresh = await tx.get(ref);
+    const data = fresh.data();
+    if (!data || data.mockupPath !== 'client' || data.currentVersion !== version || data.approval?.version !== version) return 'stale';
+    const previous = data.mockupNotifications?.[key];
+    if (previous && !['missing-email', 'not-delivered'].includes(previous.state)) return previous.state || 'sent';
+    tx.update(ref, { [`mockupNotifications.${key}`]: { state: 'pending', attemptId } });
+    return 'acquired';
+  });
+  if (claim !== 'acquired') return claim;
+  const esc = (s: unknown) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  try {
+    await sendGmailEmail(email, `Configura il mockup del tuo fotolibro`, `<p>Ciao ${esc(book.clientName || 'Cliente')}, hai approvato le pagine di ${esc(book.name || 'Fotolibro')}.</p><p>Ora puoi configurare il mockup dell’album dal tuo link:</p><p><a href="${esc(`${getSiteBaseUrl()}/fotolibro/${book.token}`)}">Apri il fotolibro e configura il mockup</a></p>`, undefined, { type: 'photobook_mockup_invitation', relatedDocId: bookDoc.id, relatedDocType: 'photobook', clientName: book.clientName || undefined });
+  } catch {
+    await db.runTransaction(async tx => {
+      const fresh = await tx.get(ref);
+      if (fresh.data()?.mockupNotifications?.[key]?.attemptId === attemptId) tx.update(ref, { [`mockupNotifications.${key}`]: { state: 'uncertain', attemptId } });
+    }).catch(() => undefined);
+    return 'uncertain';
+  }
+  await ref.update({ [`mockupNotifications.${key}`]: { state: 'sent', sentAt: new Date().toISOString() } }).catch(() => undefined);
+  return 'sent';
+}
+
+router.post('/:id/notify-approved-mockup', async (req: Request, res: Response) => {
+  try {
+    const doc = await db.collection(BOOKS_COL).doc(req.params.id).get();
+    if (!doc.exists) return res.status(404).json({ error: 'Fotolibro non trovato' });
+    const version = doc.data()!.currentVersion;
+    if (doc.data()!.mockupPath !== 'client' || doc.data()!.approval?.version !== version) return res.status(409).json({ error: 'Percorso cliente e approvazione corrente necessari' });
+    return res.json({ state: await notifyApprovedMockup(doc, version) });
+  } catch { return res.status(500).json({ error: 'Impossibile verificare la notifica' }); }
+});
+
+router.post('/:id/notify-confirmed-mockup', async (req: Request, res: Response) => {
+  try {
+    const doc = await db.collection(BOOKS_COL).doc(req.params.id).get();
+    if (!doc.exists) return res.status(404).json({ error: 'Fotolibro non trovato' });
+    const version = doc.data()!.currentVersion;
+    const saved = await doc.ref.collection('mockups').doc(`v${version}`).get();
+    if (doc.data()!.mockupPath !== 'studio' || saved.data()?.status !== 'confirmed') return res.status(409).json({ error: 'Nessun mockup confermato nel percorso studio' });
+    if (doc.data()!.approval?.version !== version) return res.status(409).json({ error: 'L’email sarà inviata quando il cliente approverà le pagine.' });
+    await notifyMockupClientStatus(doc, saved.data() as { version: number; revision: number }, 'confirmed');
+    const fresh = await doc.ref.get();
+    return res.json({ state: fresh.data()?.mockupNotifications?.[`confirmed_v${version}_r${saved.data()!.revision}`]?.state || 'sent' });
+  } catch { return res.status(409).json({ error: 'Invio in corso o con esito incerto: controlla la posta inviata prima di riprovare' }); }
+});
+
+/** Dopo controllo della posta inviata, registra l'esito senza ripetere automaticamente l'invio. */
+router.post('/:id/reconcile-mockup-notification', async (req: Request, res: Response) => {
+  const { key, delivered } = req.body || {};
+  if (typeof key !== 'string' || !/^(approved_v\d+|confirmed_v\d+_r\d+)$/.test(key) || typeof delivered !== 'boolean') return res.status(400).json({ error: 'Esito non valido' });
+  const ref = db.collection(BOOKS_COL).doc(req.params.id);
+  try {
+    const state = await db.runTransaction(async tx => {
+      const doc = await tx.get(ref);
+      const previous = doc.data()?.mockupNotifications?.[key];
+      if (!previous || !['uncertain', 'pending'].includes(previous.state)) return 'not-uncertain';
+      tx.update(ref, { [`mockupNotifications.${key}`]: delivered ? { state: 'sent', reconciledAt: new Date().toISOString() } : { state: 'not-delivered', reconciledAt: new Date().toISOString() } });
+      return delivered ? 'sent' : 'not-delivered';
+    });
+    return state === 'not-uncertain' ? res.status(409).json({ error: 'Esito cambiato: ricarica' }) : res.json({ state });
+  } catch { return res.status(500).json({ error: 'Verifica non riuscita' }); }
+});
+
+/**
+ * Avvisa il cliente quando lo studio richiede modifiche o conferma il mockup.
+ * Ogni transizione di stato ha un claim acquisito prima dell'invio: un doppio
+ * clic o una risposta HTTP persa non genera email duplicate.
+ */
+async function notifyMockupClientStatus(
+  bookDoc: FirebaseFirestore.DocumentSnapshot,
+  saved: { version: number; revision: number; status?: string; note?: string },
+  event: 'changes_requested' | 'confirmed',
+): Promise<void> {
+  const book = bookDoc.data() || {};
+  const clientEmail = await resolvePhotobookClientEmail(book);
+  if (!clientEmail) {
+    console.warn(`[photobooks] Nessuna email cliente per la notifica mockup ${event} (${bookDoc.id})`);
+    await db.runTransaction(async tx => {
+      const fresh = await tx.get(bookDoc.ref);
+      const key = `${event}_v${saved.version}_r${saved.revision}`;
+      const existing = fresh.data()?.mockupNotifications?.[key];
+      if (!existing || ['waiting-approval', 'missing-email', 'not-delivered'].includes(existing.state)) {
+        tx.update(bookDoc.ref, { [`mockupNotifications.${key}`]: { state: 'missing-email' } });
+      }
+    });
+    return;
+  }
+
+  const key = `${event}_v${saved.version}_r${saved.revision}`;
+  const attemptId = randomUUID();
+  const acquired = await db.runTransaction(async (tx) => {
+    const fresh = await tx.get(bookDoc.ref);
+    if (!fresh.exists || fresh.data()!.locked || fresh.data()!.currentVersion !== saved.version ||
+        (event === 'confirmed' && (fresh.data()!.mockupPath === 'client' || fresh.data()!.approval?.version !== saved.version))) return 'stale';
+    const existing = fresh.data()?.mockupNotifications?.[key];
+    if (existing && !['waiting-approval', 'missing-email', 'not-delivered'].includes(existing.state)) return existing.state === 'pending' || existing.state === 'uncertain' ? 'uncertain' : 'sent';
+    tx.update(bookDoc.ref, { [`mockupNotifications.${key}`]: { attemptId, state: 'pending' } });
+    return 'acquired';
+  });
+  if (acquired === 'stale') return;
+  if (acquired === 'sent') return;
+  if (acquired === 'uncertain') {
+    throw new Error('Invio email già in corso o con esito incerto');
+  }
+
+  const esc = (value: unknown) =>
+    String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  const link = `${getSiteBaseUrl()}/fotolibro/${book.token}`;
+  const clientName = esc(book.clientName || 'Cliente');
+  const bookName = esc(book.name || 'Fotolibro');
+  const note = String(saved.note || '').trim();
+  const changes = event === 'changes_requested';
+  const heading = changes ? 'Lo studio ha richiesto alcune modifiche' : 'Il tuo mockup è stato confermato';
+  const subject = changes
+    ? `Fotolibro: modifiche richieste al mockup`
+    : `Fotolibro: mockup confermato dallo studio`;
+  const message = changes
+    ? `Apri il mockup, aggiorna le scelte richieste e invialo nuovamente allo studio per la verifica.`
+    : book.mockupPath === 'studio'
+      ? `Lo studio ha preparato e confermato il mockup. Puoi consultarlo dal link; se desideri modifiche, contatta lo studio.`
+      : `Lo studio ha verificato la proposta. L’album non è ancora in stampa: se desideri fare altre modifiche, dovrai inviare una nuova revisione per la verifica.`;
+  const noteHtml = changes && note
+    ? `<p><strong>Nota dello studio:</strong><br>${esc(note).replace(/\n/g, '<br>')}</p>`
+    : '';
+
+  try {
+    await sendGmailEmail(
+      clientEmail,
+      subject,
+      `<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#44403c">
+        <h2 style="color:#78716c;font-weight:normal">${heading}</h2>
+        <p>Ciao ${clientName},</p>
+        <p>il mockup del fotolibro &laquo;${bookName}&raquo; (versione ${saved.version}) è <strong>${changes ? 'da aggiornare' : 'confermato dallo studio'}</strong>.</p>
+        ${noteHtml}
+        <p>${message}</p>
+        <p style="text-align:center;margin:28px 0">
+          <a href="${esc(link)}" style="background:#78716c;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none">
+            ${changes ? 'Apri e modifica il mockup' : 'Apri il tuo fotolibro'}
+          </a>
+        </p>
+        <p style="color:#a8a29e;font-size:13px;margin-top:32px">Image Studio Fotografico</p>
+      </div>`,
+      undefined,
+      {
+        type: changes ? 'photobook_mockup_changes_requested' : 'photobook_mockup_confirmed',
+        relatedDocId: bookDoc.id,
+        relatedDocType: 'photobook',
+        clientName: book.clientName || undefined,
+      },
+    );
+  } catch (error) {
+    await db.runTransaction(async (tx) => {
+      const fresh = await tx.get(bookDoc.ref);
+      if (fresh.data()?.mockupNotifications?.[key]?.attemptId === attemptId) {
+        tx.update(bookDoc.ref, { [`mockupNotifications.${key}`]: { attemptId, state: 'uncertain' } });
+      }
+    }).catch(() => {});
+    throw error;
+  }
+
+  await bookDoc.ref.update({
+    [`mockupNotifications.${key}`]: { state: 'sent', sentAt: new Date().toISOString() },
+  }).catch(() => {});
+  console.log(`[photobooks] Email mockup ${event} inviata a ${clientEmail} (${bookDoc.id})`);
+}
+
+/**
+ * POST /:id/notify-version — avvisa il cliente via email che una nuova
+ * versione del fotolibro è pronta per la revisione. Idempotente per versione
+ * (marker `versionNotifications.{v}` sul documento del fotolibro).
+ */
+router.post('/:id/publish-version', async (req: Request, res: Response) => {
+  try {
+    await publishVersion(req.params.id, req.body?.version, req.body?.expectedCurrentVersion, req.body?.expectedPageCount);
+    return notifyVersion(req, res);
+  } catch (error) {
+    if (error instanceof PhotobookVersionError) return res.status(error.status).json({ error: error.message });
+    return res.status(500).json({ error: 'Pubblicazione non riuscita. Ricarica per verificare lo stato prima di riprovare.' });
+  }
+});
+router.post('/:id/notify-version', notifyVersion);
+async function notifyVersion(req: Request, res: Response) {
+  try {
+    const ref = db.collection(BOOKS_COL).doc(req.params.id);
+    const doc = await ref.get();
+    if (!doc.exists) return res.status(404).json({ error: 'Fotolibro non trovato' });
+    const book = doc.data()!;
+
+    const version = Number(req.body?.version);
+    const verEntry = (book.versions || []).find((v: any) => v.version === version);
+    if (!verEntry) return res.status(400).json({ error: 'Versione inesistente' });
+    if (!Number.isInteger(version) || book.locked || book.currentVersion !== version || verEntry.status === 'draft' || !verEntry.pageCount) return res.status(409).json({ error: 'Puoi avvisare il cliente solo per la versione pubblicata, completa e non in stampa.' });
+
+    // Solo per le versioni successive alla prima: il primo invio del link
+    // al cliente resta manuale ("Link Cliente")
+    if (version <= 1) return res.json({ ok: true, skipped: 'first-version' });
+
+    const clientEmail = await resolvePhotobookClientEmail(book);
+    if (!clientEmail) {
+      return res.json({ ok: false, skipped: 'no-client-email' });
+    }
+
+    // Marker PRIMA dell'invio, acquisito in TRANSAZIONE (concorrenza-safe):
+    // solo la richiesta che scrive il marker procede con l'invio.
+    const attemptId = randomUUID();
+    const acquired = await db.runTransaction(async (tx) => {
+      const fresh = await tx.get(ref);
+      if (!fresh.exists || fresh.data()!.locked || fresh.data()!.currentVersion !== version) return 'stale';
+      const existing = fresh.data()?.versionNotifications?.[String(version)];
+      if (existing) return existing.state === 'pending' || existing.state === 'uncertain' ? 'uncertain' : 'sent';
+      tx.update(ref, { [`versionNotifications.${version}`]: { attemptId, state: 'pending' } });
+      return 'acquired';
+    });
+    if (acquired === 'stale') return res.status(409).json({ error: 'Versione cambiata o in stampa: nessuna nuova email inviata.' });
+    if (acquired === 'uncertain') return res.status(409).json({ error: 'Invio email in corso o con esito incerto. Controlla la posta inviata prima di avvisare manualmente il cliente; nessun reinvio automatico.' });
+    if (acquired === 'sent') return res.json({ ok: true, alreadyNotified: true });
+
+    const esc = (s: any) =>
+      String(s ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    const link = `${getSiteBaseUrl(req)}/fotolibro/${book.token}`;
+    const clientName = esc(book.clientName || 'Cliente');
+    const label = verEntry.label ? ` &quot;${esc(verEntry.label)}&quot;` : '';
+    const html = `
+      <div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#44403c">
+        <h2 style="color:#78716c;font-weight:normal">Il tuo fotolibro è stato aggiornato</h2>
+        <p>Ciao ${clientName},</p>
+        <p>abbiamo preparato la <strong>nuova versione (v${version}${label})</strong> del fotolibro
+        &laquo;${esc(book.name || 'Fotolibro')}&raquo; con le modifiche richieste.</p>
+        <p>Puoi rivederla dal tuo solito link:</p>
+        <p style="text-align:center;margin:28px 0">
+          <a href="${link}" style="background:#78716c;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none">
+            Apri il fotolibro aggiornato
+          </a>
+        </p>
+        <p>Se c'è ancora qualcosa da sistemare, disegna una X sulle foto da modificare e invia le nuove richieste.</p>
+        <p>1. Sfoglia le pagine aggiornate.<br>2. Per confrontarle, usa “Versioni precedenti”: sono in sola lettura.<br>3. Torna alla versione attuale per inviare richieste o approvare le pagine. Il mockup dell’album si personalizza separatamente con “Apri mockup”.</p>
+        <p style="color:#a8a29e;font-size:13px;margin-top:32px">Image Studio Fotografico</p>
+      </div>`;
+
+    try {
+      await sendGmailEmail(
+        clientEmail,
+        `Fotolibro aggiornato: nuova versione pronta per la revisione`,
+        html,
+        undefined,
+        {
+          type: 'photobook_new_version',
+          relatedDocId: ref.id,
+          relatedDocType: 'photobook',
+          clientName,
+        },
+      );
+    } catch (emailErr) {
+      // Un errore del provider può arrivare dopo l'invio: mantieni il claim
+      // come incerto, senza reinvio automatico che potrebbe duplicare l'email.
+      await db.runTransaction(async (tx) => {
+        const fresh = await tx.get(ref);
+        if (fresh.data()?.versionNotifications?.[String(version)]?.attemptId === attemptId) {
+          tx.update(ref, { [`versionNotifications.${version}`]: { attemptId, state: 'uncertain' } });
+        }
+      }).catch(() => {});
+      throw emailErr;
+    }
+
+    // Invio riuscito: sostituisce l'attemptId con il timestamp (best-effort)
+    await ref.update({
+      [`versionNotifications.${version}`]: FieldValue.serverTimestamp(),
+    }).catch(() => {});
+
+    console.log(`📖 [photobooks] Email nuova versione v${version} inviata a ${clientEmail} (${ref.id})`);
+    return res.json({ ok: true, notified: true });
+  } catch (error) {
+    console.error('[photobooks] Errore notifica nuova versione:', error);
+    return res.status(500).json({ error: 'La versione resta pubblicata, ma l’esito dell’email è incerto. Controlla la posta inviata prima di avvisare manualmente il cliente.' });
+  }
+}
+
+/**
+ * Un trasferimento marcato "running" senza heartbeat da oltre questo tempo è
+ * considerato morto (crash/restart del server): un nuovo POST può ripartire.
+ */
+const TRANSFER_STALE_MS = 3 * 60 * 1000;
+
+/**
+ * Trasferimento pagine → Drive eseguito in background (fuori dalla richiesta
+ * HTTP). Idempotente: nome file deterministico per pagina, salta quelle già
+ * presenti nella spedizione. Avanzamento e esito vengono scritti in
+ * `labShipments/{id}.pageTransfer` (heartbeat ad ogni pagina).
+ */
+async function runPhotobookPageTransfer(
+  shipmentRef: FirebaseFirestore.DocumentReference,
+  photobookId: string,
+  driveFolderId: string,
+  pages: Array<{ id: string; pageNumber: number; storagePath: string }>,
+): Promise<void> {
+  const bucket = storage.bucket();
+  let transferred = 0;
+  let skipped = 0;
+  const failed: Array<{ pageNumber: number; error: string }> = [];
+
+  try {
+    // Rileggi i file già presenti (fonte di verità per il retry)
+    const sDoc = await shipmentRef.get();
+    const files: any[] = Array.isArray(sDoc.data()?.files) ? [...sDoc.data()!.files] : [];
+    const existingNames = new Set(files.map((f) => f.name));
+
+    for (const page of pages) {
+      const extMatch = String(page.storagePath).match(/\.(\w+)$/);
+      const ext = extMatch ? extMatch[1] : 'jpg';
+      const fileName = `pagina-${String(page.pageNumber).padStart(3, '0')}-${page.id}.${ext}`;
+      if (existingNames.has(fileName)) {
+        skipped++;
+      } else {
+        try {
+          const storageFile = bucket.file(page.storagePath);
+          const [meta] = await storageFile.getMetadata();
+          const uploaded = await uploadStreamToDriveFolder(
+            driveFolderId,
+            fileName,
+            String(meta.contentType || 'image/jpeg'),
+            storageFile.createReadStream(),
+          );
+          const entry: any = {
+            driveFileId: uploaded.fileId,
+            name: fileName,
+            size: uploaded.size || Number(meta.size) || 0,
+            kind: 'original',
+            mimeType: String(meta.contentType || 'image/jpeg'),
+            uploadedAt: new Date(),
+          };
+          if (uploaded.webViewLink) entry.webViewLink = uploaded.webViewLink;
+          files.push(entry);
+          existingNames.add(fileName);
+          transferred++;
+        } catch (e: any) {
+          console.error(
+            `[photobooks] Trasferimento pagina ${page.pageNumber} fallito (fotolibro ${photobookId}):`,
+            e?.message || e,
+          );
+          failed.push({ pageNumber: page.pageNumber, error: e?.message || 'Errore trasferimento' });
+        }
+      }
+      // Persistenza incrementale + avanzamento: un crash a metà non perde i
+      // file già copiati e il client vede il progresso in tempo reale
+      await shipmentRef.update({
+        files,
+        'pageTransfer.transferred': transferred,
+        'pageTransfer.skipped': skipped,
+        'pageTransfer.failed': failed,
+        'pageTransfer.heartbeatAt': FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+
+    await shipmentRef.update({
+      'pageTransfer.status': failed.length > 0 ? 'partial' : 'completed',
+      'pageTransfer.finishedAt': FieldValue.serverTimestamp(),
+      'pageTransfer.heartbeatAt': FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    console.log(
+      `📖 [photobooks] Trasferimento pagine fotolibro ${photobookId} → spedizione ${shipmentRef.id} concluso: ${transferred} trasferite, ${skipped} già presenti, ${failed.length} fallite`,
+    );
+  } catch (e: any) {
+    // Errore fatale (es. Firestore/Drive irraggiungibile): marca il fallimento
+    console.error(
+      `[photobooks] Trasferimento background fallito (fotolibro ${photobookId}):`,
+      e?.message || e,
+    );
+    try {
+      await shipmentRef.update({
+        'pageTransfer.status': 'failed',
+        'pageTransfer.error': String(e?.message || 'Errore trasferimento'),
+        'pageTransfer.finishedAt': FieldValue.serverTimestamp(),
+        'pageTransfer.heartbeatAt': FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    } catch {
+      // best-effort
+    }
+  }
+}
+
+/**
+ * POST /:id/lab-shipment — crea (o riusa) la spedizione laboratorio del
+ * fotolibro e trasferisce server-side le pagine ORIGINALI (storagePath, mai le
+ * versioni display ridotte) della versione corrente da Firebase Storage alla
+ * cartella Google Drive della spedizione. Copia byte-per-byte, nessuna
+ * ricompressione.
+ *
+ * Body: { labId?, descrizione?, expiryDays?, jobId? }
+ * - jobId serve solo come fallback se il fotolibro non ha un lavoro associato.
+ * - Idempotente: richiamandolo ritrasferisce SOLO le pagine mancanti (retry
+ *   dopo errori parziali), senza duplicare file già presenti.
+ *
+ * Risposta: { shipment, transferred, skipped, failed: [{pageNumber, error}] }
+ */
+router.post('/:id/lab-shipment', async (req: any, res: Response) => {
+  try {
+    const ref = db.collection(BOOKS_COL).doc(req.params.id);
+    const bookDoc = await ref.get();
+    if (!bookDoc.exists) return res.status(404).json({ error: 'Fotolibro non trovato' });
+    const book = bookDoc.data()!;
+
+    // Lavoro associato (obbligatorio per la spedizione)
+    const jobId: string =
+      book.jobId || (typeof req.body?.jobId === 'string' ? req.body.jobId.trim() : '');
+    if (!jobId) {
+      return res.status(400).json({
+        error:
+          'Il fotolibro non è associato a nessun lavoro: seleziona il lavoro a cui collegare la spedizione',
+      });
+    }
+    const jobDoc = await db.collection('jobs').doc(jobId).get();
+    if (!jobDoc.exists) return res.status(404).json({ error: 'Lavoro non trovato' });
+    const job = jobDoc.data() || {};
+
+    // Pagine della versione corrente (originali ad alta risoluzione)
+    const pagesSnap = await db
+      .collection(PAGES_COL)
+      .where('photobookId', '==', ref.id)
+      .where('version', '==', book.currentVersion)
+      .get();
+    const pages = pagesSnap.docs
+      .map((d) => ({ id: d.id, ...(d.data() as any) }))
+      .filter((p) => p.storagePath)
+      .sort((a, b) => a.pageNumber - b.pageNumber);
+    if (pages.length === 0) {
+      return res.status(400).json({ error: 'La versione corrente non ha pagine da trasferire' });
+    }
+
+    // Riusa la spedizione già collegata (retry idempotente), altrimenti creala
+    let shipmentRef = book.labShipmentId
+      ? db.collection('labShipments').doc(book.labShipmentId)
+      : null;
+    let shipment: any = null;
+    if (shipmentRef) {
+      const sDoc = await shipmentRef.get();
+      if (sDoc.exists) shipment = sDoc.data();
+      else shipmentRef = null;
+    }
+
+    let isNewShipment = false;
+    let jobNotesSnapshot: any = shipment?.jobNotesSnapshot || null;
+    if (!shipmentRef) {
+      isNewShipment = true;
+      const descrizione =
+        (typeof req.body?.descrizione === 'string' && req.body.descrizione.trim()) ||
+        `Fotolibro "${book.name}" v${book.currentVersion}`;
+      const expiryDays =
+        typeof req.body?.expiryDays === 'number' && req.body.expiryDays > 0
+          ? req.body.expiryDays
+          : LAB_SHIPMENT_DEFAULT_EXPIRY_DAYS;
+
+      const labNote = typeof req.body?.labNote === 'string' ? req.body.labNote.trim() : '';
+      if (labNote.length > 10000) {
+        return res.status(400).json({ error: 'Le note per il laboratorio superano 10.000 caratteri' });
+      }
+
+      const requestedPhotoNotes = Array.isArray(req.body?.jobPhotoNotes)
+        ? req.body.jobPhotoNotes
+        : [];
+      if (requestedPhotoNotes.length > 30) {
+        return res.status(400).json({ error: 'Puoi allegare al massimo 30 note con foto' });
+      }
+      const sourcePhotoNotes = Array.isArray(job.notePerFoto) ? job.notePerFoto : [];
+      const bucketName = storage.bucket().name;
+      const sourceById = new Map(
+        sourcePhotoNotes
+          .filter((note: any) => typeof note?.id === 'string')
+          .map((note: any) => [note.id, note]),
+      );
+      const seenNoteIds = new Set<string>();
+      const selectedPhotoNotes: any[] = [];
+      for (const requested of requestedPhotoNotes) {
+        const sourceNoteId = typeof requested?.sourceNoteId === 'string'
+          ? requested.sourceNoteId.trim()
+          : '';
+        if (!sourceNoteId || seenNoteIds.has(sourceNoteId) || !sourceById.has(sourceNoteId)) {
+          return res.status(400).json({ error: 'Una nota fotografica selezionata non appartiene al lavoro' });
+        }
+        const editedNote = typeof requested?.note === 'string' ? requested.note.trim() : '';
+        if (editedNote.length > 5000) {
+          return res.status(400).json({ error: 'Una nota fotografica supera 5.000 caratteri' });
+        }
+        seenNoteIds.add(sourceNoteId);
+        const source = sourceById.get(sourceNoteId);
+        const sourceStoragePath =
+          (typeof source.storagePath === 'string' && source.storagePath.trim()) ||
+          storagePathFromFirebaseUrl(source.imageUrl, bucketName) ||
+          undefined;
+        if (sourceStoragePath && !sourceStoragePath.startsWith(`jobs/${jobId}/note-foto/`)) {
+          return res.status(400).json({
+            error: 'Il percorso di una foto allegata non appartiene alle note del lavoro',
+          });
+        }
+        if (source.imageUrl && !sourceStoragePath) {
+          return res.status(400).json({
+            error: 'Una foto allegata alla nota non è trasferibile da Firebase Storage',
+          });
+        }
+        selectedPhotoNotes.push({
+          sourceNoteId,
+          note: editedNote,
+          ...(sourceStoragePath ? { sourceStoragePath } : {}),
+        });
+      }
+
+      jobNotesSnapshot = {
+        jobId,
+        ...(labNote ? { generalNote: labNote } : {}),
+        photoNotes: selectedPhotoNotes,
+        capturedAt: FieldValue.serverTimestamp(),
+        ...(req.user?.email ? { capturedBy: req.user.email } : {}),
+      };
+      const shipmentData: any = {
+        jobId,
+        descrizione,
+        sourceType: 'photobook',
+        ...(labNote ? { labNote } : {}),
+        jobNotesSnapshot,
+        files: [],
+        status: 'da_inviare',
+        expiryDays,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+        createdBy: req.user?.email || undefined,
+        photobookId: ref.id,
+      };
+      const labId = typeof req.body?.labId === 'string' ? req.body.labId.trim() : '';
+      if (labId) {
+        shipmentData.labId = labId;
+        const labDoc = await db.collection('labs').doc(labId).get();
+        if (labDoc.exists) {
+          shipmentData.labNome = labDoc.data()?.nome;
+          shipmentData.labEmail = labDoc.data()?.email;
+        }
+      }
+      shipmentRef = await db.collection('labShipments').add(shipmentData);
+      const sDoc = await shipmentRef.get();
+      shipment = sDoc.data();
+      jobNotesSnapshot = shipment?.jobNotesSnapshot || jobNotesSnapshot;
+      console.log(
+        `📖 [photobooks] Spedizione laboratorio ${shipmentRef.id} creata per fotolibro ${ref.id} (job ${jobId})`,
+      );
+    }
+
+    // Cartella Drive dedicata (creata al primo trasferimento)
+    let driveFolderId: string | undefined = shipment.driveFolderId;
+    if (!driveFolderId) {
+      const parentId = await findOrCreateLabParentFolder();
+      const folderName = `${shipment.labNome ? shipment.labNome + ' - ' : ''}${
+        shipment.descrizione || 'Consegna'
+      } - ${shipmentRef.id}`;
+      const folder = await createShipmentFolder(parentId, folderName);
+      driveFolderId = folder.folderId;
+      await shipmentRef.update({
+        driveFolderId,
+        shareableLink: folder.webViewLink || null,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+
+    // Le fotografie scelte dalle note del job vengono copiate nella cartella
+    // Drive della spedizione. Il testo e le immagini sono snapshot: nessuna
+    // scrittura viene effettuata sul job originale.
+    if (isNewShipment && Array.isArray(jobNotesSnapshot?.photoNotes)) {
+      const bucket = storage.bucket();
+      const noteFiles: any[] = [];
+      try {
+        for (let index = 0; index < jobNotesSnapshot.photoNotes.length; index++) {
+          const note = jobNotesSnapshot.photoNotes[index];
+          if (!note.sourceStoragePath) continue;
+          const storageFile = bucket.file(note.sourceStoragePath);
+          const [meta] = await storageFile.getMetadata();
+          const fileName = safeAttachmentFileName(index, note.sourceStoragePath);
+          const uploaded = await uploadStreamToDriveFolder(
+            driveFolderId,
+            fileName,
+            String(meta.contentType || 'image/jpeg'),
+            storageFile.createReadStream(),
+          );
+          note.driveFileId = uploaded.fileId;
+          note.driveFileName = fileName;
+          noteFiles.push({
+            driveFileId: uploaded.fileId,
+            name: fileName,
+            size: uploaded.size || Number(meta.size) || 0,
+            kind: 'note_attachment',
+            mimeType: String(meta.contentType || 'image/jpeg'),
+            ...(uploaded.webViewLink ? { webViewLink: uploaded.webViewLink } : {}),
+            uploadedAt: new Date(),
+          });
+        }
+
+        if (noteFiles.length > 0) {
+          await shipmentRef.update({
+            files: noteFiles,
+            jobNotesSnapshot,
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+          shipment.files = noteFiles;
+        }
+        shipment = await refreshLabShipmentInstructions(shipmentRef, {
+          name: book.name,
+          version: book.currentVersion,
+        });
+      } catch (error) {
+        // Rollback best-effort: senza gli allegati scelti la spedizione non
+        // deve risultare pronta né bloccare il fotolibro.
+        try {
+          if (driveFolderId) await deleteDriveFile(driveFolderId);
+        } catch {}
+        try {
+          await shipmentRef.delete();
+        } catch {}
+        throw error;
+      }
+    }
+
+    // Collega subito fotolibro ↔ spedizione (evita doppie creazioni anche se
+    // il trasferimento fallisce a metà e si riprova)
+    await ref.update({
+      jobId,
+      labShipmentId: shipmentRef.id,
+      ...(req.body?.lockPhotobook === true ? { locked: true } : {}),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    // Trasferimento pagine in BACKGROUND: con fotolibri grandi (50+ pagine ad
+    // alta risoluzione) la copia sequenziale può durare minuti e far scadere la
+    // richiesta HTTP lato client/proxy. La route risponde subito e il client
+    // segue l'avanzamento leggendo `pageTransfer` sulla spedizione.
+    const now = Date.now();
+    const existingTransfer = shipment.pageTransfer;
+    const heartbeatMs = existingTransfer?.heartbeatAt?.toDate
+      ? existingTransfer.heartbeatAt.toDate().getTime()
+      : typeof existingTransfer?.heartbeatAt?._seconds === 'number'
+        ? existingTransfer.heartbeatAt._seconds * 1000
+        : 0;
+    let transferAlreadyRunning =
+      existingTransfer?.status === 'running' && now - heartbeatMs < TRANSFER_STALE_MS;
+
+    if (!transferAlreadyRunning) {
+      const started = await db.runTransaction(async tx => {
+        const fresh = await tx.get(shipmentRef!);
+        const data = fresh.data();
+        if (!data || data.mockupDispatching || ['uploading', 'needs_review'].includes(data.mockupTransfer?.status)) return false;
+        const freshHeartbeat = data.pageTransfer?.heartbeatAt?.toDate?.().getTime() || Number(data.pageTransfer?.heartbeatAt?._seconds || 0) * 1000;
+        if (data.pageTransfer?.status === 'running' && Date.now() - freshHeartbeat < TRANSFER_STALE_MS) return 'running' as const;
+        tx.update(shipmentRef!, {
+          pageTransfer: {
+            status: 'running',
+            total: pages.length,
+            transferred: 0,
+            skipped: 0,
+            failed: [],
+            startedAt: FieldValue.serverTimestamp(),
+            heartbeatAt: FieldValue.serverTimestamp(),
+            finishedAt: null,
+          },
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        return true;
+      });
+      if (!started) return res.status(409).json({ error: 'Attendi la conclusione del trasferimento mockup o verifica l’invio della spedizione prima di trasferire le pagine.' });
+      // Fire-and-forget: gli errori vengono registrati dentro pageTransfer
+      if (started === 'running') transferAlreadyRunning = true;
+      else void runPhotobookPageTransfer(shipmentRef, ref.id, driveFolderId, pages);
+    }
+
+    // Evento timeline sul job (solo alla prima creazione, best-effort)
+    if (isNewShipment) {
+      try {
+        await db.collection('jobTimeline').add({
+          id: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          jobId,
+          tipo: 'nota_aggiunta',
+          descrizione: `Fotolibro "${book.name}" mandato in stampa: creata spedizione laboratorio${
+            shipment.labNome ? ` (${shipment.labNome})` : ''
+          } con trasferimento pagine su Google Drive.`,
+          data: FieldValue.serverTimestamp(),
+          metadata: { labShipmentId: shipmentRef.id, photobookId: ref.id },
+        });
+      } catch (e: any) {
+        console.warn('[photobooks] Evento timeline non salvato (non bloccante):', e?.message);
+      }
+    }
+
+    const finalDoc = await shipmentRef.get();
+    console.log(
+      `📖 [photobooks] Trasferimento pagine fotolibro ${ref.id} → spedizione ${shipmentRef.id} avviato in background (${pages.length} pagine${transferAlreadyRunning ? ', già in corso' : ''})`,
+    );
+    return res.status(202).json({
+      shipment: { id: finalDoc.id, ...finalDoc.data() },
+      started: !transferAlreadyRunning,
+      alreadyRunning: transferAlreadyRunning,
+      totalPages: pages.length,
+    });
+  } catch (error: any) {
+    console.error('[photobooks] Errore creazione spedizione laboratorio:', error);
+    const msg = String(error?.message || '');
+    if (msg.includes('GOOGLE_DRIVE_RECONNECTION_NEEDED')) {
+      return res.status(502).json({
+        error: 'Google Drive non connesso: riconnetti Google Drive dalle impostazioni e riprova',
+      });
+    }
+    return res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+/** GET /:id/pages?version=n — pagine di una versione */
+router.get('/:id/pages', async (req: Request, res: Response) => {
+  try {
+    const bookDoc = await db.collection(BOOKS_COL).doc(req.params.id).get();
+    if (!bookDoc.exists) return res.status(404).json({ error: 'Fotolibro non trovato' });
+    const version = Number(req.query.version) || bookDoc.data()!.currentVersion;
+
+    const snap = await db
+      .collection(PAGES_COL)
+      .where('photobookId', '==', req.params.id)
+      .where('version', '==', version)
+      .get();
+
+    const pages = snap.docs
+      .map((d) => serializePage(d.id, d.data()))
+      .sort((a, b) => a.pageNumber - b.pageNumber);
+    return res.json({ pages, version });
+  } catch (error) {
+    console.error('[photobooks] Errore lista pagine:', error);
+    return res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+/** GET /:id/gallery-photos — foto galleria per il picker admin */
+router.get('/:id/gallery-photos', async (req: Request, res: Response) => {
+  try {
+    const bookDoc = await db.collection(BOOKS_COL).doc(req.params.id).get();
+    if (!bookDoc.exists) return res.status(404).json({ error: 'Fotolibro non trovato' });
+    const photos = await listGalleryPhotosPublic(bookDoc.data()!.galleryId);
+    return res.json({ photos });
+  } catch (error) {
+    console.error('[photobooks] Errore gallery-photos:', error);
+    return res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+/**
+ * POST /:id/versions/:version/pages — upload pagina JPEG (body raw image/*).
+ * Query: pageNumber (int), fileName.
+ */
+router.post(
+  '/:id/versions/:version/pages',
+  express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: '40mb' }),
+  async (req: Request, res: Response) => {
+    try {
+      const ref = db.collection(BOOKS_COL).doc(req.params.id);
+      const bookDoc = await ref.get();
+      if (!bookDoc.exists) return res.status(404).json({ error: 'Fotolibro non trovato' });
+      const book = bookDoc.data()!;
+
+      const version = Number(req.params.version);
+      const versions = book.versions || [];
+      if (book.locked || versions.some((v: any) => v.version === version && v.status === 'published')) return res.status(409).json({ error: 'Versione pubblicata o in stampa: crea una nuova bozza per cambiare le pagine.' });
+      if (!versions.some((v: any) => v.version === version)) {
+        return res.status(400).json({ error: 'Versione inesistente' });
+      }
+
+      const pageNumber = Number(req.query.pageNumber);
+      if (!Number.isInteger(pageNumber) || pageNumber < 1 || pageNumber > 999) {
+        return res.status(400).json({ error: 'Numero pagina non valido' });
+      }
+      const fileName = String(req.query.fileName || `pagina-${pageNumber}.jpg`).slice(0, 200);
+
+      const buffer = req.body as Buffer;
+      if (!Buffer.isBuffer(buffer) || buffer.length < 1000) {
+        return res.status(400).json({ error: 'File pagina mancante o non valido' });
+      }
+
+      const contentType = String(req.headers['content-type'] || 'image/jpeg');
+      const mime = contentType.split(';')[0].trim().toLowerCase();
+      const ext = mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg';
+      const bucket = storage.bucket();
+      const token = randomUUID();
+      const storagePath = `photobooks/${ref.id}/v${version}/${Date.now()}-${pageNumber}.${ext}`;
+      await bucket.file(storagePath).save(buffer, {
+        resumable: false,
+        metadata: {
+          contentType: String(contentType),
+          metadata: { firebaseStorageDownloadTokens: token },
+        },
+      });
+      const url =
+        `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/` +
+        `${encodeURIComponent(storagePath)}?alt=media&token=${token}`;
+
+      // Dimensioni originali della pagina (per il rendering proporzionale)
+      let pageWidth = 0;
+      let pageHeight = 0;
+      try {
+        const meta = await sharp(buffer).metadata();
+        pageWidth = meta.width || 0;
+        pageHeight = meta.height || 0;
+      } catch {
+        // non bloccante: il client usa l'aspect ratio dell'immagine caricata
+      }
+
+      // Versione ridotta per la visualizzazione (mobile): ~1400px, JPEG q80.
+      // Non bloccante: se fallisce, il client usa l'originale.
+      let displayUrl: string | null = null;
+      let displayStoragePath: string | null = null;
+      try {
+        const resized = await sharp(buffer)
+          .rotate()
+          .resize({ width: 1400, height: 1400, fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality: 80, mozjpeg: true })
+          .toBuffer();
+        // Ha senso solo se davvero più piccola dell'originale
+        if (resized.length < buffer.length * 0.9) {
+          const dToken = randomUUID();
+          displayStoragePath = `photobooks/${ref.id}/v${version}/display/${Date.now()}-${pageNumber}.jpg`;
+          await bucket.file(displayStoragePath).save(resized, {
+            resumable: false,
+            metadata: {
+              contentType: 'image/jpeg',
+              metadata: { firebaseStorageDownloadTokens: dToken },
+            },
+          });
+          displayUrl =
+            `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/` +
+            `${encodeURIComponent(displayStoragePath)}?alt=media&token=${dToken}`;
+        }
+      } catch (e) {
+        console.warn('[photobooks] Generazione versione display fallita (non bloccante):', e);
+        displayUrl = null;
+        displayStoragePath = null;
+      }
+
+      const pageRef = db.collection(PAGES_COL).doc();
+      const pageData = {
+        photobookId: ref.id,
+        version,
+        pageNumber,
+        fileName,
+        url,
+        storagePath,
+        displayUrl,
+        displayStoragePath,
+        width: pageWidth,
+        height: pageHeight,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+
+      // Aggiorna il conteggio pagine della versione (in transazione: upload
+      // paralleli non devono perdere incrementi con read-modify-write)
+      await db.runTransaction(async (tx) => {
+        const fresh = await tx.get(ref);
+        if (!fresh.exists || fresh.data()!.locked || fresh.data()!.versions.some((v: any) => v.version === version && v.status === 'published')) throw new PhotobookVersionError(409, 'La versione è stata pubblicata o mandata in stampa durante il caricamento.');
+        const updatedVersions = (fresh.data()!.versions || []).map((v: any) =>
+          v.version === version ? { ...v, pageCount: (v.pageCount || 0) + 1 } : v,
+        );
+        tx.set(pageRef, pageData);
+        tx.update(ref, { versions: updatedVersions, updatedAt: FieldValue.serverTimestamp() });
+      });
+
+      const saved = await pageRef.get();
+      console.log(`📖 [photobooks] Pagina ${pageNumber} caricata (v${version})`);
+      return res.json({ page: serializePage(pageRef.id, saved.data()) });
+    } catch (error) {
+      console.error('[photobooks] Errore upload pagina:', error);
+      if (error instanceof PhotobookVersionError) return res.status(error.status).json({ error: error.message });
+      return res.status(500).json({ error: 'Errore interno del server' });
+    }
+  },
+);
+
+/** PATCH /:id/pages/:pageId — aggiorna il numero pagina */
+router.patch('/:id/pages/:pageId', async (req: Request, res: Response) => {
+  try {
+    const pageRef = db.collection(PAGES_COL).doc(req.params.pageId);
+    const pageDoc = await pageRef.get();
+    if (!pageDoc.exists || pageDoc.data()!.photobookId !== req.params.id) {
+      return res.status(404).json({ error: 'Pagina non trovata' });
+    }
+
+    const updates: Record<string, any> = { updatedAt: FieldValue.serverTimestamp() };
+    if (typeof req.body?.pageNumber === 'number' && Number.isInteger(req.body.pageNumber) && req.body.pageNumber >= 1) {
+      updates.pageNumber = req.body.pageNumber;
+    }
+    await db.runTransaction(async tx => {
+      const current = await tx.get(db.collection(BOOKS_COL).doc(req.params.id));
+      if (!current.exists || current.data()!.locked || current.data()!.versions.some((v: any) => v.version === pageDoc.data()!.version && v.status === 'published')) throw new PhotobookVersionError(409, 'Versione pubblicata o in stampa: usa una nuova bozza.');
+      tx.update(pageRef, updates);
+    });
+    const saved = await pageRef.get();
+    return res.json({ page: serializePage(pageRef.id, saved.data()) });
+  } catch (error) {
+    console.error('[photobooks] Errore aggiornamento pagina:', error);
+    if (error instanceof PhotobookVersionError) return res.status(error.status).json({ error: error.message });
+    return res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+/** DELETE /:id/pages/:pageId — elimina una pagina */
+router.delete('/:id/pages/:pageId', async (req: Request, res: Response) => {
+  try {
+    const pageRef = db.collection(PAGES_COL).doc(req.params.pageId);
+    const pageDoc = await pageRef.get();
+    if (!pageDoc.exists || pageDoc.data()!.photobookId !== req.params.id) {
+      return res.status(404).json({ error: 'Pagina non trovata' });
+    }
+    const pageData = pageDoc.data()!;
+
+    const bookRef = db.collection(BOOKS_COL).doc(req.params.id);
+    await db.runTransaction(async tx => {
+      const fresh = await tx.get(bookRef);
+      const currentPage = await tx.get(pageRef);
+      if (!currentPage.exists) throw new PhotobookVersionError(409, 'Pagina già eliminata');
+      if (!fresh.exists || fresh.data()!.locked || fresh.data()!.versions.some((v: any) => v.version === pageData.version && v.status === 'published')) throw new PhotobookVersionError(409, 'Versione pubblicata o in stampa: usa una nuova bozza.');
+      const versions = fresh.data()!.versions.map((v: any) => v.version === pageData.version ? { ...v, pageCount: Math.max(0, (v.pageCount || 0) - 1) } : v);
+      tx.delete(pageRef);
+      tx.update(bookRef, { versions, updatedAt: FieldValue.serverTimestamp() });
+    });
+    try {
+      if (pageData.storagePath) await storage.bucket().file(pageData.storagePath).delete();
+    } catch {
+      // best-effort
+    }
+    try {
+      if (pageData.displayStoragePath)
+        await storage.bucket().file(pageData.displayStoragePath).delete();
+    } catch {
+      // best-effort
+    }
+
+    // Cascade: elimina le richieste di modifica che puntano alla pagina
+    // (altrimenti restano orfane nella schermata "Modifiche Fotolibro")
+    try {
+      const orphanReqs = await db
+        .collection(REQUESTS_COL)
+        .where('photobookId', '==', req.params.id)
+        .where('pageId', '==', pageRef.id)
+        .get();
+      if (!orphanReqs.empty) {
+        // Chunk da 450: un singolo batch Firestore accetta max 500 operazioni
+        for (let i = 0; i < orphanReqs.docs.length; i += 450) {
+          const batch = db.batch();
+          for (const d of orphanReqs.docs.slice(i, i + 450)) batch.delete(d.ref);
+          await batch.commit();
+        }
+        console.log(
+          `📖 [photobooks] Eliminate ${orphanReqs.size} richieste orfane della pagina ${pageRef.id}`,
+        );
+      }
+    } catch (e) {
+      console.warn('[photobooks] Pulizia richieste della pagina fallita (non bloccante):', e);
+    }
+
+    return res.json({ ok: true });
+  } catch (error) {
+    console.error('[photobooks] Errore eliminazione pagina:', error);
+    if (error instanceof PhotobookVersionError) return res.status(error.status).json({ error: error.message });
+    return res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+export default router;

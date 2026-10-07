@@ -1,0 +1,512 @@
+import type { HttpHandlerResult } from "./http-types.js";
+import express, { type Request, type Response, type NextFunction } from 'express';
+import { randomUUID } from 'node:crypto';
+import sharp from 'sharp';
+import { z } from 'zod';
+import type { DocumentSnapshot } from 'firebase-admin/firestore';
+import { db, storage } from './firebase-admin.js';
+import { loadGalleryPhotoDocs } from './photobook-gallery.js';
+import { uidRateLimiter } from './print-shop/rate-limit.js';
+import { mockupConfigurationSchema, mockupEditable, type MockupPhoto, type SavedMockup } from '../shared/mockup-types.js';
+import { catalogAllowedForLab, optionAllowsMaterials, labMockupCatalogSchema, mockupOfferInputSchema, mockupSelectionSchema, mockupWorkflowInputSchema, optionFor, type MockupOffer, type MockupOption, type MockupOfferMode } from '../shared/mockup-workflow.js';
+import { buildMockupReport, mockupConfirmSchema } from './mockup-report.js';
+
+class MockupError extends Error { constructor(public status: number, message: string) { super(message); } }
+const versionSchema = z.coerce.number().int().min(1).max(9999);
+const saveSchema = z.object({ revision: z.number().int().min(0), configuration: mockupConfigurationSchema, selection: mockupSelectionSchema.optional(), offerRevision: z.number().int().min(0).optional() }).strict();
+type Resolver = (req: Request) => Promise<DocumentSnapshot | null>;
+type ClientMockupNotification = (
+  book: DocumentSnapshot,
+  saved: SavedMockup,
+  event: 'changes_requested' | 'confirmed',
+) => Promise<void>;
+
+function optionFromLab(lab: DocumentSnapshot, selection: { labId: string; modelId: string }): MockupOption | null {
+  if (!lab.exists || lab.id !== selection.labId || lab.data()?.attivo === false) return null;
+  const parsed = labMockupCatalogSchema.safeParse(lab.data()!.mockupCatalog);
+  if (!parsed.success) return null;
+  const catalog = parsed.data;
+  const model = catalog.models.find(m => m.id === selection.modelId && m.active && m.rendererId);
+  if (!model || !catalogAllowedForLab({ ...catalog, models: [model] }, lab.data()?.nome)) return null;
+  return {
+    ...model,
+    materials: catalog.materials.filter(m => model.materialIds.includes(m.id)),
+    labId: lab.id,
+    labName: String(lab.data()!.nome),
+  };
+}
+
+async function validatedPublishedOffer(
+  published: MockupOffer,
+  getLab: (labId: string) => Promise<DocumentSnapshot>,
+): Promise<MockupOffer | null> {
+  for (const option of published.options) {
+    const labOption = optionFromLab(await getLab(option.labId), { labId: option.labId, modelId: option.id });
+    if (!labOption) return null;
+  }
+  return {
+    ...published,
+    mode: published.mode || (published.options.length === 1 ? 'fixed' : 'choice'),
+  };
+}
+
+async function effectiveOffer(book: DocumentSnapshot, version: number, stored?: DocumentSnapshot): Promise<MockupOffer | null> {
+  const storedOffer = stored || await book.ref.collection('mockupOffers').doc(`v${version}`).get();
+  const published = storedOffer.data() as MockupOffer | undefined;
+  if (published?.options?.length) {
+    return validatedPublishedOffer(published, labId => db.collection('labs').doc(labId).get());
+  }
+
+  const data = book.data() || {};
+  const selection = data.mockupModelMode === 'fixed' ? data.mockupModelSelection : null;
+  if (data.mockupModelMode === 'fixed' && !selection?.labId) return null;
+  if (selection?.labId && selection?.modelId) {
+    const option = optionFromLab(await db.collection('labs').doc(selection.labId).get(), selection);
+    if (!option) return null;
+    if (option) {
+      const previous = storedOffer.data() || {};
+      return {
+        revision: Number(previous.revision || 1),
+        options: [option],
+        updatedAt: String(previous.updatedAt || new Date().toISOString()),
+        mode: 'fixed',
+      };
+    }
+  }
+  return data.mockupModelMode === 'fixed' ? null : (storedOffer.data() || null) as MockupOffer | null;
+}
+
+async function effectiveOfferInTransaction(
+  tx: FirebaseFirestore.Transaction,
+  book: DocumentSnapshot,
+  version: number,
+  bookData: FirebaseFirestore.DocumentData,
+  stored?: DocumentSnapshot,
+): Promise<MockupOffer | null> {
+  const storedOffer = stored || await tx.get(book.ref.collection('mockupOffers').doc(`v${version}`));
+  const published = storedOffer.data() as MockupOffer | undefined;
+  if (published?.options?.length) {
+    return validatedPublishedOffer(published, labId => tx.get(db.collection('labs').doc(labId)));
+  }
+
+  const selection = bookData.mockupModelMode === 'fixed' ? bookData.mockupModelSelection : null;
+  if (bookData.mockupModelMode === 'fixed' && !selection?.labId) return null;
+  if (selection?.labId && selection?.modelId) {
+    const option = optionFromLab(await tx.get(db.collection('labs').doc(selection.labId)), selection);
+    if (!option) return null;
+    if (option) {
+      const previous = storedOffer.data() || {};
+      return {
+        revision: Number(previous.revision || 1),
+        options: [option],
+        updatedAt: String(previous.updatedAt || new Date().toISOString()),
+        mode: 'fixed',
+      };
+    }
+  }
+  return bookData.mockupModelMode === 'fixed' ? null : (storedOffer.data() || null) as MockupOffer | null;
+}
+
+/** Nessun URL fornito dal browser viene scaricato: accettiamo solo il bucket già configurato. */
+export function mockupGalleryStoragePath(value: string, bucket: string): string {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'https:') throw new Error();
+    if (url.hostname === 'firebasestorage.googleapis.com') {
+      const match = url.pathname.match(/^\/v0\/b\/([^/]+)\/o\/(.+)$/);
+      if (match && decodeURIComponent(match[1]) === bucket) return decodeURIComponent(match[2]);
+    }
+    if (url.hostname === 'storage.googleapis.com') {
+      const prefix = `/${bucket}/`;
+      if (url.pathname.startsWith(prefix)) return decodeURIComponent(url.pathname.slice(prefix.length));
+    }
+  } catch { /* URL non appartenente al bucket */ }
+  throw new MockupError(400, 'Questa foto non è disponibile nel deposito immagini dello studio. Carica una copia dal dispositivo.');
+}
+
+/** Montato dopo il controllo admin oppure sotto il token del singolo fotolibro. */
+export function createPhotobookMockupRouter(
+  resolveBook: Resolver,
+  isAdmin: boolean,
+  notifySubmission?: (book: DocumentSnapshot, saved: SavedMockup) => Promise<void>,
+  notifyClient?: ClientMockupNotification,
+) {
+  const router = express.Router({ mergeParams: true });
+  // L'approvazione riguarda le pagine della versione corrente, non la
+  // copertina: dopo averle approvate il cliente può creare più revisioni del
+  // mockup, fino alla stampa. Lo studio conserva i propri strumenti.
+  const needsPageApproval = (data: FirebaseFirestore.DocumentData, version: number) =>
+    !isAdmin && version === data.currentVersion && data.approval?.version !== version;
+  const canEditBook = (data: FirebaseFirestore.DocumentData, version: number) =>
+    mockupEditable(data as Parameters<typeof mockupEditable>[0], version) && !needsPageApproval(data, version) && (isAdmin || data.mockupPath !== 'studio');
+  const writeLimit = uidRateLimiter(60, 10 * 60_000);
+  router.use((req, res, next) => req.method === 'GET' ? next() : writeLimit(req, res, next));
+  router.use(async (req, res, next) => {
+    try {
+      res.setHeader('Cache-Control', 'private, no-store');
+      res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+      const book = await resolveBook(req);
+      if (!book?.exists) throw new MockupError(404, 'Fotolibro non trovato');
+      const data = book.data()!;
+      const version = versionSchema.parse(req.query.version ?? data.currentVersion);
+      if (!(data.versions || []).some((v: { version: number }) => v.version === version)) throw new MockupError(404, 'Versione non trovata');
+      if (!isAdmin && data.versions.some((v: { version: number; status?: string }) => v.version === version && v.status === 'draft')) throw new MockupError(404, 'Versione non pubblicata');
+      res.locals.book = book;
+      res.locals.version = version;
+      if (req.method !== 'GET') {
+        const deliveryOnly = isAdmin && version === data.currentVersion && ['/attach', '/reconcile-attachment'].includes(req.path);
+        if (!canEditBook(data, version) && !deliveryOnly) throw new MockupError(409,
+          !data.locked && needsPageApproval(data, version)
+            ? 'Approva prima le pagine della versione attuale per personalizzare album e box.'
+            : 'Versione in sola lettura. Contatta lo studio.');
+        if (!isAdmin) {
+          const saved = await book.ref.collection('mockups').doc(`v${version}`).get();
+          const offer = await book.ref.collection('mockupOffers').doc(`v${version}`).get();
+          if (!saved.exists && !offer.exists && data.mockupModelMode !== 'fixed') throw new MockupError(403, 'Lo studio non ha ancora attivato il mockup per questa versione.');
+        }
+      }
+      next();
+    } catch (error) { next(error); }
+  });
+
+  router.get('/', async (_req, res, next) => {
+    try {
+      const book = res.locals.book as DocumentSnapshot;
+      const version = res.locals.version as number;
+      const saved = await book.ref.collection('mockups').doc(`v${version}`).get();
+      const offerDoc = await book.ref.collection('mockupOffers').doc(`v${version}`).get();
+      const offer = await effectiveOffer(book, version, offerDoc);
+      const data = saved.data();
+      if (data && !isAdmin) delete data.reportPath;
+      const root = book.data() || {};
+      const inferredOfferMode: MockupOfferMode = offer?.mode || (offer?.options.length === 1 ? 'fixed' : 'choice');
+      const modelMode: MockupOfferMode = offer
+        ? inferredOfferMode
+        : root.mockupModelMode || inferredOfferMode;
+      const modelSelection = modelMode === 'fixed'
+        ? offer?.options[0]
+          ? { labId: offer.options[0].labId, modelId: offer.options[0].id }
+          : root.mockupModelSelection || null
+        : null;
+      const notificationState = data?.status === 'confirmed'
+        ? root.mockupNotifications?.[`confirmed_v${version}_r${data.revision}`]?.state
+        : undefined;
+      res.json({ version, mockupPath: root.mockupPath, notificationState, editable: canEditBook(root, version) && !(modelMode === 'fixed' && !offer), enabled: isAdmin || saved.exists || !!offer, approvalRequired: needsPageApproval(root, version), saved: data || null, offer, modelMode, modelSelection, offerError: modelMode === 'fixed' && !offer ? 'Il modello fisso non è più disponibile. Lo studio deve ripubblicare la proposta.' : null, offerInherited: modelMode === 'fixed' && !offerDoc.exists });
+    } catch (error) { next(error); }
+  });
+
+  async function guardCurrent(tx: FirebaseFirestore.Transaction, book: DocumentSnapshot, version: number) {
+    const fresh = await tx.get(book.ref);
+    if (!fresh.exists || !canEditBook(fresh.data()!, version) || fresh.data()!.galleryId !== book.data()!.galleryId || fresh.data()!.jobId !== book.data()!.jobId) {
+      throw new MockupError(409, 'Il fotolibro è cambiato: ricarica prima di proseguire.');
+    }
+    return fresh;
+  }
+
+  router.put('/offer', async (req, res, next) => {
+    try {
+      if (!isAdmin) throw new MockupError(403, 'Solo lo studio può configurare la proposta');
+      const input = mockupOfferInputSchema.parse(req.body);
+      const book = res.locals.book as DocumentSnapshot;
+      const version = res.locals.version as number;
+      if (!book.data()!.jobId) throw new MockupError(400, 'Associa prima il fotolibro a un lavoro');
+      const result = await db.runTransaction(async tx => {
+        await guardCurrent(tx, book, version);
+        const ref = book.ref.collection('mockupOffers').doc(`v${version}`);
+        const savedRef = book.ref.collection('mockups').doc(`v${version}`);
+        const old = await tx.get(ref);
+        const saved = await tx.get(savedRef);
+        const fresh = await tx.get(book.ref);
+         const currentOffer = await effectiveOfferInTransaction(tx, book, version, fresh.data()!, old);
+         if ((currentOffer?.revision || Number(old.data()?.revision || 0)) !== input.revision || (saved.data()?.revision || 0) !== input.savedRevision) throw new MockupError(409, 'Proposta modificata: ricarica prima di proseguire');
+        const options: MockupOption[] = [];
+        for (const selection of input.selections) {
+          const lab = await tx.get(db.collection('labs').doc(selection.labId));
+          if (!lab.exists || lab.data()!.attivo === false) throw new MockupError(400, 'Laboratorio non disponibile');
+           const parsed = labMockupCatalogSchema.safeParse(lab.data()!.mockupCatalog);
+           if (!parsed.success) throw new MockupError(409, 'Catalogo laboratorio non più valido. Aggiornalo e ripubblica la proposta.');
+           const catalog = parsed.data;
+          const model = catalog.models.find(m => m.id === selection.modelId && m.active && m.rendererId);
+          if (!model) throw new MockupError(400, 'Modello non disponibile o asset 3D non ancora integrato');
+          if (!catalogAllowedForLab({ ...catalog, models: [model] }, lab.data()?.nome)) throw new MockupError(400, 'Plaza LED è disponibile solo per i Nobili');
+          options.push({ ...model, materials: catalog.materials.filter(m => model.materialIds.includes(m.id)), labId: lab.id, labName: String(lab.data()!.nome) });
+        }
+        const offer: MockupOffer = { revision: input.revision + 1, options, updatedAt: new Date().toISOString(), mode: input.mode };
+        tx.set(ref, offer);
+        tx.set(book.ref, { mockupModelMode: input.mode, mockupModelSelection: input.mode === 'fixed' ? input.selections[0] : null }, { merge: true });
+        if (saved.exists) {
+          const previous = saved.data() as SavedMockup;
+          tx.set(book.ref.collection('mockupHistory').doc(`v${version}-r${previous.revision}`), previous);
+          const { confirmedAt, reportPath, ...draft } = previous;
+          tx.set(savedRef, { ...draft, revision: previous.revision + 1, status: 'draft', updatedBy: 'studio', updatedAt: offer.updatedAt });
+        }
+        return offer;
+      });
+      res.json(result);
+    } catch (error) { next(error); }
+  });
+
+  router.put('/', async (req, res, next) => {
+    try {
+      const input = saveSchema.parse(req.body);
+      const book = res.locals.book as DocumentSnapshot;
+      const version = res.locals.version as number;
+      const ref = book.ref.collection('mockups').doc(`v${version}`);
+      const saved = await db.runTransaction(async tx => {
+        await guardCurrent(tx, book, version);
+        const previous = await tx.get(ref);
+        const offerDoc = await tx.get(book.ref.collection('mockupOffers').doc(`v${version}`));
+        const currentBook = await tx.get(book.ref);
+        const offer = await effectiveOfferInTransaction(tx, book, version, currentBook.data()!, offerDoc);
+        if (currentBook.data()!.mockupModelMode === 'fixed' && !offer) throw new MockupError(409, 'Il modello fisso non è più disponibile. Lo studio deve ripubblicare la proposta.');
+        const photoIds = [input.configuration.photoAssetId, ...('backPhotoAssetId' in input.configuration ? [input.configuration.backPhotoAssetId] : [])];
+        for (const id of new Set(photoIds.filter((id): id is string => !!id))) {
+          const photo = await tx.get(book.ref.collection('mockupAssets').doc(id));
+          if (!photo.exists || photo.data()!.version !== version) throw new MockupError(400, 'Foto non appartenente a questa versione del fotolibro');
+        }
+        if ((previous.data()?.revision || 0) !== input.revision) throw new MockupError(409, 'Il mockup è stato modificato in un’altra sessione. Riaprilo per caricare la versione aggiornata.');
+        if (!isAdmin && !previous.exists && !offer) throw new MockupError(403, 'Mockup non attivato');
+        const option = optionFor(offer, input.selection);
+        if (offer && (offer.revision !== input.offerRevision || !option || option.rendererId !== input.configuration.modelId || !optionAllowsMaterials(option, input.configuration))) throw new MockupError(409, 'Seleziona un modello e un rivestimento inclusi nella proposta aggiornata');
+        if (!offer && input.selection) throw new MockupError(400, 'Pubblica prima una proposta');
+        // Una correzione dello studio non restituisce implicitamente al cliente
+        // una proposta in verifica/confermata: serve Richiedi modifiche.
+        const status = isAdmin && ['submitted', 'confirmed'].includes(previous.data()?.status) ? 'submitted' : 'draft';
+        const result: SavedMockup = { version, revision: input.revision + 1, configuration: input.configuration, updatedAt: new Date().toISOString(), status, updatedBy: isAdmin ? 'studio' : 'client', ...(option ? { selection: input.selection!, option } : {}) };
+        if (previous.exists) tx.set(book.ref.collection('mockupHistory').doc(`v${version}-r${previous.data()!.revision}`), previous.data()!);
+        tx.set(ref, result);
+        return result;
+      });
+      res.json(saved);
+    } catch (error) { next(error); }
+  });
+
+  for (const action of ['submit', 'request-changes'] as const) router.post(`/${action}`, async (req, res, next): Promise<HttpHandlerResult> => {
+    try {
+      if (action === 'request-changes' && !isAdmin) throw new MockupError(403, 'Solo lo studio può richiedere modifiche');
+      if (action === 'request-changes' && (res.locals.book as DocumentSnapshot).data()?.mockupPath === 'studio') throw new MockupError(409, 'Nel percorso studio le modifiche sono preparate dallo studio: aggiorna direttamente il mockup.');
+      const input = mockupWorkflowInputSchema.parse(req.body);
+      const book = res.locals.book as DocumentSnapshot;
+      const version = res.locals.version as number;
+      const result = await db.runTransaction(async tx => {
+        await guardCurrent(tx, book, version);
+        const ref = book.ref.collection('mockups').doc(`v${version}`);
+        const doc = await tx.get(ref);
+        const previous = doc.data() as SavedMockup | undefined;
+        const offerDoc = await tx.get(book.ref.collection('mockupOffers').doc(`v${version}`));
+        const currentBook = await tx.get(book.ref);
+        const offer = await effectiveOfferInTransaction(tx, book, version, currentBook.data()!, offerDoc);
+        if (currentBook.data()!.mockupModelMode === 'fixed' && !offer) throw new MockupError(409, 'Il modello fisso non è più disponibile. Lo studio deve ripubblicare la proposta.');
+        const option = optionFor(offer, previous?.selection);
+        if (!previous || previous.revision !== input.revision) throw new MockupError(409, 'Ricarica la proposta aggiornata');
+        if (action === 'submit' && (!option || !optionAllowsMaterials(option, previous.configuration))) throw new MockupError(409, 'Salva prima una scelta inclusa nella proposta dello studio');
+        if (action === 'submit' && ['submitted', 'confirmed'].includes(previous.status || '')) throw new MockupError(409, 'Proposta già inviata. Salva una modifica prima di inviarla di nuovo.');
+        const { confirmedAt, reportPath, ...draft } = previous;
+        const result: SavedMockup = { ...draft, revision: previous.revision + 1, status: action === 'submit' ? 'submitted' : 'changes_requested', updatedBy: isAdmin ? 'studio' : 'client', updatedAt: new Date().toISOString(), note: input.note };
+        tx.set(book.ref.collection('mockupHistory').doc(`v${version}-r${previous.revision}`), previous);
+        tx.set(ref, result);
+        return result;
+      });
+      // Fuori dalla transazione: Firestore può rieseguirla. Solo l'invio
+      // accettato genera l'email, non il salvataggio o un doppio clic.
+      if (action === 'submit' && !isAdmin && notifySubmission) {
+        try { await notifySubmission(book, result); }
+        catch {
+          // Non indurre il cliente a inviare nuovamente una revisione già
+          // acquisita: il trasporto email potrebbe averla già consegnata.
+          console.warn('[photobook-mockup] Esito email allo studio non confermato');
+          return res.json({ ...result, notificationWarning: 'La proposta è stata ricevuta, ma la notifica email allo studio non è confermata. Non serve inviarla di nuovo.' });
+        }
+      }
+      if (action === 'request-changes' && isAdmin && notifyClient) {
+        try { await notifyClient(book, result, 'changes_requested'); }
+        catch {
+          console.warn('[photobook-mockup] Esito email modifiche al cliente non confermato');
+          return res.json({ ...result, notificationWarning: 'Le modifiche sono state richieste, ma l’esito dell’email al cliente non è confermato. Avvisalo manualmente senza ripetere l’azione.' });
+        }
+      }
+      res.json(result);
+    } catch (error) { next(error); }
+  });
+
+  router.post('/confirm', express.raw({ type: 'application/octet-stream', limit: '16mb' }), async (req, res, next): Promise<HttpHandlerResult> => {
+    try {
+      if (!isAdmin) throw new MockupError(403, 'Solo lo studio può confermare');
+      const input = mockupConfirmSchema.parse(Buffer.isBuffer(req.body) ? JSON.parse(req.body.toString('utf8')) : req.body);
+      const book = res.locals.book as DocumentSnapshot;
+      const version = res.locals.version as number;
+      const ref = book.ref.collection('mockups').doc(`v${version}`);
+      const initial = (await ref.get()).data() as SavedMockup | undefined;
+      if (!initial || initial.revision !== input.revision || initial.status === 'confirmed') throw new MockupError(409, 'Ricarica la proposta prima di confermare');
+      if (JSON.stringify(input.configuration) !== JSON.stringify(initial.configuration)) throw new MockupError(409, 'Le viste non corrispondono alla configurazione salvata');
+      const offerDoc = await book.ref.collection('mockupOffers').doc(`v${version}`).get();
+      const offer = await effectiveOffer(book, version, offerDoc);
+      const option = optionFor(offer || null, initial.selection);
+      if (!option || !optionAllowsMaterials(option, initial.configuration)) throw new MockupError(409, 'Salva prima un modello e un rivestimento inclusi nella proposta');
+      const now = new Date().toISOString();
+      const reportPath = `photobook-mockups/${book.id}/v${version}/confirmed-${randomUUID()}.html`;
+      const confirmed: SavedMockup = { ...initial, option, revision: initial.revision + 1, status: 'confirmed', confirmedAt: now, updatedAt: now, updatedBy: 'studio', reportPath };
+      let report: Buffer;
+      try { report = await buildMockupReport(confirmed, input.previews); }
+      catch { throw new MockupError(400, 'Viste non leggibili: riapri il mockup e riprova la conferma'); }
+      const file = storage.bucket().file(reportPath);
+      await file.save(report, { metadata: { contentType: 'text/html', cacheControl: 'private, no-store' } });
+      try {
+        await db.runTransaction(async tx => {
+          const freshBook = await guardCurrent(tx, book, version);
+          const fresh = await tx.get(ref);
+          const freshOffer = await effectiveOfferInTransaction(tx, book, version, fresh.data()!, await tx.get(offerDoc.ref));
+          if (fresh.data()?.revision !== input.revision || freshOffer?.revision !== offer?.revision) throw new MockupError(409, 'Proposta cambiata durante la conferma: ricarica e riprova');
+          tx.set(book.ref.collection('mockupHistory').doc(`v${version}-r${initial.revision}`), initial);
+          tx.set(ref, confirmed);
+          if (freshBook.data()?.mockupPath !== 'client' && freshBook.data()?.approval?.version !== version) {
+            tx.update(book.ref, { [`mockupNotifications.confirmed_v${version}_r${confirmed.revision}`]: { state: 'waiting-approval' } });
+          }
+        });
+      } catch (error) {
+        // Un errore di rete può arrivare dopo il commit: in quel caso la copia
+        // va conservata. Cancelliamo solo dopo un rifiuto applicativo certo.
+        if (error instanceof MockupError) await file.delete().catch(() => undefined);
+        throw error;
+      }
+       const freshBook = await book.ref.get();
+       const freshBookData = freshBook.data() || {};
+       const awaitingPageApproval = freshBookData.approval?.version !== version;
+       if (notifyClient && freshBookData.mockupPath !== 'client' && !awaitingPageApproval) {
+        try { await notifyClient(book, confirmed, 'confirmed'); }
+        catch {
+          console.warn('[photobook-mockup] Esito email conferma al cliente non confermato');
+          return res.json({ ...confirmed, notificationWarning: 'Il mockup è confermato, ma l’esito dell’email al cliente non è confermato. Avvisalo manualmente senza ripetere la conferma.' });
+        }
+      }
+      const notificationState = freshBookData.mockupPath === 'client'
+        ? undefined
+        : awaitingPageApproval
+          ? 'waiting-approval'
+          : freshBookData.mockupNotifications?.[`confirmed_v${version}_r${confirmed.revision}`]?.state;
+      res.json({ ...confirmed, ...(notificationState ? { notificationState } : {}) });
+    } catch (error) { next(error); }
+  });
+
+  router.get('/history', async (_req, res, next) => {
+    try {
+      if (!isAdmin) throw new MockupError(403, 'Storico riservato allo studio');
+      const book = res.locals.book as DocumentSnapshot;
+      const docs = await book.ref.collection('mockupHistory').where('version', '==', res.locals.version).get();
+      res.json(docs.docs.map(d => { const { reportPath, ...data } = d.data(); return data; }).sort((a,b) => b.revision - a.revision));
+    } catch (error) { next(error); }
+  });
+  router.get('/report/:revision', async (req, res, next) => {
+    try {
+      if (!isAdmin) throw new MockupError(403, 'Documento riservato allo studio');
+      const revision = versionSchema.parse(req.params.revision);
+      const book = res.locals.book as DocumentSnapshot;
+      const version = res.locals.version as number;
+      const current = await book.ref.collection('mockups').doc(`v${version}`).get();
+      const saved = (current.data()?.revision === revision ? current.data() : (await book.ref.collection('mockupHistory').doc(`v${version}-r${revision}`).get()).data()) as SavedMockup | undefined;
+      if (saved?.status !== 'confirmed' || !saved.reportPath) throw new MockupError(404, 'Conferma non trovata');
+      const [buffer] = await storage.bucket().file(saved.reportPath).download();
+      res.setHeader('Content-Disposition', `attachment; filename="mockup-v${version}-r${revision}.html"`);
+      res.setHeader('Content-Security-Policy', "sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'");
+      res.type('text/html').send(buffer);
+    } catch (error) { next(error); }
+  });
+  router.post('/attach', async (req, res, next) => {
+    try {
+      if (!isAdmin) throw new MockupError(403, 'Solo lo studio può allegare alla spedizione');
+      const { revision } = mockupWorkflowInputSchema.parse(req.body);
+      const { attachConfirmedMockup, MockupDeliveryError } = await import('./photobook-mockup-delivery.js');
+      try { res.json(await attachConfirmedMockup(res.locals.book as DocumentSnapshot, res.locals.version, revision)); }
+      catch (error) { if (error instanceof MockupDeliveryError) throw new MockupError(error.status, error.message); throw error; }
+    } catch (error) { next(error); }
+  });
+  router.post('/reconcile-attachment', async (req, res, next) => {
+    try {
+      if (!isAdmin) throw new MockupError(403, 'Operazione riservata allo studio');
+      const { revision } = mockupWorkflowInputSchema.parse(req.body);
+      const { reconcileMockupAttachment, MockupDeliveryError } = await import('./photobook-mockup-delivery.js');
+      try { res.json(await reconcileMockupAttachment(res.locals.book as DocumentSnapshot, res.locals.version, revision)); }
+      catch (error) { if (error instanceof MockupDeliveryError) throw new MockupError(error.status, error.message); throw error; }
+    } catch (error) { next(error); }
+  });
+
+  async function storePhoto(res: Response, input: Buffer, info: { name: string; source: 'upload' | 'gallery'; photoId?: string }) {
+    if (!input.length || input.length > 20 * 1024 * 1024) throw new MockupError(400, 'La foto deve essere entro 20 MB');
+    const image = sharp(input, { limitInputPixels: 40_000_000, animated: false });
+    let output: Buffer;
+    try {
+      const metadata = await image.metadata();
+      if (!['jpeg','png','webp'].includes(metadata.format || '') || (metadata.pages || 1) > 1) throw new Error();
+      output = await image.rotate().resize(2048, 2048, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 90 }).toBuffer();
+    } catch { throw new MockupError(400, 'Foto non leggibile: usa un JPG, PNG o WebP statico entro 40 megapixel.'); }
+    const dimensions = await sharp(output).metadata();
+    const book = res.locals.book as DocumentSnapshot;
+    const version = res.locals.version as number;
+    const id = randomUUID();
+    const storagePath = `photobook-mockups/${book.id}/v${version}/${id}.jpg`;
+    const photo: MockupPhoto = { id, ...info, width: dimensions.width!, height: dimensions.height! };
+    const file = storage.bucket().file(storagePath);
+    await file.save(output, { metadata: { contentType: 'image/jpeg', cacheControl: 'private, no-store' } });
+    try {
+      await db.runTransaction(async tx => {
+        await guardCurrent(tx, book, version);
+        tx.set(book.ref.collection('mockupAssets').doc(id), { ...photo, version, storagePath, createdAt: new Date().toISOString() });
+      });
+    } catch (error) {
+      if (error instanceof MockupError) await file.delete().catch(() => undefined);
+      throw error;
+    }
+    return photo;
+  }
+
+  router.post('/upload', express.raw({ type: ['image/jpeg','image/png','image/webp'], limit: '20mb' }), async (req, res, next) => {
+    try {
+      if (!Buffer.isBuffer(req.body)) throw new MockupError(400, 'Formato immagine non supportato');
+      const name = z.string().trim().min(1).max(200).parse(req.query.name);
+      res.json(await storePhoto(res, req.body, { name, source: 'upload' }));
+    } catch (error) { next(error); }
+  });
+
+  router.post('/gallery-photo', async (req, res, next) => {
+    try {
+      const { photoId } = z.object({ photoId: z.string().min(1).max(200) }).strict().parse(req.body);
+      const book = res.locals.book as DocumentSnapshot;
+      const photos = await loadGalleryPhotoDocs(book.data()!.galleryId);
+      const photo = photos.find(p => p.id === photoId);
+      if (!photo) throw new MockupError(404, 'Foto non trovata nella galleria associata');
+      const bucket = storage.bucket();
+      const file = bucket.file(mockupGalleryStoragePath(photo.url, bucket.name));
+      const [meta] = await file.getMetadata();
+      if (Number(meta.size) > 20 * 1024 * 1024) throw new MockupError(400, 'Foto oltre 20 MB: carica una copia ridotta dal dispositivo');
+      const [bytes] = await file.download();
+      res.json(await storePhoto(res, bytes, { name: photo.name.slice(0,200), source: 'gallery', photoId }));
+    } catch (error) { next(error); }
+  });
+
+  router.get('/photos/:assetId', async (req, res, next) => {
+    try {
+      const id = z.string().uuid().parse(req.params.assetId);
+      const book = res.locals.book as DocumentSnapshot;
+      const asset = await book.ref.collection('mockupAssets').doc(id).get();
+      if (!asset.exists || asset.data()!.version !== res.locals.version) throw new MockupError(404, 'Foto non trovata');
+      const [buffer] = await storage.bucket().file(asset.data()!.storagePath).download();
+      res.type('image/jpeg').send(buffer);
+    } catch (error) { next(error); }
+  });
+
+  router.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
+    const oversized = (error as { type?: string })?.type === 'entity.too.large';
+    const status = error instanceof MockupError ? error.status : error instanceof z.ZodError || error instanceof SyntaxError ? 400 : oversized ? 413 : 500;
+    // Non esporre payload, foto, token o testi del cliente. Indicare solo il
+    // gruppo rifiutato permette di distinguere un invio da un salvataggio.
+    const fields = error instanceof z.ZodError ? [...new Set(error.issues.map(issue => String(issue.path[0] || 'body')))] : [];
+    const invalidMessage = fields.includes('configuration') ? 'La configurazione dell’album non è compatibile con il server. Conserva le scelte e contatta lo studio per verificare l’aggiornamento.'
+      : fields.includes('selection') ? 'Il modello selezionato non è valido. Torna alla scelta del modello.'
+      : fields.includes('revision') || fields.includes('offerRevision') ? 'Il numero di revisione non è valido. Ricarica la proposta aggiornata prima di riprovare.'
+      : fields.includes('note') ? 'Il messaggio non è valido: usa un testo entro 2.000 caratteri.'
+      : fields.includes('previews') ? 'Le viste dell’album non sono valide. Riapri l’anteprima e riprova la conferma.'
+      : 'La richiesta ricevuta è incompleta o non leggibile. Le scelte non sono state inviate: riprova e, se persiste, contatta lo studio.';
+    res.status(status).json({ error: error instanceof MockupError ? error.message : status === 500 ? 'Impossibile confermare l’esito. Ricarica la proposta prima di riprovare.' : oversized ? 'Immagine troppo grande. Scegli un file più piccolo.' : invalidMessage });
+  });
+  return router;
+}

@@ -1,0 +1,3652 @@
+import type { HttpHandlerResult } from "./http-types.js";
+/**
+ * CONSULTATION API ROUTES - Express.js
+ * Gestisce endpoint per modulo Consulenze (templates e prenotazioni)
+ */
+
+import express, { Request, Response } from "express";
+import { z } from "zod/v4";
+import axios from "axios";
+import { createHash } from "node:crypto";
+import { format } from "date-fns";
+import { it } from "date-fns/locale";
+import { DateTime } from "luxon";
+import * as consultationService from "./services/consultations.js";
+import { authenticateFirebase, getSiteBaseUrl } from "./email-routes.js";
+import {
+  InsertConsultationTemplateSchema,
+  UpdateConsultationTemplateSchema,
+  InsertConsultationSchema,
+  UpdateConsultationSchema,
+  type ConsultationStatus,
+} from "../shared/consultation-types.js";
+import type { SlotsResponse } from "../shared/calendar-types.js";
+import { db, Timestamp, FieldValue, storage } from "./firebase-admin.js";
+import {
+  createEvent,
+  deleteEvent,
+  createEuropeRomeDate,
+  getEventById,
+  updateEvent,
+} from "./google-calendar.js";
+import { runReminderCheck } from "./reminder-routes.js";
+import {
+  CONSULTATION_TIME_ZONE,
+  createConsultationDateTime,
+  getConsultationLocalDate,
+  NONEXISTENT_LOCAL_TIME_REASON,
+  validateConsultationSchedule,
+} from "./services/consultation-datetime.js";
+import { clearCalendarEventCache } from "./services/calendar-event-cache.js";
+import {
+  uploadTemplateImage,
+  saveTemplateImage,
+  TemplateImageUploadError,
+} from "./consultations/template-image-upload.js";
+
+const router = express.Router();
+
+/**
+ * ========================================
+ * AUTH MIDDLEWARE
+ * ========================================
+ */
+
+interface AuthRequest extends Request<Record<string, string>> {
+  user?: {
+    uid: string;
+    email: string;
+  };
+}
+
+/**
+ * Admin emails (consistente con email-routes.ts)
+ */
+const ADMIN_EMAILS = ["gennaro.mazzacane@gmail.com"];
+const MANUAL_CONSULTATION_LOCK_LEASE_MS = 2 * 60 * 1000;
+
+function requireAdmin(req: AuthRequest, res: Response, next: express.NextFunction): HttpHandlerResult {
+  if (!ADMIN_EMAILS.includes(req.user?.email || "")) {
+    return res.status(403).json({ error: "Accesso negato: solo admin" });
+  }
+  next();
+}
+
+/**
+ * Recupera il link pubblico del contratto firmato associato al lavoro.
+ * La consulenza può comunque essere creata se il preventivo non esiste o la
+ * ricerca non è disponibile: il link è un arricchimento della descrizione.
+ */
+async function getSignedContractLink(jobId?: string): Promise<string | null> {
+  if (!jobId) return null;
+
+  try {
+    const quotesSnapshot = await db
+      .collection("quotes")
+      .where("jobId", "==", jobId)
+      .get();
+
+    const signedQuote = quotesSnapshot.docs.find((quoteDoc: any) => {
+      const quote = quoteDoc.data() || {};
+      return (
+        quote.status === "firmato" ||
+        Boolean(quote.signature?.signedAt)
+      );
+    });
+
+    if (!signedQuote) return null;
+    const quote = signedQuote.data() || {};
+    const baseUrl = getSiteBaseUrl();
+    return quote.publicToken
+      ? `${baseUrl}/quote/${quote.publicToken}`
+      : `${baseUrl}/preventivo/${signedQuote.id}`;
+  } catch (error: any) {
+    console.error("[consultation] Impossibile recuperare il link contratto:", error?.message || error);
+    return null;
+  }
+}
+
+type ManualConsultationLockResult =
+  | { status: "acquired"; ref: any }
+  | {
+      status: "completed";
+      consultationId: string;
+      googleCalendarEventId?: string;
+      emailStatus: string;
+    }
+  | { status: "processing" };
+
+function getManualConsultationRequestKey(data: {
+  templateId: string;
+  jobId?: string;
+  email: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+}): string {
+  const fingerprint = [
+    data.templateId,
+    data.jobId || "",
+    data.email.trim().toLowerCase(),
+    data.date,
+    data.startTime,
+    data.endTime,
+  ].join("|");
+
+  return createHash("sha256").update(fingerprint).digest("hex");
+}
+
+function isManualLockLeaseActive(lockData: any): boolean {
+  if (!lockData?.lockLeaseUntil) return false;
+
+  const leaseDate =
+    typeof lockData.lockLeaseUntil.toDate === "function"
+      ? lockData.lockLeaseUntil.toDate()
+      : new Date(lockData.lockLeaseUntil);
+
+  return !Number.isNaN(leaseDate.getTime()) && leaseDate.getTime() > Date.now();
+}
+
+async function acquireManualConsultationLock(
+  requestKey: string,
+  metadata: Record<string, unknown>,
+): Promise<ManualConsultationLockResult> {
+  const ref = db.collection("manual_consultation_requests").doc(requestKey);
+
+  const result = await db.runTransaction(async (transaction: any) => {
+    const snapshot = await transaction.get(ref);
+    if (snapshot.exists) {
+      const current = snapshot.data() || {};
+
+      if (current.status === "completed" && current.consultationId) {
+        return {
+          status: "completed" as const,
+          consultationId: current.consultationId,
+          googleCalendarEventId: current.googleCalendarEventId,
+          emailStatus: current.emailStatus || "sent",
+        };
+      }
+
+      if (current.status === "processing" && isManualLockLeaseActive(current)) {
+        return { status: "processing" as const };
+      }
+    }
+
+    transaction.set(
+      ref,
+      {
+        ...metadata,
+        status: "processing",
+        lockLeaseUntil: new Date(Date.now() + MANUAL_CONSULTATION_LOCK_LEASE_MS),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+
+    return { status: "acquired" as const, ref };
+  });
+
+  return result.status === "acquired" ? { ...result, ref } : result;
+}
+
+async function releaseManualConsultationLock(ref: any): Promise<void> {
+  if (!ref) return;
+  try {
+    await ref.delete();
+  } catch (error: any) {
+    console.error(
+      "[manual consultation] Impossibile rilasciare il lock:",
+      error.message,
+    );
+  }
+}
+
+/**
+ * Helper: Normalizza Firestore Timestamp in Date
+ * Gestisce: { seconds, nanoseconds }, .toDate(), ISO string, Date object
+ */
+function normalizeTimestampToDate(timestamp: any): Date {
+  if (!timestamp) {
+    throw new Error("Timestamp is null or undefined");
+  }
+
+  // Firestore Timestamp serializzato come { seconds, nanoseconds }
+  if (typeof timestamp === "object" && "seconds" in timestamp) {
+    return new Date(timestamp.seconds * 1000);
+  }
+
+  // Firestore Timestamp con metodo .toDate()
+  if (typeof timestamp.toDate === "function") {
+    return timestamp.toDate();
+  }
+
+  // ISO string o Date object
+  return new Date(timestamp);
+}
+
+/**
+ * Helper: Ottiene dettagli completi dei conflitti per una consultation
+ * Include eventi Google Calendar (anche orfani) e eventi piattaforma
+ */
+async function getConflictDetails(
+  consultationStartTime: Date,
+  consultationEndTime: Date,
+  dayStart: Date,
+  dayEnd: Date,
+  db: any,
+  excludeConsultationId?: string // Optional ID to exclude from conflicts
+): Promise<{
+  hasConflict: boolean;
+  conflicts: Array<{
+    id: string;
+    title: string;
+    source: 'google-calendar' | 'job' | 'booking';
+    startTime: string;
+    endTime: string;
+    allDay: boolean;
+    calendarName?: string;
+    isDeletable: boolean;
+    metadata: {
+      jobId?: string;
+      bookingId?: string;
+      googleEventId?: string;
+      calendarId?: string;
+    };
+  }>;
+}> {
+  const { getAllExistingEvents } = await import('./consultations/calendar-adapter.js');
+  const { hasConflict: checkConflict } = await import('./calendar-engine/conflicts.js');
+  const { getEventsWithDetailsAllCalendars } = await import('./google-calendar.js');
+  
+  // CRITICAL FIX: Exclude Firestore consultations to match approval logic
+  // This prevents phantom conflicts from consultations without Google Calendar events
+  const blockingEvents = await getAllExistingEvents(dayStart, dayEnd, db, {
+    includeConsultations: false,  // Match /v2/:id/approve behavior
+    includeJobs: true,
+    includeBookings: true
+  });
+  
+  console.log(`[Conflict Details] Loaded ${blockingEvents.length} blocking events (NO Firestore consultations)`);
+  
+  // Check if there's a conflict
+  const hasConflicts = checkConflict(consultationStartTime, consultationEndTime, blockingEvents);
+  
+  if (!hasConflicts) {
+    return { hasConflict: false, conflicts: [] };
+  }
+  
+  // Get detailed Google Calendar events for metadata
+  const googleEvents = await getEventsWithDetailsAllCalendars(dayStart, dayEnd);
+  
+  // Build detailed conflict list
+  const conflicts: any[] = [];
+  
+  for (const event of blockingEvents) {
+    // Check if this event overlaps with consultation time
+    const eventStart = event.start.getTime();
+    const eventEnd = event.end.getTime();
+    const consultStart = consultationStartTime.getTime();
+    const consultEnd = consultationEndTime.getTime();
+    
+    const overlaps = eventStart < consultEnd && eventEnd > consultStart;
+    
+    if (!overlaps) continue;
+    
+    // Format times - FIX: Usa Luxon per leggere ore/minuti in Europe/Rome (non UTC!)
+    const startRome = DateTime.fromJSDate(event.start, { zone: 'Europe/Rome' });
+    const endRome = DateTime.fromJSDate(event.end, { zone: 'Europe/Rome' });
+    const startTimeStr = `${startRome.hour.toString().padStart(2, '0')}:${startRome.minute.toString().padStart(2, '0')}`;
+    const endTimeStr = `${endRome.hour.toString().padStart(2, '0')}:${endRome.minute.toString().padStart(2, '0')}`;
+    
+    if (event.source === 'google-calendar') {
+      // Find matching Google Calendar event for full metadata
+      const googleEvent = googleEvents.find(ge => {
+        const geStart = new Date(ge.start).getTime();
+        const geEnd = new Date(ge.end).getTime();
+        return Math.abs(geStart - eventStart) < 1000 && Math.abs(geEnd - eventEnd) < 1000;
+      });
+      
+      conflicts.push({
+        id: googleEvent?.eventId || `gcal-${eventStart}`,
+        title: event.title || 'Evento senza titolo',
+        source: 'google-calendar',
+        startTime: event.allDay ? 'Tutto il giorno' : startTimeStr,
+        endTime: event.allDay ? '' : endTimeStr,
+        allDay: event.allDay || false,
+        calendarName: googleEvent?.calendarName || 'Google Calendar',
+        isDeletable: googleEvent?.calendarId === 'primary',
+        metadata: {
+          googleEventId: googleEvent?.eventId,
+          calendarId: googleEvent?.calendarId || 'primary'
+        }
+      });
+    } else if (event.source === 'job') {
+      // Find job in Firestore for ID
+      const jobsSnap = await db.collection('jobs')
+        .where('eventDate', '>=', Timestamp.fromDate(dayStart))
+        .where('eventDate', '<=', Timestamp.fromDate(dayEnd))
+        .get();
+      
+      let jobId = null;
+      for (const doc of jobsSnap.docs) {
+        const jobData = doc.data();
+        const jobEventDate = jobData.eventDate.toDate();
+        
+        // Match by time - CRITICAL: Use Luxon for correct timezone handling
+        if (jobData.startTime && jobData.endTime) {
+          const romeDate = DateTime.fromJSDate(jobEventDate, { zone: 'Europe/Rome' });
+          const dateStr = romeDate.toFormat('yyyy-MM-dd');
+          const jobStart = createEuropeRomeDate(dateStr, jobData.startTime);
+          
+          if (Math.abs(jobStart.getTime() - eventStart) < 1000) {
+            jobId = doc.id;
+            break;
+          }
+        }
+      }
+      
+      conflicts.push({
+        id: jobId || `job-${eventStart}`,
+        title: event.title || 'Job',
+        source: 'job',
+        startTime: event.allDay ? 'Tutto il giorno' : startTimeStr,
+        endTime: event.allDay ? '' : endTimeStr,
+        allDay: event.allDay || false,
+        isDeletable: false, // Jobs cannot be deleted via this interface
+        metadata: {
+          jobId: jobId || undefined
+        }
+      });
+    } else if (event.source === 'booking') {
+      conflicts.push({
+        id: `booking-${eventStart}`,
+        title: event.title || 'Booking',
+        source: 'booking',
+        startTime: event.allDay ? 'Tutto il giorno' : startTimeStr,
+        endTime: event.allDay ? '' : endTimeStr,
+        allDay: event.allDay || false,
+        isDeletable: false, // Bookings cannot be deleted via this interface
+        metadata: {}
+      });
+    }
+  }
+  
+  return {
+    hasConflict: true,
+    conflicts
+  };
+}
+
+/**
+ * ========================================
+ * TEMPLATE ENDPOINTS (Admin only)
+ * ========================================
+ */
+
+/**
+ * GET /api/consultations/templates
+ * Ottiene tutti i template consulenze (admin)
+ */
+router.get(
+  "/templates",
+  authenticateFirebase,
+  async (req: AuthRequest, res): Promise<HttpHandlerResult> => {
+    try {
+      const { email } = req.user!;
+      if (!ADMIN_EMAILS.includes(email)) {
+        return res
+          .status(403)
+          .json({
+            error: "Solo gli amministratori possono accedere ai template",
+          });
+      }
+
+      const templates = await consultationService.getAllTemplates();
+      res.json(templates);
+    } catch (error: any) {
+      console.error("[GET /templates] Errore:", error.message);
+      res.status(500).json({ error: "Errore recupero template" });
+    }
+  },
+);
+
+/**
+ * GET /api/consultations/templates/:id
+ * Ottiene template singolo per ID (pubblico per booking flow)
+ */
+router.get("/templates/:id", async (req, res): Promise<HttpHandlerResult> => {
+  try {
+    const { id } = req.params;
+    const template = await consultationService.getTemplateById(id);
+
+    if (!template) {
+      return res.status(404).json({ error: "Template non trovato" });
+    }
+
+    res.json(template);
+  } catch (error: any) {
+    console.error("[GET /templates/:id] Errore:", error.message);
+    res.status(500).json({ error: "Errore recupero template" });
+  }
+});
+
+/**
+ * GET /api/consultations/templates/by-job-type/:jobType
+ * Ottiene template attivi per tipo lavoro (pubblico)
+ */
+router.get("/templates/by-job-type/:jobType", async (req, res) => {
+  try {
+    const { jobType } = req.params;
+    const templates =
+      await consultationService.getActiveTemplatesByJobType(jobType);
+    res.json(templates);
+  } catch (error: any) {
+    console.error("[GET /templates/by-job-type] Errore:", error.message);
+    res.status(500).json({ error: "Errore recupero template" });
+  }
+});
+
+/**
+ * GET /api/consultations/job-types
+ * Ottiene lista tipi lavoro con template attivi (pubblico)
+ */
+router.get("/job-types", async (req, res) => {
+  try {
+    const jobTypes = await consultationService.getJobTypesWithActiveTemplates();
+    res.json(jobTypes);
+  } catch (error: any) {
+    console.error("[GET /job-types] Errore:", error.message);
+    res.status(500).json({ error: "Errore recupero tipi lavoro" });
+  }
+});
+
+/**
+ * GET /api/consultations/client-prefill/:jobId
+ * Recupera dati cliente da un job per pre-compilare il form consulenza (solo admin).
+ * L'endpoint contiene dati personali e non può essere esposto tramite un id Job prevedibile.
+ */
+router.get("/client-prefill/:jobId", authenticateFirebase, requireAdmin, async (req, res): Promise<HttpHandlerResult> => {
+  try {
+    const { jobId } = req.params;
+    
+    // 1. Recupera job
+    const jobDoc = await db.collection('jobs').doc(jobId).get();
+    if (!jobDoc.exists) {
+      return res.status(404).json({ error: 'Job non trovato' });
+    }
+    
+    const job: any = jobDoc.data();
+    
+    // 2. Recupera primo cliente associato
+    if (!job.clientiIds || job.clientiIds.length === 0) {
+      return res.status(404).json({ error: 'Nessun cliente associato al job' });
+    }
+    
+    const clienteDoc = await db.collection('clienti').doc(job.clientiIds[0]).get();
+    if (!clienteDoc.exists) {
+      return res.status(404).json({ error: 'Cliente non trovato' });
+    }
+    
+    const cliente: any = clienteDoc.data();
+    
+    // 3. Restituisci solo dati base (non sensibili) per pre-compilazione
+    res.json({
+      cliente: {
+        nome: cliente.nome || '',
+        cognome: cliente.cognome || '',
+        email: cliente.email || '',
+        whatsapp: cliente.whatsapp || cliente.cellulare || cliente.cellulare1 || ''
+      },
+      job: {
+        nomeEvento: job.nomeEvento || '',
+        eventDate: job.eventDate || null,
+        jobType: job.jobType || ''
+      }
+    });
+  } catch (error: any) {
+    console.error("[GET /client-prefill/:jobId] Errore:", error.message);
+    res.status(500).json({ error: "Errore recupero dati cliente" });
+  }
+});
+
+/**
+ * POST /api/consultations/templates
+ * Crea nuovo template (admin only)
+ */
+router.post(
+  "/templates",
+  authenticateFirebase,
+  async (req: AuthRequest, res): Promise<HttpHandlerResult> => {
+    try {
+      const { email } = req.user!;
+      if (!ADMIN_EMAILS.includes(email)) {
+        return res
+          .status(403)
+          .json({ error: "Solo gli amministratori possono creare template" });
+      }
+
+      // Validazione Zod
+      const validatedData = InsertConsultationTemplateSchema.parse(req.body);
+
+      const templateId =
+        await consultationService.createTemplate(validatedData);
+
+      res.status(201).json({
+        id: templateId,
+        message: "Template creato con successo",
+      });
+    } catch (error: any) {
+      console.error("[POST /templates] Errore:", error.message);
+
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          error: "Dati non validi",
+          details: error.issues,
+        });
+      }
+
+      res.status(500).json({ error: "Errore creazione template" });
+    }
+  },
+);
+
+/**
+ * PATCH /api/consultations/templates/:id
+ * Aggiorna template esistente (admin only)
+ */
+router.patch(
+  "/templates/:id",
+  authenticateFirebase,
+  async (req: AuthRequest, res): Promise<HttpHandlerResult> => {
+    try {
+      const { email } = req.user!;
+      if (!ADMIN_EMAILS.includes(email)) {
+        return res
+          .status(403)
+          .json({
+            error: "Solo gli amministratori possono modificare template",
+          });
+      }
+
+      const { id } = req.params;
+
+      // Validazione Zod
+      const validatedData = UpdateConsultationTemplateSchema.parse(req.body);
+
+      await consultationService.updateTemplate(id, validatedData);
+
+      res.json({ message: "Template aggiornato con successo" });
+    } catch (error: any) {
+      console.error("[PATCH /templates/:id] Errore:", error.message);
+
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          error: "Dati non validi",
+          details: error.issues,
+        });
+      }
+
+      if (error.message.includes("non trovato")) {
+        return res.status(404).json({ error: error.message });
+      }
+
+      res.status(500).json({ error: "Errore aggiornamento template" });
+    }
+  },
+);
+
+/**
+ * DELETE /api/consultations/templates/:id
+ * Elimina template (admin only)
+ */
+router.delete(
+  "/templates/:id",
+  authenticateFirebase,
+  async (req: AuthRequest, res): Promise<HttpHandlerResult> => {
+    try {
+      const { email } = req.user!;
+      if (!ADMIN_EMAILS.includes(email)) {
+        return res
+          .status(403)
+          .json({
+            error: "Solo gli amministratori possono eliminare template",
+          });
+      }
+
+      const { id } = req.params;
+
+      await consultationService.deleteTemplate(id);
+
+      res.json({ message: "Template eliminato con successo" });
+    } catch (error: any) {
+      console.error("[DELETE /templates/:id] Errore:", error.message);
+
+      if (error.message.includes("consultations attive")) {
+        return res.status(409).json({
+          error: "Impossibile eliminare template con consultations attive",
+        });
+      }
+
+      res.status(500).json({ error: "Errore eliminazione template" });
+    }
+  },
+);
+
+/**
+ * ========================================
+ * CONSULTATION ENDPOINTS
+ * ========================================
+ */
+
+/**
+ * GET /api/consultations
+ * Ottiene tutte le consultations con filtri opzionali (admin)
+ */
+router.get("/", authenticateFirebase, async (req: AuthRequest, res): Promise<HttpHandlerResult> => {
+  try {
+    const { email } = req.user!;
+    if (!ADMIN_EMAILS.includes(email)) {
+      return res
+        .status(403)
+        .json({
+          error: "Solo gli amministratori possono accedere alle consultations",
+        });
+    }
+
+    const { stato, jobType, templateId, dateFrom, dateTo } = req.query;
+
+    const filters: any = {};
+
+    if (stato) {
+      // Supporta sia singolo che multipli stati (comma-separated)
+      filters.stato =
+        typeof stato === "string"
+          ? (stato.split(",") as ConsultationStatus[])
+          : (stato as ConsultationStatus[]);
+    }
+
+    if (jobType) {
+      filters.jobType = jobType as string;
+    }
+
+    if (templateId) {
+      filters.templateId = templateId as string;
+    }
+
+    if (dateFrom) {
+      filters.dateFrom = new Date(dateFrom as string);
+    }
+
+    if (dateTo) {
+      filters.dateTo = new Date(dateTo as string);
+    }
+
+    const consultations =
+      await consultationService.getAllConsultations(filters);
+    res.json(consultations);
+  } catch (error: any) {
+    console.error("[GET /consultations] Errore:", error.message);
+    res.status(500).json({ error: "Errore recupero consultations" });
+  }
+});
+
+/**
+ * GET /api/consultations/:id
+ * Ottiene consultation singola per ID
+ */
+router.get("/:id", authenticateFirebase, async (req: AuthRequest, res): Promise<HttpHandlerResult> => {
+  try {
+    const { email } = req.user!;
+    if (!ADMIN_EMAILS.includes(email)) {
+      return res
+        .status(403)
+        .json({
+          error: "Solo gli amministratori possono accedere alle consultations",
+        });
+    }
+
+    const { id } = req.params;
+    const consultation = await consultationService.getConsultationById(id);
+
+    if (!consultation) {
+      return res.status(404).json({ error: "Consultation non trovata" });
+    }
+
+    res.json(consultation);
+  } catch (error: any) {
+    console.error("[GET /consultations/:id] Errore:", error.message);
+    res.status(500).json({ error: "Errore recupero consultation" });
+  }
+});
+
+/**
+ * PATCH /api/consultations/v2/:id/approve
+ * Approve consultation using Calendar Engine V2 (NO LEGACY LOGIC)
+ * 
+ * Flow:
+ * 1. Load consultation request from Firestore
+ * 2. Load template and convert to AvailabilityConfig
+ * 3. Load ALL existing events for the day (Google Calendar, consultations, jobs, bookings)
+ * 4. Normalize all Google Calendar events
+ * 5. Check conflicts using Calendar Engine V2
+ * 6. If conflict: return 409
+ * 7. If no conflict: create Google Calendar event, update Firestore, send email
+ */
+/**
+ * PATCH /api/consultations/v2/:id/approve
+ * ROUTE IS DEFINED HERE - THIS LOGS IMMEDIATELY WHEN ROUTE IS MATCHED
+ */
+router.patch(
+  "/v2/:id/approve",
+  authenticateFirebase,
+  async (req: AuthRequest, res): Promise<HttpHandlerResult> => {
+    const { id } = req.params;
+    console.error(`🚨🚨🚨 [PATCH /v2/:id/approve] ROUTE MATCHED - ID: ${id}`);
+    
+    try {
+      const { email } = req.user!;
+      if (!ADMIN_EMAILS.includes(email)) {
+        return res.status(403).json({
+          error: "Solo gli amministratori possono approvare consultations",
+        });
+      }
+
+      console.log(`[PATCH /v2/:id/approve] 🔵 Searching consultation with ID: ${id}`);
+
+      // Step 1: Load consultation request
+      const consultation = await consultationService.getConsultationById(id);
+
+      if (!consultation) {
+        console.error(`[PATCH /v2/:id/approve] ❌ Consultation NOT found with ID: ${id}`);
+        
+        // Debug: List all consultations in database to help diagnose
+        try {
+          const allDocs = await db.collection("consultations").get();
+          const allIds = allDocs.docs.map(doc => doc.id);
+          console.error(`[PATCH /v2/:id/approve] 📋 Available consultation IDs: ${allIds.join(', ')}`);
+          console.error(`[PATCH /v2/:id/approve] 📊 Total consultations in DB: ${allIds.length}`);
+        } catch (debugError) {
+          console.error(`[PATCH /v2/:id/approve] Debug error:`, debugError);
+        }
+        
+        return res.status(404).json({ 
+          error: "Consultation non trovata",
+          requestedId: id,
+          debug: "Verificare ID consulenza"
+        });
+      }
+
+      console.log(`[PATCH /v2/:id/approve] ✅ Consultation found:`, consultation.cliente?.nome);
+
+      if (consultation.stato !== "in_attesa") {
+        return res.status(400).json({
+          error: "Consultation già processata",
+          stato: consultation.stato,
+        });
+      }
+
+      // Step 2: Load template and convert to AvailabilityConfig
+      const template = await consultationService.getTemplateById(consultation.templateId);
+
+      if (!template) {
+        return res.status(404).json({ error: "Template non trovato" });
+      }
+
+      const { consultationTemplateToAvailabilityConfig, validateConsultationTemplate } = await import('./consultations/calendar-adapter.js');
+
+      if (!validateConsultationTemplate(template)) {
+        return res.status(400).json({
+          error: "Template configurazione invalida",
+          message: "Template manca di customWorkingHours o durataMinuti"
+        });
+      }
+
+      const config = consultationTemplateToAvailabilityConfig(template);
+
+      // Step 3: Parse consultation date and time in Europe/Rome timezone
+      // CRITICAL: Use Luxon for correct timezone handling (server runs in UTC)
+      const consultationDate = normalizeTimestampToDate(consultation.dataConsulenza);
+      const dateStr = getConsultationLocalDate(consultationDate);
+
+      const schedule = validateConsultationSchedule(
+        dateStr,
+        consultation.orarioInizio,
+        consultation.orarioFine,
+      );
+      if (!schedule.valid) {
+        return res.status(400).json({
+          error: "Data o orario non validi",
+          message:
+            "Controlla data, ora di inizio e ora di fine. L'ora di fine deve essere successiva all'ora di inizio.",
+        });
+      }
+      const startDateTime = schedule.startDateTime.toJSDate();
+      const endDateTime = schedule.endDateTime.toJSDate();
+
+      console.log(`[POST /v2/approve] 📅 Checking slot ${consultation.orarioInizio}-${consultation.orarioFine} on ${dateStr}`);
+
+      // Step 4: Load ALL existing events for the day
+      // CRITICAL FIX: Exclude Firestore consultations to match /v2/available-slots behavior
+      // This prevents phantom 409 conflicts caused by Firestore consultations without Google Calendar events
+      const dateObj = DateTime.fromISO(dateStr, { zone: CONSULTATION_TIME_ZONE });
+      const dayStart = dateObj.startOf("day").toJSDate();
+      const dayEnd = dateObj.endOf("day").toJSDate();
+
+      const { getAllExistingEvents } = await import('./consultations/calendar-adapter.js');
+      const existingEvents = await getAllExistingEvents(dayStart, dayEnd, db, {
+        includeConsultations: false,  // CRITICAL: Exclude Firestore consultations
+        includeJobs: true,             // Keep jobs as blocking events
+        includeBookings: true          // Keep bookings as blocking events
+      });
+
+      console.log(`[POST /v2/approve] 📋 Loaded ${existingEvents.length} blocking events (Google Calendar + Jobs + Bookings, NO Firestore consultations)`);
+
+      // Step 5: Check conflicts using Calendar Engine V2
+      // NO NEED to filter out current consultation - it's not loaded from Firestore
+      const { hasConflict } = await import('./calendar-engine/conflicts.js');
+      const conflict = hasConflict(startDateTime, endDateTime, existingEvents);
+
+      if (conflict) {
+        console.error(`[POST /v2/approve] ❌ CONFLICT - Slot ${consultation.orarioInizio}-${consultation.orarioFine} blocked`);
+        return res.status(409).json({
+          error: "Slot non più disponibile",
+          message: "Attenzione: È stato rilevato un nuovo impegno che si sovrappone a questa richiesta. Impossibile approvare."
+        });
+      }
+
+      console.log(`[POST /v2/approve] ✅ No conflicts detected, proceeding with approval`);
+
+      // Step 7: Create Google Calendar event. Calendar is the source of truth:
+      // do not mark the consultation as confirmed if its event cannot be created.
+      // Keeping this error separate from the generic catch is essential for the
+      // admin UI and for operational diagnostics.
+      let calendarEvent: { id?: string | null };
+      try {
+        // NOTA: no attendees - Service Account non supporta invite senza Domain-Wide Delegation
+        calendarEvent = await createEvent("primary", {
+          summary: `Consulenza ${consultation.jobType} - ${consultation.cliente.nome} ${consultation.cliente.cognome}`,
+          description: `Template: ${consultation.jobType}\nCliente: ${consultation.cliente.nome} ${consultation.cliente.cognome}\nEmail: ${consultation.cliente.email}\nWhatsApp: ${consultation.cliente.whatsapp}\nNote: ${consultation.note || "Nessuna"}`,
+          start: startDateTime,
+          end: endDateTime,
+        });
+      } catch (calendarError: any) {
+        console.error("[PATCH /v2/:id/approve] ❌ Errore creazione evento Google Calendar:", calendarError.message);
+        return res.status(503).json({
+          error: "Errore Google Calendar",
+          message: "Impossibile creare l'evento sul calendario. Riprova più tardi.",
+          code: calendarError?.code || "CALENDAR_EVENT_CREATION_FAILED",
+        });
+      }
+
+      const eventId = calendarEvent.id;
+
+      console.log(`[POST /v2/approve] 📅 Created Google Calendar event ${eventId}`);
+
+      // Step 8: Update Firestore with compensating transaction (rollback Calendar on error)
+      try {
+        const consultationUpdates: any = {
+          stato: "confermata",
+          updatedAt: FieldValue.serverTimestamp(),
+        };
+        if (eventId) {
+          consultationUpdates.googleCalendarEventId = eventId;
+        }
+
+        // Single Firestore write: two independent updates could leave a partially
+        // confirmed consultation if the second request failed. The authenticated
+        // UID is trusted; req.body.userId is controlled by the browser.
+        consultationUpdates.confermataDa = req.user!.uid;
+        consultationUpdates.confermatail = FieldValue.serverTimestamp();
+
+        console.log(`[POST /v2/approve] 📝 Updating Firestore status to 'confermata' for consultation ${id}`);
+        await db.collection("consultations").doc(id).update(consultationUpdates);
+
+        console.log(`[POST /v2/approve] ✅ Updated Firestore consultation ${id}`);
+      } catch (updateError: any) {
+        console.error("[POST /v2/approve] ❌ Error updating Firestore, executing rollback:", updateError.message);
+        
+        try {
+          if (eventId) {
+            await deleteEvent("primary", eventId);
+            console.log(`[POST /v2/approve] 🔄 Rollback: deleted Calendar event ${eventId}`);
+          }
+
+          await consultationService.updateConsultation(id, {
+            stato: "in_attesa",
+          });
+
+          await db.collection("consultations").doc(id).update({
+            googleCalendarEventId: FieldValue.delete(),
+          });
+
+          console.log(`[POST /v2/approve] 🔄 Rollback: reverted consultation ${id} to in_attesa`);
+        } catch (rollbackError: any) {
+          console.error("[POST /v2/approve] ❌ CRITICAL: Rollback failed", rollbackError.message);
+        }
+
+        return res.status(500).json({
+          error: "Errore approvazione",
+          message: "Impossibile salvare la conferma. L'evento Calendar è stato cancellato e la consultation è stata ripristinata.",
+        });
+      }
+
+      // Step 9: Send confirmation email
+      let emailStatus = "sent";
+      try {
+        const {
+          sendGmailEmail,
+          getStudioContactInfo,
+          createConsultationApprovedEmailHTML,
+          generateGoogleCalendarLink,
+        } = await import("./email-routes.js");
+        const studioInfo = await getStudioContactInfo();
+
+        const clienteName = `${consultation.cliente.nome} ${consultation.cliente.cognome}`;
+        const formattedDate = consultationDate.toLocaleDateString("it-IT", {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+          timeZone: "Europe/Rome",
+        });
+
+        const calendarLink = generateGoogleCalendarLink({
+          title: `Consulenza ${consultation.jobType} - ${clienteName}`,
+          description: `Consulenza per ${consultation.jobType}\nCliente: ${clienteName}\n\n${studioInfo.name}\nTel: ${studioInfo.phone}`,
+          location: studioInfo.address,
+          startDate: startDateTime,
+          endDate: endDateTime,
+          isAllDay: false,
+        });
+
+        const htmlContent = createConsultationApprovedEmailHTML(
+          clienteName,
+          consultation.jobType,
+          formattedDate,
+          `${consultation.orarioInizio} - ${consultation.orarioFine}`,
+          null,
+          studioInfo,
+          calendarLink,
+        );
+
+        await sendGmailEmail(
+          consultation.cliente.email,
+          `Consulenza Confermata - ${consultation.jobType}`,
+          htmlContent,
+        );
+
+        console.log(`[POST /v2/approve] ✅ Sent approval email to ${consultation.cliente.email}`);
+      } catch (emailError: any) {
+        console.error("[POST /v2/approve] ⚠️ Error sending email:", emailError.message);
+        emailStatus = "failed";
+      }
+
+      // Step 10: Return success
+      res.json({
+        message: "Consultation approvata con successo",
+        googleCalendarEventId: eventId,
+        emailStatus,
+      });
+    } catch (error: any) {
+      console.error("[PATCH /v2/:id/approve] ❌ Error:", error.message);
+      console.error("[PATCH /v2/:id/approve] Stack:", error.stack);
+      res.status(500).json({ error: "Errore approvazione consultation" });
+    }
+  },
+);
+
+/**
+ * GET /api/consultations/v2/:id/conflicts
+ * Get detailed conflict information for a consultation
+ * Returns list of conflicting events with metadata for UI display
+ */
+router.get(
+  "/v2/:id/conflicts",
+  authenticateFirebase,
+  async (req: AuthRequest, res): Promise<HttpHandlerResult> => {
+    try {
+      const { email } = req.user!;
+      if (!ADMIN_EMAILS.includes(email)) {
+        return res.status(403).json({
+          error: "Solo gli amministratori possono verificare conflitti",
+        });
+      }
+
+      const { id } = req.params;
+
+      console.log(`[GET /v2/:id/conflicts] 🔍 Checking conflicts for consultation ${id}`);
+
+      // Load consultation
+      const consultation = await consultationService.getConsultationById(id);
+
+      if (!consultation) {
+        return res.status(404).json({ error: "Consultation non trovata" });
+      }
+
+      // Parse consultation date and time - CRITICAL: Use Luxon for correct timezone
+      const consultationDate = normalizeTimestampToDate(consultation.dataConsulenza);
+      const dateStr = getConsultationLocalDate(consultationDate);
+
+      const schedule = validateConsultationSchedule(
+        dateStr,
+        consultation.orarioInizio,
+        consultation.orarioFine,
+      );
+      if (!schedule.valid) {
+        return res.status(400).json({
+          error: "Data o orario non validi",
+          message:
+            "Controlla data, ora di inizio e ora di fine. L'ora di fine deve essere successiva all'ora di inizio.",
+        });
+      }
+      const startDateTime = schedule.startDateTime.toJSDate();
+      const endDateTime = schedule.endDateTime.toJSDate();
+
+      // Get day boundaries
+      const dateObj = DateTime.fromISO(dateStr, { zone: CONSULTATION_TIME_ZONE });
+      const dayStart = dateObj.startOf("day").toJSDate();
+      const dayEnd = dateObj.endOf("day").toJSDate();
+
+      // Get conflict details
+      // CRITICAL: Match approval logic by excluding Firestore consultations
+      const conflictDetails = await getConflictDetails(
+        startDateTime,
+        endDateTime,
+        dayStart,
+        dayEnd,
+        db,
+        id // Pass ID to exclude current consultation
+      );
+
+      console.log(`[GET /v2/:id/conflicts] ${conflictDetails.hasConflict ? `⚠️ Found ${conflictDetails.conflicts.length} conflicts` : '✅ No conflicts'}`);
+
+      res.json(conflictDetails);
+    } catch (error: any) {
+      console.error("[GET /v2/:id/conflicts] ❌ Error:", error.message);
+      console.error("[GET /v2/:id/conflicts] Stack:", error.stack);
+      res.status(500).json({ error: "Errore verifica conflitti" });
+    }
+  },
+);
+
+/**
+ * POST /api/consultations/v2/:id/approve-with-override
+ * Approve consultation with conflict override
+ * Allows admin to force approval despite conflicts and optionally delete conflicting events
+ * 
+ * Body:
+ * - overrideConflicts: boolean - Force approval despite conflicts
+ * - deleteEventIds: string[] - IDs of Google Calendar events to delete (only from primary calendar)
+ * - reason: string - Required justification for override/deletion
+ */
+router.post(
+  "/v2/:id/approve-with-override",
+  authenticateFirebase,
+  async (req: AuthRequest, res): Promise<HttpHandlerResult> => {
+    try {
+      const { email } = req.user!;
+      if (!ADMIN_EMAILS.includes(email)) {
+        return res.status(403).json({
+          error: "Solo gli amministratori possono forzare approvazioni",
+        });
+      }
+
+      const { id } = req.params;
+      const { overrideConflicts, deleteEventIds = [], reason } = req.body;
+
+      console.log(`[POST /v2/:id/approve-with-override] 🔵 Force approving consultation ${id}`);
+      console.log(`[POST /v2/:id/approve-with-override] Override: ${overrideConflicts}, Delete: ${deleteEventIds.length} events`);
+
+      // Validate required fields
+      if (!reason || reason.trim().length === 0) {
+        return res.status(400).json({
+          error: "Motivazione obbligatoria per override conflitto"
+        });
+      }
+
+      // Load consultation
+      const consultation = await consultationService.getConsultationById(id);
+
+      if (!consultation) {
+        return res.status(404).json({ error: "Consultation non trovata" });
+      }
+
+      if (consultation.stato !== "in_attesa") {
+        return res.status(400).json({
+          error: "Consultation già processata",
+          stato: consultation.stato,
+        });
+      }
+
+      // Parse consultation date and time - CRITICAL: Use Luxon for correct timezone
+      const consultationDate = normalizeTimestampToDate(consultation.dataConsulenza);
+      const dateStr = getConsultationLocalDate(consultationDate);
+
+      const startDateTime = createConsultationDateTime(dateStr, consultation.orarioInizio).toJSDate();
+      const endDateTime = createConsultationDateTime(dateStr, consultation.orarioFine).toJSDate();
+
+      // Get day boundaries for conflict check
+      const dateObj = DateTime.fromISO(dateStr, { zone: CONSULTATION_TIME_ZONE });
+      const dayStart = dateObj.startOf("day").toJSDate();
+      const dayEnd = dateObj.endOf("day").toJSDate();
+
+      // Get conflict details for audit logging
+      const conflictDetails = await getConflictDetails(
+        startDateTime,
+        endDateTime,
+        dayStart,
+        dayEnd,
+        db
+      );
+
+      // Delete selected Google Calendar events (ONLY from primary calendar)
+      const deletedEvents: string[] = [];
+      const deletionErrors: string[] = [];
+
+      if (deleteEventIds.length > 0) {
+        console.log(`[POST /v2/:id/approve-with-override] 🗑️ Attempting to delete ${deleteEventIds.length} events`);
+
+        for (const eventId of deleteEventIds) {
+          // Find event in conflict details to verify it's from primary calendar
+          const eventToDelete = conflictDetails.conflicts.find(c => 
+            c.metadata.googleEventId === eventId
+          );
+
+          if (!eventToDelete) {
+            deletionErrors.push(`Evento ${eventId} non trovato nei conflitti`);
+            continue;
+          }
+
+          if (!eventToDelete.isDeletable) {
+            deletionErrors.push(`Evento "${eventToDelete.title}" non può essere cancellato (calendario esterno)`);
+            continue;
+          }
+
+          try {
+            await deleteEvent("primary", eventId);
+            deletedEvents.push(eventId);
+            console.log(`[POST /v2/:id/approve-with-override] ✅ Deleted event ${eventId} from primary calendar`);
+          } catch (delError: any) {
+            console.error(`[POST /v2/:id/approve-with-override] ❌ Error deleting event ${eventId}:`, delError.message);
+            deletionErrors.push(`Errore cancellazione "${eventToDelete.title}": ${delError.message}`);
+          }
+        }
+      }
+
+      // Create Google Calendar event for consultation
+      // NOTA: no attendees - Service Account non supporta invite senza Domain-Wide Delegation
+      const calendarEvent = await createEvent("primary", {
+        summary: `Consulenza ${consultation.jobType} - ${consultation.cliente.nome} ${consultation.cliente.cognome}`,
+        description: `Template: ${consultation.jobType}\nCliente: ${consultation.cliente.nome} ${consultation.cliente.cognome}\nEmail: ${consultation.cliente.email}\nWhatsApp: ${consultation.cliente.whatsapp}\nNote: ${consultation.note || "Nessuna"}`,
+        start: startDateTime,
+        end: endDateTime,
+      });
+
+      const eventId = calendarEvent.id;
+      console.log(`[POST /v2/:id/approve-with-override] 📅 Created Google Calendar event ${eventId}`);
+
+      // Update Firestore (with rollback on error)
+      try {
+        await consultationService.updateConsultation(id, {
+          stato: "confermata",
+          googleCalendarEventId: eventId || undefined,
+        });
+
+        await db.collection("consultations").doc(id).update({
+          confermataDa: req.body.userId || email,
+          confermatail: Timestamp.now(),
+        });
+
+        console.log(`[POST /v2/:id/approve-with-override] ✅ Updated Firestore consultation ${id}`);
+      } catch (updateError: any) {
+        console.error("[POST /v2/:id/approve-with-override] ❌ Error updating Firestore, executing rollback:", updateError.message);
+        
+        // Rollback: delete Calendar event
+        try {
+          if (eventId) {
+            await deleteEvent("primary", eventId);
+            console.log(`[POST /v2/:id/approve-with-override] 🔄 Rollback: deleted Calendar event ${eventId}`);
+          }
+
+          await consultationService.updateConsultation(id, {
+            stato: "in_attesa",
+          });
+
+          console.log(`[POST /v2/:id/approve-with-override] 🔄 Rollback: reverted consultation ${id} to in_attesa`);
+        } catch (rollbackError: any) {
+          console.error("[POST /v2/:id/approve-with-override] ❌ CRITICAL: Rollback failed", rollbackError.message);
+        }
+
+        return res.status(500).json({
+          error: "Errore approvazione",
+          details: updateError.message,
+        });
+      }
+
+      // Audit logging: save conflict override record
+      const auditRecord = {
+        consultationId: id,
+        adminEmail: email,
+        timestamp: Timestamp.now(),
+        action: overrideConflicts ? "force-approve" : "approve-with-deletion",
+        reason: reason,
+        conflictsOverridden: conflictDetails.conflicts.map(c => ({
+          eventId: c.id,
+          title: c.title,
+          source: c.source,
+          startTime: c.startTime,
+          endTime: c.endTime
+        })),
+        deletedEventIds: deletedEvents,
+        deletionErrors: deletionErrors,
+        consultationDetails: {
+          jobType: consultation.jobType,
+          clientName: `${consultation.cliente.nome} ${consultation.cliente.cognome}`,
+          date: dateStr,
+          time: `${consultation.orarioInizio} - ${consultation.orarioFine}`
+        }
+      };
+
+      try {
+        await db.collection("conflict_overrides").add(auditRecord);
+        console.log(`[POST /v2/:id/approve-with-override] 📝 Audit log saved`);
+      } catch (auditError: any) {
+        console.error("[POST /v2/:id/approve-with-override] ⚠️ Error saving audit log:", auditError.message);
+        // Non-blocking: continue even if audit fails
+      }
+
+      // Send approval email (same as regular approve)
+      let emailStatus = "sent";
+      try {
+        const clienteName = `${consultation.cliente.nome} ${consultation.cliente.cognome}`;
+        const formattedDate = format(startDateTime, "EEEE d MMMM yyyy", {
+          locale: it,
+        });
+
+        const studioInfo = {
+          name: "Gennaro Mazzacane Photography",
+          email: "image.studio.fotografico@gmail.com",
+          address: "Via Roma 123, Napoli",
+          phone: "+39 123 456 7890",
+        };
+
+        const { generateGoogleCalendarLink } = await import("./email-routes.js");
+        const calendarLink = generateGoogleCalendarLink({
+          title: `Consulenza ${consultation.jobType} - ${clienteName}`,
+          description: `Consulenza per ${consultation.jobType}\nCliente: ${clienteName}\n\n${studioInfo.name}\nTel: ${studioInfo.phone}`,
+          location: studioInfo.address,
+          startDate: startDateTime,
+          endDate: endDateTime,
+          isAllDay: false,
+        });
+
+        const { createConsultationApprovedEmailHTML, sendGmailEmail } = await import("./email-routes.js");
+        const htmlContent = createConsultationApprovedEmailHTML(
+          clienteName,
+          consultation.jobType,
+          formattedDate,
+          `${consultation.orarioInizio} - ${consultation.orarioFine}`,
+          null,
+          studioInfo,
+          calendarLink,
+        );
+
+        await sendGmailEmail(
+          consultation.cliente.email,
+          `Consulenza Confermata - ${consultation.jobType}`,
+          htmlContent,
+        );
+
+        console.log(`[POST /v2/:id/approve-with-override] ✅ Sent approval email to ${consultation.cliente.email}`);
+      } catch (emailError: any) {
+        console.error("[POST /v2/:id/approve-with-override] ⚠️ Error sending email:", emailError.message);
+        emailStatus = "failed";
+      }
+
+      // Send admin notification email about override
+      try {
+        const { sendGmailEmail } = await import("./email-routes.js");
+        const adminEmailContent = `
+          <h2>⚠️ Approvazione Forzata Consultation</h2>
+          <p><strong>Admin:</strong> ${email}</p>
+          <p><strong>Cliente:</strong> ${consultation.cliente.nome} ${consultation.cliente.cognome}</p>
+          <p><strong>Data:</strong> ${dateStr} ${consultation.orarioInizio} - ${consultation.orarioFine}</p>
+          <p><strong>Job Type:</strong> ${consultation.jobType}</p>
+          <hr>
+          <p><strong>Motivazione Override:</strong></p>
+          <p>${reason}</p>
+          <hr>
+          <p><strong>Conflitti Forzati (${conflictDetails.conflicts.length}):</strong></p>
+          <ul>
+            ${conflictDetails.conflicts.map(c => `<li>${c.title} (${c.source}) - ${c.startTime}${c.endTime ? ` - ${c.endTime}` : ''}</li>`).join('')}
+          </ul>
+          ${deletedEvents.length > 0 ? `
+            <hr>
+            <p><strong>Eventi Cancellati (${deletedEvents.length}):</strong></p>
+            <ul>
+              ${deletedEvents.map(id => `<li>${id}</li>`).join('')}
+            </ul>
+          ` : ''}
+          ${deletionErrors.length > 0 ? `
+            <hr>
+            <p><strong>⚠️ Errori Cancellazione:</strong></p>
+            <ul>
+              ${deletionErrors.map(err => `<li>${err}</li>`).join('')}
+            </ul>
+          ` : ''}
+        `;
+
+        await sendGmailEmail(
+          email,
+          `🚨 Approvazione Forzata - ${consultation.jobType}`,
+          adminEmailContent,
+        );
+
+        console.log(`[POST /v2/:id/approve-with-override] 📧 Sent admin notification to ${email}`);
+      } catch (adminEmailError: any) {
+        console.error("[POST /v2/:id/approve-with-override] ⚠️ Error sending admin email:", adminEmailError.message);
+      }
+
+      res.json({
+        message: "Consultation approvata con override",
+        googleCalendarEventId: eventId,
+        emailStatus,
+        deletedEvents,
+        deletionErrors,
+        auditRecorded: true
+      });
+    } catch (error: any) {
+      console.error("[POST /v2/:id/approve-with-override] ❌ Error:", error.message);
+      console.error("[POST /v2/:id/approve-with-override] Stack:", error.stack);
+      res.status(500).json({ error: "Errore approvazione forzata" });
+    }
+  },
+);
+
+/**
+ * PATCH /api/consultations/:id/reject
+ * Rifiuta consultation (admin only)
+ */
+router.patch(
+  "/:id/reject",
+  authenticateFirebase,
+  async (req: AuthRequest, res): Promise<HttpHandlerResult> => {
+    try {
+      const { email } = req.user!;
+      if (!ADMIN_EMAILS.includes(email)) {
+        return res
+          .status(403)
+          .json({
+            error: "Solo gli amministratori possono rifiutare consultations",
+          });
+      }
+
+      const { id } = req.params;
+      const { motivo } = req.body;
+
+      const consultation = await consultationService.getConsultationById(id);
+
+      if (!consultation) {
+        return res.status(404).json({ error: "Consultation non trovata" });
+      }
+
+      if (consultation.stato !== "in_attesa") {
+        return res.status(400).json({
+          error: "Consultation già processata",
+          stato: consultation.stato,
+        });
+      }
+
+      // Elimina evento Google Calendar se presente (BUGFIX: libera lo slot!)
+      if (consultation.googleCalendarEventId) {
+        try {
+          const { deleteEvent } = await import("./google-calendar.js");
+          await deleteEvent("primary", consultation.googleCalendarEventId);
+          console.log(
+            `📅 Evento Google Calendar ${consultation.googleCalendarEventId} eliminato (consulenza rifiutata)`,
+          );
+        } catch (calError: any) {
+          console.warn(
+            "[REJECT] Errore eliminazione evento Calendar:",
+            calError.message,
+          );
+          // Continua comunque con rifiuto consultation
+        }
+      }
+
+      // Aggiorna stato
+      await consultationService.updateConsultation(id, {
+        stato: "annullata",
+        note:
+          consultation.note +
+          `\n[RIFIUTATA] ${motivo || "Nessun motivo specificato"}`,
+      });
+
+      // Invia email rifiuto (task 13)
+      let emailStatus = "sent";
+      try {
+        const {
+          sendGmailEmail,
+          getStudioContactInfo,
+          createConsultationRejectedEmailHTML,
+          getSiteBaseUrl,
+        } = await import("./email-routes.js");
+        const studioInfo = await getStudioContactInfo();
+
+        // Costruisci URL per riprenotare la consulenza (pulsante "Scegli un nuovo orario")
+        // Solo se il template esiste ed è ancora attivo, altrimenti il link
+        // porterebbe a una pagina vuota (il template email ha già il fallback "contattaci")
+        let rebookUrl: string | null = null;
+        if (consultation.jobType && consultation.templateId) {
+          try {
+            const rebookTemplate = await consultationService.getTemplateById(
+              consultation.templateId,
+            );
+            if (rebookTemplate && rebookTemplate.attiva) {
+              const baseUrl = getSiteBaseUrl(req);
+              rebookUrl = `${baseUrl}/consulenze/${encodeURIComponent(consultation.jobType)}/${encodeURIComponent(consultation.templateId)}/prenota`;
+            } else {
+              console.warn(
+                `[REJECT] Template ${consultation.templateId} non trovato o non attivo: pulsante riprenotazione omesso`,
+              );
+            }
+          } catch (templateError: any) {
+            console.warn(
+              "[REJECT] Errore verifica template per rebookUrl (pulsante omesso):",
+              templateError.message,
+            );
+          }
+        }
+
+        const clienteName = `${consultation.cliente.nome} ${consultation.cliente.cognome}`;
+        const rawDate = normalizeTimestampToDate(consultation.dataConsulenza);
+        const formattedDate = rawDate.toLocaleDateString("it-IT", {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+          timeZone: "Europe/Rome",
+        });
+
+        const htmlContent = createConsultationRejectedEmailHTML(
+          clienteName,
+          consultation.jobType,
+          formattedDate,
+          `${consultation.orarioInizio} - ${consultation.orarioFine}`,
+          motivo || null,
+          studioInfo,
+          rebookUrl,
+        );
+
+        await sendGmailEmail(
+          consultation.cliente.email,
+          `Aggiornamento Consulenza - ${consultation.jobType}`,
+          htmlContent,
+        );
+
+        console.log(
+          `✅ Email "Consulenza Rifiutata" inviata a ${consultation.cliente.email}`,
+        );
+      } catch (emailError: any) {
+        console.error(
+          "⚠️ Errore invio email consulenza rifiutata:",
+          emailError.message,
+        );
+        emailStatus = "failed";
+      }
+
+      res.json({
+        message: "Consultation rifiutata con successo",
+        emailStatus,
+      });
+    } catch (error: any) {
+      console.error("[PATCH /:id/reject] Errore:", error.message);
+      res.status(500).json({ error: "Errore rifiuto consultation" });
+    }
+  },
+);
+
+/**
+ * PATCH /api/consultations/:id/complete
+ * Marca consultation come completata (admin only)
+ */
+router.patch(
+  "/:id/complete",
+  authenticateFirebase,
+  async (req: AuthRequest, res): Promise<HttpHandlerResult> => {
+    try {
+      const { email } = req.user!;
+      if (!ADMIN_EMAILS.includes(email)) {
+        return res
+          .status(403)
+          .json({
+            error: "Solo gli amministratori possono completare consultations",
+          });
+      }
+
+      const { id } = req.params;
+
+      const consultation = await consultationService.getConsultationById(id);
+
+      if (!consultation) {
+        return res.status(404).json({ error: "Consultation non trovata" });
+      }
+
+      if (consultation.stato !== "confermata") {
+        return res.status(400).json({
+          error: "Solo consultations confermate possono essere completate",
+        });
+      }
+
+      await consultationService.updateConsultation(id, {
+        stato: "completata",
+      });
+
+      res.json({ message: "Consultation completata con successo" });
+    } catch (error: any) {
+      console.error("[PATCH /:id/complete] Errore:", error.message);
+      res.status(500).json({ error: "Errore completamento consultation" });
+    }
+  },
+);
+
+/**
+ * POST /api/consultations/:id/convert-to-job
+ * Converte consultation in job (admin only)
+ */
+router.post(
+  "/:id/convert-to-job",
+  authenticateFirebase,
+  async (req: AuthRequest, res): Promise<HttpHandlerResult> => {
+    try {
+      const { email } = req.user!;
+      if (!ADMIN_EMAILS.includes(email)) {
+        return res
+          .status(403)
+          .json({
+            error:
+              "Solo gli amministratori possono convertire consultations in job",
+          });
+      }
+
+      const { id } = req.params;
+
+      const consultation = await consultationService.getConsultationById(id);
+
+      if (!consultation) {
+        return res.status(404).json({ error: "Consultation non trovata" });
+      }
+
+      if (consultation.jobCreated) {
+        return res.status(400).json({
+          error: "Consultation già convertita in job",
+          jobId: consultation.jobId,
+        });
+      }
+
+      // Campi standard mappabili consultation → job
+      const STANDARD_FIELD_KEYS = [
+        "eventDate",
+        "eventLocation",
+        "rituLocation",
+        "rituTime",
+        "startTime",
+        "endTime",
+        "allDay",
+      ];
+
+      // Mappa campi standard da jobDataCollected
+      const eventDate = consultation.jobDataCollected.eventDate
+        ? new Date(consultation.jobDataCollected.eventDate as string)
+        : (() => {
+            // Fallback: data consulenza + 3 mesi
+            // FIX: Usa Luxon per calcolo DST-safe (usa import top-level)
+            const estimatedDate = normalizeTimestampToDate(
+              consultation.dataConsulenza,
+            );
+            const dateDT = DateTime.fromJSDate(estimatedDate, { zone: 'Europe/Rome' });
+            return dateDT.plus({ months: 3 }).toJSDate();
+          })();
+
+      const allDay = !consultation.jobDataCollected.startTime;
+
+      // Costruisci noteInterne solo con campi EXTRA (non mappati)
+      const extraFields: Record<string, any> = {};
+      for (const [key, value] of Object.entries(
+        consultation.jobDataCollected || {},
+      )) {
+        if (!STANDARD_FIELD_KEYS.includes(key)) {
+          extraFields[key] = value;
+        }
+      }
+
+      const noteParts = [`Creato da consulenza #${id}`];
+      if (Object.keys(extraFields).length > 0) {
+        noteParts.push(
+          `\nDati aggiuntivi raccolti durante consulenza:\n${JSON.stringify(extraFields, null, 2)}`,
+        );
+      }
+      if (consultation.note) {
+        noteParts.push(`\nNote consulenza:\n${consultation.note}`);
+      }
+
+      // Prepara dati job da consultation
+      const jobData: any = {
+        nomeEvento: `${consultation.jobType} - ${consultation.cliente.nome} ${consultation.cliente.cognome}`,
+        clientiIds: consultation.clienteId ? [consultation.clienteId] : [],
+        jobType: consultation.jobType,
+        provenance: "consulenza",
+        eventDate,
+        allDay,
+        startTime:
+          (consultation.jobDataCollected.startTime as string) || undefined,
+        endTime: (consultation.jobDataCollected.endTime as string) || undefined,
+        eventLocation:
+          (consultation.jobDataCollected.eventLocation as string) || undefined,
+        rituLocation:
+          (consultation.jobDataCollected.rituLocation as string) || undefined,
+        rituTime:
+          (consultation.jobDataCollected.rituTime as string) || undefined,
+        noteInterne: noteParts.join("\n"),
+      };
+
+      // Crea job (riutilizza logica jobs esistenti)
+      const jobRef = await db.collection("jobs").add({
+        ...jobData,
+        consultationId: id, // Riferimento bidirezionale per cleanup
+        status: "lead",
+        financials: {
+          totalePreventivato: 0,
+          totaleOrdini: 0,
+          totalePagato: 0,
+          saldoResiduo: 0,
+        },
+        pdfs: [],
+        costi: [],
+        orderIds: [],
+        galleryIds: [],
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+        createdBy: req.body.userId || "admin", // TODO: Auth middleware
+        jobSource: "consultation",
+      });
+
+      // Aggiorna consultation con job ID
+      await consultationService.updateConsultation(id, {
+        jobCreated: true,
+        jobId: jobRef.id,
+      });
+
+      res.json({
+        message: "Consultation convertita in job con successo",
+        jobId: jobRef.id,
+      });
+    } catch (error: any) {
+      console.error("[POST /:id/convert-to-job] Errore:", error.message);
+      res.status(500).json({ error: "Errore conversione consultation in job" });
+    }
+  },
+);
+
+/**
+ * POST /api/consultations/v2/create
+ * Create consultation using Calendar Engine V2 (NO LEGACY LOGIC)
+ * 
+ * Flow:
+ * 1. Load template
+ * 2. Validate template via adapter
+ * 3. Generate AvailabilityConfig
+ * 4. Get existing events via Calendar Engine
+ * 5. Check conflicts via Calendar Engine
+ * 6. Create consultation in Firestore
+ * 7. Send confirmation email
+ * 8. Return success
+ */
+router.post("/v2/create", async (req, res): Promise<HttpHandlerResult> => {
+  try {
+    const {
+      templateId,
+      cliente,
+      dataConsulenza,
+      orarioInizio,
+      orarioFine,
+      jobDataCollected,
+      note,
+      jobId, // Opzionale: collega consulenza a job esistente
+    } = req.body;
+
+    // Step 1: Validate input
+    const validatedData = InsertConsultationSchema.parse({
+      templateId,
+      cliente,
+      dataConsulenza,
+      orarioInizio,
+      orarioFine,
+      jobDataCollected: jobDataCollected || {},
+      note: note || "",
+    });
+
+    // Step 2: Load template
+    const template = await consultationService.getTemplateById(templateId);
+
+    if (!template) {
+      return res.status(404).json({ error: "Template non trovato" });
+    }
+
+    if (!template.attiva) {
+      return res.status(400).json({ error: "Template non attivo" });
+    }
+
+    // Step 3: Validate template via adapter
+    const {
+      consultationTemplateToAvailabilityConfig,
+      validateConsultationTemplate,
+      getConsultationEarliestBookableDate,
+      isConsultationDateTooSoon,
+    } = await import('./consultations/calendar-adapter.js');
+
+    if (!validateConsultationTemplate(template)) {
+      return res.status(400).json({
+        error: "Template configurazione invalida",
+        message: "Template manca di customWorkingHours o durataMinuti"
+      });
+    }
+
+    // Step 4: Generate AvailabilityConfig
+    const config = consultationTemplateToAvailabilityConfig(template);
+
+    // Step 5: Parse date and time in Europe/Rome timezone
+    const requestedDate = String(dataConsulenza || "").slice(0, 10);
+    const dateObj = DateTime.fromISO(requestedDate, { zone: CONSULTATION_TIME_ZONE });
+    const slotStart = createConsultationDateTime(requestedDate, orarioInizio);
+    const slotEnd = createConsultationDateTime(requestedDate, orarioFine);
+
+    if (!dateObj.isValid || !slotStart.isValid || !slotEnd.isValid) {
+      return res.status(400).json({
+        error: "Data o orario non validi",
+        message: "Controlla data, ora di inizio e ora di fine.",
+      });
+    }
+
+    // Enforce lead time server-side as well: a direct POST must not be able
+    // to bypass the public availability calendar.
+    const earliest =
+      config.minLeadWorkingDays && config.minLeadWorkingDays > 0
+        ? await getConsultationEarliestBookableDate(
+            config,
+            DateTime.now().setZone(CONSULTATION_TIME_ZONE).toJSDate(),
+            db,
+          )
+        : null;
+    if (
+      earliest &&
+      isConsultationDateTooSoon(
+        dateObj.startOf("day").toJSDate(),
+        earliest.toJSDate(),
+      )
+    ) {
+      return res.status(422).json({
+        error: "Data troppo ravvicinata",
+        reason: "too-soon",
+        unavailableReason: "too-soon",
+        message:
+          "Questa data non è ancora prenotabile: è necessario lasciare tempo per la preparazione",
+      });
+    }
+
+    // Step 6: Get existing events via centralized adapter
+    const { hasConflict } = await import('./calendar-engine/conflicts.js');
+    const { getAllExistingEvents } = await import('./consultations/calendar-adapter.js');
+
+    const dayStart = dateObj.startOf("day").toJSDate();
+    const dayEnd = dateObj.endOf("day").toJSDate();
+
+    const existingEvents = await getAllExistingEvents(dayStart, dayEnd, db);
+
+    // Step 7: Check conflicts via Calendar Engine V2
+    const conflict = hasConflict(slotStart.toJSDate(), slotEnd.toJSDate(), existingEvents);
+
+    if (conflict) {
+      const conflictingEvent = existingEvents.find(e =>
+        e.start.getTime() < slotEnd.toMillis() && e.end.getTime() > slotStart.toMillis()
+      );
+      console.error(`[POST /v2/create] ❌ CONFLICT - Slot ${orarioInizio}-${orarioFine} blocked by ${conflictingEvent?.source || 'unknown'}`);
+      return res.status(409).json({
+        error: "Slot non disponibile",
+        message: "Lo slot selezionato non è più disponibile. Scegli un altro orario.",
+        conflictSource: conflictingEvent?.source || 'unknown'
+      });
+    }
+
+    // Step 8: Create consultation
+    // Aggiungi jobId se presente (collegamento a job esistente)
+    const consultationPayload = {
+      ...validatedData,
+      ...(jobId && { linkedJobId: jobId })
+    };
+    
+    const consultationId = await consultationService.createConsultation(
+      consultationPayload as any,
+      template
+    );
+
+    // Step 9: Send confirmation email
+    let emailStatus = "sent";
+    try {
+      const {
+        sendGmailEmail,
+        getStudioContactInfo,
+        createConsultationReceivedEmailHTML,
+        createAdminNotificationEmailHTML,
+      } = await import("./email-routes.js");
+      const studioInfo = await getStudioContactInfo();
+
+      const clienteName = `${validatedData.cliente.nome} ${validatedData.cliente.cognome}`;
+      const consultationDateObj = new Date(validatedData.dataConsulenza);
+      const formattedDate = consultationDateObj.toLocaleDateString("it-IT", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        timeZone: "Europe/Rome",
+      });
+
+      const htmlContent = createConsultationReceivedEmailHTML(
+        clienteName,
+        template.jobType,
+        formattedDate,
+        `${validatedData.orarioInizio} - ${validatedData.orarioFine}`,
+        studioInfo,
+      );
+
+      await sendGmailEmail(
+        validatedData.cliente.email,
+        `Richiesta Consulenza Ricevuta - ${template.jobType}`,
+        htmlContent,
+      );
+
+      console.log(`✅ Email "Consulenza Ricevuta" inviata a ${validatedData.cliente.email}`);
+
+      // Admin notification email
+      try {
+        const adminEmail = studioInfo.email;
+        const adminEmailHTML = createAdminNotificationEmailHTML(
+          clienteName,
+          validatedData.cliente.email,
+          validatedData.cliente.whatsapp || '',
+          template.jobType,
+          formattedDate,
+          `${validatedData.orarioInizio} - ${validatedData.orarioFine}`,
+          undefined,
+          validatedData.note,
+          studioInfo,
+        );
+
+        await sendGmailEmail(
+          adminEmail,
+          `Nuova Richiesta Consulenza - ${template.jobType}`,
+          adminEmailHTML,
+        );
+
+        console.log(`✅ Email notifica admin consulenza inviata a ${adminEmail}`);
+      } catch (adminEmailError) {
+        console.error("⚠️ Errore invio email notifica admin consulenza:", adminEmailError);
+      }
+    } catch (emailError: any) {
+      console.error("⚠️ Errore invio email consulenza ricevuta:", emailError.message);
+      emailStatus = "failed";
+    }
+
+    // Step 10: Return success
+    res.status(201).json({
+      id: consultationId,
+      message: "Consultation creata con successo",
+      emailStatus,
+    });
+  } catch (error: any) {
+    console.error("[POST /v2/create] Errore:", error.message);
+
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        error: "Dati non validi",
+        details: error.issues,
+      });
+    }
+
+    res.status(500).json({ error: "Errore creazione consultation" });
+  }
+});
+
+/**
+ * POST /api/consultations/v2/create-manual
+ *
+ * Crea una consulenza già confermata partendo da una data concordata
+ * direttamente con il cliente. Il flusso è riservato agli amministratori:
+ * verifica i conflitti, crea l'evento Google Calendar, salva la consulenza
+ * confermata e invia l'email di conferma al cliente.
+ */
+router.post(
+  "/v2/create-manual",
+  authenticateFirebase,
+  requireAdmin,
+  async (req: AuthRequest, res): Promise<HttpHandlerResult> => {
+    let consultationId: string | undefined;
+    let calendarEventId: string | undefined;
+    let manualLockRef: any;
+    let manualLockAcquired = false;
+
+    try {
+      const {
+        templateId,
+        cliente,
+        dataConsulenza,
+        orarioInizio,
+        orarioFine,
+        note,
+        jobId,
+      } = req.body;
+
+      const validatedData = InsertConsultationSchema.parse({
+        templateId,
+        cliente,
+        dataConsulenza,
+        orarioInizio,
+        orarioFine,
+        jobDataCollected: {},
+        note: note || "",
+      });
+
+      const template = await consultationService.getTemplateById(templateId);
+      if (!template) {
+        return res.status(404).json({ error: "Template non trovato" });
+      }
+      if (!template.attiva) {
+        return res.status(400).json({ error: "Template non attivo" });
+      }
+
+      const { validateConsultationTemplate } = await import(
+        "./consultations/calendar-adapter.js"
+      );
+      if (!validateConsultationTemplate(template)) {
+        return res.status(400).json({
+          error: "Template configurazione invalida",
+          message: "Template manca di customWorkingHours o durataMinuti",
+        });
+      }
+
+      // Il campo data è una data locale italiana: non va interpretato come
+      // mezzanotte UTC, altrimenti in Europa/Rome può finire nel giorno prima.
+      const requestedDate = String(dataConsulenza || "").slice(0, 10);
+      const schedule = validateConsultationSchedule(
+        requestedDate,
+        orarioInizio,
+        orarioFine,
+      );
+      const dateObj = schedule.dateTime;
+      const startDateTime = schedule.startDateTime;
+      const endDateTime = schedule.endDateTime;
+
+      if (
+        !schedule.valid
+      ) {
+        const nonexistentTime =
+          startDateTime.invalidReason === NONEXISTENT_LOCAL_TIME_REASON
+            ? orarioInizio
+            : endDateTime.invalidReason === NONEXISTENT_LOCAL_TIME_REASON
+              ? orarioFine
+              : null;
+
+        if (nonexistentTime) {
+          return res.status(400).json({
+            error: "Orario non esistente",
+            message: `L'orario ${nonexistentTime} non esiste in ${CONSULTATION_TIME_ZONE} durante il cambio d'ora. Scegli un altro orario.`,
+          });
+        }
+
+        return res.status(400).json({
+          error: "Data o orario non validi",
+          message: "Controlla data, ora di inizio e ora di fine.",
+        });
+      }
+
+      const expectedEndDateTime = startDateTime.plus({
+        minutes: template.durataMinuti,
+      });
+      if (
+        expectedEndDateTime.toFormat("yyyy-MM-dd") !== requestedDate ||
+        expectedEndDateTime.toFormat("HH:mm") !== orarioFine
+      ) {
+        return res.status(400).json({
+          error: "Durata non coerente",
+          message: `La durata del template è di ${template.durataMinuti} minuti.`,
+        });
+      }
+
+      if (startDateTime.toMillis() <= Date.now()) {
+        return res.status(400).json({
+          error: "Data non valida",
+          message: "La consulenza manuale deve essere nel futuro.",
+        });
+      }
+
+      const manualRequestKey = getManualConsultationRequestKey({
+        templateId,
+        jobId,
+        email: validatedData.cliente.email,
+        date: requestedDate,
+        startTime: validatedData.orarioInizio,
+        endTime: validatedData.orarioFine,
+      });
+      const lockResult = await acquireManualConsultationLock(
+        manualRequestKey,
+        {
+          templateId,
+          jobId: jobId || null,
+          email: validatedData.cliente.email.trim().toLowerCase(),
+          date: requestedDate,
+          startTime: validatedData.orarioInizio,
+          endTime: validatedData.orarioFine,
+        },
+      );
+
+      if (lockResult.status === "completed") {
+        return res.status(200).json({
+          id: lockResult.consultationId,
+          googleCalendarEventId: lockResult.googleCalendarEventId,
+          emailStatus: lockResult.emailStatus,
+          alreadyCreated: true,
+          message: "Consulenza manuale già creata",
+        });
+      }
+
+      if (lockResult.status === "processing") {
+        return res.status(409).json({
+          error: "Richiesta già in elaborazione",
+          code: "MANUAL_CONSULTATION_IN_PROGRESS",
+          message: "La stessa consulenza è già in fase di creazione.",
+        });
+      }
+
+      manualLockRef = lockResult.ref;
+      manualLockAcquired = true;
+
+      const { hasConflict } = await import(
+        "./calendar-engine/conflicts.js"
+      );
+      const { getAllExistingEvents } = await import(
+        "./consultations/calendar-adapter.js"
+      );
+      const existingEvents = await getAllExistingEvents(
+        dateObj.startOf("day").toJSDate(),
+        dateObj.endOf("day").toJSDate(),
+        db,
+      );
+
+      if (hasConflict(startDateTime.toJSDate(), endDateTime.toJSDate(), existingEvents)) {
+        await releaseManualConsultationLock(manualLockRef);
+        manualLockAcquired = false;
+        return res.status(409).json({
+          error: "Slot non disponibile",
+          message: "La data e l'orario si sovrappongono a un impegno esistente.",
+        });
+      }
+
+      const consultationPayload = {
+        ...validatedData,
+        // Conserva la data locale corretta per la lettura successiva in
+        // Europe/Rome, indipendentemente dal timezone del server.
+        dataConsulenza: dateObj.startOf("day").toJSDate(),
+        ...(jobId && { linkedJobId: jobId }),
+      };
+
+      consultationId = await consultationService.createConsultation(
+        consultationPayload as any,
+        template,
+      );
+
+      try {
+        const contractLink = await getSignedContractLink(jobId);
+        const calendarEvent = await createEvent("primary", {
+          summary: `Consulenza ${template.jobType} - ${cliente.nome} ${cliente.cognome}`,
+          description: [
+            `Template: ${template.jobType}`,
+            `Cliente: ${cliente.nome} ${cliente.cognome}`,
+            `Email: ${cliente.email}`,
+            `WhatsApp: ${cliente.whatsapp || ""}`,
+            `Note: ${note || "Nessuna"}`,
+            ...(contractLink ? [`Contratto: ${contractLink}`] : []),
+          ].join("\n"),
+          start: startDateTime.toJSDate(),
+          end: endDateTime.toJSDate(),
+        });
+        calendarEventId = calendarEvent.id || undefined;
+      } catch (calendarError: any) {
+        await consultationService.deleteConsultation(consultationId);
+        await releaseManualConsultationLock(manualLockRef);
+        manualLockAcquired = false;
+        return res.status(503).json({
+          error: "Errore Google Calendar",
+          message: "Impossibile creare l'evento sul calendario. Riprova più tardi.",
+          code: calendarError?.code || "CALENDAR_EVENT_CREATION_FAILED",
+        });
+      }
+
+      try {
+        await db.collection("consultations").doc(consultationId).update({
+          stato: "confermata",
+          ...(calendarEventId && { googleCalendarEventId: calendarEventId }),
+          confermataDa: req.user!.uid,
+          confermatail: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        clearCalendarEventCache();
+      } catch (updateError: any) {
+        if (calendarEventId) {
+          try {
+            await deleteEvent("primary", calendarEventId);
+          } catch (rollbackError: any) {
+            console.error(
+              "[POST /v2/create-manual] Rollback Calendar fallito:",
+              rollbackError.message,
+            );
+          }
+        }
+        await consultationService.deleteConsultation(consultationId);
+        await releaseManualConsultationLock(manualLockRef);
+        manualLockAcquired = false;
+        return res.status(500).json({
+          error: "Errore conferma consulenza",
+          message: "La consulenza non è stata salvata. Riprova.",
+        });
+      }
+
+      let emailStatus = "sent";
+      try {
+        const {
+          sendGmailEmail,
+          getStudioContactInfo,
+          createConsultationApprovedEmailHTML,
+          generateGoogleCalendarLink,
+        } = await import("./email-routes.js");
+        const studioInfo = await getStudioContactInfo();
+        const clienteName = `${validatedData.cliente.nome} ${validatedData.cliente.cognome}`;
+        const formattedDate = startDateTime
+          .setLocale("it")
+          .toFormat("cccc d LLLL yyyy");
+        const calendarLink = generateGoogleCalendarLink({
+          title: `Consulenza ${template.jobType} - ${clienteName}`,
+          description: `Consulenza per ${template.jobType}\nCliente: ${clienteName}\n\n${studioInfo.name}\nTel: ${studioInfo.phone}`,
+          location: studioInfo.address,
+          startDate: startDateTime.toJSDate(),
+          endDate: endDateTime.toJSDate(),
+          isAllDay: false,
+        });
+        const htmlContent = createConsultationApprovedEmailHTML(
+          clienteName,
+          template.jobType,
+          formattedDate,
+          `${validatedData.orarioInizio} - ${validatedData.orarioFine}`,
+          null,
+          studioInfo,
+          calendarLink,
+        );
+        await sendGmailEmail(
+          validatedData.cliente.email,
+          `Consulenza Confermata - ${template.jobType}`,
+          htmlContent,
+        );
+        await db.collection("consultations").doc(consultationId).update({
+          emailConfermataInviata: true,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      } catch (emailError: any) {
+        emailStatus = "failed";
+        console.error(
+          "[POST /v2/create-manual] Errore invio email conferma:",
+          emailError.message,
+        );
+      }
+
+      await manualLockRef.update({
+        status: "completed",
+        consultationId,
+        googleCalendarEventId: calendarEventId || null,
+        emailStatus,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      manualLockAcquired = false;
+
+      return res.status(201).json({
+        id: consultationId,
+        googleCalendarEventId: calendarEventId,
+        emailStatus,
+        message:
+          emailStatus === "sent"
+            ? "Consulenza confermata, evento Calendar ed email creati"
+            : "Consulenza confermata ed evento Calendar creato, ma email non inviata",
+      });
+    } catch (error: any) {
+      console.error("[POST /v2/create-manual] Errore:", error.message);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          error: "Dati non validi",
+          details: error.issues,
+        });
+      }
+      if (consultationId) {
+        try {
+          await consultationService.deleteConsultation(consultationId);
+        } catch (cleanupError: any) {
+          console.error(
+            "[POST /v2/create-manual] Cleanup consulenza fallito:",
+            cleanupError.message,
+          );
+        }
+      }
+      if (manualLockAcquired) {
+        await releaseManualConsultationLock(manualLockRef);
+      }
+      return res.status(500).json({ error: "Errore creazione consulenza manuale" });
+    }
+  },
+);
+
+/**
+ * PATCH /api/consultations/:id/reminder-schedule
+ * Corregge dal pannello admin la data o l'orario di una consulenza confermata
+ * segnalata dal controllo reminder.
+ */
+router.patch(
+  "/:id/reminder-schedule",
+  authenticateFirebase,
+  requireAdmin,
+  async (req: AuthRequest, res): Promise<HttpHandlerResult> => {
+    try {
+      const { id } = req.params;
+      const parsed = z
+        .object({
+          dataConsulenza: z
+            .string()
+            .regex(/^\d{4}-\d{2}-\d{2}$/, "Formato data non valido (YYYY-MM-DD)"),
+          orarioInizio: z
+            .string()
+            .regex(/^\d{2}:\d{2}$/, "Formato orario non valido (HH:mm)"),
+          orarioFine: z
+            .string()
+            .regex(/^\d{2}:\d{2}$/, "Formato orario non valido (HH:mm)"),
+        })
+        .safeParse(req.body);
+
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: "Dati non validi",
+          details: parsed.error.issues,
+        });
+      }
+
+      const consultation = await consultationService.getConsultationById(id);
+      if (!consultation) {
+        return res.status(404).json({ error: "Consultation non trovata" });
+      }
+      if (consultation.stato !== "confermata") {
+        return res.status(400).json({
+          error: "Consultation non modificabile",
+          message: "Solo le consulenze confermate possono essere corrette dal reminder manager.",
+        });
+      }
+
+      const { dataConsulenza, orarioInizio, orarioFine } = parsed.data;
+      const schedule = validateConsultationSchedule(
+        dataConsulenza,
+        orarioInizio,
+        orarioFine,
+      );
+
+      if (!schedule.valid) {
+        const nonexistentTime =
+          schedule.startDateTime.invalidReason === NONEXISTENT_LOCAL_TIME_REASON
+            ? orarioInizio
+            : schedule.endDateTime.invalidReason === NONEXISTENT_LOCAL_TIME_REASON
+              ? orarioFine
+              : null;
+
+        if (nonexistentTime) {
+          return res.status(400).json({
+            error: "Orario non esistente",
+            message: `L'orario ${nonexistentTime} non esiste in ${CONSULTATION_TIME_ZONE} durante il cambio d'ora. Scegli un altro orario.`,
+          });
+        }
+
+        return res.status(400).json({
+          error: "Data o orario non validi",
+          message:
+            "Controlla data, ora di inizio e ora di fine. L'ora di fine deve essere successiva all'ora di inizio.",
+        });
+      }
+
+      let previousCalendarSchedule: { start: Date; end: Date } | null = null;
+
+      if (consultation.googleCalendarEventId) {
+        try {
+          const existingEvent = await getEventById(
+            "primary",
+            consultation.googleCalendarEventId,
+          );
+          const existingStart = existingEvent?.start?.dateTime;
+          const existingEnd = existingEvent?.end?.dateTime;
+
+          if (!existingEvent) {
+            const missingEventError = new Error("Event not found");
+            (missingEventError as any).code = 404;
+            throw missingEventError;
+          }
+          if (!existingStart || !existingEnd) {
+            throw new Error(
+              "L'evento collegato non contiene un intervallo orario ripristinabile",
+            );
+          }
+
+          previousCalendarSchedule = {
+            start: new Date(existingStart),
+            end: new Date(existingEnd),
+          };
+          if (
+            Number.isNaN(previousCalendarSchedule.start.getTime()) ||
+            Number.isNaN(previousCalendarSchedule.end.getTime())
+          ) {
+            throw new Error(
+              "L'evento collegato contiene data o orari non validi",
+            );
+          }
+
+          await updateEvent(
+            "primary",
+            consultation.googleCalendarEventId,
+            {
+              start: schedule.startDateTime.toJSDate(),
+              end: schedule.endDateTime.toJSDate(),
+            },
+          );
+        } catch (calendarError: any) {
+          const eventMissing =
+            calendarError?.code === 404 ||
+            calendarError?.response?.status === 404 ||
+            calendarError?.message?.toLowerCase().includes("not found");
+
+          console.error(
+            `[PATCH /:id/reminder-schedule] Sincronizzazione Calendar fallita per evento ${consultation.googleCalendarEventId}:`,
+            calendarError?.message,
+          );
+
+          return res.status(eventMissing ? 404 : 503).json({
+            error: eventMissing
+              ? "Evento Google Calendar non trovato"
+              : "Errore sincronizzazione Google Calendar",
+            code: eventMissing
+              ? "CALENDAR_EVENT_NOT_FOUND"
+              : "CALENDAR_SYNC_FAILED",
+            message: eventMissing
+              ? "La correzione non è stata salvata perché l'evento collegato non esiste più su Google Calendar."
+              : "La correzione non è stata salvata perché non è stato possibile aggiornare l'evento su Google Calendar. Riprova.",
+          });
+        }
+      }
+
+      try {
+        await db.collection("consultations").doc(id).update({
+          dataConsulenza: Timestamp.fromDate(schedule.startDateTime.toJSDate()),
+          orarioInizio,
+          orarioFine,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      } catch (firestoreError: any) {
+        if (consultation.googleCalendarEventId && previousCalendarSchedule) {
+          try {
+            await updateEvent(
+              "primary",
+              consultation.googleCalendarEventId,
+              previousCalendarSchedule,
+            );
+          } catch (rollbackError: any) {
+            console.error(
+              `[PATCH /:id/reminder-schedule] CRITICO: salvataggio Firestore e rollback Calendar falliti per evento ${consultation.googleCalendarEventId}:`,
+              rollbackError?.message,
+            );
+            return res.status(500).json({
+              error: "Correzione parzialmente applicata",
+              code: "CALENDAR_ROLLBACK_FAILED",
+              message:
+                "Il salvataggio della consulenza è fallito e non è stato possibile ripristinare Google Calendar. Controlla manualmente l'orario dell'evento prima di riprovare.",
+            });
+          }
+        }
+
+        console.error(
+          `[PATCH /:id/reminder-schedule] Salvataggio Firestore fallito${previousCalendarSchedule ? ", evento Calendar ripristinato" : ""}:`,
+          firestoreError?.message,
+        );
+        return res.status(500).json({
+          error: "Errore aggiornamento orario consulenza",
+          code: previousCalendarSchedule
+            ? "CONSULTATION_SAVE_FAILED_CALENDAR_RESTORED"
+            : "CONSULTATION_SAVE_FAILED",
+          message: previousCalendarSchedule
+            ? "La correzione non è stata salvata. Google Calendar è stato ripristinato all'orario precedente."
+            : "La correzione non è stata salvata. Riprova.",
+        });
+      }
+      clearCalendarEventCache();
+
+      res.json({
+        message: "Data e orari della consulenza aggiornati",
+        consultationId: id,
+        dataConsulenza,
+        orarioInizio,
+        orarioFine,
+        calendarSynced: Boolean(consultation.googleCalendarEventId),
+      });
+    } catch (error: any) {
+      console.error("[PATCH /:id/reminder-schedule] Errore:", error.message);
+      res.status(500).json({ error: "Errore aggiornamento orario consulenza" });
+    }
+  },
+);
+
+/**
+ * DELETE /api/consultations/:id
+ * Elimina consultation (admin può eliminare in qualsiasi stato)
+ * Se confermata, invia email di cancellazione al cliente
+ *
+ * Query params opzionali:
+ * - cancellationReason: motivo della cancellazione (mostrato in email)
+ * - expectedStatus: stato atteso per la consultation (sicurezza bulk delete)
+ *   Se specificato, la cancellazione fallirà se lo stato non corrisponde
+ */
+router.delete("/:id", authenticateFirebase, async (req: AuthRequest, res): Promise<HttpHandlerResult> => {
+  try {
+    const { email } = req.user!;
+    if (!ADMIN_EMAILS.includes(email)) {
+      return res
+        .status(403)
+        .json({
+          error: "Solo gli amministratori possono eliminare consultations",
+        });
+    }
+
+    const { id } = req.params;
+    const { cancellationReason, expectedStatus } = req.query;
+
+    const consultation = await consultationService.getConsultationById(id);
+
+    if (!consultation) {
+      return res.status(404).json({ error: "Consultation non trovata" });
+    }
+
+    // 🔐 Safety check: se expectedStatus è specificato, verifica che lo stato corrisponda
+    if (expectedStatus) {
+      const expectedStates = (expectedStatus as string).split(',');
+      if (!expectedStates.includes(consultation.stato)) {
+        console.error(
+          `[DELETE /:id] ⚠️ BLOCCO: Tentativo di eliminare consultation ${id} con stato "${consultation.stato}" ma expectedStatus era "${expectedStatus}"`
+        );
+        return res.status(409).json({
+          error: `Stato non corrispondente: la consultation ha stato "${consultation.stato}" ma era atteso "${expectedStatus}"`,
+          actualStatus: consultation.stato,
+          expectedStatus: expectedStatus,
+        });
+      }
+    }
+
+    // Se consultation confermata, invia email di cancellazione al cliente
+    if (consultation.stato === "confermata") {
+      try {
+        // Recupera template per nome jobType
+        const template = await consultationService.getTemplateById(
+          consultation.templateId,
+        );
+
+        // Formatta data e orario per email
+        let dataConsulenza: Date;
+        if (
+          consultation.dataConsulenza &&
+          typeof consultation.dataConsulenza === "object" &&
+          "seconds" in consultation.dataConsulenza
+        ) {
+          dataConsulenza = new Date(
+            (consultation.dataConsulenza as any).seconds * 1000,
+          );
+        } else {
+          dataConsulenza = new Date(consultation.dataConsulenza as any);
+        }
+
+        const consultationDate = format(dataConsulenza, "dd MMMM yyyy", {
+          locale: it,
+        });
+        const consultationTime = `${consultation.orarioInizio} - ${consultation.orarioFine}`;
+
+        // Invia email cancellazione (fire-and-forget, non blocca eliminazione)
+        // SECURITY: si passa solo il templateId; l'URL di riprenotazione viene
+        // costruito e validato server-side dentro send-consultation-cancelled
+        axios
+          .post(
+            `${process.env.BASE_URL || "http://localhost:5000"}/api/email/send-consultation-cancelled`,
+            {
+              recipientEmail: consultation.cliente.email,
+              clienteName: `${consultation.cliente.nome} ${consultation.cliente.cognome}`,
+              jobType: template?.nome || "Consulenza",
+              consultationDate,
+              consultationTime,
+              cancellationReason: cancellationReason || null,
+              rebookTemplateId: consultation.templateId || null,
+            },
+          )
+          .catch((emailError) => {
+            console.warn(
+              "[DELETE] Errore invio email cancellazione (non bloccante):",
+              emailError.message,
+            );
+          });
+
+        console.log(
+          `📧 Email cancellazione inviata a ${consultation.cliente.email}`,
+        );
+      } catch (emailError: any) {
+        console.warn(
+          "[DELETE] Errore preparazione email cancellazione:",
+          emailError.message,
+        );
+        // Continua comunque con eliminazione
+      }
+    }
+
+    // Elimina evento Google Calendar se presente
+    if (consultation.googleCalendarEventId) {
+      try {
+        await deleteEvent("primary", consultation.googleCalendarEventId);
+        console.log(
+          `📅 Evento Google Calendar ${consultation.googleCalendarEventId} eliminato`,
+        );
+      } catch (calError: any) {
+        console.warn(
+          "[DELETE] Errore eliminazione evento Calendar:",
+          calError.message,
+        );
+        // Continua comunque con eliminazione consultation
+      }
+    }
+
+    // FIX #1: Cleanup riferimento bidirezionale job → consultation
+    if (consultation.jobCreated && consultation.jobId) {
+      try {
+        const jobRef = db.collection("jobs").doc(consultation.jobId);
+        const jobSnap = await jobRef.get();
+
+        if (jobSnap.exists) {
+          // Rimuovi consultationId dal job
+          await jobRef.update({
+            consultationId: FieldValue.delete(),
+            updatedAt: Timestamp.now(),
+          });
+          console.log(
+            `✅ Riferimento consultationId rimosso dal job ${consultation.jobId}`,
+          );
+        } else {
+          console.warn(`⚠️ Job ${consultation.jobId} non trovato per cleanup`);
+        }
+      } catch (jobError: any) {
+        console.warn(
+          "[DELETE] Errore cleanup job reference:",
+          jobError.message,
+        );
+        // Continua comunque con eliminazione consultation
+      }
+    }
+
+    // Elimina consultation da Firestore
+    await consultationService.deleteConsultation(id);
+
+    res.json({
+      message: "Consultation eliminata con successo",
+      emailSent: consultation.stato === "confermata",
+    });
+  } catch (error: any) {
+    console.error("[DELETE /:id] Errore:", error.message);
+    res.status(500).json({ error: "Errore eliminazione consultation" });
+  }
+});
+
+/**
+ * PATCH /api/consultations/:id/mark-viewed
+ * Marca consultation come visualizzata da admin
+ */
+router.patch(
+  "/:id/mark-viewed",
+  authenticateFirebase,
+  async (req: AuthRequest, res): Promise<HttpHandlerResult> => {
+    try {
+      const { email } = req.user!;
+      if (!ADMIN_EMAILS.includes(email)) {
+        return res
+          .status(403)
+          .json({
+            error:
+              "Solo gli amministratori possono marcare consultations come visualizzate",
+          });
+      }
+
+      const { id } = req.params;
+
+      const consultation = await consultationService.getConsultationById(id);
+
+      if (!consultation) {
+        return res.status(404).json({ error: "Consultation non trovata" });
+      }
+
+      if (!consultation.dataVisualizzazione) {
+        await db.collection("consultations").doc(id).update({
+          dataVisualizzazione: Timestamp.now(),
+        });
+      }
+
+      res.json({ message: "Consultation marcata come visualizzata" });
+    } catch (error: any) {
+      console.error("[PATCH /:id/mark-viewed] Errore:", error.message);
+      res.status(500).json({ error: "Errore aggiornamento consultation" });
+    }
+  },
+);
+
+/**
+ * ========================================
+ * TEMPLATE MIGRATION ENDPOINTS
+ * ========================================
+ */
+
+/**
+ * GET /api/consultations/audit-working-hours
+ * Audit endpoint: conta quanti template hanno customWorkingHours vs quanti usano default (admin only)
+ */
+router.get(
+  "/audit-working-hours",
+  authenticateFirebase,
+  async (req: AuthRequest, res): Promise<HttpHandlerResult> => {
+    try {
+      const { email } = req.user!;
+      if (!ADMIN_EMAILS.includes(email)) {
+        return res
+          .status(403)
+          .json({ error: "Solo gli amministratori possono eseguire audit" });
+      }
+
+      console.log("[AUDIT] Inizio audit customWorkingHours");
+
+      const report = await consultationService.auditTemplateWorkingHours();
+
+      console.log(
+        `[AUDIT] Completato - Total: ${report.total}, With custom: ${report.withCustomHours}, Without: ${report.withoutCustomHours}`,
+      );
+
+      res.json({
+        success: true,
+        message: `Audit completato - ${report.total} template analizzati`,
+        report,
+      });
+    } catch (error: any) {
+      console.error("[GET /audit-working-hours] Errore:", error.message);
+      res.status(500).json({ error: "Errore audit template" });
+    }
+  },
+);
+
+/**
+ * PATCH /api/consultations/migrate-initialize-working-hours
+ * Migration endpoint: inizializza customWorkingHours per template legacy + sincronizza excludedDays (admin only)
+ * Query params: dryRun=true (test senza modifiche), syncAll=true (sincronizza excludedDays per TUTTI i template)
+ */
+router.patch(
+  "/migrate-initialize-working-hours",
+  authenticateFirebase,
+  async (req: AuthRequest, res): Promise<HttpHandlerResult> => {
+    try {
+      const { email } = req.user!;
+      if (!ADMIN_EMAILS.includes(email)) {
+        return res
+          .status(403)
+          .json({
+            error: "Solo gli amministratori possono eseguire migrazioni",
+          });
+      }
+
+      const dryRun = req.query.dryRun === "true";
+      const syncAll = req.query.syncAll === "true";
+
+      console.log(
+        `[MIGRATE] Inizio inizializzazione customWorkingHours - dryRun: ${dryRun}, syncAll: ${syncAll}`,
+      );
+
+      const report = await consultationService.migrateInitializeWorkingHours({
+        dryRun,
+        syncAll,
+      });
+
+      console.log(
+        `[MIGRATE] Completato - Initialized: ${report.initialized}, Synced: ${report.syncedOnly}, Skipped: ${report.skipped}`,
+      );
+
+      res.json({
+        success: true,
+        dryRun,
+        syncAll,
+        message: dryRun
+          ? "Dry-run completato - nessuna modifica applicata"
+          : `Migrazione completata - ${report.initialized} inizializzati, ${report.syncedOnly} sincronizzati`,
+        report,
+      });
+    } catch (error: any) {
+      console.error(
+        "[PATCH /migrate-initialize-working-hours] Errore:",
+        error.message,
+      );
+      res.status(500).json({ error: "Errore migrazione template" });
+    }
+  },
+);
+
+/**
+ * PATCH /api/consultations/migrate-saturday-hours
+ * Migration endpoint: aggiorna customWorkingHours per abilitare sabato (admin only)
+ * Query params: dryRun=true (test senza modifiche), force=true (aggiorna anche template con sabato escluso)
+ */
+router.patch(
+  "/migrate-saturday-hours",
+  authenticateFirebase,
+  async (req: AuthRequest, res): Promise<HttpHandlerResult> => {
+    try {
+      const { email } = req.user!;
+      if (!ADMIN_EMAILS.includes(email)) {
+        return res
+          .status(403)
+          .json({
+            error: "Solo gli amministratori possono eseguire migrazioni",
+          });
+      }
+
+      const dryRun = req.query.dryRun === "true";
+      const force = req.query.force === "true";
+
+      console.log(
+        `[MIGRATE] Inizio migrazione sabato - dryRun: ${dryRun}, force: ${force}`,
+      );
+
+      const report = await consultationService.migrateSaturdayHours({
+        dryRun,
+        force,
+      });
+
+      console.log(
+        `[MIGRATE] Completato - Updated: ${report.updated}, Skipped: ${report.skipped}, Excluded: ${report.excluded}, Missing: ${report.missingSaturday}`,
+      );
+
+      res.json({
+        success: true,
+        dryRun,
+        message: dryRun
+          ? "Dry-run completato - nessuna modifica applicata"
+          : `Migrazione completata - ${report.updated} template aggiornati`,
+        report,
+      });
+    } catch (error: any) {
+      console.error("[PATCH /migrate-saturday-hours] Errore:", error.message);
+      res.status(500).json({ error: "Errore migrazione template" });
+    }
+  },
+);
+
+/**
+ * ========================================
+ * TEMPLATE IMAGE UPLOAD ENDPOINTS
+ * ========================================
+ */
+
+/**
+ * POST /api/consultations/templates/:id/upload-image
+ * Upload immagine per template (admin only, max 10 immagini)
+ */
+router.post(
+  "/templates/:id/upload-image",
+  authenticateFirebase,
+  requireAdmin,
+  uploadTemplateImage,
+  async (req: AuthRequest, res): Promise<HttpHandlerResult> => {
+    try {
+      const { email } = req.user!;
+      if (!ADMIN_EMAILS.includes(email)) {
+        return res
+          .status(403)
+          .json({ error: "Solo gli amministratori possono caricare immagini" });
+      }
+
+      const { id } = req.params;
+      const result = await saveTemplateImage(id, req.file, {
+        getTemplateById: consultationService.getTemplateById,
+        updateTemplate: consultationService.updateTemplate,
+        getBucket: () => storage.bucket(),
+        saveWithDownloadToken: async (bucket, path, buffer, contentType, metadata) =>
+          (await import("./storage-download-url.js")).saveWithDownloadToken(
+            bucket as any,
+            path,
+            buffer,
+            contentType,
+            metadata,
+          ),
+      });
+
+      res.json({
+        message: "Immagine caricata con successo",
+        imageUrl: result.imageUrl,
+      });
+    } catch (error: any) {
+      if (error instanceof TemplateImageUploadError && error.status < 500) {
+        return res.status(error.status).json({
+          error: error.message,
+          code: error.code,
+        });
+      }
+
+      res.status(500).json({ error: "Errore upload immagine" });
+    }
+  },
+);
+
+/**
+ * DELETE /api/consultations/templates/:id/images
+ * Elimina immagine da template (admin only)
+ */
+router.delete(
+  "/templates/:id/images",
+  authenticateFirebase,
+  async (req: AuthRequest, res): Promise<HttpHandlerResult> => {
+    try {
+      const { email } = req.user!;
+      if (!ADMIN_EMAILS.includes(email)) {
+        return res
+          .status(403)
+          .json({
+            error: "Solo gli amministratori possono eliminare immagini",
+          });
+      }
+
+      const { id } = req.params;
+      const { imageUrl } = req.body;
+
+      if (!imageUrl) {
+        return res
+          .status(400)
+          .json({ error: "imageUrl obbligatorio nel body" });
+      }
+
+      // Verifica template esistente
+      const template = await consultationService.getTemplateById(id);
+      if (!template) {
+        return res.status(404).json({ error: "Template non trovato" });
+      }
+
+      const currentImages = template.imageUrls || [];
+
+      if (!currentImages.includes(imageUrl)) {
+        return res
+          .status(404)
+          .json({ error: "Immagine non trovata nel template" });
+      }
+
+      // Estrai storage path dall'URL (pattern: consultation-templates/{id}/{filename})
+      // Formati supportati:
+      //  - legacy signed URL: https://storage.googleapis.com/{bucket}/consultation-templates/...
+      //  - download URL: https://firebasestorage.googleapis.com/v0/b/{bucket}/o/consultation-templates%2F... (path URL-encoded)
+      const decodedUrl = decodeURIComponent(imageUrl.split("?")[0]);
+      const pathMatch = decodedUrl.match(/consultation-templates\/[^?]+/);
+
+      if (pathMatch) {
+        const storagePath = pathMatch[0];
+
+        try {
+          const bucket = storage.bucket();
+          await bucket.file(storagePath).delete();
+          console.log(`✅ File eliminato da Storage: ${storagePath}`);
+        } catch (storageError: any) {
+          console.warn(
+            "[DELETE] Errore eliminazione file Storage:",
+            storageError.message,
+          );
+          // Continua comunque con rimozione da Firestore
+        }
+      }
+
+      // Rimuovi URL da template
+      const updatedImages = currentImages.filter((url) => url !== imageUrl);
+      await consultationService.updateTemplate(id, {
+        imageUrls: updatedImages,
+      });
+
+      res.json({ message: "Immagine eliminata con successo" });
+    } catch (error: any) {
+      console.error("[DELETE /templates/:id/images] Errore:", error.message);
+      res.status(500).json({ error: "Errore eliminazione immagine" });
+    }
+  },
+);
+
+/**
+ * POST /api/consultations/send-reminders
+ * Invia reminder email per consulenze nelle prossime 24 ore (da schedulare con cron)
+ * NOTA: Questo endpoint può essere chiamato manualmente o via Cloud Function schedulata
+ */
+router.post("/send-reminders", authenticateFirebase, requireAdmin, async (req, res): Promise<HttpHandlerResult> => {
+  try {
+    // Lo scheduler e l'endpoint manuale devono usare lo stesso motore, così
+    // idempotenza, retry e finestra temporale non divergono nel tempo.
+    const reminderResults = await runReminderCheck();
+    return res.json({
+      message: "Reminder process completed",
+      results: reminderResults,
+    });
+
+    /* Implementazione storica mantenuta temporaneamente sotto per agevolare
+       il confronto con dati legacy; non è più raggiungibile dall'endpoint. */
+    // FIX: Usa Luxon per calcoli timezone-safe
+    const nowRomeDT = DateTime.now().setZone("Europe/Rome");
+    const now = nowRomeDT.toJSDate();
+    const tomorrow = nowRomeDT.plus({ days: 1 }).toJSDate();
+    const in48Hours = nowRomeDT.plus({ days: 2 }).toJSDate();
+
+    console.log(
+      `[Reminder] Cerco consulenze confermate tra ${now.toISOString()} e ${in48Hours.toISOString()}`,
+    );
+
+    // Cerca consulenze confermate (non filtriamo per reminderSentAt qui, lo facciamo in transazione)
+    const consultationsSnap = await db
+      .collection("consultations")
+      .where("stato", "==", "confermata")
+      .get();
+
+    const consultations = consultationsSnap.docs.map((doc) => ({
+      id: doc.id,
+      ref: doc.ref,
+      ...doc.data(),
+    })) as any[];
+
+    console.log(
+      `[Reminder] Trovate ${consultations.length} consulenze confermate totali`,
+    );
+
+    // Filtra solo quelle nelle prossime 20-28h (timezone-aware per Europe/Rome)
+    // Usa luxon per gestione timezone robusta e DST-safe
+    const nowRome = DateTime.now().setZone("Europe/Rome");
+
+    const consultationsToRemind = consultations.filter((c) => {
+      // Skip quick read se reminder già inviato (ottimizzazione)
+      if (c.reminderEmailSent || c.reminderSentAt) {
+        return false;
+      }
+
+      const consultationDate = normalizeTimestampToDate(c.dataConsulenza);
+      const consultationDateLocal = getConsultationLocalDate(consultationDate);
+      const consultationRome = createConsultationDateTime(
+        consultationDateLocal,
+        c.orarioInizio || "",
+      );
+
+      // Calcola differenza in ore (DST-aware)
+      if (!consultationRome.isValid) {
+        return false;
+      }
+      const hoursDiff = consultationRome.diff(nowRome, "hours").hours;
+
+      // Invia reminder tra 20h e 28h prima (giorno prima)
+      return hoursDiff >= 20 && hoursDiff <= 28;
+    });
+
+    console.log(
+      `[Reminder] ${consultationsToRemind.length} consulenze richiedono reminder (20-28h prima)`,
+    );
+
+    const results = {
+      total: consultationsToRemind.length,
+      sent: 0,
+      failed: 0,
+      errors: [] as string[],
+    };
+
+    // Invia email reminder per ciascuna consultation
+    for (const consultation of consultationsToRemind) {
+      try {
+        // Atomic check-and-set: marca reminder come inviato solo se non già inviato
+        // Usa transazione per prevenire race conditions
+        const shouldSend = await db.runTransaction(async (transaction: any) => {
+          const consultationDoc = await transaction.get(consultation.ref);
+
+          if (!consultationDoc.exists) {
+            return false;
+          }
+
+          const data = consultationDoc.data();
+
+          // Skip se reminder già inviato
+          if (data?.reminderSentAt) {
+            return false;
+          }
+
+          // Marca come inviato atomicamente
+          transaction.update(consultation.ref, {
+            reminderSentAt: Timestamp.now(),
+          });
+
+          return true;
+        });
+
+        if (!shouldSend) {
+          console.log(
+            `Reminder già inviato o consultation eliminata: ${consultation.id}`,
+          );
+          continue;
+        }
+
+        const {
+          sendGmailEmail,
+          getStudioContactInfo,
+          createConsultationReminderEmailHTML,
+          generateGoogleCalendarLink,
+        } = await import("./email-routes.js");
+        const studioInfo = await getStudioContactInfo();
+
+        const consultationDate = normalizeTimestampToDate(
+          consultation.dataConsulenza,
+        );
+        const clienteName = `${consultation.cliente.nome} ${consultation.cliente.cognome}`;
+        const formattedDate = consultationDate.toLocaleDateString("it-IT", {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+          timeZone: "Europe/Rome",
+        });
+
+        // Converti consultationDate in formato YYYY-MM-DD - CRITICAL: Use Luxon for timezone
+        const dateStr = getConsultationLocalDate(consultationDate);
+
+        const startDateTime = createConsultationDateTime(
+          dateStr,
+          consultation.orarioInizio,
+        ).toJSDate();
+        const endDateTime = createConsultationDateTime(
+          dateStr,
+          consultation.orarioFine,
+        ).toJSDate();
+
+        // Generate Google Calendar link
+        const calendarLink = generateGoogleCalendarLink({
+          title: `Consulenza ${consultation.jobType} - ${clienteName}`,
+          description: `Consulenza per ${consultation.jobType}\nCliente: ${clienteName}\n\n${studioInfo.name}\nTel: ${studioInfo.phone}`,
+          location: studioInfo.address,
+          startDate: startDateTime,
+          endDate: endDateTime,
+          isAllDay: false,
+        });
+
+        const htmlContent = createConsultationReminderEmailHTML(
+          clienteName,
+          consultation.jobType,
+          formattedDate,
+          `${consultation.orarioInizio} - ${consultation.orarioFine}`,
+          studioInfo,
+          calendarLink,
+        );
+
+        await sendGmailEmail(
+          consultation.cliente.email,
+          `Promemoria: Consulenza Domani - ${consultation.jobType}`,
+          htmlContent,
+        );
+
+        // Marca email come inviata con successo
+        await db.collection("consultations").doc(consultation.id).update({
+          reminderEmailSent: true,
+        });
+
+        results.sent++;
+        console.log(`Reminder inviato per consultation ${consultation.id}`);
+      } catch (emailError: any) {
+        results.failed++;
+        results.errors.push(`${consultation.id}: ${emailError.message}`);
+        console.error(
+          `Errore invio reminder consultation ${consultation.id}:`,
+          emailError.message,
+        );
+      }
+    }
+
+    console.log(
+      `[Reminder] Completato - Inviati: ${results.sent}, Falliti: ${results.failed}`,
+    );
+
+    res.json({
+      message: "Reminder process completed",
+      results,
+    });
+  } catch (error: any) {
+    console.error("[POST /send-reminders] Errore:", error.message);
+    res.status(500).json({ error: "Errore invio reminder" });
+  }
+});
+
+/**
+ * GET /api/consultations/list-confirmed-bookings
+ * 📋 Lista tutti i bookings confermati per review manuale
+ */
+router.get("/list-confirmed-bookings", authenticateFirebase, requireAdmin, async (req, res) => {
+  try {
+    const bookingsSnap = await db
+      .collection("bookings")
+      .where("stato", "==", "confermata")
+      .orderBy("dataShootingInizio", "asc")
+      .get();
+
+    const bookings = bookingsSnap.docs.map((doc) => ({
+      id: doc.id,
+      clienteNome: doc.data().clienteNome,
+      clienteEmail: doc.data().clienteEmail,
+      dataInizio: doc.data().dataShootingInizio?.toDate?.(),
+      dataFine: doc.data().dataShootingFine?.toDate?.(),
+      googleEventId: doc.data().googleCalendarEventId,
+      createdAt: doc.data().createdAt?.toDate?.(),
+    }));
+
+    res.json({
+      total: bookings.length,
+      bookings,
+    });
+  } catch (error: any) {
+    console.error("[List confirmed bookings] Error:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/consultations/cancel-booking/:bookingId
+ * ❌ Cancella manualmente un booking specifico
+ */
+router.post("/cancel-booking/:bookingId", authenticateFirebase, requireAdmin, async (req, res): Promise<HttpHandlerResult> => {
+  try {
+    const { bookingId } = req.params;
+    const { reason = "Cancellato manualmente dall'admin" } = req.body;
+
+    const bookingRef = db.collection("bookings").doc(bookingId);
+    const bookingDoc = await bookingRef.get();
+
+    if (!bookingDoc.exists) {
+      return res.status(404).json({ error: "Booking non trovato" });
+    }
+
+    await bookingRef.update({
+      stato: "cancellata",
+      cancelledAt: Timestamp.now(),
+      cancelledReason: reason,
+    });
+
+    console.log(`[Cancel booking] Booking ${bookingId} cancellato: ${reason}`);
+
+    res.json({
+      message: "Booking cancellato con successo",
+      bookingId,
+    });
+  } catch (error: any) {
+    console.error("[Cancel booking] Error:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/consultations/debug/slot-conflicts/:date
+ * 🔍 DEBUG: Mostra tutte le risorse che occupano slot in una data specifica
+ */
+router.get("/debug/slot-conflicts/:date", authenticateFirebase, requireAdmin, async (req, res) => {
+  try {
+    const { date } = req.params; // Format: YYYY-MM-DD
+
+    // FIX: Usa Calendar Engine V2 per day boundaries DST-safe
+    const { parseDateString, toUTC } = await import('./calendar-engine/timezone.js');
+    const targetDate = parseDateString(date);
+    const dayStart = toUTC(targetDate.startOf('day'));
+    const dayEnd = toUTC(targetDate.endOf('day'));
+
+    const results: any = {
+      date,
+      consultations: [],
+      bookings: [],
+      jobs: [],
+      googleCalendar: [],
+    };
+
+    // 1. Consultations
+    const consultationsSnap = await db
+      .collection("consultations")
+      .where("dataConsulenza", ">=", Timestamp.fromDate(dayStart))
+      .where("dataConsulenza", "<=", Timestamp.fromDate(dayEnd))
+      .get();
+
+    results.consultations = consultationsSnap.docs.map((doc) => ({
+      id: doc.id,
+      cliente: doc.data().cliente,
+      orarioInizio: doc.data().orarioInizio,
+      orarioFine: doc.data().orarioFine,
+      stato: doc.data().stato,
+      createdAt: doc.data().createdAt?.toDate?.(),
+    }));
+
+    // 2. Bookings
+    const bookingsSnap = await db
+      .collection("bookings")
+      .where("dataShootingInizio", ">=", Timestamp.fromDate(dayStart))
+      .where("dataShootingInizio", "<=", Timestamp.fromDate(dayEnd))
+      .get();
+
+    results.bookings = bookingsSnap.docs.map((doc) => ({
+      id: doc.id,
+      clienteNome: doc.data().clienteNome,
+      clienteEmail: doc.data().clienteEmail,
+      dataShootingInizio: doc.data().dataShootingInizio?.toDate?.(),
+      dataShootingFine: doc.data().dataShootingFine?.toDate?.(),
+      stato: doc.data().stato,
+    }));
+
+    // 3. Jobs
+    const jobsSnap = await db
+      .collection("jobs")
+      .where("eventDate", ">=", Timestamp.fromDate(dayStart))
+      .where("eventDate", "<=", Timestamp.fromDate(dayEnd))
+      .get();
+
+    results.jobs = jobsSnap.docs.map((doc) => ({
+      id: doc.id,
+      nomeEvento: doc.data().nomeEvento,
+      allDay: doc.data().allDay,
+      startTime: doc.data().startTime,
+      endTime: doc.data().endTime,
+      stato: doc.data().stato,
+      eventDate: doc.data().eventDate?.toDate?.(),
+    }));
+
+    // 4. Google Calendar
+    try {
+      const { checkFreeBusyAllCalendars } = await import(
+        "./google-calendar.js"
+      );
+      const busyPeriodsResult = await checkFreeBusyAllCalendars(
+        dayStart,
+        dayEnd,
+      );
+      results.googleCalendar = busyPeriodsResult || [];
+    } catch (error: any) {
+      results.googleCalendarError = error.message;
+    }
+
+    res.json(results);
+  } catch (error: any) {
+    console.error("[Debug slot-conflicts] Error:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * ========================================
+ * NEW CALENDAR ENGINE V2 — Unified API
+ * ========================================
+ * Endpoint v2 that uses centralized Calendar Engine
+ * Legacy endpoint /available-slots remains untouched
+ */
+
+router.post("/v2/available-slots", async (req, res): Promise<HttpHandlerResult> => {
+  try {
+    const { date, templateId } = req.body;
+    console.log("[POST /v2/available-slots] 🔵 Calendar Engine V2 - Request ricevuta");
+
+    if (!date || !templateId) {
+      return res.status(400).json({
+        error: "Parametri mancanti (date, templateId richiesti)",
+      });
+    }
+
+    // Step 1: Load template
+    const template = await consultationService.getTemplateById(templateId);
+
+    if (!template) {
+      return res.status(404).json({ error: "Template non trovato" });
+    }
+
+    if (!template.attiva) {
+      return res.status(400).json({ error: "Template non attivo" });
+    }
+
+    // Step 2: Import Calendar Engine modules
+    const {
+      consultationTemplateToAvailabilityConfig,
+      validateConsultationTemplate,
+      getAllExistingEvents,
+      getAllDayDatesInRange,
+      getConsultationEarliestBookableDate,
+      isConsultationDateTooSoon,
+    } = await import('./consultations/calendar-adapter.js');
+    const { getAvailableSlotsForDate, getUnavailabilityReason } = await import('./calendar-engine/index.js');
+    // Step 3: Validate template
+    if (!validateConsultationTemplate(template)) {
+      return res.status(400).json({
+        error: "Template configurazione invalida",
+        message: "Template manca di customWorkingHours o durataMinuti"
+      });
+    }
+
+    // Step 4: Convert template to AvailabilityConfig
+    const config = consultationTemplateToAvailabilityConfig(template);
+
+    console.log("[POST /v2/available-slots] 📋 Config generato:", {
+      slotDuration: config.slotDurationMinutes,
+      excludedWeekdays: config.excludedWeekdays,
+      timezone: config.timezone
+    });
+
+    // Step 5: Parse date with Europe/Rome timezone
+    const dateObj = DateTime.fromISO(date, { zone: "Europe/Rome" });
+    const dayStart = dateObj.startOf("day").toJSDate();
+    const dayEnd = dateObj.endOf("day").toJSDate();
+
+    // Step 6: Load all existing events via centralized adapter
+    // (Google Calendar busy periods + Job/Booking Firestore bloccanti)
+    const existingEvents = await getAllExistingEvents(dayStart, dayEnd, db);
+
+    // Step 7: Apply the shared lead rule before checking other unavailability
+    // reasons, so every date before the earliest date consistently reports
+    // "too-soon".
+    if (config.minLeadWorkingDays && config.minLeadWorkingDays > 0) {
+      const nowRome = DateTime.now().setZone(CONSULTATION_TIME_ZONE);
+      const leadAllDayDates = await getAllDayDatesInRange(
+        nowRome.startOf("day").toJSDate(),
+        nowRome
+          .plus({ days: config.minLeadWorkingDays * 2 + 21 })
+          .endOf("day")
+          .toJSDate(),
+        db,
+      );
+      const earliest = await getConsultationEarliestBookableDate(
+        config,
+        nowRome.toJSDate(),
+        db,
+        leadAllDayDates,
+      );
+      if (
+        earliest &&
+        isConsultationDateTooSoon(
+          dateObj.startOf("day").toJSDate(),
+          earliest.toJSDate(),
+        )
+      ) {
+        return res.json({
+          date,
+          slots: [],
+          unavailableReason: "too-soon",
+          message:
+            "Questa data non è ancora prenotabile: è necessario lasciare tempo per la preparazione",
+        } as SlotsResponse);
+      }
+    }
+
+    // Step 8: Check for all-day closures
+    // Lo studio è chiuso tutto il giorno se ESISTE un evento all-day, sia esso
+    // un evento Google all-day OPPURE un Job all-day del CRM in stato bloccante.
+    // Prima si controllava solo Google (hasAllDayEvent): i Job all-day la cui copia
+    // Google vive in un calendario non scansionato sfuggivano e lasciavano slot liberi.
+    const hasAllDay = existingEvents.some((event) => event.allDay === true);
+
+    if (hasAllDay) {
+      console.log("[POST /v2/available-slots] 🚫 All-day event/job detected");
+      const unavailabilityInfo = getUnavailabilityReason(dayStart, config, true);
+
+      return res.json({
+        date,
+        slots: [],
+        unavailableReason: unavailabilityInfo.reason,
+        message: unavailabilityInfo.message
+      } as SlotsResponse);
+    }
+
+    // Step 7.5: Blocca il giorno SUCCESSIVO a un evento all-day (se configurato)
+    if (config.blockDayAfterAllDayEvent) {
+      const prevDay = dateObj.minus({ days: 1 });
+      const prevStart = prevDay.startOf("day").toJSDate();
+      const prevEnd = prevDay.endOf("day").toJSDate();
+      const prevAllDayDates = await getAllDayDatesInRange(prevStart, prevEnd, db);
+      if (prevAllDayDates.has(prevDay.toFormat("yyyy-MM-dd"))) {
+        console.log("[POST /v2/available-slots] 🚫 Giorno successivo a evento all-day bloccato");
+        return res.json({
+          date,
+          slots: [],
+          unavailableReason: 'day-after-all-day',
+          message: 'Lo studio non è disponibile il giorno successivo a un evento che dura tutta la giornata'
+        } as SlotsResponse);
+      }
+    }
+
+    // Step 8: Generate slots using Calendar Engine
+    const slots = await getAvailableSlotsForDate(dayStart, config, existingEvents);
+
+    console.log(`[POST /v2/available-slots] ✅ ${slots.length} slot disponibili generati`);
+
+    // Step 9: Prepare response with user-friendly message if no slots
+    const response: SlotsResponse = {
+      date,
+      slots
+    };
+
+    if (slots.length === 0 && !hasAllDay) {
+      const unavailabilityInfo = getUnavailabilityReason(dayStart, config, false);
+
+      if (unavailabilityInfo.reason) {
+        response.unavailableReason = unavailabilityInfo.reason;
+        response.message = unavailabilityInfo.message || undefined;
+      } else {
+        // All slots are booked
+        response.unavailableReason = 'all-booked';
+        response.message = 'Ci dispiace, ma questa data è sold out';
+      }
+    }
+
+    res.json(response);
+  } catch (error: any) {
+    console.error("[POST /v2/available-slots] ❌ Error:", error);
+    console.error("[POST /v2/available-slots] Stack:", error.stack);
+    if (error.code === "CALENDAR_UNAVAILABLE" || error.message?.includes("CALENDAR_UNAVAILABLE")) {
+      return res.status(503).json({
+        error: "Calendario temporaneamente non disponibile",
+        code: "CALENDAR_UNAVAILABLE",
+        details: "Impossibile verificare la disponibilità in questo momento. Riprova tra qualche minuto.",
+      });
+    }
+    res.status(500).json({ error: "Errore calcolo slot disponibili" });
+  }
+});
+
+/**
+ * GET /api/consultations/v2/available-days
+ * Pubblico. Dato templateId + intervallo (start/end "yyyy-MM-dd"), restituisce i
+ * giorni NON disponibili (zero slot) così che il calendario pubblico possa
+ * disabilitarli. Riusa la logica del Calendar Engine V2 caricando gli eventi una
+ * sola volta per l'intero intervallo.
+ */
+router.get("/v2/available-days", async (req, res): Promise<HttpHandlerResult> => {
+  try {
+    const templateId = (req.query.templateId as string) || "";
+    const start = (req.query.start as string) || "";
+    const end = (req.query.end as string) || "";
+
+    if (!templateId || !start || !end) {
+      return res.status(400).json({
+        error: "Parametri mancanti (templateId, start, end richiesti)",
+      });
+    }
+
+    const template = await consultationService.getTemplateById(templateId);
+    if (!template) {
+      return res.status(404).json({ error: "Template non trovato" });
+    }
+    if (!template.attiva) {
+      return res.status(400).json({ error: "Template non attivo" });
+    }
+
+    const { validateConsultationTemplate, getConsultationUnavailableDates } = await import('./consultations/calendar-adapter.js');
+    if (!validateConsultationTemplate(template)) {
+      return res.status(400).json({
+        error: "Template configurazione invalida",
+        message: "Template manca di customWorkingHours o durataMinuti",
+      });
+    }
+
+    const unavailableDates = await getConsultationUnavailableDates(template, start, end, db);
+    console.log(`[GET /v2/available-days] ✅ ${unavailableDates.length} giorni non disponibili (${start} → ${end})`);
+    res.json({ unavailableDates });
+  } catch (error: any) {
+    console.error("[GET /v2/available-days] ❌ Error:", error);
+    console.error("[GET /v2/available-days] Stack:", error.stack);
+    if (error.code === "CALENDAR_UNAVAILABLE" || error.message?.includes("CALENDAR_UNAVAILABLE")) {
+      return res.status(503).json({
+        error: "Calendario temporaneamente non disponibile",
+        code: "CALENDAR_UNAVAILABLE",
+        details: "Impossibile verificare la disponibilità in questo momento. Riprova tra qualche minuto.",
+      });
+    }
+    res.status(500).json({ error: "Errore calcolo giorni disponibili" });
+  }
+});
+
+/**
+ * POST /api/consultations/cleanup-orphaned-events
+ * One-time cleanup script: trova consultazioni annullate/rifiutate con eventi Google Calendar attivi e li cancella
+ * Admin only
+ */
+router.post("/cleanup-orphaned-events", authenticateFirebase, async (req: AuthRequest, res): Promise<HttpHandlerResult> => {
+  try {
+    const { email } = req.user!;
+    if (!ADMIN_EMAILS.includes(email)) {
+      return res.status(403).json({
+        error: "Solo gli amministratori possono eseguire questa operazione",
+      });
+    }
+
+    console.log("[POST /cleanup-orphaned-events] 🧹 Starting cleanup of orphaned Google Calendar events");
+
+    // Trova tutte le consultazioni annullate o rifiutate con googleCalendarEventId
+    const consultationsSnap = await db
+      .collection("consultations")
+      .where("stato", "in", ["annullata", "rifiutata"])
+      .get();
+
+    const orphanedEvents: Array<{ id: string; eventId: string; cliente: string; data: string }> = [];
+    const deleted: string[] = [];
+    const errors: Array<{ id: string; error: string }> = [];
+
+    for (const doc of consultationsSnap.docs) {
+      const data = doc.data();
+      
+      if (data.googleCalendarEventId) {
+        const clienteName = `${data.cliente?.nome || ''} ${data.cliente?.cognome || ''}`.trim();
+        const dataStr = data.dataConsulenza?.toDate?.()?.toLocaleDateString("it-IT") || "N/A";
+        
+        orphanedEvents.push({
+          id: doc.id,
+          eventId: data.googleCalendarEventId,
+          cliente: clienteName,
+          data: dataStr
+        });
+
+        // Tenta di cancellare l'evento Google Calendar
+        try {
+          await deleteEvent("primary", data.googleCalendarEventId);
+          deleted.push(doc.id);
+          
+          // Rimuovi googleCalendarEventId dal documento Firestore
+          await db.collection("consultations").doc(doc.id).update({
+            googleCalendarEventId: FieldValue.delete()
+          });
+          
+          console.log(`✅ Eliminato evento Google Calendar ${data.googleCalendarEventId} per consultation ${doc.id}`);
+        } catch (calError: any) {
+          console.error(`❌ Errore eliminazione evento ${data.googleCalendarEventId}:`, calError.message);
+          errors.push({
+            id: doc.id,
+            error: calError.message
+          });
+        }
+      }
+    }
+
+    const summary = {
+      totalOrphaned: orphanedEvents.length,
+      deleted: deleted.length,
+      failed: errors.length,
+      orphanedEvents,
+      errors
+    };
+
+    console.log("[POST /cleanup-orphaned-events] 🏁 Cleanup completato:", summary);
+
+    res.json({
+      message: "Pulizia eventi orfani completata",
+      summary
+    });
+  } catch (error: any) {
+    console.error("[POST /cleanup-orphaned-events] ❌ Error:", error.message);
+    res.status(500).json({ error: "Errore durante pulizia eventi orfani" });
+  }
+});
+
+/**
+ * POST /api/consultations/check-pending
+ * Controlla se esiste già una richiesta pendente per questa email
+ * Usato per evitare duplicati accidentali
+ */
+router.post("/check-pending", async (req, res): Promise<HttpHandlerResult> => {
+  try {
+    const { email } = req.body;
+
+    console.log("[POST /check-pending] Checking for email:", email);
+
+    if (!email) {
+      return res.status(400).json({ error: "Email richiesta" });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    console.log("[POST /check-pending] Normalized email:", normalizedEmail);
+
+    // Query semplificata senza orderBy per evitare problemi di indice
+    const pendingSnap = await db
+      .collection("consultations")
+      .where("cliente.email", "==", normalizedEmail)
+      .where("stato", "==", "in_attesa")
+      .limit(1)
+      .get();
+
+    console.log("[POST /check-pending] Query result - empty:", pendingSnap.empty, "size:", pendingSnap.size);
+
+    if (pendingSnap.empty) {
+      return res.json({ hasPending: false });
+    }
+
+    // Non restituire dettagli o ID: un endpoint pubblico non deve permettere
+    // di enumerare appuntamenti e dati personali conoscendo un'email.
+    console.log(`[POST /check-pending] Found a pending consultation for ${normalizedEmail}`);
+    res.json({ hasPending: true });
+  } catch (error: any) {
+    console.error("[POST /check-pending] Error:", error.message);
+    res.status(500).json({ error: "Errore controllo richieste pendenti" });
+  }
+});
+
+export default router;

@@ -1,0 +1,26 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "incremental": true,
+    "tsBuildInfoFile": ".tsbuildinfo",
+    "outDir": "dist",
+    "rootDir": "../..",
+    "resolveJsonModule": true,
+    "types": ["node"],
+    "paths": {
+      "@shared/*": ["../../lib/shared-src/*"],
+      "firebase-admin/*": ["./node_modules/firebase-admin/lib/*/index.d.ts"],
+      "firebase-functions/v1": ["./node_modules/firebase-functions/lib/v1/index.d.ts"],
+      "googleapis": ["./node_modules/googleapis/build/src/index.d.ts"]
+    }
+  },
+  "include": ["src"],
+  "references": [
+    {
+      "path": "../../lib/db"
+    },
+    {
+      "path": "../../lib/api-zod"
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+artifacts/image-studio-desktop/release/@workspaceimage-studio-desktop-0.0.0-x64.nsis.7z filter=lfs diff=lfs merge=lfs -text
+artifacts/image-studio-desktop/release/win-unpacked/Image[[:space:]]Studio[[:space:]]Gallerie.exe filter=lfs diff=lfs merge=lfs -text

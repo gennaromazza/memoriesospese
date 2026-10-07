@@ -1,0 +1,1 @@
+export default function Navigation() { return <header aria-label="Harness navigation">Navigation fixture</header>; }

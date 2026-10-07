@@ -1,0 +1,64 @@
+# Image Studio - Memorie Sospese
+
+> Studio fotografico professionale specializzato prima di tutto in fotografia e video di matrimonio ad Aversa, Napoli, Caserta e in Campania (Italia). Fondato da Gennaro Mazzacane, fotografo con oltre 10 anni di esperienza e 500+ matrimoni documentati. Battesimi, comunioni, cresime, eventi e ritratti sono servizi aggiuntivi realmente disponibili.
+
+## Informazioni Principali
+
+- **Nome:** Image Studio - Memorie Sospese
+- **Fondatore:** Gennaro Mazzacane
+- **Sede:** Aversa (CE), Campania, Italia
+- **Sito Web:** https://imagestudiofotografico.com
+- **Email:** info@memoriesospese.it
+- **Aree Servite:** Napoli, Caserta, Aversa, Salerno, Costiera Amalfitana, tutta Italia e destination wedding internazionali
+
+## Servizio Principale: Fotografia e Video di Matrimonio
+
+- **Fotografia Matrimoni:** Reportage emozionale completo del giorno più bello, dallo getting ready alla festa. [Portfolio matrimoni](https://imagestudiofotografico.com/portfolio/matrimonio)
+- **Video Matrimoni (iMaGe Vision):** Video cinematografici emozionali che raccontano la vostra storia d'amore. [Scopri i video](https://imagestudiofotografico.com/vision)
+
+## Altri Servizi Disponibili
+- **Fotografia Battesimi:** Documentazione professionale di battesimi con attenzione ai dettagli e alle emozioni familiari
+- **Fotografia Comunioni e Cresime:** Servizi fotografici per cerimonie religiose in tutta la Campania
+- **Eventi Aziendali e Privati:** Copertura fotografica professionale per eventi corporate, feste private, compleanni
+- **Ritratti e Book Fotografici:** Sessioni fotografiche professionali per ritratti individuali, di coppia e familiari
+- **Gallerie Digitali "Memorie Sospese":** Piattaforma proprietaria di gallerie fotografiche digitali interattive con accesso protetto da password, selezione foto online e download in alta risoluzione
+- **Stampa Foto:** Stampe fotografiche classiche e grandi formati, con listino per quantità e assistenza locale ad Aversa
+
+## Cosa Rende Unico Image Studio
+
+### Memorie Sospese - Gallerie Digitali Interattive
+Memorie Sospese è la piattaforma digitale proprietaria di Image Studio che rivoluziona la consegna delle foto. I clienti ricevono una password personalizzata per accedere alla propria galleria privata, dove possono visualizzare, selezionare e scaricare le foto in alta risoluzione. Le gallerie supportano organizzazione per capitoli, selezione foto per prodotti (album, stampe, quadri) e condivisione sicura con familiari.
+
+### Approccio Emozionale
+"Lasciati Trasportare" - Image Studio non scatta semplicemente foto, ma cattura emozioni. Ogni servizio è un racconto visivo che preserva i momenti più autentici e significativi.
+
+### Esperienza e Professionalità
+- Oltre 10 anni di esperienza nel settore wedding e eventi
+- 500+ matrimoni documentati con successo
+- 150+ recensioni a 5 stelle
+- Partner ufficiale Matrimonio.com
+- Disponibile per destination wedding in Italia e all'estero
+
+## Slogan
+"È tutta questione di Image - Lasciati Trasportare"
+
+## Pagine Principali del Sito
+
+- [Home](https://imagestudiofotografico.com/) - Pagina principale dedicata prima a fotografia e video di matrimonio
+- [Portfolio Matrimoni](https://imagestudiofotografico.com/portfolio/matrimonio) - Landing e galleria principale per matrimoni ad Aversa, Napoli, Caserta e in Campania
+- [Portfolio completo](https://imagestudiofotografico.com/portfolio) - Galleria fotografica con tutte le categorie, inclusi i servizi non wedding
+- [Blog](https://imagestudiofotografico.com/blog) - Articoli, consigli e storie di matrimoni ed eventi
+- [Stampa foto ad Aversa](https://imagestudiofotografico.com/stampa-foto-aversa) - Formati, prezzi e guida per stampare fotografie, vacanze e ricordi
+- [Sitemap completa](https://imagestudiofotografico.com/sitemap.xml) - Elenco aggiornato delle pagine pubbliche e di tutti gli articoli pubblicati
+- [iMaGe Vision](https://imagestudiofotografico.com/vision) - Video matrimoniali cinematografici
+- [La Nostra Storia](https://imagestudiofotografico.com/storie) - Chi è Gennaro Mazzacane
+- [Prenota](https://imagestudiofotografico.com/prenota) - Prenota il tuo servizio fotografico
+- [Consulenze](https://imagestudiofotografico.com/consulenze) - Richiedi una consulenza gratuita
+- [Accesso Galleria](https://imagestudiofotografico.com/accesso-galleria) - Accedi alla tua galleria Memorie Sospese
+- [Lasciati Trasportare](https://imagestudiofotografico.com/lasciati-trasportare) - E-book e filosofia Image Studio
+
+## Dettagli per llms-full.txt
+Per informazioni più dettagliate, consulta: https://imagestudiofotografico.com/llms-full.txt
+
+## Contenuti Editoriali
+Gli articoli pubblicati sono disponibili con URL canonici sotto `/blog/`. Usa la sitemap completa per scoprire l'elenco aggiornato; ogni pagina articolo espone titolo, autore, data, testo editoriale e dati strutturati BlogPosting.

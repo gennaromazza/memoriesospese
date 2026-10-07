@@ -1,0 +1,54 @@
+import sharp from 'sharp';
+import { z } from 'zod';
+import { mockupConfigurationSchema, type SavedMockup } from '../shared/mockup-types.js';
+
+export const mockupConfirmSchema = z.object({
+  revision: z.number().int().min(1),
+  configuration: mockupConfigurationSchema,
+  previews: z.array(z.object({ label: z.string().max(100), image: z.string().max(2_000_000).regex(/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/) }).strict()).length(8),
+}).strict();
+const escape = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+
+/** Solo markup prodotto dal server e immagini raster ricodificate, mai HTML dal browser. */
+export async function buildMockupReport(saved: SavedMockup, previews: z.infer<typeof mockupConfirmSchema>['previews']): Promise<Buffer> {
+  const option = saved.option!;
+  const material = option.materials.find(m => m.id === saved.configuration.materialId)!;
+  const engravedCover = ['plaque', 'split-photo-fabric'].includes(saved.configuration.coverLayout);
+  const rows = [
+    ['Laboratorio', option.labName], ['Modello', option.name], ['Codice modello fornitore', option.supplierCode || 'Non impostato'],
+    ['Rivestimento', material.label], ['Codice rivestimento fornitore', material.supplierCode || 'Non impostato'],
+    ['Scritta superiore', 'frameFinish' in saved.configuration && !engravedCover ? 'Non applicata' : saved.configuration.topText],
+    ['Scritta inferiore', 'frameFinish' in saved.configuration && !engravedCover ? 'Non applicata' : saved.configuration.bottomText],
+    ['Copertina', { full: 'Foto a tutta facciata', oblique: 'Taglio obliquo', plaque: 'Placchetta incisa', 'photo-plaque': 'Foto formato placchetta', 'split-photo-fabric': 'Metà foto e metà tessuto con incisione' }[saved.configuration.coverLayout]],
+    ['Versione fotolibro', saved.version], ['Revisione mockup confermata', saved.revision], ['Confermato dallo studio', saved.confirmedAt],
+  ];
+  if ('frameFinish' in saved.configuration) rows.push(['Finitura struttura', { wood: 'Legno naturale', white: 'Bianco', fabric: `Tessuto · ${material.label}` }[saved.configuration.frameFinish]], ['Dimensioni', 'Formato dichiarato 30 × 80 cm; proporzioni della struttura indicative']);
+  if ('backCover' in saved.configuration) {
+    if ((saved.configuration.modelId === 'plaza-led' && saved.configuration.assetRevision >= 2) || saved.configuration.assetRevision >= 4) rows.push(['Plexiglass posteriore dello scrigno girevole', saved.configuration.backCover === 'photo' ? 'Foto a tutta superficie; rimane sullo scrigno quando l’album viene estratto' : 'Trasparente, senza stampa'], ['Retro album', 'Tessuto coordinato']);
+    else rows.push(['Retro album', saved.configuration.backCover === 'photo' ? 'Foto a tutta superficie su plexiglass' : 'Tessuto coordinato']);
+  }
+  if ('ledEnabled' in saved.configuration) {
+    rows.push(['Illuminazione LED Plaza', saved.configuration.ledEnabled ? 'Accesa · percorso a U sulla doppia cornice' : 'Spenta']);
+  }
+  const engravingNames = 'engravingNames' in saved.configuration ? saved.configuration.engravingNames : undefined;
+  if (saved.configuration.modelId === 'plaza-led' && saved.configuration.assetRevision >= 2) {
+    rows.push(['Placchetta laterale superiore in plexiglass', engravingNames?.first || 'Senza nome'], ['Placchetta laterale inferiore in plexiglass', engravingNames?.second || 'Senza nome']);
+  }
+  if (engravingNames && engravedCover) {
+    rows[5] = ['Primo nome inciso', engravingNames.first];
+    rows[6] = ['Secondo nome inciso', engravingNames.second];
+    rows.push(['Grafica incisione', saved.configuration.modelId === 'plaza-led' && saved.configuration.assetRevision >= 2 && saved.configuration.coverLayout === 'split-photo-fabric' ? 'Nomi incisi sulla placchetta' : 'Monogramma botanico con iniziali automatiche']);
+  }
+  if (saved.configuration.modelId === 'plaza-led') {
+    const innerId = saved.configuration.innerMaterialId || saved.configuration.materialId;
+    const inner = option.materials.find(m => m.id === innerId);
+    rows.push(['Telaio esterno e album', `${material.label} · ${material.supplierCode}`], ['Telaio interno', `${inner?.label || 'Non disponibile'} · ${inner?.supplierCode || ''}`]);
+  }
+  const images: string[] = [];
+  for (const preview of previews) {
+    const input = Buffer.from(preview.image.split(',')[1], 'base64');
+    const output = await sharp(input, { limitInputPixels: 4_000_000 }).resize(1600, 1200, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
+    images.push(`<figure><img alt="${escape(preview.label)}" src="data:image/jpeg;base64,${output.toString('base64')}"><figcaption>${escape(preview.label)}</figcaption></figure>`);
+  }
+  return Buffer.from(`<!doctype html><html lang="it"><meta charset="utf-8"><meta name="robots" content="noindex,nofollow"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mockup ${escape(option.name)} — revisione ${saved.revision}</title><style>body{font:16px system-ui;max-width:1100px;margin:32px auto;padding:16px;color:#26312d}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ddd;padding:10px;text-align:left;overflow-wrap:anywhere}img{width:100%;height:auto}figure{margin:24px 0;break-inside:avoid}small{display:block;margin:20px 0}</style><h1>${escape(option.name)} — mockup confermato</h1><table>${rows.map(([key,value]) => `<tr><th>${escape(key)}</th><td>${escape(value)}</td></tr>`).join('')}</table><small>Riferimento visivo approvato dallo studio. Materiali, colori e proporzioni sono indicativi. Non è un file esecutivo di stampa.</small>${images.join('')}</html>`, 'utf8');
+}

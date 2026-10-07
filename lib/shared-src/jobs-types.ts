@@ -1,0 +1,316 @@
+/**
+ * JOBS SYSTEM - Types & Interfaces
+ * Sistema gestione lavori fotografici (matrimoni, battesimi, eventi)
+ */
+
+import { Timestamp } from 'firebase/firestore';
+import type { CashMovementJobCostAssociation } from './cash-types';
+import type { VerifiedPlaceReference } from './places-utils';
+
+/**
+ * Tipi di lavoro fotografico - Dynamic job type slugs from Firestore
+ * Legacy values: matrimonio, battesimo, famiglia, evento, comunione, compleanno, altro
+ * Now accepts any string slug configured in jobTypes collection
+ */
+export type JobType = string;
+
+/**
+ * Stati pipeline lavoro
+ */
+export type JobStatus = 
+  | 'lead'                  // Primo contatto, interesse
+  | 'preventivo_inviato'    // Preventivo inviato al cliente
+  | 'confermato'            // Preventivo firmato, lavoro confermato
+  | 'shooting_fatto'        // Servizio fotografico completato
+  | 'selezione_pending'     // In attesa selezione foto cliente
+  | 'produzione'            // Album/stampe in produzione
+  | 'consegnato'            // Prodotti consegnati
+  | 'archiviato';           // Lavoro completato e archiviato
+
+/**
+ * Provenienze cliente - Dynamic provenance slugs from Firestore
+ * Legacy values: instagram, facebook, passaparola, fiera, google, sito_web, altro
+ * Now accepts any string slug configured in jobProvenances collection
+ */
+export type JobProvenance = string;
+
+/**
+ * Sorgente creazione job
+ */
+export type JobSource = 
+  | 'manual'              // Creato manualmente da admin
+  | 'booking_campaign'    // Da campagna booking
+  | 'legacy_import'       // Import da vecchio gestionale
+  | 'public_form';        // Form pubblico richiesta preventivo
+
+/**
+ * PDF allegato a job
+ */
+export interface JobPDF {
+  nome: string;
+  tipo: 'modulo_prenotazione' | 'contratto' | 'privacy' | 'altro';
+  url: string;                  // Firebase Storage URL
+  uploadedAt: Timestamp;
+  uploadedBy?: string;          // UID admin
+}
+
+/**
+ * Costo lavoro - Spese sostenute per il servizio
+ */
+export interface CostoLavoro {
+  id: string;
+  descrizione: string;
+  importo: number;
+  tipo: 'materiale' | 'fornitore' | 'collaboratore' | 'viaggio' | 'altro';
+  data: Timestamp;
+  note?: string;
+  /** Identità stabile del laboratorio, se il costo è attribuito a un laboratorio. */
+  labId?: string | null;
+  /** Nome del laboratorio al momento della registrazione, utile per lo storico. */
+  labNome?: string | null;
+  /** Stima o costo consuntivo associato a un conteggio laboratorio. */
+  statoLab?: 'stima' | 'consuntivo';
+  /** Conteggio sorgente: impedisce che un acconto venga sommato di nuovo come costo. */
+  labStatementId?: string;
+  labStatementNome?: string;
+  cashMovementId?: string;
+  pagamentoVerificato?: CashMovementJobCostAssociation;
+  createdBy?: string;          // UID admin
+}
+
+/**
+ * Nota con foto allegata
+ */
+export interface NoteFotoItem {
+  id: string;
+  imageUrl: string;
+  nota: string;
+  createdAt: Timestamp;
+  storagePath?: string; // Path interno Firebase Storage per delete affidabile (presente sui nuovi upload)
+}
+
+/**
+ * Appuntamento cliente - Orario e note per ogni cliente del job
+ */
+export interface AppuntamentoCliente {
+  clienteId: string;
+  orarioAppuntamento: string;  // HH:mm format
+  noteAppuntamento?: string;   // Note opzionali (es. indirizzo specifico, citofono)
+}
+
+/**
+ * Snapshot economico job
+ */
+export interface JobFinancials {
+  totalePreventivato: number;   // Da preventivo accettato
+  totaleOrdini: number;         // Somma orders collegati
+  totalePagato: number;         // Da payment schedules
+  saldoResiduo: number;         // Differenza da incassare
+}
+
+/**
+ * Stato preventivo denormalizzato sul job (aggregato OR sui preventivi collegati).
+ * Aggiornato sui write-path dei preventivi (creazione/firma/invio/eliminazione) per
+ * evitare di scaricare l'intera collezione 'quotes' nella pagina "Lista Lavori".
+ */
+export interface JobQuoteStatus {
+  hasQuote: boolean;     // Esiste almeno un preventivo collegato
+  isSigned: boolean;     // Almeno un preventivo firmato
+  isEmailSent: boolean;  // Almeno un preventivo inviato via email
+}
+
+/**
+ * JOB - Lavoro fotografico completo
+ */
+export interface Job {
+  id: string;
+
+  /**
+   * Nomi dei clienti risolti dall'API admin. Campo derivato, non persistito
+   * nel documento job: serve ai selettori e alla ricerca testuale.
+   */
+  clientNames?: string[];
+  
+  // Riferimenti
+  clienteId?: string;           // @deprecated Legacy campo singolo - usare clientiIds
+  clientiIds: string[];         // Array clienti collegati (OBBLIGATORIO - almeno 1)
+  bookingId?: string;           // Link opzionale a booking (se da campagna)
+  consultationId?: string;      // Link opzionale a consultation (se da consulenza) - Fix #1
+  orderIds: string[];           // Array ordini collegati
+  galleryIds: string[];         // Array gallerie collegate
+  quoteIds: string[];           // Array preventivi collegati
+  
+  // Dati lavoro
+  nomeEvento: string;           // Nome descrittivo lavoro (es. "Matrimonio Silva")
+  jobType: string;              // Dynamic job type slug from Firestore jobTypes collection
+  eventDate?: Timestamp;        // Data servizio fotografico (opzionale se dataNonDefinita = true)
+  dataNonDefinita?: boolean;    // Se true, il lavoro è in trattativa senza data confermata
+  previousStatus?: JobStatus;   // Status precedente a 'consegnato' per ripristino toggle
+  allDay: boolean;              // Evento tutto il giorno o orario specifico
+  startTime?: string;           // Orario inizio (HH:mm) - opzionale se allDay = true
+  endTime?: string;             // Orario fine (HH:mm) - opzionale
+  eventLocation?: string;       // Luogo evento (es. "Casale dei Baroni")
+  eventPlace?: VerifiedPlaceReference;
+  locationCerimonia?: string;   // @deprecated Legacy - usare rituLocation
+  rituLocation?: string;        // Luogo rito/celebrazione (es. "Chiesa San Giuseppe")
+  ceremonyPlace?: VerifiedPlaceReference;
+  oraCerimonia?: string;        // @deprecated Legacy - usare rituTime
+  rituTime?: string;            // Orario rito/celebrazione (HH:mm)
+  provenance: string;           // Dynamic provenance slug from Firestore jobProvenances collection
+  
+  // Pipeline stato
+  status: JobStatus;
+  
+  // Studio Assistant - Stato lavorazione
+  pendingReason?: 'editing' | 'client_waiting' | 'printing' | 'other';  // Motivo se non consegnato
+  needsWork?: boolean;                    // Flaggato come "da lavorare"
+  needsWorkSince?: Timestamp;             // Data quando è stato flaggato
+  
+  // Snapshot economico (calcolato da orders e payment schedules)
+  financials: JobFinancials;
+
+  // Aggregati denormalizzati per la pagina "Lista Lavori" (evitano scan di orders/quotes)
+  quoteStatus?: JobQuoteStatus;   // Stato preventivo aggregato (OR sui preventivi collegati)
+  transactionCount?: number;      // Numero totale transazioni sugli ordini collegati
+  
+  // PDF moduli allegati
+  pdfs: JobPDF[];
+  
+  // Costi lavoro
+  costi: CostoLavoro[];
+  
+  // Eventi workflow timeline (consulenze inviate, appuntamenti creati)
+  workflowEvents: JobTimelineEvent[];
+  
+  // Note interne admin
+  noteInterne?: string;
+  note?: string;                // Nota generale (legacy/backward compatibility)
+  notePerFoto?: NoteFotoItem[]; // Note con foto allegate
+  
+  // Appuntamenti clienti (orari per casa di ogni cliente)
+  appuntamentiClienti?: AppuntamentoCliente[];
+  
+  // Eventi calendario collegati (Google Calendar event IDs)
+  linkedCalendarEventIds?: string[];
+
+  // Auto-invito consulenza visione: marker separati per ogni step della sequenza
+  visioneAutoInviteSentAt?: Timestamp;   // Timestamp invio automatico link consulenza visione
+  visioneAutoInviteTemplateId?: string;  // ID template visione usato per l'invio automatico
+  visioneAutoInviteReminder1SentAt?: Timestamp;
+  visioneAutoInviteReminder1TemplateId?: string;
+  visioneAutoInviteReminder2SentAt?: Timestamp;
+  visioneAutoInviteReminder2TemplateId?: string;
+
+  // Soft delete
+  deletedAt?: Timestamp | null;
+
+  // Metadata
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  createdBy: string;            // UID admin che ha creato
+  jobSource: JobSource;         // Come è stato creato il job
+}
+
+/**
+ * INSERT JOB - Dati per creazione nuovo job
+ */
+export interface InsertJob {
+  nomeEvento: string;
+  clientiIds: string[];  // Array clienti - almeno 1 obbligatorio
+  jobType: string;  // Dynamic job type slug from Firestore jobTypes collection
+  eventDate?: Date;  // Opzionale se dataNonDefinita = true
+  dataNonDefinita?: boolean;  // Se true, il lavoro è senza data confermata
+  allDay: boolean;
+  startTime?: string;  // HH:mm format
+  endTime?: string;    // HH:mm format
+  eventLocation?: string;
+  eventPlace?: VerifiedPlaceReference;
+  rituLocation?: string;  // Luogo rito/celebrazione
+  ceremonyPlace?: VerifiedPlaceReference;
+  rituTime?: string;      // Orario rito/celebrazione (HH:mm)
+  provenance: string;  // Dynamic provenance slug from Firestore jobProvenances collection
+  noteInterne?: string;
+  appuntamentiClienti?: AppuntamentoCliente[];  // Orari appuntamento per ogni cliente
+}
+
+/**
+ * UPDATE JOB - Dati per aggiornamento job
+ */
+export interface UpdateJob {
+  nomeEvento?: string;
+  clientiIds?: string[];
+  jobType?: string;  // Dynamic job type slug from Firestore jobTypes collection
+  eventDate?: Date;
+  dataNonDefinita?: boolean;  // Se true, il lavoro è senza data confermata
+  allDay?: boolean;
+  startTime?: string;
+  endTime?: string;
+  eventLocation?: string;
+  eventPlace?: VerifiedPlaceReference;
+  rituLocation?: string;
+  ceremonyPlace?: VerifiedPlaceReference;
+  rituTime?: string;
+  locationCerimonia?: string;  // Alias per rituLocation
+  oraCerimonia?: string;       // Alias per rituTime
+  provenance?: string;  // Dynamic provenance slug from Firestore jobProvenances collection
+  noteInterne?: string;
+  status?: JobStatus;
+  costi?: CostoLavoro[];  // Update costi array
+  appuntamentiClienti?: AppuntamentoCliente[];  // Orari appuntamento per ogni cliente
+  linkedCalendarEventIds?: string[];  // Eventi calendario collegati
+}
+
+/**
+ * Evento timeline job
+ */
+export interface JobTimelineEvent {
+  id: string;
+  jobId: string;
+  tipo: 
+    | 'creazione'
+    | 'status_change'
+    | 'preventivo_inviato'
+    | 'preventivo_firmato'
+    | 'ordine_creato'
+    | 'pagamento_ricevuto'
+    | 'galleria_creata'
+    | 'pdf_caricato'
+    | 'nota_aggiunta'
+    | 'consulenza_inviata'          // Richiesta consulenza visione file inviata
+    | 'appuntamento_creato'        // Appuntamento calendario creato
+    | 'email_recensione_inviata';  // Email richiesta recensione Google inviata
+  descrizione: string;
+  data: Timestamp;
+  userId?: string;              // UID admin che ha eseguito l'azione
+  metadata?: Record<string, any>; // Dati extra (es. importo pagamento, ID preventivo, link consulenza, canale notifica)
+}
+
+/**
+ * Stats aggregate per dashboard
+ */
+export interface JobStats {
+  totalJobs: number;
+  byStatus: Record<JobStatus, number>;
+  byType: Record<string, number>;  // Dynamic job type slugs from Firestore
+  fatturato: {
+    totale: number;
+    incassato: number;
+    daIncassare: number;
+  };
+  conversionRate: {
+    leadToConfirmato: number;     // Percentuale
+    preventivoToFirmato: number;  // Percentuale
+  };
+}
+
+/**
+ * Filtri ricerca jobs
+ */
+export interface JobFilters {
+  status?: JobStatus[];
+  jobType?: string[];  // Dynamic job type slugs from Firestore
+  clienteId?: string;
+  dateFrom?: Date;
+  dateTo?: Date;
+  searchQuery?: string;         // Ricerca per nome cliente, location, ecc.
+}

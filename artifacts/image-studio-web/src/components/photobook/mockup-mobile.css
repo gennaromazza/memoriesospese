@@ -1,0 +1,194 @@
+/* ============================================================
+   MOBILE MOCKUP — root
+   ============================================================ */
+
+[data-mobile-mockup="true"] {
+  position: fixed !important;
+  inset: 0 !important;
+  margin: 0 !important;
+  transform: none !important;
+
+  /* fallback progressivo: vh prima, dvh poi */
+  width: 100vw !important;
+  width: 100dvw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+
+  max-width: none !important;
+  max-height: none !important;
+  border-radius: 0 !important;
+  background: #faf8f3;
+
+  /* FIX #1: la radice DEVE essere un flex-column,
+     altrimenti flex:1 / flex-shrink:0 dei figli vengono ignorati */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* FIX #2: box-sizing globale, altrimenti padding + 100% sfora */
+[data-mobile-mockup="true"],
+[data-mobile-mockup="true"] *,
+[data-mobile-mockup="true"] *::before,
+[data-mobile-mockup="true"] *::after {
+  box-sizing: border-box;
+}
+
+/* ============================================================
+   HEADER
+   ============================================================ */
+
+[data-mobile-mockup="true"] .mockup-header {
+  /* FIX #3: niente height fissa, solo min-height,
+     così il contenuto non viene mai tagliato */
+  flex: 0 0 auto;
+  min-height: 52px;
+  padding: 0 max(10px, env(safe-area-inset-right)) 0 max(12px, env(safe-area-inset-left));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: #faf8f3;
+  border-bottom: 1px solid #d8ded7;
+}
+
+[data-mobile-mockup="true"] .mockup-header h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: #243d44;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+[data-mobile-mockup="true"] .mockup-header-title-box {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  /* necessario perché l'ellipsis funzioni in flex */
+  flex: 1;
+}
+
+[data-mobile-mockup="true"] .mockup-header-step-badge {
+  font-size: 11px;
+  font-weight: 500;
+  color: #436a58;
+  letter-spacing: 0.02em;
+}
+
+[data-mobile-mockup="true"] .mockup-header-links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+[data-mobile-mockup="true"] .mockup-header-links button {
+  min-height: 40px;
+  height: 40px;
+  padding: 0 10px;
+  font-size: 12px;
+  gap: 5px;
+  border-radius: 8px;
+}
+
+[data-mobile-mockup="true"] .mockup-close {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #455a55;
+  cursor: pointer;
+}
+
+[data-mobile-mockup="true"] .mockup-close:hover {
+  background: #ecebe4;
+  color: #243d44;
+}
+
+/* ============================================================
+   BODY (griglia desktop: viewer + pannello)
+   ============================================================ */
+
+.mockup-admin-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 360px);
+  /* FIX #4: senza riga esplicita l'iframe con height:100%
+     non ha un'altezza definita da risolvere (row = auto) */
+  grid-template-rows: minmax(0, 1fr);
+  gap: 0;
+  overflow: hidden;
+}
+
+.mockup-admin-viewer {
+  grid-column: 1;
+  grid-row: 1;
+  display: block;
+  /* FIX #5: rimuove il gap da baseline inline */
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  background: #fff;
+}
+
+.mockup-admin-panel {
+  grid-column: 2;
+  grid-row: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border-left: 1px solid #ddd;
+  background: #faf8f3;
+}
+
+.mockup-admin-panel>[hidden] {
+  display: none !important;
+}
+
+/* ============================================================
+   MOBILE
+   ============================================================ */
+
+@media (max-width: 767px) {
+  .mockup-admin-body {
+    /* FIX #6: rimosse le righe "grid-template-*: none" inutili
+       quando display è flex */
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .mockup-admin-viewer {
+    flex: 0 0 auto;
+    width: 100%;
+    height: 42vh;
+    /* fallback */
+    height: 42dvh;
+    min-height: 190px;
+  }
+
+  .mockup-admin-panel {
+    flex: 1 1 0%;
+    min-height: 0;
+    padding: 14px;
+    border-left: 0;
+    border-top: 1px solid #ddd;
+  }
+}

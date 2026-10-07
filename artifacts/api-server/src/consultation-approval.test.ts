@@ -1,0 +1,368 @@
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import express from "express";
+import type { AddressInfo } from "node:net";
+
+const h = vi.hoisted(() => ({
+  consultation: null as any,
+  template: null as any,
+  events: [] as any[],
+  createEventError: null as Error | null,
+  firestoreError: null as Error | null,
+  emailError: null as Error | null,
+  updateEventError: null as Error | null,
+  updateEventErrors: [] as Array<Error | null>,
+  calendarEvent: {
+    start: { dateTime: "2026-09-18T17:30:00+02:00" },
+    end: { dateTime: "2026-09-18T19:00:00+02:00" },
+  } as any,
+  updatedCalendarEvents: [] as Array<{ calendarId: string; eventId: string; eventData: any }>,
+  updates: [] as any[],
+  deletedEventIds: [] as string[],
+}));
+
+vi.mock("./firebase-admin.js", () => ({
+  db: {
+    collection: () => ({
+      doc: () => ({
+        update: async (data: any) => {
+          if (h.firestoreError) throw h.firestoreError;
+          h.updates.push(data);
+        },
+      }),
+    }),
+  },
+  FieldValue: {
+    serverTimestamp: () => ({ __serverTimestamp: true }),
+    delete: () => ({ __delete: true }),
+  },
+  Timestamp: {
+    now: () => ({ __timestamp: true }),
+    fromDate: (date: Date) => ({ __timestamp: true, date }),
+  },
+  storage: {},
+}));
+
+vi.mock("./email-routes.js", () => ({
+  authenticateFirebase: (req: any, _res: any, next: any) => {
+    req.user = { uid: "admin-uid", email: "gennaro.mazzacane@gmail.com" };
+    next();
+  },
+  sendGmailEmail: async () => {
+    if (h.emailError) throw h.emailError;
+  },
+  getStudioContactInfo: async () => ({ name: "Studio", phone: "123", address: "Via Test" }),
+  createConsultationApprovedEmailHTML: () => "email",
+  generateGoogleCalendarLink: () => "https://calendar.example/event",
+}));
+
+vi.mock("./services/consultations.js", () => ({
+  getConsultationById: async () => h.consultation,
+  getTemplateById: async () => h.template,
+  updateConsultation: async () => {},
+}));
+
+vi.mock("./google-calendar.js", () => ({
+  createEuropeRomeDate: (date: string, time: string) => new Date(`${date}T${time}:00+02:00`),
+  createEvent: async () => {
+    if (h.createEventError) throw h.createEventError;
+    return { id: "calendar-event-1" };
+  },
+  deleteEvent: async (_calendarId: string, eventId: string) => h.deletedEventIds.push(eventId),
+  getEventById: async () => h.calendarEvent,
+  updateEvent: async (calendarId: string, eventId: string, eventData: any) => {
+    const queuedError = h.updateEventErrors.shift();
+    if (queuedError) throw queuedError;
+    if (h.updateEventError) throw h.updateEventError;
+    h.updatedCalendarEvents.push({ calendarId, eventId, eventData });
+    return { id: eventId };
+  },
+  getEventsWithDetailsAllCalendars: async () => [],
+}));
+
+vi.mock("./consultations/calendar-adapter.js", () => ({
+  consultationTemplateToAvailabilityConfig: () => ({}),
+  validateConsultationTemplate: () => true,
+  getAllExistingEvents: async () => h.events,
+}));
+
+vi.mock("./calendar-engine/conflicts.js", () => ({
+  hasConflict: () => h.events.length > 0,
+}));
+
+const { default: consultationRouter } = await import("./consultation-routes.js");
+
+const app = express();
+app.use(express.json());
+app.use("/api/consultations", consultationRouter);
+const server = app.listen(0);
+const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+
+afterAll(() => server.close());
+
+function pendingConsultation(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "consultation-1",
+    stato: "in_attesa",
+    templateId: "template-1",
+    jobType: "Visione Foto",
+    cliente: { nome: "Iolanda", cognome: "Amatrude", email: "iolanda@example.com", whatsapp: "123" },
+    dataConsulenza: { seconds: 1789666200, nanoseconds: 0 },
+    orarioInizio: "17:30",
+    orarioFine: "19:00",
+    note: "",
+    ...overrides,
+  };
+}
+
+beforeEach(() => {
+  h.consultation = pendingConsultation();
+  h.template = { id: "template-1", nome: "Visione Foto", durataMinuti: 90, customWorkingHours: [{}] };
+  h.events = [];
+  h.createEventError = null;
+  h.firestoreError = null;
+  h.emailError = null;
+  h.updateEventError = null;
+  h.updateEventErrors = [];
+  h.calendarEvent = {
+    start: { dateTime: "2026-09-18T17:30:00+02:00" },
+    end: { dateTime: "2026-09-18T19:00:00+02:00" },
+  };
+  h.updatedCalendarEvents = [];
+  h.updates = [];
+  h.deletedEventIds = [];
+});
+
+async function approve() {
+  const response = await fetch(`${base}/api/consultations/v2/consultation-1/approve`, {
+    method: "PATCH",
+    headers: { Authorization: "Bearer test-token", "Content-Type": "application/json" },
+    body: JSON.stringify({ userId: "untrusted-browser-value" }),
+  });
+  return { status: response.status, body: await response.json() as any };
+}
+
+async function repairSchedule(body: Record<string, string>) {
+  const response = await fetch(`${base}/api/consultations/consultation-1/reminder-schedule`, {
+    method: "PATCH",
+    headers: { Authorization: "Bearer test-token", "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return { status: response.status, body: await response.json() as any };
+}
+
+describe("PATCH /api/consultations/v2/:id/approve", () => {
+  it("conferma, crea l'evento e salva tutti i dati in una sola scrittura Firestore", async () => {
+    const { status, body } = await approve();
+    expect(status).toBe(200);
+    expect(body.googleCalendarEventId).toBe("calendar-event-1");
+    expect(h.updates).toHaveLength(1);
+    expect(h.updates[0]).toMatchObject({
+      stato: "confermata",
+      googleCalendarEventId: "calendar-event-1",
+      confermataDa: "admin-uid",
+    });
+    expect(h.updates[0].confermatail).toEqual({ __serverTimestamp: true });
+  });
+
+  it("non crea né conferma quando il Calendar segnala una sovrapposizione", async () => {
+    h.events = [{ start: new Date(), end: new Date(), allDay: false }];
+    const { status, body } = await approve();
+    expect(status).toBe(409);
+    expect(body.error).toBe("Slot non più disponibile");
+    expect(h.updates).toHaveLength(0);
+  });
+
+  it("restituisce un errore Calendar esplicito senza modificare Firestore", async () => {
+    h.createEventError = Object.assign(new Error("token Google scaduto"), { code: "CALENDAR_UNAVAILABLE" });
+    const { status, body } = await approve();
+    expect(status).toBe(503);
+    expect(body).toMatchObject({ error: "Errore Google Calendar", code: "CALENDAR_UNAVAILABLE" });
+    expect(h.updates).toHaveLength(0);
+  });
+
+  it("cancella l'evento Calendar se il salvataggio Firestore fallisce", async () => {
+    h.firestoreError = new Error("Firestore non disponibile");
+    const { status } = await approve();
+    expect(status).toBe(500);
+    expect(h.deletedEventIds).toEqual(["calendar-event-1"]);
+  });
+
+  it("mantiene la consulenza confermata se fallisce solo l'email", async () => {
+    h.emailError = new Error("SMTP non disponibile");
+    const { status, body } = await approve();
+    expect(status).toBe(200);
+    expect(body.emailStatus).toBe("failed");
+    expect(h.updates).toHaveLength(1);
+  });
+
+  it("rifiuta una consulenza già processata senza creare eventi", async () => {
+    h.consultation = pendingConsultation({ stato: "confermata" });
+    const { status, body } = await approve();
+    expect(status).toBe(400);
+    expect(body.error).toBe("Consultation già processata");
+    expect(h.updates).toHaveLength(0);
+  });
+});
+
+describe("PATCH /api/consultations/:id/reminder-schedule", () => {
+  it("salva data e orari validi per una consulenza confermata", async () => {
+    h.consultation = pendingConsultation({ stato: "confermata" });
+
+    const { status, body } = await repairSchedule({
+      dataConsulenza: "2026-10-17",
+      orarioInizio: "10:00",
+      orarioFine: "11:00",
+    });
+
+    expect(status).toBe(200);
+    expect(body).toMatchObject({
+      consultationId: "consultation-1",
+      dataConsulenza: "2026-10-17",
+      orarioInizio: "10:00",
+      orarioFine: "11:00",
+    });
+    expect(h.updates).toHaveLength(1);
+    expect(h.updates[0]).toMatchObject({
+      orarioInizio: "10:00",
+      orarioFine: "11:00",
+      updatedAt: { __serverTimestamp: true },
+    });
+    expect(h.updates[0].dataConsulenza.date).toBeInstanceOf(Date);
+    expect(h.updates[0].dataConsulenza.date.toISOString()).toBe("2026-10-17T08:00:00.000Z");
+    expect(h.updatedCalendarEvents).toHaveLength(0);
+    expect(body.calendarSynced).toBe(false);
+  });
+
+  it("aggiorna l'evento Calendar collegato con gli orari Europe/Rome", async () => {
+    h.consultation = pendingConsultation({
+      stato: "confermata",
+      googleCalendarEventId: "calendar-event-existing",
+    });
+
+    const { status, body } = await repairSchedule({
+      dataConsulenza: "2026-10-17",
+      orarioInizio: "10:00",
+      orarioFine: "11:00",
+    });
+
+    expect(status).toBe(200);
+    expect(body.calendarSynced).toBe(true);
+    expect(h.updatedCalendarEvents).toEqual([
+      {
+        calendarId: "primary",
+        eventId: "calendar-event-existing",
+        eventData: {
+          start: new Date("2026-10-17T08:00:00.000Z"),
+          end: new Date("2026-10-17T09:00:00.000Z"),
+        },
+      },
+    ]);
+    expect(h.updates).toHaveLength(1);
+  });
+
+  it("se l'evento Calendar non esiste più mostra un errore e non salva la correzione", async () => {
+    h.consultation = pendingConsultation({
+      stato: "confermata",
+      googleCalendarEventId: "calendar-event-missing",
+    });
+    h.calendarEvent = null;
+
+    const { status, body } = await repairSchedule({
+      dataConsulenza: "2026-10-17",
+      orarioInizio: "10:00",
+      orarioFine: "11:00",
+    });
+
+    expect(status).toBe(404);
+    expect(body).toMatchObject({
+      error: "Evento Google Calendar non trovato",
+      code: "CALENDAR_EVENT_NOT_FOUND",
+    });
+    expect(body.message).toContain("non è stata salvata");
+    expect(h.updates).toHaveLength(0);
+  });
+
+  it("ripristina l'evento Calendar se il salvataggio Firestore fallisce", async () => {
+    h.consultation = pendingConsultation({
+      stato: "confermata",
+      googleCalendarEventId: "calendar-event-existing",
+    });
+    h.firestoreError = new Error("Firestore non disponibile");
+
+    const { status, body } = await repairSchedule({
+      dataConsulenza: "2026-10-17",
+      orarioInizio: "10:00",
+      orarioFine: "11:00",
+    });
+
+    expect(status).toBe(500);
+    expect(body.code).toBe("CONSULTATION_SAVE_FAILED_CALENDAR_RESTORED");
+    expect(h.updatedCalendarEvents).toEqual([
+      {
+        calendarId: "primary",
+        eventId: "calendar-event-existing",
+        eventData: {
+          start: new Date("2026-10-17T08:00:00.000Z"),
+          end: new Date("2026-10-17T09:00:00.000Z"),
+        },
+      },
+      {
+        calendarId: "primary",
+        eventId: "calendar-event-existing",
+        eventData: {
+          start: new Date("2026-09-18T15:30:00.000Z"),
+          end: new Date("2026-09-18T17:00:00.000Z"),
+        },
+      },
+    ]);
+  });
+
+  it("se falliscono sia Firestore sia il rollback richiede un controllo manuale", async () => {
+    h.consultation = pendingConsultation({
+      stato: "confermata",
+      googleCalendarEventId: "calendar-event-existing",
+    });
+    h.firestoreError = new Error("Firestore non disponibile");
+    h.updateEventErrors = [
+      null,
+      new Error("Google Calendar non disponibile durante il rollback"),
+    ];
+
+    const { status, body } = await repairSchedule({
+      dataConsulenza: "2026-10-17",
+      orarioInizio: "10:00",
+      orarioFine: "11:00",
+    });
+
+    expect(status).toBe(500);
+    expect(body.code).toBe("CALENDAR_ROLLBACK_FAILED");
+    expect(body.message).toContain("Controlla manualmente");
+    expect(h.updatedCalendarEvents).toHaveLength(1);
+  });
+
+  it("rifiuta un intervallo non valido senza scrivere", async () => {
+    h.consultation = pendingConsultation({ stato: "confermata" });
+
+    const { status, body } = await repairSchedule({
+      dataConsulenza: "2026-10-17",
+      orarioInizio: "11:00",
+      orarioFine: "10:00",
+    });
+
+    expect(status).toBe(400);
+    expect(body.error).toBe("Data o orario non validi");
+    expect(h.updates).toHaveLength(0);
+  });
+
+  it("non consente la correzione di una consulenza non confermata", async () => {
+    const { status, body } = await repairSchedule({
+      dataConsulenza: "2026-10-17",
+      orarioInizio: "10:00",
+      orarioFine: "11:00",
+    });
+
+    expect(status).toBe(400);
+    expect(body.error).toBe("Consultation non modificabile");
+    expect(h.updates).toHaveLength(0);
+  });
+});

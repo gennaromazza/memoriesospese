@@ -1,54 +1,23 @@
-modules = ["nodejs-22", "web", "postgresql-16", "python-3.11"]
-hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
-
-[nix]
-channel = "stable-24_05"
-packages = ["killall"]
+modules = ["nodejs-24", "python-base-3.13"]
 
 [deployment]
+router = "application"
 deploymentTarget = "autoscale"
-build = ["sh", "-c", "npm run build"]
-run = ["sh", "-c", "NODE_ENV=production node dist/index.js"]
+
+[deployment.postBuild]
+args = ["pnpm", "store", "prune"]
+env = { "CI" = "true" }
 
 [workflows]
 runButton = "Project"
 
-[[workflows.workflow]]
-name = "Dev Workflow"
-mode = "sequential"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "node patches/fix-radix-compose-refs.cjs && npm run dev"
-waitForPort = 5000
-
-[workflows.workflow.metadata]
-outputType = "webview"
-
-[[workflows.workflow]]
-name = "Project"
-mode = "parallel"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Dev Workflow"
-
-[[ports]]
-localPort = 5000
-externalPort = 80
-
-[[ports]]
-localPort = 8976
-externalPort = 3001
-
-[[ports]]
-localPort = 24678
-externalPort = 3000
-
 [agent]
-integrations = ["google-mail:1.0.0", "google-drive:1.0.0"]
+stack = "PNPM_WORKSPACE"
+expertMode = true
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 20000
 
 [userenv]
 
@@ -56,6 +25,26 @@ integrations = ["google-mail:1.0.0", "google-drive:1.0.0"]
 SITE_URL = "https://imagestudiofotografico.com"
 GOOGLE_CALENDAR_ID = "gennaro.mazzacane@gmail.com"
 
-[postMerge]
-path = "scripts/post-merge.sh"
-timeoutMs = 180000
+[[ports]]
+localPort = 5000
+externalPort = 5000
+
+[[ports]]
+localPort = 5003
+externalPort = 3001
+
+[[ports]]
+localPort = 23636
+externalPort = 3002
+
+[[ports]]
+localPort = 24678
+externalPort = 80
+
+[[ports]]
+localPort = 24680
+externalPort = 3000
+
+[nix]
+channel = "stable-25_05"
+packages = ["wine", "glib", "nspr", "nss", "atk", "at-spi2-atk", "at-spi2-core", "dbus", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr", "mesa", "xorg.libxcb", "libxkbcommon", "alsa-lib", "cups", "cairo", "pango", "libgbm", "jdk"]

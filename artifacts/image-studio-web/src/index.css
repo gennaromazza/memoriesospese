@@ -1,0 +1,727 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Raleway:wght@300;400;500&family=Great+Vibes&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.content-visibility-auto {
+  content-visibility: auto;
+}
+
+.wedding-cover-image {
+  object-position: var(--wedding-cover-position-desktop, 50% 50%);
+  aspect-ratio: 3.6 / 1;
+  max-height: 480px;
+}
+
+.wedding-cover-card-image {
+  object-position: var(--wedding-cover-card-position-desktop, 50% 50%);
+}
+
+@media (max-width: 639px) {
+  .wedding-cover-image {
+    object-position: var(--wedding-cover-position-mobile, 50% 50%);
+  }
+
+  .wedding-cover-card-image {
+    object-position: var(--wedding-cover-card-position-mobile, 50% 50%);
+  }
+}
+
+/* Navbar semitrasparente quando galleria mobile è in fullscreen */
+body.mobile-gallery-fullscreen .mobile-gallery-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  background-color: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Print Styles per Estratto Conto */
+@media print {
+  /* Nascondi elementi UI non necessari */
+  button,
+  nav,
+  .no-print,
+  [data-radix-collection-item],
+  [role="tablist"] {
+    display: none !important;
+  }
+
+  /* Ottimizza layout per stampa */
+  body {
+    background: white !important;
+  }
+
+  /* Mostra solo tab attivo */
+  [role="tabpanel"][data-state="inactive"] {
+    display: none !important;
+  }
+
+  /* Migliora leggibilità */
+  * {
+    color: black !important;
+    background: white !important;
+  }
+
+  /* Mantieni bordi per tabelle */
+  table,
+  th,
+  td {
+    border: 1px solid #ccc !important;
+  }
+}
+
+:root {
+  /* Base colors from October Mist palette */
+  --mint: 140 23% 84%;
+  --sage: 120 11% 66%;
+  --blue-gray: 200 21% 47%;
+  --terracotta: 14 37% 63%;
+  --cream: 43 42% 85%;
+  --beige: 41 18% 79%;
+  --off-white: 60 20% 96%;
+  --light-mint: 140 26% 92%;
+  --dark-sage: 120 7% 46%;
+
+  /* Theme colors using our October Mist palette */
+  --background: var(--off-white);
+  --foreground: var(--blue-gray);
+
+  --muted: var(--beige);
+  --muted-foreground: var(--dark-sage);
+
+  --popover: var(--off-white);
+  --popover-foreground: var(--blue-gray);
+
+  --card: var(--off-white);
+  --card-foreground: var(--blue-gray);
+
+  --border: var(--beige);
+  --input: var(--beige);
+
+  --primary: var(--blue-gray);
+  --primary-foreground: var(--off-white);
+
+  --secondary: var(--mint);
+  --secondary-foreground: var(--dark-sage);
+
+  --accent: var(--light-mint);
+  --accent-foreground: var(--dark-sage);
+
+  --destructive: 0 84% 60%;
+  --destructive-foreground: var(--off-white);
+
+  --ring: var(--sage);
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: 240 10% 3.9%;
+  --foreground: 0 0% 98%;
+  --muted: 240 3.7% 15.9%;
+  --muted-foreground: 240 5% 64.9%;
+  --popover: 240 10% 3.9%;
+  --popover-foreground: 0 0% 98%;
+  --card: 240 10% 3.9%;
+  --card-foreground: 0 0% 98%;
+  --border: 240 3.7% 15.9%;
+  --input: 240 3.7% 15.9%;
+  --primary: 207 90% 54%;
+  --primary-foreground: 211 100% 99%;
+  --secondary: 240 3.7% 15.9%;
+  --secondary-foreground: 0 0% 98%;
+  --accent: 240 3.7% 15.9%;
+  --accent-foreground: 0 0% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 0 0% 98%;
+  --ring: 240 4.9% 83.9%;
+}
+
+@layer base {
+  * {
+    @apply border-0;
+  }
+
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+      'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+  }
+
+  html {
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-playfair;
+  }
+}
+
+@layer components {
+  .gallery-image {
+    @apply overflow-hidden rounded-lg shadow-md cursor-pointer bg-gray-100;
+    transition: transform 150ms ease-out, box-shadow 200ms ease-out;
+    will-change: transform;
+  }
+
+  .gallery-image:hover {
+    @apply transform scale-[1.02];
+  }
+
+  /* Masonry a colonne flexbox ad assegnazione fissa.
+     Ogni colonna è un contenitore indipendente: aggiungere foto in fondo a una
+     colonna non ribilancia le altre, eliminando il reflow globale (causa degli
+     scatti) tipico di `column-count`. */
+  .masonry-grid {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .masonry-column {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  @media (min-width: 640px) {
+    .masonry-grid {
+      gap: 1rem;
+    }
+    .masonry-column {
+      gap: 1rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .masonry-grid {
+      gap: 1.5rem;
+    }
+    .masonry-column {
+      gap: 1.5rem;
+    }
+  }
+
+  .masonry-item {
+    width: 100%;
+    /* Le card fuori viewport saltano paint/layout: il browser usa il segnaposto
+       intrinseco finché non entrano in vista. `auto 300px` memorizza l'ultima
+       dimensione reale dopo il primo render, evitando salti di scrollbar. */
+    content-visibility: auto;
+    contain-intrinsic-size: auto 300px;
+  }
+
+  .btn-primary {
+    @apply bg-blue-gray hover:bg-dark-sage text-white font-medium rounded-md transition-all duration-300;
+  }
+
+  .btn-lightbox {
+    @apply py-2 px-4 rounded-md bg-white/15 text-white flex items-center justify-center
+      backdrop-blur-sm hover:bg-white/25 transition-all;
+  }
+
+  /* Menu responsive styles */
+  .gallery-action-button {
+    @apply transition-all duration-200 flex items-center justify-center;
+  }
+
+  .gallery-menu-mobile {
+    @apply flex flex-col gap-3 w-full;
+  }
+
+  .gallery-menu-desktop {
+    @apply sm:flex sm:flex-row sm:gap-2 sm:items-center;
+  }
+
+  .gallery-button-container {
+    @apply w-full sm:w-auto flex-1 sm:flex-initial;
+  }
+
+  .gallery-user-controls {
+    @apply flex gap-2 justify-end sm:justify-start w-full sm:w-auto;
+  }
+}
+
+/* Custom font and color utilities */
+@layer utilities {
+  .font-playfair {
+    font-family: 'Playfair Display', serif;
+  }
+
+  .font-sans {
+    font-family: 'Raleway', sans-serif;
+  }
+
+  .bg-mint {
+    background-color: hsl(var(--mint));
+  }
+
+  .bg-sage {
+    background-color: hsl(var(--sage));
+  }
+
+  .bg-blue-gray {
+    background-color: hsl(var(--blue-gray));
+  }
+
+  .bg-terracotta {
+    background-color: hsl(var(--terracotta));
+  }
+
+  .bg-cream {
+    background-color: hsl(var(--cream));
+  }
+
+  .bg-beige {
+    background-color: hsl(var(--beige));
+  }
+
+  .bg-off-white {
+    background-color: hsl(var(--off-white));
+  }
+
+  .bg-light-mint {
+    background-color: hsl(var(--light-mint));
+  }
+
+  .bg-dark-sage {
+    background-color: hsl(var(--dark-sage));
+  }
+
+  .text-mint {
+    color: hsl(var(--mint));
+  }
+
+  .text-sage {
+    color: hsl(var(--sage));
+  }
+
+  .text-blue-gray {
+    color: hsl(var(--blue-gray));
+  }
+
+  .text-terracotta {
+    color: hsl(var(--terracotta));
+  }
+
+  .text-cream {
+    color: hsl(var(--cream));
+  }
+
+  .text-beige {
+    color: hsl(var(--beige));
+  }
+
+  .text-off-white {
+    color: hsl(var(--off-white));
+  }
+
+  .text-light-mint {
+    color: hsl(var(--light-mint));
+  }
+
+  .text-dark-sage {
+    color: hsl(var(--dark-sage));
+  }
+
+  .border-mint {
+    border-color: hsl(var(--mint));
+  }
+
+  .border-sage {
+    border-color: hsl(var(--sage));
+  }
+
+  .border-blue-gray {
+    border-color: hsl(var(--blue-gray));
+  }
+
+  .border-terracotta {
+    border-color: hsl(var(--terracotta));
+  }
+
+  .border-cream {
+    border-color: hsl(var(--cream));
+  }
+
+  .border-beige {
+    border-color: hsl(var(--beige));
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.7s ease-in-out;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.7s ease-out;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* Animazioni per ChaptersManager */
+.assignment-animation {
+  animation: pulse-highlight 0.8s ease-in-out;
+}
+
+.bulk-assignment-animation {
+  animation: pulse-border 0.8s ease-in-out;
+}
+
+.highlight-selection {
+  animation: highlight-glow 1.5s ease-in-out;
+}
+
+.fade-out-notification {
+  transition: opacity 0.5s ease-in-out;
+}
+
+@keyframes pulse-highlight {
+  0% {
+    box-shadow: 0 0 0 0 rgba(180, 226, 219, 0.7);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(180, 226, 219, 0.4);
+    transform: scale(1.05);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(180, 226, 219, 0);
+    transform: scale(1);
+  }
+}
+
+@keyframes pulse-border {
+  0% {
+    border-color: #b4e2db;
+  }
+  50% {
+    border-color: #7ACBBD;
+  }
+  100% {
+    border-color: #b4e2db;
+  }
+}
+
+@keyframes highlight-glow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(122, 203, 189, 0);
+  }
+  30% {
+    box-shadow: 0 0 0 4px rgba(122, 203, 189, 0.6);
+  }
+  70% {
+    box-shadow: 0 0 0 4px rgba(122, 203, 189, 0.3);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(122, 203, 189, 0);
+  }
+}
+
+/* Touch target improvements */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Elegant shimmer animations for booking campaigns */
+@keyframes shimmer {
+  0% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+}
+
+@keyframes shimmer-slow {
+  0%, 100% {
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s ease-in-out infinite;
+}
+
+.animate-shimmer-slow {
+  animation: shimmer-slow 3s ease-in-out infinite;
+}
+
+/* Skeleton "vivo" per foto galleria in caricamento: gradiente che scorre
+   per comunicare attività e non far percepire i placeholder come "buchi". */
+@keyframes photo-skeleton-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.photo-skeleton {
+  background-color: hsl(var(--muted, 30 20% 92%));
+  background-image: linear-gradient(
+    100deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.55) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: photo-skeleton-shimmer 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .photo-skeleton {
+    animation: none;
+  }
+}
+
+/* Shake animation for error states */
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-8px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(8px);
+  }
+}
+
+.animate-shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+/* Instagram CTA Pulse - Elegant Golden Shimmer */
+@keyframes cta-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(200, 171, 147, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 20px 5px rgba(200, 171, 147, 0.3);
+  }
+}
+
+.cta-pulse {
+  animation: cta-pulse 3s infinite;
+}
+
+/* Onboarding Spotlight Animations */
+@keyframes spotlight-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.3), 0 0 20px 8px rgba(255, 255, 255, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.6), 0 0 30px 12px rgba(255, 255, 255, 0.4);
+  }
+}
+
+.animate-spotlight-pulse {
+  animation: spotlight-pulse 2s ease-in-out infinite;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+/* CKEditor Styles */
+.ck-editor__editable {
+  min-height: 300px;
+  max-height: 500px;
+}
+
+.ck.ck-editor__main > .ck-editor__editable {
+  background-color: white;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.375rem;
+}
+
+.ck.ck-editor__main > .ck-editor__editable:focus {
+  border-color: hsl(var(--sage));
+  outline: none;
+  box-shadow: 0 0 0 2px hsl(var(--sage) / 0.2);
+}
+
+/* Blog Content Styles */
+.blog-content {
+  @apply text-gray-800;
+  width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  box-sizing: border-box;
+}
+
+.blog-content h1,
+.blog-content h2,
+.blog-content h3,
+.blog-content h4,
+.blog-content h5,
+.blog-content h6 {
+  @apply scroll-mt-24;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.blog-content img {
+  @apply mx-auto;
+  max-width: 100% !important;
+  width: auto !important;
+  height: auto !important;
+}
+
+/* Tabelle: scroll orizzontale su mobile invece di tagliare il contenuto */
+.blog-content table {
+  @apply shadow-sm;
+  display: block;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+  white-space: normal;
+}
+
+.blog-content table thead,
+.blog-content table tbody,
+.blog-content table tr {
+  display: table;
+  width: 100%;
+  table-layout: fixed;
+}
+
+/* Blocchi di codice con scroll orizzontale */
+.blog-content pre {
+  overflow-x: auto;
+  max-width: 100%;
+  white-space: pre-wrap;
+}
+
+.blog-content code {
+  word-break: break-all;
+}
+
+.blog-content iframe,
+.blog-content video {
+  @apply w-full rounded-lg shadow-lg my-6;
+  max-width: 100%;
+  aspect-ratio: 16/9;
+}
+
+.blog-content .ck-media__wrapper {
+  @apply my-6;
+}
+
+/* Tutti gli elementi figli non devono uscire dal contenitore.
+   !important necessario per sovrascrivere stili inline generati da editor (Quill, WordPress) */
+.blog-content * {
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* Elementi di blocco: forza larghezza fluida anche con width inline */
+.blog-content p,
+.blog-content div,
+.blog-content section,
+.blog-content blockquote,
+.blog-content ul,
+.blog-content ol,
+.blog-content li,
+.blog-content h1,
+.blog-content h2,
+.blog-content h3,
+.blog-content h4,
+.blog-content h5,
+.blog-content h6 {
+  width: auto !important;
+  max-width: 100% !important;
+}
+
+/* Span e elementi inline: solo max-width per non rompere il flow */
+.blog-content span,
+.blog-content a,
+.blog-content strong,
+.blog-content em {
+  max-width: 100% !important;
+  display: inline !important;
+}
+
+/* Responsive images */
+@media (max-width: 768px) {
+  .blog-content img {
+    @apply w-full h-auto;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+  
+  .blog-content table thead,
+  .blog-content table tbody,
+  .blog-content table tr {
+    display: table;
+    width: 100%;
+  }
+}
+
+/* Benefit unlock ring-pulse animation */
+@keyframes ring-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6); }
+  50% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0.15); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+.benefit-unlock-pulse {
+  animation: ring-pulse 1.2s ease-out;
+}
+
+.admin-calendar-events-container {
+  container-type: inline-size;
+}
+
+@container (min-width: 640px) {
+  .admin-calendar-events-grid {
+    grid-template-columns: minmax(252px, 0.85fr) minmax(320px, 1.15fr);
+  }
+}

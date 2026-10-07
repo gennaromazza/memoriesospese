@@ -1,0 +1,112 @@
+import { z } from 'zod';
+import { MOCKUP_MODEL, PLAZA_MOCKUP_MODEL, ROTATING_MOCKUP_MODEL } from './mockup-catalog';
+import type { MockupOffer, MockupOfferMode, MockupOption, MockupSelection, MockupStatus } from './mockup-workflow';
+
+const isCatalogMaterial = (variants: readonly { readonly id: string; readonly appearanceRevision: number }[], materialId: string, appearanceRevision: number) =>
+  variants.some(v => v.id === materialId && v.appearanceRevision === appearanceRevision);
+
+const custodiaConfigurationSchema = z.object({
+  modelId: z.literal(MOCKUP_MODEL.id),
+  assetRevision: z.literal(MOCKUP_MODEL.assetRevision),
+  materialId: z.string().refine(id => MOCKUP_MODEL.variants.some(v => v.id === id), 'Rivestimento non disponibile'),
+  appearanceRevision: z.number().int(),
+  coverLayout: z.enum(['oblique', 'full']),
+  topText: z.string().max(50),
+  bottomText: z.string().max(50),
+  photoAssetId: z.string().uuid(),
+  crop: z.object({ zoom: z.number().min(1).max(3), x: z.number().min(0).max(1), y: z.number().min(0).max(1) }).strict(),
+}).strict().refine(c => isCatalogMaterial(MOCKUP_MODEL.variants, c.materialId, c.appearanceRevision), 'Revisione del rivestimento non disponibile');
+
+const rotatingConfigurationBase = z.object({
+  modelId: z.literal(ROTATING_MOCKUP_MODEL.id), assetRevision: z.literal(1),
+  materialId: z.string(), appearanceRevision: z.number().int(),
+  coverLayout: z.enum(['full', 'plaque', 'photo-plaque', 'split-photo-fabric']),
+  frameFinish: z.enum(['wood', 'white', 'fabric']),
+  topText: z.string().max(50), bottomText: z.string().max(50),
+  photoAssetId: z.string().uuid().nullable(),
+  crop: z.object({ zoom: z.number().min(1).max(3), x: z.number().min(0).max(1), y: z.number().min(0).max(1) }).strict(),
+}).strict();
+const rotatingConfigurationSchema = rotatingConfigurationBase.refine(c => isCatalogMaterial(ROTATING_MOCKUP_MODEL.variants, c.materialId, c.appearanceRevision), 'Revisione del rivestimento non disponibile')
+  .refine(c => c.coverLayout === 'plaque' || !!c.photoAssetId, 'Seleziona una foto per questa copertina');
+const rotatingPlexConfigurationBase = rotatingConfigurationBase.extend({
+  assetRevision: z.literal(2),
+  backCover: z.enum(['fabric', 'photo']),
+  backPhotoAssetId: z.string().uuid().nullable(),
+  backCrop: z.object({ zoom: z.number().min(1).max(3), x: z.number().min(0).max(1), y: z.number().min(0).max(1) }).strict(),
+}).strict();
+const rotatingPlexConfigurationSchema = rotatingPlexConfigurationBase.refine(c => isCatalogMaterial(ROTATING_MOCKUP_MODEL.variants, c.materialId, c.appearanceRevision), 'Revisione del rivestimento non disponibile')
+  .refine(c => c.coverLayout === 'plaque' || !!c.photoAssetId, 'Seleziona una foto per questa copertina')
+  .refine(c => c.backCover === 'fabric' || !!c.backPhotoAssetId, 'Seleziona una foto per il retro in plexiglass');
+const rotatingMonogramConfigurationSchema = rotatingPlexConfigurationBase.extend({
+  assetRevision: z.literal(3),
+  engravingNames: z.object({ first: z.string().trim().max(50), second: z.string().trim().max(50) }).strict(),
+}).strict().refine(c => isCatalogMaterial(ROTATING_MOCKUP_MODEL.variants, c.materialId, c.appearanceRevision), 'Revisione del rivestimento non disponibile')
+  .refine(c => c.coverLayout === 'plaque' || !!c.photoAssetId, 'Seleziona una foto per questa copertina')
+  .refine(c => c.backCover === 'fabric' || !!c.backPhotoAssetId, 'Seleziona una foto per il retro in plexiglass');
+// Revisione 4: la foto è stampata sul plexiglass dello scrigno rotante, non sul libro.
+// Il valore storico `fabric` indica la lastra trasparente, con il tessuto dell'album visibile.
+// Le due forme conservano anche le incisioni a righe precedenti senza inventare nomi.
+const engravingNamesSchema = z.object({ first: z.string().trim().max(50), second: z.string().trim().max(50) }).strict();
+const rotatingBoxConfigurationBase = rotatingPlexConfigurationBase.extend({
+  assetRevision: z.literal(4),
+  engravingNames: engravingNamesSchema.optional(),
+}).strict();
+const rotatingBoxConfigurationSchema = rotatingBoxConfigurationBase.refine(c => isCatalogMaterial(ROTATING_MOCKUP_MODEL.variants, c.materialId, c.appearanceRevision), 'Revisione del rivestimento non disponibile')
+  .refine(c => c.coverLayout === 'plaque' || !!c.photoAssetId, 'Seleziona una foto per questa copertina')
+  .refine(c => c.backCover === 'fabric' || !!c.backPhotoAssetId, 'Seleziona una foto per il plexiglass dello scrigno');
+const plazaConfigurationObject = z.object({
+  modelId: z.literal(PLAZA_MOCKUP_MODEL.id), assetRevision: z.union([z.literal(1), z.literal(2)]),
+  materialId: z.string(), appearanceRevision: z.number().int(),
+  innerMaterialId: z.string().uuid().optional(), innerAppearanceRevision: z.number().int().optional(),
+  coverLayout: z.enum(['full', 'plaque', 'photo-plaque', 'split-photo-fabric']),
+  // Old Plaza choices are normalized when reopening or saving: this product only has matching fabric.
+  frameFinish: z.enum(['wood', 'white', 'fabric']).transform(() => 'fabric' as const),
+  topText: z.string().max(50), bottomText: z.string().max(50),
+  photoAssetId: z.string().uuid().nullable(),
+  crop: z.object({ zoom: z.number().min(1).max(3), x: z.number().min(0).max(1), y: z.number().min(0).max(1) }).strict(),
+  backCover: z.enum(['fabric', 'photo']),
+  backPhotoAssetId: z.string().uuid().nullable(),
+  backCrop: z.object({ zoom: z.number().min(1).max(3), x: z.number().min(0).max(1), y: z.number().min(0).max(1) }).strict(),
+  engravingNames: engravingNamesSchema.optional(),
+  ledEnabled: z.boolean(),
+}).strict();
+const plazaConfigurationSchema = plazaConfigurationObject
+  .refine(c => c.innerMaterialId === undefined ? c.innerAppearanceRevision === undefined : isCatalogMaterial(PLAZA_MOCKUP_MODEL.variants, c.innerMaterialId, c.innerAppearanceRevision ?? -1), 'Rivestimento interno non disponibile')
+  .refine(c => isCatalogMaterial(PLAZA_MOCKUP_MODEL.variants, c.materialId, c.appearanceRevision), 'Revisione del rivestimento non disponibile')
+  .refine(c => c.coverLayout === 'plaque' || !!c.photoAssetId, 'Seleziona una foto per questa copertina')
+  .refine(c => c.backCover === 'fabric' || !!c.backPhotoAssetId, 'Seleziona una foto per il plexiglass dello scrigno');
+export const mockupConfigurationSchema = z.union([custodiaConfigurationSchema, rotatingConfigurationSchema, rotatingPlexConfigurationSchema, rotatingMonogramConfigurationSchema, rotatingBoxConfigurationSchema, plazaConfigurationSchema]);
+
+export type MockupConfiguration = z.infer<typeof mockupConfigurationSchema>;
+export interface MockupPhoto { id: string; name: string; source: 'upload' | 'gallery'; photoId?: string; width: number; height: number }
+export const mockupPhotoSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  source: z.enum(['upload', 'gallery']),
+  photoId: z.string().optional(),
+  width: z.number().finite(),
+  height: z.number().finite(),
+}).strict();
+export interface SavedMockup {
+  revision: number; version: number; configuration: MockupConfiguration; updatedAt: string;
+  status?: MockupStatus; updatedBy?: 'studio' | 'client'; selection?: MockupSelection;
+  option?: MockupOption; note?: string; confirmedAt?: string; reportPath?: string;
+}
+export interface MockupPayload {
+  version: number;
+  mockupPath?: 'client' | 'studio';
+  notificationState?: string;
+  editable: boolean;
+  enabled: boolean;
+  approvalRequired?: boolean;
+  saved: SavedMockup | null;
+  offer?: MockupOffer | null;
+  modelMode?: MockupOfferMode;
+  modelSelection?: MockupSelection | null;
+  offerInherited?: boolean;
+  offerError?: string | null;
+}
+
+export function mockupEditable(book: { locked?: boolean; currentVersion: number; approval?: { version: number } | null }, version: number): boolean {
+  return !book.locked && version === book.currentVersion;
+}

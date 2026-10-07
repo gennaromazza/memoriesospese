@@ -1,0 +1,1 @@
+export function PayPalCheckout() { return <div data-testid="paypal-stub">PayPal SDK intentionally disabled in isolated harness.</div>; }

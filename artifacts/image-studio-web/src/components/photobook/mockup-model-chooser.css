@@ -1,0 +1,794 @@
+/* ============================================================
+   MOCKUP CHOOSER — root
+   ============================================================ */
+
+.mockup-chooser {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  color: #263d3b;
+  background: #f8f7f2;
+  overflow: hidden;
+}
+
+.mockup-chooser button {
+  font: inherit;
+  cursor: pointer;
+  background: transparent;   /* FIX: reset unico, evita background di default sul .mockup-chooser-empty button */
+}
+
+.mockup-chooser button:focus-visible {
+  outline: 3px solid #517b79;
+  outline-offset: -3px;
+}
+
+.mockup-chooser button:disabled {
+  opacity: .35;
+  cursor: default;
+}
+
+/* ============================================================
+   HEADING — unificato (prima era dichiarato due volte)
+   ============================================================ */
+
+.mockup-chooser-heading {
+  display: flex;
+  flex-wrap: wrap;                 /* era nel 2° blocco */
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 20px;
+  flex: 0 0 auto;
+  border-bottom: 1px solid #e1e5dd; /* era nel 2° blocco */
+}
+
+.mockup-chooser-heading > div {
+  min-width: 0;
+}
+
+.mockup-chooser-heading h2 {
+  margin: 0;
+  font: 500 clamp(18px, 2.6vw, 24px)/1.2 Georgia, serif;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.mockup-chooser-heading p {
+  margin: 3px 0 0;
+  color: #63716b;
+  font-size: 12px;
+}
+
+.mockup-chooser-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid #d9ded6;
+  border-radius: 9px;
+  background: transparent;
+  white-space: nowrap;
+  font-size: 12px !important;      /* NOTE: !important serve per battere il plugin; vedi tabella */
+}
+
+/* ============================================================
+   VECCHIO CAROSELLO
+   ============================================================ */
+
+.mockup-chooser-carousel {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  padding-left: 20px;
+}
+
+.mockup-chooser-carousel > div {
+  height: 100%;
+}
+
+.mockup-chooser .mockup-chooser-track {
+  height: 100%;
+  margin-left: 0;
+  touch-action: pan-y pinch-zoom;
+}
+
+.mockup-chooser .mockup-chooser-slide {
+  flex-basis: calc(100% - 30px);
+  height: 100%;
+  padding: 0 12px 0 0;
+}
+
+.mockup-chooser-card {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(200px, 1fr);
+  border: 1px solid #d7ddd4;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #fff;
+  text-align: left;
+  padding: 0;
+  color: inherit;
+}
+
+.mockup-chooser-model {
+  transition: border-color .15s, box-shadow .15s;
+}
+
+.mockup-chooser-model:hover {
+  border-color: #7d9990;
+  box-shadow: 0 3px 12px #273d3910;
+}
+
+.mockup-chooser-image {
+  display: block;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #e9e8e1;
+}
+
+.mockup-chooser-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+}
+
+.mockup-chooser-description {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  min-width: 0;
+  min-height: 0;
+  padding: 14px 20px;
+}
+
+.mockup-chooser-copy {
+  display: block;
+  flex: 0 1 auto;
+  width: 100%;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.mockup-chooser-eyebrow {
+  font-size: 10px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: #64756d;
+  overflow-wrap: anywhere;
+}
+
+.mockup-chooser-description h3,
+.mockup-chooser-model-name {
+  display: block;
+  margin: 7px 0;
+  font: 500 clamp(20px, 3vw, 29px)/1.12 Georgia, serif;
+  overflow-wrap: anywhere;
+}
+
+.mockup-chooser-description p,
+.mockup-chooser-model-copy {
+  display: block;
+  margin: 0;
+  color: #5d6c66;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.mockup-chooser-description small {
+  display: block;
+  margin-top: 8px;
+  color: #768078;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.mockup-chooser-choose {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 9px 12px;
+  margin-top: 12px;
+  border: 0;
+  border-radius: 9px;
+  background: #335e56;
+  color: white;
+  font: 600 12px/1.25 system-ui, sans-serif !important;
+}
+
+.mockup-chooser-navigation {
+  flex: 0 0 48px;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+}
+
+.mockup-chooser-arrow {
+  height: 44px;
+  width: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+}
+
+.mockup-chooser-arrow:hover {
+  background: #eef3ef;             /* FIX: feedback assente nella versione originale */
+}
+
+.mockup-chooser-pagination {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mockup-chooser-dots {
+  display: flex;
+}
+
+.mockup-chooser-dots button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+}
+
+.mockup-chooser-dots span {
+  width: 6px;
+  height: 6px;
+  background: #c7d0c5;
+  border-radius: 50%;
+}
+
+.mockup-chooser-dots button[aria-current="true"] span {
+  width: 20px;
+  border-radius: 5px;
+  background: #335e56;
+}
+
+/* FIX: mancava display:flex → align-items/justify-content non avevano effetto */
+.mockup-chooser-empty {
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.mockup-chooser-empty button {
+  min-height: 44px;
+  padding: 8px 16px;
+  margin-top: 12px;
+  border: 1px solid #b7c7be;
+  border-radius: 8px;
+  background: #fff;                /* FIX: prima ereditava lo sfondo trasparente */
+}
+
+/* ============================================================
+   MEDIA — landscape basso
+   ============================================================ */
+
+@media (max-height: 340px) and (orientation: landscape) {
+  .mockup-chooser-heading { padding: 3px 14px; }
+  .mockup-chooser-heading h2 { font-size: 18px; }
+  .mockup-chooser-heading p { font-size: 11px; margin-top: 1px; }
+  .mockup-chooser-carousel { padding-left: 14px; }
+  .mockup-chooser-description { padding: 9px 12px; justify-content: flex-start; }
+  .mockup-chooser-description h3,
+  .mockup-chooser-model-name { font-size: 21px; margin: 5px 0; }
+
+  /* FIX: due blocchi ridondanti (font-size poi display:none) → tenuto solo display:none */
+  .mockup-chooser-description p,
+  .mockup-chooser-model-copy { display: none; }
+
+  .mockup-chooser-description small { font-size: 9px; margin-top: 3px; }
+  .mockup-chooser-choose { margin-top: 8px; }
+  .mockup-chooser-navigation { flex-basis: 44px; min-height: 44px; }
+}
+
+/* ============================================================
+   MEDIA — portrait
+   ============================================================ */
+
+@media (orientation: portrait) {
+  .mockup-chooser-heading { padding: 10px 14px; }
+  .mockup-chooser-carousel { padding-left: 14px; }
+  .mockup-chooser-card {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+  .mockup-chooser-description { padding: 16px; }
+  .mockup-chooser-description h3,
+  .mockup-chooser-model-name { font-size: 24px; }
+  .mockup-chooser-description p,
+  .mockup-chooser-model-copy { font-size: 13px; }
+  .mockup-chooser-choose { margin-top: 10px; width: 100%; }
+  .mockup-chooser-navigation { gap: 8px; }
+}
+
+@media (orientation: portrait) and (max-height: 700px) {
+  .mockup-chooser-card { grid-template-rows: minmax(0, 180px) auto; }
+  .mockup-chooser-description { padding: 10px 12px; }
+  .mockup-chooser-description h3,
+  .mockup-chooser-model-name { font-size: 19px; margin: 3px 0; }
+  .mockup-chooser-choose { margin-top: 6px; min-height: 40px; }
+}
+
+/* ============================================================
+   SHELL (layout corrente)
+   ============================================================ */
+
+.mockup-chooser-shell {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.mockup-chooser-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #263d3b;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: .04em;
+}
+
+.mockup-chooser-brand-mark {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #335e56;
+  box-shadow: 0 0 0 4px #e5eee9;
+}
+
+/* FIX: min-width: min(280px, 100%) + auto margins dentro flex-wrap
+   causava allineamenti imprevedibili al wrap → sostituito con flex: 0 1 auto */
+.mockup-chooser-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: auto;
+  margin-right: auto;
+  color: #7a857e;
+  font-size: 11px;
+}
+
+.mockup-chooser-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.mockup-chooser-step.is-current {
+  color: #294d46;
+  font-weight: 650;
+}
+
+.mockup-chooser-step.is-complete {
+  color: #335e56;
+}
+
+.mockup-chooser-step-index {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid #cbd7ce;
+  border-radius: 50%;
+  background: #fff;
+  font-size: 10px;
+}
+
+.mockup-chooser-step.is-current .mockup-chooser-step-index,
+.mockup-chooser-step.is-complete .mockup-chooser-step-index {
+  border-color: #335e56;
+  background: #e5eee9;
+}
+
+.mockup-chooser-step-line {
+  width: clamp(28px, 8vw, 84px);
+  height: 1px;
+  background: #d3dcd4;
+}
+
+.mockup-chooser-cancel,
+.mockup-chooser-change {
+  min-height: 44px;
+  padding: 7px 10px;
+  border: 1px solid #d5ded6;
+  border-radius: 8px;
+  background: transparent;
+  color: #586962;
+  font-size: 11px !important;
+}
+
+.mockup-chooser-cancel:hover,
+.mockup-chooser-change:hover {
+  background: #eef3ef;
+}
+
+.mockup-chooser-model-stage,
+.mockup-chooser-style-stage {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: clamp(14px, 2.4vh, 28px) clamp(18px, 3vw, 42px) 12px;
+}
+
+.mockup-chooser-kicker {
+  margin: 0 0 5px !important;
+  color: #9a7850 !important;
+  font-size: 10px !important;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+
+.mockup-chooser-model-stage h2,
+.mockup-chooser-style-stage h2 {
+  margin: 0;
+  color: #263d3b;
+  font: 500 clamp(24px, 3.6vw, 38px)/1.08 Georgia, serif;
+}
+
+/* FIX: `em` era stilizzato solo in .mockup-chooser-model-stage; uniformato */
+.mockup-chooser-model-stage h2 em,
+.mockup-chooser-style-stage h2 em {
+  color: #335e56;
+  font-style: italic;
+}
+
+.mockup-chooser-intro {
+  max-width: 620px;
+  margin: 8px 0 16px !important;
+  color: #65746d !important;
+  font-size: 13px !important;
+}
+
+.mockup-chooser-models {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+  flex: 1 0 auto;
+  min-height: 0;
+  gap: 16px;
+}
+
+.mockup-chooser-model-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(190px, 1.05fr) minmax(190px, .95fr);
+  min-width: 0;
+  min-height: clamp(250px, 46vh, 430px);
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid #d4ded5;
+  border-radius: 14px;
+  background: #fff;
+  color: inherit;
+  text-align: left;
+  box-shadow: 0 2px 8px #273d390a;
+  transition: border-color .15s, box-shadow .15s, transform .15s;
+}
+
+.mockup-chooser-model-card:hover,
+.mockup-chooser-model-card:focus-visible,
+.mockup-chooser-model-card.is-selected {
+  border-color: #70968a;
+  box-shadow: 0 5px 18px #273d3918;
+}
+
+.mockup-chooser-model-card:hover {
+  transform: translateY(-1px);
+}
+
+.mockup-chooser-model-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  min-width: 0;
+  padding: clamp(18px, 3vw, 34px);
+  overflow: auto;
+}
+
+.mockup-chooser-model-copy .mockup-chooser-model-description {
+  display: block;
+  max-width: 290px;
+  margin: 8px 0 18px;
+  color: #5d6c66;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.mockup-chooser-model-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #335e56;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.mockup-chooser-model-image {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #ebeae4;
+}
+
+.mockup-chooser-model-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+}
+
+.mockup-chooser-model-check {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  width: 25px;
+  height: 25px;
+  place-items: center;
+  border: 1px solid #c7d4ca;
+  border-radius: 50%;
+  background: #fff;
+  color: #335e56;
+  opacity: 0;
+}
+
+.mockup-chooser-model-card.is-selected .mockup-chooser-model-check {
+  opacity: 1;
+  background: #e5eee9;
+}
+
+.mockup-chooser-model-note,
+.mockup-chooser-cover-note {
+  flex: 0 0 auto;
+  margin: 10px 0 0 !important;
+  color: #78847d !important;
+  font-size: 11px !important;
+}
+
+.mockup-chooser-selected-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e1e5dd;
+}
+
+.mockup-chooser-summary-label {
+  display: block;
+  margin-bottom: 3px;
+  color: #78847d;
+  font-size: 10px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.mockup-chooser-selected-summary strong {
+  font: 500 22px Georgia, serif;
+}
+
+.mockup-chooser-covers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+  flex: 0 0 auto;
+  min-height: 0;
+  gap: 12px;
+  overflow: visible;
+}
+
+.mockup-chooser-cover-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #d4ded5;
+  border-radius: 12px;
+  background: #fff;
+  color: inherit;
+  text-align: left;
+}
+
+.mockup-chooser-cover-card:hover,
+.mockup-chooser-cover-card:focus-visible,
+.mockup-chooser-cover-card.is-selected {
+  border-color: #335e56;
+  box-shadow: 0 4px 14px #273d3915;
+}
+
+.mockup-chooser-cover-image {
+  display: block;
+  aspect-ratio: 1.45 / 1;
+  overflow: hidden;
+  background: #ebeae4;
+}
+
+.mockup-chooser-cover-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mockup-chooser-cover-copy {
+  display: block;
+  padding: 12px;
+}
+
+.mockup-chooser-cover-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #294d46;
+  font-size: 13px;
+}
+
+.mockup-chooser-cover-description {
+  display: block;
+  margin-top: 5px;
+  color: #64736c;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.mockup-chooser-cover-copy small {
+  display: block;
+  margin-top: 8px;
+  color: #87918a;
+  font-size: 10px;
+}
+
+.mockup-chooser-radio {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid #c7d4ca;
+  border-radius: 50%;
+  color: transparent;
+}
+
+.mockup-chooser-cover-card.is-selected .mockup-chooser-radio {
+  border-color: #335e56;
+  background: #335e56;
+  color: white;
+}
+
+.mockup-chooser-action-bar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  min-height: 68px;
+  padding: 10px clamp(18px, 3vw, 42px);
+  border-top: 1px solid #dfe5dd;
+  background: #fff;
+}
+
+.mockup-chooser-action-status {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  color: #78847d;
+  font-size: 11px;
+}
+
+.mockup-chooser-action-status strong {
+  overflow: hidden;
+  color: #294d46;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mockup-chooser-primary {
+  display: inline-flex;
+  min-height: 44px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 18px;
+  border: 0;
+  border-radius: 8px;
+  background: #335e56;
+  color: #fff;
+  font-size: 12px !important;
+  font-weight: 700;
+}
+
+.mockup-chooser-primary:hover:not(:disabled) {
+  background: #274b45;
+}
+
+.mockup-chooser-primary:disabled {
+  background: #aebeb7;
+}
+
+/* ============================================================
+   MEDIA — mobile (< 760px)
+   ============================================================ */
+
+@media (max-width: 760px) {
+  .mockup-chooser-heading { padding: 8px 12px; }
+
+  .mockup-chooser-stepper {
+    order: 3;
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+  }
+
+  .mockup-chooser-model-stage,
+  .mockup-chooser-style-stage {
+    padding: 16px 12px 10px;
+  }
+
+  .mockup-chooser-model-card {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(190px, 38vh) auto;
+    min-height: 0;
+  }
+
+  .mockup-chooser-model-copy { order: 2; padding: 14px; }
+  .mockup-chooser-model-image { order: 1; }
+
+  .mockup-chooser-model-copy .mockup-chooser-model-description { margin: 6px 0 10px; }
+
+  .mockup-chooser-action-bar { min-height: 62px; padding: 8px 12px; }
+  .mockup-chooser-primary { min-height: 44px; padding: 8px 13px; }
+}

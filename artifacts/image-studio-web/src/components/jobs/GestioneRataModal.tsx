@@ -1,0 +1,511 @@
+/**
+ * GESTIONE RATA MODAL
+ * Modal per aggiungere o modificare una rata in un payment schedule
+ */
+
+import { useEffect, useRef, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { DateInput } from "@/components/ui/date-input";
+import { CalendarIcon, Loader2, CalendarDays } from "lucide-react";
+import { format, addDays } from "date-fns";
+import { it } from "date-fns/locale/it";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+
+const VALID_TIPI = ["acconto", "rata", "saldo"] as const;
+type TipoRata = (typeof VALID_TIPI)[number];
+
+const formSchema = z.object({
+  tipo: z.enum(VALID_TIPI),
+  importo: z.number().min(0.01, "Importo deve essere maggiore di 0"),
+  dataScadenza: z.date(),
+  descrizione: z.string().optional(),
+});
+
+type FormData = z.infer<typeof formSchema>;
+
+interface GestioneRataModalProps {
+  open: boolean;
+  onClose: () => void;
+  scheduleId: string;
+  jobId: string;
+  eventDate?: Date | null;
+  payment?: {
+    id: string;
+    tipo: string;
+    importo: number;
+    dataScadenza: any;
+    descrizione?: string;
+  };
+  mode: "add" | "edit";
+}
+
+function safeTipo(tipo?: string): TipoRata {
+  if (tipo && (VALID_TIPI as readonly string[]).includes(tipo)) {
+    return tipo as TipoRata;
+  }
+  return "acconto";
+}
+
+export default function GestioneRataModal({
+  open,
+  onClose,
+  scheduleId,
+  jobId,
+  eventDate,
+  payment,
+  mode,
+}: GestioneRataModalProps) {
+  const { toast } = useToast();
+  const [dateMode, setDateMode] = useState<"absolute" | "relative">("absolute");
+  const [relativeDays, setRelativeDays] = useState<number>(0);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const datePickerCalendarRef = useRef<HTMLDivElement>(null);
+
+  const getDateFromPayment = (dataScadenza: any): Date => {
+    if (!dataScadenza) return new Date();
+    if (dataScadenza instanceof Date) return dataScadenza;
+    if (dataScadenza.toDate && typeof dataScadenza.toDate === "function") {
+      return dataScadenza.toDate();
+    }
+    return new Date(dataScadenza);
+  };
+
+  const form = useForm<FormData>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      tipo: safeTipo(payment?.tipo),
+      importo: payment?.importo ?? 0,
+      dataScadenza: getDateFromPayment(payment?.dataScadenza),
+      descrizione: payment?.descrizione ?? "",
+    },
+  });
+
+  useEffect(() => {
+    if (open) {
+      setDatePickerOpen(false);
+      const paymentDate = getDateFromPayment(payment?.dataScadenza);
+
+      form.reset({
+        tipo: safeTipo(payment?.tipo),
+        importo: payment?.importo ?? 0,
+        dataScadenza: paymentDate,
+        descrizione: payment?.descrizione ?? "",
+      });
+
+      if (eventDate && payment?.dataScadenza) {
+        const ed = new Date(eventDate);
+        const eventDateNormalized = new Date(ed.getFullYear(), ed.getMonth(), ed.getDate());
+        const pd = new Date(paymentDate);
+        const paymentDateNormalized = new Date(pd.getFullYear(), pd.getMonth(), pd.getDate());
+
+        const diffTime =
+          paymentDateNormalized.getTime() - eventDateNormalized.getTime();
+        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+        if (Math.abs(diffDays) <= 365) {
+          setDateMode("relative");
+          setRelativeDays(diffDays);
+        } else {
+          setDateMode("absolute");
+          setRelativeDays(0);
+        }
+      } else {
+        setDateMode("absolute");
+        setRelativeDays(0);
+      }
+    }
+  }, [open, payment, eventDate, form]);
+
+  useEffect(() => {
+    if (dateMode === "relative" && eventDate) {
+      const calculatedDate = addDays(new Date(eventDate), relativeDays);
+      form.setValue("dataScadenza", calculatedDate);
+    }
+  }, [dateMode, relativeDays, eventDate, form]);
+
+  const mutation = useMutation({
+    mutationFn: async (data: FormData) => {
+      const endpoint =
+        mode === "add"
+          ? `/api/payment-schedules/${scheduleId}/payments`
+          : `/api/payment-schedules/${scheduleId}/payments/${payment?.id}`;
+
+      const method = mode === "add" ? "POST" : "PATCH";
+
+      const d = data.dataScadenza;
+      const safeDate = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0);
+
+      const response = await apiRequest(method, endpoint, {
+        tipo: data.tipo,
+        importo: data.importo,
+        dataScadenza: safeDate.toISOString(),
+        descrizione: data.descrizione,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(
+          error.message ||
+            `Errore ${mode === "add" ? "aggiunta" : "modifica"} rata`,
+        );
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["payment-schedules", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["paymentSchedule", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["paymentSchedules", "aggregated", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["jobs", jobId] });
+      toast({
+        title: mode === "add" ? "Rata aggiunta!" : "Rata modificata!",
+        description:
+          mode === "add"
+            ? "La rata è stata aggiunta con successo al piano pagamenti."
+            : "La rata è stata modificata con successo.",
+      });
+      onClose();
+      form.reset();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Errore",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const onSubmit = (data: FormData) => {
+    mutation.mutate(data);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>
+            {mode === "add" ? "Aggiungi Rata" : "Modifica Rata"}
+          </DialogTitle>
+          <DialogDescription>
+            {mode === "add"
+              ? "Aggiungi una nuova rata al piano pagamenti"
+              : "Modifica i dettagli della rata selezionata"}
+          </DialogDescription>
+        </DialogHeader>
+
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="tipo"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tipo</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger data-testid="select-tipo">
+                        <SelectValue placeholder="Seleziona tipo" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="acconto">Acconto</SelectItem>
+                      <SelectItem value="rata">Rata</SelectItem>
+                      <SelectItem value="saldo">Saldo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="importo"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Importo (€)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      {...field}
+                      onChange={(e) =>
+                        field.onChange(parseFloat(e.target.value) || 0)
+                      }
+                      data-testid="input-importo"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="space-y-3">
+              <Label>Modalità Scadenza</Label>
+
+              {!eventDate && (
+                <div className="rounded-md bg-yellow-50 border border-yellow-200 p-3 mb-3">
+                  <p className="text-sm text-yellow-800">
+                    Data evento non disponibile. Puoi impostare solo scadenze
+                    assolute.
+                  </p>
+                </div>
+              )}
+
+              <RadioGroup
+                value={dateMode}
+                onValueChange={(value) => {
+                  const mode = value as "absolute" | "relative";
+                  setDateMode(mode);
+
+                  if (mode === "relative" && eventDate) {
+                    form.setValue("dataScadenza", addDays(new Date(eventDate), relativeDays));
+                  }
+                }}
+                className="space-y-2"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem
+                    value="absolute"
+                    id="absolute"
+                    data-testid="installment-date-mode-absolute"
+                  />
+                  <Label
+                    htmlFor="absolute"
+                    className="font-normal cursor-pointer"
+                  >
+                    Data assoluta (calendario)
+                  </Label>
+                </div>
+
+                {eventDate && (
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem
+                      value="relative"
+                      id="relative"
+                      data-testid="installment-date-mode-relative"
+                    />
+                    <Label
+                      htmlFor="relative"
+                      className="font-normal cursor-pointer"
+                    >
+                      Relativa all'evento ({format(eventDate, "dd/MM/yyyy", { locale: it })})
+                    </Label>
+                  </div>
+                )}
+              </RadioGroup>
+
+              {dateMode === "absolute" && (
+                <FormField
+                  control={form.control}
+                  name="dataScadenza"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <div className="flex gap-2">
+                        <FormControl className="flex-1">
+                          <DateInput
+                            value={field.value}
+                            onChange={field.onChange}
+                            placeholder="gg/mm/aaaa"
+                            data-testid="input-data-scadenza-manual"
+                          />
+                        </FormControl>
+                           <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="px-3"
+                              data-testid="button-date-picker"
+                            >
+                              <CalendarIcon className="h-4 w-4" />
+                            </Button>
+                          </PopoverTrigger>
+                           <PopoverContent
+                             ref={datePickerCalendarRef}
+                             className="w-[min(20rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] overflow-y-auto p-0 z-[100]"
+                             align="end"
+                             onOpenAutoFocus={(event) => {
+                               event.preventDefault();
+                               window.requestAnimationFrame(() => {
+                                 datePickerCalendarRef.current
+                                   ?.querySelector<HTMLElement>(".rdp-day_button[tabindex='0']")
+                                   ?.focus();
+                               });
+                             }}
+                           >
+                            <Calendar
+                              mode="single"
+                              selected={field.value}
+                              defaultMonth={field.value}
+                              onSelect={(date) => {
+                                if (date) {
+                                  field.onChange(date);
+                                  setDatePickerOpen(false);
+                                }
+                              }}
+                              initialFocus
+                              locale={it}
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {dateMode === "relative" && eventDate && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <Label htmlFor="relative-days" className="min-w-24">
+                      Giorni evento:
+                    </Label>
+                    <div className="flex items-center gap-2 flex-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setRelativeDays((prev) => prev - 1)}
+                        className="h-8 w-8 p-0"
+                      >
+                        -
+                      </Button>
+                      <Input
+                        id="relative-days"
+                        type="number"
+                        value={relativeDays}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setRelativeDays(val === "" || val === "-" ? 0 : Number(val));
+                        }}
+                        className="text-center w-20"
+                        data-testid="input-relative-days"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setRelativeDays((prev) => prev + 1)}
+                        className="h-8 w-8 p-0"
+                      >
+                        +
+                      </Button>
+                      <span className="text-sm text-muted-foreground">
+                        {relativeDays === 0
+                          ? "giorno evento"
+                          : relativeDays > 0
+                            ? `giorni dopo`
+                            : `giorni prima`}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="rounded-md bg-muted p-3 flex items-center gap-2">
+                    <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                    <div className="text-sm">
+                      <span className="text-muted-foreground">
+                        Scadenza calcolata:{" "}
+                      </span>
+                      <span className="font-semibold" data-testid="calculated-due-date">
+                        {format(
+                          addDays(eventDate, relativeDays),
+                          "dd/MM/yyyy",
+                          { locale: it },
+                        )}
+                      </span>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-muted-foreground">
+                    Esempi: <strong>-30</strong> = 30 giorni prima
+                    dell'evento (alla firma), <strong>-10</strong> = 10 giorni
+                    prima, <strong>0</strong> = giorno evento,{" "}
+                    <strong>+7</strong> = 7 giorni dopo
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <FormField
+              control={form.control}
+              name="descrizione"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Descrizione (opzionale)</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="Es: Prima rata, Saldo finale..."
+                      {...field}
+                      data-testid="input-descrizione"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={onClose}>
+                Annulla
+              </Button>
+              <Button
+                type="submit"
+                disabled={mutation.isPending}
+                data-testid="button-submit"
+              >
+                {mutation.isPending && (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                )}
+                {mode === "add" ? "Aggiungi" : "Salva Modifiche"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}

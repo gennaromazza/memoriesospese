@@ -1,0 +1,2 @@
+Place the optional Windows code-signing certificate in the CI secret store, never in this directory.
+`icon.png` is the unsigned installer icon source and is copied from the public Image Studio brand assets.

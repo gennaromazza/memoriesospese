@@ -1,0 +1,246 @@
+import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
+import { useToast } from "@/hooks/use-toast";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
+import Navigation from "@/components/Navigation";
+import Footer from "@/components/Footer";
+import {
+  FloralCorner,
+  FloralDivider,
+  BackgroundDecoration,
+} from "@/components/WeddingIllustrations";
+import { WeddingImage, DecorativeImage } from "@/components/WeddingImages";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { auth } from "@/lib/firebase";
+import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
+import { createUrl, createAbsoluteUrl } from "@/lib/basePath";
+import { Eye, EyeOff } from 'lucide-react';
+
+const loginSchema = z.object({
+  email: z.string().email("Inserisci un'email valida"),
+  password: z.string().min(6, "La password deve contenere almeno 6 caratteri"),
+});
+
+type LoginFormData = z.infer<typeof loginSchema>;
+
+export default function AdminLogin() {
+  const [isLoading, setIsLoading] = useState(false);
+  const [location, navigate] = useLocation();
+  const { toast } = useToast();
+  const [showPassword, setShowPassword] = useState(false);
+  const handoffId = new URLSearchParams(window.location.search).get('desktopHandoff');
+  const printOrderId = new URLSearchParams(window.location.search).get('printOrderId');
+  const destination = handoffId && /^[A-Za-z0-9_-]{43}$/.test(handoffId)
+    ? `/admin/sicurezza?desktopHandoff=${encodeURIComponent(handoffId)}`
+    : printOrderId ? `/admin/dashboard?printOrderId=${encodeURIComponent(printOrderId)}`
+    : '/admin/dashboard';
+
+  // Se l'admin è già autenticato in Firebase, passa alla dashboard: il guard
+  // delle route admin farà poi la verifica passkey se obbligatoria.
+  const { user, isLoading: authLoading, isAdmin } = useFirebaseAuth();
+  useEffect(() => {
+    if (!authLoading && user && isAdmin && location === '/admin') {
+      navigate(createUrl(destination), { replace: true });
+    }
+  }, [authLoading, user, isAdmin, navigate, destination, location]);
+
+  const form = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+    },
+  });
+
+  const onSubmit = async (data: LoginFormData) => {
+    setIsLoading(true);
+    try {
+      // Utilizziamo direttamente le API di Firebase anziché l'AuthContext
+      const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
+      const user = userCredential.user;
+
+      // 🔧 FIX: Aspetta che il token JWT sia completamente pronto
+      await user.getIdToken(true);
+
+      // Controlla se l'utente è un admin (con controlli multipli)
+      const isAdminUser = user.email?.trim().toLowerCase() === 'gennaro.mazzacane@gmail.com';
+
+      if (isAdminUser) {
+        // Salva informazione che l'utente è un amministratore
+        localStorage.setItem("isAdmin", "true");
+
+        // 🔧 FIX: Piccolo delay per permettere al context di aggiornarsi
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        // Usa createUrl per garantire il corretto basepath. Se la passkey è
+        // obbligatoria, il guard della dashboard chiederà la verifica.
+        navigate(createUrl(destination));
+        
+        toast({
+          title: "Accesso effettuato",
+          description: "Benvenuto nell'area amministrativa",
+        });
+      } else {
+        // Logout se non è admin
+        localStorage.removeItem("isAdmin");
+        await auth.signOut();
+        throw new Error('Accesso negato: non sei un amministratore');
+      }
+    } catch (error: any) {
+
+      let errorMessage = "Si è verificato un errore durante l'accesso.";
+
+      // Handle specific Firebase auth errors
+      if (
+        error.code === "auth/user-not-found" ||
+        error.code === "auth/wrong-password"
+      ) {
+        errorMessage = "Email o password non validi.";
+      } else if (error.code === "auth/too-many-requests") {
+        errorMessage = "Troppi tentativi di accesso. Riprova più tardi.";
+      } else if (error.message?.includes('non sei un amministratore')) {
+        errorMessage = "Accesso negato: non sei autorizzato come amministratore.";
+      }
+
+      toast({
+        title: "Errore di accesso",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-off-white flex flex-col relative">
+      {/* Decorazioni floreali agli angoli */}
+      <div className="absolute top-0 left-0 w-32 h-32 opacity-15 pointer-events-none">
+        <WeddingImage
+          type="flower-bouquet"
+          className="w-full h-auto"
+          alt="Decorazione floreale"
+        />
+      </div>
+      <div className="absolute top-0 right-0 w-32 h-32 opacity-15 pointer-events-none">
+        <WeddingImage
+          type="flower-bouquet"
+          className="w-full h-auto transform scale-x-[-1]"
+          alt="Decorazione floreale"
+        />
+      </div>
+
+      <Navigation />
+
+      <div className="flex-grow flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative z-10">
+        <div className="max-w-md w-full space-y-8">
+          <div className="text-center">
+            <div className="w-24 h-24 mx-auto mb-4">
+              <WeddingImage
+                type="standing"
+                className="w-full h-auto opacity-40"
+                alt="Icona amministratore"
+              />
+            </div>
+            <h2 className="mt-6 text-3xl font-bold text-blue-gray font-playfair">
+              Accesso Admin
+            </h2>
+            <p className="mt-2 text-center text-sm text-gray-600">
+              Accedi per gestire le gallerie fotografiche
+            </p>
+            <div className="w-full max-w-xs mx-auto h-6 opacity-20 my-4">
+              <FloralDivider />
+            </div>
+          </div>
+
+          <Card className="border-sage/20 shadow-md overflow-hidden">
+            <div className="absolute inset-0 opacity-5 pointer-events-none">
+              <BackgroundDecoration />
+            </div>
+            <CardContent className="pt-6 relative z-10">
+              <form
+                onSubmit={form.handleSubmit(onSubmit)}
+                className="space-y-6"
+              >
+                <div>
+                  <label
+                    htmlFor="email"
+                    className="block text-sm font-medium text-blue-gray"
+                  >
+                    Email
+                  </label>
+                  <div className="mt-1">
+                    <Input
+                      id="email"
+                      type="email"
+                      autoComplete="email"
+                      {...form.register("email")}
+                      className="appearance-none block w-full px-3 py-2 border border-beige rounded-md shadow-sm focus:ring-sage focus:border-sage"
+                    />
+                    {form.formState.errors.email && (
+                      <p className="mt-1 text-sm text-red-500">
+                        {form.formState.errors.email.message}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="password"
+                    className="block text-sm font-medium text-blue-gray"
+                  >
+                    Password
+                  </label>
+                  <div className="mt-1 relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      autoComplete="current-password"
+                      {...form.register("password")}
+                      className="appearance-none block w-full px-3 py-2 border border-beige rounded-md shadow-sm focus:ring-sage focus:border-sage"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 flex items-center pr-3 cursor-pointer"
+                      aria-label={showPassword ? "Nascondi password" : "Mostra password"}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-5 w-5 text-gray-500" />
+                      ) : (
+                        <Eye className="h-5 w-5 text-gray-500" />
+                      )}
+                    </button>
+                    {form.formState.errors.password && (
+                      <p className="mt-1 text-sm text-red-500">
+                        {form.formState.errors.password.message}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <Button
+                    type="submit"
+                    className="w-full btn-primary py-2 px-4 rounded-md"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? "Accesso in corso..." : "Accedi"}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      <Footer />
+    </div>
+  );
+}

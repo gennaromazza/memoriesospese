@@ -1,0 +1,14 @@
+# The format of this file is identical to `.dockerignore`.
+# It is used to reduce the size of deployed images to make the process of publishing faster.
+
+# Repository history and local caches are not needed to run the published app.
+.git
+.local
+.cache
+
+# Keep dist (the API run command and static sites need it) and node_modules
+# (the API bundle loads external packages such as firebase-admin at runtime).
+
+# Historical backup and desktop release binaries are not used by the web deployment.
+.migration-backup
+artifacts/image-studio-desktop/release

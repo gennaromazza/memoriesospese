@@ -1,0 +1,504 @@
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import { Bell, Send, RefreshCw, CheckCircle, Clock, AlertCircle } from "lucide-react";
+import { apiRequest } from "@/lib/queryClient";
+
+interface ReminderStatus {
+  success: boolean;
+  timestamp: string;
+  bookings: {
+    total: number;
+    withReminder: number;
+    pending: number;
+    list: Array<{
+      id: string;
+      cliente: string;
+      email: string;
+      data: string;
+      reminderSent: boolean;
+      reminderSentAt?: string;
+    }>;
+  };
+  consultations: {
+    total: number;
+    withReminder: number;
+    pending: number;
+    list: Array<{
+      id: string;
+      cliente: string;
+      email: string;
+      jobType: string;
+      data: string;
+      reminderSent: boolean;
+      reminderSentAt?: string;
+    }>;
+  };
+}
+
+interface SendRemindersResult {
+  success: boolean;
+  message: string;
+  timestamp: string;
+  results: {
+    bookings: { checked: number; sent: number; skipped: number; errors: string[] };
+    consultations: {
+      checked: number;
+      sent: number;
+      skipped: number;
+      errors: string[];
+      invalidSchedules: Array<{
+        consultationId: string;
+        reason: string;
+        dataConsulenza: string | null;
+        orarioInizio: string | null;
+        orarioFine: string | null;
+      }>;
+    };
+  };
+}
+
+type InvalidSchedule = SendRemindersResult["results"]["consultations"]["invalidSchedules"][number];
+
+type ScheduleDraft = {
+  dataConsulenza: string;
+  orarioInizio: string;
+  orarioFine: string;
+};
+
+function getApiErrorMessage(error: unknown, fallback: string): string {
+  const rawMessage = error instanceof Error ? error.message : "";
+  const jsonStart = rawMessage.indexOf("{");
+
+  if (jsonStart >= 0) {
+    try {
+      const body = JSON.parse(rawMessage.slice(jsonStart));
+      if (typeof body.message === "string" && body.message) return body.message;
+      if (typeof body.error === "string" && body.error) return body.error;
+    } catch {
+      // Usa il messaggio originale se la risposta non contiene JSON valido.
+    }
+  }
+
+  return rawMessage || fallback;
+}
+
+export default function ReminderManager() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [lastSendResult, setLastSendResult] = useState<SendRemindersResult | null>(null);
+  const [scheduleDrafts, setScheduleDrafts] = useState<Record<string, ScheduleDraft>>({});
+
+  const { data: status, isLoading, refetch, isFetching } = useQuery<ReminderStatus>({
+    queryKey: ['/api/reminders/status'],
+    refetchInterval: 60000,
+  });
+
+  const sendRemindersMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', '/api/reminders/send-all');
+      return await response.json() as SendRemindersResult;
+    },
+    onSuccess: (data) => {
+      setLastSendResult(data);
+      queryClient.invalidateQueries({ queryKey: ['/api/reminders/status'] });
+      
+      const totalSent = data.results.bookings.sent + data.results.consultations.sent;
+      const totalErrors = data.results.bookings.errors.length + data.results.consultations.errors.length;
+      
+      if (totalSent > 0 && totalErrors === 0) {
+        toast({
+          title: "✅ Reminder inviati!",
+          description: `${totalSent} reminder inviati con successo.`,
+        });
+      } else if (totalSent > 0 && totalErrors > 0) {
+        toast({
+          title: "⚠️ Reminder inviati con errori",
+          description: `${totalSent} inviati, ${totalErrors} errori.`,
+          variant: "destructive",
+        });
+      } else if (totalSent === 0 && totalErrors === 0) {
+        toast({
+          title: "ℹ️ Nessun reminder da inviare",
+          description: "Nessun appuntamento richiede reminder in questo momento.",
+        });
+      } else {
+        toast({
+          title: "❌ Errore invio reminder",
+          description: `${totalErrors} errori durante l'invio.`,
+          variant: "destructive",
+        });
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: "❌ Errore",
+        description: error.message || "Errore durante l'invio dei reminder",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const repairScheduleMutation = useMutation({
+    mutationFn: async (schedule: InvalidSchedule & ScheduleDraft) => {
+      const response = await apiRequest(
+        "PATCH",
+        `/api/consultations/${schedule.consultationId}/reminder-schedule`,
+        {
+          dataConsulenza: schedule.dataConsulenza,
+          orarioInizio: schedule.orarioInizio,
+          orarioFine: schedule.orarioFine,
+        },
+      );
+      return response.json();
+    },
+    onSuccess: (data, schedule) => {
+      setLastSendResult((current) =>
+        current
+          ? {
+              ...current,
+              results: {
+                ...current.results,
+                consultations: {
+                  ...current.results.consultations,
+                  errors: current.results.consultations.errors.filter(
+                    (error) =>
+                      !error.includes(
+                        `[INVALID_CONSULTATION_SCHEDULE] Consultation ${schedule.consultationId}:`,
+                      ),
+                  ),
+                  invalidSchedules:
+                    current.results.consultations.invalidSchedules.filter(
+                      (item) => item.consultationId !== schedule.consultationId,
+                    ),
+                },
+              },
+            }
+          : current,
+      );
+      setScheduleDrafts((current) => {
+        const next = { ...current };
+        delete next[schedule.consultationId];
+        return next;
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/reminders/status"] });
+      toast({
+        title: "Consulenza aggiornata",
+        description: data.calendarSynced
+          ? "La correzione e l'evento Google Calendar sono aggiornati. Il reminder potrà essere ritentato."
+          : "La correzione è salvata e il reminder potrà essere ritentato.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Correzione non salvata",
+        description: getApiErrorMessage(
+          error,
+          "Impossibile aggiornare data, orari e Google Calendar.",
+        ),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return "-";
+    const date = new Date(dateString);
+    return date.toLocaleString("it-IT", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const formatDateInput = (dateString: string | null) => {
+    if (!dateString) return "";
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) return "";
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Rome",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(date);
+    const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+    return `${values.year}-${values.month}-${values.day}`;
+  };
+
+  const getScheduleDraft = (schedule: InvalidSchedule): ScheduleDraft =>
+    scheduleDrafts[schedule.consultationId] || {
+      dataConsulenza: formatDateInput(schedule.dataConsulenza),
+      orarioInizio: schedule.orarioInizio || "",
+      orarioFine: schedule.orarioFine || "",
+    };
+
+  const updateScheduleDraft = (
+    schedule: InvalidSchedule,
+    field: keyof ScheduleDraft,
+    value: string,
+  ) => {
+    const current = getScheduleDraft(schedule);
+    setScheduleDrafts((drafts) => ({
+      ...drafts,
+      [schedule.consultationId]: { ...current, [field]: value },
+    }));
+  };
+
+  const totalPending = (status?.bookings.pending || 0) + (status?.consultations.pending || 0);
+  const totalWithReminder = (status?.bookings.withReminder || 0) + (status?.consultations.withReminder || 0);
+
+  return (
+    <Card className="border-sage/30">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Bell className="w-5 h-5 text-sage" />
+            <CardTitle className="text-lg">Reminder Appuntamenti</CardTitle>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => refetch()}
+            disabled={isFetching}
+          >
+            <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
+          </Button>
+        </div>
+        <CardDescription>
+          Invia email promemoria 24h prima di shooting e consulenze
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isLoading ? (
+          <div className="text-center py-4 text-gray-500">
+            Caricamento stato reminder...
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <Clock className="w-4 h-4 text-blue-600" />
+                  <span className="font-medium text-blue-800 text-sm">Prossime 48h</span>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-blue-700">Shooting:</span>
+                    <span className="font-semibold text-blue-900">{status?.bookings.total || 0}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-blue-700">Consulenze:</span>
+                    <span className="font-semibold text-blue-900">{status?.consultations.total || 0}</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-amber-50 rounded-lg p-3 border border-amber-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <AlertCircle className="w-4 h-4 text-amber-600" />
+                  <span className="font-medium text-amber-800 text-sm">Da inviare</span>
+                </div>
+                <div className="text-2xl font-bold text-amber-900">
+                  {totalPending}
+                </div>
+                <p className="text-xs text-amber-700">
+                  reminder in attesa
+                </p>
+              </div>
+            </div>
+
+            {totalWithReminder > 0 && (
+              <div className="flex items-center gap-2 text-sm text-sage">
+                <CheckCircle className="w-4 h-4" />
+                <span>{totalWithReminder} reminder già inviati</span>
+              </div>
+            )}
+
+            <Button
+              onClick={() => sendRemindersMutation.mutate()}
+              disabled={sendRemindersMutation.isPending}
+              className="w-full bg-sage hover:bg-sage/90"
+            >
+              {sendRemindersMutation.isPending ? (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  Invio in corso...
+                </>
+              ) : (
+                <>
+                  <Send className="w-4 h-4 mr-2" />
+                  Invia Reminder Ora
+                </>
+              )}
+            </Button>
+
+            {lastSendResult && (
+              <div className="bg-gray-50 rounded-lg p-3 border text-sm space-y-2">
+                <div className="font-medium text-gray-700">Ultimo invio:</div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span className="text-gray-500">Shooting:</span>{" "}
+                    <Badge variant="outline" className="ml-1">
+                      {lastSendResult.results.bookings.sent} inviati
+                    </Badge>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Consulenze:</span>{" "}
+                    <Badge variant="outline" className="ml-1">
+                      {lastSendResult.results.consultations.sent} inviati
+                    </Badge>
+                  </div>
+                </div>
+                {(lastSendResult.results.bookings.errors.length > 0 || 
+                  lastSendResult.results.consultations.errors.length > 0) && (
+                  <div className="text-red-600 text-xs mt-2">
+                    ⚠️ {lastSendResult.results.bookings.errors.length + 
+                        lastSendResult.results.consultations.errors.length} errori
+                  </div>
+                )}
+                {lastSendResult.results.consultations.invalidSchedules.length > 0 && (
+                  <div className="text-amber-700 text-xs mt-3 space-y-2">
+                    <div>
+                      ⚠️ {lastSendResult.results.consultations.invalidSchedules.length} consulenze da correggere:
+                    </div>
+                    {lastSendResult.results.consultations.invalidSchedules.map((schedule) => {
+                      const draft = getScheduleDraft(schedule);
+                      return (
+                      <div key={schedule.consultationId} className="rounded border border-amber-200 bg-white p-2 space-y-2">
+                        <div className="font-medium">
+                          Consulenza {schedule.consultationId}
+                        </div>
+                        <div className="text-amber-800">{schedule.reason}</div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          <label className="space-y-1">
+                            <span className="text-[10px] uppercase tracking-wide text-gray-500">Data</span>
+                            <input
+                              type="date"
+                              className="w-full rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900"
+                              value={draft.dataConsulenza}
+                              onChange={(event) =>
+                                updateScheduleDraft(schedule, "dataConsulenza", event.target.value)
+                              }
+                            />
+                          </label>
+                          <label className="space-y-1">
+                            <span className="text-[10px] uppercase tracking-wide text-gray-500">Inizio</span>
+                            <input
+                              type="time"
+                              className="w-full rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900"
+                              value={draft.orarioInizio}
+                              onChange={(event) =>
+                                updateScheduleDraft(schedule, "orarioInizio", event.target.value)
+                              }
+                            />
+                          </label>
+                          <label className="space-y-1">
+                            <span className="text-[10px] uppercase tracking-wide text-gray-500">Fine</span>
+                            <input
+                              type="time"
+                              className="w-full rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900"
+                              value={draft.orarioFine}
+                              onChange={(event) =>
+                                updateScheduleDraft(schedule, "orarioFine", event.target.value)
+                              }
+                            />
+                          </label>
+                        </div>
+                        <Button
+                          size="sm"
+                          className="h-7 text-xs"
+                          disabled={
+                            repairScheduleMutation.isPending &&
+                            repairScheduleMutation.variables?.consultationId === schedule.consultationId
+                          }
+                          onClick={() =>
+                            repairScheduleMutation.mutate({
+                              ...schedule,
+                              ...draft,
+                            })
+                          }
+                        >
+                          {repairScheduleMutation.isPending &&
+                          repairScheduleMutation.variables?.consultationId === schedule.consultationId
+                            ? "Salvataggio..."
+                            : "Salva correzione"}
+                        </Button>
+                      </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {(status?.bookings.list?.length || 0) > 0 && (
+              <div className="mt-4">
+                <h4 className="font-medium text-sm text-gray-700 mb-2">
+                  📸 Shooting prossimi:
+                </h4>
+                <div className="space-y-1 max-h-32 overflow-y-auto">
+                  {status?.bookings.list.map((b) => (
+                    <div 
+                      key={b.id} 
+                      className="flex items-center justify-between text-xs bg-white p-2 rounded border"
+                    >
+                      <div>
+                        <span className="font-medium">{b.cliente}</span>
+                        <span className="text-gray-500 ml-2">{formatDate(b.data)}</span>
+                      </div>
+                      {b.reminderSent ? (
+                        <Badge variant="outline" className="bg-green-50 text-green-700 text-[10px]">
+                          ✓ Inviato
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="bg-amber-50 text-amber-700 text-[10px]">
+                          In attesa
+                        </Badge>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {(status?.consultations.list?.length || 0) > 0 && (
+              <div className="mt-4">
+                <h4 className="font-medium text-sm text-gray-700 mb-2">
+                  🗓️ Consulenze prossime:
+                </h4>
+                <div className="space-y-1 max-h-32 overflow-y-auto">
+                  {status?.consultations.list.map((c) => (
+                    <div 
+                      key={c.id} 
+                      className="flex items-center justify-between text-xs bg-white p-2 rounded border"
+                    >
+                      <div>
+                        <span className="font-medium">{c.cliente}</span>
+                        <span className="text-gray-500 ml-2">{c.jobType}</span>
+                        <span className="text-gray-400 ml-2">{formatDate(c.data)}</span>
+                      </div>
+                      {c.reminderSent ? (
+                        <Badge variant="outline" className="bg-green-50 text-green-700 text-[10px]">
+                          ✓ Inviato
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="bg-amber-50 text-amber-700 text-[10px]">
+                          In attesa
+                        </Badge>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}

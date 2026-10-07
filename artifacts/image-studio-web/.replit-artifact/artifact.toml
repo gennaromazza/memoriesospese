@@ -1,0 +1,29 @@
+kind = "web"
+previewPath = "/"
+title = "Image Studio"
+description = "Sito pubblico e pannello amministrativo di Image Studio, con gestione gallerie e servizi fotografici."
+version = "1.0.0"
+id = "artifacts/image-studio-web"
+router = "path"
+
+[[services]]
+name = "web"
+paths = ["/"]
+localPort = 23767
+
+[services.development]
+run = "pnpm --filter @workspace/image-studio-web run dev"
+
+[services.production]
+build = ["pnpm", "--filter", "@workspace/image-studio-web", "run", "build"]
+
+[services.production.run]
+args = ["node", "--enable-source-maps", "artifacts/api-server/dist/public-web.mjs"]
+
+[services.production.run.env]
+PORT = "23767"
+NODE_ENV = "production"
+
+[services.env]
+PORT = "23767"
+BASE_PATH = "/"

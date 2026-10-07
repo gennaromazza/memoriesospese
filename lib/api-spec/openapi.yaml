@@ -1,0 +1,170 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: print-shop
+    description: Print-shop order administration
+paths:
+  /lab-shipments/recent:
+    get:
+      operationId: getRecentLabShipments
+      tags: [labs]
+      summary: Recent confirmed sends to a laboratory
+      description: Admin-only. Returns up to 100 actual sends, newest first; never assigns costs or jobs.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: labId
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 128
+            pattern: '^[^/]+$'
+      responses:
+        "200":
+          description: Confirmed laboratory sends
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RecentLabShipment"
+        "400":
+          description: Invalid laboratory identifier
+        "401":
+          description: Authentication required
+        "403":
+          description: Admin access required
+        "500":
+          description: Shipment history unavailable
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /print-shop/admin/orders/{orderId}/customer-notifications/{kind}/resend:
+    post:
+      operationId: resendCustomerOrderNotification
+      tags: [print-shop]
+      summary: Resend a customer email for a print-order lifecycle event
+      description: Admin-only. Resends an existing sent or failed notification; emails with an unresolved sending state cannot be retried.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - name: kind
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/CustomerNotificationKind"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerOrderNotificationResendInput"
+      responses:
+        "200":
+          description: Resend attempt completed or recorded as failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerOrderNotificationResendResult"
+        "400":
+          description: Invalid confirmation or notification kind
+        "401":
+          description: Admin authentication required
+        "403":
+          description: Admin access required
+        "404":
+          description: Print-shop order not found
+        "409":
+          description: The marker is unresolved or does not match the current event
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Firebase ID token
+  schemas:
+    RecentLabShipment:
+      type: object
+      required: [id, labId, sentAt, sourceType, descrizione]
+      properties:
+        id:
+          type: string
+        labId:
+          type: string
+        jobId:
+          type: string
+        sentAt:
+          type: string
+          format: date-time
+        sourceType:
+          type: string
+          enum: [job, photobook, print_shop]
+        descrizione:
+          type: string
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    CustomerNotificationKind:
+      type: string
+      enum:
+        - order_approved
+        - manual_acceptance
+        - order_confirmed
+        - payment_confirmed
+        - files_check
+        - ready_to_print
+        - sent_to_laboratory
+        - printing
+        - ready_for_pickup
+        - delivered
+        - cancelled
+        - order_restored
+    CustomerOrderNotificationResendInput:
+      type: object
+      properties:
+        confirmed:
+          type: boolean
+          enum: [true]
+      required: [confirmed]
+      additionalProperties: false
+    CustomerOrderNotificationResendResult:
+      type: object
+      properties:
+        sent:
+          type: boolean
+        skipped:
+          type: boolean
+      required: [sent, skipped]
+      additionalProperties: false
+

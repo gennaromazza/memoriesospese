@@ -1,0 +1,2 @@
+import React from "react";
+export function AddressAutocompleteInput({ id, value, onChange, ...props }: any) { return <input id={id} value={value} onChange={(event) => onChange(event.target.value)} {...props} />; }

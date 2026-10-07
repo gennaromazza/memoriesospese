@@ -3,7 +3,11 @@ service cloud.firestore {
   match /databases/{database}/documents {
     // Helper functions
     function isSignedIn() {
-      return request.auth != null;
+      // Per l'account amministrativo "autenticato" significa anche passkey
+      // verificata (quando obbligatoria): così ogni ramo owner/signed-in che
+      // consente modifiche eredita il vincolo, non solo isAdmin().
+      return request.auth != null &&
+        (request.auth.token.email != 'gennaro.mazzacane@gmail.com' || adminPasskeySatisfied());
     }
 
     function isOwner(userId) {
@@ -14,7 +18,37 @@ service cloud.firestore {
       // Azienda mono-admin: l'identità amministrativa è ancorata al token
       // verificato, mai a un campo profilo storicamente modificabile.
       return isSignedIn() &&
-        request.auth.token.email == 'gennaro.mazzacane@gmail.com';
+        request.auth.token.email == 'gennaro.mazzacane@gmail.com' &&
+        adminPasskeySatisfied();
+    }
+
+    // Passkey amministratore. Il server scrive il custom claim `apk`
+    // { req, exp: scadenza verifica (ms), at: istante verifica (ms),
+    //   sat: auth_time della sessione verificata } e mantiene lo stato
+    // autoritativo in adminSecurity/{uid} (passkeyRequired,
+    // verificationsValidAfter). Le regole leggono quel documento, così
+    // attivazione dell'obbligo e revoche valgono subito anche per token già
+    // emessi. Il claim vale solo per la sessione di login che lo ha ottenuto.
+    function adminSecurityPath() {
+      return /databases/$(database)/documents/adminSecurity/$(request.auth.uid);
+    }
+
+    function adminPasskeyRequired() {
+      return exists(adminSecurityPath()) &&
+        get(adminSecurityPath()).data.get('passkeyRequired', false) == true;
+    }
+
+    function adminPasskeyVerified() {
+      return 'apk' in request.auth.token &&
+        request.auth.token.apk.get('req', false) == true &&
+        request.auth.token.apk.get('exp', 0) > request.time.toMillis() &&
+        request.auth.token.apk.get('at', 0) >
+          get(adminSecurityPath()).data.get('verificationsValidAfter', 0) &&
+        request.auth.token.apk.get('sat', -1) == request.auth.token.auth_time;
+    }
+
+    function adminPasskeySatisfied() {
+      return !adminPasskeyRequired() || adminPasskeyVerified();
     }
 
     // Gli ordini storici non hanno `orderType`: Map.get mantiene compatibili
@@ -25,6 +59,12 @@ service cloud.firestore {
 
     function isPrintShopProduct(data) {
       return data.get('salesChannels', []).hasAny(['print_shop']);
+    }
+
+    // Stato di sicurezza dell'amministratore (passkey, codici di recupero):
+    // gestito esclusivamente dal server con Admin SDK.
+    match /adminSecurity/{document=**} {
+      allow read, write: if false;
     }
 
     // Users collection
@@ -76,9 +116,21 @@ service cloud.firestore {
         // Admin o proprietario può modificare tutto
         (isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin())) ||
         // Utenti anonimi possono aggiornare SOLO selezione foto quando abilitata
-        (resource.data.selectionEnabled == true && 
-         request.resource.data.diff(resource.data).affectedKeys()
-           .hasOnly(['selectedPhotoIds', 'photoAssignments', 'selectionStatus', 'selectionNotes', 'photoNotes', 'updatedAt']));
+        (resource.data.selectionEnabled == true &&
+         (
+           request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['selectedPhotoIds', 'photoAssignments', 'selectionStatus', 'selectionNotes', 'photoNotes', 'updatedAt']) ||
+           (
+             request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['selectedPhotoIds', 'photoAssignments', 'selectionStatus', 'selectionNotes', 'photoNotes', 'updatedAt', 'dislikedPhotoCount']) &&
+             request.resource.data.diff(resource.data).affectedKeys().hasAny(['dislikedPhotoCount']) &&
+             resource.data.selectionMode == 'dislike' &&
+             resource.data.get('selectionStatus', 'pending') == 'pending' &&
+             request.resource.data.selectionStatus == 'completed' &&
+             request.resource.data.dislikedPhotoCount is int &&
+             request.resource.data.dislikedPhotoCount >= 0
+           )
+         ));
       allow delete: if isSignedIn() && 
         (resource.data.userId == request.auth.uid || isAdmin());
 
@@ -260,7 +312,7 @@ service cloud.firestore {
     match /faqSets/{faqSetId} {
       // Allow public read of active FAQ set questions only
       allow read: if resource.data.active == true && 
-        request.auth != null &&
+        isSignedIn() &&
         // Limit to questions field only
         request.query.select == ['questions'];
     }
@@ -346,8 +398,14 @@ service cloud.firestore {
     match /cashMovements/{movementId} {
       allow read: if isAdmin(); // Only admin can view cash movements
       allow create: if isAdmin(); // Only admin can create cash movements
-      allow update: if isAdmin(); // Only admin can update cash movements
-      allow delete: if isAdmin(); // Only admin can delete cash movements
+      allow update: if isAdmin() && !('pagamentoLaboratorio' in resource.data);
+      allow delete: if isAdmin() && !('pagamentoLaboratorio' in resource.data);
+    }
+
+    // Conteggi e spese di laboratorio sono append/update controllati, mai eliminabili.
+    match /labSupplierStatements/{statementId} {
+      allow read, create, update: if isAdmin();
+      allow delete: if false;
     }
 
     // Fatture elettroniche: lo storico contiene snapshot fiscali e XML immutabili.

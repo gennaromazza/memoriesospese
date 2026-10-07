@@ -1,0 +1,1 @@
+export function useToast() { return { toast: (detail: unknown) => window.dispatchEvent(new CustomEvent("harness-toast", { detail })) }; }

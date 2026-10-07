@@ -1,0 +1,13 @@
+export const collection = (...args: any[]) => args;
+export const doc = (...args: any[]) => args;
+export const getDoc = async () => ({ exists: () => false, data: () => undefined });
+export const getDocs = async () => ({ docs: [] });
+export const query = (...args: any[]) => args;
+export const where = (...args: any[]) => args;
+export const setDoc = async () => undefined;
+export const updateDoc = async () => undefined;
+export const serverTimestamp = () => new Date();
+export const arrayUnion = (...args: any[]) => args;
+export const runTransaction = async (_db: any, callback: any) => callback({});
+export const getFirestore = () => ({});
+export const connectFirestoreEmulator = () => undefined;

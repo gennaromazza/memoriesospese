@@ -1,0 +1,66 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&family=Raleway:wght@300;400;500;600;700&display=swap');
+
+@theme inline {
+  --color-sage: hsl(var(--sage));
+  --color-dark-sage: hsl(var(--dark-sage));
+}
+
+:root {
+  --mint: 140 23% 84%;
+  --sage: 120 11% 66%;
+  --blue-gray: 200 21% 47%;
+  --terracotta: 14 37% 63%;
+  --cream: 43 42% 85%;
+  --beige: 41 18% 79%;
+  --off-white: 60 20% 96%;
+  --light-mint: 140 26% 92%;
+  --dark-sage: 120 7% 46%;
+  --background: var(--off-white);
+  --foreground: var(--blue-gray);
+  --muted: var(--beige);
+  --muted-foreground: var(--dark-sage);
+  --popover: var(--off-white);
+  --popover-foreground: var(--blue-gray);
+  --card: var(--off-white);
+  --card-foreground: var(--blue-gray);
+  --border: var(--beige);
+  --input: var(--beige);
+  --primary: var(--blue-gray);
+  --primary-foreground: var(--off-white);
+  --secondary: var(--mint);
+  --secondary-foreground: var(--dark-sage);
+  --accent: var(--light-mint);
+  --accent-foreground: var(--dark-sage);
+  --destructive: 0 84% 60%;
+  --destructive-foreground: var(--off-white);
+  --ring: var(--sage);
+  --radius: 0.5rem;
+  --font-sans: 'Raleway', sans-serif;
+  --font-serif: 'Playfair Display', serif;
+}
+
+.dark {
+  --background: 240 10% 3.9%;
+  --foreground: 0 0% 98%;
+  --muted: 240 3.7% 15.9%;
+  --muted-foreground: 240 5% 64.9%;
+  --popover: 240 10% 3.9%;
+  --popover-foreground: 0 0% 98%;
+  --card: 240 10% 3.9%;
+  --card-foreground: 0 0% 98%;
+  --border: 240 3.7% 15.9%;
+  --input: 240 3.7% 15.9%;
+  --primary: 207 90% 54%;
+  --primary-foreground: 211 100% 99%;
+  --secondary: 240 3.7% 15.9%;
+  --secondary-foreground: 0 0% 98%;
+  --accent: 240 3.7% 15.9%;
+  --accent-foreground: 0 0% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 0 0% 98%;
+  --ring: 240 4.9% 83.9%;
+}
+
+.admin-mobile-preview {
+  font-family: var(--font-sans);
+}
