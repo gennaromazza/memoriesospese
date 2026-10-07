@@ -367,13 +367,6 @@ export const ADMIN_NAV_GROUPS: NavGroup[] = [
       },
     ],
   },
-  {
-    id: "assistente",
-    label: "Assistente",
-    icon: Sparkles,
-    tabs: ["assistente"],
-    target: { tab: "assistente" },
-  },
 ];
 
 /** Voce piatta per la Command Palette, derivata dalla mappa di navigazione */

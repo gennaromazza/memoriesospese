@@ -11,7 +11,6 @@ import {
   Printer,
   RefreshCw,
   Settings,
-  Sparkles,
   Wallet,
   Zap,
 } from 'lucide-react';
@@ -33,7 +32,6 @@ const groups = [
   { id: 'cassa', label: 'Cassa', icon: Wallet },
   { id: 'stampe-online', label: 'Stampe online', icon: Printer },
   { id: 'impostazioni', label: 'Impostazioni', icon: Settings, menu: ['Impostazioni Studio', 'Collaboratori', 'Catalogo Prodotti'] },
-  { id: 'assistente', label: 'Assistente', icon: Sparkles },
 ];
 
 const jobSections = [

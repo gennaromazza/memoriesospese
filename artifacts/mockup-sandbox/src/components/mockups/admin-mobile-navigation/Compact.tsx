@@ -8,7 +8,6 @@ import {
   Printer,
   RefreshCw,
   Settings,
-  Sparkles,
   Users,
   Wallet,
   Zap,
@@ -97,7 +96,6 @@ const areas = [
       { id: 'phone-migration', label: 'Migrazione Telefoni' },
     ],
   },
-  { id: 'assistente', label: 'Assistente', icon: Sparkles, sections: [{ id: 'assistente', label: 'Assistente' }] },
 ];
 
 export function Compact() {

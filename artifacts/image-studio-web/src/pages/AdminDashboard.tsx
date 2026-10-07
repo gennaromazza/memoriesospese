@@ -179,10 +179,6 @@ import {
 const GiftCardAdminContent = lazy(
   () => import("@/components/gift-cards/admin/GiftCardAdminContent"),
 );
-// Lazy load StudioAssistant per migliorare il caricamento iniziale
-const StudioAssistant = lazy(
-  () => import("@/components/studio-assistant/StudioAssistant"),
-);
 
 interface GalleryItem {
   id: string;
@@ -474,7 +470,6 @@ export default function AdminDashboard() {
       clienti: "clienti",
       impostazioni: "settings",
       calendario: "calendario",
-      assistente: "assistente",
     };
 
     const sectionMapping: Record<string, string> = {
@@ -1568,27 +1563,6 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               </div>
-            </TabsContent>
-
-            {/* Contenuto Tab Assistente Studio - Vista Completa (Lazy loaded) */}
-            <TabsContent value="assistente">
-              <Suspense
-                fallback={
-                  <Card>
-                    <CardHeader>
-                      <Skeleton className="h-6 w-48" />
-                      <Skeleton className="h-4 w-64 mt-2" />
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <Skeleton className="h-24 w-full" />
-                      <Skeleton className="h-24 w-full" />
-                      <Skeleton className="h-24 w-full" />
-                    </CardContent>
-                  </Card>
-                }
-              >
-                <StudioAssistant mode="full" showHeader={true} />
-              </Suspense>
             </TabsContent>
 
             {/* Gallerie Tab */}
