@@ -78,3 +78,20 @@ export function centsToEuros(cents: number): string {
 export function openInNewTab(path: string, createUrl: (path: string) => string) {
   window.open(createUrl(path), '_blank', 'noopener');
 }
+
+export interface OnlineVisibility {
+  visible: boolean;
+  reason: string;
+}
+
+/** Dice se un tipo si vede ora sulla pagina /regala e, se no, perché. */
+export function onlineVisibility(
+  type: { active: boolean; sellOnline: boolean; sellUntil: string | null },
+  today: string = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
+): OnlineVisibility {
+  if (!type.active) return { visible: false, reason: 'Il regalo è nascosto nel catalogo.' };
+  if (!type.sellOnline) return { visible: false, reason: 'Non è in vendita sul sito.' };
+  const until = type.sellUntil ? formatDay(endOfDayIso(type.sellUntil)) : '';
+  if (type.sellUntil && type.sellUntil < today) return { visible: false, reason: `La vendita sul sito è finita il ${until}.` };
+  return { visible: true, reason: type.sellUntil ? `Compare su /regala fino al ${until}.` : 'Compare su /regala.' };
+}

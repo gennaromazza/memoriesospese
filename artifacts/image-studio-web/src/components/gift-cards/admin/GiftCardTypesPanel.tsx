@@ -25,9 +25,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { GiftCardMini } from '../GiftCardArt';
-import GiftCardItemsEditor from './GiftCardItemsEditor';
+import GiftCardTypeWizard from './GiftCardTypeWizard';
 import { GIFT_CARD_THEMES } from '../giftCardThemes';
-import { centsToEuros, errorText, eurosToCents, formatDay } from './giftCardAdminShared';
+import { centsToEuros, errorText, eurosToCents, onlineVisibility } from './giftCardAdminShared';
 
 const NO_CAMPAIGN = '__none__';
 
@@ -157,151 +157,34 @@ export default function GiftCardTypesPanel() {
               <span className="mt-1 flex flex-wrap gap-1">
                 {type.active ? null : <Badge variant="outline">Nascosta</Badge>}
                 {type.sellInStudio ? <Badge variant="secondary">Studio</Badge> : null}
-                {type.sellOnline ? <Badge variant="secondary">Online</Badge> : null}
+                {type.sellOnline ? (
+                  onlineVisibility(type).visible
+                    ? <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100" title={onlineVisibility(type).reason}>Sul sito</Badge>
+                    : <Badge variant="outline" className="border-amber-400 text-amber-800" title={onlineVisibility(type).reason}>Sito: non visibile</Badge>
+                ) : null}
               </span>
             </button>
           ))}
           {(types.data ?? []).length === 0 ? (
-            <p className="text-sm text-muted-foreground">Non hai ancora nessun tipo. Compila il modulo e salva: sarà il primo del catalogo.</p>
+            <p className="text-sm text-muted-foreground">Non hai ancora nessun tipo. Segui i passaggi a destra: sarà il primo del catalogo.</p>
           ) : null}
           <Button type="button" variant="outline" className="w-full" onClick={startNew}>Nuovo tipo</Button>
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">{selectedId === 'new' ? 'Nuovo tipo di gift card' : 'Modifica tipo'}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="gct-name">Nome nel catalogo</Label>
-            <Input id="gct-name" value={draft.name} onChange={event => patch({ name: event.target.value })} />
-            {error('name')}
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="gct-desc">Cosa include</Label>
-            <Textarea id="gct-desc" rows={2} value={draft.description} onChange={event => patch({ description: event.target.value })} />
-            {error('description')}
-          </div>
-          <GiftCardItemsEditor
-            items={draft.items}
-            onChange={items => patch({ items })}
-            onUseTotal={cents => setPriceText(centsToEuros(cents))}
-          />
-          {error('items')}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="gct-title">Titolo sulla card</Label>
-              <Input id="gct-title" maxLength={GIFT_CARD_TYPE_TITLE_MAX} value={draft.title} onChange={event => patch({ title: event.target.value })} />
-              {error('title')}
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="gct-line2">Seconda riga</Label>
-              <Input id="gct-line2" maxLength={GIFT_CARD_TYPE_LINE2_MAX} value={draft.line2} onChange={event => patch({ line2: event.target.value })} />
-              {error('line2')}
-            </div>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="gct-kind">Tipo</Label>
-              <Select value={draft.kind} onValueChange={value => patch({ kind: value as GiftCardTypeInput['kind'] })}>
-                <SelectTrigger id="gct-kind"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="prodotto">Prodotto o servizio</SelectItem>
-                  <SelectItem value="importo">Importo fisso</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="gct-price">Prezzo di vendita (€)</Label>
-              <Input id="gct-price" inputMode="decimal" value={priceText} onChange={event => setPriceText(event.target.value)} />
-              {error('priceCents')}
-            </div>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="gct-campaign">Campagna</Label>
-              <Select value={draft.campaignId ?? NO_CAMPAIGN} onValueChange={chooseCampaign}>
-                <SelectTrigger id="gct-campaign"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NO_CAMPAIGN}>Nessuna campagna</SelectItem>
-                  {campaignList.map(campaign => (
-                    <SelectItem key={campaign.id} value={campaign.id}>{campaign.nome}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {campaigns.isError ? <p className="text-xs text-red-600">Impossibile caricare le campagne.</p> : null}
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="gct-theme">Tema grafico</Label>
-              <Select value={draft.theme} onValueChange={value => patch({ theme: value as GiftCardThemeKey })}>
-                <SelectTrigger id="gct-theme"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {GIFT_CARD_THEME_KEYS.map(key => (
-                    <SelectItem key={key} value={key}>{GIFT_CARD_THEMES[key].name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {error('theme')}
-            </div>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="gct-valid">Validità</Label>
-              <Select value={draft.validityMode} onValueChange={value => patch({ validityMode: value as GiftCardValidityMode })}>
-                <SelectTrigger id="gct-valid"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="campaign">Fino a fine campagna</SelectItem>
-                  <SelectItem value="date">Data scelta da me</SelectItem>
-                  <SelectItem value="none">Nessuna scadenza</SelectItem>
-                </SelectContent>
-              </Select>
-              {draft.validityMode === 'campaign' && chosenCampaign ? (
-                <p className="text-xs text-muted-foreground">La campagna finisce il {formatDay(chosenCampaign.dataFine)}.</p>
-              ) : null}
-              {error('validityMode')}
-            </div>
-            {draft.validityMode === 'date' ? (
-              <div className="space-y-1.5">
-                <Label htmlFor="gct-date">Scade il</Label>
-                <Input id="gct-date" type="date" value={draft.validityDate ?? ''} onChange={event => patch({ validityDate: event.target.value || null })} />
-                {error('validityDate')}
-              </div>
-            ) : null}
-          </div>
-          <fieldset className="space-y-3">
-            <legend className="mb-1 text-sm font-semibold">Dove si vende</legend>
-            <label className="flex items-center gap-3 text-sm">
-              <Checkbox checked={draft.sellInStudio} onCheckedChange={value => patch({ sellInStudio: value === true })} />
-              In studio, dal pannello
-            </label>
-            <label className="flex items-center gap-3 text-sm">
-              <Checkbox checked={draft.sellOnline} onCheckedChange={value => patch({ sellOnline: value === true })} />
-              Online, sulla pagina /regala (pagamento con PayPal)
-            </label>
-            {draft.sellOnline ? (
-              <div className="space-y-1.5 pl-7">
-                <Label htmlFor="gct-sell-until">Vendibile online fino al</Label>
-                <Input id="gct-sell-until" type="date" value={draft.sellUntil ?? ''} onChange={event => patch({ sellUntil: event.target.value || null })} />
-                <p className="text-xs text-muted-foreground">
-                  Dopo questa data il regalo sparisce dal sito. Serve per non vendere card che non fai in tempo a usare. Se lo lasci vuoto resta in vendita finché la card è valida.
-                </p>
-                {error('sellUntil')}
-              </div>
-            ) : null}
-            <label className="flex items-center gap-3 text-sm">
-              <Checkbox checked={draft.active} onCheckedChange={value => patch({ active: value === true })} />
-              Attiva nel catalogo
-            </label>
-          </fieldset>
-          <div className="flex items-center gap-3">
-            <Button type="button" disabled={save.isPending} onClick={() => save.mutate()}>
-              {save.isPending ? 'Salvataggio…' : 'Salva'}
-            </Button>
-            <p className="text-xs text-muted-foreground">Le card già vendute non cambiano.</p>
-          </div>
-        </CardContent>
-      </Card>
+      <GiftCardTypeWizard
+        key={selectedId ?? 'new'}
+        isNew={selectedId === 'new'}
+        draft={draft}
+        patch={patch}
+        priceText={priceText}
+        setPriceText={setPriceText}
+        fieldErrors={fieldErrors}
+        campaigns={campaignList}
+        campaignsFailed={campaigns.isError}
+        saving={save.isPending}
+        onSave={() => save.mutate()}
+      />
 
       <Card className="h-fit">
         <CardHeader><CardTitle className="text-base">Anteprima</CardTitle></CardHeader>
