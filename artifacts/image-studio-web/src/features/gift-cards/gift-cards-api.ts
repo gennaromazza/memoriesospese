@@ -2,7 +2,11 @@ import { auth } from '@/lib/firebase';
 import { createUrl } from '@/lib/basePath';
 import type {
   GiftCardDto,
+  GiftCardOnlineCaptureResult,
+  GiftCardOnlineCreateInput,
+  GiftCardOnlineCreateResult,
   GiftCardPublicDto,
+  GiftCardShopDto,
   GiftCardSellInput,
   GiftCardStatus,
   GiftCardTypeDto,
@@ -68,6 +72,17 @@ export const giftCardsApi = {
   getPublic: (code: string) =>
     request<GiftCardPublicDto>(`/public/${encodeURIComponent(code)}`, { authenticated: false }),
 
+  /** Vetrina pubblica per chi compra online. */
+  getShop: () => request<GiftCardShopDto>('/shop', { authenticated: false }),
+  createOnlineOrder: (input: GiftCardOnlineCreateInput) =>
+    request<GiftCardOnlineCreateResult>('/online/create', { method: 'POST', body: json(input), authenticated: false }),
+  captureOnlineOrder: (code: string, paypalOrderId: string, buyerToken: string) =>
+    request<GiftCardOnlineCaptureResult>(`/online/${encodeURIComponent(code)}/capture`, {
+      method: 'POST',
+      body: json({ paypalOrderId, buyerToken }),
+      authenticated: false,
+    }),
+
   listTypes: async () => (await request<{ types: GiftCardTypeDto[] }>('/types')).types,
   createType: (input: GiftCardTypeInput) => request<GiftCardTypeDto>('/types', { method: 'POST', body: json(input) }),
   updateType: (id: string, input: GiftCardTypeInput) =>
@@ -83,4 +98,8 @@ export const giftCardsApi = {
     request<GiftCardDto>(`/${encodeURIComponent(code)}/cancel`, { method: 'POST', body: json({ reason }) }),
   setExpiry: (code: string, expiresOn: string | null) =>
     request<GiftCardDto>(`/${encodeURIComponent(code)}/expiry`, { method: 'PATCH', body: json({ expiresOn }) }),
+  reconcile: (code: string) => request<GiftCardDto>(`/${encodeURIComponent(code)}/reconcile`, { method: 'POST', body: '{}' }),
+  resend: (code: string, target: 'buyer' | 'recipient') =>
+    request<GiftCardDto>(`/${encodeURIComponent(code)}/resend`, { method: 'POST', body: json({ target }) }),
+  runDeliveries: () => request<{ processed: number }>('/deliveries/run', { method: 'POST', body: '{}' }),
 };

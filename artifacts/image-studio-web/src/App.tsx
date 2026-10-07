@@ -36,6 +36,7 @@ function lazyWithRetry(importFn: () => Promise<any>) {
 const GalleryAccessPage = lazyWithRetry(() => import("./pages/public/GalleryAccessPage"));
 const OspitiPage = lazyWithRetry(() => import("./pages/public/OspitiPage"));
 const GiftCardPage = lazyWithRetry(() => import("./pages/public/GiftCardPage"));
+const GiftCardShopPage = lazyWithRetry(() => import("./pages/public/GiftCardShopPage"));
 const GiftCardAdminPage = lazyWithRetry(() => import("./pages/admin/GiftCardAdminPage"));
 const GiftCardPrintPage = lazyWithRetry(() => import("./pages/admin/GiftCardPrintPage"));
 const PortfolioPage = lazyWithRetry(() => import("./pages/public/PortfolioPage"));
@@ -184,6 +185,7 @@ function AppRoutes() {
 
         {/* Gift card: apertura del regalo (QR del cartoncino) */}
         <Route path="/regalo/:code" component={GiftCardPage} />
+        <Route path="/regala" component={GiftCardShopPage} />
 
         <Route path="/privacy" component={Privacy} />
         <Route path="/cookie-policy" component={CookiePolicy} />

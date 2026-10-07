@@ -16,6 +16,7 @@ const PUBLIC_STATIC_PATHS = new Set([
   '/terms',
   '/prenota',
   '/consulenze',
+  '/regala',
 ]);
 
 const PORTFOLIO_CATEGORIES = new Set([

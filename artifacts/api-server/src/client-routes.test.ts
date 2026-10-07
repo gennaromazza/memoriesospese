@@ -8,6 +8,13 @@ describe('percorsi delle gift card', () => {
     expect(isPrivateClientPath('/regalo/K7QM-4XD2-9PTR/')).toBe(true);
   });
 
+  it('la pagina di acquisto /regala è pubblica', () => {
+    expect(isKnownClientPath('/regala')).toBe(true);
+    expect(isKnownClientPath('/regala/')).toBe(true);
+    expect(isPrivateClientPath('/regala')).toBe(false);
+    expect(isKnownClientPath('/regala/altro')).toBe(false);
+  });
+
   it('non apre percorsi inventati sotto /regalo', () => {
     expect(isKnownClientPath('/regalo')).toBe(false);
     expect(isKnownClientPath('/regalo/a/b')).toBe(false);

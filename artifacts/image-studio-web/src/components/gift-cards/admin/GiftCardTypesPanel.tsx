@@ -264,10 +264,20 @@ export default function GiftCardTypesPanel() {
               <Checkbox checked={draft.sellInStudio} onCheckedChange={value => patch({ sellInStudio: value === true })} />
               In studio, dal pannello
             </label>
-            <label className="flex items-center gap-3 text-sm text-muted-foreground">
-              <Checkbox checked={draft.sellOnline} disabled onCheckedChange={value => patch({ sellOnline: value === true })} />
-              Online (disponibile con la prossima fase)
+            <label className="flex items-center gap-3 text-sm">
+              <Checkbox checked={draft.sellOnline} onCheckedChange={value => patch({ sellOnline: value === true })} />
+              Online, sulla pagina /regala (pagamento con PayPal)
             </label>
+            {draft.sellOnline ? (
+              <div className="space-y-1.5 pl-7">
+                <Label htmlFor="gct-sell-until">Vendibile online fino al</Label>
+                <Input id="gct-sell-until" type="date" value={draft.sellUntil ?? ''} onChange={event => patch({ sellUntil: event.target.value || null })} />
+                <p className="text-xs text-muted-foreground">
+                  Dopo questa data il regalo sparisce dal sito. Serve per non vendere card che non fai in tempo a usare. Se lo lasci vuoto resta in vendita finché la card è valida.
+                </p>
+                {error('sellUntil')}
+              </div>
+            ) : null}
             <label className="flex items-center gap-3 text-sm">
               <Checkbox checked={draft.active} onCheckedChange={value => patch({ active: value === true })} />
               Attiva nel catalogo

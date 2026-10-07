@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Copy, Printer, XCircle, CalendarClock, BadgeCheck } from 'lucide-react';
+import { AlertTriangle, BadgeCheck, CalendarClock, Copy, Mail, Printer, RefreshCw, Send, XCircle } from 'lucide-react';
 import {
   GIFT_CARD_STATUS_LABELS,
   formatGiftCardPrice,
@@ -10,6 +10,7 @@ import {
 import { createUrl } from '@/lib/basePath';
 import { giftCardsApi } from '@/features/gift-cards/gift-cards-api';
 import { useToast } from '@/hooks/use-toast';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -23,6 +24,13 @@ import { GiftCardStatusBadge, errorText, formatDay, openInNewTab } from './giftC
 type Filter = 'tutte' | GiftCardStatus;
 const FILTERS: Filter[] = ['tutte', 'attiva', 'in_attesa_pagamento', 'riscattata', 'scaduta', 'annullata'];
 const CHANNEL_LABELS = { studio: 'Studio', online: 'Online' } as const;
+
+function deliveryNote(card: GiftCardDto, now = Date.now()): string | null {
+  if (card.channel !== 'online' || card.status !== 'attiva') return null;
+  if (card.deliveredAt) return `Consegnata il ${formatDay(card.deliveredAt)}`;
+  if (card.deliverAt && new Date(card.deliverAt).getTime() > now) return `Consegna il ${formatDay(card.deliverAt)}`;
+  return card.recipientEmail ? 'Consegna in corso' : 'Solo link a chi ha comprato';
+}
 
 export default function GiftCardIssuedPanel() {
   const { toast } = useToast();
@@ -45,6 +53,26 @@ export default function GiftCardIssuedPanel() {
     mutationFn: (code: string) => giftCardsApi.confirmPayment(code),
     onSuccess: () => { void refresh(); toast({ title: 'Pagamento confermato', description: 'La card è attiva e l\'incasso è in cassa.' }); },
     onError: fail('Conferma non riuscita'),
+  });
+  const reconcile = useMutation({
+    mutationFn: (code: string) => giftCardsApi.reconcile(code),
+    onSuccess: card => {
+      void refresh();
+      toast(card.status === 'attiva'
+        ? { title: 'Pagamento trovato', description: 'La card è attiva e l\'incasso è in cassa.' }
+        : { title: 'Nessun pagamento su PayPal', description: 'Il cliente non ha ancora completato l\'acquisto.' });
+    },
+    onError: fail('Verifica non riuscita'),
+  });
+  const resend = useMutation({
+    mutationFn: ({ code, target }: { code: string; target: 'buyer' | 'recipient' }) => giftCardsApi.resend(code, target),
+    onSuccess: () => { void refresh(); toast({ title: 'Email rimandata' }); },
+    onError: fail('Invio non riuscito'),
+  });
+  const runDeliveries = useMutation({
+    mutationFn: () => giftCardsApi.runDeliveries(),
+    onSuccess: result => { void refresh(); toast({ title: result.processed ? `${result.processed} consegne elaborate` : 'Nessuna consegna da fare adesso' }); },
+    onError: fail('Invio non riuscito'),
   });
   const cancel = useMutation({
     mutationFn: ({ code, reason }: { code: string; reason: string }) => giftCardsApi.cancel(code, reason),
@@ -69,12 +97,17 @@ export default function GiftCardIssuedPanel() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Filtra per stato">
-        {FILTERS.map(item => (
-          <Button key={item} type="button" size="sm" variant={filter === item ? 'default' : 'outline'} aria-pressed={filter === item} onClick={() => setFilter(item)}>
-            {item === 'tutte' ? 'Tutte' : GIFT_CARD_STATUS_LABELS[item]}
-          </Button>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Filtra per stato">
+          {FILTERS.map(item => (
+            <Button key={item} type="button" size="sm" variant={filter === item ? 'default' : 'outline'} aria-pressed={filter === item} onClick={() => setFilter(item)}>
+              {item === 'tutte' ? 'Tutte' : GIFT_CARD_STATUS_LABELS[item]}
+            </Button>
+          ))}
+        </div>
+        <Button type="button" size="sm" variant="outline" disabled={runDeliveries.isPending} onClick={() => runDeliveries.mutate()} title="Invia subito le email di consegna e le ricevute che sono in coda">
+          <Send className="mr-2 h-4 w-4" />Invia le consegne in coda
+        </Button>
       </div>
 
       {cards.isLoading ? <Skeleton className="h-64 w-full" /> : null}
@@ -93,6 +126,7 @@ export default function GiftCardIssuedPanel() {
                 <TableHead>Codice</TableHead>
                 <TableHead>Regalo</TableHead>
                 <TableHead>Per</TableHead>
+                <TableHead>Acquirente</TableHead>
                 <TableHead>Stato</TableHead>
                 <TableHead>Valore</TableHead>
                 <TableHead>Scade</TableHead>
@@ -103,21 +137,58 @@ export default function GiftCardIssuedPanel() {
             <TableBody>
               {cards.data.map(card => {
                 const open = card.status === 'attiva' || card.status === 'in_attesa_pagamento';
+                const online = card.channel === 'online';
+                const note = deliveryNote(card);
                 return (
                   <TableRow key={card.code}>
                     <TableCell className="whitespace-nowrap font-mono text-xs">{card.code}</TableCell>
                     <TableCell>{card.typeName}</TableCell>
                     <TableCell>{card.recipientName || '—'}</TableCell>
-                    <TableCell><GiftCardStatusBadge status={card.effectiveStatus} /></TableCell>
+                    <TableCell className="text-xs">
+                      {online ? (
+                        <>
+                          <span className="block text-sm">{card.buyerName || '—'}</span>
+                          <span className="block text-muted-foreground">{card.buyerEmail}</span>
+                        </>
+                      ) : '—'}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col items-start gap-1">
+                        <GiftCardStatusBadge status={card.effectiveStatus} />
+                        {note ? <span className="text-xs text-muted-foreground">{note}</span> : null}
+                        {card.reviewRequired ? (
+                          <Badge variant="outline" className="gap-1 border-amber-400 text-amber-800" title={card.reviewReason ?? undefined}>
+                            <AlertTriangle className="h-3 w-3" />Da controllare
+                          </Badge>
+                        ) : null}
+                      </div>
+                    </TableCell>
                     <TableCell className="whitespace-nowrap">{formatGiftCardPrice(card.valueCents)}</TableCell>
                     <TableCell className="whitespace-nowrap">{card.expiresAt ? formatDay(card.expiresAt) : 'Mai'}</TableCell>
                     <TableCell>{CHANNEL_LABELS[card.channel]}</TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-1">
-                        {card.status === 'in_attesa_pagamento' ? (
+                        {card.status === 'in_attesa_pagamento' && !online ? (
                           <Button size="icon" variant="ghost" title="Conferma il pagamento" aria-label={`Conferma il pagamento di ${card.code}`} disabled={confirmPayment.isPending} onClick={() => confirmPayment.mutate(card.code)}>
                             <BadgeCheck className="h-4 w-4" />
                           </Button>
+                        ) : null}
+                        {card.status === 'in_attesa_pagamento' && online ? (
+                          <Button size="icon" variant="ghost" title="Verifica il pagamento su PayPal" aria-label={`Verifica il pagamento di ${card.code} su PayPal`} disabled={reconcile.isPending} onClick={() => reconcile.mutate(card.code)}>
+                            <RefreshCw className="h-4 w-4" />
+                          </Button>
+                        ) : null}
+                        {online && card.status === 'attiva' ? (
+                          <>
+                            <Button size="icon" variant="ghost" title="Rimanda la ricevuta a chi ha comprato" aria-label={`Rimanda la ricevuta di ${card.code}`} disabled={resend.isPending} onClick={() => resend.mutate({ code: card.code, target: 'buyer' })}>
+                              <Mail className="h-4 w-4" />
+                            </Button>
+                            {card.recipientEmail ? (
+                              <Button size="icon" variant="ghost" title="Invia ora il regalo a chi lo riceve" aria-label={`Invia ora il regalo ${card.code}`} disabled={resend.isPending} onClick={() => resend.mutate({ code: card.code, target: 'recipient' })}>
+                                <Send className="h-4 w-4" />
+                              </Button>
+                            ) : null}
+                          </>
                         ) : null}
                         <Button size="icon" variant="ghost" title="Stampa il cartoncino" aria-label={`Stampa il cartoncino di ${card.code}`} onClick={() => openInNewTab(`/admin/gift-card/stampa/${encodeURIComponent(card.code)}`, createUrl)}>
                           <Printer className="h-4 w-4" />
@@ -150,7 +221,7 @@ export default function GiftCardIssuedPanel() {
           <DialogHeader>
             <DialogTitle>Annullare la card?</DialogTitle>
             <DialogDescription>
-              {cancelling ? `${cancelling.typeName} · ${cancelling.code}. ` : ''}Chi ha il cartoncino non potrà più usarla. L'incasso in cassa non viene toccato: se rimborsi, registralo a parte.
+              {cancelling ? `${cancelling.typeName} · ${cancelling.code}. ` : ''}Chi ha il cartoncino non potrà più usarla. L'incasso in cassa non viene toccato: se rimborsi, registralo a parte{cancelling?.channel === 'online' ? ' e fai il rimborso da PayPal' : ''}.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-1.5">

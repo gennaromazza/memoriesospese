@@ -165,6 +165,9 @@ export interface GiftCardDto {
   /** Quando la card va consegnata a chi la riceve; `null` = subito. */
   deliverAt: string | null;
   deliveredAt: string | null;
+  /** `true` quando serve un controllo a mano (per esempio un rimborso PayPal). */
+  reviewRequired: boolean;
+  reviewReason: string | null;
 }
 
 export interface GiftCardSellInput {

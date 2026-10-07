@@ -124,6 +124,8 @@ export function cardToDto(code: string, data: any, now: Date): GiftCardDto {
     recipientEmail: data.recipientEmail || '',
     deliverAt: toIso(data.deliverAt),
     deliveredAt: toIso(data.deliveredAt),
+    reviewRequired: data.reviewRequired === true,
+    reviewReason: data.reviewReason ?? null,
   };
 }
 
