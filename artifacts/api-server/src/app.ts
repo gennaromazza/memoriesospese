@@ -36,6 +36,7 @@ import photobookRoutes from "./photobook-routes";
 import blogRoutes from "./blog-routes";
 import weddingSeoRoutes from "./wedding-seo";
 import printShopRoutes from "./print-shop/router";
+import giftCardRoutes from "./gift-cards";
 import desktopGalleryRoutes from "./desktop-gallery-routes";
 import { generateDynamicSitemap } from "./sitemap-generator";
 
@@ -123,6 +124,7 @@ app.use("/api/photobooks", photobookRoutes);
 app.use("/api/blog", blogRoutes);
 app.use("/api/wedding-seo", weddingSeoRoutes);
 app.use("/api/print-shop", printShopRoutes);
+app.use("/api/gift-cards", giftCardRoutes);
 app.use("/api/desktop", desktopGalleryRoutes);
 
 app.use("/api", (_req, res) => {

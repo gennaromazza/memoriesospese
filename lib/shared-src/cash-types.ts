@@ -7,6 +7,7 @@ import { Timestamp } from "firebase/firestore";
 // Tipo origine movimento cassa
 export type CashMovementOrigine = 
   | "print_shop"  // Vendite e costi dello shop stampe online
+  | "gift_card"   // Vendite gift card (buoni regalo)
   | "walk-in"      // Ordini walk-in (vendita diretta in studio)
   | "booking"      // Pagamenti da prenotazioni campagne
   | "job"          // Pagamenti da lavori/servizi fotografici
@@ -99,6 +100,7 @@ export interface InsertCashMovement {
 // Etichette per origini movimento
 export const CASH_ORIGINE_LABELS: Record<CashMovementOrigine, string> = {
   "print_shop": "Shop stampe online",
+  "gift_card": "Gift card",
   "walk-in": "Ordini Walk-in",
   "booking": "Prenotazioni Campagne",
   "job": "Lavori/Servizi",
