@@ -32,7 +32,12 @@ import {
   type ResolvedSocialImage,
   type SocialImageCandidate,
 } from '../shared/social-metadata';
-import { GIFT_SHOP_FAQS, GIFT_SHOP_SEO } from '@shared/gift-card-landing-content';
+import {
+  GIFT_HOW_SECTIONS,
+  GIFT_HOW_SEO,
+  GIFT_SHOP_FAQS,
+  GIFT_SHOP_SEO,
+} from '@shared/gift-card-landing-content';
 import {
   buildBlogContextualLinks,
   type BlogWeddingStoryCandidate,
@@ -491,6 +496,40 @@ function getStaticPageMeta(path: string): PageMeta | null {
             '@type': 'Question',
             name: faq.question,
             acceptedAnswer: { '@type': 'Answer', text: faq.answer },
+          })),
+        },
+      ],
+    },
+    '/regala/come-funziona': {
+      title: GIFT_HOW_SEO.title,
+      description: GIFT_HOW_SEO.description,
+      canonical: `${BASE_URL}/regala/come-funziona`,
+      bodyContent: `
+        <h1>${GIFT_HOW_SEO.h1}</h1>
+        <p>${GIFT_HOW_SEO.lede}</p>
+        ${GIFT_HOW_SECTIONS.map(section => `<h2>${section.title}</h2><p>${section.intro}</p><ol>${section.steps.map(step => `<li><strong>${step.title}</strong>: ${step.text}</li>`).join('')}</ol>`).join('')}
+        <p><a href="${BASE_URL}/regala">Scegli l'idea regalo</a></p>
+      `,
+      jsonLd: [
+        {
+          '@context': 'https://schema.org',
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            { '@type': 'ListItem', position: 1, name: 'Home', item: `${BASE_URL}/` },
+            { '@type': 'ListItem', position: 2, name: GIFT_SHOP_SEO.breadcrumb, item: `${BASE_URL}/regala` },
+            { '@type': 'ListItem', position: 3, name: GIFT_HOW_SEO.breadcrumb, item: `${BASE_URL}/regala/come-funziona` },
+          ],
+        },
+        {
+          '@context': 'https://schema.org',
+          '@type': 'HowTo',
+          name: GIFT_HOW_SEO.howToName,
+          // Gli stessi passaggi mostrati nella pagina (testi condivisi in gift-card-landing-content)
+          step: GIFT_HOW_SECTIONS[0].steps.map((step, index) => ({
+            '@type': 'HowToStep',
+            position: index + 1,
+            name: step.title,
+            text: step.text,
           })),
         },
       ],

@@ -17,6 +17,7 @@ const PUBLIC_STATIC_PATHS = new Set([
   '/prenota',
   '/consulenze',
   '/regala',
+  '/regala/come-funziona',
 ]);
 
 const PORTFOLIO_CATEGORIES = new Set([
@@ -45,7 +46,7 @@ function hasTwoSegmentsAfter(prefix: string, pathname: string): boolean {
 
 /** La pagina regalo si apre a Google solo con GIFT_SHOP_INDEXABLE=true: fino ad allora resta raggiungibile ma non indicizzata. */
 function isGiftShopHidden(path: string): boolean {
-  return path === '/regala' && process.env.GIFT_SHOP_INDEXABLE !== 'true';
+  return (path === '/regala' || path === '/regala/come-funziona') && process.env.GIFT_SHOP_INDEXABLE !== 'true';
 }
 
 /**

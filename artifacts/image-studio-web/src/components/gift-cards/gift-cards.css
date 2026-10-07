@@ -314,3 +314,9 @@
 .gcx-foot-l p { margin: 0; }
 .gcx-foot-l a { color: var(--gk-f1); }
 @media (max-width: 760px) { .gcx-unwrap { grid-template-columns: minmax(0, 1fr); } .gcx-block { padding-block: 38px; } }
+
+.gcx-crumbs { padding-top: 8px; font-size: 13px; color: var(--gk-sub); }
+.gcx-crumbs a { color: var(--gk-f1); }
+.gcx-more { margin: 22px 0 0; }
+.gcx-more a { color: var(--gk-f1); font-weight: 600; }
+button.gcx-btn-gold, button.gcx-btn-line { font-family: var(--gcx-body); }

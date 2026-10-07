@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('./firebase-admin', () => ({ db: {} }));
 
@@ -59,5 +59,26 @@ describe('Static sitemap', () => {
       .toBe(1);
     expect(xml).not.toContain('https://imagestudiofotografico.com/esperienza');
     expect(xml).not.toContain('https://imagestudiofotografico.com/esperienza/');
+  });
+});
+
+describe('Sitemap delle pagine regalo', () => {
+  const original = process.env.GIFT_SHOP_INDEXABLE;
+  afterEach(() => {
+    if (original === undefined) delete process.env.GIFT_SHOP_INDEXABLE;
+    else process.env.GIFT_SHOP_INDEXABLE = original;
+  });
+
+  it('non elenca le pagine regalo finché sono nascoste a Google', () => {
+    delete process.env.GIFT_SHOP_INDEXABLE;
+    const xml = buildStaticSitemapEntries('https://example.test');
+    expect(xml).not.toContain('/regala');
+  });
+
+  it('le elenca quando vengono aperte a Google', () => {
+    process.env.GIFT_SHOP_INDEXABLE = 'true';
+    const xml = buildStaticSitemapEntries('https://example.test');
+    expect(xml).toContain('<loc>https://example.test/regala</loc>');
+    expect(xml).toContain('<loc>https://example.test/regala/come-funziona</loc>');
   });
 });

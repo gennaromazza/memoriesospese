@@ -382,3 +382,41 @@ describe('pagina regalo /regala', () => {
     });
   });
 });
+
+describe('pagina «Come funziona» delle gift card', () => {
+  async function withFlag(value: string | undefined, run: () => Promise<void>) {
+    const original = process.env.GIFT_SHOP_INDEXABLE;
+    if (value === undefined) delete process.env.GIFT_SHOP_INDEXABLE;
+    else process.env.GIFT_SHOP_INDEXABLE = value;
+    try {
+      await run();
+    } finally {
+      if (original === undefined) delete process.env.GIFT_SHOP_INDEXABLE;
+      else process.env.GIFT_SHOP_INDEXABLE = original;
+    }
+  }
+
+  it('resta nascosta finché la pagina regalo non è aperta a Google', async () => {
+    await withFlag(undefined, async () => {
+      const { response, next } = await renderForCrawler('/regala/come-funziona');
+      expect(response.headers['X-Robots-Tag']).toContain('noindex');
+      expect(next).toHaveBeenCalled();
+    });
+  });
+
+  it('aperta a Google ha titolo proprio, percorso a tre livelli e i passaggi come HowTo', async () => {
+    await withFlag('true', async () => {
+      const { response } = await renderForCrawler('/regala/come-funziona');
+      const html = response.body ?? '';
+      expect(html).toContain('Come funziona la gift card Image Studio | Idee regalo');
+      expect(html).toContain('<link rel="canonical" href="https://imagestudiofotografico.com/regala/come-funziona"');
+      expect(html).toContain('<h1>Come funziona la gift card</h1>');
+      const blocks = [...html.matchAll(/<script type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)].map(match => JSON.parse(match[1])).flat();
+      const crumbs = blocks.find((entry: any) => entry['@type'] === 'BreadcrumbList');
+      expect(crumbs.itemListElement.map((item: any) => item.name)).toEqual(['Home', 'Idee regalo di Natale', 'Come funziona']);
+      const howTo = blocks.find((entry: any) => entry['@type'] === 'HowTo');
+      expect(howTo.step).toHaveLength(4);
+      expect(howTo.step[0]).toMatchObject({ '@type': 'HowToStep', position: 1 });
+    });
+  });
+});

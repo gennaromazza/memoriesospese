@@ -161,7 +161,14 @@ export function buildStaticSitemapEntries(
   baseUrl = 'https://imagestudiofotografico.com',
 ): string {
   let entries = '';
-  for (const page of STATIC_SITEMAP_PAGES) {
+  // Le pagine regalo entrano nella mappa solo quando si decide di aprirle a Google.
+  const giftPages = process.env.GIFT_SHOP_INDEXABLE === 'true'
+    ? [
+        { path: '/regala', changefreq: 'weekly', priority: '0.9', lastmod: '2026-10-07' },
+        { path: '/regala/come-funziona', changefreq: 'monthly', priority: '0.7', lastmod: '2026-10-07' },
+      ]
+    : [];
+  for (const page of [...STATIC_SITEMAP_PAGES, ...giftPages]) {
     entries += `  <url>
     <loc>${baseUrl}${page.path}</loc>
     <lastmod>${page.lastmod}</lastmod>

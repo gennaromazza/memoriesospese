@@ -20,6 +20,8 @@ describe('percorsi delle gift card', () => {
       expect(isKnownClientPath('/regala')).toBe(true);
       expect(isKnownClientPath('/regala/')).toBe(true);
       expect(isPrivateClientPath('/regala')).toBe(true);
+      expect(isKnownClientPath('/regala/come-funziona')).toBe(true);
+      expect(isPrivateClientPath('/regala/come-funziona')).toBe(true);
       expect(isKnownClientPath('/regala/altro')).toBe(false);
     });
 
@@ -27,6 +29,8 @@ describe('percorsi delle gift card', () => {
       process.env.GIFT_SHOP_INDEXABLE = 'true';
       expect(isKnownClientPath('/regala')).toBe(true);
       expect(isPrivateClientPath('/regala')).toBe(false);
+      expect(isKnownClientPath('/regala/come-funziona')).toBe(true);
+      expect(isPrivateClientPath('/regala/come-funziona')).toBe(false);
     });
   });
 

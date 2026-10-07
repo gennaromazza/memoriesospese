@@ -217,10 +217,14 @@ export default function GiftCardShopPage() {
   }, [types]);
   const studioAddress = studioSettings.address?.trim();
   const studioEmail = studioSettings.email?.trim();
+  // Con il tag <base> del sito i link #ancora porterebbero alla home: si scorre via codice.
+  const scrollToId = (id: string) => {
+    const reduced = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' }), 0);
+  };
   const goToPurchase = (id: string) => {
     setTypeId(id);
-    const reduced = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    window.setTimeout(() => document.getElementById('acquista')?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' }), 0);
+    scrollToId('acquista');
   };
   const contact = whatsappUrl ? (
     <a className="underline" href={whatsappUrl} target="_blank" rel="noopener noreferrer">scrivici su WhatsApp</a>
@@ -425,8 +429,8 @@ export default function GiftCardShopPage() {
             <p className="gcx-lede">{GIFT_SHOP_SEO.lede}</p>
             {types.length ? (
               <div className="gcx-cta-row">
-                <a className="gcx-btn-gold" href="#idee">Scegli l'idea regalo</a>
-                <a className="gcx-btn-line" href="#come-funziona">Come funziona</a>
+                <button type="button" className="gcx-btn-gold" onClick={() => scrollToId('idee')}>Scegli l'idea regalo</button>
+                <Link href="/regala/come-funziona" className="gcx-btn-line">Come funziona</Link>
               </div>
             ) : null}
             <ul className="gcx-proof">
@@ -448,6 +452,7 @@ export default function GiftCardShopPage() {
                   <li key={step.title}><b>{index + 1}</b><h3>{step.title}</h3><p>{step.text}</p></li>
                 ))}
               </ol>
+              <p className="gcx-more"><Link href="/regala/come-funziona">Leggi la guida completa</Link></p>
             </section>
 
             <section className="gcx-block gcx-unwrap" aria-labelledby="gcx-unwrap-t">
@@ -488,7 +493,7 @@ export default function GiftCardShopPage() {
             <aside className="gcx-final">
               <h2 className="gcx-h2 gcx-h2-center">Il regalo di Natale che resta</h2>
               <p className="gcx-sub gcx-center-text">Scegli l'idea e consegnala quando vuoi.</p>
-              <div className="gcx-cta-row"><a className="gcx-btn-gold" href="#idee">Scegli l'idea regalo</a></div>
+              <div className="gcx-cta-row"><button type="button" className="gcx-btn-gold" onClick={() => scrollToId('idee')}>Scegli l'idea regalo</button></div>
             </aside>
           </>
         ) : null}
