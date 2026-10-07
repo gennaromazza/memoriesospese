@@ -179,3 +179,18 @@ describe('gift card router: acquisto online', () => {
     expect((await call('/shop')).status).toBe(503);
   });
 });
+
+describe('gift card router: eliminazione dei tipi', () => {
+  it('solo l\'amministratore può eliminare un tipo', async () => {
+    const { call } = await start();
+    const created = await call('/types', { method: 'POST', as: 'admin@studio.test', body: JSON.stringify(typeBody) });
+    const type = (await created.json()) as { id: string };
+
+    expect((await call('/types/' + type.id, { method: 'DELETE' })).status).toBe(401);
+    expect((await call('/types/' + type.id, { method: 'DELETE', as: 'cliente@example.com' })).status).toBe(403);
+    const removed = await call('/types/' + type.id, { method: 'DELETE', as: 'admin@studio.test' });
+    expect(removed.status).toBe(200);
+    expect(await removed.json()).toEqual({ deleted: true, soldCards: 0 });
+    expect((await call('/types/' + type.id, { method: 'DELETE', as: 'admin@studio.test' })).status).toBe(404);
+  });
+});

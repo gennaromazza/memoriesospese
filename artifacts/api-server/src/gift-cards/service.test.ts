@@ -388,3 +388,26 @@ describe('riscatto nella prenotazione', () => {
     expect(db.countCollection('cashMovements')).toBe(1);
   });
 });
+
+describe('eliminazione dei tipi', () => {
+  it('elimina il tipo dal catalogo ma le card già vendute restano valide con i loro dati', async () => {
+    const { service } = makeService();
+    const type = await seedType(service);
+    const card = await service.sell(sellInput(type.id), 'a@b.it');
+
+    await expect(service.deleteType(type.id)).resolves.toEqual({ deleted: true, soldCards: 1 });
+    expect(await service.listTypes()).toHaveLength(0);
+    await expect(service.sell(sellInput(type.id), 'a@b.it')).rejects.toMatchObject({ status: 404 });
+
+    const stored = await service.get(card.code);
+    expect(stored).toMatchObject({ status: 'attiva', title: 'Foto di Natale', valueCents: 3000 });
+    expect((await service.getPublic(card.code)).title).toBe('Foto di Natale');
+  });
+
+  it('un tipo mai venduto si elimina senza card collegate, e uno inesistente dà 404', async () => {
+    const { service } = makeService();
+    const type = await seedType(service);
+    await expect(service.deleteType(type.id)).resolves.toEqual({ deleted: true, soldCards: 0 });
+    await expect(service.deleteType(type.id)).rejects.toMatchObject({ status: 404, code: 'type_not_found' });
+  });
+});

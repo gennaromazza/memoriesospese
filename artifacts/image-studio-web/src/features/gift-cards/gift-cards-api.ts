@@ -88,6 +88,9 @@ export const giftCardsApi = {
   updateType: (id: string, input: GiftCardTypeInput) =>
     request<GiftCardTypeDto>(`/types/${encodeURIComponent(id)}`, { method: 'PUT', body: json(input) }),
 
+  deleteType: (id: string) =>
+    request<{ deleted: true; soldCards: number }>(`/types/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
   sell: (input: GiftCardSellInput) => request<GiftCardDto>('/sell', { method: 'POST', body: json(input) }),
   listCards: async (status?: GiftCardStatus) =>
     (await request<{ cards: GiftCardDto[] }>(status ? `/?status=${status}` : '/')).cards,

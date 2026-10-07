@@ -219,6 +219,20 @@ export class GiftCardService {
     return typeToDto(ref.id, data);
   }
 
+  /**
+   * Elimina un tipo dal catalogo. Le card già vendute non cambiano: portano con
+   * sé titolo, prezzo, prodotti e scadenza fissati alla vendita.
+   */
+  async deleteType(id: string): Promise<{ deleted: true; soldCards: number }> {
+    const ref = this.db.collection(TYPES).doc(String(id || '_'));
+    if (!(await ref.get()).exists) {
+      throw new GiftCardHttpError(404, 'type_not_found', 'Tipo di gift card non trovato');
+    }
+    const sold = await this.db.collection(CARDS).where('typeId', '==', ref.id).limit(1000).get();
+    await ref.delete();
+    return { deleted: true, soldCards: sold.size };
+  }
+
   // -------------------------------------------------------------- vendita
 
   async resolveExpiry(

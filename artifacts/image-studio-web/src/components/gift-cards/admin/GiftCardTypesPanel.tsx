@@ -23,6 +23,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { GiftCardMini } from '../GiftCardArt';
 import GiftCardTypeWizard from './GiftCardTypeWizard';
@@ -64,6 +65,7 @@ export default function GiftCardTypesPanel() {
   const [draft, setDraft] = useState<GiftCardTypeInput>(EMPTY_TYPE);
   const [priceText, setPriceText] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     if (selectedId === null && types.data) {
@@ -109,6 +111,26 @@ export default function GiftCardTypesPanel() {
       toast({ title: 'Tipo salvato', description: 'Le card già vendute non cambiano.' });
     },
     onError: error => toast({ title: 'Salvataggio non riuscito', description: errorText(error), variant: 'destructive' }),
+  });
+
+  const remove = useMutation({
+    mutationFn: () => giftCardsApi.deleteType(selectedId as string),
+    onSuccess: result => {
+      const removed = selectedId;
+      const remaining = (types.data ?? []).filter(item => item.id !== removed);
+      void queryClient.invalidateQueries({ queryKey: ['gift-card-types'] });
+      setConfirmDelete(false);
+      if (remaining[0]) select(remaining[0]);
+      else startNew();
+      toast({
+        title: 'Tipo eliminato',
+        description: result.soldCards ? `Le ${result.soldCards} card già vendute restano valide.` : undefined,
+      });
+    },
+    onError: error => {
+      setConfirmDelete(false);
+      toast({ title: 'Eliminazione non riuscita', description: errorText(error), variant: 'destructive' });
+    },
   });
 
   if (types.isLoading) return <Skeleton className="h-96 w-full" />;
@@ -184,6 +206,7 @@ export default function GiftCardTypesPanel() {
         campaignsFailed={campaigns.isError}
         saving={save.isPending}
         onSave={() => save.mutate()}
+        onDelete={selectedId && selectedId !== 'new' ? () => setConfirmDelete(true) : undefined}
       />
 
       <Card className="h-fit">
@@ -195,6 +218,23 @@ export default function GiftCardTypesPanel() {
           </p>
         </CardContent>
       </Card>
+
+      <Dialog open={confirmDelete} onOpenChange={open => { if (!open) setConfirmDelete(false); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Eliminare questo tipo?</DialogTitle>
+            <DialogDescription>
+              «{draft.name || 'Senza nome'}» sparisce dal catalogo e non si potrà più vendere. Le card già vendute restano valide e conservano titolo, prezzo e prodotti. Se vuoi solo toglierlo dalla vendita, apri «Dove si vende» e spegni «Attivo nel catalogo».
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDelete(false)}>Indietro</Button>
+            <Button variant="destructive" disabled={remove.isPending} onClick={() => remove.mutate()}>
+              {remove.isPending ? 'Elimino…' : 'Elimina il tipo'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

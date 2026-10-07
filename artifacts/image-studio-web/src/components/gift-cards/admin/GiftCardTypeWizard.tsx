@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Check } from 'lucide-react';
+import { Check, Trash2 } from 'lucide-react';
 import {
   GIFT_CARD_THEME_KEYS,
   GIFT_CARD_TYPE_LINE2_MAX,
@@ -43,6 +43,8 @@ interface Props {
   campaignsFailed: boolean;
   saving: boolean;
   onSave: () => void;
+  /** Presente solo quando si modifica un tipo già salvato. */
+  onDelete?: () => void;
 }
 
 /** Ciò che manca in un passaggio, detto in parole semplici. */
@@ -81,7 +83,7 @@ function Channel({ on, title, text, onToggle }: { on: boolean; title: string; te
 
 /** Creazione e modifica di un tipo di gift card, un passaggio alla volta. */
 export default function GiftCardTypeWizard({
-  isNew, draft, patch, priceText, setPriceText, fieldErrors, campaigns, campaignsFailed, saving, onSave,
+  isNew, draft, patch, priceText, setPriceText, fieldErrors, campaigns, campaignsFailed, saving, onSave, onDelete,
 }: Props) {
   const [step, setStep] = useState(0);
   const [tried, setTried] = useState(false);
@@ -268,7 +270,14 @@ export default function GiftCardTypeWizard({
   return (
     <Card>
       <CardHeader className="space-y-4">
-        <CardTitle className="text-lg">{isNew ? 'Nuovo tipo di gift card' : 'Modifica tipo'}</CardTitle>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <CardTitle className="text-lg">{isNew ? 'Nuovo tipo di gift card' : 'Modifica tipo'}</CardTitle>
+          {onDelete ? (
+            <Button type="button" variant="outline" size="sm" className="text-red-700 hover:text-red-800" onClick={onDelete}>
+              <Trash2 className="mr-2 h-4 w-4" />Elimina questo tipo
+            </Button>
+          ) : null}
+        </div>
         <ol className="flex flex-wrap gap-2" aria-label="Passaggi">
           {STEPS.map((item, index) => {
             const done = index < step;

@@ -172,6 +172,9 @@ export function createGiftCardRouter(deps: GiftCardRouterDependencies): express.
   router.put('/types/:id', ...admin, handle(async (req, res) => {
     send(res, 200, await service.saveType(String(req.params.id), req.body, adminEmail(req)));
   }));
+  router.delete('/types/:id', ...admin, handle(async (req, res) => {
+    send(res, 200, await service.deleteType(String(req.params.id)));
+  }));
 
   // ----------------------------------------------------- card emesse
   router.post('/sell', ...admin, handle(async (req, res) => {
