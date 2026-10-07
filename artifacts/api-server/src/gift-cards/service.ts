@@ -22,11 +22,11 @@ import {
 } from '@shared/gift-card-types';
 
 const ROME_ZONE = 'Europe/Rome';
-const TYPES = 'giftCardTypes';
-const CARDS = 'giftCards';
-const EVENTS = 'giftCardEvents';
-const CASH = 'cashMovements';
-const CAMPAIGNS = 'booking_campaigns';
+export const TYPES = 'giftCardTypes';
+export const CARDS = 'giftCards';
+export const EVENTS = 'giftCardEvents';
+export const CASH = 'cashMovements';
+export const CAMPAIGNS = 'booking_campaigns';
 const MAX_CODE_ATTEMPTS = 8;
 const LIST_LIMIT = 1000;
 const PAYMENT_METHODS: readonly GiftCardPaymentMethod[] = ['contante', 'carta', 'bonifico', 'paypal', 'altro'];
@@ -52,7 +52,7 @@ export function generateGiftCardCode(): string {
   return `${compact.slice(0, 4)}-${compact.slice(4, 8)}-${compact.slice(8, 12)}`;
 }
 
-function toIso(value: any): string | null {
+export function toIso(value: any): string | null {
   if (!value) return null;
   const date: Date | null =
     typeof value.toDate === 'function' ? value.toDate() : value instanceof Date ? value : null;
@@ -64,7 +64,7 @@ export function endOfRomeDay(isoDay: string): Date {
   return DateTime.fromISO(isoDay, { zone: ROME_ZONE }).endOf('day').toJSDate();
 }
 
-function cleanText(value: unknown, max: number, field: string): string {
+export function cleanText(value: unknown, max: number, field: string): string {
   const text = typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : '';
   if (text.length > max) {
     throw new GiftCardHttpError(422, 'invalid_input', `${field}: massimo ${max} caratteri`);
@@ -72,7 +72,7 @@ function cleanText(value: unknown, max: number, field: string): string {
   return text;
 }
 
-function typeToDto(id: string, data: any): GiftCardTypeDto {
+export function typeToDto(id: string, data: any): GiftCardTypeDto {
   return {
     id,
     name: data.name,
@@ -94,7 +94,7 @@ function typeToDto(id: string, data: any): GiftCardTypeDto {
   };
 }
 
-function cardToDto(code: string, data: any, now: Date): GiftCardDto {
+export function cardToDto(code: string, data: any, now: Date): GiftCardDto {
   const expiresAt = toIso(data.expiresAt);
   const status = data.status as GiftCardStatus;
   return {
@@ -119,6 +119,11 @@ function cardToDto(code: string, data: any, now: Date): GiftCardDto {
     bookingId: data.bookingId ?? null,
     cancelledAt: toIso(data.cancelledAt),
     cancelReason: data.cancelReason ?? null,
+    buyerName: data.buyerName || '',
+    buyerEmail: data.buyerEmail || '',
+    recipientEmail: data.recipientEmail || '',
+    deliverAt: toIso(data.deliverAt),
+    deliveredAt: toIso(data.deliveredAt),
   };
 }
 
@@ -172,7 +177,10 @@ export class GiftCardService {
 
   // -------------------------------------------------------------- vendita
 
-  private async resolveExpiry(type: GiftCardTypeDto, input: GiftCardSellInput): Promise<Date | null> {
+  async resolveExpiry(
+    type: GiftCardTypeDto,
+    input: Pick<GiftCardSellInput, 'noExpiry' | 'expiresOn'>,
+  ): Promise<Date | null> {
     if (input.noExpiry) return null;
     if (input.expiresOn) {
       if (!isIsoDay(input.expiresOn)) {
@@ -439,7 +447,7 @@ export class GiftCardService {
     };
   }
 
-  private requireCode(raw: string): string {
+  requireCode(raw: string): string {
     const code = normalizeGiftCardCode(raw);
     if (!code) throw new GiftCardHttpError(422, 'invalid_code', 'Codice non valido');
     return code;

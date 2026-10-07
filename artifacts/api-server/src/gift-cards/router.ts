@@ -2,9 +2,12 @@ import express, { type NextFunction, type Request, type RequestHandler, type Res
 import { z, ZodError } from 'zod/v4';
 import type { GiftCardStatus } from '@shared/gift-card-types';
 import { GiftCardHttpError, type GiftCardService } from './service.js';
+import type { GiftCardOnlineService } from './online.js';
 
 export interface GiftCardRouterDependencies {
   service: GiftCardService;
+  /** Acquisto online con PayPal; se manca, le rotte online rispondono 503. */
+  online?: GiftCardOnlineService;
   authenticate: RequestHandler;
   adminEmails: readonly string[];
 }
@@ -21,6 +24,7 @@ const sellSchema = z.object({
   noExpiry: z.boolean().optional(),
 }).strict();
 
+const resendSchema = z.object({ target: z.enum(['buyer', 'recipient']) }).strict();
 const cancelSchema = z.object({ reason: z.string().max(500) }).strict();
 const expirySchema = z.object({ expiresOn: z.string().trim().max(10).nullable() }).strict();
 const STATUS_FILTER = ['in_attesa_pagamento', 'attiva', 'riscattata', 'scaduta', 'annullata'] as const;
@@ -42,6 +46,28 @@ function handle(fn: (req: Request, res: Response) => Promise<void>): RequestHand
 function clientKey(req: Request): string {
   const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0]?.trim();
   return forwarded || req.ip || 'unknown';
+}
+
+/** Limita le richieste per cliente in una finestra di tempo. */
+function createWindowLimiter(max: number, windowMs: number, now: () => number = Date.now): RequestHandler {
+  const hits = new Map<string, { count: number; resetAt: number }>();
+  return (req, res, next) => {
+    const key = clientKey(req);
+    const current = hits.get(key);
+    if (!current || current.resetAt <= now()) {
+      hits.set(key, { count: 1, resetAt: now() + windowMs });
+      if (hits.size > 5000) for (const [stored, value] of hits) if (value.resetAt <= now()) hits.delete(stored);
+      next();
+      return;
+    }
+    current.count++;
+    if (current.count > max) {
+      res.setHeader('Retry-After', String(Math.ceil((current.resetAt - now()) / 1000)));
+      send(res, 429, { error: { code: 'rate_limited', message: 'Troppi tentativi, riprova tra qualche minuto' } });
+      return;
+    }
+    next();
+  };
 }
 
 /**
@@ -98,6 +124,38 @@ export function createGiftCardRouter(deps: GiftCardRouterDependencies): express.
     }),
   );
 
+  // ------------------------------------------------- acquisto online
+  const online = () => {
+    if (!deps.online) throw new GiftCardHttpError(503, 'online_not_available', 'Acquisto online non disponibile');
+    return deps.online;
+  };
+  router.get('/shop', handle(async (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    send(res, 200, await online().shop());
+  }));
+  router.post('/online/create', createWindowLimiter(8, 10 * 60 * 1000), handle(async (req, res) => {
+    send(res, 201, await online().createOrder(req.body));
+  }));
+  router.post('/online/:code/capture', createWindowLimiter(20, 10 * 60 * 1000), handle(async (req, res) => {
+    send(res, 200, await online().capture(String(req.params.code), req.body));
+  }));
+  router.post('/paypal/webhook', handle(async (req, res) => {
+    const result = await online().webhook(
+      {
+        transmissionId: req.get('paypal-transmission-id') || undefined,
+        transmissionTime: req.get('paypal-transmission-time') || undefined,
+        certUrl: req.get('paypal-cert-url') || undefined,
+        authAlgo: req.get('paypal-auth-algo') || undefined,
+        transmissionSig: req.get('paypal-transmission-sig') || undefined,
+      },
+      req.body,
+    );
+    send(res, 200, result);
+  }));
+  router.post('/deliveries/run', ...admin, handle(async (_req, res) => {
+    send(res, 200, await online().processDueDeliveries());
+  }));
+
   // -------------------------------------------------------------- tipi
   router.get('/types', ...admin, handle(async (_req, res) => {
     send(res, 200, { types: await service.listTypes() });
@@ -124,6 +182,13 @@ export function createGiftCardRouter(deps: GiftCardRouterDependencies): express.
   }));
   router.post('/:code/confirm-payment', ...admin, handle(async (req, res) => {
     send(res, 200, await service.confirmPayment(String(req.params.code), adminEmail(req)));
+  }));
+  router.post('/:code/reconcile', ...admin, handle(async (req, res) => {
+    send(res, 200, await online().reconcile(String(req.params.code), adminEmail(req)));
+  }));
+  router.post('/:code/resend', ...admin, handle(async (req, res) => {
+    const { target } = resendSchema.parse(req.body);
+    send(res, 200, await online().resend(String(req.params.code), target, adminEmail(req)));
   }));
   router.post('/:code/cancel', ...admin, handle(async (req, res) => {
     const { reason } = cancelSchema.parse(req.body);

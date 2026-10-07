@@ -14,7 +14,7 @@ afterEach(async () => {
   server = undefined;
 });
 
-async function start() {
+async function start(online?: any) {
   const db = new FakeFirestore();
   const codes = ['K7QM-4XD2-9PTR', 'R3WN-8HC5-2VJA'];
   const service = new GiftCardService({ db: db as any, now: () => NOW, randomCode: () => codes.shift() ?? 'ZZZZ-ZZZZ-ZZZZ' });
@@ -24,6 +24,7 @@ async function start() {
     '/api/gift-cards',
     createGiftCardRouter({
       service,
+      online,
       adminEmails: ['admin@studio.test'],
       authenticate: (req: any, res, next) => {
         const token = String(req.headers.authorization || '');
@@ -118,5 +119,63 @@ describe('gift card router', () => {
     expect(statuses[31]).toBe(429);
     const other = await call('/public/AAAA-BBBB-CCCC', { headers: { 'x-forwarded-for': '198.51.100.7' } });
     expect(other.status).toBe(404);
+  });
+});
+
+describe('gift card router: acquisto online', () => {
+  const stub = () => {
+    const calls: Array<[string, unknown]> = [];
+    return {
+      calls,
+      shop: async () => ({ types: [], paypal: { enabled: true, clientId: 'c', environment: 'sandbox', currency: 'EUR' } }),
+      createOrder: async (body: unknown) => { calls.push(['create', body]); return { code: 'K7QM-4XD2-9PTR', paypalOrderId: 'PP1', buyerToken: 't', amountCents: 3000 }; },
+      capture: async (code: string, body: unknown) => { calls.push(['capture', { code, body }]); return { code, status: 'attiva', duplicate: false, deliverAt: null }; },
+      webhook: async (headers: unknown, event: unknown) => { calls.push(['webhook', { headers, event }]); return { ok: true }; },
+      processDueDeliveries: async () => ({ processed: 2 }),
+      reconcile: async () => ({ code: 'K7QM-4XD2-9PTR' }),
+      resend: async (_code: string, target: string) => ({ target }),
+    };
+  };
+
+  it('la vetrina e l\'acquisto sono pubblici, il lavoro di consegna no', async () => {
+    const online = stub();
+    const { call } = await start(online);
+    const shop = await call('/shop');
+    expect(shop.status).toBe(200);
+    expect(shop.headers.get('cache-control')).toBe('no-store');
+    expect((await call('/online/create', { method: 'POST', body: JSON.stringify({ typeId: 'x' }) })).status).toBe(201);
+    expect((await call('/online/K7QM-4XD2-9PTR/capture', { method: 'POST', body: JSON.stringify({ buyerToken: 't' }) })).status).toBe(200);
+    expect(online.calls.map(call => call[0])).toEqual(['create', 'capture']);
+
+    expect((await call('/deliveries/run', { method: 'POST', body: '{}' })).status).toBe(401);
+    expect((await call('/deliveries/run', { method: 'POST', body: '{}', as: 'cliente@example.com' })).status).toBe(403);
+    const run = await call('/deliveries/run', { method: 'POST', body: '{}', as: 'admin@studio.test' });
+    expect(await run.json()).toEqual({ processed: 2 });
+  });
+
+  it('limita le creazioni di ordini ripetute dallo stesso cliente', async () => {
+    const { call } = await start(stub());
+    const statuses: number[] = [];
+    for (let attempt = 0; attempt < 10; attempt++) {
+      statuses.push((await call('/online/create', { method: 'POST', body: '{}', headers: { 'x-forwarded-for': '203.0.113.5' } })).status);
+    }
+    expect(statuses.slice(0, 8).every(status => status === 201)).toBe(true);
+    expect(statuses.slice(8)).toEqual([429, 429]);
+    expect((await call('/online/create', { method: 'POST', body: '{}', headers: { 'x-forwarded-for': '198.51.100.9' } })).status).toBe(201);
+  });
+
+  it('passa a PayPal le intestazioni del webhook e protegge reinvio e verifica', async () => {
+    const online = stub();
+    const { call } = await start(online);
+    await call('/paypal/webhook', { method: 'POST', body: JSON.stringify({ id: 'WH' }), headers: { 'paypal-transmission-id': 'T1', 'paypal-transmission-sig': 'S1' } });
+    expect(online.calls[0]).toMatchObject(['webhook', { headers: { transmissionId: 'T1', transmissionSig: 'S1' }, event: { id: 'WH' } }]);
+    expect((await call('/K7QM-4XD2-9PTR/reconcile', { method: 'POST', body: '{}' })).status).toBe(401);
+    expect((await call('/K7QM-4XD2-9PTR/resend', { method: 'POST', as: 'admin@studio.test', body: JSON.stringify({ target: 'buyer' }) })).status).toBe(200);
+    expect((await call('/K7QM-4XD2-9PTR/resend', { method: 'POST', as: 'admin@studio.test', body: JSON.stringify({ target: 'altro' }) })).status).toBe(422);
+  });
+
+  it('senza servizio online risponde 503', async () => {
+    const { call } = await start();
+    expect((await call('/shop')).status).toBe(503);
   });
 });

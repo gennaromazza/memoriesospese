@@ -158,6 +158,13 @@ export interface GiftCardDto {
   bookingId: string | null;
   cancelledAt: string | null;
   cancelReason: string | null;
+  /** Dati di chi ha comprato online (vuoti per le vendite al banco). */
+  buyerName: string;
+  buyerEmail: string;
+  recipientEmail: string;
+  /** Quando la card va consegnata a chi la riceve; `null` = subito. */
+  deliverAt: string | null;
+  deliveredAt: string | null;
 }
 
 export interface GiftCardSellInput {
@@ -291,4 +298,68 @@ export function validateGiftCardTypeInput(
       active: raw.active !== false,
     },
   };
+}
+
+export const GIFT_CARD_DELIVERY_HOUR = 8;
+export const GIFT_CARD_MAX_DELIVERY_DAYS = 400;
+
+/** Tipo in vendita sul sito: niente dati interni. */
+export interface GiftCardShopTypeDto {
+  id: string;
+  name: string;
+  description: string;
+  title: string;
+  line2: string;
+  kind: GiftCardKind;
+  priceCents: number;
+  theme: GiftCardThemeKey;
+  /** Scadenza che avrà la card se comprata adesso. */
+  validUntil: string | null;
+}
+
+export interface GiftCardPaypalPublicConfig {
+  enabled: boolean;
+  clientId: string | null;
+  environment: 'sandbox' | 'live';
+  currency: 'EUR';
+}
+
+export interface GiftCardShopDto {
+  types: GiftCardShopTypeDto[];
+  paypal: GiftCardPaypalPublicConfig;
+}
+
+export interface GiftCardOnlineCreateInput {
+  typeId: string;
+  recipientName: string;
+  message: string;
+  buyerName: string;
+  buyerEmail: string;
+  /** Se manca, il link del regalo arriva solo a chi compra. */
+  recipientEmail?: string;
+  /** Giorno (YYYY-MM-DD) in cui consegnare la card alle 08:00; assente = subito. */
+  deliverOn?: string | null;
+  termsAccepted: boolean;
+  privacyAccepted: boolean;
+}
+
+export interface GiftCardOnlineCreateResult {
+  code: string;
+  paypalOrderId: string;
+  /** Serve a chi compra per confermare il pagamento; non si può recuperare. */
+  buyerToken: string;
+  amountCents: number;
+}
+
+export interface GiftCardOnlineCaptureResult {
+  code: string;
+  status: GiftCardStatus;
+  duplicate: boolean;
+  deliverAt: string | null;
+}
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+export function isPlausibleEmail(value: unknown): value is string {
+  return typeof value === 'string' && value.length <= 200 && EMAIL_PATTERN.test(value.trim());
 }
