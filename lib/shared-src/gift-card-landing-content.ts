@@ -12,7 +12,7 @@ export const GIFT_SHOP_SEO = {
     "Regala un ricordo che resta: gift card Image Studio ad Aversa per foto di Natale, stampe e tele. Scegli l'idea, scrivi due righe e consegnala quando vuoi.",
   h1: 'Idee regalo di Natale',
   script: 'regala un ricordo che resta',
-  lede: "Una gift card Image Studio si scarta come un vero regalo. Scegli l'idea, scrivi due righe e consegnala il giorno che vuoi, anche la mattina di Natale.",
+  lede: "Una gift card Image Studio si scarta come un vero regalo. Scegli l'idea, scrivi due righe e consegnala il giorno che vuoi.",
   breadcrumb: 'Idee regalo di Natale',
 } as const;
 
@@ -28,7 +28,7 @@ export const GIFT_SHOP_FAQS: readonly GiftShopFaq[] = [
       "Chi la riceve apre il link e vede cosa include il regalo. Se serve un appuntamento sceglie giorno e orario nel calendario dello studio, altrimenti ci contatta per ritirarlo. Non deve pagare nulla.",
   },
   {
-    question: 'Posso programmare la consegna per Natale?',
+    question: 'Posso programmare la consegna del regalo?',
     answer:
       "Sì. Scegli il giorno e il regalo arriva per email alle 8:00 a chi lo riceve, con il tuo messaggio. Se preferisci, ricevi tu il link e lo inoltri quando vuoi.",
   },

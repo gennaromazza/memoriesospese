@@ -430,7 +430,6 @@ export default function GiftCardShopPage() {
               </div>
             ) : null}
             <ul className="gcx-proof">
-              <li>Consegna anche il 25 dicembre</li>
               <li>Paghi in sicurezza con PayPal</li>
               <li>Un regalo che si scarta</li>
             </ul>
@@ -471,7 +470,7 @@ export default function GiftCardShopPage() {
               <div className="gcx-trust">
                 <div><b>Il nostro studio</b><span>{studioAddress || 'Dove si fa il regalo, vicino a te.'}</span></div>
                 <div><b>Il set di Natale</b><span>Luci, velluto rosso e decorazioni, solo per questa stagione.</span></div>
-                <div><b>Consegna quando vuoi</b><span>Anche la mattina del 25 dicembre, alle 8:00.</span></div>
+                <div><b>Consegna quando vuoi</b><span>Scegli il giorno e il regalo arriva per email alle 8:00.</span></div>
               </div>
             </section>
 
