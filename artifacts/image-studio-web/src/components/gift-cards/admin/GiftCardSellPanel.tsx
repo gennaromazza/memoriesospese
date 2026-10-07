@@ -31,7 +31,7 @@ import {
 
 type ExpiryMode = 'type' | 'date' | 'none';
 
-export default function GiftCardSellPanel() {
+export default function GiftCardSellPanel({ onCreateType }: { onCreateType?: () => void } = {}) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const types = useQuery({ queryKey: ['gift-card-types'], queryFn: giftCardsApi.listTypes });
@@ -145,8 +145,9 @@ export default function GiftCardSellPanel() {
   if (!sellable.length) {
     return (
       <Card>
-        <CardContent className="py-10 text-center text-sm text-muted-foreground">
-          Nessun tipo di gift card è in vendita in studio. Creane uno dalla scheda «Tipi di gift card».
+        <CardContent className="flex flex-col items-center gap-4 py-10 text-center text-sm text-muted-foreground">
+          <p>Nessun tipo di gift card è in vendita in studio.</p>
+          {onCreateType ? <Button onClick={onCreateType}>Crea un tipo di gift card</Button> : null}
         </CardContent>
       </Card>
     );

@@ -159,6 +159,9 @@ export default function GiftCardTypesPanel() {
               </span>
             </button>
           ))}
+          {(types.data ?? []).length === 0 ? (
+            <p className="text-sm text-muted-foreground">Non hai ancora nessun tipo. Compila il modulo e salva: sarà il primo del catalogo.</p>
+          ) : null}
           <Button type="button" variant="outline" className="w-full" onClick={startNew}>Nuovo tipo</Button>
         </CardContent>
       </Card>

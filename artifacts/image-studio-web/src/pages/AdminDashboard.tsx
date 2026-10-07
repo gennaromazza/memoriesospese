@@ -175,6 +175,10 @@ import {
   type GalleryTypeFilter,
   type SelectionFilter,
 } from "./admin/adminGalleryFilters";
+// Gift card caricate solo quando si apre la scheda
+const GiftCardAdminContent = lazy(
+  () => import("@/components/gift-cards/admin/GiftCardAdminContent"),
+);
 // Lazy load StudioAssistant per migliorare il caricamento iniziale
 const StudioAssistant = lazy(
   () => import("@/components/studio-assistant/StudioAssistant"),
@@ -271,6 +275,7 @@ type AdminTab =
   | "photobooks"
   | "photobook-changes"
   | "print-shop-orders"
+  | "gift-card"
   | "follow-up";
 
 type BookingSection = "bookings-list" | "campaigns";
@@ -2148,6 +2153,18 @@ export default function AdminDashboard() {
 
             <TabsContent value="print-shop-orders">
               <PrintShopAdminManager />
+            </TabsContent>
+
+            <TabsContent value="gift-card">
+              <Suspense
+                fallback={
+                  <p className="p-6 text-sm text-muted-foreground" role="status">
+                    Caricamento gift card…
+                  </p>
+                }
+              >
+                <GiftCardAdminContent />
+              </Suspense>
             </TabsContent>
 
             {/* Contenuto Tab Richieste Info con Sub-Tabs */}

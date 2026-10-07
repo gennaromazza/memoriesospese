@@ -281,8 +281,8 @@ export const ADMIN_NAV_GROUPS: NavGroup[] = [
     id: "gift-card",
     label: "Gift card",
     icon: Gift,
-    tabs: [],
-    target: { href: "/admin/gift-card" },
+    tabs: ["gift-card"],
+    target: { tab: "gift-card" },
   },
   {
     id: "impostazioni",
