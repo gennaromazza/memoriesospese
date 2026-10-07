@@ -32,6 +32,7 @@ import {
   Phone,
   Printer,
   Send,
+  Gift,
 } from "lucide-react";
 
 /**
@@ -275,6 +276,13 @@ export const ADMIN_NAV_GROUPS: NavGroup[] = [
     icon: Printer,
     tabs: ["print-shop-orders"],
     target: { tab: "print-shop-orders" },
+  },
+  {
+    id: "gift-card",
+    label: "Gift card",
+    icon: Gift,
+    tabs: [],
+    target: { href: "/admin/gift-card" },
   },
   {
     id: "impostazioni",

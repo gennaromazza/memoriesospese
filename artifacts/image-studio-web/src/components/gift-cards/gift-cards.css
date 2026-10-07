@@ -1,0 +1,195 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Pinyon+Script&family=Playfair+Display:ital,wght@0,500;0,700;1,500;1,700&family=Raleway:wght@500;600;700&display=swap');
+
+/*
+ * Gift card: facce, cartoncino 15x20 e scena di apertura del regalo.
+ * Tutte le classi hanno il prefisso gcx- per non interferire con il resto del sito.
+ */
+.gcx {
+  --gcx-display: 'Playfair Display', Georgia, serif;
+  --gcx-body: 'Raleway', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --gcx-script: 'Pinyon Script', 'Snell Roundhand', 'Apple Chancery', cursive;
+  --gcx-mono: 'DM Mono', ui-monospace, Menlo, Consolas, monospace;
+  --gk-ink: #fff;
+  --gk-sub: #ccc;
+  --gk-bg: #222;
+  --gk-f1: #ddd;
+  --gk-f2: #999;
+  --gk-f3: #eee;
+  --gk-seal: #a33;
+  --gk-sealink: #fff;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: 6px;
+  color: var(--gk-ink);
+  background: var(--gk-bg);
+  box-shadow: 0 22px 40px -22px rgba(0, 0, 0, 0.7);
+  transition: transform 0.25s ease;
+  will-change: transform;
+}
+.gcx *, .gcx *::before, .gcx *::after { box-sizing: border-box; }
+
+.gcx-decor { position: absolute; inset: 0; z-index: 0; overflow: hidden; }
+.gcx-decor > * { position: absolute; }
+.gcx-dot { border-radius: 50%; background: #fff; }
+.gcx-bokeh { border-radius: 50%; filter: blur(6px); }
+.gcx-fir { left: 0; bottom: 0; width: 100%; height: 26%; fill: rgba(3, 16, 11, 0.55); }
+.gcx-conf { border-radius: 1px; }
+.gcx-ser { inset: 0; width: 100%; height: 100%; fill: none; stroke: #f7b731; stroke-width: 1.2; opacity: 0.85; }
+.gcx-ser path { vector-effect: non-scaling-stroke; }
+.gcx-ser .gcx-ser-b { stroke: #ff4f8b; }
+.gcx-hrt { fill: #ffb3c1; }
+.gcx-blob { border-radius: 50%; }
+.gcx-moon { right: 12%; top: 9%; width: 26%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #ffe7a8, #ffb24d 55%, #e8731a); box-shadow: 0 0 40px 10px rgba(255, 160, 60, 0.35); }
+.gcx-bat { fill: #07040e; opacity: 0.9; }
+.gcx-fog { left: -10%; right: -10%; bottom: -8%; height: 34%; background: radial-gradient(60% 100% at 30% 100%, rgba(140, 90, 210, 0.38), transparent), radial-gradient(60% 100% at 75% 100%, rgba(255, 140, 50, 0.2), transparent); }
+.gcx-ring { border: 1px solid rgba(220, 196, 138, 0.22); border-radius: 50%; }
+.gcx-glow { border-radius: 50%; }
+
+.gcx-frame {
+  position: absolute; inset: 9px; z-index: 1; border: 1px solid transparent; pointer-events: none;
+  border-image: linear-gradient(135deg, var(--gk-f1), var(--gk-f2) 40%, var(--gk-f3) 60%, var(--gk-f2)) 1;
+}
+.gcx-frame::after { content: ''; position: absolute; inset: 4px; border: 1px solid var(--gk-f2); opacity: 0.35; }
+.gcx-body { position: relative; z-index: 2; height: 100%; display: flex; flex-direction: column; }
+.gcx-shine {
+  position: absolute; inset: 0; z-index: 3; pointer-events: none; opacity: 0; transition: opacity 0.3s; mix-blend-mode: soft-light;
+  background: radial-gradient(circle at var(--mx, 30%) var(--my, 20%), rgba(255, 255, 255, 0.4), transparent 42%);
+}
+.gcx:hover .gcx-shine, .gcx.gcx-lit .gcx-shine { opacity: 1; }
+.gcx-sweep {
+  position: absolute; inset: 0; z-index: 3; pointer-events: none; mix-blend-mode: soft-light;
+  background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.35) 48%, transparent 60%);
+  background-size: 250% 100%; background-position: 120% 0; animation: gcx-sweep 6s ease-in-out infinite;
+}
+@keyframes gcx-sweep { 0%, 55% { background-position: 120% 0; } 100% { background-position: -60% 0; } }
+
+.gcx-seal {
+  width: 52px; height: 52px; flex: none; display: grid; place-items: center; color: var(--gk-sealink); border: 0; padding: 0;
+  border-radius: 48% 52% 50% 50% / 52% 48% 52% 48%;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--gk-seal) 65%, #fff) 0%, var(--gk-seal) 45%, color-mix(in srgb, var(--gk-seal) 65%, #000) 100%);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.4), inset 0 -2px 4px rgba(0, 0, 0, 0.35);
+}
+.gcx-seal svg { width: 58%; height: 58%; }
+.gcx-eyebrow, .gcx-kick { font: 600 9px/1 var(--gcx-body); letter-spacing: 0.3em; text-transform: uppercase; color: var(--gk-sub); }
+
+.gcx-mini { aspect-ratio: 4 / 5; container-type: inline-size; }
+.gcx-mini .gcx-body { align-items: center; text-align: center; justify-content: space-between; padding: 26px 16px 24px; }
+.gcx-mid { display: flex; flex-direction: column; gap: 7px; align-items: center; }
+.gcx-name { font: italic 500 clamp(22px, 13cqw, 34px) / 1.05 var(--gcx-display); text-wrap: balance; }
+.gcx-small { font: 500 11px / 1.3 var(--gcx-body); color: var(--gk-sub); letter-spacing: 0.04em; }
+
+.gcx-full { min-height: 352px; }
+.gcx-full .gcx-body { gap: 8px; padding: 24px 22px 20px; }
+.gcx-f-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.gcx-f-title { margin: 8px 0 0; font: italic 500 31px / 1.02 var(--gcx-display); text-wrap: balance; }
+.gcx-f-line2 { margin-top: 6px; font: 600 10px / 1.3 var(--gcx-body); letter-spacing: 0.22em; text-transform: uppercase; color: var(--gk-sub); }
+.gcx-f-to { margin-top: 6px; font: 400 30px / 1 var(--gcx-script); color: var(--gk-f1); }
+.gcx-f-msg { flex: 1; font: 400 21px / 1.25 var(--gcx-script); overflow-wrap: anywhere; }
+.gcx-f-foot { display: flex; justify-content: space-between; align-items: flex-end; gap: 10px; padding-top: 10px; border-top: 1px solid color-mix(in srgb, var(--gk-f2) 55%, transparent); }
+.gcx-f-foot small { display: block; margin-bottom: 4px; font: 600 8.5px / 1 var(--gcx-body); letter-spacing: 0.24em; text-transform: uppercase; color: var(--gk-sub); }
+.gcx-f-foot b { font: 500 12px var(--gcx-mono); letter-spacing: 0.06em; }
+.gcx-ghost { filter: grayscale(0.7) brightness(0.8); opacity: 0.6; }
+
+/* cartoncino 15 x 20 cm: 1em = 3 mm */
+.gcx-cq { container-type: inline-size; }
+.gcx-c15 { aspect-ratio: 3 / 4; font-size: var(--cs, 6px); border-radius: 0.3em; }
+.gcx-c15 .gcx-frame { inset: 2.2em; }
+.gcx-c15-win {
+  position: absolute; z-index: 2; left: 50%; top: 5.33em; width: 28.53em; height: 18em; transform: translateX(-50%);
+  border: 0.1em dashed var(--gk-f1); border-radius: 1.17em; display: grid; place-items: center; background: rgba(255, 255, 255, 0.04);
+}
+.gcx-c15-win > span { padding: 0 1em; text-align: center; font: 600 0.8em / 1.4 var(--gcx-body); letter-spacing: 0.22em; text-transform: uppercase; color: var(--gk-sub); }
+.gcx-c15-card {
+  position: absolute; inset: 0; border-radius: 1.17em; overflow: hidden; display: grid; place-items: center; align-content: center; gap: 0.6em;
+  color: #e9ddb8; background: linear-gradient(135deg, #22332b, #0e1612); box-shadow: 0 0.5em 1.2em rgba(0, 0, 0, 0.55);
+}
+.gcx-c15-card::after { content: ''; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 40%, rgba(255, 255, 255, 0.14) 50%, transparent 60%); }
+.gcx-c15-card b { font: italic 500 2.2em / 1 var(--gcx-display); }
+.gcx-c15-card small { font: 600 0.8em / 1 var(--gcx-body); letter-spacing: 0.3em; text-transform: uppercase; color: #b9a878; }
+.gcx-c15-body { position: absolute; z-index: 2; left: 0; right: 0; top: 26.8em; bottom: 0; padding: 0 4.5em 4.2em; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 0.9em; }
+.gcx-c15-body .gcx-eyebrow { font-size: 0.85em; }
+.gcx-c15-to { font: 400 4em / 1 var(--gcx-script); color: var(--gk-f1); }
+.gcx-c15-title { font: italic 500 2.7em / 1.05 var(--gcx-display); text-wrap: balance; }
+.gcx-c15-line2 { font: 600 1em / 1.3 var(--gcx-body); letter-spacing: 0.2em; text-transform: uppercase; color: var(--gk-sub); }
+.gcx-c15-msg { flex: 1; display: flex; align-items: center; max-width: 30em; font: 400 2em / 1.2 var(--gcx-script); overflow-wrap: anywhere; }
+.gcx-c15-foot { display: flex; align-items: center; justify-content: center; gap: 1.6em; width: 100%; padding-top: 1.4em; text-align: left; border-top: 0.08em solid color-mix(in srgb, var(--gk-f2) 55%, transparent); }
+.gcx-c15-foot .gcx-qr { width: 9.33em; flex: none; }
+.gcx-c15-info { min-width: 0; }
+.gcx-c15-info small { display: block; margin: 0.8em 0 0.35em; font: 600 0.75em / 1 var(--gcx-body); letter-spacing: 0.2em; text-transform: uppercase; color: var(--gk-sub); }
+.gcx-c15-info small:first-child { margin-top: 0; }
+.gcx-c15-info p { margin: 0; font: 500 1em / 1.35 var(--gcx-body); }
+.gcx-c15-info b { display: block; font: 500 1.05em var(--gcx-mono); letter-spacing: 0.04em; }
+.gcx-qr { position: relative; z-index: 2; display: block; background: #fff; padding: 0.5em; border-radius: 0.35em; line-height: 0; }
+.gcx-qr svg { width: 100%; height: auto; display: block; }
+
+/* scena di apertura del regalo */
+.gcx-scene {
+  --gcx-display: 'Playfair Display', Georgia, serif;
+  --gcx-body: 'Raleway', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --gcx-script: 'Pinyon Script', 'Snell Roundhand', 'Apple Chancery', cursive;
+  --gcx-mono: 'DM Mono', ui-monospace, Menlo, Consolas, monospace;
+}
+.gcx-scene { position: relative; min-height: 100dvh; overflow: hidden; color: var(--gk-ink); background: var(--gk-bg); font-family: var(--gcx-body); }
+.gcx-scene canvas.gcx-ambient { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+.gcx-scene-inner { position: relative; z-index: 1; min-height: 100dvh; max-width: 440px; margin-inline: auto; padding: 32px 20px 40px; display: flex; flex-direction: column; justify-content: center; }
+.gcx-stage { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 18px; text-align: center; }
+.gcx-script { font: 400 38px / 1 var(--gcx-script); color: var(--gk-f1); }
+.gcx-stage h1, .gcx-stage h2 { margin: 0; font: italic 500 28px / 1.12 var(--gcx-display); text-wrap: balance; }
+.gcx-hint { margin: 0; font: 700 10px / 1 var(--gcx-body); letter-spacing: 0.22em; text-transform: uppercase; color: var(--gk-sub); animation: gcx-pulse 2.4s ease-in-out infinite; }
+@keyframes gcx-pulse { 50% { opacity: 0.45; } }
+.gcx-pack {
+  position: relative; width: min(300px, 100%); aspect-ratio: 3 / 2; display: grid; place-items: center; background: color-mix(in srgb, var(--gk-bg) 100%, transparent);
+  background-image: linear-gradient(160deg, rgba(255, 255, 255, 0.07), rgba(0, 0, 0, 0.25)); border: 1px solid transparent;
+  border-image: linear-gradient(135deg, var(--gk-f1), var(--gk-f2) 40%, var(--gk-f3) 60%, var(--gk-f2)) 1;
+  box-shadow: 0 26px 50px -20px #000; transition: opacity 0.5s 0.12s, transform 0.6s 0.12s;
+}
+.gcx-pack::before, .gcx-pack::after { content: ''; position: absolute; background: linear-gradient(90deg, color-mix(in srgb, var(--gk-seal) 70%, #000), var(--gk-seal) 50%, color-mix(in srgb, var(--gk-seal) 70%, #000)); opacity: 0.9; }
+.gcx-pack::before { left: 50%; top: 0; bottom: 0; width: 30px; transform: translateX(-50%); }
+.gcx-pack::after { top: 50%; left: 0; right: 0; height: 30px; transform: translateY(-50%); background: linear-gradient(180deg, color-mix(in srgb, var(--gk-seal) 70%, #000), var(--gk-seal) 50%, color-mix(in srgb, var(--gk-seal) 70%, #000)); }
+.gcx-seal-wrap { position: relative; z-index: 2; display: grid; place-items: center; }
+.gcx-seal-btn { width: 76px; height: 76px; cursor: pointer; animation: gcx-glow 2.6s ease-in-out infinite; }
+.gcx-seal-btn svg { width: 56%; height: 56%; }
+.gcx-seal-btn:focus-visible { outline: 2px solid var(--gk-f1); outline-offset: 4px; }
+@keyframes gcx-glow { 50% { box-shadow: 0 0 0 10px color-mix(in srgb, var(--gk-f1) 18%, transparent), 0 3px 8px rgba(0, 0, 0, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.4), inset 0 -2px 4px rgba(0, 0, 0, 0.35); } }
+.gcx-burst { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px; border-radius: 50%; background: var(--gk-f1); opacity: 0; pointer-events: none; }
+.gcx-breaking .gcx-burst { animation: gcx-burst 0.8s ease-out forwards; }
+.gcx-breaking .gcx-seal-btn { animation: gcx-pop 0.45s ease-out forwards; }
+.gcx-breaking .gcx-pack { opacity: 0; transform: scale(0.92) translateY(14px); }
+@keyframes gcx-burst { from { opacity: 1; transform: rotate(var(--a)) translateX(0) scale(1); } to { opacity: 0; transform: rotate(var(--a)) translateX(88px) scale(0.2); } }
+@keyframes gcx-pop { to { transform: scale(1.7) rotate(10deg); opacity: 0; } }
+.gcx-intro, .gcx-reveal { width: 100%; flex-direction: column; align-items: center; gap: 18px; }
+.gcx-intro { display: flex; }
+.gcx-reveal { display: none; }
+.gcx-open .gcx-intro { display: none; }
+.gcx-open .gcx-reveal { display: flex; animation: gcx-rise 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes gcx-rise { from { opacity: 0; transform: translateY(40px) scale(0.94); } to { opacity: 1; transform: none; } }
+.gcx-reveal .gcx-full { width: 100%; text-align: left; }
+.gcx-cta { display: block; width: 100%; padding: 15px 18px; border: 0; border-radius: 4px; text-align: center; text-decoration: none; cursor: pointer; font: 700 15px var(--gcx-body); letter-spacing: 0.02em; color: #2b1d04; background: linear-gradient(var(--gk-f3), var(--gk-f1)); }
+.gcx-cta[aria-disabled='true'] { color: var(--gk-sub); background: rgba(255, 255, 255, 0.08); border: 1px dashed var(--gk-f2); cursor: not-allowed; }
+.gcx-steps { list-style: none; margin: 4px 0 0; padding: 0; width: 100%; display: grid; gap: 10px; text-align: left; }
+.gcx-steps li { display: grid; grid-template-columns: 26px 1fr; gap: 10px; align-items: center; font-size: 13.5px; color: var(--gk-ink); }
+.gcx-steps b { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--gk-f2); color: var(--gk-f1); font: 600 12px var(--gcx-display); }
+.gcx-note { margin: 0; font-size: 14px; line-height: 1.55; color: var(--gk-ink); max-width: 32ch; }
+.gcx-link { color: var(--gk-f1); font: 600 13px var(--gcx-body); text-decoration: underline; background: none; border: 0; cursor: pointer; }
+.gcx-ghostwrap { width: 100%; }
+.gcx-ghostwrap .gcx { width: 100%; text-align: left; }
+.gcx-foot { margin: 28px 0 0; text-align: center; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gk-sub); }
+
+@media (prefers-reduced-motion: reduce) {
+  .gcx, .gcx *, .gcx-scene *, .gcx-scene *::before, .gcx-scene *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  .gcx-hint, .gcx-seal-btn, .gcx-sweep { animation: none !important; }
+}
+
+/* stampa del cartoncino: pagina 15 x 20 cm a pieno foglio */
+.gcx-print-root { background: #fff; }
+.gcx-print-sheet { width: 150mm; height: 200mm; margin: 0 auto; }
+.gcx-print-sheet .gcx { border-radius: 0; box-shadow: none; }
+.gcx-print-sheet .gcx-c15 { width: 150mm; height: 200mm; aspect-ratio: auto; --cs: 3mm; }
+@media print {
+  @page { size: 150mm 200mm; margin: 0; }
+  html, body { margin: 0 !important; background: #fff !important; }
+  .gcx-no-print { display: none !important; }
+  .gcx-print-sheet { margin: 0; break-inside: avoid; }
+  .gcx-print-sheet .gcx { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

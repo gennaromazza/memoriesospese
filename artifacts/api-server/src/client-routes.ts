@@ -65,6 +65,7 @@ export function isPrivateClientPath(pathname: string): boolean {
     || hasOneSegmentAfter('/fotolibro', path)
     || hasOneSegmentAfter('/q', path)
     || hasOneSegmentAfter('/modulo', path)
+    || hasOneSegmentAfter('/regalo', path)
     || hasTwoSegmentsAfter('/collaboratori/assignment', path)
     || hasOneSegmentAfter('/collaboratori/dashboard', path)
     || path === '/stampa-foto-aversa/ordine'

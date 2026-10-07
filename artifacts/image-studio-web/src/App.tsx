@@ -35,6 +35,9 @@ function lazyWithRetry(importFn: () => Promise<any>) {
 
 const GalleryAccessPage = lazyWithRetry(() => import("./pages/public/GalleryAccessPage"));
 const OspitiPage = lazyWithRetry(() => import("./pages/public/OspitiPage"));
+const GiftCardPage = lazyWithRetry(() => import("./pages/public/GiftCardPage"));
+const GiftCardAdminPage = lazyWithRetry(() => import("./pages/admin/GiftCardAdminPage"));
+const GiftCardPrintPage = lazyWithRetry(() => import("./pages/admin/GiftCardPrintPage"));
 const PortfolioPage = lazyWithRetry(() => import("./pages/public/PortfolioPage"));
 const PortfolioCategoryPage = lazyWithRetry(() => import("./pages/public/PortfolioCategoryPage"));
 const StoriePage = lazyWithRetry(() => import("./pages/public/StoriePage"));
@@ -179,6 +182,9 @@ function AppRoutes() {
         {/* Pagina pubblica ospiti via QR code (mobile-first) */}
         <Route path="/ospiti" component={OspitiPage} />
 
+        {/* Gift card: apertura del regalo (QR del cartoncino) */}
+        <Route path="/regalo/:code" component={GiftCardPage} />
+
         <Route path="/privacy" component={Privacy} />
         <Route path="/cookie-policy" component={CookiePolicy} />
         <Route path="/gdpr" component={GdprRequest} />
@@ -233,6 +239,8 @@ function AppRoutes() {
         <Route path="/admin/gallery/:galleryId/manage" component={adminRoute(GalleryManagementWorkspace)} />
         <Route path="/admin/delete-gallery" component={adminRoute(DeleteGalleryPage)} />
         <Route path="/admin/photobooks/:id" component={adminRoute(PhotobookEditorPage)} />
+        <Route path="/admin/gift-card" component={adminRoute(GiftCardAdminPage)} />
+        <Route path="/admin/gift-card/stampa/:code" component={adminRoute(GiftCardPrintPage)} />
         <Route path="/admin/jobs" component={adminRoute(JobsListPage)} />
         <Route path="/admin/jobs/:jobId" component={adminRoute(JobDetailPage)} />
         <Route path="/admin/import" component={adminRoute(ImportDataPage)} />
