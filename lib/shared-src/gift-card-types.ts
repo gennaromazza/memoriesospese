@@ -106,6 +106,24 @@ export function formatGiftCardPrice(cents: number): string {
   return `${Number.isInteger(value) ? String(value) : value.toFixed(2).replace('.', ',')} €`;
 }
 
+export const GIFT_CARD_MAX_ITEMS = 12;
+export const GIFT_CARD_MAX_ITEM_QUANTITY = 99;
+
+/** Prodotto del catalogo incluso in una gift card. */
+export interface GiftCardItemInput {
+  productId: string;
+  quantity: number;
+}
+
+/** Prodotto incluso come lo vede chi riceve la card: mai con il prezzo. */
+export interface GiftCardItemDto {
+  productId: string;
+  quantity: number;
+  name: string;
+  description: string;
+  imageUrls: string[];
+}
+
 /** Tipo di gift card come lo vede l'API (date in ISO 8601). */
 export interface GiftCardTypeDto {
   id: string;
@@ -117,6 +135,8 @@ export interface GiftCardTypeDto {
   line2: string;
   kind: GiftCardKind;
   priceCents: number;
+  /** Prodotti del catalogo inclusi nel regalo (possono essere nessuno). */
+  items: GiftCardItemInput[];
   theme: GiftCardThemeKey;
   campaignId: string | null;
   validityMode: GiftCardValidityMode;
@@ -179,6 +199,8 @@ export interface GiftCardSellInput {
   expiresOn?: string | null;
   /** `true` per vendere senza scadenza, anche se il tipo ne prevede una. */
   noExpiry?: boolean;
+  /** Chi compra, facoltativo: con l'email viene salvato tra i clienti. */
+  buyer?: { firstName?: string; lastName?: string; email?: string; phone?: string };
 }
 
 export type GiftCardCampaignState = 'upcoming' | 'open' | 'closed';
@@ -194,6 +216,10 @@ export interface GiftCardPublicDto {
   recipientName: string;
   message: string;
   validUntil: string | null;
+  /** Testo «cosa include» scritto dallo studio. */
+  includes: string;
+  /** Prodotti del catalogo inclusi, senza prezzo. */
+  items: GiftCardItemDto[];
   campaign: {
     name: string;
     bookingCode: string | null;
@@ -248,6 +274,30 @@ export function validateGiftCardTypeInput(
     issues.push({ field: 'priceCents', message: 'Il prezzo deve essere maggiore di zero' });
   }
 
+  const items: GiftCardItemInput[] = [];
+  if (raw.items !== undefined && !Array.isArray(raw.items)) {
+    issues.push({ field: 'items', message: 'Elenco prodotti non valido' });
+  } else {
+    const seen = new Set<string>();
+    for (const entry of raw.items ?? []) {
+      const productId = typeof entry?.productId === 'string' ? entry.productId.trim() : '';
+      const quantity = entry?.quantity;
+      if (!productId || productId.length > 200 || productId.includes('/')) {
+        issues.push({ field: 'items', message: 'Prodotto non valido' });
+      } else if (seen.has(productId)) {
+        issues.push({ field: 'items', message: 'Un prodotto è stato aggiunto due volte' });
+      } else if (!Number.isInteger(quantity) || (quantity as number) < 1 || (quantity as number) > GIFT_CARD_MAX_ITEM_QUANTITY) {
+        issues.push({ field: 'items', message: `La quantità va da 1 a ${GIFT_CARD_MAX_ITEM_QUANTITY}` });
+      } else {
+        seen.add(productId);
+        items.push({ productId, quantity: quantity as number });
+      }
+    }
+    if (items.length > GIFT_CARD_MAX_ITEMS) {
+      issues.push({ field: 'items', message: `Al massimo ${GIFT_CARD_MAX_ITEMS} prodotti` });
+    }
+  }
+
   const theme = (GIFT_CARD_THEME_KEYS as readonly string[]).includes(String(raw.theme))
     ? (raw.theme as GiftCardThemeKey)
     : 'classico';
@@ -291,6 +341,7 @@ export function validateGiftCardTypeInput(
       line2,
       kind,
       priceCents: priceCents as number,
+      items,
       theme,
       campaignId,
       validityMode,
@@ -336,8 +387,11 @@ export interface GiftCardOnlineCreateInput {
   typeId: string;
   recipientName: string;
   message: string;
-  buyerName: string;
+  /** Nome e cognome di chi compra, salvati tra i clienti. */
+  buyerFirstName: string;
+  buyerLastName: string;
   buyerEmail: string;
+  buyerPhone?: string;
   /** Se manca, il link del regalo arriva solo a chi compra. */
   recipientEmail?: string;
   /** Giorno (YYYY-MM-DD) in cui consegnare la card alle 08:00; assente = subito. */

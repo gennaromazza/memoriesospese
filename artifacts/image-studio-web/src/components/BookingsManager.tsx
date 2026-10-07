@@ -2095,6 +2095,15 @@ export default function BookingsManager({
                                           👤 Walk-in
                                         </Badge>
                                       )}
+                                      {booking.giftCard && (
+                                        <Badge
+                                          variant="outline"
+                                          className="bg-amber-50 text-amber-800 border-amber-300 text-xs"
+                                          title={`Pagata con la gift card ${booking.giftCard.code}`}
+                                        >
+                                          🎁 Gift card
+                                        </Badge>
+                                      )}
                                     </h3>
                                     <p className="text-sm text-gray-600">
                                       {getCampaignName(booking.campaignId)}
@@ -2379,6 +2388,14 @@ export default function BookingsManager({
 
                                   return null;
                                 })()}
+
+                                {booking.giftCard && (
+                                  <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg">
+                                    <p className="text-sm text-amber-900">
+                                      <strong>🎁 Pagata con gift card:</strong> {booking.giftCard.title} ({booking.giftCard.typeName}) · codice <span className="font-mono">{booking.giftCard.code}</span>. L'incasso è già in cassa.
+                                    </p>
+                                  </div>
+                                )}
 
                                 {/* Note cliente */}
                                 {booking.note && (
@@ -3474,6 +3491,14 @@ export default function BookingsManager({
 
                       return null;
                     })()}
+
+                    {selectedBooking.giftCard && (
+                      <div className="rounded-md border border-amber-200 bg-amber-50 p-2">
+                        <span className="text-amber-800">🎁 Pagata con gift card</span>
+                        <p className="font-medium">{selectedBooking.giftCard.title} ({selectedBooking.giftCard.typeName})</p>
+                        <p className="font-mono text-xs">{selectedBooking.giftCard.code}</p>
+                      </div>
+                    )}
 
                     {selectedBooking.note && (
                       <div>

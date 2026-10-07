@@ -26,6 +26,7 @@ const FILTERS: Filter[] = ['tutte', 'attiva', 'in_attesa_pagamento', 'riscattata
 const CHANNEL_LABELS = { studio: 'Studio', online: 'Online' } as const;
 
 function deliveryNote(card: GiftCardDto, now = Date.now()): string | null {
+  if (card.status === 'riscattata') return card.bookingId ? 'Usata in una prenotazione' : 'Usata';
   if (card.channel !== 'online' || card.status !== 'attiva') return null;
   if (card.deliveredAt) return `Consegnata il ${formatDay(card.deliveredAt)}`;
   if (card.deliverAt && new Date(card.deliverAt).getTime() > now) return `Consegna il ${formatDay(card.deliverAt)}`;

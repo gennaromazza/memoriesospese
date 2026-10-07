@@ -22,6 +22,12 @@ const sellSchema = z.object({
   paymentMethod: z.enum(['contante', 'carta', 'bonifico', 'paypal', 'altro']),
   expiresOn: z.string().trim().max(10).nullable().optional(),
   noExpiry: z.boolean().optional(),
+  buyer: z.object({
+    firstName: z.string().max(100).optional(),
+    lastName: z.string().max(100).optional(),
+    email: z.string().max(200).optional(),
+    phone: z.string().max(50).optional(),
+  }).strict().optional(),
 }).strict();
 
 const resendSchema = z.object({ target: z.enum(['buyer', 'recipient']) }).strict();

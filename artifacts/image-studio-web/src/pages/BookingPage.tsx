@@ -9,6 +9,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { getCampaignByCode } from "@/lib/booking-campaigns";
 import { getAllProducts } from "@/lib/products";
 import { createBooking, getAvailableSlots } from "@/lib/bookings";
+import { GiftCardBookingBanner, useBookingGiftCard } from "@/components/gift-cards/GiftCardBookingBanner";
 import type { BookingCampaignFE, Product } from "@shared/booking-types";
 import {
   Card,
@@ -61,6 +62,7 @@ import { useSEO } from '@/hooks/useSEO';
 export default function BookingPage() {
   const params = useParams<{ code: string }>();
   const [, setLocation] = useLocation();
+  const gift = useBookingGiftCard();
   const { toast } = useToast();
   const code = params.code || "";
 
@@ -152,6 +154,7 @@ export default function BookingPage() {
         prodottoId: formData.prodottoId || undefined,
         prodottoNome: prodotto?.nome || undefined,
         note: formData.note,
+        giftCardCode: gift.usableCode,
       });
     },
     onSuccess: () => {
@@ -495,6 +498,8 @@ export default function BookingPage() {
             />
           </div>
         )}
+
+        <GiftCardBookingBanner gift={gift} />
 
         {/* Header Campagna */}
         <Card className="shadow-md border border-gray-100">

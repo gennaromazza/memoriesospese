@@ -25,6 +25,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { GiftCardMini } from '../GiftCardArt';
+import GiftCardItemsEditor from './GiftCardItemsEditor';
 import { GIFT_CARD_THEMES } from '../giftCardThemes';
 import { centsToEuros, errorText, eurosToCents, formatDay } from './giftCardAdminShared';
 
@@ -37,6 +38,7 @@ const EMPTY_TYPE: GiftCardTypeInput = {
   line2: '',
   kind: 'prodotto',
   priceCents: 0,
+  items: [],
   theme: 'classico',
   campaignId: null,
   validityMode: 'none',
@@ -181,6 +183,12 @@ export default function GiftCardTypesPanel() {
             <Textarea id="gct-desc" rows={2} value={draft.description} onChange={event => patch({ description: event.target.value })} />
             {error('description')}
           </div>
+          <GiftCardItemsEditor
+            items={draft.items}
+            onChange={items => patch({ items })}
+            onUseTotal={cents => setPriceText(centsToEuros(cents))}
+          />
+          {error('items')}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="gct-title">Titolo sulla card</Label>

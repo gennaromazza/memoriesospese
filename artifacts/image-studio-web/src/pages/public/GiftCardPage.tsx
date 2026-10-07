@@ -7,6 +7,7 @@ import { useStudio } from '@/context/StudioContext';
 import { useSEO } from '@/hooks/useSEO';
 import { giftCardsApi, GiftCardApiError } from '@/features/gift-cards/gift-cards-api';
 import { GiftCardAmbient, GiftCardFull, GiftCardGlyph } from '@/components/gift-cards/GiftCardArt';
+import { GiftCardIncludes } from '@/components/gift-cards/GiftCardIncludes';
 import { giftCardThemeVars, resolveGiftCardTheme } from '@/components/gift-cards/giftCardThemes';
 import '@/components/gift-cards/gift-cards.css';
 
@@ -155,6 +156,7 @@ export default function GiftCardPage() {
           </div>
           <div className="gcx-reveal">
             {full}
+            <GiftCardIncludes includes={card.includes} items={card.items} />
             {upcoming ? (
               <span className="gcx-cta" role="link" aria-disabled="true">
                 La campagna apre il {formatDayMonth(campaign?.opensAt ?? null)}

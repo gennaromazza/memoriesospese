@@ -263,3 +263,128 @@ describe('GiftCardService getPublic', () => {
     }
   });
 });
+
+describe('prodotti del catalogo nel tipo', () => {
+  const seedProduct = (db: FakeFirestore, id = 'p1', extra: Record<string, unknown> = {}) =>
+    db.seed('products/' + id, { nome: 'Tela 30x40', descrizione: 'Stampa su tela', prezzo: 50, prezzoFinale: 45, attivo: true, immagini: ['https://img.test/a.jpg', 'https://img.test/b.jpg'], ...extra });
+
+  it('rifiuta prodotti che non esistono, ripetuti o con quantità sbagliata', async () => {
+    const { db, service } = makeService();
+    seedProduct(db);
+    await expect(seedType(service, { items: [{ productId: 'manca', quantity: 1 }] })).rejects.toMatchObject({ code: 'product_not_found' });
+    await expect(seedType(service, { items: [{ productId: 'p1', quantity: 1 }, { productId: 'p1', quantity: 2 }] })).rejects.toMatchObject({ status: 422 });
+    await expect(seedType(service, { items: [{ productId: 'p1', quantity: 0 }] })).rejects.toMatchObject({ status: 422 });
+    const ok = await seedType(service, { items: [{ productId: 'p1', quantity: 2 }] });
+    expect(ok.items).toEqual([{ productId: 'p1', quantity: 2 }]);
+  });
+
+  it('chi riceve vede i prodotti aggiornati dal catalogo, mai il prezzo', async () => {
+    const { db, service } = makeService();
+    seedProduct(db);
+    const type = await seedType(service, { description: 'Una tela e un servizio', items: [{ productId: 'p1', quantity: 1 }] });
+    const card = await service.sell(sellInput(type.id), 'a@b.it');
+
+    let publicCard = await service.getPublic(card.code);
+    expect(publicCard.includes).toBe('Una tela e un servizio');
+    expect(publicCard.items).toEqual([{ productId: 'p1', quantity: 1, name: 'Tela 30x40', description: 'Stampa su tela', imageUrls: ['https://img.test/a.jpg', 'https://img.test/b.jpg'] }]);
+    expect(JSON.stringify(publicCard)).not.toMatch(/45|prezzo|price/i);
+
+    seedProduct(db, 'p1', { nome: 'Tela 40x60', immagini: ['https://img.test/c.jpg'] });
+    publicCard = await service.getPublic(card.code);
+    expect(publicCard.items[0]).toMatchObject({ name: 'Tela 40x60', imageUrls: ['https://img.test/c.jpg'] });
+  });
+
+  it('se il prodotto sparisce dal catalogo restano i dati della vendita', async () => {
+    const { db, service } = makeService();
+    seedProduct(db);
+    const type = await seedType(service, { items: [{ productId: 'p1', quantity: 1 }] });
+    const card = await service.sell(sellInput(type.id), 'a@b.it');
+    db.documents.delete('products/p1');
+    expect((await service.getPublic(card.code)).items[0]).toMatchObject({ name: 'Tela 30x40', description: 'Stampa su tela' });
+    seedProduct(db, 'p1', { attivo: false, nome: 'Nascosto' });
+    expect((await service.getPublic(card.code)).items[0].name).toBe('Tela 30x40');
+  });
+});
+
+describe('clienti nella vendita al banco', () => {
+  it('salva chi compra tra i clienti se c\'è l\'email e collega l\'incasso', async () => {
+    const { db, service } = makeService();
+    const type = await seedType(service);
+    const card = await service.sell(
+      sellInput(type.id, { buyer: { firstName: 'Anna', lastName: 'Verdi', email: 'Anna@Example.com', phone: '347 111' } }),
+      'admin@studio.test',
+    );
+    const clients = [...db.documents.entries()].filter(([path]) => path.startsWith('clienti/'));
+    expect(clients).toHaveLength(1);
+    expect(clients[0][1]).toMatchObject({ nome: 'Anna', cognome: 'Verdi', email: 'anna@example.com', cellulare1: '347 111' });
+    const cash = [...db.documents.entries()].find(([path]) => path.startsWith('cashMovements/'))![1];
+    expect(cash).toMatchObject({ clienteId: clients[0][0].split('/')[1], nomeCliente: 'Anna Verdi' });
+    expect(card.buyerEmail).toBe('anna@example.com');
+  });
+
+  it('senza dati di chi compra non crea clienti, e chiede nome e cognome con l\'email', async () => {
+    const { db, service } = makeService();
+    const type = await seedType(service);
+    await service.sell(sellInput(type.id), 'a@b.it');
+    expect(db.countCollection('clienti')).toBe(0);
+    await expect(service.sell(sellInput(type.id, { buyer: { email: 'x@example.com' } }), 'a@b.it')).rejects.toMatchObject({ status: 422 });
+    await expect(service.sell(sellInput(type.id, { buyer: { firstName: 'A', lastName: 'B', email: 'non-email' } }), 'a@b.it')).rejects.toMatchObject({ status: 422 });
+  });
+});
+
+describe('riscatto nella prenotazione', () => {
+  async function activeCard(extra: { campaign?: boolean } = {}) {
+    const ctx = makeService();
+    seedCampaign(ctx.db);
+    const type = await seedType(ctx.service, extra.campaign === false ? {} : { validityMode: 'campaign', validityDate: null, campaignId: 'camp1' });
+    const card = await ctx.service.sell(sellInput(type.id), 'a@b.it');
+    return { ...ctx, card };
+  }
+
+  it('riserva la card una sola volta e rifiuta il secondo uso', async () => {
+    const { service, card } = await activeCard();
+    const claim = await service.claimForBooking(card.code.toLowerCase(), 'camp1');
+    expect(claim).toMatchObject({ code: card.code, title: 'Foto di Natale', valueCents: 3000 });
+    expect((await service.get(card.code)).status).toBe('riscattata');
+    await expect(service.claimForBooking(card.code, 'camp1')).rejects.toMatchObject({ status: 409, code: 'gift_card_unusable' });
+  });
+
+  it('rifiuta card di un\'altra campagna, scadute, annullate o inesistenti', async () => {
+    const { db, service, card } = await activeCard();
+    await expect(service.claimForBooking(card.code, 'altra')).rejects.toMatchObject({ code: 'gift_card_campaign_mismatch' });
+    expect((await service.get(card.code)).status).toBe('attiva');
+    await expect(service.claimForBooking('AAAA-BBBB-CCCC', 'camp1')).rejects.toMatchObject({ status: 404 });
+    await expect(service.claimForBooking('malformato', 'camp1')).rejects.toMatchObject({ status: 404 });
+
+    const expired = new GiftCardService({ db: db as any, now: () => new Date('2027-01-05T00:00:00Z') });
+    await expect(expired.claimForBooking(card.code, 'camp1')).rejects.toMatchObject({ code: 'gift_card_unusable' });
+    await service.cancel(card.code, 'Errore', 'a@b.it');
+    await expect(service.claimForBooking(card.code, 'camp1')).rejects.toMatchObject({ code: 'gift_card_unusable' });
+  });
+
+  it('una card senza campagna vale per qualsiasi campagna', async () => {
+    const { service, card } = await activeCard({ campaign: false });
+    await expect(service.claimForBooking(card.code, 'qualsiasi')).resolves.toMatchObject({ code: card.code });
+  });
+
+  it('libera la card se la prenotazione non viene creata', async () => {
+    const { service, card } = await activeCard();
+    await service.claimForBooking(card.code, 'camp1');
+    await service.releaseClaim(card.code);
+    expect((await service.get(card.code)).status).toBe('attiva');
+    await service.claimForBooking(card.code, 'camp1');
+    await service.attachBooking(card.code, { id: 'booking1', campaignId: 'camp1' });
+    await service.releaseClaim(card.code); // con la prenotazione collegata non si libera più
+    expect((await service.get(card.code))).toMatchObject({ status: 'riscattata', bookingId: 'booking1' });
+  });
+
+  it('collega la prenotazione e porta gli incassi nella campagna senza duplicarli', async () => {
+    const { db, service, card } = await activeCard();
+    await service.claimForBooking(card.code, 'camp1');
+    await service.attachBooking(card.code, { id: 'booking1', campaignId: 'camp1', campaignTheme: 'natale' });
+    const cash = [...db.documents.entries()].filter(([path]) => path.startsWith('cashMovements/')).map(([, value]) => value);
+    expect(cash).toHaveLength(1);
+    expect(cash[0]).toMatchObject({ bookingId: 'booking1', campaignId: 'camp1', origineTema: 'natale', importo: 30, origine: 'gift_card' });
+    expect(db.countCollection('cashMovements')).toBe(1);
+  });
+});

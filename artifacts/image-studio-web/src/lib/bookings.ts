@@ -43,6 +43,8 @@ export async function createBooking(data: {
   note: string;
   isManual?: boolean;
   createdByAdmin?: string;
+  /** Gift card usata per pagare la prenotazione. */
+  giftCardCode?: string;
 }): Promise<string> {
   const response = await apiRequest('POST', '/api/booking/v2/create', {
       campaignId: data.campaignId,
@@ -55,6 +57,7 @@ export async function createBooking(data: {
       note: data.note,
       isManual: data.isManual,
       createdByAdmin: data.createdByAdmin,
+      giftCardCode: data.giftCardCode,
   });
 
   const result = await response.json();

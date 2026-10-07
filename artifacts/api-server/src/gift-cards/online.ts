@@ -36,10 +36,12 @@ import {
   cleanText,
   endOfRomeDay,
   generateGiftCardCode,
+  snapshotItems,
   toIso,
   typeToDto,
   type GiftCardService,
 } from './service.js';
+import { upsertGiftCustomer } from './customers.js';
 import {
   giftCardReceiptEmail,
   giftCardReceiptSubject,
@@ -188,7 +190,9 @@ interface OnlineInput {
   typeId: string;
   recipientName: string;
   message: string;
-  buyerName: string;
+  buyerFirstName: string;
+  buyerLastName: string;
+  buyerPhone: string;
   buyerEmail: string;
   recipientEmail: string;
   deliverOn: unknown;
@@ -203,8 +207,10 @@ function parseOnlineInput(raw: unknown): OnlineInput {
   if (!typeId || typeId.length > 200 || typeId.includes('/')) {
     throw new GiftCardHttpError(422, 'invalid_input', 'Scegli un regalo');
   }
-  const buyerName = cleanText(input.buyerName, 80, 'Il tuo nome');
-  if (!buyerName) throw new GiftCardHttpError(422, 'invalid_input', 'Scrivi il tuo nome');
+  const buyerFirstName = cleanText(input.buyerFirstName, 60, 'Il tuo nome');
+  const buyerLastName = cleanText(input.buyerLastName, 60, 'Il tuo cognome');
+  if (!buyerFirstName || !buyerLastName) throw new GiftCardHttpError(422, 'invalid_input', 'Scrivi il tuo nome e cognome');
+  const buyerPhone = cleanText(input.buyerPhone, 30, 'Telefono');
   const buyerEmail = typeof input.buyerEmail === 'string' ? input.buyerEmail.trim().toLowerCase() : '';
   if (!isPlausibleEmail(buyerEmail)) throw new GiftCardHttpError(422, 'invalid_input', 'Scrivi un indirizzo email valido');
   const recipientEmail = typeof input.recipientEmail === 'string' ? input.recipientEmail.trim().toLowerCase() : '';
@@ -215,7 +221,9 @@ function parseOnlineInput(raw: unknown): OnlineInput {
     typeId,
     recipientName: cleanText(input.recipientName, GIFT_CARD_NAME_MAX, 'Nome di chi riceve'),
     message: cleanText(input.message, GIFT_CARD_MESSAGE_MAX, 'Messaggio'),
-    buyerName,
+    buyerFirstName,
+    buyerLastName,
+    buyerPhone,
     buyerEmail,
     recipientEmail,
     deliverOn: input.deliverOn,
@@ -299,6 +307,7 @@ export class GiftCardOnlineService {
       throw new GiftCardHttpError(422, 'delivery_after_expiry', 'La consegna cadrebbe dopo la scadenza della card');
     }
 
+    const items = await snapshotItems(this.db, type.items);
     const buyerToken = randomBytes(24).toString('base64url');
     const timestamp = Timestamp.fromDate(now);
     let code = '';
@@ -318,6 +327,8 @@ export class GiftCardOnlineService {
           theme: type.theme,
           valueCents: type.priceCents,
           campaignId: type.campaignId,
+          includes: type.description,
+          items,
           recipientName: input.recipientName,
           message: input.message,
           status: 'in_attesa_pagamento',
@@ -329,7 +340,10 @@ export class GiftCardOnlineService {
           bookingId: null,
           cancelledAt: null,
           cancelReason: null,
-          buyerName: input.buyerName,
+          buyerName: `${input.buyerFirstName} ${input.buyerLastName}`,
+          buyerFirstName: input.buyerFirstName,
+          buyerLastName: input.buyerLastName,
+          buyerPhone: input.buyerPhone,
           buyerEmail: input.buyerEmail,
           recipientEmail: input.recipientEmail,
           buyerTokenHash: sha(buyerToken),
@@ -502,6 +516,25 @@ export class GiftCardOnlineService {
     const feeRef = this.db.collection(CASH).doc(`gift_paypal_fee_${sha(capture.captureId).slice(0, 32)}`);
     let outcome: { status: GiftCardStatus; duplicate: boolean } = { status: 'attiva', duplicate: false };
 
+    // Chi ha pagato entra tra i clienti prima di registrare l'incasso, così la cassa lo riconosce.
+    const before = await cardRef.get();
+    if (!before.exists) throw new GiftCardHttpError(404, 'not_found', 'Gift card non trovata');
+    const prior = before.data() as any;
+    let buyerClienteId: string | null = prior.buyerClienteId ?? null;
+    if (!buyerClienteId && !prior.payment?.captureId && prior.buyerEmail) {
+      buyerClienteId = await upsertGiftCustomer(
+        this.db,
+        {
+          firstName: prior.buyerFirstName || prior.buyerName || '',
+          lastName: prior.buyerLastName || '',
+          email: prior.buyerEmail,
+          phone: prior.buyerPhone || undefined,
+        },
+        now,
+      ).catch(() => null);
+    }
+    const cashClient = buyerClienteId ? { clienteId: buyerClienteId, nomeCliente: prior.buyerName || '' } : {};
+
     await this.db.runTransaction(async tx => {
       const [cardSnap, captureSnap] = await Promise.all([tx.get(cardRef), tx.get(captureRef)]);
       if (!cardSnap.exists) throw new GiftCardHttpError(404, 'not_found', 'Gift card non trovata');
@@ -517,6 +550,7 @@ export class GiftCardOnlineService {
         ...card,
         status,
         paidAt: ts,
+        buyerClienteId,
         payment: {
           ...card.payment,
           status: 'paid',
@@ -551,6 +585,7 @@ export class GiftCardOnlineService {
         note: `PayPal capture ${capture.captureId}`,
         origine: 'gift_card',
         origineRef: code,
+        ...cashClient,
         provider: 'paypal',
         providerTransactionId: capture.captureId,
         createdAt: ts,
@@ -570,6 +605,7 @@ export class GiftCardOnlineService {
           provider: 'paypal',
           providerTransactionId: capture.captureId,
           movementRole: 'payment_fee',
+          ...cashClient,
           createdAt: ts,
           updatedAt: ts,
         });

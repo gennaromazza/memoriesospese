@@ -187,6 +187,9 @@ export interface Booking {
   // Note cliente
   note: string;
   
+  // Gift card usata per pagare la prenotazione (collegata alla vendita della card)
+  giftCard?: { code: string; typeName: string; title: string };
+  
   // Note admin (appunti interni dello studio)
   noteAdmin?: string;
   

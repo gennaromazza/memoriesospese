@@ -1,6 +1,7 @@
 import { randomInt } from 'node:crypto';
 import { Timestamp, type Firestore } from 'firebase-admin/firestore';
 import { DateTime } from 'luxon';
+import { upsertGiftCustomer } from './customers.js';
 import {
   GIFT_CARD_CODE_ALPHABET,
   GIFT_CARD_CODE_LENGTH,
@@ -8,9 +9,12 @@ import {
   GIFT_CARD_NAME_MAX,
   effectiveGiftCardStatus,
   isIsoDay,
+  isPlausibleEmail,
   normalizeGiftCardCode,
   validateGiftCardTypeInput,
   type GiftCardCampaignState,
+  type GiftCardItemDto,
+  type GiftCardItemInput,
   type GiftCardChannel,
   type GiftCardDto,
   type GiftCardPaymentMethod,
@@ -27,6 +31,7 @@ export const CARDS = 'giftCards';
 export const EVENTS = 'giftCardEvents';
 export const CASH = 'cashMovements';
 export const CAMPAIGNS = 'booking_campaigns';
+export const PRODUCTS = 'products';
 const MAX_CODE_ATTEMPTS = 8;
 const LIST_LIMIT = 1000;
 const PAYMENT_METHODS: readonly GiftCardPaymentMethod[] = ['contante', 'carta', 'bonifico', 'paypal', 'altro'];
@@ -81,6 +86,9 @@ export function typeToDto(id: string, data: any): GiftCardTypeDto {
     line2: data.line2 || '',
     kind: data.kind,
     priceCents: data.priceCents,
+    items: Array.isArray(data.items)
+      ? data.items.map((item: any) => ({ productId: String(item.productId), quantity: Number(item.quantity) || 1 }))
+      : [],
     theme: data.theme,
     campaignId: data.campaignId ?? null,
     validityMode: data.validityMode,
@@ -92,6 +100,39 @@ export function typeToDto(id: string, data: any): GiftCardTypeDto {
     createdAt: toIso(data.createdAt) ?? undefined,
     updatedAt: toIso(data.updatedAt) ?? undefined,
   };
+}
+
+/** Prodotto incluso, fotografato alla vendita (può non esistere più nel catalogo). */
+export interface GiftCardItemSnapshot extends GiftCardItemInput {
+  name: string;
+  description: string;
+  imageUrls: string[];
+}
+
+function imageList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((url): url is string => typeof url === 'string' && url.length > 0).slice(0, 6)
+    : [];
+}
+
+/** Legge i prodotti del catalogo e ne salva nome, descrizione e foto: mai il prezzo. */
+export async function snapshotItems(db: Firestore, items: readonly GiftCardItemInput[]): Promise<GiftCardItemSnapshot[]> {
+  return Promise.all(
+    items.map(async item => {
+      const snap = await db.collection(PRODUCTS).doc(item.productId).get();
+      if (!snap.exists) {
+        throw new GiftCardHttpError(422, 'product_not_found', 'Uno dei prodotti scelti non esiste più nel catalogo');
+      }
+      const product = snap.data() as any;
+      return {
+        productId: item.productId,
+        quantity: item.quantity,
+        name: String(product.nome || ''),
+        description: String(product.descrizione || ''),
+        imageUrls: imageList(product.immagini),
+      };
+    }),
+  );
 }
 
 export function cardToDto(code: string, data: any, now: Date): GiftCardDto {
@@ -160,6 +201,7 @@ export class GiftCardService {
         throw new GiftCardHttpError(422, 'campaign_not_found', 'La campagna scelta non esiste');
       }
     }
+    await snapshotItems(this.db, value.items);
     const timestamp = Timestamp.fromDate(this.now());
     if (!id) {
       const ref = this.db.collection(TYPES).doc();
@@ -230,9 +272,29 @@ export class GiftCardService {
       throw new GiftCardHttpError(422, 'expiry_in_past', 'La scadenza è già passata');
     }
 
+    const buyerInput = raw.buyer ?? {};
+    const buyerEmail = typeof buyerInput.email === 'string' ? buyerInput.email.trim().toLowerCase() : '';
+    const buyerFirstName = cleanText(buyerInput.firstName, 60, 'Nome di chi compra');
+    const buyerLastName = cleanText(buyerInput.lastName, 60, 'Cognome di chi compra');
+    const buyerPhone = cleanText(buyerInput.phone, 30, 'Telefono');
+    let buyerClienteId: string | null = null;
+    if (buyerEmail) {
+      if (!isPlausibleEmail(buyerEmail)) {
+        throw new GiftCardHttpError(422, 'invalid_input', 'L\'email di chi compra non è valida');
+      }
+      if (!buyerFirstName || !buyerLastName) {
+        throw new GiftCardHttpError(422, 'invalid_input', 'Per salvare il cliente servono nome, cognome ed email');
+      }
+      buyerClienteId = await upsertGiftCustomer(
+        this.db,
+        { firstName: buyerFirstName, lastName: buyerLastName, email: buyerEmail, phone: buyerPhone },
+        now,
+      );
+    }
     const awaitingPayment = paymentMethod === 'bonifico';
     const status: GiftCardStatus = awaitingPayment ? 'in_attesa_pagamento' : 'attiva';
     const timestamp = Timestamp.fromDate(now);
+    const items = await snapshotItems(this.db, type.items);
 
     for (let attempt = 0; attempt < MAX_CODE_ATTEMPTS; attempt++) {
       const code = normalizeGiftCardCode(this.randomCode());
@@ -250,6 +312,18 @@ export class GiftCardService {
           theme: type.theme,
           valueCents: type.priceCents,
           campaignId: type.campaignId,
+          includes: type.description,
+          items,
+          ...(buyerEmail
+            ? {
+                buyerName: `${buyerFirstName} ${buyerLastName}`,
+                buyerFirstName,
+                buyerLastName,
+                buyerEmail,
+                buyerPhone,
+                buyerClienteId,
+              }
+            : {}),
           recipientName,
           message,
           status,
@@ -292,6 +366,7 @@ export class GiftCardService {
       note: `Vendita gift card ${code}`,
       origine: 'gift_card',
       origineRef: code,
+      ...(card.buyerClienteId ? { clienteId: card.buyerClienteId, nomeCliente: card.buyerName } : {}),
       createdAt: at,
       updatedAt: at,
     };
@@ -404,6 +479,90 @@ export class GiftCardService {
     return cardToDto(code, updated, now);
   }
 
+  // ------------------------------------------------------ riscatto in prenotazione
+
+  /**
+   * Prenota l'uso della card per una prenotazione: passa a «riscattata» in modo
+   * atomico, così due richieste insieme non possono usare lo stesso codice.
+   */
+  async claimForBooking(
+    rawCode: string,
+    campaignId: string,
+  ): Promise<{ code: string; title: string; typeName: string; valueCents: number }> {
+    const code = normalizeGiftCardCode(rawCode);
+    if (!code) throw new GiftCardHttpError(404, 'gift_card_not_found', 'Gift card non trovata');
+    const ref = this.db.collection(CARDS).doc(code);
+    const now = this.now();
+    const ts = Timestamp.fromDate(now);
+    return this.db.runTransaction(async tx => {
+      const snap = await tx.get(ref);
+      if (!snap.exists) throw new GiftCardHttpError(404, 'gift_card_not_found', 'Gift card non trovata');
+      const card = snap.data() as any;
+      const state = effectiveGiftCardStatus({ status: card.status, expiresAt: toIso(card.expiresAt) }, now);
+      const messages: Partial<Record<GiftCardStatus, string>> = {
+        in_attesa_pagamento: 'Questa gift card non è ancora attiva',
+        riscattata: 'Questa gift card è già stata usata',
+        scaduta: 'Questa gift card è scaduta',
+        annullata: 'Questa gift card non è più valida',
+      };
+      if (state !== 'attiva') {
+        throw new GiftCardHttpError(409, 'gift_card_unusable', messages[state] ?? 'Gift card non utilizzabile');
+      }
+      if (card.campaignId && card.campaignId !== campaignId) {
+        throw new GiftCardHttpError(409, 'gift_card_campaign_mismatch', 'Questa gift card vale per un\'altra campagna');
+      }
+      tx.set(ref, { ...card, status: 'riscattata', redeemedAt: ts });
+      tx.set(this.db.collection(EVENTS).doc(), {
+        cardCode: code, type: 'redeem_claimed', at: ts, by: 'prenotazione', details: { campaignId },
+      });
+      return { code, title: card.title, typeName: card.typeName, valueCents: card.valueCents };
+    });
+  }
+
+  /** Annulla l'uso prenotato quando la prenotazione non è stata creata. */
+  async releaseClaim(rawCode: string): Promise<void> {
+    const code = normalizeGiftCardCode(rawCode);
+    if (!code) return;
+    const ref = this.db.collection(CARDS).doc(code);
+    const ts = Timestamp.fromDate(this.now());
+    await this.db.runTransaction(async tx => {
+      const snap = await tx.get(ref);
+      if (!snap.exists) return;
+      const card = snap.data() as any;
+      if (card.status !== 'riscattata' || card.bookingId) return;
+      tx.set(ref, { ...card, status: 'attiva', redeemedAt: null });
+      tx.set(this.db.collection(EVENTS).doc(), { cardCode: code, type: 'redeem_released', at: ts, by: 'prenotazione', details: {} });
+    });
+  }
+
+  /**
+   * Collega la card alla prenotazione e porta con sé anche gli incassi: i
+   * movimenti di cassa della vendita ricevono prenotazione e campagna, così la
+   * dashboard finanziaria li attribuisce alla campagna senza doppi conteggi.
+   */
+  async attachBooking(
+    rawCode: string,
+    booking: { id: string; campaignId: string; campaignTheme?: string | null },
+  ): Promise<void> {
+    const code = normalizeGiftCardCode(rawCode);
+    if (!code) return;
+    const ts = Timestamp.fromDate(this.now());
+    await this.db.collection(CARDS).doc(code).update({ bookingId: booking.id });
+    await this.db.collection(EVENTS).doc().set({
+      cardCode: code, type: 'redeemed', at: ts, by: 'prenotazione', details: { bookingId: booking.id, campaignId: booking.campaignId },
+    });
+    const movements = await this.db.collection(CASH).where('origineRef', '==', code).get();
+    for (const doc of movements.docs) {
+      if ((doc.data() as any).origine !== 'gift_card') continue;
+      await doc.ref.update({
+        bookingId: booking.id,
+        campaignId: booking.campaignId,
+        ...(booking.campaignTheme ? { origineTema: booking.campaignTheme } : {}),
+        updatedAt: ts,
+      });
+    }
+  }
+
   // -------------------------------------------------------------- pubblico
 
   async getPublic(rawCode: string): Promise<GiftCardPublicDto> {
@@ -424,8 +583,39 @@ export class GiftCardService {
       recipientName: card.recipientName || '',
       message: card.message || '',
       validUntil: expiresAt,
+      includes: typeof card.includes === 'string' ? card.includes : '',
+      items: await this.publicItems(card.items),
       campaign: card.campaignId ? await this.publicCampaign(card.campaignId, now) : null,
     };
+  }
+
+  /** Prodotti inclusi per chi riceve: dati aggiornati dal catalogo, o quelli della vendita se il prodotto non c'è più. */
+  private async publicItems(stored: unknown): Promise<GiftCardItemDto[]> {
+    if (!Array.isArray(stored)) return [];
+    return Promise.all(
+      stored.map(async (item: any): Promise<GiftCardItemDto> => {
+        const fallback: GiftCardItemDto = {
+          productId: String(item.productId),
+          quantity: Number(item.quantity) || 1,
+          name: String(item.name || ''),
+          description: String(item.description || ''),
+          imageUrls: imageList(item.imageUrls),
+        };
+        try {
+          const snap = await this.db.collection(PRODUCTS).doc(fallback.productId).get();
+          const product = snap.exists ? (snap.data() as any) : null;
+          if (!product || product.attivo === false) return fallback;
+          return {
+            ...fallback,
+            name: String(product.nome || fallback.name),
+            description: String(product.descrizione || fallback.description),
+            imageUrls: imageList(product.immagini).length ? imageList(product.immagini) : fallback.imageUrls,
+          };
+        } catch {
+          return fallback;
+        }
+      }),
+    );
   }
 
   private async publicCampaign(campaignId: string, now: Date): Promise<GiftCardPublicDto['campaign']> {

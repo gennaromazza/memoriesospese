@@ -15,8 +15,12 @@ import type { SlotsResponse, TimeSlot } from "../shared/calendar-types.js";
 import type { BookingCampaign } from "../shared/booking-types.js";
 import { normalizeEmail, generateClienteIdFromEmail } from "./utils/normalize.js";
 import { authenticateFirebase } from "./email-routes.js";
+import { GiftCardHttpError, GiftCardService } from "./gift-cards/service.js";
 
 const router = express.Router();
+
+// Riscatto delle gift card nella prenotazione pubblica (stessa base dati, nessuna dipendenza da PayPal)
+const giftCards = new GiftCardService({ db });
 
 const ADMIN_EMAILS = ["gennaro.mazzacane@gmail.com"];
 
@@ -2297,6 +2301,7 @@ router.post("/v2/create", requireAdminForManualBooking, async (req, res) => {
       totale,
       acconto,
       metodoPagamento,
+      giftCardCode,
     } = req.body;
 
     // Validazione parametri base
@@ -2439,6 +2444,20 @@ router.post("/v2/create", requireAdminForManualBooking, async (req, res) => {
       console.log(`[POST /v2/create] ✅ Slot verified available using Calendar Engine V2`);
     }
 
+    // Step 5b: gift card usata per pagare la prenotazione (solo prenotazioni pubbliche).
+    // Il codice viene riservato prima di creare la prenotazione, così non si usa due volte.
+    let giftClaim: { code: string; title: string; typeName: string; valueCents: number } | null = null;
+    if (!isManual && typeof giftCardCode === "string" && giftCardCode.trim()) {
+      try {
+        giftClaim = await giftCards.claimForBooking(giftCardCode, campaignId);
+      } catch (giftError) {
+        if (giftError instanceof GiftCardHttpError) {
+          return res.status(giftError.status).json({ error: giftError.message, code: giftError.code });
+        }
+        throw giftError;
+      }
+    }
+
     // Step 6: Create booking (same as legacy)
     const workflowUpdate = syncBookingWorkflowState("in_attesa");
 
@@ -2504,8 +2523,35 @@ router.post("/v2/create", requireAdminForManualBooking, async (req, res) => {
       }
     }
 
-    const bookingRef = await db.collection("bookings").add(bookingData);
+    if (giftClaim) {
+      // Pagata con gift card: l'incasso è già in cassa dalla vendita della card.
+      bookingData.giftCard = { code: giftClaim.code, typeName: giftClaim.typeName, title: giftClaim.title };
+      bookingData.totale = giftClaim.valueCents / 100;
+      bookingData.acconto = giftClaim.valueCents / 100;
+      bookingData.saldo = 0;
+      bookingData.metodoPagamento = "altro";
+    }
+
+    let bookingRef: FirebaseFirestore.DocumentReference;
+    try {
+      bookingRef = await db.collection("bookings").add(bookingData);
+    } catch (createError) {
+      if (giftClaim) await giftCards.releaseClaim(giftClaim.code).catch(() => undefined);
+      throw createError;
+    }
     console.log(`[POST /v2/create] ✅ Booking created: ${bookingRef.id}`);
+
+    if (giftClaim) {
+      try {
+        await giftCards.attachBooking(giftClaim.code, {
+          id: bookingRef.id,
+          campaignId,
+          campaignTheme: (campaign as any)?.temaStagionale ?? null,
+        });
+      } catch (attachError) {
+        console.error("[POST /v2/create] ⚠️ Gift card attach failed:", attachError);
+      }
+    }
 
     // Step 6b: For manual bookings, create Google Calendar event immediately
     if (isManual) {

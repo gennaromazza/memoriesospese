@@ -45,6 +45,10 @@ export default function GiftCardSellPanel({ onCreateType }: { onCreateType?: () 
   const [expiryMode, setExpiryMode] = useState<ExpiryMode>('type');
   const [expiryDate, setExpiryDate] = useState('');
   const [sold, setSold] = useState<GiftCardDto | null>(null);
+  const [buyerFirstName, setBuyerFirstName] = useState('');
+  const [buyerLastName, setBuyerLastName] = useState('');
+  const [buyerEmail, setBuyerEmail] = useState('');
+  const [buyerPhone, setBuyerPhone] = useState('');
 
   useEffect(() => {
     if (!sellable.some(type => type.id === typeId)) setTypeId(sellable[0]?.id ?? '');
@@ -70,6 +74,9 @@ export default function GiftCardSellPanel({ onCreateType }: { onCreateType?: () 
         paymentMethod: payment,
         ...(expiryMode === 'none' ? { noExpiry: true } : {}),
         ...(expiryMode === 'date' ? { expiresOn: expiryDate } : {}),
+        ...(buyerEmail.trim()
+          ? { buyer: { firstName: buyerFirstName.trim(), lastName: buyerLastName.trim(), email: buyerEmail.trim(), phone: buyerPhone.trim() } }
+          : {}),
       }),
     onSuccess: card => {
       setSold(card);
@@ -89,6 +96,10 @@ export default function GiftCardSellPanel({ onCreateType }: { onCreateType?: () 
     setPayment('contante');
     setExpiryMode('type');
     setExpiryDate('');
+    setBuyerFirstName('');
+    setBuyerLastName('');
+    setBuyerEmail('');
+    setBuyerPhone('');
   };
 
   if (types.isLoading) {
@@ -154,7 +165,8 @@ export default function GiftCardSellPanel({ onCreateType }: { onCreateType?: () 
   }
 
   const paymentHint = PAYMENT_OPTIONS.find(option => option.value === payment)?.hint;
-  const canSell = !!type && !sell.isPending && (expiryMode !== 'date' || !!expiryDate);
+  const buyerIncomplete = !!buyerEmail.trim() && (!buyerFirstName.trim() || !buyerLastName.trim());
+  const canSell = !!type && !sell.isPending && (expiryMode !== 'date' || !!expiryDate) && !buyerIncomplete;
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
@@ -215,8 +227,32 @@ export default function GiftCardSellPanel({ onCreateType }: { onCreateType?: () 
             </div>
           </fieldset>
 
+          <fieldset className="space-y-3">
+            <legend className="mb-2 text-sm font-semibold">3 · Chi compra (facoltativo)</legend>
+            <p className="text-xs text-muted-foreground">Con l'email, chi compra viene salvato tra i clienti e l'incasso gli viene collegato.</p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="gc-buyer-first">Nome</Label>
+                <Input id="gc-buyer-first" value={buyerFirstName} maxLength={60} onChange={event => setBuyerFirstName(event.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="gc-buyer-last">Cognome</Label>
+                <Input id="gc-buyer-last" value={buyerLastName} maxLength={60} onChange={event => setBuyerLastName(event.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="gc-buyer-email">Email</Label>
+                <Input id="gc-buyer-email" type="email" value={buyerEmail} onChange={event => setBuyerEmail(event.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="gc-buyer-phone">Telefono</Label>
+                <Input id="gc-buyer-phone" type="tel" value={buyerPhone} maxLength={30} onChange={event => setBuyerPhone(event.target.value)} />
+              </div>
+            </div>
+            {buyerIncomplete ? <p className="text-xs text-red-600">Per salvare il cliente servono nome, cognome ed email.</p> : null}
+          </fieldset>
+
           <fieldset className="space-y-2">
-            <legend className="mb-2 text-sm font-semibold">3 · Incasso</legend>
+            <legend className="mb-2 text-sm font-semibold">4 · Incasso</legend>
             <div className="flex flex-wrap gap-2" role="group" aria-label="Metodo di pagamento">
               {PAYMENT_OPTIONS.map(option => (
                 <Button key={option.value} type="button" size="sm" variant={payment === option.value ? 'default' : 'outline'} aria-pressed={payment === option.value} onClick={() => setPayment(option.value)}>

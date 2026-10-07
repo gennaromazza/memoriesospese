@@ -112,7 +112,8 @@ const order = (typeId: string, extra: Record<string, unknown> = {}) => ({
   typeId,
   recipientName: 'Giulia',
   message: 'Auguri',
-  buyerName: 'Marco',
+  buyerFirstName: 'Marco',
+  buyerLastName: 'Rossi',
   buyerEmail: 'Marco@Example.com',
   recipientEmail: 'giulia@example.com',
   deliverOn: null,
@@ -171,7 +172,7 @@ describe('creazione dell\'ordine', () => {
     await expect(online.createOrder(order(type.id, { termsAccepted: false }))).rejects.toMatchObject({ code: 'legal_acceptance_required' });
     await expect(online.createOrder(order(type.id, { buyerEmail: 'non-una-email' }))).rejects.toMatchObject({ status: 422 });
     await expect(online.createOrder(order(type.id, { recipientEmail: 'x@' }))).rejects.toMatchObject({ status: 422 });
-    await expect(online.createOrder(order(type.id, { buyerName: '  ' }))).rejects.toMatchObject({ status: 422 });
+    await expect(online.createOrder(order(type.id, { buyerFirstName: '  ' }))).rejects.toMatchObject({ status: 422 });
     await expect(online.createOrder(order(type.id, { message: 'x'.repeat(91) }))).rejects.toMatchObject({ status: 422 });
     const studioOnly = await seedType(service, { name: 'Solo studio', sellOnline: false });
     await expect(online.createOrder(order(studioOnly.id))).rejects.toMatchObject({ code: 'type_not_sellable' });
@@ -353,7 +354,7 @@ describe('email e consegna programmata', () => {
   it('il contenuto scritto dal cliente non finisce come HTML nelle email', async () => {
     const ctx = setup();
     const type = await seedType(ctx.service);
-    const created = await ctx.online.createOrder(order(type.id, { recipientName: '<b>Giulia</b>', message: '<script>alert(1)</script>', buyerName: '<img src=x>' }));
+    const created = await ctx.online.createOrder(order(type.id, { recipientName: '<b>Giulia</b>', message: '<script>alert(1)</script>', buyerFirstName: '<img src=x>' }));
     await ctx.online.capture(created.code, { paypalOrderId: created.paypalOrderId, buyerToken: created.buyerToken });
     const html = ctx.mail.sent.map(item => item.html).join('\n');
     expect(html).not.toContain('<script>');
@@ -440,5 +441,54 @@ describe('verifica con PayPal e webhook', () => {
     const ctx = setup();
     await expect(ctx.online.webhook({}, {})).rejects.toMatchObject({ status: 503 });
     expect(ctx.online.isWebhookEnabled()).toBe(false);
+  });
+});
+
+describe('clienti e prodotti nell\'acquisto online', () => {
+  it('salva chi ha pagato tra i clienti e lo collega agli incassi', async () => {
+    const ctx = setup();
+    const type = await seedType(ctx.service);
+    const created = await ctx.online.createOrder(order(type.id, { buyerPhone: '333 1234567' }));
+    expect(ctx.db.countCollection('clienti')).toBe(0);
+    await ctx.online.capture(created.code, { paypalOrderId: created.paypalOrderId, buyerToken: created.buyerToken });
+
+    const clients = [...ctx.db.documents.entries()].filter(([path]) => path.startsWith('clienti/'));
+    expect(clients).toHaveLength(1);
+    expect(clients[0][1]).toMatchObject({ nome: 'Marco', cognome: 'Rossi', email: 'marco@example.com', cellulare1: '333 1234567' });
+    const clientId = clients[0][0].split('/')[1];
+    expect(ctx.db.value('giftCards/' + created.code)).toMatchObject({ buyerClienteId: clientId, buyerName: 'Marco Rossi' });
+    const cash = [...ctx.db.documents.entries()].filter(([path]) => path.startsWith('cashMovements/')).map(([, value]) => value);
+    expect(cash).toHaveLength(2);
+    expect(cash.every(item => item.clienteId === clientId && item.nomeCliente === 'Marco Rossi')).toBe(true);
+  });
+
+  it('non crea un doppione se il cliente esiste già e non sovrascrive i suoi dati', async () => {
+    const ctx = setup();
+    const type = await seedType(ctx.service);
+    const first = await ctx.online.createOrder(order(type.id));
+    await ctx.online.capture(first.code, { paypalOrderId: first.paypalOrderId, buyerToken: first.buyerToken });
+    const [[path, existing]] = [...ctx.db.documents.entries()].filter(([p]) => p.startsWith('clienti/'));
+    ctx.db.seed(path, { ...existing, nome: 'Marco Antonio', cellulare1: '320 000000' });
+    const second = await ctx.online.createOrder(order(type.id, { buyerPhone: '999' }));
+    await ctx.online.capture(second.code, { paypalOrderId: second.paypalOrderId, buyerToken: second.buyerToken });
+    const clients = [...ctx.db.documents.entries()].filter(([p]) => p.startsWith('clienti/'));
+    expect(clients).toHaveLength(1);
+    expect(clients[0][1]).toMatchObject({ nome: 'Marco Antonio', cellulare1: '320 000000' });
+  });
+
+  it('richiede nome e cognome di chi compra', async () => {
+    const { service, online } = setup();
+    const type = await seedType(service);
+    await expect(online.createOrder(order(type.id, { buyerLastName: '' }))).rejects.toMatchObject({ status: 422 });
+  });
+
+  it('fotografa i prodotti inclusi alla vendita online', async () => {
+    const { db, service, online } = setup();
+    db.seed('products/p1', { nome: 'Tela 30x40', descrizione: 'Stampa su tela', prezzoFinale: 45, immagini: ['https://img.test/tela.jpg'] });
+    const type = await seedType(service, { items: [{ productId: 'p1', quantity: 1 }] });
+    const created = await online.createOrder(order(type.id));
+    const stored = db.value('giftCards/' + created.code);
+    expect(stored.items).toEqual([{ productId: 'p1', quantity: 1, name: 'Tela 30x40', description: 'Stampa su tela', imageUrls: ['https://img.test/tela.jpg'] }]);
+    expect(JSON.stringify(stored.items)).not.toContain('45');
   });
 });

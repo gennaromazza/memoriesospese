@@ -86,7 +86,9 @@ export default function GiftCardShopPage() {
   const [recipientEmail, setRecipientEmail] = useState('');
   const [delivery, setDelivery] = useState<DeliveryMode>('now');
   const [deliverOn, setDeliverOn] = useState('');
-  const [buyerName, setBuyerName] = useState('');
+  const [buyerFirstName, setBuyerFirstName] = useState('');
+  const [buyerLastName, setBuyerLastName] = useState('');
+  const [buyerPhone, setBuyerPhone] = useState('');
   const [buyerEmail, setBuyerEmail] = useState('');
   const [terms, setTerms] = useState(false);
   const [privacy, setPrivacy] = useState(false);
@@ -104,7 +106,8 @@ export default function GiftCardShopPage() {
   const problems = useMemo(() => {
     const list: string[] = [];
     if (!type) list.push('scegli un regalo');
-    if (!buyerName.trim()) list.push('il tuo nome');
+    if (!buyerFirstName.trim()) list.push('il tuo nome');
+    if (!buyerLastName.trim()) list.push('il tuo cognome');
     if (!isPlausibleEmail(buyerEmail.trim())) list.push('la tua email');
     if (recipientEmail.trim() && !isPlausibleEmail(recipientEmail.trim())) list.push('un\'email valida per chi riceve');
     if (delivery === 'date') {
@@ -115,11 +118,11 @@ export default function GiftCardShopPage() {
     if (!terms) list.push('le condizioni di vendita');
     if (!privacy) list.push('la privacy');
     return list;
-  }, [type, buyerName, buyerEmail, recipientEmail, delivery, deliverOn, today, maxDay, terms, privacy]);
+  }, [type, buyerFirstName, buyerLastName, buyerEmail, recipientEmail, delivery, deliverOn, today, maxDay, terms, privacy]);
 
   const formReady = problems.length === 0 && !retry;
-  const form = useRef({ type, recipientName, message, recipientEmail, delivery, deliverOn, buyerName, buyerEmail, terms, privacy });
-  form.current = { type, recipientName, message, recipientEmail, delivery, deliverOn, buyerName, buyerEmail, terms, privacy };
+  const form = useRef({ type, recipientName, message, recipientEmail, delivery, deliverOn, buyerFirstName, buyerLastName, buyerPhone, buyerEmail, terms, privacy });
+  form.current = { type, recipientName, message, recipientEmail, delivery, deliverOn, buyerFirstName, buyerLastName, buyerPhone, buyerEmail, terms, privacy };
   const pending = useRef<PendingPayment | null>(null);
 
   const createOrder = useCallback(async (): Promise<string> => {
@@ -132,7 +135,9 @@ export default function GiftCardShopPage() {
         typeId: current.type.id,
         recipientName: current.recipientName.trim(),
         message: current.message.trim(),
-        buyerName: current.buyerName.trim(),
+        buyerFirstName: current.buyerFirstName.trim(),
+        buyerLastName: current.buyerLastName.trim(),
+        buyerPhone: current.buyerPhone.trim() || undefined,
         buyerEmail: current.buyerEmail.trim(),
         recipientEmail: current.recipientEmail.trim() || undefined,
         deliverOn: current.delivery === 'date' ? current.deliverOn : null,
@@ -304,16 +309,10 @@ export default function GiftCardShopPage() {
 
         <section className="gcx-panel" aria-labelledby="gcx-s2">
           <h2 id="gcx-s2" className="gcx-step gcx-step-dark">2 · Personalizzalo</h2>
-          <div className="gcx-grid2">
-            <label className="gcx-field">
-              <span>Per chi è (facoltativo)</span>
-              <input value={recipientName} maxLength={GIFT_CARD_NAME_MAX} onChange={event => setRecipientName(event.target.value)} placeholder="Per esempio Giulia" />
-            </label>
-            <label className="gcx-field">
-              <span>Da parte di</span>
-              <input value={buyerName} maxLength={80} onChange={event => setBuyerName(event.target.value)} autoComplete="name" />
-            </label>
-          </div>
+          <label className="gcx-field">
+            <span>Per chi è (facoltativo)</span>
+            <input value={recipientName} maxLength={GIFT_CARD_NAME_MAX} onChange={event => setRecipientName(event.target.value)} placeholder="Per esempio Giulia" />
+          </label>
           <label className="gcx-field">
             <span>Il tuo messaggio (facoltativo)</span>
             <textarea value={message} maxLength={GIFT_CARD_MESSAGE_MAX} rows={2} onChange={event => setMessage(event.target.value)} placeholder="Una riga scritta a mano per chi riceve" />
@@ -336,10 +335,24 @@ export default function GiftCardShopPage() {
 
         <section className="gcx-panel" aria-labelledby="gcx-s3">
           <h2 id="gcx-s3" className="gcx-step gcx-step-dark">3 · Paga</h2>
+          <div className="gcx-grid2">
+            <label className="gcx-field">
+              <span>Il tuo nome</span>
+              <input value={buyerFirstName} maxLength={60} onChange={event => setBuyerFirstName(event.target.value)} autoComplete="given-name" />
+            </label>
+            <label className="gcx-field">
+              <span>Il tuo cognome</span>
+              <input value={buyerLastName} maxLength={60} onChange={event => setBuyerLastName(event.target.value)} autoComplete="family-name" />
+            </label>
+          </div>
           <label className="gcx-field">
             <span>La tua email</span>
             <input type="email" value={buyerEmail} onChange={event => setBuyerEmail(event.target.value)} autoComplete="email" />
             <small>Qui ti mandiamo la ricevuta e il codice.</small>
+          </label>
+          <label className="gcx-field">
+            <span>Telefono (facoltativo)</span>
+            <input type="tel" value={buyerPhone} maxLength={30} onChange={event => setBuyerPhone(event.target.value)} autoComplete="tel" />
           </label>
           <label className="gcx-radio gcx-consent"><input type="checkbox" checked={terms} onChange={event => setTerms(event.target.checked)} /> <span>Ho letto le <Link href="/terms" className="underline">condizioni di vendita</Link>: la card scade alla data indicata e non è rimborsabile.</span></label>
           <label className="gcx-radio gcx-consent"><input type="checkbox" checked={privacy} onChange={event => setPrivacy(event.target.checked)} /> <span>Ho letto l'<Link href="/privacy" className="underline">informativa privacy</Link>.</span></label>

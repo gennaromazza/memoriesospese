@@ -241,3 +241,16 @@
 .gcx-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .gcx-btn-ghost { background: transparent; color: #134733 !important; }
 @media (max-width: 560px) { .gcx-grid2 { grid-template-columns: minmax(0, 1fr); } }
+
+/* cosa include */
+.gcx-includes { width: 100%; text-align: left; display: grid; gap: 12px; }
+.gcx-includes-title { margin: 0; font: 700 11px / 1 var(--gcx-body); letter-spacing: 0.2em; text-transform: uppercase; color: var(--gk-f1); }
+.gcx-includes-text { margin: 0; font-size: 15px; line-height: 1.55; color: var(--gk-ink); white-space: pre-line; }
+.gcx-items { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
+.gcx-item { display: grid; gap: 8px; width: 100%; padding: 0; border: 1px solid color-mix(in srgb, var(--gk-f2) 55%, transparent); border-radius: 8px; overflow: hidden; background: rgba(255, 255, 255, 0.05); color: var(--gk-ink); cursor: pointer; text-align: left; font: inherit; }
+.gcx-item:hover { border-color: var(--gk-f1); }
+.gcx-item:focus-visible { outline: 2px solid var(--gk-f1); outline-offset: 2px; }
+.gcx-item img, .gcx-item-empty { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; background: rgba(255, 255, 255, 0.08); }
+.gcx-item-meta { display: flex; justify-content: space-between; gap: 8px; padding: 0 10px 10px; font-size: 13px; line-height: 1.35; }
+.gcx-item-meta b { font-weight: 600; }
+.gcx-item-meta span { color: var(--gk-sub); flex: none; }
