@@ -1839,8 +1839,7 @@ router.post('/gallery/:galleryId/generate', async (req: Request, res: Response) 
   res.flushHeaders();
   const heartbeat = setInterval(() => {
     if (!res.writableEnded && !res.destroyed) {
-      res.write(' 
-');
+      res.write(' \n');
       (res as Response & { flush?: () => void }).flush?.();
     }
   }, 10_000);
