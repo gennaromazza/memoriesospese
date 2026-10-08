@@ -346,7 +346,9 @@ router.get('/notifications', authenticateFirebase, requireAdmin, async (req: any
         ? 'photobook'
         : data.type === 'print_shop_order'
           ? 'print_shop_order'
-          : 'quick_quote';
+          : data.type === 'shop_order'
+            ? 'shop_order'
+            : 'quick_quote';
       const resourceId = String(
         data.orderId ||
         data.photobookId ||
@@ -359,7 +361,9 @@ router.get('/notifications', authenticateFirebase, requireAdmin, async (req: any
           ? `/admin/photobooks/${encodeURIComponent(resourceId)}`
           : type === 'print_shop_order'
             ? `/admin/dashboard?printOrderId=${encodeURIComponent(resourceId)}`
-            : '/admin/dashboard?tab=lavori'
+            : type === 'shop_order'
+              ? `/admin/dashboard?shopOrderId=${encodeURIComponent(resourceId)}`
+              : '/admin/dashboard?tab=lavori'
       );
 
       notifications.push({
@@ -371,7 +375,9 @@ router.get('/notifications', authenticateFirebase, requireAdmin, async (req: any
             ? 'Fotolibro approvato'
             : type === 'print_shop_order'
               ? 'Nuovo ordine e-commerce'
-              : 'Preventivo Rapido'
+              : type === 'shop_order'
+                ? 'Nuovo ordine shop online'
+                : 'Preventivo Rapido'
         ),
         description: data.description || '',
         createdAt: data.createdAt || null,

@@ -1,4 +1,4 @@
-export type FinanceSource = "job" | "booking" | "walk-in" | "print_shop" | "manuale";
+export type FinanceSource = "job" | "booking" | "walk-in" | "print_shop" | "shop" | "manuale";
 export type FinanceDate = unknown;
 export type FinanceLabCostStatus = "stima" | "consuntivo";
 

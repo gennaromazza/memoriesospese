@@ -199,6 +199,21 @@ describe("financial dashboard read model", () => {
     expect(model.ledger.map(e => e.amount)).toEqual([10]);
   });
 
+  it("counts shop online sales only from their cash movements, labelled as shop", () => {
+    const model = buildFinanceDashboard(snapshot({
+      orders: [{ id: "shop-order", orderType: "shop", totale: 100 }],
+      movements: [
+        { id: "sale", origine: "shop", importo: 25, data: at, orderId: "shop-order" },
+        { id: "fee", tipo: "uscita", origine: "shop", importo: 1, data: at, orderId: "shop-order" },
+      ],
+    }), now);
+    expect(model.receivables).toHaveLength(0);
+    expect(model.ledger.map(e => [e.direction, e.amount, e.source])).toEqual([
+      ["income", 25, "shop"],
+      ["expense", 1, "shop"],
+    ]);
+  });
+
   it("keeps laboratory charges, advances, and the running balance separate", () => {
     const model = buildFinanceDashboard(snapshot({
       jobs: [{

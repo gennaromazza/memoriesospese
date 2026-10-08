@@ -34,7 +34,8 @@ export const NotificationBell = React.memo(function NotificationBell({ enabled =
       case 'quick_quote': return <FileText className="h-4 w-4" />;
       case 'info_form': return <ClipboardList className="h-4 w-4" />;
       case 'photobook': return <BookOpen className="h-4 w-4" />;
-      case 'print_shop_order': return <ShoppingBag className="h-4 w-4" />;
+      case 'print_shop_order':
+      case 'shop_order': return <ShoppingBag className="h-4 w-4" />;
       default: return <Bell className="h-4 w-4" />;
     }
   }, []);
