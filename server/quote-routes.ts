@@ -3144,7 +3144,7 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
         if (studioInfo?.email) {
           try {
             const eventDateFormatted = eventDate
-              ? new Date(eventDate).toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" })
+              ? formatRomeDateLocale(eventDate)
               : "Data non definita";
             const adminEmailHtml = `
               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -3629,7 +3629,7 @@ router.post("/quick/:token/save-draft", async (req: Request, res: Response) => {
           : "http://localhost:5000";
         const portalLink = `${baseUrl}/quote/${publicToken}`;
         const eventDateFormatted = eventDate
-          ? new Date(eventDate).toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" })
+          ? formatRomeDateLocale(eventDate)
           : "Da definire";
         const isVariabile = template.type === "variabile";
         const html = `
