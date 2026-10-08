@@ -14,6 +14,7 @@ import { useSEO } from '@/hooks/useSEO';
 import { GiftCardAmbient } from '@/components/gift-cards/GiftCardArt';
 import { giftCardThemeVars } from '@/components/gift-cards/giftCardThemes';
 import { shopApi } from '@/features/shop/shop-api';
+import { useShopCart } from '@/features/shop/useShopCart';
 import '@/components/gift-cards/gift-cards.css';
 
 const THEME = 'natale' as const;
@@ -46,6 +47,7 @@ export default function ShopPage() {
 
   const catalogQuery = useQuery({ queryKey: ['shop-catalog'], queryFn: shopApi.getCatalog, staleTime: 60_000 });
   const catalog = catalogQuery.data;
+  const { cart, count: cartCount, add } = useShopCart();
 
   useSEO({
     title: SHOP_SEO.title,
@@ -106,6 +108,13 @@ export default function ShopPage() {
           <p className="gcx-note" role="status">Ordina entro il {longDay(catalog.lastOrderDate)} per ricevere il regalo a Natale.</p>
         ) : null}
 
+        {catalog.orderingOpen && cartCount > 0 ? (
+          <div className="gcx-panel gcx-center" role="status">
+            <h2>Hai {cartCount} {cartCount === 1 ? 'prodotto' : 'prodotti'} nel carrello</h2>
+            <div className="gcx-cta-row"><Link href="/shop-natale/ordine" className="gcx-btn-gold">Vai all'ordine</Link></div>
+          </div>
+        ) : null}
+
         <section id="prodotti" className="gcx-block" aria-labelledby="gcx-shop-products-t">
           <h2 id="gcx-shop-products-t" className="gcx-h2">I nostri prodotti</h2>
           <p className="gcx-sub">{shippingLine(catalog.shipping)}</p>
@@ -113,7 +122,15 @@ export default function ShopPage() {
             <div key={section.category.value}>
               {sections.length > 1 ? <h3 className="gcx-h3">{section.category.nome}</h3> : null}
               <div className="gcx-ideas">
-                {section.products.map(product => <ProductCard key={product.id} product={product} />)}
+                {section.products.map(product => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    canOrder={catalog.orderingOpen}
+                    inCart={cart.items.filter(item => item.productId === product.id).reduce((total, item) => total + item.quantity, 0)}
+                    onAdd={() => add(product)}
+                  />
+                ))}
               </div>
             </div>
           ))}
@@ -140,6 +157,7 @@ export default function ShopPage() {
         </section>
 
         <aside className="gcx-final">
+          <p className="gcx-sub gcx-center-text"><Link href="/shop-natale/i-miei-ordini" className="underline">Hai già ordinato? Vedi i tuoi ordini</Link></p>
           <h2 className="gcx-h2 gcx-h2-center">Vuoi regalare un servizio?</h2>
           <p className="gcx-sub gcx-center-text">Shooting, sconti e idee da usare in studio: scegli un'idea regalo.</p>
           <div className="gcx-cta-row"><Link href="/regala" className="gcx-btn-gold">Vedi le idee regalo</Link></div>
@@ -185,7 +203,7 @@ export default function ShopPage() {
   );
 }
 
-function ProductCard({ product }: { product: ShopProductDto }) {
+function ProductCard({ product, canOrder, inCart, onAdd }: { product: ShopProductDto; canOrder: boolean; inCart: number; onAdd: () => void }) {
   const cover = product.images[0];
   const discounted = product.priceCents < product.listPriceCents;
   return (
@@ -202,6 +220,11 @@ function ProductCard({ product }: { product: ShopProductDto }) {
             {discounted ? <s style={{ opacity: 0.6, marginRight: 8, fontWeight: 400 }}>{formatShopPrice(product.listPriceCents)}</s> : null}
             {formatShopPrice(product.priceCents)}
           </b>
+          {canOrder ? (
+            <button type="button" className="gcx-btn-gold" onClick={onAdd}>
+              {inCart > 0 ? `Aggiungi un altro (${inCart})` : 'Aggiungi al carrello'}
+            </button>
+          ) : null}
         </div>
       </div>
     </article>

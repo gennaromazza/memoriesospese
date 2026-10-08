@@ -1,6 +1,7 @@
 import { auth } from '@/lib/firebase';
 import { createUrl } from '@/lib/basePath';
-import type { ShopCatalogDto, ShopSettings } from '@shared/shop-types';
+import type { PrintShopBillingDetails, PrintShopPostalAddress } from '@shared/print-shop-types';
+import type { ShopAssetDto, ShopCatalogDto, ShopFulfillmentMethod, ShopOrderDto, ShopSettings } from '@shared/shop-types';
 
 const SHOP_API = '/api/shop';
 
@@ -57,15 +58,96 @@ export async function shopRequest<T>(
   return body as T;
 }
 
+/** Foto da un indirizzo che richiede l'accesso: si scarica come file e si mostra con un indirizzo locale. */
+export async function shopBlob(path: string): Promise<Blob> {
+  const user = auth.currentUser;
+  if (!user) throw new ShopApiError('Accedi per continuare.', 401, 'unauthenticated');
+  let response: Response;
+  try {
+    response = await fetch(createUrl(`${SHOP_API}${path}`), {
+      headers: { Authorization: `Bearer ${await user.getIdToken()}` },
+      credentials: 'include',
+    });
+  } catch {
+    throw new ShopApiError('Connessione assente. Controlla la rete e riprova.', 0, 'network');
+  }
+  if (!response.ok) throw new ShopApiError(fallbackMessage(response.status), response.status);
+  return response.blob();
+}
+
+export interface ShopLineInput {
+  lineId?: string;
+  productId: string;
+  quantity: number;
+}
+
+export interface ShopOrderUpdate {
+  customer?: { name?: string; phone?: string };
+  customerNotes?: string;
+  fulfillment?: { method: Extract<ShopFulfillmentMethod, 'studio_pickup'> } | { method: Extract<ShopFulfillmentMethod, 'shipping'>; shippingAddress: PrintShopPostalAddress };
+  billingDetails?: PrintShopBillingDetails;
+}
+
+export interface ShopPreparedUpload {
+  assetId: string;
+  uploadUrl: string;
+  maxFileBytes: number;
+}
+
+export interface ShopPayPalConfig {
+  enabled: boolean;
+  checkoutEnabled: boolean;
+  environment: 'sandbox' | 'live';
+  clientId: string | null;
+}
+
+export interface ShopPaymentConfirmation {
+  success: true;
+  duplicate: boolean;
+  orderId: string;
+  paypalOrderId: string;
+  captureId: string;
+  status: 'paid';
+}
+
+const json = (value: unknown) => JSON.stringify(value);
+const orderPath = (orderId: string) => `/orders/${encodeURIComponent(orderId)}`;
+
 export const shopApi = {
   /** Vetrina pubblica: prodotti attivi delle categorie abilitate. */
   getCatalog: () => shopRequest<ShopCatalogDto>('/catalog', { authenticated: false }),
+  getPayPalConfig: () => shopRequest<ShopPayPalConfig>('/paypal/config', { authenticated: false }),
 
   /** Impostazioni dello shop (solo studio). */
   getSettings: async () => (await shopRequest<{ settings: ShopSettings }>('/admin/settings')).settings,
   saveSettings: async (settings: ShopSettings) =>
-    (await shopRequest<{ settings: ShopSettings }>('/admin/settings', {
-      method: 'PUT',
-      body: JSON.stringify(settings),
-    })).settings,
+    (await shopRequest<{ settings: ShopSettings }>('/admin/settings', { method: 'PUT', body: json(settings) })).settings,
+
+  // Ordini del cliente
+  listOrders: async () => (await shopRequest<{ orders: ShopOrderDto[] }>('/orders')).orders,
+  getOrder: async (orderId: string) => (await shopRequest<{ order: ShopOrderDto }>(orderPath(orderId))).order,
+  createOrder: async (input: { lines: ShopLineInput[]; customer?: { name?: string; phone?: string } }) =>
+    (await shopRequest<{ order: ShopOrderDto }>('/orders', { method: 'POST', body: json(input) })).order,
+  replaceLines: async (orderId: string, lines: ShopLineInput[]) =>
+    (await shopRequest<{ order: ShopOrderDto }>(`${orderPath(orderId)}/lines`, { method: 'PUT', body: json({ lines }) })).order,
+  updateOrder: async (orderId: string, patch: ShopOrderUpdate) =>
+    (await shopRequest<{ order: ShopOrderDto }>(orderPath(orderId), { method: 'PATCH', body: json(patch) })).order,
+  cancelOrder: (orderId: string) => shopRequest<{ cancelled: true }>(orderPath(orderId), { method: 'DELETE' }),
+
+  // Foto
+  prepareUpload: async (orderId: string, lineId: string, file: { fileName: string; contentType: string; sizeBytes: number }) =>
+    (await shopRequest<{ upload: ShopPreparedUpload }>(`${orderPath(orderId)}/lines/${encodeURIComponent(lineId)}/uploads/prepare`, { method: 'POST', body: json(file) })).upload,
+  finalizeUpload: async (orderId: string, assetId: string) =>
+    (await shopRequest<{ asset: ShopAssetDto }>(`${orderPath(orderId)}/uploads/finalize`, { method: 'POST', body: json({ assetId }) })).asset,
+  removeAsset: (orderId: string, assetId: string) =>
+    shopRequest<{ removed: true }>(`${orderPath(orderId)}/assets/${encodeURIComponent(assetId)}`, { method: 'DELETE' }),
+  assetPreview: (orderId: string, assetId: string) => shopBlob(`${orderPath(orderId)}/assets/${encodeURIComponent(assetId)}/preview`),
+
+  // Pagamento
+  createPayPalOrder: (
+    orderId: string,
+    input: { termsAccepted: true; privacyAccepted: true; personalizedProductionAccepted: boolean; expectedQuoteFingerprint: string; expectedTotalCents: number },
+  ) => shopRequest<{ paypalOrderId: string; status: string; reused: boolean }>(`${orderPath(orderId)}/paypal/create`, { method: 'POST', body: json(input) }),
+  capturePayPalOrder: (orderId: string, paypalOrderId: string) =>
+    shopRequest<ShopPaymentConfirmation>(`${orderPath(orderId)}/paypal/capture`, { method: 'POST', body: json({ paypalOrderId }) }),
 };

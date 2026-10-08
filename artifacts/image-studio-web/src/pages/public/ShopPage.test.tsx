@@ -75,6 +75,17 @@ describe('vetrina shop', () => {
     expect(html).toContain('45,00');
   });
 
+  it('con gli ordini aperti ogni prodotto si può aggiungere al carrello', () => {
+    const html = render(catalog());
+    expect(html.match(/Aggiungi al carrello/g)).toHaveLength(3);
+    expect(html).toContain('/shop-natale/i-miei-ordini');
+  });
+
+  it("con gli ordini chiusi non c'è nessun pulsante per ordinare", () => {
+    const html = render(catalog({ orderingOpen: false }));
+    expect(html).not.toContain('Aggiungi al carrello');
+  });
+
   it('con gli ordini non ancora aperti avvisa e non promette il checkout', () => {
     const html = render(catalog({ orderingOpen: false }));
     expect(html).toContain('Gli ordini online apriranno a breve');

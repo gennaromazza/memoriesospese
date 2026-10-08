@@ -55,6 +55,16 @@ describe('percorsi delle gift card', () => {
       expect(isPrivateClientPath('/shop-natale')).toBe(false);
     });
 
+    it("le pagine dell'ordine sono raggiungibili ma mai indicizzate, anche con la vetrina aperta a Google", () => {
+      process.env.SHOP_INDEXABLE = 'true';
+      for (const path of ['/shop-natale/ordine', '/shop-natale/ordine/conferma', '/shop-natale/i-miei-ordini']) {
+        expect(isKnownClientPath(path), path).toBe(true);
+        expect(isPrivateClientPath(path), path).toBe(true);
+      }
+      expect(isKnownClientPath('/shop-natale/ordine/conferma/')).toBe(true);
+      expect(isKnownClientPath('/shop-natale/ordini')).toBe(false);
+    });
+
     it("non dipende dall'interruttore delle gift card", () => {
       process.env.SHOP_INDEXABLE = 'true';
       delete process.env.GIFT_SHOP_INDEXABLE;
