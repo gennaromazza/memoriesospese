@@ -6,6 +6,8 @@ import type { Server } from 'node:http';
 import { requireVerifiedCustomer } from '../commerce/http';
 import { FakeFirestore, FakeStorage } from '../print-shop/test-fakes';
 import { createShopRouter } from './router';
+import { ShopAdminService } from './admin';
+import { ShopMailer } from './mail';
 import { ShopMaintenance } from './maintenance';
 import { ShopOrderService } from './orders';
 import { ShopPaymentService } from './payments';
@@ -44,6 +46,21 @@ async function start() {
     now: () => NOW,
     studio: async () => ({ name: 'Image Studio', email: 'studio@example.com' }),
   });
+  const sent: Array<{ to: string; subject: string; log: any }> = [];
+  const mailer = new ShopMailer({
+    db: db as any,
+    siteUrl: () => 'https://sito.test',
+    now: () => NOW,
+    mail: {
+      async send(to, subject, _html, log) {
+        sent.push({ to, subject, log });
+      },
+      async studio() {
+        return { name: 'Image Studio', email: 'studio@example.com' };
+      },
+    },
+  });
+  const adminService = new ShopAdminService({ db: db as any, mailer, uploads, shop, now: () => NOW });
   const maintenanceRun = vi.fn(async (options?: { dryRun?: boolean }) => ({ dryRun: options?.dryRun === true, ok: true }));
   const app = express();
   app.use(express.json());
@@ -52,6 +69,7 @@ async function start() {
     orders,
     uploads,
     payments,
+    admin: adminService,
     maintenance: { run: maintenanceRun as unknown as ShopMaintenance['run'] },
     adminEmails: ['admin@studio.test'],
     // Il "token" è `email|provider|verificata`: basta a distinguere chi chiama.
@@ -92,7 +110,7 @@ async function start() {
     photoWaitDays: 7,
     shipping: { enabled: true, priceCents: 590, estimatedMinDays: 3, estimatedMaxDays: 6 },
   });
-  return { call, db, storage, paypal, maintenanceRun };
+  return { call, db, storage, paypal, maintenanceRun, sent };
 }
 
 const alice = 'alice@example.com';
@@ -336,5 +354,141 @@ describe('webhook PayPal e lavori periodici', () => {
     expect(ok.status).toBe(200);
     expect(await json(ok)).toMatchObject({ dryRun: true });
     expect((await call('/internal/maintenance', { json: { altro: 1 }, headers: { 'x-maintenance': 'ok' } })).status).toBe(400);
+  });
+});
+
+type Env = Awaited<ReturnType<typeof start>>;
+const ADMIN = 'admin@studio.test';
+
+/** Un ordine ritirabile in studio, con una foto caricata e già pagato, fatto passare dalle rotte del cliente. */
+async function paidOrder(env: Env, method: 'studio_pickup' | 'shipping' = 'studio_pickup') {
+  const { call, storage } = env;
+  let order = (await json(await call('/orders', { as: alice, json: { lines: [{ productId: 'mug', quantity: 1 }], customer: { name: 'Alice Verdi' } } }))).order;
+  if (method === 'shipping') {
+    order = (await json(await call(`/orders/${order.id}`, { method: 'PATCH', as: alice, json: { fulfillment: { method: 'shipping', shippingAddress: address }, billingDetails: billing } }))).order;
+  }
+  const data = await jpeg(2400, 1600);
+  const prepared = (await json(await call(`/orders/${order.id}/lines/${order.lines[0].lineId}/uploads/prepare`, { as: alice, json: { fileName: 'IMG 42.jpg', contentType: 'image/jpeg', sizeBytes: data.length } }))).upload;
+  storage.put(prepared.storagePath, data);
+  await call(`/orders/${order.id}/uploads/finalize`, { as: alice, json: { assetId: prepared.assetId } });
+  order = (await json(await call(`/orders/${order.id}`, { as: alice }))).order;
+  const pay = await json(await call(`/orders/${order.id}/paypal/create`, {
+    as: alice,
+    json: { termsAccepted: true, privacyAccepted: true, personalizedProductionAccepted: true, expectedQuoteFingerprint: order.quoteFingerprint, expectedTotalCents: order.totals.totalCents },
+  }));
+  await call(`/orders/${order.id}/paypal/capture`, { as: alice, json: { paypalOrderId: pay.paypalOrderId } });
+  return { orderId: order.id as string, assetId: prepared.assetId as string, data };
+}
+
+describe('gestione ordini dello studio', () => {
+  it('ogni rotta richiede accesso e un amministratore', async () => {
+    const { call } = await start();
+    const routes: Array<[string, RequestInit & { json?: unknown }]> = [
+      ['/admin/orders', {}],
+      ['/admin/orders/x', {}],
+      ['/admin/orders/x/status', { method: 'PATCH', json: { status: 'in_production' } }],
+      ['/admin/orders/x/notes', { method: 'PUT', json: { note: 'ciao' } }],
+      ['/admin/orders/x/notifications/resend', { json: { kind: 'order_confirmed' } }],
+      ['/admin/orders/x/assets/y/reject', { json: { reason: 'sfocata' } }],
+      ['/admin/orders/x/reactivate', { json: {} }],
+      ['/admin/orders/x/assets/y/preview', {}],
+      ['/admin/orders/x/assets/y/original', {}],
+      ['/admin/orders/x/photos.zip', {}],
+    ];
+    for (const [path, init] of routes) {
+      expect((await call(path, init)).status, `senza accesso ${path}`).toBe(401);
+      expect((await call(path, { ...init, as: alice })).status, `cliente ${path}`).toBe(403);
+    }
+  });
+
+  it("elenco e dettaglio mostrano l'ordine pagato, con dati che il cliente non vede", async () => {
+    const env = await start();
+    const { orderId } = await paidOrder(env);
+    const list = await json(await env.call('/admin/orders?view=active', { as: ADMIN }));
+    expect(list.orders).toHaveLength(1);
+    expect(list.orders[0]).toMatchObject({ id: orderId, customerName: 'Alice Verdi', fulfillmentStatus: 'photos_received', paymentStatus: 'paid', totalCents: 1500 });
+    expect((await json(await env.call('/admin/orders?view=drafts', { as: ADMIN }))).orders).toEqual([]);
+    expect((await json(await env.call('/admin/orders?view=active&q=nessuno', { as: ADMIN }))).orders).toEqual([]);
+    expect((await env.call('/admin/orders?view=boh', { as: ADMIN })).status).toBe(400);
+    const detail = (await json(await env.call(`/admin/orders/${orderId}`, { as: ADMIN }))).order;
+    expect(detail).toMatchObject({ customer: { email: alice }, payment: { amountCents: 1500, paypalCaptureId: 'CAP-1' }, allowedStatuses: ['in_production', 'cancelled'] });
+    expect(detail.legal).toMatchObject({ termsVersion: expect.any(String) });
+  });
+
+  it("porta l'ordine fino alla consegna con le regole del percorso", async () => {
+    const env = await start();
+    const { orderId } = await paidOrder(env);
+    const status = (body: unknown) => env.call(`/admin/orders/${orderId}/status`, { method: 'PATCH', as: ADMIN, json: body });
+    expect((await status({ status: 'delivered' })).status).toBe(409);
+    expect((await status({ status: 'sconosciuto' })).status).toBe(400);
+    expect((await status({ status: 'in_production', extra: 1 })).status).toBe(400);
+    expect((await json(await status({ status: 'in_production' }))).order.fulfillmentStatus).toBe('in_production');
+    const ready = await json(await status({ status: 'ready_for_pickup' }));
+    expect(ready.order.fulfillmentStatus).toBe('ready_for_pickup');
+    expect(env.sent.map(mail => mail.log.type)).toContain('shop_order_ready_for_pickup');
+    expect((await json(await status({ status: 'delivered' }))).order.fulfillmentStatus).toBe('delivered');
+    expect((await json(await env.call('/admin/orders?view=closed', { as: ADMIN }))).orders).toHaveLength(1);
+  });
+
+  it('per le spedizioni chiede il tracking e lo manda al cliente', async () => {
+    const env = await start();
+    const { orderId } = await paidOrder(env, 'shipping');
+    const status = (body: unknown) => env.call(`/admin/orders/${orderId}/status`, { method: 'PATCH', as: ADMIN, json: body });
+    await status({ status: 'in_production' });
+    const withoutTracking = await status({ status: 'shipped' });
+    expect(withoutTracking.status).toBe(400);
+    expect((await json(withoutTracking)).error.code).toBe('tracking_required');
+    const shipped = await json(await status({ status: 'shipped', tracking: { carrier: 'BRT', code: 'ABC123' } }));
+    expect(shipped.order.fulfillment.tracking).toEqual({ carrier: 'BRT', code: 'ABC123' });
+    const customerView = (await json(await env.call(`/orders/${orderId}`, { as: alice }))).order;
+    expect(customerView.fulfillment.tracking).toEqual({ carrier: 'BRT', code: 'ABC123' });
+    expect(customerView.fulfillmentStatus).toBe('shipped');
+  });
+
+  it('note interne, email da rifare e foto da sostituire', async () => {
+    const env = await start();
+    const { orderId, assetId } = await paidOrder(env);
+    const notes = await json(await env.call(`/admin/orders/${orderId}/notes`, { method: 'PUT', as: ADMIN, json: { note: 'Chiamare prima' } }));
+    expect(notes.order.adminNotes).toBe('Chiamare prima');
+    expect((await json(await env.call(`/orders/${orderId}`, { as: alice }))).order.adminNotes).toBeUndefined();
+    expect((await env.call(`/admin/orders/${orderId}/notifications/resend`, { as: ADMIN, json: { kind: 'admin_new_order' } })).status).toBe(400);
+    expect((await env.call(`/admin/orders/${orderId}/notifications/resend`, { as: ADMIN, json: { kind: 'order_confirmed' } })).status).toBe(200);
+    expect((await env.call(`/admin/orders/${orderId}/assets/${assetId}/reject`, { as: ADMIN, json: { reason: '' } })).status).toBe(400);
+    const rejected = await json(await env.call(`/admin/orders/${orderId}/assets/${assetId}/reject`, { as: ADMIN, json: { reason: 'È sfocata' } }));
+    expect(rejected.order).toMatchObject({ fulfillmentStatus: 'awaiting_photos', photosMissing: 1 });
+    expect(env.sent.map(mail => mail.log.type)).toContain('shop_order_photo_rejected');
+    const customerView = (await json(await env.call(`/orders/${orderId}`, { as: alice }))).order;
+    expect(customerView).toMatchObject({ canUploadPhotos: true, photosMissing: 1 });
+  });
+
+  it('anteprima, originale e archivio delle foto', async () => {
+    const env = await start();
+    const { orderId, assetId, data } = await paidOrder(env);
+    const preview = await env.call(`/admin/orders/${orderId}/assets/${assetId}/preview`, { as: ADMIN });
+    expect(preview.status).toBe(200);
+    expect(preview.headers.get('content-type')).toContain('image/jpeg');
+    const original = await env.call(`/admin/orders/${orderId}/assets/${assetId}/original`, { as: ADMIN });
+    expect(original.status).toBe(200);
+    expect(original.headers.get('content-disposition')).toBe('attachment; filename="IMG_42.jpg"');
+    expect(original.headers.get('cache-control')).toContain('no-store');
+    expect(Buffer.from(await original.arrayBuffer()).equals(data)).toBe(true);
+    const zip = await env.call(`/admin/orders/${orderId}/photos.zip`, { as: ADMIN });
+    expect(zip.status).toBe(200);
+    expect(zip.headers.get('content-type')).toBe('application/zip');
+    expect(zip.headers.get('content-disposition')).toMatch(/^attachment; filename="SH-2026-[A-Z0-9]{8}-foto\.zip"$/);
+    const bytes = Buffer.from(await zip.arrayBuffer());
+    expect(bytes.subarray(0, 2).toString()).toBe('PK');
+    expect(bytes.includes(Buffer.from('01-tazza-con-foto/01-IMG_42.jpg'))).toBe(true);
+    expect((await env.call(`/admin/orders/${orderId}/assets/nope/original`, { as: ADMIN })).status).toBe(404);
+  });
+
+  it("senza foto non c'è nulla da scaricare", async () => {
+    const env = await start();
+    const order = (await json(await env.call('/orders', { as: alice, json: { lines: [{ productId: 'card', quantity: 1 }] } }))).order;
+    const pay = await json(await env.call(`/orders/${order.id}/paypal/create`, { as: alice, json: { termsAccepted: true, privacyAccepted: true, expectedQuoteFingerprint: order.quoteFingerprint, expectedTotalCents: order.totals.totalCents } }));
+    await env.call(`/orders/${order.id}/paypal/capture`, { as: alice, json: { paypalOrderId: pay.paypalOrderId } });
+    const zip = await env.call(`/admin/orders/${order.id}/photos.zip`, { as: ADMIN });
+    expect(zip.status).toBe(404);
+    expect((await json(zip)).error.code).toBe('no_photos');
   });
 });

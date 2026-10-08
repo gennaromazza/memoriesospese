@@ -1,10 +1,13 @@
+import archiver from 'archiver';
 import express, { type RequestHandler } from 'express';
 import { z } from 'zod/v4';
-import { SHOP_MAX_CATEGORIES } from '@shared/shop-types';
+import { SHOP_MAX_CATEGORIES, SHOP_RESENDABLE_MAILS, SHOP_TRACKING_CARRIER_MAX, SHOP_TRACKING_CODE_MAX } from '@shared/shop-types';
 import { billingDetailsSchema, customerSchema, postalAddressSchema } from '../commerce/schemas.js';
+import { CommerceHttpError } from '../commerce/errors.js';
 import { configuredAdminEmails, identity, requireAdmin, route, setSensitiveHeaders } from '../commerce/http.js';
 import { resolvePrintUploadOrigin } from '../print-shop/upload-origin.js';
 import { uidRateLimiter } from '../print-shop/rate-limit.js';
+import type { ShopAdminService } from './admin.js';
 import type { ShopMaintenance } from './maintenance.js';
 import type { ShopOrderService } from './orders.js';
 import type { ShopPaymentService } from './payments.js';
@@ -16,6 +19,7 @@ export interface ShopRouterDependencies {
   orders: ShopOrderService;
   uploads: ShopUploadService;
   payments: ShopPaymentService;
+  admin: ShopAdminService;
   maintenance: Pick<ShopMaintenance, 'run'>;
   /** Verifica l'identità (token Firebase). */
   authenticate: RequestHandler;
@@ -88,6 +92,26 @@ const paypalCreateSchema = z.object({
 const paypalCaptureSchema = z.object({ paypalOrderId: z.string().trim().min(8).max(80).optional() }).strict();
 
 const maintenanceSchema = z.object({ dryRun: z.boolean().optional() }).strict();
+
+const adminListSchema = z.object({
+  view: z.enum(['active', 'attention', 'drafts', 'closed', 'all']).default('active'),
+  q: z.string().trim().max(100).optional(),
+});
+
+const adminStatusSchema = z.object({
+  status: z.enum(['in_production', 'ready_for_pickup', 'shipped', 'delivered', 'cancelled']),
+  note: z.string().trim().max(500).optional(),
+  tracking: z.object({
+    carrier: z.string().trim().max(SHOP_TRACKING_CARRIER_MAX).optional(),
+    code: z.string().trim().min(1).max(SHOP_TRACKING_CODE_MAX),
+  }).strict().optional(),
+}).strict();
+
+const adminNotesSchema = z.object({ note: z.string().max(2000) }).strict();
+const adminRejectPhotoSchema = z.object({ reason: z.string().trim().min(1).max(300) }).strict();
+const adminResendSchema = z.object({ kind: z.enum(SHOP_RESENDABLE_MAILS) });
+
+const asciiName = (value: string) => value.replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^\.+/, '').slice(0, 120) || 'file';
 
 export function createShopRouter(
   overrides: Partial<ShopRouterDependencies> & Omit<ShopRouterDependencies, 'adminEmails'>,
@@ -214,6 +238,71 @@ export function createShopRouter(
   router.put('/admin/settings', auth, admin, handle(async (req, res) => {
     const input = settingsSchema.parse(req.body);
     res.json({ settings: await deps.service.updateSettings(input) });
+  }));
+
+  router.get('/admin/orders', auth, admin, handle(async (req, res) => {
+    const query = adminListSchema.parse({ view: req.query.view, q: typeof req.query.q === 'string' ? req.query.q : undefined });
+    setSensitiveHeaders(res);
+    res.json({ orders: await deps.admin.listOrders(query) });
+  }));
+
+  router.get('/admin/orders/:orderId', auth, admin, handle(async (req, res) => {
+    setSensitiveHeaders(res);
+    res.json({ order: await deps.admin.getOrder(req.params.orderId) });
+  }));
+
+  router.patch('/admin/orders/:orderId/status', auth, admin, handle(async (req, res) => {
+    const input = adminStatusSchema.parse(req.body);
+    res.json({ order: await deps.admin.updateStatus(req.params.orderId, identity(req).email, input) });
+  }));
+
+  router.put('/admin/orders/:orderId/notes', auth, admin, handle(async (req, res) => {
+    const input = adminNotesSchema.parse(req.body);
+    res.json({ order: await deps.admin.setAdminNotes(req.params.orderId, input.note) });
+  }));
+
+  router.post('/admin/orders/:orderId/notifications/resend', auth, admin, handle(async (req, res) => {
+    const input = adminResendSchema.parse(req.body);
+    res.json({ order: await deps.admin.resendNotification(req.params.orderId, input.kind) });
+  }));
+
+  router.post('/admin/orders/:orderId/assets/:assetId/reject', auth, admin, handle(async (req, res) => {
+    const input = adminRejectPhotoSchema.parse(req.body);
+    res.json({ order: await deps.admin.requestNewPhoto(req.params.orderId, req.params.assetId, identity(req).email, input.reason) });
+  }));
+
+  router.post('/admin/orders/:orderId/reactivate', auth, admin, handle(async (req, res) => {
+    res.json({ order: await deps.admin.reactivate(req.params.orderId, identity(req).email) });
+  }));
+
+  router.get('/admin/orders/:orderId/assets/:assetId/preview', auth, admin, handle(async (req, res) => {
+    const preview = await deps.uploads.adminPreview(req.params.orderId, req.params.assetId);
+    setSensitiveHeaders(res);
+    res.type(preview.contentType).send(preview.body);
+  }));
+
+  router.get('/admin/orders/:orderId/assets/:assetId/original', auth, admin, handle(async (req, res) => {
+    const original = await deps.uploads.adminOriginal(req.params.orderId, req.params.assetId);
+    setSensitiveHeaders(res);
+    res.setHeader('Content-Disposition', `attachment; filename="${asciiName(original.fileName)}"`);
+    res.type(original.contentType).send(original.body);
+  }));
+
+  router.get('/admin/orders/:orderId/photos.zip', auth, admin, handle(async (req, res) => {
+    const { orderNumber, entries } = await deps.admin.archiveEntries(req.params.orderId);
+    if (entries.length === 0) throw new CommerceHttpError(404, 'no_photos', 'Questo ordine non ha foto da scaricare');
+    setSensitiveHeaders(res);
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${asciiName(orderNumber)}-foto.zip"`);
+    // Le fotografie sono già compresse: l'archivio le raccoglie senza ricomprimerle.
+    const archive = archiver('zip', { zlib: { level: 0 } });
+    archive.on('error', error => res.destroy(error));
+    archive.pipe(res);
+    for (const entry of entries) {
+      const original = await deps.uploads.adminOriginal(req.params.orderId, entry.assetId);
+      archive.append(original.body, { name: entry.name });
+    }
+    await archive.finalize();
   }));
 
   return router;

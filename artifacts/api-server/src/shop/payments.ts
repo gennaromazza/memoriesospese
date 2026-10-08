@@ -839,7 +839,7 @@ export class ShopPaymentService {
         ...(cancels
           ? { fulfillment: { ...order.fulfillment, status: 'cancelled', cancelledAt: now }, stato: 'annullato', retention: cancelledRetention(now, 'refunded') }
           : {}),
-        ...(fullRefund && goodsOut ? { shop: { ...(order.shop || {}), refundedAfterShipping: true } } : {}),
+        ...(fullRefund ? { shop: { ...(order.shop || {}), refundPending: false, ...(goodsOut ? { refundedAfterShipping: true } : {}) } } : {}),
         updatedAt: now,
       });
       transaction.set(cashRef, {

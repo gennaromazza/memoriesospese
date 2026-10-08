@@ -4,6 +4,7 @@ import { requireVerifiedCustomer } from '../commerce/http.js';
 import { authenticatePrintShop } from '../print-shop/auth.js';
 import { createMaintenanceOidcMiddleware } from '../print-shop/maintenance-auth.js';
 import { PayPalOrdersClient, loadPayPalOrdersConfig } from '../print-shop/paypal-orders.js';
+import { ShopAdminService } from './admin.js';
 import { ShopMailer } from './mail.js';
 import { ShopMaintenance } from './maintenance.js';
 import { ShopOrderService } from './orders.js';
@@ -80,6 +81,7 @@ export const shopPayments = new ShopPaymentService({
 });
 
 export const shopMailer = mailer;
+const shopAdmin = new ShopAdminService({ db, mailer, uploads: shopUploads, shop: shopService });
 const maintenance = new ShopMaintenance({ db, storage, mailer });
 
 /** Lavori periodici dello shop: da chiamare dal giro orario del server. */
@@ -92,6 +94,7 @@ const shopRoutes = createShopRouter({
   orders: shopOrders,
   uploads: shopUploads,
   payments: shopPayments,
+  admin: shopAdmin,
   maintenance,
   authenticate: authenticatePrintShop,
   verifiedCustomer: requireVerifiedCustomer,

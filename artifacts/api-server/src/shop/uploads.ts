@@ -266,6 +266,19 @@ export class ShopUploadService {
     return { body, contentType: 'image/jpeg', fileName: cleanText(asset.originalName, 255) || `${assetId}.jpg` };
   }
 
+  /** Lo studio toglie una foto che non è adatta: il cliente ne caricherà un'altra. */
+  async adminRemove(orderId: string, assetId: string): Promise<{ lineId: string; originalName: string }> {
+    assertDocumentId(orderId, 'orderId');
+    assertDocumentId(assetId, 'assetId');
+    const assetRef = this.assetsOf(orderId).doc(assetId);
+    const snapshot = await assetRef.get();
+    const asset = snapshot.exists ? snapshot.data() : undefined;
+    if (!asset) throw new CommerceHttpError(404, 'asset_not_found', 'Fotografia non trovata');
+    await this.deleteFile(asset.storagePath);
+    await assetRef.delete();
+    return { lineId: String(asset.lineId || ''), originalName: String(asset.originalName || '') };
+  }
+
   /** Toglie file e documenti delle foto di alcune righe (righe tolte dal carrello). */
   async removeForLines(orderId: string, lineIds: readonly string[]): Promise<void> {
     if (lineIds.length === 0) return;

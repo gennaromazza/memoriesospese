@@ -6,6 +6,7 @@ export type ShopCustomerMailKind =
   | 'order_confirmed'
   | 'photos_reminder'
   | 'photos_received'
+  | 'photo_rejected'
   | 'ready_for_pickup'
   | 'shipped'
   | 'delivered'
@@ -168,6 +169,19 @@ export function shopMailContent(kind: ShopMailKind, order: any, ctx: ShopMailCon
         subject: `Ordine ${order.orderNumber}: abbiamo tutte le foto`,
         html: layout(ctx, 'Foto ricevute, grazie!', `<p style="font-size:15px;line-height:1.6">Abbiamo ricevuto tutte le foto dell'ordine <strong>${number}</strong>. Ora iniziamo a lavorare il tuo regalo.</p>`),
       };
+    case 'photo_rejected': {
+      const reason = escapeHtml(order.shop?.lastPhotoRejection?.reason || '');
+      return {
+        subject: `Ordine ${order.orderNumber}: ci serve un'altra foto`,
+        html: layout(
+          ctx,
+          `${name}, ci serve un'altra foto`,
+          `<p style="font-size:15px;line-height:1.6">Per l'ordine <strong>${number}</strong> una delle foto che hai caricato non è adatta${reason ? `: ${reason}` : ''}.</p>
+           <p style="font-size:15px;line-height:1.6">Caricane un'altra${deadline ? ` entro il <strong>${escapeHtml(deadline)}</strong>` : ' appena puoi'}: riprendiamo a lavorare il prodotto appena l'abbiamo.</p>
+           ${button(ordersLink(order, ctx), 'Carica la nuova foto')}`,
+        ),
+      };
+    }
     case 'ready_for_pickup':
       return {
         subject: `Ordine ${order.orderNumber}: è pronto per il ritiro`,

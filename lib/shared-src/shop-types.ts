@@ -241,3 +241,100 @@ export function shopPhotosMissing(
   }
   return missing;
 }
+
+// ---------------------------------------------------------------------------
+// Gestione ordini (studio)
+// ---------------------------------------------------------------------------
+
+/** Come l'ordine si raggruppa nell'elenco dello studio. */
+export type ShopAdminView = 'active' | 'attention' | 'drafts' | 'closed' | 'all';
+
+export interface ShopAdminOrderSummaryDto {
+  id: string;
+  orderNumber: string;
+  createdAt: string | null;
+  paidAt: string | null;
+  customerName: string;
+  customerEmail: string;
+  fulfillmentStatus: ShopFulfillmentStatus;
+  paymentStatus: ShopPaymentStatus;
+  method: ShopFulfillmentMethod;
+  totalCents: number;
+  lineCount: number;
+  /** Foto che mancano; null quando non serve saperlo (ordine già avviato o chiuso). */
+  photosMissing: number | null;
+  photoDeadlineAt: string | null;
+  photoOverdue: boolean;
+  /** C'è qualcosa che lo studio deve guardare: pagamento da verificare, foto in ritardo, rimborso dopo la spedizione. */
+  needsAttention: boolean;
+}
+
+export interface ShopAdminHistoryEntry {
+  at: string | null;
+  by: string;
+  from: ShopFulfillmentStatus;
+  to: ShopFulfillmentStatus;
+  note: string | null;
+}
+
+export interface ShopAdminNotificationDto {
+  key: string;
+  kind: string;
+  status: 'sending' | 'sent' | 'failed';
+  attempts: number;
+  sentAt: string | null;
+  lastError: string | null;
+}
+
+export interface ShopAdminOrderDto extends ShopAdminOrderSummaryDto {
+  customer: { name: string; email: string; phone: string | null };
+  customerNotes: string | null;
+  adminNotes: string | null;
+  lines: Array<ShopOrderLineDto & { photos: ShopAssetDto[]; photosMissing: number }>;
+  totals: { subtotalCents: number; shippingCents: number; totalCents: number };
+  fulfillment: {
+    shippingAddress: PrintShopPostalAddress | null;
+    tracking: { carrier: string; code: string } | null;
+    readyAt: string | null;
+    shippedAt: string | null;
+    deliveredAt: string | null;
+  };
+  billingDetails: PrintShopBillingDetails | null;
+  payment: {
+    amountCents: number;
+    paypalFeeCents: number;
+    netAmountCents: number;
+    refundedCents: number;
+    paypalOrderId: string | null;
+    paypalCaptureId: string | null;
+    reconciliationRequired: boolean;
+    reconciliationReason: string | null;
+  };
+  legal: { acceptedAt: string | null; termsVersion: string | null; manifestHash: string | null } | null;
+  notifications: ShopAdminNotificationDto[];
+  history: ShopAdminHistoryEntry[];
+  refundedAfterShipping: boolean;
+  /** Ordine annullato dallo studio e già pagato: il rimborso va fatto da PayPal. */
+  refundPending: boolean;
+  /** Stati in cui lo studio può portare l'ordine adesso. */
+  allowedStatuses: ShopFulfillmentStatus[];
+  /** Un pagamento arrivato su un ordine annullato: lo studio può decidere di tenerlo. */
+  canReactivate: boolean;
+  /** Si può chiedere una foto nuova al cliente. */
+  canRequestNewPhoto: boolean;
+}
+
+/** Email che lo studio può far ripartire a mano. */
+export const SHOP_RESENDABLE_MAILS = [
+  'order_confirmed',
+  'photos_reminder',
+  'ready_for_pickup',
+  'shipped',
+  'delivered',
+  'cancelled',
+  'refunded',
+] as const;
+export type ShopResendableMail = typeof SHOP_RESENDABLE_MAILS[number];
+
+export const SHOP_TRACKING_CARRIER_MAX = 60;
+export const SHOP_TRACKING_CODE_MAX = 100;
