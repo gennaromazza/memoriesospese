@@ -2,6 +2,8 @@ import { Readable } from 'node:stream';
 
 function clone<T>(value: T): T {
   if (value === undefined) return value;
+  // Firestore conserva le date: il finto database non deve trasformarle in oggetti vuoti.
+  if (value instanceof Date) return value;
   if (value && typeof (value as any).toDate === 'function') return value;
   if (value && typeof (value as any).toMillis === 'function') return value;
   if (Array.isArray(value)) return value.map(clone) as T;

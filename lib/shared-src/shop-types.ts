@@ -5,7 +5,7 @@
  * categorie scelte nelle impostazioni dello shop. Gli importi sono sempre in
  * centesimi e li calcola solo il server.
  */
-import type { PrintShopShippingConfig } from './print-shop-types';
+import type { PrintShopDeliveryMethod, PrintShopPostalAddress, PrintShopBillingDetails, PrintShopShippingConfig } from './print-shop-types';
 
 export const SHOP_ORDER_TYPE = 'shop' as const;
 export const SHOP_CURRENCY = 'EUR' as const;
@@ -116,4 +116,128 @@ export function shopPriceCents(prezzo: unknown, sconto: unknown): { priceCents: 
 /** Importo in centesimi come testo per il cliente, per esempio "19,90 €". */
 export function formatShopPrice(cents: number): string {
   return new Intl.NumberFormat('it-IT', { style: 'currency', currency: SHOP_CURRENCY }).format(cents / 100);
+}
+
+// ---------------------------------------------------------------------------
+// Ordini
+// ---------------------------------------------------------------------------
+
+/** Righe del carrello per ordine e quantità massima di un prodotto senza foto. */
+export const SHOP_MAX_LINES = 20;
+export const SHOP_MAX_QUANTITY = 20;
+/** Fotografie: limite per file e per ordine. */
+export const SHOP_MAX_PHOTO_BYTES = 30 * 1024 * 1024;
+export const SHOP_MAX_PHOTOS_PER_ORDER = 200;
+/** Sotto questo lato lungo (pixel) avvisiamo che la foto potrebbe venire sfocata. */
+export const SHOP_LOW_RESOLUTION_PX = 1200;
+
+export type ShopFulfillmentMethod = PrintShopDeliveryMethod;
+
+/**
+ * Stato di lavorazione. Prima del pagamento: `draft`, `awaiting_payment`.
+ * Dopo: `awaiting_photos` (mancano foto), `photos_received` (si può lavorare),
+ * `in_production`, poi `ready_for_pickup` oppure `shipped`, infine `delivered`.
+ * Un rimborso totale o un annullamento portano a `cancelled`.
+ */
+export type ShopFulfillmentStatus =
+  | 'draft'
+  | 'awaiting_payment'
+  | 'awaiting_photos'
+  | 'photos_received'
+  | 'in_production'
+  | 'ready_for_pickup'
+  | 'shipped'
+  | 'delivered'
+  | 'cancelled';
+
+export type ShopPaymentStatus =
+  | 'pending'
+  | 'paid'
+  | 'failed'
+  | 'partially_refunded'
+  | 'refunded'
+  | 'paid_action_required';
+
+/** Stati in cui carrello, consegna e prezzi si possono ancora cambiare. */
+export const SHOP_EDITABLE_STATUSES: readonly ShopFulfillmentStatus[] = ['draft', 'awaiting_payment'];
+
+export interface ShopOrderLineInput {
+  /** Presente solo per righe già nell'ordine: serve a non perdere le foto collegate. */
+  lineId?: string;
+  productId: string;
+  quantity: number;
+}
+
+export interface ShopOrderLineDto {
+  lineId: string;
+  productId: string;
+  productName: string;
+  categoria: string;
+  unitPriceCents: number;
+  listPriceCents: number;
+  discountPercent: number;
+  quantity: number;
+  /** Foto richieste per questa riga (0 = nessuna). */
+  photosRequired: number;
+  lineTotalCents: number;
+}
+
+export interface ShopAssetDto {
+  id: string;
+  lineId: string;
+  originalName: string;
+  status: 'prepared' | 'ready' | 'purged';
+  widthPx: number | null;
+  heightPx: number | null;
+  sizeBytes: number;
+  lowResolution: boolean;
+}
+
+export interface ShopQuoteDto {
+  currency: typeof SHOP_CURRENCY;
+  lines: ShopOrderLineDto[];
+  totals: { subtotalCents: number; shippingCents: number; totalCents: number };
+  fulfillmentMethod: ShopFulfillmentMethod;
+  /** Impronta del riepilogo: il cliente la rimanda al pagamento per confermare ciò che ha visto. */
+  fingerprint: string;
+}
+
+export interface ShopOrderDto {
+  id: string;
+  orderNumber: string;
+  createdAt: string | null;
+  paidAt: string | null;
+  fulfillmentStatus: ShopFulfillmentStatus;
+  paymentStatus: ShopPaymentStatus;
+  lines: Array<ShopOrderLineDto & { photos: ShopAssetDto[]; photosMissing: number }>;
+  photosMissing: number;
+  /** Data entro cui servono le foto, dopo il pagamento. */
+  photoDeadlineAt: string | null;
+  totals: ShopQuoteDto['totals'];
+  quoteFingerprint: string | null;
+  fulfillment: {
+    method: ShopFulfillmentMethod;
+    shippingAddress: PrintShopPostalAddress | null;
+    tracking: { carrier: string; code: string } | null;
+  };
+  billingDetails: PrintShopBillingDetails | null;
+  customer: { name: string; email: string; phone: string | null };
+  customerNotes: string | null;
+  /** Il cliente può ancora cambiare carrello, consegna e dati. */
+  canEdit: boolean;
+  /** Il cliente può caricare o togliere fotografie. */
+  canUploadPhotos: boolean;
+}
+
+/** Foto ancora mancanti per le righe, contando solo quelle pronte. */
+export function shopPhotosMissing(
+  lines: ReadonlyArray<{ lineId: string; photosRequired: number }>,
+  assets: ReadonlyArray<{ lineId: string; status: string }>,
+): number {
+  let missing = 0;
+  for (const line of lines) {
+    const ready = assets.filter(asset => asset.lineId === line.lineId && asset.status === 'ready').length;
+    missing += Math.max(0, line.photosRequired - ready);
+  }
+  return missing;
 }
