@@ -73,3 +73,27 @@ export function configuredAdminEmails(
     .filter(Boolean);
   return [...new Set([...DEFAULT_ADMIN_EMAILS, ...fromEnv])];
 }
+
+/**
+ * Chi compra deve accedere con Google (email verificata) oppure con email e
+ * password. Stesso criterio del negozio stampe, senza dipendere da Firebase.
+ */
+export function requireVerifiedCustomer(req: any, res: Response, next: NextFunction) {
+  const provider = req.user?.provider;
+  if (provider === 'google.com' && req.user?.emailVerified !== true) {
+    res.status(403).json({ error: { code: 'email_not_verified', message: 'Verifica il tuo indirizzo email' } });
+    return;
+  }
+  if (provider !== 'google.com' && provider !== 'password') {
+    res.status(403).json({ error: { code: 'unsupported_auth_provider', message: 'Accedi con Google oppure con email e password' } });
+    return;
+  }
+  next();
+}
+
+export function setSensitiveHeaders(res: Response): void {
+  res.setHeader('Cache-Control', 'private, no-store, max-age=0');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+}
