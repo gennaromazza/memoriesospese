@@ -42,6 +42,9 @@ const EMPTY_DRAFT: DraftFields = {
 
 function readableError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error || 'Errore sconosciuto');
+  if (/<!doctype html|<html[\s>]|we couldn'?t reach this app/i.test(raw)) {
+    return 'La connessione con il server si è interrotta durante l’operazione. La bozza corrente è rimasta invariata: riprova.';
+  }
   try {
     const jsonStart = raw.indexOf('{');
     if (jsonStart >= 0) {

@@ -1544,10 +1544,33 @@ router.put('/gallery/:galleryId/selection', async (req: Request, res: Response) 
 });
 
 router.post('/gallery/:galleryId/generate', async (req: Request, res: Response) => {
+  // La generazione può richiedere diversi minuti (ricerca fornitori, download
+  // foto e fino a tre revisioni Gemini). In preview/proxy una risposta senza
+  // byte per troppo tempo può essere sostituita da una pagina HTML di errore.
+  // Inviamo solo whitespace JSON-valido come heartbeat: response.json() lo
+  // ignora, mentre la connessione resta attiva fino al payload conclusivo.
+  res.status(200);
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, no-transform');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+  const heartbeat = setInterval(() => {
+    if (!res.writableEnded && !res.destroyed) {
+      res.write(' \n');
+      (res as Response & { flush?: () => void }).flush?.();
+    }
+  }, 10_000);
+
   try {
     const gallery = await loadGallery(req.params.galleryId);
-    if (!gallery) return res.status(404).json({ error: 'Galleria non trovata' });
-    if (!isWeddingGallery(gallery)) return res.status(400).json({ error: 'Questa non è una galleria matrimonio.' });
+    if (!gallery) {
+      res.end(JSON.stringify({ error: 'Galleria non trovata' }));
+      return;
+    }
+    if (!isWeddingGallery(gallery)) {
+      res.end(JSON.stringify({ error: 'Questa non è una galleria matrimonio.' }));
+      return;
+    }
     const selectedSourceIds: string[] = Array.from(new Set<string>(
       Array.isArray(req.body?.selectedSourceIds) ? req.body.selectedSourceIds.map((value: unknown) => String(value)) : [],
     )).slice(0, MAX_SOURCES);
@@ -1558,24 +1581,30 @@ router.post('/gallery/:galleryId/generate', async (req: Request, res: Response) 
     const sourceMap = new Map(availableSources.filter(source => source.consentGranted).map(source => [source.id, source]));
     const sources = selectedSourceIds.map(id => sourceMap.get(id)).filter(Boolean) as WeddingStorySource[];
     if (sources.length !== selectedSourceIds.length) {
-      return res.status(400).json({ error: 'Sono state selezionate risposte prive di consenso editoriale.' });
+      res.end(JSON.stringify({ error: 'Sono state selezionate risposte prive di consenso editoriale.' }));
+      return;
     }
     const photos = await loadSelectedPhotos(gallery, selectedPhotoIds);
     if (photos.length !== selectedPhotoIds.length) {
-      return res.status(400).json({ error: 'La selezione contiene fotografie non valide.' });
+      res.end(JSON.stringify({ error: 'La selezione contiene fotografie non valide.' }));
+      return;
     }
     if (sources.length === 0 && photos.length === 0) {
-      return res.status(400).json({ error: 'Seleziona almeno una risposta autorizzata o una fotografia.' });
+      res.end(JSON.stringify({ error: 'Seleziona almeno una risposta autorizzata o una fotografia.' }));
+      return;
     }
     const jobFacts = await loadWeddingEditorialJobFacts(gallery.jobId);
     const draft = await generateWeddingDraftWithGemini({ gallery, sources, photos, jobFacts });
-    return res.json({ draft });
+    res.end(JSON.stringify({ draft }));
   } catch (error) {
     console.error('[wedding-seo] generate:', error);
     if (error instanceof WeddingAiGenerationError) {
-      return res.status(error.httpStatus).json({ error: error.message });
+      res.end(JSON.stringify({ error: error.message }));
+      return;
     }
-    return res.status(500).json({ error: 'La generazione IA non è riuscita. La bozza corrente è rimasta invariata.' });
+    res.end(JSON.stringify({ error: 'La generazione IA non è riuscita. La bozza corrente è rimasta invariata.' }));
+  } finally {
+    clearInterval(heartbeat);
   }
 });
 

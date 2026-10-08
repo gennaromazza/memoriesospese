@@ -71,7 +71,14 @@ export async function generateWeddingStoryDraft(
     `/api/wedding-seo/gallery/${encodeURIComponent(galleryId)}/generate`,
     { selectedSourceIds, selectedPhotoIds },
   );
-  const data = await responseJson<{ draft: Pick<WeddingSeoStory, 'title' | 'excerpt' | 'story' | 'seoTitle' | 'seoDescription'> }>(response);
+  const data = await responseJson<{
+    draft?: Pick<WeddingSeoStory, 'title' | 'excerpt' | 'story' | 'seoTitle' | 'seoDescription'>;
+    error?: string;
+  }>(response);
+  if (data.error) throw new Error(data.error);
+  if (!data.draft) {
+    throw new Error('La generazione IA non ha restituito una bozza valida. Riprova.');
+  }
   return data.draft;
 }
 
