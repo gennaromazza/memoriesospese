@@ -1,5 +1,5 @@
 - [Calendar SA fallback & fail-closed](calendar-sa-fallback-failclosed.md) — auth Calendar con fallback FIREBASE_ADMIN_CREDENTIALS; disponibilità mai fail-open: CALENDAR_UNAVAILABLE → 503, sync guard salta.
-- [Push GitHub via connector token](github-push-connector-token.md) — git shell senza credenziali: token dal connector GitHub in sandbox + GIT_ASKPASS; force push ok.
+- [GitHub sync senza riscrivere main](github-push-connector-token.md) — confronta gli alberi prima della cronologia; per backup divergenti crea uno snapshot via API e non fare force push senza consenso esplicito.
 - [FIREBASE_ADMIN_CREDENTIALS formato doppio](firebase-admin-credentials-format.md) — secret JSON puro O base64: parsing dual-format ovunque; 16 UNAUTHENTICATED diffuso = chiave revocata da Google.
 - [OCR documenti Tesseract rimosso](document-ocr-tesseract.md) — route server, dialog client e dipendenza tesseract.js eliminati; shared/document-ocr.ts conservato per decodeCodiceFiscale/cfSurnameCode/cfNameCode ancora usati.
 - [Esclusione capitoli dalla selezione](chapter-selection-exclusion.md) — flag sul capitolo, non sulla galleria; enforcement in più punti di Gallery.tsx (toggle, prodotti, save, sanificazione, lightbox) da tenere allineati.

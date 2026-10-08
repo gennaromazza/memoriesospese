@@ -1,12 +1,9 @@
 ---
-name: Push GitHub via connector token
-description: Come fare git push dal workspace quando il git shell non ha credenziali
+name: GitHub sync without rewriting main
+description: Sincronizzare un ramo Replit molto divergente da GitHub senza sovrascrivere la cronologia remota
 ---
-Il git shell del workspace NON ha credenziali GitHub (push → "Invalid username or token"); la connessione GitHub del pannello Git di Replit non è usabile dall'agente, e non esiste una callback `gitPush`.
+Quando la cronologia del branch Replit è molto divergente ma l'albero dei file differisce poco da GitHub, un normale pull/push può fallire o tentare di trasferire migliaia di commit di pubblicazione. Il connector GitHub espone l'API REST via `proxyFetch`; non presumere che il token sia leggibile da `settings` e non stamparlo né esportarlo.
 
-**Come fare push:** proporre/usare il connector GitHub (`listConnections('github')` in "use impure"), leggere `conn.settings.access_token` SOLO dentro il sandbox (mai stamparlo), e lanciare `git push` con GIT_ASKPASS script che risponde `x-access-token` / token. Funziona anche `--force`.
+**Why:** il protocollo Git e le cronologie Replit possono divergere anche quando il codice corrente è quasi identico; riscrivere `main` rischia di cancellare commit GitHub, mentre includere file temporanei o screenshot può caricare materiale non desiderato.
 
-**Why:** il proxy connectors non copre il protocollo git; serve il token nell'askpass ma deve restare nel sandbox.
-**How to apply:** ogni volta che serve un push/pull autenticato verso GitHub dall'agente.
-
-Nota storica (ago 2026): dopo la pulizia della cronologia (.env con chiavi), `main` su GitHub è stato sovrascritto con force push; rami residui da cancellare lato utente: `main-clean`, `snyk-fix-*`. Tag locale `backup-pre-purge` + remote `gitsafe-backup` come backup.
+**How to apply:** prima di sincronizzare, identifica il branch realmente attivo, confronta il tree con il ref GitHub aggiornato e controlla i file aggiunti/eliminati. Se l'utente vuole solo un backup, crea un nuovo branch GitHub con un commit snapshot basato sul ref remoto, includendo codice e asset necessari ma escludendo cache e allegati non richiesti. Mantieni `main` intatto; per una riscrittura della cronologia chiedi consenso esplicito.
