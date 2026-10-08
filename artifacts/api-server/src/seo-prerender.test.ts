@@ -370,7 +370,7 @@ describe('pagina regalo /regala', () => {
     await withFlag('true', async () => {
       const { response } = await renderForCrawler('/regala');
       const html = response.body ?? '';
-      expect(html).toContain('Idee regalo di Natale: gift card foto e tela | Image Studio');
+      expect(html).toContain('Idee regalo di Natale: foto, stampe e tele | Image Studio');
       expect(html).toContain('<link rel="canonical" href="https://imagestudiofotografico.com/regala"');
       expect(html).toContain('<h1>Idee regalo di Natale: regala un ricordo che resta</h1>');
       const blocks = [...html.matchAll(/<script type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)].map(match => JSON.parse(match[1]));
@@ -408,9 +408,9 @@ describe('pagina «Come funziona» delle gift card', () => {
     await withFlag('true', async () => {
       const { response } = await renderForCrawler('/regala/come-funziona');
       const html = response.body ?? '';
-      expect(html).toContain('Come funziona la gift card Image Studio | Idee regalo');
+      expect(html).toContain('Come funziona il regalo Image Studio | Idee regalo');
       expect(html).toContain('<link rel="canonical" href="https://imagestudiofotografico.com/regala/come-funziona"');
-      expect(html).toContain('<h1>Come funziona la gift card</h1>');
+      expect(html).toContain('<h1>Come funziona il regalo</h1>');
       const blocks = [...html.matchAll(/<script type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)].map(match => JSON.parse(match[1])).flat();
       const crumbs = blocks.find((entry: any) => entry['@type'] === 'BreadcrumbList');
       expect(crumbs.itemListElement.map((item: any) => item.name)).toEqual(['Home', 'Idee regalo di Natale', 'Come funziona']);

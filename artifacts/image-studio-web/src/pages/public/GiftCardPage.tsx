@@ -56,7 +56,7 @@ export default function GiftCardPage() {
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useSEO({
-    title: `${studioSettings.name || 'Image Studio'} | La tua gift card`,
+    title: `${studioSettings.name || 'Image Studio'} | Il tuo regalo`,
     description: 'Apri il tuo regalo e scegli il giorno del tuo shooting.',
     canonical: `/regalo/${code}`,
     noindex: true,
@@ -96,7 +96,7 @@ export default function GiftCardPage() {
     const notFound = query.error instanceof GiftCardApiError && query.error.status === 404;
     content = (
       <div className="gcx-stage">
-        <h1>{notFound ? 'Non troviamo questa gift card' : 'Qualcosa non ha funzionato'}</h1>
+        <h1>{notFound ? 'Non troviamo questo regalo' : 'Qualcosa non ha funzionato'}</h1>
         <p className="gcx-note">
           {notFound
             ? 'Controlla di aver letto bene il QR o il codice. Se il problema resta, scrivici.'
