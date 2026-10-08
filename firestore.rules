@@ -231,7 +231,9 @@ service cloud.firestore {
     // Settings collection (new structure)
     match /settings/{documentId} {
       allow read: if true; // Ospiti possono leggere le informazioni dello studio
-      allow write: if isAdmin(); // Solo admin può modificare le impostazioni
+      // Solo admin può modificare le impostazioni. Le impostazioni dello shop
+      // online (settings/shop) si scrivono soltanto dal server, che le valida.
+      allow write: if isAdmin() && documentId != 'shop';
     }
 
     // ====== QUESTIONARIO SYSTEM RULES ======

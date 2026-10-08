@@ -33,6 +33,7 @@ import {
   Printer,
   Send,
   Gift,
+  ShoppingBag,
 } from "lucide-react";
 
 /**
@@ -283,6 +284,13 @@ export const ADMIN_NAV_GROUPS: NavGroup[] = [
     icon: Gift,
     tabs: ["gift-card"],
     target: { tab: "gift-card" },
+  },
+  {
+    id: "shop-online",
+    label: "Shop online",
+    icon: ShoppingBag,
+    tabs: ["shop-online"],
+    target: { tab: "shop-online" },
   },
   {
     id: "impostazioni",

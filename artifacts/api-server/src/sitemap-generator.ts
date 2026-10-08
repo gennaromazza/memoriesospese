@@ -168,7 +168,11 @@ export function buildStaticSitemapEntries(
         { path: '/regala/come-funziona', changefreq: 'monthly', priority: '0.7', lastmod: '2026-10-07' },
       ]
     : [];
-  for (const page of [...STATIC_SITEMAP_PAGES, ...giftPages]) {
+  // La vetrina dello shop entra nella mappa con il suo interruttore.
+  const shopPages = process.env.SHOP_INDEXABLE === 'true'
+    ? [{ path: '/shop-natale', changefreq: 'weekly', priority: '0.9', lastmod: '2026-10-08' }]
+    : [];
+  for (const page of [...STATIC_SITEMAP_PAGES, ...giftPages, ...shopPages]) {
     entries += `  <url>
     <loc>${baseUrl}${page.path}</loc>
     <lastmod>${page.lastmod}</lastmod>

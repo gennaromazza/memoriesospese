@@ -62,6 +62,24 @@ describe('Static sitemap', () => {
   });
 });
 
+describe('Sitemap della vetrina shop', () => {
+  const original = process.env.SHOP_INDEXABLE;
+  afterEach(() => {
+    if (original === undefined) delete process.env.SHOP_INDEXABLE;
+    else process.env.SHOP_INDEXABLE = original;
+  });
+
+  it('non elenca la vetrina finché è nascosta a Google', () => {
+    delete process.env.SHOP_INDEXABLE;
+    expect(buildStaticSitemapEntries('https://example.test')).not.toContain('/shop-natale');
+  });
+
+  it('la elenca quando viene aperta a Google', () => {
+    process.env.SHOP_INDEXABLE = 'true';
+    expect(buildStaticSitemapEntries('https://example.test')).toContain('<loc>https://example.test/shop-natale</loc>');
+  });
+});
+
 describe('Sitemap delle pagine regalo', () => {
   const original = process.env.GIFT_SHOP_INDEXABLE;
   afterEach(() => {

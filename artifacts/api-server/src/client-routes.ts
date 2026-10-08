@@ -18,6 +18,7 @@ const PUBLIC_STATIC_PATHS = new Set([
   '/consulenze',
   '/regala',
   '/regala/come-funziona',
+  '/shop-natale',
 ]);
 
 const PORTFOLIO_CATEGORIES = new Set([
@@ -49,6 +50,11 @@ function isGiftShopHidden(path: string): boolean {
   return (path === '/regala' || path === '/regala/come-funziona') && process.env.GIFT_SHOP_INDEXABLE !== 'true';
 }
 
+/** La vetrina dello shop si apre a Google solo con SHOP_INDEXABLE=true: fino ad allora resta raggiungibile ma non indicizzata. */
+function isShopHidden(path: string): boolean {
+  return path === '/shop-natale' && process.env.SHOP_INDEXABLE !== 'true';
+}
+
 /**
  * Route groups that carry a customer, gallery or collaborator token.
  * They must remain reachable by the SPA but must never be indexed.
@@ -74,6 +80,7 @@ export function isPrivateClientPath(pathname: string): boolean {
     || hasOneSegmentAfter('/modulo', path)
     || hasOneSegmentAfter('/regalo', path)
     || isGiftShopHidden(path)
+    || isShopHidden(path)
     || hasTwoSegmentsAfter('/collaboratori/assignment', path)
     || hasOneSegmentAfter('/collaboratori/dashboard', path)
     || path === '/stampa-foto-aversa/ordine'

@@ -34,6 +34,35 @@ describe('percorsi delle gift card', () => {
     });
   });
 
+  describe('vetrina shop /shop-natale', () => {
+    const original = process.env.SHOP_INDEXABLE;
+    afterEach(() => {
+      if (original === undefined) delete process.env.SHOP_INDEXABLE;
+      else process.env.SHOP_INDEXABLE = original;
+    });
+
+    it('è raggiungibile ma non indicizzata finché non si decide di aprirla a Google', () => {
+      delete process.env.SHOP_INDEXABLE;
+      expect(isKnownClientPath('/shop-natale')).toBe(true);
+      expect(isKnownClientPath('/shop-natale/')).toBe(true);
+      expect(isPrivateClientPath('/shop-natale')).toBe(true);
+      expect(isKnownClientPath('/shop-natale/altro')).toBe(false);
+    });
+
+    it('con SHOP_INDEXABLE=true diventa una pagina pubblica indicizzabile', () => {
+      process.env.SHOP_INDEXABLE = 'true';
+      expect(isKnownClientPath('/shop-natale')).toBe(true);
+      expect(isPrivateClientPath('/shop-natale')).toBe(false);
+    });
+
+    it("non dipende dall'interruttore delle gift card", () => {
+      process.env.SHOP_INDEXABLE = 'true';
+      delete process.env.GIFT_SHOP_INDEXABLE;
+      expect(isPrivateClientPath('/shop-natale')).toBe(false);
+      expect(isPrivateClientPath('/regala')).toBe(true);
+    });
+  });
+
   it('non apre percorsi inventati sotto /regalo', () => {
     expect(isKnownClientPath('/regalo')).toBe(false);
     expect(isKnownClientPath('/regalo/a/b')).toBe(false);

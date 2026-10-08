@@ -41,6 +41,9 @@ vi.mock("@/context/FirebaseAuthContext", () => ({
 vi.mock("@/hooks/useGiftShopAvailable", () => ({
   useGiftShopAvailable: () => false,
 }));
+vi.mock("@/hooks/useShopAvailable", () => ({
+  useShopAvailable: () => false,
+}));
 vi.mock("@/lib/basePath", () => ({
   createUrl: fixture.createUrl,
 }));

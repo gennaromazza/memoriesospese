@@ -76,6 +76,7 @@ class FakeQuery {
       .filter(snapshot => this.filters.every(filter => {
         const actual = getNested(snapshot.data(), filter.field);
         if (filter.op === '==') return actual === filter.value;
+        if (filter.op === 'in') return Array.isArray(filter.value) && filter.value.includes(actual);
         if (filter.op === '<=') return Number(actual?.toMillis?.() ?? actual) <= Number(filter.value?.toMillis?.() ?? filter.value);
         throw new Error(`Unsupported fake query operator ${filter.op}`);
       }));
@@ -119,6 +120,7 @@ class FakeCollectionGroupQuery {
       .filter(snapshot => this.filters.every(filter => {
         const actual = getNested(snapshot.data(), filter.field);
         if (filter.op === '==') return actual === filter.value;
+        if (filter.op === 'in') return Array.isArray(filter.value) && filter.value.includes(actual);
         if (filter.op === '<=') {
           return Number(actual?.toMillis?.() ?? actual) <=
             Number(filter.value?.toMillis?.() ?? filter.value);
