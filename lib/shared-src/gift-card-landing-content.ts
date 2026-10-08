@@ -59,7 +59,7 @@ export const GIFT_HOW_SEO = {
   h1: 'Come funziona il regalo',
   lede: 'Regalare richiede pochi minuti, e chi lo riceve lo apre come un vero regalo. Ecco tutti i passaggi.',
   breadcrumb: 'Come funziona',
-  howToName: 'Come regalare un'idea regalo Image Studio',
+  howToName: "Come regalare un'idea regalo Image Studio",
 } as const;
 
 export interface GiftHowSection {
