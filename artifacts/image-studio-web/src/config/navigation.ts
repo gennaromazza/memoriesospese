@@ -3,6 +3,7 @@ import {
   CalendarDays,
   Camera,
   Clapperboard,
+  Gift,
   Image,
   MapPin,
   Phone,
@@ -21,7 +22,17 @@ export interface NavItem {
   showInMobile?: boolean;
   mobileOrder?: number;
   highlight?: boolean;
+  /** Si mostra solo quando la funzione è disponibile (per esempio con almeno un regalo in vendita). */
+  requires?: 'giftShop';
 }
+
+/** Funzioni del sito che possono essere spente: le voci collegate compaiono solo se attive. */
+export interface NavAvailability {
+  giftShop?: boolean;
+}
+
+const isAvailable = (item: NavItem, availability: NavAvailability) =>
+  !item.requires || availability[item.requires] === true;
 
 export interface SocialLink {
   name: string;
@@ -58,13 +69,23 @@ export const mainNavItems: NavItem[] = [
     mobileOrder: 2,
   },
   {
+    label: 'Idee regalo',
+    href: '/regala',
+    icon: Gift,
+    showInHeader: true,
+    showInFooter: true,
+    showInMobile: true,
+    mobileOrder: 3,
+    requires: 'giftShop',
+  },
+  {
     label: 'Recensioni',
     href: '/#recensioni',
     icon: Star,
     showInHeader: true,
     showInFooter: true,
     showInMobile: true,
-    mobileOrder: 3,
+    mobileOrder: 4,
   },
   {
     label: 'Prenota una chiamata',
@@ -73,7 +94,7 @@ export const mainNavItems: NavItem[] = [
     showInHeader: true,
     showInFooter: false,
     showInMobile: true,
-    mobileOrder: 4,
+    mobileOrder: 5,
     highlight: true,
   },
 ];
@@ -176,13 +197,14 @@ export const socialLinks: SocialLink[] = [
   },
 ];
 
-export const getHeaderItems = () => mainNavItems.filter(item => item.showInHeader);
-export const getFooterItems = () => [
-  ...mainNavItems.filter(item => item.showInFooter),
+export const getHeaderItems = (availability: NavAvailability = {}) =>
+  mainNavItems.filter(item => item.showInHeader && isAvailable(item, availability));
+export const getFooterItems = (availability: NavAvailability = {}) => [
+  ...mainNavItems.filter(item => item.showInFooter && isAvailable(item, availability)),
   ...discoverNavGroups.flatMap(group => group.items).filter(item => item.showInFooter),
 ];
 export const getDiscoverGroups = () => discoverNavGroups;
-export const getMobileItems = () =>
+export const getMobileItems = (availability: NavAvailability = {}) =>
   mainNavItems
-    .filter(item => item.showInMobile)
+    .filter(item => item.showInMobile && isAvailable(item, availability))
     .sort((a, b) => (a.mobileOrder || 99) - (b.mobileOrder || 99));

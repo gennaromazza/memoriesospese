@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getDiscoverGroups, getHeaderItems } from './navigation';
+import { getDiscoverGroups, getFooterItems, getHeaderItems, getMobileItems } from './navigation';
 
 describe('public navigation', () => {
   it('mantiene l’header essenziale e sposta Stampa foto nel menu Scopri', () => {
@@ -12,6 +12,17 @@ describe('public navigation', () => {
     expect(discoverLabels).toContain('Stampa le tue foto');
     expect(discoverLabels).toContain('Gennaro e Image Studio');
     expect(discoverLabels).toContain('Il libro · Lasciati Trasportare');
+  });
+
+  it('mostra «Idee regalo» in header, mobile e footer solo con la vetrina regalo attiva', () => {
+    for (const get of [getHeaderItems, getMobileItems, getFooterItems]) {
+      expect(get().some((item) => item.href === '/regala')).toBe(false);
+      expect(get({ giftShop: false }).some((item) => item.href === '/regala')).toBe(false);
+      expect(get({ giftShop: true }).some((item) => item.href === '/regala')).toBe(true);
+    }
+    expect(getHeaderItems({ giftShop: true }).map((item) => item.label)).toEqual([
+      'Portfolio', 'Blog', 'Idee regalo', 'Recensioni', 'Prenota una chiamata',
+    ]);
   });
 
   it('collega tutte le destinazioni editoriali senza esporre le route private o QR', () => {

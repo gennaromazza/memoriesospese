@@ -8,6 +8,7 @@ import { useIsAdmin } from "../hooks/useIsAdmin";
 import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 import { Button } from "@/components/ui/button";
 import { getDiscoverGroups, getHeaderItems, getMobileItems } from "@/config/navigation";
+import { useGiftShopAvailable } from "@/hooks/useGiftShopAvailable";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,6 +31,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
   const { handleLogout } = useLogout();
   const isAdmin = useIsAdmin();
   const { user, userProfile, isLoading: authLoading } = useFirebaseAuth();
+  const giftShop = useGiftShopAvailable();
   const accountName = userProfile?.displayName || user?.displayName || user?.email?.split('@')[0] || 'Account';
 
   // Lock body scroll when mobile menu is open
@@ -137,8 +139,8 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
   }
 
   // Default public navigation bar (homepage e tutte le pagine pubbliche)
-  const headerItems = getHeaderItems();
-  const mobileItems = getMobileItems();
+  const headerItems = getHeaderItems({ giftShop });
+  const mobileItems = getMobileItems({ giftShop });
   const discoverGroups = getDiscoverGroups();
 
   return (
