@@ -25,6 +25,7 @@ vi.mock('wouter', async () => {
 
 vi.mock('@/components/Navigation', () => ({ default: () => null }));
 vi.mock('@/hooks/useSEO', () => ({ useSEO: () => undefined }));
+vi.mock('@/hooks/useGiftShopAvailable', () => ({ useGiftShopAvailable: () => false }));
 
 function makeSettings(overrides: Record<string, unknown> = {}) {
   return {
