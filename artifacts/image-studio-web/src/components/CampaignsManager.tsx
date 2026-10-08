@@ -2,7 +2,7 @@
  * Campaigns Manager - Gestione campagne booking per admin
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { deleteField } from 'firebase/firestore';
 import { queryClient } from '@/lib/queryClient';
@@ -15,7 +15,8 @@ import {
   isCampaignCodeUnique
 } from '@/lib/booking-campaigns';
 import { getAllProducts } from '@/lib/products';
-import type { BookingCampaignFE, Product } from '@shared/booking-types';
+import { getProductCategories } from '@/lib/product-categories';
+import type { BookingCampaignFE, Product, ProductCategory } from '@shared/booking-types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { TimeInput } from '@/components/ui/time-input';
@@ -97,6 +98,12 @@ interface CampaignFormData {
   attiva: boolean;
 }
 
+interface CampaignProductGroup {
+  key: string;
+  name: string;
+  products: Product[];
+}
+
 const defaultFormData: CampaignFormData = {
   nome: '',
   descrizione: '',
@@ -138,6 +145,69 @@ export default function CampaignsManager() {
     queryKey: ['products'],
     queryFn: getAllProducts,
   });
+
+  // Usa la stessa tassonomia centralizzata usata nel catalogo prodotti.
+  const { data: productCategories = [] } = useQuery<ProductCategory[]>({
+    queryKey: ['productCategories'],
+    queryFn: getProductCategories,
+  });
+
+  const productGroups = useMemo<CampaignProductGroup[]>(() => {
+    const categoryValues = new Set(productCategories.map(category => category.value));
+    const groupedProducts = new Map<string, Product[]>();
+
+    products
+      .filter(product => product.attivo)
+      .forEach(product => {
+        const categoryValue = product.categoria?.trim();
+        const groupKey = !categoryValue
+          ? 'uncategorized'
+          : categoryValues.has(categoryValue)
+            ? `category:${categoryValue}`
+            : 'other';
+        const group = groupedProducts.get(groupKey);
+
+        if (group) {
+          group.push(product);
+        } else {
+          groupedProducts.set(groupKey, [product]);
+        }
+      });
+
+    const groups: CampaignProductGroup[] = [];
+
+    // Mantiene l'ordine configurato centralmente per le categorie.
+    productCategories.forEach(category => {
+      const categoryProducts = groupedProducts.get(`category:${category.value}`);
+      if (categoryProducts?.length) {
+        groups.push({
+          key: `category:${category.value}`,
+          name: category.nome,
+          products: categoryProducts,
+        });
+      }
+    });
+
+    const uncategorizedProducts = groupedProducts.get('uncategorized');
+    if (uncategorizedProducts?.length) {
+      groups.push({
+        key: 'uncategorized',
+        name: 'Senza categoria',
+        products: uncategorizedProducts,
+      });
+    }
+
+    const productsWithUnknownCategory = groupedProducts.get('other');
+    if (productsWithUnknownCategory?.length) {
+      groups.push({
+        key: 'other',
+        name: 'Altre categorie',
+        products: productsWithUnknownCategory,
+      });
+    }
+
+    return groups;
+  }, [products, productCategories]);
 
   // Create mutation
   const createMutation = useMutation({
@@ -883,13 +953,23 @@ export default function CampaignsManager() {
               {/* Prodotti Disponibili */}
               <div className="space-y-3 pt-3 border-t">
                 <Label className="text-base font-semibold">Prodotti Disponibili</Label>
-                {products.filter(p => p.attivo).length === 0 ? (
+                {productGroups.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
                     Nessun prodotto attivo. Crea dei prodotti prima di configurare la campagna.
                   </p>
                 ) : (
-                  <div className="grid grid-cols-2 gap-3 max-h-64 overflow-y-auto border rounded-lg p-3">
-                    {products.filter(p => p.attivo).map(product => (
+                  <div className="grid max-h-64 grid-cols-1 gap-2 overflow-y-auto rounded-lg border p-3 sm:grid-cols-2">
+                    {productGroups.flatMap(group => [
+                      <div
+                        key={`category-${group.key}`}
+                        className="col-span-full sticky top-0 z-10 flex items-center justify-between border-b bg-background/95 px-1 py-1.5 backdrop-blur"
+                      >
+                        <h3 className="text-xs font-semibold text-muted-foreground">{group.name}</h3>
+                        <Badge variant="secondary" className="h-5 min-w-5 justify-center px-1.5 text-[10px]">
+                          {group.products.length}
+                        </Badge>
+                      </div>,
+                      ...group.products.map(product => (
                       <div
                         key={product.id}
                         className={`flex items-start gap-3 p-3 rounded-lg border-2 cursor-pointer transition-colors ${
@@ -918,7 +998,8 @@ export default function CampaignsManager() {
                           </div>
                         </div>
                       </div>
-                    ))}
+                      )),
+                    ])}
                   </div>
                 )}
               </div>
