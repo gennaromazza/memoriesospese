@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import { Loader2, CheckCircle2, FileText, Calendar, CreditCard, User, Mail, Phone, MapPin, Download, ExternalLink } from 'lucide-react';
-import placeholderUrl from '@assets/generated_images/Custom_product_placeholder_image_f076e89e.png';
+import placeholderUrl from '@/assets/generated_images/Custom_product_placeholder_image_f076e89e.png';
 import type { Quote, QuoteSignature } from '@shared/quotes-types';
 import type { PaymentSchedule } from '@shared/payment-schedule-types';
 import { db } from '@/lib/firebase';

@@ -49,7 +49,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import placeholderUrl from "@assets/generated_images/Custom_product_placeholder_image_f076e89e.png";
+import placeholderUrl from "@/assets/generated_images/Custom_product_placeholder_image_f076e89e.png";
 import { useToast } from "@/hooks/use-toast";
 import { acceptQuote } from "@/lib/quotes";
 import type { Quote, QuoteProduct, QuoteClause } from "@shared/quotes-types";

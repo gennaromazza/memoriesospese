@@ -68,6 +68,7 @@ import { db, convertFirestoreTimestamp } from '@/lib/firebase';
 import { collection, getDocs, query as fbQuery, where, orderBy as fbOrderBy, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import type { Quote } from '@shared/quotes-types';
 import { apiRequest } from '@/lib/queryClient';
+import { shouldForceConsultationInviteResend } from '@/lib/consultation-invite-state';
 import { ClientAutocomplete } from '@/components/clienti/ClientAutocomplete';
 import { AssegnaClienteDialog } from '@/components/clienti/AssegnaClienteDialog';
 import { JobCollaboratoriSection } from '@/components/jobs/JobCollaboratoriSection';
@@ -976,6 +977,13 @@ export default function JobDetailPage() {
     openConsultationDialog();
   };
 
+  const isConsultationResend = shouldForceConsultationInviteResend(
+    job,
+    selectedTemplateId,
+    consultationTemplates.find((template) => template.id === selectedTemplateId)
+      ?.autoInvioVisioneAttivo === true,
+  );
+
   const handleSendConsultation = async (channel: 'email' | 'whatsapp') => {
     if (!selectedTemplateId) {
       toast({
@@ -993,6 +1001,7 @@ export default function JobDetailPage() {
         channel,
         dateFrom: consultationDateRange.from ? format(consultationDateRange.from, 'yyyy-MM-dd') : undefined,
         dateTo: consultationDateRange.to ? format(consultationDateRange.to, 'yyyy-MM-dd') : undefined,
+        force: isConsultationResend,
       });
       const data = await response.json();
 
@@ -1001,8 +1010,14 @@ export default function JobDetailPage() {
       }
 
       toast({
-        title: '✅ Consulenza inviata!',
-        description: channel === 'email' ? 'Email inviata al cliente' : 'Apri WhatsApp per inviare',
+        title: channel === 'email'
+          ? isConsultationResend ? '✅ Nuovo link inviato!' : '✅ Consulenza inviata!'
+          : isConsultationResend ? 'WhatsApp pronto con il nuovo link' : 'WhatsApp pronto',
+        description: channel === 'email'
+          ? isConsultationResend
+            ? 'Il link aggiornato è stato inviato di nuovo al cliente.'
+            : 'Email inviata al cliente'
+          : 'WhatsApp si è aperto con il messaggio precompilato. Conferma l’invio nell’app.',
       });
 
       setShowConsultationDialog(false);
@@ -1010,6 +1025,10 @@ export default function JobDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['jobs', jobId] });
       queryClient.invalidateQueries({ queryKey: ['timeline', jobId] });
     } catch (error: any) {
+      // Se il server segnala un invito già registrato (per esempio da un invio
+      // automatico appena concluso), ricarica lo stato per mostrare l'azione "Rinvia".
+      queryClient.invalidateQueries({ queryKey: ['jobs', jobId] });
+      queryClient.invalidateQueries({ queryKey: ['timeline', jobId] });
       toast({
         title: 'Errore',
         description: error.message || 'Impossibile inviare consulenza',
@@ -2286,9 +2305,11 @@ export default function JobDetailPage() {
               >
                 <Mail className="h-5 w-5 mr-3" />
                 <div className="text-left">
-                  <p className="font-medium">Invia via Email</p>
+                  <p className="font-medium">{isConsultationResend ? 'Rinvia via Email' : 'Invia via Email'}</p>
                   <p className="text-xs text-muted-foreground">
-                    Il cliente riceverà un'email con il link per prenotare
+                    {isConsultationResend
+                      ? 'Invia di nuovo al cliente il link per prenotare'
+                      : "Il cliente riceverà un'email con il link per prenotare"}
                   </p>
                 </div>
               </Button>
@@ -2301,9 +2322,11 @@ export default function JobDetailPage() {
               >
                 <MessageCircle className="h-5 w-5 mr-3" />
                 <div className="text-left">
-                  <p className="font-medium">Invia via WhatsApp</p>
+                  <p className="font-medium">{isConsultationResend ? 'Rinvia via WhatsApp' : 'Invia via WhatsApp'}</p>
                   <p className="text-xs text-muted-foreground">
-                    Apri WhatsApp con messaggio pre-compilato
+                    {isConsultationResend
+                      ? 'Apri WhatsApp con un nuovo messaggio e il link aggiornato'
+                      : 'Apri WhatsApp con messaggio pre-compilato'}
                   </p>
                 </div>
               </Button>

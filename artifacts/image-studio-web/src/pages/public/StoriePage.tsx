@@ -2,8 +2,8 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { BookOpen } from "lucide-react";
 import Navigation from "@/components/Navigation";
-import gennaroWithCamera from "@assets/DSCF7392_1_1763485862385.jpg";
-import gennaroArtistic from "@assets/DSCF7358_1_1763485862385.jpg";
+import gennaroWithCamera from "@/assets/DSCF7392_1_1763485862385.jpg";
+import gennaroArtistic from "@/assets/DSCF7358_1_1763485862385.jpg";
 import { useSEO } from "@/hooks/useSEO";
 
 export default function StoriePage() {
