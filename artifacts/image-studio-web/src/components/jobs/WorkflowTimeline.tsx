@@ -14,7 +14,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { apiRequest } from '@/lib/queryClient';
+import { apiRequest, queryClient } from '@/lib/queryClient';
+import { shouldForceConsultationInviteResend } from '@/lib/consultation-invite-state';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { 
@@ -118,6 +119,13 @@ export default function WorkflowTimeline({
     setShowConsultationDialog(true);
   };
 
+  const isConsultationResend = shouldForceConsultationInviteResend(
+    job,
+    selectedTemplateId,
+    templates.find((template) => template.id === selectedTemplateId)
+      ?.autoInvioVisioneAttivo === true,
+  );
+
   const handleSendConsultation = async (channel: 'email' | 'whatsapp') => {
     if (!selectedTemplateId) {
       toast({
@@ -132,7 +140,8 @@ export default function WorkflowTimeline({
     try {
       const response = await apiRequest('POST', `/api/jobs/${job.id}/send-consultation-request`, {
         channel,
-        templateId: selectedTemplateId
+        templateId: selectedTemplateId,
+        force: isConsultationResend,
       });
       const data = await response.json();
       
@@ -142,16 +151,22 @@ export default function WorkflowTimeline({
       }
       
       toast({
-        title: 'Richiesta inviata',
-        description: channel === 'email' 
-          ? 'Email di richiesta consulenza inviata al cliente'
-          : 'Apri WhatsApp per inviare il messaggio',
+        title: channel === 'email'
+          ? isConsultationResend ? 'Nuovo link inviato' : 'Richiesta inviata'
+          : isConsultationResend ? 'WhatsApp pronto con il nuovo link' : 'WhatsApp pronto',
+        description: channel === 'email'
+          ? isConsultationResend
+            ? 'Il link aggiornato è stato inviato di nuovo al cliente'
+            : 'Email di richiesta consulenza inviata al cliente'
+          : 'WhatsApp si è aperto con il messaggio precompilato. Conferma l’invio nell’app.',
       });
       
       setShowConsultationDialog(false);
       setSelectedTemplateId(null);
       onEventAdded?.();
     } catch (error: any) {
+      queryClient.invalidateQueries({ queryKey: ['jobs', job.id] });
+      queryClient.invalidateQueries({ queryKey: ['timeline', job.id] });
       toast({
         title: 'Errore',
         description: error.message || 'Impossibile inviare la richiesta',
@@ -382,9 +397,11 @@ export default function WorkflowTimeline({
             >
               <Mail className="h-5 w-5 mr-3" />
               <div className="text-left">
-                <p className="font-medium">Invia via Email</p>
+                <p className="font-medium">{isConsultationResend ? 'Rinvia via Email' : 'Invia via Email'}</p>
                 <p className="text-xs text-muted-foreground">
-                  Il cliente riceverà un'email con il link per prenotare
+                  {isConsultationResend
+                    ? 'Invia di nuovo al cliente il link per prenotare'
+                    : "Il cliente riceverà un'email con il link per prenotare"}
                 </p>
               </div>
             </Button>
@@ -397,9 +414,11 @@ export default function WorkflowTimeline({
             >
               <MessageCircle className="h-5 w-5 mr-3" />
               <div className="text-left">
-                <p className="font-medium">Invia via WhatsApp</p>
+                <p className="font-medium">{isConsultationResend ? 'Rinvia via WhatsApp' : 'Invia via WhatsApp'}</p>
                 <p className="text-xs text-muted-foreground">
-                  Apri WhatsApp con messaggio pre-compilato
+                  {isConsultationResend
+                    ? 'Apri WhatsApp con un nuovo messaggio e il link aggiornato'
+                    : 'Apri WhatsApp con messaggio pre-compilato'}
                 </p>
               </div>
             </Button>
