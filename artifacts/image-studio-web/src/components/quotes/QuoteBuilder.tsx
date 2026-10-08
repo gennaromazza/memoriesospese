@@ -106,7 +106,7 @@ import { storage } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { cn } from '@/lib/utils';
 import { getJob } from '@/lib/jobs';
-import placeholderUrl from '@assets/generated_images/Custom_product_placeholder_image_f076e89e.png';
+import placeholderUrl from '@/assets/generated_images/Custom_product_placeholder_image_f076e89e.png';
 
 const quoteSchema = z.object({
   jobId: z.string().min(1),

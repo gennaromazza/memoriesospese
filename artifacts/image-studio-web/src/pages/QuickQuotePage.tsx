@@ -55,7 +55,7 @@ import {
   formatRequiredNames,
 } from '@shared/quote-requirements';
 import type { QuoteProduct } from '@shared/quotes-types';
-import placeholderUrl from '@assets/generated_images/Custom_product_placeholder_image_f076e89e.png';
+import placeholderUrl from '@/assets/generated_images/Custom_product_placeholder_image_f076e89e.png';
 
 interface QuickQuoteData {
   template: {
