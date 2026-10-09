@@ -43,6 +43,14 @@ async function renderForCrawler(path: string): Promise<{
   return { response, next };
 }
 
+function getArticleImages(html: string): string[] {
+  const scripts = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)];
+  const article = scripts
+    .map(([, json]) => JSON.parse(json))
+    .find(schema => schema['@type'] === 'Article');
+  return article?.image ?? [];
+}
+
 describe('SEO prerender wedding-first', () => {
   beforeEach(() => mockCollection.mockReset());
 
@@ -108,16 +116,18 @@ describe('SEO prerender wedding-first', () => {
     expect(response.body).not.toContain('/stampa-foto-aversa/ordine');
   });
 
-  it('serves a published Real Wedding as indexable HTML to a crawler', async () => {
+  it('serves the current published cover in crawler HTML and structured data without stale caching', async () => {
+    let coverPhotoId = 'photo-2';
     const story = {
       galleryId: 'gallery-1', status: 'published', slug: 'anna-e-luca', title: 'Anna e Luca',
       excerpt: 'Una cerimonia in giardino.', story: '## Cerimonia\n\nLa cerimonia si è svolta in giardino.',
       seoTitle: 'Anna e Luca ad Aversa', seoDescription: 'Il matrimonio di Anna e Luca ad Aversa.',
       selectedPhotoIds: ['photo-1', 'photo-2', 'photo-3'],
-      coverPhotoId: 'photo-2',
     };
     mockCollection.mockReturnValue({
-      where: () => ({ get: async () => ({ docs: [{ data: () => story }] }) }),
+      where: () => ({
+        get: async () => ({ docs: [{ data: () => ({ ...story, coverPhotoId }) }] }),
+      }),
       doc: (photoId: string) => ({
         get: async () => ({
           exists: true,
@@ -126,17 +136,27 @@ describe('SEO prerender wedding-first', () => {
       }),
     });
 
-    const { response, next } = await renderForCrawler('/real-wedding/anna-e-luca');
+    const first = await renderForCrawler('/real-wedding/anna-e-luca');
 
-    expect(next).not.toHaveBeenCalled();
-    expect(response.headers['Content-Type']).toBe('text/html');
-    expect(response.headers['Cache-Control']).toBe(WEDDING_PUBLIC_DATA_CACHE_CONTROL);
-    expect(response.body).toContain('<meta name="robots" content="index,follow,max-image-preview:large"');
-    expect(response.body).toContain('<link rel="canonical" href="https://imagestudiofotografico.com/real-wedding/anna-e-luca"');
-    expect(response.body).toContain('data-seo-prerender="true"');
-    expect(response.body).toContain('<meta property="og:image" content="https://images.example/photo-2.jpg"');
-    expect(response.body!.indexOf('https://images.example/photo-2.jpg'))
-      .toBeLessThan(response.body!.indexOf('https://images.example/photo-1.jpg'));
+    expect(first.next).not.toHaveBeenCalled();
+    expect(first.response.headers['Content-Type']).toBe('text/html');
+    expect(first.response.headers['Cache-Control']).toBe(WEDDING_PUBLIC_DATA_CACHE_CONTROL);
+    expect(first.response.headers['CDN-Cache-Control']).toBe('no-store');
+    expect(first.response.headers['Surrogate-Control']).toBe('no-store');
+    expect(first.response.headers['Pragma']).toBe('no-cache');
+    expect(first.response.headers['Expires']).toBe('0');
+    expect(first.response.body).toContain('<meta name="robots" content="index,follow,max-image-preview:large"');
+    expect(first.response.body).toContain('<link rel="canonical" href="https://imagestudiofotografico.com/real-wedding/anna-e-luca"');
+    expect(first.response.body).toContain('data-seo-prerender="true"');
+    expect(first.response.body).toContain('<meta property="og:image" content="https://images.example/photo-2.jpg"');
+    expect(getArticleImages(first.response.body!)[0]).toBe('https://images.example/photo-2.jpg');
+
+    // Simulate publishing a new cover, then make a separate public crawler request.
+    coverPhotoId = 'photo-3';
+    const updated = await renderForCrawler('/real-wedding/anna-e-luca');
+    expect(updated.next).not.toHaveBeenCalled();
+    expect(updated.response.body).toContain('<meta property="og:image" content="https://images.example/photo-3.jpg"');
+    expect(getArticleImages(updated.response.body!)[0]).toBe('https://images.example/photo-3.jpg');
   });
 
   it('falls back to the first selected photo when the configured cover is unavailable to prerender', async () => {

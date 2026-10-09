@@ -1066,6 +1066,14 @@ export function createSeoMiddleware() {
           ? WEDDING_PUBLIC_DATA_CACHE_CONTROL
           : 'public, max-age=3600',
       );
+      if (path.startsWith('/real-wedding/')) {
+        // Explicit directives keep browser, CDN, and surrogate caches from
+        // serving the old cover after a Real Wedding is updated.
+        res.setHeader('CDN-Cache-Control', 'no-store');
+        res.setHeader('Surrogate-Control', 'no-store');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+      }
       res.send(html);
     } catch (error) {
       console.error('Errore SEO middleware:', error);
