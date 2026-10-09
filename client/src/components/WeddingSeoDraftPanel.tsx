@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Gallery } from '@/lib/galleries';
 import type { Photo } from '@/lib/photos';
 import { WEDDING_STORY_LIMITS, type WeddingSeoStory, type WeddingStorySource } from '@shared/wedding-seo-types';
@@ -159,29 +159,41 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
   const storyBlocks = useMemo(() => parseWeddingStoryMarkdown(draft.story), [draft.story]);
   const currentSelectionSignature = photoSelectionSignature(validSelectedPhotoIds, validCoverPhotoId);
 
+  const persistPhotoSelection = useCallback((selection: { photoIds: string[]; coverPhotoId?: string }) => {
+    const saveVersion = ++selectionSaveVersion.current;
+    const request = selectionSaveQueue.current.then(
+      () => saveWeddingStorySelection(gallery.id, selection.photoIds, selection.coverPhotoId),
+      () => saveWeddingStorySelection(gallery.id, selection.photoIds, selection.coverPhotoId),
+    );
+    selectionSaveQueue.current = request.then(() => undefined, () => undefined);
+    request
+      .then(saved => {
+        if (saveVersion !== selectionSaveVersion.current) return;
+        lastSavedSelection.current = photoSelectionSignature(saved.selectedPhotoIds, saved.coverPhotoId);
+        setSelectionSaveState('saved');
+      })
+      .catch(() => {
+        if (saveVersion === selectionSaveVersion.current) setSelectionSaveState('error');
+      });
+  }, [gallery.id]);
+
   useEffect(() => {
     if (loading || !selectionInitialized.current || currentSelectionSignature === lastSavedSelection.current) return;
     setSelectionSaveState('saving');
     const timer = window.setTimeout(() => {
       const selection = JSON.parse(currentSelectionSignature) as { photoIds: string[]; coverPhotoId: string };
-      const saveVersion = ++selectionSaveVersion.current;
-      const request = selectionSaveQueue.current.then(
-        () => saveWeddingStorySelection(gallery.id, selection.photoIds, selection.coverPhotoId || undefined),
-        () => saveWeddingStorySelection(gallery.id, selection.photoIds, selection.coverPhotoId || undefined),
-      );
-      selectionSaveQueue.current = request.then(() => undefined, () => undefined);
-      request
-        .then(saved => {
-          if (saveVersion !== selectionSaveVersion.current) return;
-          lastSavedSelection.current = photoSelectionSignature(saved.selectedPhotoIds, saved.coverPhotoId);
-          setSelectionSaveState('saved');
-        })
-        .catch(() => {
-          if (saveVersion === selectionSaveVersion.current) setSelectionSaveState('error');
-        });
+      persistPhotoSelection(selection);
     }, 600);
     return () => window.clearTimeout(timer);
-  }, [currentSelectionSignature, gallery.id, loading]);
+  }, [currentSelectionSignature, loading, persistPhotoSelection]);
+
+  const retryPhotoSelectionSave = () => {
+    persistPhotoSelection({
+      photoIds: validSelectedPhotoIds,
+      coverPhotoId: validCoverPhotoId,
+    });
+    setSelectionSaveState('saving');
+  };
 
   const updateDraft = (field: keyof DraftFields, value: string) => {
     if (field === 'slug') setSlugIsCustom(true);
@@ -463,12 +475,20 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
           <CardDescription>
             Seleziona fino a {MAX_WEDDING_STORY_PHOTOS} foto e usa la stella per scegliere la copertina del blog. Selezionate {validSelectedPhotoIds.length}/{MAX_WEDDING_STORY_PHOTOS}.
           </CardDescription>
-          <p className={`text-xs ${selectionSaveState === 'error' ? 'text-red-600' : 'text-gray-500'}`}>
-            {selectionSaveState === 'saving' && 'Salvataggio automatico della selezione…'}
-            {selectionSaveState === 'saved' && 'Selezione foto e copertina salvata automaticamente.'}
-            {selectionSaveState === 'error' && 'Salvataggio automatico non riuscito: la selezione resta visibile, ma ricaricando la pagina potrebbe andare persa.'}
-            {selectionSaveState === 'idle' && 'La selezione foto e la copertina vengono salvate automaticamente.'}
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p role={selectionSaveState === 'error' ? 'alert' : 'status'} className={`text-xs ${selectionSaveState === 'error' ? 'text-red-600' : 'text-gray-500'}`}>
+              {selectionSaveState === 'saving' && 'Salvataggio automatico della selezione…'}
+              {selectionSaveState === 'saved' && 'Selezione foto e copertina salvata automaticamente.'}
+              {selectionSaveState === 'error' && 'Salvataggio automatico non riuscito: la selezione resta visibile, ma ricaricando la pagina potrebbe andare persa.'}
+              {selectionSaveState === 'idle' && 'La selezione foto e la copertina vengono salvate automaticamente.'}
+            </p>
+            {selectionSaveState === 'error' && (
+              <Button type="button" variant="outline" size="sm" onClick={retryPhotoSelectionSave}>
+                <RefreshCw className="mr-2 h-3.5 w-3.5" />
+                Riprova il salvataggio
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 md:grid-cols-8 lg:grid-cols-10">

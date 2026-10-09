@@ -19,6 +19,8 @@ type FixtureState = {
   selectedPhotoIds: string[];
   requestedCoverPhotoId: string;
   availablePhotos: typeof PHOTO_1[];
+  failFirstSelectionSave: boolean;
+  selectionAttempts: number;
   selectionWrites: Array<{ selectedPhotoIds: string[]; coverPhotoId?: string }>;
 };
 
@@ -86,6 +88,14 @@ async function installApiFixtures(page: Page, state: FixtureState) {
 
     if (request.method() === 'PUT' && path.endsWith(`/gallery/${GALLERY_ID}/selection`)) {
       const payload = request.postDataJSON() as { selectedPhotoIds: string[]; coverPhotoId?: string };
+      state.selectionAttempts += 1;
+      if (state.failFirstSelectionSave && state.selectionAttempts === 1) {
+        return route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: 'Salvataggio temporaneamente non disponibile.' }),
+        });
+      }
       state.selectionWrites.push(payload);
       state.selectedPhotoIds = payload.selectedPhotoIds;
       state.requestedCoverPhotoId = payload.coverPhotoId || '';
@@ -138,6 +148,8 @@ test('la copertina scelta nell’editor compare in Home e nella hero dopo il ric
     selectedPhotoIds: [PHOTO_1.id, PHOTO_2.id],
     requestedCoverPhotoId: PHOTO_1.id,
     availablePhotos: [PHOTO_1, PHOTO_2],
+    failFirstSelectionSave: false,
+    selectionAttempts: 0,
     selectionWrites: [],
   };
   await installApiFixtures(page, state);
@@ -179,4 +191,35 @@ test('la copertina scelta nell’editor compare in Home e nella hero dopo il ric
   await page.goto(`/real-wedding/${SLUG}`);
   hero = page.locator('article > img').first();
   await expectLoadedImage(hero, PHOTO_1.url);
+});
+
+test('dopo un errore il comando di riprova salva la copertina scelta senza cambiare foto', async ({ page }) => {
+  const state: FixtureState = {
+    selectedPhotoIds: [PHOTO_1.id, PHOTO_2.id],
+    requestedCoverPhotoId: PHOTO_1.id,
+    availablePhotos: [PHOTO_1, PHOTO_2],
+    failFirstSelectionSave: true,
+    selectionAttempts: 0,
+    selectionWrites: [],
+  };
+  await installApiFixtures(page, state);
+
+  await page.goto('/e2e/fixtures/wedding-seo-cover-harness.html');
+  await expect(page.getByRole('button', { name: 'cerimonia.jpg è la copertina' })).toBeVisible();
+  await page.getByRole('button', { name: 'Usa ritratto.jpg come copertina' }).click();
+  await expect(page.getByRole('alert')).toContainText('Salvataggio automatico non riuscito');
+  await expect(page.getByText('Selezione foto e copertina salvata automaticamente.')).not.toBeVisible();
+  await expect(page.getByRole('button', { name: 'Riprova il salvataggio' })).toBeVisible();
+  await expect.poll(() => state.selectionAttempts).toBe(1);
+  expect(state.selectionWrites).toHaveLength(0);
+  expect(state.requestedCoverPhotoId).toBe(PHOTO_1.id);
+
+  await page.getByRole('button', { name: 'Riprova il salvataggio' }).click();
+  await expect(page.getByRole('status')).toHaveText('Selezione foto e copertina salvata automaticamente.');
+  await expect.poll(() => state.selectionAttempts).toBe(2);
+  expect(state.selectionWrites).toEqual([{
+    selectedPhotoIds: [PHOTO_1.id, PHOTO_2.id],
+    coverPhotoId: PHOTO_2.id,
+  }]);
+  expect(state.requestedCoverPhotoId).toBe(PHOTO_2.id);
 });
