@@ -67,7 +67,7 @@ function sourceValue(source: WeddingStorySource): string {
 const MAX_WEDDING_STORY_PHOTOS = 12;
 
 function photoSelectionSignature(photoIds: string[], coverPhotoId?: string): string {
-  return JSON.stringify({ photoIds, coverPhotoId: coverPhotoId || '' });
+  return JSON.stringify(coverPhotoId ? { photoIds, coverPhotoId } : { photoIds });
 }
 
 export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
@@ -186,7 +186,7 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
     if (loading || !selectionInitialized.current || currentSelectionSignature === lastSavedSelection.current) return;
     setSelectionSaveState('saving');
     const timer = window.setTimeout(() => {
-      const selection = JSON.parse(currentSelectionSignature) as { photoIds: string[]; coverPhotoId: string };
+      const selection = JSON.parse(currentSelectionSignature) as { photoIds: string[]; coverPhotoId?: string };
       persistPhotoSelection(selection);
     }, 600);
     return () => window.clearTimeout(timer);

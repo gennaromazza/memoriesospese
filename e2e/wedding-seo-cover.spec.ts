@@ -337,6 +337,46 @@ test('rimuovendo la copertina dalla storia viene salvata e mantenuta la prossima
     .toMatchAriaSnapshot('- button "Copertina cerimonia.jpg" [pressed=false]');
 });
 
+test('rimuovendo l’ultima foto cancella la copertina anche dopo il ricaricamento', async ({ page }) => {
+  const state: FixtureState = {
+    selectedPhotoIds: [PHOTO_1.id],
+    requestedCoverPhotoId: PHOTO_1.id,
+    availablePhotos: [PHOTO_1, PHOTO_2],
+    failFirstSelectionSave: false,
+    selectionAttempts: 0,
+    selectionWrites: [],
+  };
+  await installApiFixtures(page, state);
+
+  await page.goto('/e2e/fixtures/wedding-seo-cover-harness.html');
+  const ceremonyCover = page.getByRole('button', { name: 'Copertina cerimonia.jpg' });
+  await expect(ceremonyCover).toHaveAttribute('aria-pressed', 'true');
+
+  await page.getByRole('button', { name: 'Seleziona cerimonia.jpg' }).click();
+  await expect(ceremonyCover).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByRole('status').filter({ hasText: 'Selezione foto e copertina salvata automaticamente.' }))
+    .toHaveText('Selezione foto e copertina salvata automaticamente.');
+  await expect.poll(() => state.selectionWrites.length).toBe(1);
+  expect(state.selectionWrites[0]).toEqual({ selectedPhotoIds: [] });
+  expect(state.requestedCoverPhotoId).toBe('');
+
+  await page.reload();
+  await expect(ceremonyCover).toHaveAttribute('aria-pressed', 'false');
+
+  await page.getByRole('button', { name: 'Seleziona cerimonia.jpg' }).click();
+  await expect(ceremonyCover).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('status').filter({ hasText: 'Selezione foto e copertina salvata automaticamente.' }))
+    .toHaveText('Selezione foto e copertina salvata automaticamente.');
+  await expect.poll(() => state.selectionWrites.length).toBe(2);
+  expect(state.selectionWrites[1]).toEqual({
+    selectedPhotoIds: [PHOTO_1.id],
+    coverPhotoId: PHOTO_1.id,
+  });
+
+  await page.reload();
+  await expect(ceremonyCover).toHaveAttribute('aria-pressed', 'true');
+});
+
 test('dopo un errore il comando di riprova salva la copertina scelta senza cambiare foto', async ({ page }) => {
   const state: FixtureState = {
     selectedPhotoIds: [PHOTO_1.id, PHOTO_2.id],
