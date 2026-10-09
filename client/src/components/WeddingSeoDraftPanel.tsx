@@ -505,6 +505,7 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
                     variant={isCover ? 'default' : 'secondary'}
                     size="icon"
                     aria-label={isCover ? `${photo.name} è la copertina` : `Usa ${photo.name} come copertina`}
+                    aria-pressed={isCover}
                     title={isCover ? 'Copertina attuale' : 'Imposta come copertina'}
                     className={`absolute right-1 top-1 h-7 w-7 ${isCover ? 'bg-amber-500 hover:bg-amber-600' : ''}`}
                     onClick={event => { event.stopPropagation(); chooseCoverPhoto(photo.id); }}
