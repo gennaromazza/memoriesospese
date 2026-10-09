@@ -788,14 +788,17 @@ describe('Real Wedding editorial safety', () => {
     const publicStory = toPublicWeddingStory({
       id: 'g1', galleryId: 'g1', jobId: 'j1', status: 'published', slug: 'anna-luca',
       title: 'Anna e Luca', excerpt: 'Una giornata', story: 'Racconto', seoTitle: '', seoDescription: '',
-      selectedPhotoIds: ['p1'], approvedSourceIds: ['submission:field'],
-    }, [{ id: 'p1', name: 'foto.jpg', url: 'https://example.com/foto.jpg' }]);
+      selectedPhotoIds: ['p1', 'p2'], coverPhotoId: 'p2', approvedSourceIds: ['submission:field'],
+    }, [
+      { id: 'p1', name: 'foto-1.jpg', url: 'https://example.com/foto-1.jpg' },
+      { id: 'p2', name: 'foto-2.jpg', url: 'https://example.com/foto-2.jpg' },
+    ]);
 
     expect(publicStory).not.toHaveProperty('approvedSourceIds');
     expect(publicStory).not.toHaveProperty('selectedPhotoIds');
     expect(publicStory).not.toHaveProperty('jobId');
     expect(publicStory).not.toHaveProperty('galleryId');
-    expect(publicStory.photos).toHaveLength(1);
+    expect(publicStory.photos.map(photo => photo.id)).toEqual(['p2', 'p1']);
   });
 
   it('creates stable, URL-safe slugs', () => {

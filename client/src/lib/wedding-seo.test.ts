@@ -4,6 +4,8 @@ vi.mock('./queryClient', () => ({ apiRequest: vi.fn() }));
 vi.mock('./config', () => ({ createUrl: (value: string) => value }));
 
 import {
+  getPublicWeddingStory,
+  getPublicWeddingStoryPreviews,
   isWeddingJobType,
   saveWeddingStorySelection,
   visibleWeddingPhotos,
@@ -57,5 +59,27 @@ describe('Real Wedding client helpers', () => {
       '/api/wedding-seo/gallery/gallery%2Fid/selection',
       { selectedPhotoIds: ['photo-1', 'photo-2'], coverPhotoId: 'photo-2' },
     );
+  });
+
+  it('bypasses the browser cache for public Real Wedding detail and preview requests', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ photos: [], vendors: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ stories: [] }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await getPublicWeddingStory('anna-e-luca');
+    await getPublicWeddingStoryPreviews(3);
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      '/api/wedding-seo/public/anna-e-luca',
+      { cache: 'no-store' },
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/wedding-seo/public?limit=3',
+      { cache: 'no-store' },
+    );
+    vi.unstubAllGlobals();
   });
 });

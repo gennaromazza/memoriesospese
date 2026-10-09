@@ -83,14 +83,18 @@ export async function generateWeddingStoryDraft(
 }
 
 export async function getPublicWeddingStory(slug: string): Promise<PublicWeddingStory | null> {
-  const response = await fetch(createUrl(`/api/wedding-seo/public/${encodeURIComponent(slug)}`));
+  const response = await fetch(createUrl(`/api/wedding-seo/public/${encodeURIComponent(slug)}`), {
+    cache: 'no-store',
+  });
   if (response.status === 404) return null;
   if (!response.ok) throw new Error('Impossibile caricare la storia');
   return responseJson<PublicWeddingStory>(response);
 }
 
 export async function getPublicWeddingStoryPreviews(limit = 24): Promise<PublicWeddingStoryPreview[]> {
-  const response = await fetch(createUrl(`/api/wedding-seo/public?limit=${Math.min(Math.max(limit, 1), 50)}`));
+  const response = await fetch(createUrl(`/api/wedding-seo/public?limit=${Math.min(Math.max(limit, 1), 50)}`), {
+    cache: 'no-store',
+  });
   if (!response.ok) throw new Error('Impossibile caricare le storie');
   const data = await responseJson<{ stories: PublicWeddingStoryPreview[] }>(response);
   return data.stories;

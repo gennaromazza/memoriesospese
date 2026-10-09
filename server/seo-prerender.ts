@@ -14,6 +14,10 @@ import {
   WEDDING_PORTFOLIO_SEO,
   WEDDING_SERVICE_JSON_LD,
 } from '../shared/public-seo-content';
+import {
+  resolveWeddingStoryPhotoIds,
+  WEDDING_PUBLIC_DATA_CACHE_CONTROL,
+} from '../shared/wedding-seo-types';
 
 const BASE_URL = 'https://imagestudiofotografico.com';
 const OG_IMAGE = `${BASE_URL}/1200x630px.jpg`;
@@ -778,13 +782,16 @@ async function getWeddingStoryMeta(slug: string): Promise<PageMeta | null> {
   const publishedDocument = snapshot.docs.find(document => document.data().status === 'published');
   if (!publishedDocument) return null;
   const story = publishedDocument.data();
-  const photoIds: string[] = Array.isArray(story.selectedPhotoIds) ? story.selectedPhotoIds.slice(0, 12) : [];
+  const selectedPhotoIds: string[] = Array.isArray(story.selectedPhotoIds)
+    ? story.selectedPhotoIds.slice(0, 12)
+    : [];
+  const photoIds = resolveWeddingStoryPhotoIds(selectedPhotoIds, story.coverPhotoId);
   const photoDocuments = await Promise.all(photoIds.map(id => id.startsWith('legacy-')
     ? db.collection('galleries').doc(story.galleryId).collection('photos').doc(id.slice('legacy-'.length)).get()
     : db.collection('photos').doc(id).get()));
   const images = photoDocuments
     .filter((document, index) => document.exists && (photoIds[index].startsWith('legacy-') || document.data()?.galleryId === story.galleryId))
-    .map(document => String(document.data()?.url || ''))
+    .map(document => String(document.data()?.url || '').trim())
     .filter(Boolean);
   return buildWeddingStoryPageMeta(story, images);
 }
@@ -1053,7 +1060,12 @@ export function createSeoMiddleware() {
       const html = renderSeoHtml(meta, indexHtml);
 
       res.setHeader('Content-Type', 'text/html');
-      res.setHeader('Cache-Control', 'public, max-age=3600');
+      res.setHeader(
+        'Cache-Control',
+        path.startsWith('/real-wedding/')
+          ? WEDDING_PUBLIC_DATA_CACHE_CONTROL
+          : 'public, max-age=3600',
+      );
       res.send(html);
     } catch (error) {
       console.error('Errore SEO middleware:', error);

@@ -12,7 +12,11 @@ import type {
   WeddingStoryStatus,
   WeddingStoryVendor,
 } from '../shared/wedding-seo-types.js';
-import { WEDDING_STORY_LIMITS } from '../shared/wedding-seo-types.js';
+import {
+  resolveWeddingStoryPhotoIds,
+  WEDDING_PUBLIC_DATA_CACHE_CONTROL,
+  WEDDING_STORY_LIMITS,
+} from '../shared/wedding-seo-types.js';
 import type { InfoFormField } from '../shared/info-form-types.js';
 
 const router = express.Router();
@@ -1155,6 +1159,10 @@ export async function loadSelectedPhotos(gallery: Record<string, any>, photoIds:
   return photos.filter(Boolean) as Array<Record<string, any>>;
 }
 
+function hasUsableWeddingPhotoUrl(photo: Record<string, any>): boolean {
+  return typeof photo.url === 'string' && photo.url.trim().length > 0;
+}
+
 export type WeddingAiDraft = Pick<WeddingSeoStory, 'title' | 'excerpt' | 'story' | 'seoTitle' | 'seoDescription'>;
 
 export class WeddingAiGenerationError extends Error {
@@ -1320,6 +1328,7 @@ export function toPublicWeddingStory(
   photos: WeddingStoryPhoto[],
   vendors: WeddingStoryVendor[] = [],
 ): PublicWeddingStory {
+  const photosById = new Map(photos.map(photo => [photo.id, photo]));
   return {
     slug: story.slug,
     title: story.title,
@@ -1328,12 +1337,17 @@ export function toPublicWeddingStory(
     seoTitle: story.seoTitle,
     seoDescription: story.seoDescription,
     publishedAt: story.publishedAt,
-    photos,
+    photos: resolveWeddingStoryPhotoIds(story.selectedPhotoIds, story.coverPhotoId)
+      .flatMap(id => {
+        const photo = photosById.get(id);
+        return photo && hasUsableWeddingPhotoUrl(photo) ? [photo] : [];
+      }),
     vendors,
   };
 }
 
 router.get('/public', async (req: Request, res: Response) => {
+  res.setHeader('Cache-Control', WEDDING_PUBLIC_DATA_CACHE_CONTROL);
   try {
     const requestedLimit = Number.parseInt(String(req.query.limit || '24'), 10);
     const storyLimit = Number.isFinite(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 50) : 24;
@@ -1348,10 +1362,14 @@ router.get('/public', async (req: Request, res: Response) => {
     const stories = await Promise.all(publishedDocuments.map(async document => {
       const story = storyFromDocument(document.id, document.data());
       const gallery = await loadGallery(story.galleryId);
-      const coverPhotoId = story.coverPhotoId && story.selectedPhotoIds.includes(story.coverPhotoId)
-        ? story.coverPhotoId
-        : story.selectedPhotoIds[0];
-      const photos = gallery && coverPhotoId ? await loadSelectedPhotos(gallery, [coverPhotoId]) : [];
+      const orderedPhotoIds = resolveWeddingStoryPhotoIds(story.selectedPhotoIds, story.coverPhotoId);
+      let photos = gallery && orderedPhotoIds.length
+        ? await loadSelectedPhotos(gallery, orderedPhotoIds.slice(0, 1))
+        : [];
+      if (gallery && !photos.some(hasUsableWeddingPhotoUrl) && orderedPhotoIds.length > 1) {
+        const fallbackPhotoIds = story.selectedPhotoIds.filter(id => id !== orderedPhotoIds[0]);
+        photos = await loadSelectedPhotos(gallery, fallbackPhotoIds);
+      }
       const preview: PublicWeddingStoryPreview = {
         slug: story.slug,
         title: story.title,
@@ -1361,7 +1379,6 @@ router.get('/public', async (req: Request, res: Response) => {
       };
       return preview;
     }));
-    res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=3600');
     return res.json({ stories });
   } catch (error) {
     console.error('[wedding-seo] public stories:', error);
@@ -1370,6 +1387,7 @@ router.get('/public', async (req: Request, res: Response) => {
 });
 
 router.get('/public/:slug', async (req: Request, res: Response) => {
+  res.setHeader('Cache-Control', WEDDING_PUBLIC_DATA_CACHE_CONTROL);
   try {
     const slug = slugifyWeddingStory(req.params.slug || '');
     const snap = await db.collection(STORIES_COL)
@@ -1383,10 +1401,9 @@ router.get('/public/:slug', async (req: Request, res: Response) => {
     const story = storyFromDocument(document.id, document.data());
     const gallery = await loadGallery(story.galleryId);
     if (!gallery) return res.status(404).json({ error: 'Galleria non trovata' });
-    const orderedPhotoIds = story.coverPhotoId && story.selectedPhotoIds.includes(story.coverPhotoId)
-      ? [story.coverPhotoId, ...story.selectedPhotoIds.filter(id => id !== story.coverPhotoId)]
-      : story.selectedPhotoIds;
-    const photos = await loadSelectedPhotos(gallery, orderedPhotoIds);
+    const orderedPhotoIds = resolveWeddingStoryPhotoIds(story.selectedPhotoIds, story.coverPhotoId);
+    const photos = (await loadSelectedPhotos(gallery, orderedPhotoIds))
+      .filter(hasUsableWeddingPhotoUrl);
     const publicPhotos: WeddingStoryPhoto[] = photos.map(photo => ({
       id: photo.id,
       name: photo.name || '',
@@ -1421,7 +1438,6 @@ router.get('/public/:slug', async (req: Request, res: Response) => {
       .flat()
       .filter(vendor => vendor.name)
       .filter((vendor, index, all) => all.findIndex(item => normalizedVendorName(item.name) === normalizedVendorName(vendor.name)) === index);
-    res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=3600');
     return res.json(toPublicWeddingStory(story, publicPhotos, vendors));
   } catch (error) {
     console.error('[wedding-seo] public story:', error);

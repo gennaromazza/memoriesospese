@@ -8,6 +8,19 @@ export const WEDDING_STORY_LIMITS = {
   seoDescription: 170,
 } as const;
 
+/** Le storie pubbliche cambiano quando vengono aggiornate: non servire copie stale. */
+export const WEDDING_PUBLIC_DATA_CACHE_CONTROL = 'no-cache, no-store, must-revalidate';
+
+/** La copertina valida precede sempre la selezione; altrimenti vale la prima selezionata. */
+export function resolveWeddingStoryPhotoIds(selectedPhotoIds: unknown, coverPhotoId?: unknown): string[] {
+  const selected = Array.isArray(selectedPhotoIds)
+    ? [...new Set(selectedPhotoIds.filter((id): id is string => typeof id === 'string' && id.length > 0))]
+    : [];
+  const requestedCover = typeof coverPhotoId === 'string' ? coverPhotoId : '';
+  const cover = selected.includes(requestedCover) ? requestedCover : selected[0];
+  return cover ? [cover, ...selected.filter(id => id !== cover)] : selected;
+}
+
 export interface WeddingStorySource {
   id: string;
   submissionId: string;

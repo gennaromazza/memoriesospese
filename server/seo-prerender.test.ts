@@ -9,6 +9,7 @@ import {
   WEDDING_HOME_SEO,
   WEDDING_PORTFOLIO_SEO,
 } from '../shared/public-seo-content';
+import { WEDDING_PUBLIC_DATA_CACHE_CONTROL } from '../shared/wedding-seo-types';
 
 type RenderedResponse = {
   body?: string;
@@ -112,21 +113,59 @@ describe('SEO prerender wedding-first', () => {
       galleryId: 'gallery-1', status: 'published', slug: 'anna-e-luca', title: 'Anna e Luca',
       excerpt: 'Una cerimonia in giardino.', story: '## Cerimonia\n\nLa cerimonia si è svolta in giardino.',
       seoTitle: 'Anna e Luca ad Aversa', seoDescription: 'Il matrimonio di Anna e Luca ad Aversa.',
-      selectedPhotoIds: ['photo-1'],
+      selectedPhotoIds: ['photo-1', 'photo-2', 'photo-3'],
+      coverPhotoId: 'photo-2',
     };
     mockCollection.mockReturnValue({
       where: () => ({ get: async () => ({ docs: [{ data: () => story }] }) }),
-      doc: () => ({ get: async () => ({ exists: true, data: () => ({ galleryId: 'gallery-1', url: 'https://images.example/anna.jpg' }) }) }),
+      doc: (photoId: string) => ({
+        get: async () => ({
+          exists: true,
+          data: () => ({ galleryId: 'gallery-1', url: `https://images.example/${photoId}.jpg` }),
+        }),
+      }),
     });
 
     const { response, next } = await renderForCrawler('/real-wedding/anna-e-luca');
 
     expect(next).not.toHaveBeenCalled();
     expect(response.headers['Content-Type']).toBe('text/html');
+    expect(response.headers['Cache-Control']).toBe(WEDDING_PUBLIC_DATA_CACHE_CONTROL);
     expect(response.body).toContain('<meta name="robots" content="index,follow,max-image-preview:large"');
     expect(response.body).toContain('<link rel="canonical" href="https://imagestudiofotografico.com/real-wedding/anna-e-luca"');
     expect(response.body).toContain('data-seo-prerender="true"');
-    expect(response.body).toContain('https://images.example/anna.jpg');
+    expect(response.body).toContain('<meta property="og:image" content="https://images.example/photo-2.jpg"');
+    expect(response.body!.indexOf('https://images.example/photo-2.jpg'))
+      .toBeLessThan(response.body!.indexOf('https://images.example/photo-1.jpg'));
+  });
+
+  it('falls back to the first selected photo when the configured cover is unavailable to prerender', async () => {
+    const story = {
+      galleryId: 'gallery-1',
+      status: 'published',
+      slug: 'anna-e-luca',
+      title: 'Anna e Luca',
+      excerpt: 'Una cerimonia in giardino.',
+      story: '## Cerimonia\n\nUna giornata speciale.',
+      selectedPhotoIds: ['photo-1', 'photo-2'],
+      coverPhotoId: 'photo-2',
+    };
+    mockCollection.mockReturnValue({
+      where: () => ({ get: async () => ({ docs: [{ data: () => story }] }) }),
+      doc: (photoId: string) => ({
+        get: async () => photoId === 'photo-2'
+          ? { exists: false, data: () => undefined }
+          : {
+            exists: true,
+            data: () => ({ galleryId: 'gallery-1', url: `https://images.example/${photoId}.jpg` }),
+          },
+      }),
+    });
+
+    const { response, next } = await renderForCrawler('/real-wedding/anna-e-luca');
+
+    expect(next).not.toHaveBeenCalled();
+    expect(response.body).toContain('<meta property="og:image" content="https://images.example/photo-1.jpg"');
   });
 
   it('keeps a draft Real Wedding out of crawler HTML', async () => {
