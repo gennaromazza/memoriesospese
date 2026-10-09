@@ -72,6 +72,46 @@ export interface PhotoStats {
   recentPhotos: Photo[];
 }
 
+export function getPhotoAccessibleNames(
+  photos: Photo[],
+  chapters: Array<{ id: string; titolo: string }> = [],
+): Map<string, string> {
+  const photosByName = new Map<string, Photo[]>();
+  for (const photo of photos) {
+    const key = photo.name.trim().toLowerCase();
+    const matchingPhotos = photosByName.get(key) || [];
+    matchingPhotos.push(photo);
+    photosByName.set(key, matchingPhotos);
+  }
+
+  const chapterTitles = new Map(chapters.map(chapter => [chapter.id, chapter.titolo]));
+  const accessibleNames = new Map<string, string>();
+  for (const matchingPhotos of photosByName.values()) {
+    if (matchingPhotos.length === 1) {
+      const [photo] = matchingPhotos;
+      accessibleNames.set(photo.id, photo.name);
+      continue;
+    }
+
+    const chapterCounts = new Map<string, number>();
+    for (const photo of matchingPhotos) {
+      const title = photo.chapterId ? chapterTitles.get(photo.chapterId) : undefined;
+      if (title) chapterCounts.set(title, (chapterCounts.get(title) || 0) + 1);
+    }
+
+    for (const photo of matchingPhotos) {
+      const chapterTitle = photo.chapterId ? chapterTitles.get(photo.chapterId) : undefined;
+      const chapterIsDistinct = Boolean(chapterTitle) && chapterCounts.get(chapterTitle!) === 1;
+      const context = chapterIsDistinct
+        ? `capitolo ${chapterTitle}`
+        : [chapterTitle && `capitolo ${chapterTitle}`, `foto ${photo.id}`].filter(Boolean).join(', ');
+      accessibleNames.set(photo.id, `${photo.name} (${context})`);
+    }
+  }
+
+  return accessibleNames;
+}
+
 function resolvePhotoStoragePath(photo: Pick<Photo, "galleryId" | "name" | "url" | "storagePath">): string {
   if (photo.storagePath) return photo.storagePath;
 

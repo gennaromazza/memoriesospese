@@ -14,6 +14,8 @@ const PHOTO_2 = {
   url: 'https://images.example.test/wedding-e2e/photo-2.svg',
   chapterTitle: 'Ritratto',
 };
+const DUPLICATE_NAME_PHOTO_1 = { ...PHOTO_1, name: 'momento.jpg' };
+const DUPLICATE_NAME_PHOTO_2 = { ...PHOTO_2, name: 'momento.jpg' };
 
 type FixtureState = {
   selectedPhotoIds: string[];
@@ -258,6 +260,46 @@ test('la copertina si cambia da tastiera e la selezione viene salvata automatica
     .toMatchAriaSnapshot('- button "Copertina cerimonia.jpg" [pressed]');
   await expect(page.getByRole('button', { name: 'Copertina ritratto.jpg' }))
     .toMatchAriaSnapshot('- button "Copertina ritratto.jpg" [pressed=false]');
+});
+
+test('le copertine con lo stesso nome includono il capitolo e mantengono stati selezionati distinti', async ({ page }) => {
+  const state: FixtureState = {
+    selectedPhotoIds: [DUPLICATE_NAME_PHOTO_1.id, DUPLICATE_NAME_PHOTO_2.id],
+    requestedCoverPhotoId: DUPLICATE_NAME_PHOTO_1.id,
+    availablePhotos: [DUPLICATE_NAME_PHOTO_1, DUPLICATE_NAME_PHOTO_2],
+    failFirstSelectionSave: false,
+    selectionAttempts: 0,
+    selectionWrites: [],
+  };
+  await installApiFixtures(page, state);
+
+  await page.goto('/e2e/fixtures/wedding-seo-cover-harness.html?same-name=1');
+  const ceremonyCover = page.getByRole('button', {
+    name: 'Copertina momento.jpg (capitolo Cerimonia)',
+  });
+  const portraitCover = page.getByRole('button', {
+    name: 'Copertina momento.jpg (capitolo Ritratto)',
+  });
+
+  await expect(ceremonyCover).toMatchAriaSnapshot(
+    '- button "Copertina momento.jpg (capitolo Cerimonia)" [pressed]',
+  );
+  await expect(portraitCover).toMatchAriaSnapshot(
+    '- button "Copertina momento.jpg (capitolo Ritratto)" [pressed=false]',
+  );
+
+  await portraitCover.click();
+  await expect(portraitCover).toMatchAriaSnapshot(
+    '- button "Copertina momento.jpg (capitolo Ritratto)" [pressed]',
+  );
+  await expect(ceremonyCover).toMatchAriaSnapshot(
+    '- button "Copertina momento.jpg (capitolo Cerimonia)" [pressed=false]',
+  );
+  await expect.poll(() => state.selectionWrites.length).toBe(1);
+  expect(state.selectionWrites[0]).toEqual({
+    selectedPhotoIds: [DUPLICATE_NAME_PHOTO_1.id, DUPLICATE_NAME_PHOTO_2.id],
+    coverPhotoId: DUPLICATE_NAME_PHOTO_2.id,
+  });
 });
 
 test('rimuovendo la copertina dalla storia viene salvata e mantenuta la prossima foto valida', async ({ page }) => {

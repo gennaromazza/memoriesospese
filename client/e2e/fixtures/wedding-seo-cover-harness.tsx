@@ -12,6 +12,10 @@ const gallery = {
   location: 'Roma',
   photoCount: 2,
   active: true,
+  chapters: [
+    { id: 'chapter-cerimonia', titolo: 'Cerimonia', ordine: 0 },
+    { id: 'chapter-ritratto', titolo: 'Ritratto', ordine: 1 },
+  ],
 } as Gallery;
 
 const photos: Photo[] = [
@@ -49,6 +53,14 @@ const photos: Photo[] = [
   },
 ];
 
+const duplicateNamePhotos: Photo[] = [
+  { ...photos[0], name: 'momento.jpg', chapterId: 'chapter-cerimonia' },
+  { ...photos[1], name: 'momento.jpg', chapterId: 'chapter-ritratto' },
+];
+const fixturePhotos = new URLSearchParams(window.location.search).has('same-name')
+  ? duplicateNamePhotos
+  : photos;
+
 createRoot(document.getElementById('root')!).render(
-  <WeddingSeoDraftPanel gallery={gallery} photos={photos} />,
+  <WeddingSeoDraftPanel gallery={gallery} photos={fixturePhotos} />,
 );

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Gallery } from '@/lib/galleries';
-import type { Photo } from '@/lib/photos';
+import { getPhotoAccessibleNames, type Photo } from '@/lib/photos';
 import { WEDDING_STORY_LIMITS, type WeddingSeoStory, type WeddingStorySource } from '@shared/wedding-seo-types';
 import {
   generateWeddingStoryDraft,
@@ -157,6 +157,10 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
   const validCoverPhotoId = coverPhotoId && validSelectedPhotoIds.includes(coverPhotoId)
     ? coverPhotoId
     : validSelectedPhotoIds[0];
+  const photoAccessibleNames = useMemo(
+    () => getPhotoAccessibleNames(photos, gallery.chapters),
+    [photos, gallery.chapters],
+  );
   const storyBlocks = useMemo(() => parseWeddingStoryMarkdown(draft.story), [draft.story]);
   const currentSelectionSignature = photoSelectionSignature(validSelectedPhotoIds, validCoverPhotoId);
 
@@ -514,7 +518,7 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
                     type="button"
                     variant={isCover ? 'default' : 'secondary'}
                     size="icon"
-                    aria-label={`Copertina ${photo.name}`}
+                    aria-label={`Copertina ${photoAccessibleNames.get(photo.id) || photo.name}`}
                     aria-pressed={isCover}
                     title={isCover ? 'Copertina attuale' : 'Imposta come copertina'}
                     className={`absolute right-1 top-1 h-7 w-7 ${isCover ? 'bg-amber-500 hover:bg-amber-600' : ''}`}
