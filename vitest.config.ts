@@ -17,6 +17,7 @@ export default defineConfig({
       "server/**/*.test.ts",
       "shared/**/*.test.ts",
       "client/src/config/**/*.test.ts",
+      "client/src/lib/quote-portal-date.test.ts",
       "client/src/lib/wedding-seo.test.ts",
       "client/src/pages/admin/adminGalleryFilters.test.ts",
       "client/src/features/print-shop/**/*.test.ts",
