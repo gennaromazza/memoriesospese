@@ -1518,19 +1518,11 @@ router.post(
       const clienteName = quote.signature.clientName || "Cliente";
 
       // Data firma
-      const signedAt = quote.signature.signedAt
-        .toDate()
-        .toLocaleDateString("it-IT", {
-          day: "2-digit",
-          month: "long",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        });
+      const signedAt = quote.signature.signedAt.toDate();
 
       // Recupera prossimo pagamento (se esiste payment schedule)
       let nextPaymentAmount: number | undefined;
-      let nextPaymentDate: string | undefined;
+      let nextPaymentDate: Date | undefined;
 
       if (quote.paymentScheduleIds && quote.paymentScheduleIds.length > 0) {
         const scheduleDoc = await db
@@ -1544,13 +1536,7 @@ router.post(
           );
           if (nextPayment) {
             nextPaymentAmount = nextPayment.importo;
-            nextPaymentDate = nextPayment.dataScadenza
-              .toDate()
-              .toLocaleDateString("it-IT", {
-                day: "2-digit",
-                month: "long",
-                year: "numeric",
-              });
+            nextPaymentDate = nextPayment.dataScadenza.toDate();
           }
         }
       }
@@ -1569,7 +1555,7 @@ router.post(
         nextPaymentAmount && nextPaymentDate
           ? {
               importo: nextPaymentAmount,
-              dataScadenza: new Date(nextPaymentDate),
+              dataScadenza: nextPaymentDate,
               descrizione: "Prossimo pagamento",
             }
           : undefined;
@@ -1582,7 +1568,7 @@ router.post(
         quote.type || "fisso",
         quote.jobInfo?.nomeEvento || "Evento",
         quoteTotaleEmail,
-        new Date(signedAt),
+        signedAt,
         portalUrl,
         nextPaymentData,
         undefined,
