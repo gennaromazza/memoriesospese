@@ -302,6 +302,45 @@ test('le copertine con lo stesso nome includono il capitolo e mantengono stati s
   });
 });
 
+test('rimuovendo una foto diversa dalla copertina mantiene la scelta nel salvataggio automatico e dopo il ricaricamento', async ({ page }) => {
+  const state: FixtureState = {
+    selectedPhotoIds: [PHOTO_1.id, PHOTO_2.id],
+    requestedCoverPhotoId: PHOTO_1.id,
+    availablePhotos: [PHOTO_1, PHOTO_2],
+    failFirstSelectionSave: false,
+    selectionAttempts: 0,
+    selectionWrites: [],
+  };
+  await installApiFixtures(page, state);
+
+  await page.goto('/e2e/fixtures/wedding-seo-cover-harness.html');
+  const ceremonyCover = page.getByRole('button', { name: 'Copertina cerimonia.jpg' });
+  const portraitCover = page.getByRole('button', { name: 'Copertina ritratto.jpg' });
+
+  await portraitCover.click();
+  await expect(portraitCover).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(() => state.selectionWrites.length).toBe(1);
+  expect(state.selectionWrites[0]).toEqual({
+    selectedPhotoIds: [PHOTO_1.id, PHOTO_2.id],
+    coverPhotoId: PHOTO_2.id,
+  });
+
+  await page.getByRole('button', { name: 'Seleziona cerimonia.jpg' }).click();
+  await expect(ceremonyCover).toHaveAttribute('aria-pressed', 'false');
+  await expect(portraitCover).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(() => state.selectionWrites.length).toBe(2);
+  expect(state.selectionWrites[1]).toEqual({
+    selectedPhotoIds: [PHOTO_2.id],
+    coverPhotoId: PHOTO_2.id,
+  });
+
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Copertina ritratto.jpg' }))
+    .toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: 'Copertina cerimonia.jpg' }))
+    .toHaveAttribute('aria-pressed', 'false');
+});
+
 test('rimuovendo la copertina dalla storia viene salvata e mantenuta la prossima foto valida', async ({ page }) => {
   const state: FixtureState = {
     selectedPhotoIds: [PHOTO_1.id, PHOTO_2.id],
