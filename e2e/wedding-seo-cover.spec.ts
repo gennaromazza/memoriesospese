@@ -164,8 +164,8 @@ test('la copertina scelta nell’editor compare in Home e nella hero dopo il ric
   await installApiFixtures(page, state);
 
   await page.goto('/e2e/fixtures/wedding-seo-cover-harness.html');
-  await expect(page.getByRole('button', { name: 'cerimonia.jpg è la copertina' })).toBeVisible();
-  await page.getByRole('button', { name: 'Usa ritratto.jpg come copertina' }).click();
+  await expect(page.getByRole('button', { name: 'Copertina cerimonia.jpg' })).toBeVisible();
+  await page.getByRole('button', { name: 'Copertina ritratto.jpg' }).click();
   await expect(page.getByText('Selezione foto e copertina salvata automaticamente.')).toBeVisible();
   await expect.poll(() => state.selectionWrites.length).toBe(1);
   expect(state.selectionWrites[0]).toEqual({
@@ -214,17 +214,20 @@ test('la copertina si cambia da tastiera e la selezione viene salvata automatica
   await installApiFixtures(page, state);
 
   await page.goto('/e2e/fixtures/wedding-seo-cover-harness.html');
-  const portraitCover = page.getByRole('button', { name: 'Usa ritratto.jpg come copertina' });
+  const ceremonyCover = page.getByRole('button', { name: 'Copertina cerimonia.jpg' });
+  const portraitCover = page.getByRole('button', { name: 'Copertina ritratto.jpg' });
+  await expect(ceremonyCover).toMatchAriaSnapshot('- button "Copertina cerimonia.jpg" [pressed]');
+  await expect(portraitCover).toMatchAriaSnapshot('- button "Copertina ritratto.jpg" [pressed=false]');
   await expect(portraitCover).toBeVisible();
   await tabToButton(page, portraitCover);
   await expect(portraitCover).toBeFocused();
   await expect(portraitCover).toHaveAttribute('aria-pressed', 'false');
   await page.keyboard.press('Enter');
 
-  const portraitIsCover = page.getByRole('button', { name: 'ritratto.jpg è la copertina' });
-  const ceremonyCover = page.getByRole('button', { name: 'Usa cerimonia.jpg come copertina' });
-  await expect(portraitIsCover).toHaveAttribute('aria-pressed', 'true');
-  await expect(ceremonyCover).toHaveAttribute('aria-pressed', 'false');
+  await expect(portraitCover).toMatchAriaSnapshot('- button "Copertina ritratto.jpg" [pressed]');
+  await expect(ceremonyCover).toMatchAriaSnapshot('- button "Copertina cerimonia.jpg" [pressed=false]');
+  await expect(page.getByRole('status').filter({ hasText: 'Copertina selezionata: ritratto.jpg.' }))
+    .toHaveText('Copertina selezionata: ritratto.jpg.');
   await expect(page.getByText('Selezione foto e copertina salvata automaticamente.')).toBeVisible();
   await expect.poll(() => state.selectionWrites.length).toBe(1);
   expect(state.selectionWrites[0]).toEqual({
@@ -234,11 +237,16 @@ test('la copertina si cambia da tastiera e la selezione viene salvata automatica
 
   await tabToButton(page, ceremonyCover, 'backward');
   await expect(ceremonyCover).toBeFocused();
+  await expect(ceremonyCover).toMatchAriaSnapshot('- button "Copertina cerimonia.jpg" [pressed=false]');
   await page.keyboard.press('Space');
-  await expect(page.getByRole('button', { name: 'cerimonia.jpg è la copertina' })).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByRole('button', { name: 'Usa ritratto.jpg come copertina' })).toHaveAttribute('aria-pressed', 'false');
-  await expect(page.getByRole('status')).toHaveText('Salvataggio automatico della selezione…');
-  await expect(page.getByRole('status')).toHaveText('Selezione foto e copertina salvata automaticamente.');
+  await expect(ceremonyCover).toMatchAriaSnapshot('- button "Copertina cerimonia.jpg" [pressed]');
+  await expect(portraitCover).toMatchAriaSnapshot('- button "Copertina ritratto.jpg" [pressed=false]');
+  await expect(page.getByRole('status').filter({ hasText: 'Copertina selezionata: cerimonia.jpg.' }))
+    .toHaveText('Copertina selezionata: cerimonia.jpg.');
+  await expect(page.getByRole('status').filter({ hasText: 'Salvataggio automatico della selezione…' }))
+    .toHaveText('Salvataggio automatico della selezione…');
+  await expect(page.getByRole('status').filter({ hasText: 'Selezione foto e copertina salvata automaticamente.' }))
+    .toHaveText('Selezione foto e copertina salvata automaticamente.');
   await expect.poll(() => state.selectionWrites.length).toBe(2);
   expect(state.selectionWrites[1]).toEqual({
     selectedPhotoIds: [PHOTO_1.id, PHOTO_2.id],
@@ -246,8 +254,10 @@ test('la copertina si cambia da tastiera e la selezione viene salvata automatica
   });
 
   await page.reload();
-  await expect(page.getByRole('button', { name: 'cerimonia.jpg è la copertina' })).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByRole('button', { name: 'Usa ritratto.jpg come copertina' })).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByRole('button', { name: 'Copertina cerimonia.jpg' }))
+    .toMatchAriaSnapshot('- button "Copertina cerimonia.jpg" [pressed]');
+  await expect(page.getByRole('button', { name: 'Copertina ritratto.jpg' }))
+    .toMatchAriaSnapshot('- button "Copertina ritratto.jpg" [pressed=false]');
 });
 
 test('dopo un errore il comando di riprova salva la copertina scelta senza cambiare foto', async ({ page }) => {
@@ -262,8 +272,8 @@ test('dopo un errore il comando di riprova salva la copertina scelta senza cambi
   await installApiFixtures(page, state);
 
   await page.goto('/e2e/fixtures/wedding-seo-cover-harness.html');
-  await expect(page.getByRole('button', { name: 'cerimonia.jpg è la copertina' })).toBeVisible();
-  await page.getByRole('button', { name: 'Usa ritratto.jpg come copertina' }).click();
+  await expect(page.getByRole('button', { name: 'Copertina cerimonia.jpg' })).toBeVisible();
+  await page.getByRole('button', { name: 'Copertina ritratto.jpg' }).click();
   await expect(page.getByRole('alert')).toContainText('Salvataggio automatico non riuscito');
   await expect(page.getByText('Selezione foto e copertina salvata automaticamente.')).not.toBeVisible();
   await expect(page.getByRole('button', { name: 'Riprova il salvataggio' })).toBeVisible();
@@ -272,7 +282,8 @@ test('dopo un errore il comando di riprova salva la copertina scelta senza cambi
   expect(state.requestedCoverPhotoId).toBe(PHOTO_1.id);
 
   await page.getByRole('button', { name: 'Riprova il salvataggio' }).click();
-  await expect(page.getByRole('status')).toHaveText('Selezione foto e copertina salvata automaticamente.');
+  await expect(page.getByRole('status').filter({ hasText: 'Selezione foto e copertina salvata automaticamente.' }))
+    .toHaveText('Selezione foto e copertina salvata automaticamente.');
   await expect.poll(() => state.selectionAttempts).toBe(2);
   expect(state.selectionWrites).toEqual([{
     selectedPhotoIds: [PHOTO_1.id, PHOTO_2.id],

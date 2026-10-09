@@ -79,6 +79,7 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
   const [selectedSourceIds, setSelectedSourceIds] = useState<Set<string>>(new Set());
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
   const [coverPhotoId, setCoverPhotoId] = useState<string>();
+  const [coverAnnouncement, setCoverAnnouncement] = useState('');
   const [warning, setWarning] = useState<string>();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<'draft' | 'published' | null>(null);
@@ -231,6 +232,9 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
   };
 
   const chooseCoverPhoto = (photoId: string) => {
+    if (validCoverPhotoId === photoId) return;
+    const photo = photos.find(candidate => candidate.id === photoId);
+    if (!photo) return;
     if (!selectedPhotoIds.has(photoId)) {
       if (validSelectedPhotoIds.length >= MAX_WEDDING_STORY_PHOTOS) {
         toast({ title: 'Limite raggiunto', description: 'Deseleziona una fotografia prima di scegliere questa copertina.' });
@@ -239,6 +243,7 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
       setSelectedPhotoIds(new Set(selectedPhotoIds).add(photoId));
     }
     setCoverPhotoId(photoId);
+    setCoverAnnouncement(`Copertina selezionata: ${photo.name}.`);
   };
 
   const refreshSources = async () => {
@@ -491,6 +496,9 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
           </div>
         </CardHeader>
         <CardContent>
+          <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+            {coverAnnouncement}
+          </p>
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 md:grid-cols-8 lg:grid-cols-10">
             {visiblePhotos.map(photo => {
               const selected = selectedPhotoIds.has(photo.id);
@@ -504,7 +512,7 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
                     type="button"
                     variant={isCover ? 'default' : 'secondary'}
                     size="icon"
-                    aria-label={isCover ? `${photo.name} è la copertina` : `Usa ${photo.name} come copertina`}
+                    aria-label={`Copertina ${photo.name}`}
                     aria-pressed={isCover}
                     title={isCover ? 'Copertina attuale' : 'Imposta come copertina'}
                     className={`absolute right-1 top-1 h-7 w-7 ${isCover ? 'bg-amber-500 hover:bg-amber-600' : ''}`}
