@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classifyCalendarEvent } from "./google-calendar";
+import { classifyCalendarEvent, toGoogleTimedBoundary } from "./google-calendar";
 
 // ---------------------------------------------------------------------------
 // Regression guard for Task #70: Google all-day events default to
@@ -86,5 +86,21 @@ describe("classifyCalendarEvent (busy-event filter)", () => {
     const result = classifyCalendarEvent(event);
     expect(result.include).toBe(true);
     expect(result.isAllDay).toBe(true);
+  });
+});
+
+describe("Google timed boundaries retain the selected instant", () => {
+  it.each([
+    ["2026-01-14T23:15:00Z", "2026-01-15T00:15:00+01:00"],
+    ["2026-07-14T22:15:00Z", "2026-07-15T00:15:00+02:00"],
+    ["2026-03-29T00:45:00Z", "2026-03-29T01:45:00+01:00"],
+    ["2026-03-29T01:15:00Z", "2026-03-29T03:15:00+02:00"],
+    ["2026-10-25T00:30:00Z", "2026-10-25T02:30:00+02:00"],
+    ["2026-10-25T01:30:00Z", "2026-10-25T02:30:00+01:00"],
+  ])("serializes %s as RFC3339 %s, without ambiguous floating times", (iso, expected) => {
+    const start = new Date(iso);
+    const boundary = toGoogleTimedBoundary(start);
+    expect(boundary).toEqual({ dateTime: expected, timeZone: "Europe/Rome" });
+    expect(new Date(boundary.dateTime)).toEqual(start);
   });
 });

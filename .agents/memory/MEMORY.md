@@ -35,3 +35,4 @@
 - [Ciclo vita asset Blog](blog-asset-lifecycle.md) — tracciare i path Storage; write Firestore prima del cleanup; invalidare upload fuori sessione; publishedAt resta la prima pubblicazione.
 - [NPM firewall registry protocol](npm-firewall-registry-protocol.md) — installazioni nel workflow corrompono node_modules; recupero esplicito dal lockfile con host registry sostituito.
 - [Heartbeat JSON per operazioni lunghe](long-json-heartbeat.md) — le API IA lente devono inviare whitespace periodico o il proxy può sostituire la risposta con HTML di errore.
+- [Appuntamenti e ore legali](appointment-timezones.md) — consulenze legacy a mezzanotte: promemoria dall'orario scelto; preservare l'occorrenza nell'ora autunnale ripetuta.

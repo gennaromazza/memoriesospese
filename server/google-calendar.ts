@@ -644,6 +644,16 @@ export async function getEventsWithDetailsAllCalendars(
 /**
  * Crea nuovo evento calendario
  */
+/** RFC3339 with an explicit offset keeps the repeated autumn hour unambiguous. */
+export function toGoogleTimedBoundary(date: Date) {
+  const dt = DateTime.fromJSDate(date, { zone: "Europe/Rome" });
+  if (!dt.isValid) throw new RangeError("Invalid Calendar date");
+  return {
+    dateTime: dt.toISO({ suppressMilliseconds: true })!,
+    timeZone: "Europe/Rome",
+  };
+}
+
 export async function createEvent(
   calendarId: string = "primary",
   eventData: {
@@ -674,27 +684,8 @@ export async function createEvent(
     startField = { date: eventData.startDateStr };
     endField = { date: endDateStr };
   } else if (eventData.start && eventData.end) {
-    // FIXED: Usa Luxon per garantire timezone Europe/Rome corretto
-    // Problema legacy: .getHours() leggeva timezone del server (UTC) causando slittamenti
-    const { DateTime } = await import('luxon');
-    
-    // Converti Date → DateTime in Europe/Rome timezone
-    const startDT = DateTime.fromJSDate(eventData.start, { zone: 'Europe/Rome' });
-    const endDT = DateTime.fromJSDate(eventData.end, { zone: 'Europe/Rome' });
-    
-    // Formatta come YYYY-MM-DDTHH:mm:ss (floating, senza Z)
-    const formatLocal = (dt: any) => {
-      return dt.toFormat('yyyy-MM-dd\'T\'HH:mm:ss');
-    };
-
-    startField = {
-      dateTime: formatLocal(startDT),
-      timeZone: "Europe/Rome",
-    };
-    endField = {
-      dateTime: formatLocal(endDT),
-      timeZone: "Europe/Rome",
-    };
+    startField = toGoogleTimedBoundary(eventData.start);
+    endField = toGoogleTimedBoundary(eventData.end);
   } else {
     throw new Error(
       "Invalid event data: must provide either isAllDay+startDateStr or start+end Dates",
@@ -775,19 +766,11 @@ export async function updateEvent(
       }
     } else {
       if (eventData.start) {
-        const startDT = DateTime.fromJSDate(eventData.start, { zone: 'Europe/Rome' });
-        requestBody.start = {
-          dateTime: startDT.toFormat('yyyy-MM-dd\'T\'HH:mm:ss'),
-          timeZone: "Europe/Rome",
-        };
+        requestBody.start = toGoogleTimedBoundary(eventData.start);
       }
       
       if (eventData.end) {
-        const endDT = DateTime.fromJSDate(eventData.end, { zone: 'Europe/Rome' });
-        requestBody.end = {
-          dateTime: endDT.toFormat('yyyy-MM-dd\'T\'HH:mm:ss'),
-          timeZone: "Europe/Rome",
-        };
+        requestBody.end = toGoogleTimedBoundary(eventData.end);
       }
     }
   }

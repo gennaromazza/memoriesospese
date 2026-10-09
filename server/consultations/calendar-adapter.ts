@@ -4,6 +4,7 @@
 
 import type { AvailabilityConfig } from "../../shared/calendar-types.js";
 import type { ConsultationTemplate } from "../../shared/consultation-types.js";
+import { consultationSlot } from "./slot.js";
 
 /**
  * Convert consultation template to unified AvailabilityConfig
@@ -317,13 +318,9 @@ export async function getAllExistingEvents(
     for (const doc of consultationsSnap.docs) {
       const data = doc.data();
       const consultationDate = data.dataConsulenza.toDate();
-      // CRITICAL: Use Luxon for correct timezone extraction (server runs in UTC)
-      const { DateTime } = await import('luxon');
-      const romeDate = DateTime.fromJSDate(consultationDate, { zone: 'Europe/Rome' });
-      const dateStr = romeDate.toFormat('yyyy-MM-dd');
-      
-      const start = createEuropeRomeDate(dateStr, data.orarioInizio);
-      const end = createEuropeRomeDate(dateStr, data.orarioFine);
+      const { start, end } = consultationSlot(
+        consultationDate, data.orarioInizio, data.orarioFine, data.durataMinuti,
+      );
       
       existingEvents.push({
         start,

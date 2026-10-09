@@ -739,6 +739,7 @@ router.post("/create", requireAdminForManualBooking, async (req, res) => {
         year: "numeric",
         month: "long",
         day: "numeric",
+        timeZone: "Europe/Rome",
       });
       const bookingTime = `${slotStart.toLocaleTimeString("it-IT", {
         hour: "2-digit",
@@ -1073,6 +1074,7 @@ router.patch("/v2/:id/approve", authenticateFirebase, requireAdmin, async (req, 
         year: "numeric",
         month: "long",
         day: "numeric",
+        timeZone: "Europe/Rome",
       });
       const bookingTime = `${slotStart.toLocaleTimeString("it-IT", {
         hour: "2-digit",
@@ -1338,6 +1340,7 @@ router.patch("/:id/approve", authenticateFirebase, requireAdmin, async (req, res
         year: "numeric",
         month: "long",
         day: "numeric",
+        timeZone: "Europe/Rome",
       });
       const bookingTime = `${slotStart.toLocaleTimeString("it-IT", {
         hour: "2-digit",
@@ -1513,6 +1516,7 @@ router.patch("/:id/reject", authenticateFirebase, requireAdmin, async (req, res)
         year: "numeric",
         month: "long",
         day: "numeric",
+        timeZone: "Europe/Rome",
       });
 
       // Import diretto delle funzioni email
@@ -1794,6 +1798,7 @@ router.patch("/:id/status", authenticateFirebase, requireAdmin, async (req, res)
         year: "numeric",
         month: "long",
         day: "numeric",
+        timeZone: "Europe/Rome",
       });
 
       // Import funzioni email
@@ -1975,10 +1980,12 @@ router.patch("/:id/update", authenticateFirebase, requireAdmin, async (req, res)
           year: "numeric",
           month: "long",
           day: "numeric",
+          timeZone: "Europe/Rome",
         });
         const bookingTime = slotStart.toLocaleTimeString("it-IT", {
           hour: "2-digit",
           minute: "2-digit",
+          timeZone: "Europe/Rome",
         });
 
         // Import funzioni email
@@ -2540,6 +2547,7 @@ router.post("/v2/create", requireAdminForManualBooking, async (req, res) => {
         year: "numeric",
         month: "long",
         day: "numeric",
+        timeZone: "Europe/Rome",
       });
       const bookingTime = `${slotStart.toLocaleTimeString("it-IT", {
         hour: "2-digit",
@@ -2866,6 +2874,7 @@ router.post("/resend-confirmation-emails", authenticateFirebase, requireAdmin, a
           year: "numeric",
           month: "long",
           day: "numeric",
+          timeZone: "Europe/Rome",
         });
         const bookingTime = `${startDate.toLocaleTimeString("it-IT", {
           hour: "2-digit",

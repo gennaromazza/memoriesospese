@@ -12,6 +12,7 @@ import { authenticateFirebase, sendGmailEmail, createCalendarEventEmailHTML, get
 import { z } from 'zod';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
+import { toRomeDateTime } from './utils/timezone.js';
 
 const router = express.Router();
 
@@ -821,8 +822,17 @@ router.patch('/events/:eventId', authenticateFirebase, requireAdmin, async (req,
       const firestoreUpdate: Record<string, any> = {
         dataConsulenza: Timestamp.fromDate(startDate),
         dataConsulenzaFine: Timestamp.fromDate(endDate),
+        // Adapter, approval and email templates read these wall-clock fields.
+        // Moving only the timestamps leaves the old time in every reminder.
+        orarioInizio: toRomeDateTime(startDate).toFormat('HH:mm'),
+        orarioFine: toRomeDateTime(endDate).toFormat('HH:mm'),
+        durataMinuti: (endDate.getTime() - startDate.getTime()) / 60000,
         updatedAt: Timestamp.now(),
       };
+      if (consultation?.dataConsulenza?.toDate?.()?.getTime() !== startDate.getTime()) {
+        firestoreUpdate.reminderEmailSent = false;
+        firestoreUpdate.reminderSentAt = FieldValue.delete();
+      }
       
       if (data.description !== undefined) {
         firestoreUpdate.note = data.description;

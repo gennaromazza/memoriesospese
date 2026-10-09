@@ -27,6 +27,7 @@ import {
 } from "../google-calendar.js";
 import { DateTime } from "luxon";
 import { normalizeEmail, generateClienteIdFromEmail } from "../utils/normalize.js";
+import { consultationSlot } from "../consultations/slot.js";
 
 /**
  * 🔥 FUNZIONE UNIVERSALE DI OVERLAP
@@ -782,8 +783,10 @@ export async function createConsultation(
     cliente: data.cliente,
     // clienteId verrà aggiunto da linkConsultationToCliente
 
-    // Slot - convert string or Date to Timestamp
-    dataConsulenza: Timestamp.fromDate(new Date(data.dataConsulenza as any)),
+    // Persist the selected instant, not midnight (reminders use this timestamp).
+    dataConsulenza: Timestamp.fromDate(consultationSlot(
+      data.dataConsulenza, data.orarioInizio, data.orarioFine, template.durataMinuti,
+    ).start),
     orarioInizio: data.orarioInizio,
     orarioFine: data.orarioFine,
 
@@ -859,19 +862,16 @@ export async function updateConsultation(
     updatedAt: FieldValue.serverTimestamp(),
   };
 
-  // Converti Date a Timestamp combinando data + orario se entrambi presenti
-  if (data.dataConsulenza && data.orarioInizio) {
-    try {
-      // Costruisci ISO string completa per evitare ambiguità timezone
-      const combinedDate = new Date(
-        `${data.dataConsulenza}T${data.orarioInizio}:00`,
-      );
-      if (!isNaN(combinedDate.getTime())) {
-        updates.dataConsulenza = Timestamp.fromDate(combinedDate);
-      }
-    } catch (e: any) {
-      console.warn(`[updateConsultation] Errore parsing data combinata: ${e?.message || e}`);
-    }
+  // Date-only and time-only edits must both update the selected instant.
+  if (data.dataConsulenza || data.orarioInizio || data.orarioFine) {
+    const current = doc.data()!;
+    const slot = consultationSlot(
+      data.dataConsulenza || current.dataConsulenza.toDate(),
+      data.orarioInizio || current.orarioInizio,
+      data.orarioFine || current.orarioFine,
+      current.durataMinuti,
+    );
+    updates.dataConsulenza = Timestamp.fromDate(slot.start);
   }
 
   await docRef.update(updates);

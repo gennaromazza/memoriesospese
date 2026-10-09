@@ -18,6 +18,7 @@ import {
 } from "./email-routes.js";
 import { DateTime } from "luxon";
 import { formatPhoneForWhatsApp } from '../shared/phone-utils.js';
+import { consultationSlot } from "./consultations/slot.js";
 import {
   generateGallerySelectionReminderEmail,
   generateGallerySelectionReminderSubject
@@ -275,7 +276,19 @@ export async function runReminderCheck(): Promise<{
     const consultationDate = consultation.dataConsulenza?.toDate?.() || consultation.dataConsulenza;
     if (!consultationDate) continue;
 
-    const consultationDT = DateTime.fromJSDate(consultationDate).setZone("Europe/Rome");
+    // Legacy documents may store midnight: use the selected wall-clock time,
+    // just as approval and Calendar do, rather than reminding for midnight.
+    let startDateTime: Date;
+    let endDateTime: Date;
+    try {
+      ({ start: startDateTime, end: endDateTime } = consultationSlot(
+        consultationDate, consultation.orarioInizio, consultation.orarioFine, consultation.durataMinuti,
+      ));
+    } catch (error: any) {
+      results.consultations.errors.push(`Consultation ${doc.id}: ${error.message}`);
+      continue;
+    }
+    const consultationDT = DateTime.fromJSDate(startDateTime).setZone("Europe/Rome");
     const hoursDiff = consultationDT.diff(nowRome, "hours").hours;
     if (hoursDiff < minHours || hoursDiff > maxHours) continue;
 
@@ -291,15 +304,6 @@ export async function runReminderCheck(): Promise<{
       const formattedDate = consultationDT.setLocale("it").toFormat("EEEE d MMMM yyyy");
       const formattedTime = `${consultation.orarioInizio || ""} - ${consultation.orarioFine || ""}`;
       const clienteName = `${consultation.cliente?.nome || ""} ${consultation.cliente?.cognome || ""}`.trim();
-
-      const startDateTime = DateTime.fromFormat(
-        `${consultationDT.toFormat("yyyy-MM-dd")} ${consultation.orarioInizio}`,
-        "yyyy-MM-dd HH:mm", { zone: "Europe/Rome" }
-      ).toJSDate();
-      const endDateTime = DateTime.fromFormat(
-        `${consultationDT.toFormat("yyyy-MM-dd")} ${consultation.orarioFine}`,
-        "yyyy-MM-dd HH:mm", { zone: "Europe/Rome" }
-      ).toJSDate();
 
       const calendarLink = generateGoogleCalendarLink({
         title: `Consulenza: ${consultation.jobType || "Appuntamento"}`,

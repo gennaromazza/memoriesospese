@@ -6,9 +6,9 @@
 import express, { Request, Response } from "express";
 import { z } from "zod";
 import axios from "axios";
-import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { DateTime } from "luxon";
+import { formatRomeDate, formatRomeDateLocale } from "./utils/timezone.js";
+import { consultationSlot } from "./consultations/slot.js";
 import * as consultationService from "./services/consultations.js";
 import { authenticateFirebase } from "./email-routes.js";
 import {
@@ -686,8 +686,9 @@ router.patch(
       const romeDate = DateTime.fromJSDate(consultationDate, { zone: 'Europe/Rome' });
       const dateStr = romeDate.toFormat('yyyy-MM-dd');
 
-      const startDateTime = createEuropeRomeDate(dateStr, consultation.orarioInizio);
-      const endDateTime = createEuropeRomeDate(dateStr, consultation.orarioFine);
+      const { start: startDateTime, end: endDateTime } = consultationSlot(
+        consultationDate, consultation.orarioInizio, consultation.orarioFine, consultation.durataMinuti,
+      );
 
       console.log(`[POST /v2/approve] 📅 Checking slot ${consultation.orarioInizio}-${consultation.orarioFine} on ${dateStr}`);
 
@@ -894,8 +895,9 @@ router.get(
       const romeDate = DateTime.fromJSDate(consultationDate, { zone: 'Europe/Rome' });
       const dateStr = romeDate.toFormat('yyyy-MM-dd');
 
-      const startDateTime = createEuropeRomeDate(dateStr, consultation.orarioInizio);
-      const endDateTime = createEuropeRomeDate(dateStr, consultation.orarioFine);
+      const { start: startDateTime, end: endDateTime } = consultationSlot(
+        consultationDate, consultation.orarioInizio, consultation.orarioFine, consultation.durataMinuti,
+      );
 
       // Get day boundaries
       const dateObj = romeDate;
@@ -978,8 +980,9 @@ router.post(
       const romeDate = DateTime.fromJSDate(consultationDate, { zone: 'Europe/Rome' });
       const dateStr = romeDate.toFormat('yyyy-MM-dd');
 
-      const startDateTime = createEuropeRomeDate(dateStr, consultation.orarioInizio);
-      const endDateTime = createEuropeRomeDate(dateStr, consultation.orarioFine);
+      const { start: startDateTime, end: endDateTime } = consultationSlot(
+        consultationDate, consultation.orarioInizio, consultation.orarioFine, consultation.durataMinuti,
+      );
 
       // Get day boundaries for conflict check
       const dateObj = romeDate;
@@ -1115,8 +1118,8 @@ router.post(
       let emailStatus = "sent";
       try {
         const clienteName = `${consultation.cliente.nome} ${consultation.cliente.cognome}`;
-        const formattedDate = format(startDateTime, "EEEE d MMMM yyyy", {
-          locale: it,
+        const formattedDate = formatRomeDateLocale(startDateTime, {
+          weekday: "long", day: "numeric", month: "long", year: "numeric",
         });
 
         const studioInfo = {
@@ -1607,9 +1610,11 @@ router.post("/v2/create", async (req, res) => {
     const config = consultationTemplateToAvailabilityConfig(template);
 
     // Step 5: Parse date and time in Europe/Rome timezone
-    const dateObj = DateTime.fromISO(dataConsulenza, { zone: "Europe/Rome" });
-    const slotStart = DateTime.fromISO(`${dataConsulenza}T${orarioInizio}:00`, { zone: "Europe/Rome" }).toJSDate();
-    const slotEnd = DateTime.fromISO(`${dataConsulenza}T${orarioFine}:00`, { zone: "Europe/Rome" }).toJSDate();
+    const { start: slotStart, end: slotEnd } = consultationSlot(
+      typeof dataConsulenza === "string" ? dataConsulenza : validatedData.dataConsulenza,
+      orarioInizio, orarioFine, template.durataMinuti,
+    );
+    const dateObj = DateTime.fromJSDate(slotStart, { zone: "Europe/Rome" });
 
     // Step 6: Get existing events via centralized adapter
     const { hasConflict } = await import('./calendar-engine/conflicts.js');
@@ -1639,6 +1644,7 @@ router.post("/v2/create", async (req, res) => {
     // Aggiungi jobId se presente (collegamento a job esistente)
     const consultationPayload = {
       ...validatedData,
+      dataConsulenza: slotStart,
       ...(jobId && { linkedJobId: jobId })
     };
     
@@ -1659,7 +1665,7 @@ router.post("/v2/create", async (req, res) => {
       const studioInfo = await getStudioContactInfo();
 
       const clienteName = `${validatedData.cliente.nome} ${validatedData.cliente.cognome}`;
-      const consultationDateObj = new Date(validatedData.dataConsulenza);
+      const consultationDateObj = slotStart;
       const formattedDate = consultationDateObj.toLocaleDateString("it-IT", {
         weekday: "long",
         year: "numeric",
@@ -1728,6 +1734,10 @@ router.post("/v2/create", async (req, res) => {
         error: "Dati non validi",
         details: error.errors,
       });
+    }
+
+    if (error instanceof RangeError) {
+      return res.status(400).json({ error: error.message });
     }
 
     res.status(500).json({ error: "Errore creazione consultation" });
@@ -1801,9 +1811,7 @@ router.delete("/:id", authenticateFirebase, async (req: AuthRequest, res) => {
           dataConsulenza = new Date(consultation.dataConsulenza as any);
         }
 
-        const consultationDate = format(dataConsulenza, "dd MMMM yyyy", {
-          locale: it,
-        });
+        const consultationDate = formatRomeDate(dataConsulenza, "dd MMMM yyyy");
         const consultationTime = `${consultation.orarioInizio} - ${consultation.orarioFine}`;
 
         // Invia email cancellazione (fire-and-forget, non blocca eliminazione)
@@ -2310,8 +2318,9 @@ router.post("/send-reminders", authenticateFirebase, requireAdmin, async (req, r
 
       const consultationDate = normalizeTimestampToDate(c.dataConsulenza);
       // Converti consultationDate a Europe/Rome usando luxon (DST-safe)
-      const consultationRome =
-        DateTime.fromJSDate(consultationDate).setZone("Europe/Rome");
+      const consultationRome = DateTime.fromJSDate(consultationSlot(
+        consultationDate, c.orarioInizio, c.orarioFine, c.durataMinuti,
+      ).start).setZone("Europe/Rome");
 
       // Calcola differenza in ore (DST-aware)
       const hoursDiff = consultationRome.diff(nowRome, "hours").hours;
@@ -2389,13 +2398,8 @@ router.post("/send-reminders", authenticateFirebase, requireAdmin, async (req, r
         const romeDate = DateTime.fromJSDate(consultationDate, { zone: 'Europe/Rome' });
         const dateStr = romeDate.toFormat('yyyy-MM-dd');
 
-        const startDateTime = createEuropeRomeDate(
-          dateStr,
-          consultation.orarioInizio,
-        );
-        const endDateTime = createEuropeRomeDate(
-          dateStr,
-          consultation.orarioFine,
+        const { start: startDateTime, end: endDateTime } = consultationSlot(
+          consultationDate, consultation.orarioInizio, consultation.orarioFine, consultation.durataMinuti,
         );
 
         // Generate Google Calendar link

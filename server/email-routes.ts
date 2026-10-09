@@ -6641,6 +6641,7 @@ router.post("/booking-cancelled", async (req, res) => {
           year: "numeric",
           hour: "2-digit",
           minute: "2-digit",
+          timeZone: "Europe/Rome",
         });
       } catch (e) {
         formattedDate = dataPrenotazione;
