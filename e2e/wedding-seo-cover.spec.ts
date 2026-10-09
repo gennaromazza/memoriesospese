@@ -260,6 +260,41 @@ test('la copertina si cambia da tastiera e la selezione viene salvata automatica
     .toMatchAriaSnapshot('- button "Copertina ritratto.jpg" [pressed=false]');
 });
 
+test('rimuovendo la copertina dalla storia viene salvata e mantenuta la prossima foto valida', async ({ page }) => {
+  const state: FixtureState = {
+    selectedPhotoIds: [PHOTO_1.id, PHOTO_2.id],
+    requestedCoverPhotoId: PHOTO_1.id,
+    availablePhotos: [PHOTO_1, PHOTO_2],
+    failFirstSelectionSave: false,
+    selectionAttempts: 0,
+    selectionWrites: [],
+  };
+  await installApiFixtures(page, state);
+
+  await page.goto('/e2e/fixtures/wedding-seo-cover-harness.html');
+  const ceremonyCover = page.getByRole('button', { name: 'Copertina cerimonia.jpg' });
+  const portraitCover = page.getByRole('button', { name: 'Copertina ritratto.jpg' });
+  await expect(ceremonyCover).toMatchAriaSnapshot('- button "Copertina cerimonia.jpg" [pressed]');
+
+  await page.getByRole('button', { name: 'Seleziona cerimonia.jpg' }).click();
+
+  await expect(ceremonyCover).toHaveAttribute('aria-pressed', 'false');
+  await expect(portraitCover).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('status').filter({ hasText: 'Selezione foto e copertina salvata automaticamente.' }))
+    .toHaveText('Selezione foto e copertina salvata automaticamente.');
+  await expect.poll(() => state.selectionWrites.length).toBe(1);
+  expect(state.selectionWrites[0]).toEqual({
+    selectedPhotoIds: [PHOTO_2.id],
+    coverPhotoId: PHOTO_2.id,
+  });
+
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Copertina ritratto.jpg' }))
+    .toMatchAriaSnapshot('- button "Copertina ritratto.jpg" [pressed]');
+  await expect(page.getByRole('button', { name: 'Copertina cerimonia.jpg' }))
+    .toMatchAriaSnapshot('- button "Copertina cerimonia.jpg" [pressed=false]');
+});
+
 test('dopo un errore il comando di riprova salva la copertina scelta senza cambiare foto', async ({ page }) => {
   const state: FixtureState = {
     selectedPhotoIds: [PHOTO_1.id, PHOTO_2.id],

@@ -220,7 +220,9 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
     const next = new Set(selectedPhotoIds);
     if (next.has(photoId)) {
       next.delete(photoId);
-      if (coverPhotoId === photoId) setCoverPhotoId([...next][0]);
+      if (validCoverPhotoId === photoId) {
+        setCoverPhotoId([...next].find(id => availablePhotoIds.has(id)));
+      }
     } else if (validSelectedPhotoIds.length < MAX_WEDDING_STORY_PHOTOS) {
       next.add(photoId);
       if (!coverPhotoId) setCoverPhotoId(photoId);
