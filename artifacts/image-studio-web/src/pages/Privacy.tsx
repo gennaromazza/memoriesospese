@@ -4,6 +4,7 @@ import { Button } from '../components/ui/button';
 import { createUrl } from '../lib/basePath';
 import { useSEO } from '../hooks/useSEO';
 import { useStudio } from '../context/StudioContext';
+import { SHOP_LEGAL_TERMS } from '@shared/shop-legal';
 import {
   PRINT_SHOP_MAX_PICKUP_DAYS,
   resolveStudioLegalDetails,
@@ -39,7 +40,7 @@ export default function Privacy() {
           
           <div className="prose prose-blue-gray max-w-none space-y-8">
             <p className="text-gray-600 text-lg">
-              Ultimo aggiornamento: 31 agosto 2026
+              Ultimo aggiornamento: 10 ottobre 2026
             </p>
 
             <section>
@@ -66,6 +67,22 @@ export default function Privacy() {
             </section>
 
             <section>
+              <h2 className="text-2xl font-semibold text-blue-gray-800 mb-4">Shopping online Natale: ordini, foto e consegna</h2>
+              <p className="mb-4 text-gray-600">
+                Quando acquisti dalla vetrina «Shopping online Natale» trattiamo i tuoi dati di contatto, i prodotti scelti,
+                le foto che carichi, le note all'ordine e gli identificativi del pagamento PayPal per eseguire il contratto,
+                realizzare i prodotti personalizzati, aggiornarti sullo stato con email di servizio e consegnare l'ordine
+                al ritiro in sede o con spedizione. Per spedire in Italia trattiamo anche indirizzo di consegna, indirizzo
+                di residenza e codice fiscale. Le foto possono ritrarre altre persone: caricandole dichiari di averne il diritto.
+                Le usiamo solo per realizzare il tuo ordine, non per altre finalità.
+              </p>
+              <p className="text-gray-600">
+                Le condizioni di vendita dello shop sono nella pagina{' '}
+                <Link href={createUrl('/shop-natale/condizioni')} className="text-sage-600 hover:underline">Condizioni di vendita</Link>.
+              </p>
+            </section>
+
+            <section>
               <h2 className="text-2xl font-semibold text-blue-gray-800 mb-4 flex items-center gap-2">
                 <Database className="w-6 h-6 text-sage" />
                 Dati Raccolti
@@ -84,6 +101,7 @@ export default function Privacy() {
                 <li>File JPG, preferenze di stampa, quantità e note inserite negli ordini di stampa</li>
                 <li>Dati dell'ordine, del ritiro in sede e identificativi delle transazioni PayPal</li>
                 <li>Per gli ordini spediti: indirizzo di consegna, indirizzo di residenza e codice fiscale</li>
+                <li>Foto, note e scelte inserite negli ordini dello shop di Natale, con la data e la versione delle condizioni accettate</li>
                 <li>Risposte ai questionari pre-servizio</li>
               </ul>
 
@@ -107,7 +125,7 @@ export default function Privacy() {
               </p>
               <ul className="list-disc pl-6 mb-4 text-gray-600 space-y-2">
                 <li><strong>Consenso (Art. 6.1.a GDPR):</strong> Per l'invio di comunicazioni promozionali e newsletter</li>
-                <li><strong>Esecuzione contrattuale (Art. 6.1.b GDPR):</strong> Per la fornitura dei servizi fotografici richiesti</li>
+                <li><strong>Esecuzione contrattuale (Art. 6.1.b GDPR):</strong> Per la fornitura dei servizi fotografici e dei prodotti ordinati</li>
                 <li><strong>Interesse legittimo (Art. 6.1.f GDPR):</strong> Per migliorare i nostri servizi e la sicurezza del sito</li>
                 <li><strong>Obbligo legale (Art. 6.1.c GDPR):</strong> Per adempiere a obblighi fiscali e contabili</li>
               </ul>
@@ -124,6 +142,7 @@ export default function Privacy() {
                 <li>Elaborare preventivi e gestire i pagamenti</li>
                 <li>Preparare, stampare e consegnare gli ordini di stampe fotografiche</li>
                 <li>Controllare l'integrità e la risoluzione dei file destinati alla stampa</li>
+                <li>Realizzare e consegnare i prodotti ordinati dallo shop online di Natale</li>
                 <li>Inviare comunicazioni relative al servizio</li>
                 <li>Rispondere alle tue richieste di informazioni</li>
                 <li>Migliorare l'esperienza utente sul nostro sito</li>
@@ -157,6 +176,7 @@ export default function Privacy() {
               <ul className="list-disc pl-6 mb-4 text-gray-600 space-y-2">
                 <li><strong>Dati delle gallerie:</strong> Fino a 12 mesi dalla data dell'evento, salvo richiesta di prolungamento</li>
                 <li><strong>Originali degli ordini di stampa:</strong> Fino a 90 giorni dalla consegna, poi cancellazione automatica; eventuali copie già trasferite al laboratorio seguono lo stesso limite o un termine più breve concordato</li>
+                <li><strong>Foto degli ordini dello shop di Natale:</strong> Cancellate automaticamente dopo {SHOP_LEGAL_TERMS.deliveredPhotoRetentionDays} giorni dalla consegna o dal ritiro, dopo {SHOP_LEGAL_TERMS.cancelledPhotoRetentionDays} giorni da un annullamento o rimborso e dopo {SHOP_LEGAL_TERMS.draftPhotoRetentionDays} giorni se l'ordine non viene mai pagato</li>
                 <li><strong>Bozze e caricamenti incompleti:</strong> Possono essere rimossi prima, quando non sono più necessari a completare l'ordine</li>
                 <li><strong>Dati contabili:</strong> 10 anni come richiesto dalla normativa fiscale italiana</li>
                 <li><strong>Dati di contatto:</strong> Fino alla revoca del consenso o alla cancellazione dell'account</li>
@@ -172,7 +192,7 @@ export default function Privacy() {
               <ul className="list-disc pl-6 mb-4 text-gray-600 space-y-2">
                 <li><strong>Firebase/Google Cloud:</strong> Per autenticazione, hosting e archiviazione privata dei dati</li>
                 <li><strong>PayPal:</strong> Per autorizzare e incassare il pagamento anticipato; PayPal tratta i dati di pagamento secondo la propria informativa. In ambiente sandbox non avviene alcun addebito reale</li>
-                <li><strong>Laboratori di stampa incaricati:</strong> Ricevono esclusivamente i file e le informazioni tecniche necessari a produrre l'ordine, come fornitori autorizzati</li>
+                <li><strong>Laboratori e fornitori incaricati:</strong> Ricevono esclusivamente i file e le informazioni tecniche necessari a produrre l'ordine (stampe o prodotti personalizzati), come fornitori autorizzati</li>
                 <li><strong>Vettore incaricato:</strong> Solo quando viene scelta la spedizione, riceve i dati di contatto e consegna strettamente necessari a recapitare l'ordine</li>
                 <li><strong>Collaboratori autorizzati:</strong> Fotografi e assistenti che lavorano al tuo evento</li>
               </ul>

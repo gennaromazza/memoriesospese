@@ -57,7 +57,7 @@ describe('percorsi delle gift card', () => {
 
     it("le pagine dell'ordine sono raggiungibili ma mai indicizzate, anche con la vetrina aperta a Google", () => {
       process.env.SHOP_INDEXABLE = 'true';
-      for (const path of ['/shop-natale/ordine', '/shop-natale/ordine/conferma', '/shop-natale/i-miei-ordini']) {
+      for (const path of ['/shop-natale/condizioni', '/shop-natale/ordine', '/shop-natale/ordine/conferma', '/shop-natale/i-miei-ordini']) {
         expect(isKnownClientPath(path), path).toBe(true);
         expect(isPrivateClientPath(path), path).toBe(true);
       }

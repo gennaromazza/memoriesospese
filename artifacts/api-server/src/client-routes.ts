@@ -81,6 +81,7 @@ export function isPrivateClientPath(pathname: string): boolean {
     || hasOneSegmentAfter('/regalo', path)
     || isGiftShopHidden(path)
     || isShopHidden(path)
+    || path === '/shop-natale/condizioni'
     || path === '/shop-natale/ordine'
     || path.startsWith('/shop-natale/ordine/')
     || path === '/shop-natale/i-miei-ordini'

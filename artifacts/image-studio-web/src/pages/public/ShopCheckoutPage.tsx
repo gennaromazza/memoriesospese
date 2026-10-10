@@ -3,6 +3,7 @@ import { Link, useLocation } from 'wouter';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, ArrowRight, Loader2, Minus, Plus, ShoppingBag, Trash2, Truck } from 'lucide-react';
 import type { PrintShopPostalAddress } from '@shared/print-shop-types';
+import { SHOP_TERMS_PATH } from '@shared/shop-legal';
 import { SHOP_MAX_QUANTITY, formatShopPrice, type ShopOrderDto } from '@shared/shop-types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -429,7 +430,7 @@ export default function ShopCheckoutPage() {
           )}
 
           <div className="space-y-2">
-            <ConsentRow checked={terms} onChange={setTerms}>Ho letto le <Link href="/terms" className="underline">condizioni di vendita</Link>.</ConsentRow>
+            <ConsentRow checked={terms} onChange={setTerms}>Ho letto le <Link href={SHOP_TERMS_PATH} className="underline">condizioni di vendita</Link>.</ConsentRow>
             <ConsentRow checked={privacy} onChange={setPrivacy}>Ho letto l'<Link href="/privacy" className="underline">informativa privacy</Link>.</ConsentRow>
             {hasPhotoLines && <ConsentRow checked={personalized} onChange={setPersonalized}>Capisco che il prodotto viene realizzato con le mie foto: è un prodotto personalizzato.</ConsentRow>}
           </div>

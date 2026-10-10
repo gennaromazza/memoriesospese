@@ -9,15 +9,16 @@ import {
   type ShopPaymentStatus,
 } from '@shared/shop-types';
 import type { PrintShopBillingDetails, PrintShopPostalAddress } from '@shared/print-shop-types';
+import { SHOP_LEGAL_TERMS } from '@shared/shop-legal';
 import { CommerceHttpError } from '../commerce/errors.js';
 import { timestampMillis } from '../commerce/text.js';
 
 /** Sottocartella delle foto di un ordine shop. NON chiamarla `assets`: quel nome appartiene al negozio stampe. */
 export const SHOP_ASSETS = 'shopAssets';
-export const SHOP_DRAFT_RETENTION_DAYS = 7;
-export const SHOP_CANCELLED_RETENTION_DAYS = 7;
+export const SHOP_DRAFT_RETENTION_DAYS = SHOP_LEGAL_TERMS.draftPhotoRetentionDays;
+export const SHOP_CANCELLED_RETENTION_DAYS = SHOP_LEGAL_TERMS.cancelledPhotoRetentionDays;
 /** Giorni di conservazione delle foto dopo la consegna (come per le stampe). */
-export const SHOP_DELIVERED_RETENTION_DAYS = 90;
+export const SHOP_DELIVERED_RETENTION_DAYS = SHOP_LEGAL_TERMS.deliveredPhotoRetentionDays;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const PAID_STATUSES = new Set<ShopPaymentStatus>(['paid', 'paid_action_required', 'partially_refunded', 'refunded']);
