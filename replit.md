@@ -30,11 +30,12 @@ _Populate as you build — non-obvious choices a reader couldn't infer from the 
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Image Vision è l'area video dedicata agli sposi: mostra i film di matrimonio e porta alla raccolta video completa.
 
 ## User preferences
 
 - Nella homepage pubblica, alternare fondi pieni della palette October Mist tra le sezioni ed evitare i gradienti.
+- Image Vision deve avere una tipografia molto leggibile e d'impatto, con un tono da piattaforma streaming senza imitare il marchio Netflix.
 
 ## Gotchas
 

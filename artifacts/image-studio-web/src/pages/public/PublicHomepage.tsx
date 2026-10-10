@@ -385,15 +385,21 @@ export default function PublicHomepage() {
         </div>
       </section>
 
-      {/* iMaGe Vision Section */}
+      {/* Image Vision Section */}
       <section className="py-12 sm:py-16 md:py-20 bg-light-mint text-blue-gray px-4">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-8 sm:mb-10 md:mb-12">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-terracotta/20 rounded-full mb-4">
               <Camera className="w-8 h-8 text-terracotta" />
             </div>
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-black uppercase tracking-tight mb-3 sm:mb-4" style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>
-              iMaGe Vision
+            <h2
+              className="mb-3 text-4xl font-black tracking-tight text-blue-gray sm:mb-4 sm:text-5xl md:text-6xl"
+              style={{
+                fontFamily: '"DM Sans", "Helvetica Neue", Arial, sans-serif',
+                lineHeight: 1.05,
+              }}
+            >
+              Image Vision
             </h2>
             <p className="text-base sm:text-lg md:text-xl text-dark-sage">
               I nostri ultimi video: emozioni in movimento
@@ -1273,29 +1279,44 @@ export default function PublicHomepage() {
             </div>
 
             {/* Map Column */}
-            <div className="rounded-2xl overflow-hidden shadow-2xl border border-sage/10 h-[400px] md:h-[500px] bg-sage/15 flex flex-col items-center justify-center p-8 text-center">
+            <div className="relative isolate h-[400px] overflow-hidden rounded-2xl border border-sage/20 bg-sage/15 shadow-2xl md:h-[500px]">
               {publicAddress ? (
                 <>
-                  <MapPin className="w-16 h-16 text-sage mb-4" />
-                  <h3 className="text-2xl font-playfair text-blue-gray mb-4">
-                    Ci trovi qui
-                  </h3>
-              <p className="text-dark-sage mb-6 max-w-md">
-                    {publicAddress}
-                  </p>
-                  <a
-                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(publicAddress)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-[hsl(120_7%_38%)] hover:bg-[hsl(120_7%_34%)] text-off-white font-medium rounded-lg shadow-md transition-all hover:shadow-lg"
-                  >
-                    <MapPin className="w-5 h-5" />
-                    Apri in Google Maps
-                  </a>
+                  <iframe
+                    className="absolute inset-0 h-full w-full border-0"
+                    src={`https://maps.google.com/maps?q=${encodeURIComponent(publicAddress)}&z=15&output=embed`}
+                    title={`Mappa dello studio Image Studio: ${publicAddress}`}
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                    allowFullScreen
+                    style={{ filter: "grayscale(0.45) saturate(0.78) contrast(0.96)" }}
+                  />
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 bg-mint/10 mix-blend-multiply"
+                  />
+                  <div className="absolute inset-x-4 top-1/2 z-10 mx-auto max-w-sm -translate-y-1/2 rounded-2xl border border-sage/40 bg-off-white/95 p-6 text-center shadow-xl backdrop-blur-sm sm:p-7">
+                    <MapPin className="mx-auto mb-2.5 h-10 w-10 text-terracotta" />
+                    <h3 className="mb-2 font-playfair text-2xl text-blue-gray">
+                      Ci trovi qui
+                    </h3>
+                    <p className="mb-5 break-words text-dark-sage">
+                      {publicAddress}
+                    </p>
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(publicAddress)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-[hsl(120_7%_38%)] px-5 py-3 font-medium text-off-white shadow-md transition-all hover:bg-[hsl(120_7%_34%)] hover:shadow-lg"
+                    >
+                      <MapPin className="h-5 w-5" />
+                      Apri in Google Maps
+                    </a>
+                  </div>
                 </>
               ) : (
-                <div className="text-blue-gray/80">
-                  <MapPin className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                <div className="flex h-full w-full flex-col items-center justify-center bg-sage/15 p-8 text-center text-blue-gray/80">
+                  <MapPin className="mx-auto mb-4 h-16 w-16 opacity-30" />
                   <p>Indirizzo non disponibile</p>
                 </div>
               )}
