@@ -308,6 +308,92 @@ export default function PublicHomepage() {
       {/* Navigation */}
       <Navigation />
 
+      {/* iMaGe Vision Section */}
+      <section className="py-12 sm:py-16 md:py-20 bg-gradient-to-b from-gray-900 via-gray-800 to-black text-white px-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-8 sm:mb-10 md:mb-12">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-terracotta/20 rounded-full mb-4">
+              <Camera className="w-8 h-8 text-terracotta" />
+            </div>
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-black uppercase tracking-tight mb-3 sm:mb-4" style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>
+              iMaGe Vision
+            </h2>
+            <p className="text-base sm:text-lg md:text-xl text-gray-300">
+              I nostri ultimi video: emozioni in movimento
+            </p>
+          </div>
+
+          {loadingVideos ? (
+            <div className="grid md:grid-cols-3 gap-6 sm:gap-8">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="bg-gray-800 rounded-xl overflow-hidden animate-pulse">
+                  <div className="bg-gray-700 aspect-video" />
+                  <div className="p-4">
+                    <div className="h-4 bg-gray-700 rounded w-3/4 mb-3" />
+                    <div className="h-3 bg-gray-700 rounded w-1/2" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : weddingVideos.length > 0 ? (
+            <>
+              <div className="grid md:grid-cols-3 gap-6 sm:gap-8 mb-8">
+                {weddingVideos.map((video) => (
+                  <Link key={video.id} href="/vision">
+                    <div className="bg-gray-800 rounded-xl overflow-hidden hover:bg-gray-700 transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 cursor-pointer group">
+                      <div className="relative aspect-video overflow-hidden">
+                        <img
+                          src={video.thumbnailUrl}
+                          alt={video.title}
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                          loading="lazy"
+                        />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                          <div className="w-16 h-16 rounded-full bg-white/90 flex items-center justify-center">
+                            <div className="w-0 h-0 border-l-[20px] border-l-terracotta border-t-[12px] border-t-transparent border-b-[12px] border-b-transparent ml-1" />
+                          </div>
+                        </div>
+                        {video.duration && (
+                          <div className="absolute bottom-2 right-2 bg-black/80 px-2 py-1 rounded text-xs font-semibold">
+                            {video.duration}
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-4">
+                        <h3 className="font-semibold text-white group-hover:text-terracotta transition-colors mb-2 line-clamp-2">
+                          {video.title}
+                        </h3>
+                        {video.category && (
+                          <span className="text-xs text-gray-400">
+                            {video.category}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+              <div className="text-center">
+                <Link href="/vision">
+                  <Button size="lg" className="h-auto max-w-full whitespace-normal bg-terracotta px-5 py-3 text-center leading-snug text-white shadow-lg transition-all hover:bg-terracotta/90 hover:shadow-xl">
+                    <Camera className="mr-2 h-5 w-5" />
+                    Scopri tutti i Video
+                  </Button>
+                </Link>
+              </div>
+            </>
+          ) : (
+            <div className="text-center py-12">
+              <Camera className="w-16 h-16 mx-auto mb-4 text-gray-600 opacity-50" />
+              <p className="text-gray-400 text-lg mb-2">Nuovi video in arrivo...</p>
+              <p className="text-gray-500 text-sm">
+                Vai alla Dashboard Admin → Wedding Videos per aggiungere i tuoi video
+              </p>
+            </div>
+          )}
+        </div>
+      </section>
+
       {/* Hero Section */}
       <section className="pt-24 sm:pt-28 md:pt-32 pb-12 sm:pb-16 md:pb-20 px-4 overflow-hidden">
         <div className="max-w-7xl mx-auto">
@@ -1138,92 +1224,6 @@ export default function PublicHomepage() {
           ) : (
             <div className="text-center py-12">
               <p className="text-gray-500 text-lg">Nuovi articoli in arrivo...</p>
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* iMaGe Vision Section */}
-      <section className="py-12 sm:py-16 md:py-20 bg-gradient-to-b from-gray-900 via-gray-800 to-black text-white px-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-8 sm:mb-10 md:mb-12">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-terracotta/20 rounded-full mb-4">
-              <Camera className="w-8 h-8 text-terracotta" />
-            </div>
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-black uppercase tracking-tight mb-3 sm:mb-4" style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>
-              iMaGe Vision
-            </h2>
-            <p className="text-base sm:text-lg md:text-xl text-gray-300">
-              I nostri ultimi video: emozioni in movimento
-            </p>
-          </div>
-
-          {loadingVideos ? (
-            <div className="grid md:grid-cols-3 gap-6 sm:gap-8">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="bg-gray-800 rounded-xl overflow-hidden animate-pulse">
-                  <div className="bg-gray-700 aspect-video" />
-                  <div className="p-4">
-                    <div className="h-4 bg-gray-700 rounded w-3/4 mb-3" />
-                    <div className="h-3 bg-gray-700 rounded w-1/2" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : weddingVideos.length > 0 ? (
-            <>
-              <div className="grid md:grid-cols-3 gap-6 sm:gap-8 mb-8">
-                {weddingVideos.map((video) => (
-                  <Link key={video.id} href="/vision">
-                    <div className="bg-gray-800 rounded-xl overflow-hidden hover:bg-gray-700 transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 cursor-pointer group">
-                      <div className="relative aspect-video overflow-hidden">
-                        <img
-                          src={video.thumbnailUrl}
-                          alt={video.title}
-                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                          loading="lazy"
-                        />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                          <div className="w-16 h-16 rounded-full bg-white/90 flex items-center justify-center">
-                            <div className="w-0 h-0 border-l-[20px] border-l-terracotta border-t-[12px] border-t-transparent border-b-[12px] border-b-transparent ml-1" />
-                          </div>
-                        </div>
-                        {video.duration && (
-                          <div className="absolute bottom-2 right-2 bg-black/80 px-2 py-1 rounded text-xs font-semibold">
-                            {video.duration}
-                          </div>
-                        )}
-                      </div>
-                      <div className="p-4">
-                        <h3 className="font-semibold text-white group-hover:text-terracotta transition-colors mb-2 line-clamp-2">
-                          {video.title}
-                        </h3>
-                        {video.category && (
-                          <span className="text-xs text-gray-400">
-                            {video.category}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-              <div className="text-center">
-                <Link href="/vision">
-                  <Button size="lg" className="h-auto max-w-full whitespace-normal bg-terracotta px-5 py-3 text-center leading-snug text-white shadow-lg transition-all hover:bg-terracotta/90 hover:shadow-xl">
-                    <Camera className="mr-2 h-5 w-5" />
-                    Scopri tutti i Video
-                  </Button>
-                </Link>
-              </div>
-            </>
-          ) : (
-            <div className="text-center py-12">
-              <Camera className="w-16 h-16 mx-auto mb-4 text-gray-600 opacity-50" />
-              <p className="text-gray-400 text-lg mb-2">Nuovi video in arrivo...</p>
-              <p className="text-gray-500 text-sm">
-                Vai alla Dashboard Admin → Wedding Videos per aggiungere i tuoi video
-              </p>
             </div>
           )}
         </div>
