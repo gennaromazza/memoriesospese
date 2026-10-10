@@ -177,15 +177,14 @@ Controllo specifico del nuovo modulo:
 ## 10. Lavoro fuori dal codice (da fare tu o con Replit)
 
 1. Registrare su PayPal un **webhook nuovo** per `/api/shop/paypal/webhook` e impostare `PAYPAL_SHOP_WEBHOOK_ID`, in sandbox e in produzione.
-2. Creare il **processo pianificato** per la pulizia (come quello delle stampe, con lo stesso account di servizio ma un indirizzo diverso).
-3. Pubblicare gli **indici Firestore** nuovi (`firestore.indexes.json`) e le **regole** (fase 2).
-4. Controllare le **regole di scadenza del bucket** (se per le stampe sono legate al prefisso `print-orders/`, serve la stessa cosa per `shop-orders/`).
+2. ~~Creare il processo pianificato per la pulizia.~~ **Non serve**: la pulizia gira nel giro orario del server (vedi sezione 13). Resta disponibile, facoltativa, la rotta `/api/shop/internal/maintenance` con token OIDC.
+3. Pubblicare le **regole** Firestore (fase 2). **Indici nuovi non servono**: tutte le ricerche dello shop usano un solo campo (e `firestore.indexes.json` non esiste nel repository).
+4. ~~Regole di scadenza del bucket per `shop-orders/`.~~ **Non servono**: lo shop non imposta `customTime`, le foto le cancella la pulizia oraria del server.
 5. Confrontarti con il **commercialista** sul documento fiscale delle vendite online: oggi le fatture elettroniche sono legate a un lavoro e le stampe non ne generano. Il piano non emette fatture; la raccolta del codice fiscale per le spedizioni è già prevista come per le stampe.
-6. Far rivedere le **condizioni di vendita**, in particolare recesso per prodotti personalizzati e non.
+6. Far rivedere le **condizioni di vendita** e l'informativa privacy: testi scritti il 10 ottobre 2026 (versione `2026-10-10.1`), da far controllare in particolare per recesso, prodotti personalizzati e termine di consegna.
 
 ## 11. Cosa non ho potuto verificare
 
-- Se i test passano oggi: le dipendenze non sono installate nel worktree (fase 0).
 - Dove e come vengono pubblicati regole, indici e processo pianificato (nel repo c'è `firebase.json`, ma non vedo l'ambiente).
 - La configurazione di scadenza del bucket per le foto.
 - Se il tuo account PayPal in produzione accetta ordini con indirizzo di spedizione come lo configurerebbe il negozio.
@@ -204,3 +203,34 @@ Controllo specifico del nuovo modulo:
 8. **Ordini in admin:** scheda separata (consigliato).
 9. **Codice fiscale e residenza** richiesti per ogni spedizione come nelle stampe, oppure solo su richiesta.
 10. **Tracking obbligatorio** per passare a "spedito".
+
+## 13. Stato di attuazione (10 ottobre 2026)
+
+Fasi 0-6 completate nel codice, con test automatici. Restano il collaudo con PayPal sandbox e la messa online: vedi `docs/checklist-collaudo-shop-natale-2026.md`.
+
+### Come sono state chiuse le decisioni aperte
+
+| # | Decisione | Scelta fatta nel codice |
+|---|-----------|--------------------------|
+| 1 | Foto al checkout o dopo | Entrambe: si può pagare subito e caricare dopo da "I miei ordini". |
+| 2 | Giorni di attesa foto | Impostazione dello shop, da 1 a 60, predefinita 7. Promemoria a 2 e 5 giorni dal pagamento. |
+| 3 | Ultimo giorno ordini | Impostazione `lastOrderDate`, vuota finché non la scegli. |
+| 4 | Carrello | Più prodotti per ordine, una zona foto per ogni riga. |
+| 5 | Indirizzo vetrina | `/shop-natale` (le condizioni sono su `/shop-natale/condizioni`). |
+| 6 | Spedizione | Impostazioni proprie dello shop; solo Italia. |
+| 7 | Prodotti Natale in preventivi e campagne | **Ancora aperta**: il catalogo è unico e li mostra. |
+| 8 | Ordini in admin | Scheda separata "Shop online". |
+| 9 | Codice fiscale e residenza | Richiesti per ogni spedizione, come nelle stampe. |
+| 10 | Tracking | Obbligatorio per passare a "spedito". |
+
+### Scostamenti dal piano
+
+- **Pulizia periodica**: nel giro orario del server (`runShopMaintenance`), non in un processo pianificato separato. Evita un'infrastruttura in più; la rotta con token OIDC è tenuta come alternativa.
+- **Foto non arrivate entro il termine**: l'ordine viene segnalato "da guardare" ma **non si annulla né si rimborsa da solo**. Decide lo studio; l'annullamento ricorda di rimborsare da PayPal. Scelta prudente per non rimborsare per errore ordini già incassati.
+- **Rimborsi**: si fanno dal pannello PayPal; il webhook li registra (storno in Cassa, annullamento dell'ordine se non spedito, segnalazione se già spedito).
+- **Nessun indice e nessuna regola sul bucket** (vedi sezione 10).
+- **Foto in `shopAssets`** e non `assets`, per non cadere nella pulizia delle stampe (collisione sul gruppo di collezioni `assets`); un test lo verifica nei due sensi.
+- **`settings/shop` è leggibile da tutti** (come le altre impostazioni pubbliche): contiene solo dati adatti al pubblico e si scrive solo dal server.
+- **Testi legali**: conservazione (7 e 90 giorni) e recesso (14 giorni) stanno in `lib/shared-src/shop-legal.ts` e il server li legge da lì, così testo e comportamento non possono divergere.
+- **Accesso admin con passkey** (arrivato da Replit): le rotte admin dello shop passano dallo stesso controllo delle stampe, quindi sono già coperte.
+
