@@ -450,6 +450,18 @@ export default function WeddingVideosPage() {
                     )}
                     <a
                       href="#catalogo"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        const catalog = document.getElementById('catalogo');
+                        if (!catalog) return;
+
+                        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                        catalog.scrollIntoView({
+                          behavior: reduceMotion ? 'auto' : 'smooth',
+                          block: 'start',
+                        });
+                        catalog.focus({ preventScroll: true });
+                      }}
                       className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-white/25 bg-[#111714]/45 px-5 py-3 text-sm font-bold text-[#F4EFE8] backdrop-blur-sm transition-colors hover:border-sage hover:bg-[#111714]/75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage"
                     >
                       <CirclePlay className="h-4 w-4" aria-hidden="true" />
@@ -591,7 +603,7 @@ export default function WeddingVideosPage() {
             ))}
 
             {videos.length > 0 && (
-              <section id="catalogo" aria-labelledby="vision-catalog-title" className="mb-12 scroll-mt-24">
+              <section id="catalogo" tabIndex={-1} aria-labelledby="vision-catalog-title" className="mb-12 scroll-mt-24 focus:outline-none">
                 <div className="mb-5 flex items-end justify-between gap-4">
                   <div>
                     <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.22em] text-terracotta">La raccolta</p>
@@ -641,7 +653,7 @@ export default function WeddingVideosPage() {
             )}
 
             {videos.length === 0 && (
-              <section className="rounded-2xl border border-white/10 bg-[#1A231F] px-6 py-16 text-center">
+              <section id="catalogo" tabIndex={-1} className="scroll-mt-24 rounded-2xl border border-white/10 bg-[#1A231F] px-6 py-16 text-center focus:outline-none">
                 <Play className="mx-auto mb-4 h-10 w-10 text-sage" aria-hidden="true" />
                 <h2 className="font-playfair text-2xl text-[#F4EFE8]">La raccolta si sta preparando</h2>
                 <p className="mx-auto mt-3 max-w-xl text-[#C7CEC7]">
