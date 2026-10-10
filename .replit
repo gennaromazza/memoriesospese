@@ -27,22 +27,26 @@ GOOGLE_CALENDAR_ID = "gennaro.mazzacane@gmail.com"
 
 [[ports]]
 localPort = 5000
-externalPort = 5000
-
-[[ports]]
-localPort = 5003
-externalPort = 3001
-
-[[ports]]
-localPort = 23636
-externalPort = 3002
-
-[[ports]]
-localPort = 24678
 externalPort = 80
 
 [[ports]]
-localPort = 24680
+localPort = 8080
+externalPort = 8080
+
+[[ports]]
+localPort = 8976
+externalPort = 3001
+
+[[ports]]
+localPort = 21541
+externalPort = 3002
+
+[[ports]]
+localPort = 23767
+externalPort = 3003
+
+[[ports]]
+localPort = 24678
 externalPort = 3000
 
 [nix]
