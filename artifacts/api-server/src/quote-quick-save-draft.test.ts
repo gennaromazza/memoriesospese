@@ -302,7 +302,7 @@ describe("Preventivo rapido — data evento nelle email in Europe/Rome", () => {
     expect(status).toBe(200);
     await vi.waitFor(() => {
       expect(emailOfType("quick_quote_link_client")?.[2])
-        .toContain(`del <strong>${expected}</strong>`);
+        .toContain(`<strong>Data:</strong> ${expected}`);
     });
     // La correzione riguarda la visualizzazione, non riscrive l'istante salvato.
     expect(h.state.jobs[json.jobId].eventDate.toISOString()).toBe(eventDate);
@@ -319,7 +319,7 @@ describe("Preventivo rapido — data evento nelle email in Europe/Rome", () => {
     expect(json.isExisting).toBe(true);
     await vi.waitFor(() => {
       expect(emailOfType("quick_quote_link_client")?.[2])
-        .toContain("del <strong>13 dicembre 2026</strong>");
+        .toContain("<strong>Data:</strong> 13 dicembre 2026");
     });
   });
 
@@ -328,7 +328,7 @@ describe("Preventivo rapido — data evento nelle email in Europe/Rome", () => {
     await vi.waitFor(() => {
       const email = emailOfType("quick_quote_link_client");
       expect(email).toBeDefined();
-      expect(email?.[2]).not.toContain(" del <strong>");
+      expect(email?.[2]).toContain("<strong>Data:</strong> Da definire");
       expect(email?.[2]).not.toContain("Invalid Date");
     });
   });

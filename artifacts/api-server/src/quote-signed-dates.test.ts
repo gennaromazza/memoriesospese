@@ -34,7 +34,7 @@ vi.mock("./email-routes.js", async (importOriginal) => ({
 
 import quoteRoutes from "./quote-routes.js";
 import { createQuoteSignedEmailHTML, createAdminQuoteSignedNotificationHTML } from "./email-routes.js";
-import { formatQuotePortalDate } from "../client/src/lib/quote-portal-date";
+import { formatQuotePortalDate } from "../../image-studio-web/src/lib/quote-portal-date";
 
 // Instants just after midnight in Rome; UTC is still on the previous day.
 const cases = [
