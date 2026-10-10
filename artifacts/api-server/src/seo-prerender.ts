@@ -376,6 +376,14 @@ function getStaticPageMeta(path: string): PageMeta | null {
       description: 'Guarda i film di matrimonio di Image Studio ad Aversa, Napoli e Caserta: racconti cinematografici autentici da rivivere insieme.',
       canonical: `${BASE_URL}/vision`,
       keywords: 'film di matrimonio aversa, video matrimonio napoli, videografo matrimonio caserta, video matrimoniali campania',
+      socialImage: {
+        url: '/images/image-vision-social.jpg',
+        alt: 'Image Vision di Image Studio: film di matrimonio raccontati con uno stile cinematografico',
+        width: 1200,
+        height: 630,
+        type: 'image/jpeg',
+        source: 'curated-static',
+      },
       bodyContent: `
         <h1>Image Vision: film di matrimonio</h1>
         <p>Image Vision raccoglie i video di matrimonio di Image Studio, pensati per gli sposi che vogliono rivivere le emozioni del loro giorno. I film sono realizzati ad Aversa e raccontano storie e momenti autentici con uno stile cinematografico.</p>
