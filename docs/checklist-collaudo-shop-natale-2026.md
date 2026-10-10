@@ -30,7 +30,7 @@ Usare un account cliente di prova (email e password) e il conto buyer sandbox.
 |---|-------|--------|
 | C1 | Accendere vetrina e ordini. Aprire `/shop-natale` da loggato e da non loggato. | Prodotti attivi visibili, prezzi giusti, bottone "aggiungi" funziona. |
 | C2 | Carrello con **un prodotto con foto + uno senza foto**, andare al pagamento. | Una zona foto per il prodotto che le richiede, nessuna per l'altro. Totale = somma + spedizione se scelta. |
-| C3 | Aprire **Condizioni di vendita** e **Privacy** dal checkout. | Si aprono, mostrano i dati dello studio, la versione `2026-10-10.1` e i giorni di conservazione. |
+| C3 | Aprire **Condizioni di vendita** e **Privacy** dal checkout. | Si aprono, mostrano i dati dello studio, la versione `2026-10-10.2` e i giorni di conservazione. |
 | C4 | Ritiro in sede: pagare **senza caricare tutte le foto**. | Ordine pagato in stato "mancano le foto"; email di conferma al cliente e avviso allo studio; riga in Cassa con origine "Shop online". |
 | C5 | Dall'area "I miei ordini" caricare la foto mancante. | Stato "foto ricevute"; email al cliente e allo studio. |
 | C6 | Admin → Shop online → Ordini: aprire l'ordine, vedere anteprima, scaricare l'originale e lo zip delle foto. | Foto leggibili. |

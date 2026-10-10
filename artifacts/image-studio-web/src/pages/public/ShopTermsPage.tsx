@@ -117,7 +117,14 @@ export default function ShopTermsPage() {
           </p>
           <p>
             Ti scriviamo quando l'ordine è pronto per il ritiro o è stato spedito (con il codice di tracciamento, se c'è).
-            Salvo una data diversa comunicata, l'ordine è consegnato o reso disponibile senza ingiustificato ritardo e
+          </p>
+          <p>
+            <strong>Tempi.</strong> Sono indicativi. Di norma l'ordine è pronto in circa {SHOP_LEGAL_TERMS.typicalDeliveryDays} giorni
+            dal pagamento, una volta ricevute tutte le foto; con la spedizione, preparazione e consegna a casa richiedono in
+            tutto circa lo stesso tempo, quello mostrato prima di pagare. Nei periodi di maggiore richiesta, come quello
+            natalizio, e per i ritardi del corriere i tempi possono allungarsi. Non possiamo garantire la consegna entro una
+            data precisa, feste comprese: ti consigliamo di ordinare con anticipo, entro l'ultimo giorno indicato nella vetrina.
+            Resta fermo il termine massimo di legge: salvo una data diversa comunicata, l'ordine è consegnato o reso disponibile
             comunque entro {SHOP_LEGAL_TERMS.deliveryMaxDays} giorni dal pagamento. I ritardi del corriere non cambiano i diritti
             che la legge ti riconosce come consumatore.
           </p>

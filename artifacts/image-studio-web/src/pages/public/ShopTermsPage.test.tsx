@@ -78,6 +78,15 @@ describe('condizioni di vendita dello shop', () => {
     expect(html).toContain('solo file JPG, fino a 30 MB');
   });
 
+  it('dà tempi indicativi senza promettere la consegna per una data o per Natale', () => {
+    const html = render();
+    expect(html).toContain(`circa ${SHOP_LEGAL_TERMS.typicalDeliveryDays} giorni`);
+    expect(html).toContain('Sono indicativi.');
+    expect(html).toContain('Non possiamo garantire la consegna entro una');
+    expect(html).toContain(`comunque entro ${SHOP_LEGAL_TERMS.deliveryMaxDays} giorni dal pagamento`);
+    expect(html).not.toMatch(/consegna garantita|garantiamo la consegna/i);
+  });
+
   it('rimanda alle condizioni delle stampe e alla privacy, e non si lascia indicizzare', () => {
     const html = render();
     expect(html).toContain('href="/terms"');

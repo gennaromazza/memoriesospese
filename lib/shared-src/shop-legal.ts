@@ -17,6 +17,8 @@ export const SHOP_LEGAL_TERMS = Object.freeze({
   deliveredPhotoRetentionDays: 90,
   /** Giorni per recedere dai prodotti non personalizzati (Codice del Consumo, art. 52). */
   withdrawalDays: 14,
+  /** Tempo tipico dal pagamento (con tutte le foto) alla consegna, per il testo delle condizioni. Tenerlo allineato ai giorni impostati nello shop. */
+  typicalDeliveryDays: 7,
   /** Termine massimo di consegna se non è indicata una data diversa (Codice del Consumo, art. 61). Solo testo: non è un controllo del sistema. */
   deliveryMaxDays: 30,
 });
@@ -27,10 +29,10 @@ export const SHOP_LEGAL_TERMS = Object.freeze({
  * propri. Ogni modifica ai testi legali dello shop richiede una nuova versione.
  */
 export const SHOP_LEGAL_MANIFEST = Object.freeze({
-  schemaVersion: 'shop-legal-2026-10-10.1',
-  termsVersion: '2026-10-10.1',
-  privacyVersion: '2026-10-10.1',
-  personalizedProductionVersion: '2026-10-10.1',
+  schemaVersion: 'shop-legal-2026-10-10.2',
+  termsVersion: '2026-10-10.2',
+  privacyVersion: '2026-10-10.2',
+  personalizedProductionVersion: '2026-10-10.2',
   paymentPolicy: 'paypal_advance_only',
   fulfillmentMethods: ['studio_pickup', 'shipping'] as const,
   shippingRequiresBillingDetails: true,

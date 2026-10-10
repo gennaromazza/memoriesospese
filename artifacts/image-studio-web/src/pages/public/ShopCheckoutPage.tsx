@@ -394,7 +394,7 @@ export default function ShopCheckoutPage() {
             {shippingOffered && shippingConfig && (
               <label className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 text-sm ${method === 'shipping' ? 'border-terracotta bg-terracotta/5' : 'border-sage/25'}`}>
                 <input type="radio" name="shop-delivery" checked={method === 'shipping'} onChange={() => setMethod('shipping')} className="mt-1" />
-                <span><Truck className="mr-1 inline h-4 w-4" aria-hidden="true" /><strong>Spedizione in Italia</strong><br />{shippingConfig.priceCents > 0 ? formatShopPrice(shippingConfig.priceCents) : 'Gratuita'} · circa {shippingConfig.estimatedMinDays}-{shippingConfig.estimatedMaxDays} giorni dopo che il prodotto è pronto.</span>
+                <span><Truck className="mr-1 inline h-4 w-4" aria-hidden="true" /><strong>Spedizione in Italia</strong><br />{shippingConfig.priceCents > 0 ? formatShopPrice(shippingConfig.priceCents) : 'Gratuita'} · circa {shippingConfig.estimatedMinDays}-{shippingConfig.estimatedMaxDays} giorni dal pagamento, preparazione compresa.</span>
               </label>
             )}
           </div>

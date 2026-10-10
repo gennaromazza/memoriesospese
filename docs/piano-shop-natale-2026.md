@@ -181,7 +181,7 @@ Controllo specifico del nuovo modulo:
 3. Pubblicare le **regole** Firestore (fase 2). **Indici nuovi non servono**: tutte le ricerche dello shop usano un solo campo (e `firestore.indexes.json` non esiste nel repository).
 4. ~~Regole di scadenza del bucket per `shop-orders/`.~~ **Non servono**: lo shop non imposta `customTime`, le foto le cancella la pulizia oraria del server.
 5. Confrontarti con il **commercialista** sul documento fiscale delle vendite online: oggi le fatture elettroniche sono legate a un lavoro e le stampe non ne generano. Il piano non emette fatture; la raccolta del codice fiscale per le spedizioni è già prevista come per le stampe.
-6. Far rivedere le **condizioni di vendita** e l'informativa privacy: testi scritti il 10 ottobre 2026 (versione `2026-10-10.1`), da far controllare in particolare per recesso, prodotti personalizzati e termine di consegna.
+6. Far rivedere le **condizioni di vendita** e l'informativa privacy: testi scritti il 10 ottobre 2026 (versione `2026-10-10.2`), da far controllare in particolare per recesso, prodotti personalizzati e termine di consegna.
 
 ## 11. Cosa non ho potuto verificare
 

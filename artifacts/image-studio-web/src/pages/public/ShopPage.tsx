@@ -34,7 +34,7 @@ function shippingLine(shipping: ShopCatalogDto['shipping']): string {
     ? `${shipping.estimatedMinDays} giorni`
     : `${shipping.estimatedMinDays}-${shipping.estimatedMaxDays} giorni`;
   const price = shipping.priceCents > 0 ? `da ${formatShopPrice(shipping.priceCents)}` : 'gratuita';
-  return `Spedizione in tutta Italia ${price}, consegna in circa ${days}. Oppure ritiro gratuito in studio.`;
+  return `Spedizione in tutta Italia ${price}, a casa in circa ${days} dal pagamento. Oppure ritiro gratuito in studio.`;
 }
 
 export default function ShopPage() {

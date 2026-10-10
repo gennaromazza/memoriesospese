@@ -144,17 +144,20 @@ export default function ShopSettingsPanel() {
                 </div>
                 <Switch id="shop-shipping-enabled" checked={draft.shipping.enabled} onCheckedChange={(enabled) => setDraft({ ...draft, shipping: { ...draft.shipping, enabled } })} />
               </div>
+              <p className="text-sm text-muted-foreground">
+                I giorni indicano il tempo dal pagamento (con tutte le foto) alla consegna a casa, preparazione e corriere compresi. Sono un'indicazione per il cliente, non una promessa.
+              </p>
               <div className="grid gap-5 sm:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="shop-shipping-price">Costo al cliente (€)</Label>
                   <Input id="shop-shipping-price" type="number" inputMode="decimal" min={0} step="0.01" value={draft.shipping.priceCents / 100} onChange={(event) => setDraft({ ...draft, shipping: { ...draft.shipping, priceCents: Math.max(0, Math.round((Number(event.target.value) || 0) * 100)) } })} />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="shop-shipping-min">Consegna minima (giorni)</Label>
+                  <Label htmlFor="shop-shipping-min">Tempo indicativo, da (giorni)</Label>
                   <Input id="shop-shipping-min" type="number" min={1} max={60} value={draft.shipping.estimatedMinDays} onChange={(event) => setDraft({ ...draft, shipping: { ...draft.shipping, estimatedMinDays: Number(event.target.value) } })} />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="shop-shipping-max">Consegna massima (giorni)</Label>
+                  <Label htmlFor="shop-shipping-max">Tempo indicativo, fino a (giorni)</Label>
                   <Input id="shop-shipping-max" type="number" min={1} max={90} value={draft.shipping.estimatedMaxDays} onChange={(event) => setDraft({ ...draft, shipping: { ...draft.shipping, estimatedMaxDays: Number(event.target.value) } })} />
                 </div>
               </div>
