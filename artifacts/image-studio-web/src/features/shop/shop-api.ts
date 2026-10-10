@@ -1,7 +1,17 @@
 import { auth } from '@/lib/firebase';
 import { createUrl } from '@/lib/basePath';
 import type { PrintShopBillingDetails, PrintShopPostalAddress } from '@shared/print-shop-types';
-import type { ShopAssetDto, ShopCatalogDto, ShopFulfillmentMethod, ShopOrderDto, ShopSettings } from '@shared/shop-types';
+import type {
+  ShopAdminOrderDto,
+  ShopAdminOrderSummaryDto,
+  ShopAdminView,
+  ShopAssetDto,
+  ShopCatalogDto,
+  ShopFulfillmentMethod,
+  ShopOrderDto,
+  ShopResendableMail,
+  ShopSettings,
+} from '@shared/shop-types';
 
 const SHOP_API = '/api/shop';
 
@@ -150,4 +160,27 @@ export const shopApi = {
   ) => shopRequest<{ paypalOrderId: string; status: string; reused: boolean }>(`${orderPath(orderId)}/paypal/create`, { method: 'POST', body: json(input) }),
   capturePayPalOrder: (orderId: string, paypalOrderId: string) =>
     shopRequest<ShopPaymentConfirmation>(`${orderPath(orderId)}/paypal/capture`, { method: 'POST', body: json({ paypalOrderId }) }),
+
+  // Gestione ordini (studio)
+  adminOrders: async (view: ShopAdminView, q?: string) => {
+    const query = new URLSearchParams({ view });
+    if (q?.trim()) query.set('q', q.trim());
+    return (await shopRequest<{ orders: ShopAdminOrderSummaryDto[] }>(`/admin/orders?${query.toString()}`)).orders;
+  },
+  adminOrder: async (orderId: string) => (await shopRequest<{ order: ShopAdminOrderDto }>(`/admin/orders/${encodeURIComponent(orderId)}`)).order,
+  adminUpdateStatus: async (
+    orderId: string,
+    input: { status: 'in_production' | 'ready_for_pickup' | 'shipped' | 'delivered' | 'cancelled'; note?: string; tracking?: { carrier?: string; code: string } },
+  ) => (await shopRequest<{ order: ShopAdminOrderDto }>(`/admin/orders/${encodeURIComponent(orderId)}/status`, { method: 'PATCH', body: json(input) })).order,
+  adminSaveNotes: async (orderId: string, note: string) =>
+    (await shopRequest<{ order: ShopAdminOrderDto }>(`/admin/orders/${encodeURIComponent(orderId)}/notes`, { method: 'PUT', body: json({ note }) })).order,
+  adminResend: async (orderId: string, kind: ShopResendableMail) =>
+    (await shopRequest<{ order: ShopAdminOrderDto }>(`/admin/orders/${encodeURIComponent(orderId)}/notifications/resend`, { method: 'POST', body: json({ kind }) })).order,
+  adminRejectPhoto: async (orderId: string, assetId: string, reason: string) =>
+    (await shopRequest<{ order: ShopAdminOrderDto }>(`/admin/orders/${encodeURIComponent(orderId)}/assets/${encodeURIComponent(assetId)}/reject`, { method: 'POST', body: json({ reason }) })).order,
+  adminReactivate: async (orderId: string) =>
+    (await shopRequest<{ order: ShopAdminOrderDto }>(`/admin/orders/${encodeURIComponent(orderId)}/reactivate`, { method: 'POST', body: json({}) })).order,
+  adminPreview: (orderId: string, assetId: string) => shopBlob(`/admin/orders/${encodeURIComponent(orderId)}/assets/${encodeURIComponent(assetId)}/preview`),
+  adminOriginal: (orderId: string, assetId: string) => shopBlob(`/admin/orders/${encodeURIComponent(orderId)}/assets/${encodeURIComponent(assetId)}/original`),
+  adminPhotosZip: (orderId: string) => shopBlob(`/admin/orders/${encodeURIComponent(orderId)}/photos.zip`),
 };

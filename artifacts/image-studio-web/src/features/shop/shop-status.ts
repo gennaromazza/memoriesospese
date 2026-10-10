@@ -41,3 +41,50 @@ export function shopNextStep(order: Pick<ShopOrderDto, 'fulfillmentStatus' | 'pa
   }
   return null;
 }
+
+// ---------------------------------------------------------------------------
+// Testi per lo studio
+// ---------------------------------------------------------------------------
+
+export const ADMIN_STATUS_LABELS: Record<ShopOrderDto['fulfillmentStatus'], string> = {
+  draft: 'Bozza',
+  awaiting_payment: 'In attesa di pagamento',
+  awaiting_photos: 'Mancano le foto',
+  photos_received: 'Da lavorare',
+  in_production: 'In lavorazione',
+  ready_for_pickup: 'Pronto per il ritiro',
+  shipped: 'Spedito',
+  delivered: 'Consegnato',
+  cancelled: 'Annullato',
+};
+
+export const ADMIN_ACTION_LABELS: Record<'in_production' | 'ready_for_pickup' | 'shipped' | 'delivered' | 'cancelled', string> = {
+  in_production: 'Inizia la lavorazione',
+  ready_for_pickup: 'Segna pronto per il ritiro',
+  shipped: 'Segna come spedito',
+  delivered: 'Segna come consegnato',
+  cancelled: 'Annulla l\u2019ordine',
+};
+
+export const MAIL_KIND_LABELS: Record<string, string> = {
+  order_confirmed: 'Conferma ordine',
+  photos_reminder: 'Promemoria foto',
+  photos_received: 'Foto ricevute',
+  photo_rejected: 'Foto da sostituire',
+  ready_for_pickup: 'Pronto per il ritiro',
+  shipped: 'Spedito',
+  delivered: 'Consegnato',
+  cancelled: 'Annullato',
+  refunded: 'Rimborsato',
+  admin_new_order: 'Avviso nuovo ordine (a te)',
+  admin_photos_complete: 'Avviso foto complete (a te)',
+  admin_photos_overdue: 'Avviso foto in ritardo (a te)',
+  admin_refund_after_shipping: 'Avviso rimborso dopo spedizione (a te)',
+  admin_reconcile: 'Avviso pagamento da controllare (a te)',
+};
+
+export function mailKindLabel(kind: string): string {
+  if (MAIL_KIND_LABELS[kind]) return MAIL_KIND_LABELS[kind];
+  const base = kind.replace(/_\d+$/, '');
+  return MAIL_KIND_LABELS[base] ?? kind;
+}
