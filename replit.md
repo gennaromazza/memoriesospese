@@ -34,7 +34,7 @@ _Describe the high-level user-facing capabilities of this app once they exist._
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- Nella homepage pubblica, alternare fondi pieni della palette October Mist tra le sezioni ed evitare i gradienti.
 
 ## Gotchas
 

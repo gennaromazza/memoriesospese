@@ -66,11 +66,11 @@ const FAKE_REVIEWS = [
 
 export default function ReviewsWidget({ className = '' }: ReviewsWidgetProps) {
   return (
-    <section id="recensioni" className={`py-20 bg-gradient-to-b from-white to-cream/30 relative overflow-hidden ${className}`}>
+    <section id="recensioni" className={`py-20 bg-light-mint/35 relative overflow-hidden ${className}`}>
       <div className="max-w-7xl mx-auto px-4">
         <div className="text-center mb-12">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-yellow-100 to-yellow-200 rounded-full mb-6">
-            <svg className="w-10 h-10 text-yellow-600" fill="currentColor" viewBox="0 0 24 24">
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-cream rounded-full mb-6">
+            <svg className="w-10 h-10 text-[hsl(14_37%_40%)]" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
             </svg>
           </div>
@@ -91,7 +91,7 @@ export default function ReviewsWidget({ className = '' }: ReviewsWidgetProps) {
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-6 py-3 bg-white hover:bg-gray-50 text-blue-gray border-2 border-sage font-medium rounded-lg shadow-md transition-all hover:shadow-lg hover:scale-105"
             >
-              <svg className="w-5 h-5 text-yellow-600" fill="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-[hsl(14_37%_40%)]" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
               </svg>
               <span>Leggi su Google</span>
@@ -117,7 +117,7 @@ export default function ReviewsWidget({ className = '' }: ReviewsWidgetProps) {
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-6 py-3 bg-white hover:bg-gray-50 text-blue-gray border-2 border-terracotta font-medium rounded-lg shadow-md transition-all hover:shadow-lg hover:scale-105"
             >
-              <svg className="w-5 h-5 text-terracotta" fill="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-[hsl(14_37%_40%)]" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
               </svg>
               <span>Leggi su Matrimonio.com</span>
@@ -155,7 +155,7 @@ export default function ReviewsWidget({ className = '' }: ReviewsWidgetProps) {
                       <div className="flex items-center gap-2 mt-1">
                         <div className="flex gap-0.5">
                           {[...Array(review.rating)].map((_, i) => (
-                            <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                            <Star key={i} className="w-4 h-4 fill-terracotta text-terracotta" />
                           ))}
                         </div>
                         <span className="text-xs text-gray-500">{review.date}</span>
@@ -173,7 +173,7 @@ export default function ReviewsWidget({ className = '' }: ReviewsWidgetProps) {
                     <span className="text-xs text-gray-500 italic">Recensione da {review.platform}</span>
                     <div className="flex items-center gap-1">
                       {[...Array(5)].map((_, i) => (
-                        <Star key={i} className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                        <Star key={i} className="w-3 h-3 fill-terracotta text-terracotta" />
                       ))}
                     </div>
                   </div>
@@ -190,7 +190,7 @@ export default function ReviewsWidget({ className = '' }: ReviewsWidgetProps) {
             La soddisfazione dei nostri clienti è la nostra priorità. Leggi tutte le recensioni sui nostri portali!
           </p>
           
-          <div className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-sage to-dark-sage rounded-lg shadow-md text-[color:var(--color-yellow-600)]">
+          <div className="inline-flex items-center gap-2 px-6 py-3 bg-[hsl(120_7%_38%)] rounded-lg shadow-md text-off-white">
             <Star className="w-5 h-5 fill-white" />
             <span className="font-semibold">5.0 stelle su tutti i portali</span>
           </div>
