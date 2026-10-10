@@ -111,7 +111,9 @@ export default function ShopTermsPage() {
         <Section title="Ritiro e spedizione">
           <p>
             Puoi scegliere il ritiro presso {seller.address ? `la sede in ${seller.address}` : 'la sede indicata nei contatti'} oppure,
-            quando è attiva, la spedizione. La spedizione è disponibile solo in Italia; costo e tempi stimati li vedi prima di pagare.
+            quando è attiva, la spedizione. La spedizione è disponibile solo in Italia. Il costo può dipendere dal peso
+            dell'ordine: lo vedi, insieme ai tempi stimati, prima di pagare. Se l'ordine supera il peso massimo che
+            spediamo online, puoi ritirarlo in studio oppure contattarci.
             Per spedire ci servono indirizzo di consegna, indirizzo di residenza e codice fiscale. Sei responsabile della
             correttezza di indirizzo, CAP, città, provincia e recapiti.
           </p>

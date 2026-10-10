@@ -224,6 +224,7 @@ export default function ProductsManager() {
     prezzo: 0,
     sconto: 0,
     numeroFoto: 0,
+    pesoGrammi: 0,
     categoria: 'album',
     attivo: true,
     immagini: [],
@@ -355,6 +356,7 @@ export default function ProductsManager() {
       prezzo: 0,
       sconto: 0,
       numeroFoto: 0,
+      pesoGrammi: 0,
       categoria: activeCategories[0]?.value || '',
       attivo: true,
       immagini: [],
@@ -395,6 +397,7 @@ export default function ProductsManager() {
       prezzo: product.prezzo,
       sconto: product.sconto,
       numeroFoto: product.numeroFoto,
+      pesoGrammi: product.pesoGrammi ?? 0,
       categoria: product.categoria,
       attivo: product.attivo,
       immagini: product.immagini || [],
@@ -609,6 +612,15 @@ export default function ProductsManager() {
       toast({
         title: 'Errore',
         description: 'Il numero di foto non può essere negativo',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!Number.isInteger(formData.pesoGrammi ?? 0) || (formData.pesoGrammi ?? 0) < 0 || (formData.pesoGrammi ?? 0) > 100000) {
+      toast({
+        title: 'Errore',
+        description: 'Il peso deve essere un numero intero di grammi, da 0 a 100000',
         variant: 'destructive',
       });
       return;
@@ -1047,6 +1059,24 @@ export default function ProductsManager() {
               />
               <p className="text-xs text-muted-foreground">
                 Numero di foto che il cliente può selezionare per questo prodotto
+              </p>
+            </div>
+
+            {/* Peso per la spedizione dello shop */}
+            <div className="space-y-2">
+              <Label htmlFor="pesoGrammi">Peso di un esemplare (grammi)</Label>
+              <Input
+                id="pesoGrammi"
+                type="number"
+                min="0"
+                step="1"
+                value={formData.pesoGrammi ?? 0}
+                onChange={e => setFormData({ ...formData, pesoGrammi: parseInt(e.target.value) || 0 })}
+                placeholder="es. 450"
+                data-testid="input-product-weight"
+              />
+              <p className="text-xs text-muted-foreground">
+                Imballo compreso. Serve a calcolare la spedizione dello shop online in base al peso: lascia 0 se il prodotto non si vende lì.
               </p>
             </div>
 

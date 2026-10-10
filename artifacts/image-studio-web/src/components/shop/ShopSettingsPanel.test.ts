@@ -9,6 +9,20 @@ const valid = (patch: Partial<ShopSettings> = {}): ShopSettings => ({
   ...patch,
 });
 
+describe('fasce di peso nelle impostazioni', () => {
+  const shipping = { enabled: true, priceCents: 0, estimatedMinDays: 5, estimatedMaxDays: 8 };
+
+  it('accetta fasce valide', () => {
+    expect(validateShopSettings(valid({ shipping: { ...shipping, tiers: [{ maxGrams: 1000, priceCents: 590 }, { maxGrams: 3000, priceCents: 790 }] } }))).toEqual([]);
+  });
+
+  it('rifiuta fasce con lo stesso limite o con valori non validi', () => {
+    expect(validateShopSettings(valid({ shipping: { ...shipping, tiers: [{ maxGrams: 1000, priceCents: 590 }, { maxGrams: 1000, priceCents: 790 }] } }))).toHaveLength(1);
+    expect(validateShopSettings(valid({ shipping: { ...shipping, tiers: [{ maxGrams: 0, priceCents: 590 }] } }))).toHaveLength(1);
+    expect(validateShopSettings(valid({ shipping: { ...shipping, tiers: [{ maxGrams: 1000, priceCents: -1 }] } }))).toHaveLength(1);
+  });
+});
+
 describe('validazione delle impostazioni shop', () => {
   it('accetta impostazioni complete e anche quelle di partenza', () => {
     expect(validateShopSettings(valid())).toEqual([]);

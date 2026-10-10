@@ -29,10 +29,10 @@ export const SHOP_LEGAL_TERMS = Object.freeze({
  * propri. Ogni modifica ai testi legali dello shop richiede una nuova versione.
  */
 export const SHOP_LEGAL_MANIFEST = Object.freeze({
-  schemaVersion: 'shop-legal-2026-10-10.2',
-  termsVersion: '2026-10-10.2',
-  privacyVersion: '2026-10-10.2',
-  personalizedProductionVersion: '2026-10-10.2',
+  schemaVersion: 'shop-legal-2026-10-10.3',
+  termsVersion: '2026-10-10.3',
+  privacyVersion: '2026-10-10.3',
+  personalizedProductionVersion: '2026-10-10.3',
   paymentPolicy: 'paypal_advance_only',
   fulfillmentMethods: ['studio_pickup', 'shipping'] as const,
   shippingRequiresBillingDetails: true,

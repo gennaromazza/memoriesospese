@@ -4,13 +4,16 @@ import {
   SHOP_CURRENCY,
   SHOP_MAX_CATEGORIES,
   SHOP_MAX_PHOTOS_PER_PRODUCT,
+  SHOP_MAX_SHIPPING_GRAMS,
   isShopOrderingOpen,
   shopPriceCents,
   type ShopCatalogDto,
   type ShopCategoryDto,
   type ShopProductDto,
   type ShopSettings,
+  type ShopShippingConfig,
 } from '@shared/shop-types';
+import { shopShippingTiers } from '@shared/shop-shipping';
 import { normalizeShippingConfig } from '../commerce/checkout-input.js';
 import { cleanText } from '../commerce/text.js';
 
@@ -25,6 +28,18 @@ function validDay(value: unknown): string | null {
   if (typeof value !== 'string' || !DAY_KEY.test(value)) return null;
   const parsed = new Date(`${value}T12:00:00Z`);
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(value) ? value : null;
+}
+
+/** Spedizione dalle impostazioni: costo unico oppure, se ci sono fasce valide, costo per peso. */
+function normalizeShopShipping(raw: unknown): ShopShippingConfig {
+  const base = normalizeShippingConfig(raw, DEFAULT_SHOP_SHIPPING);
+  const tiers = shopShippingTiers(raw && typeof raw === 'object' ? (raw as { tiers?: ShopShippingConfig['tiers'] }) : undefined);
+  return tiers.length > 0 ? { ...base, tiers } : base;
+}
+
+/** Peso di un esemplare in grammi dal prodotto del catalogo; null se non indicato. */
+function productWeightGrams(value: unknown): number | null {
+  return Number.isFinite(value) && Number(value) >= 1 ? Math.min(SHOP_MAX_SHIPPING_GRAMS, Math.round(Number(value))) : null;
 }
 
 /**
@@ -52,7 +67,7 @@ export function normalizeShopSettings(raw: unknown): ShopSettings {
     categoryValues,
     lastOrderDate: validDay(source.lastOrderDate),
     photoWaitDays,
-    shipping: normalizeShippingConfig(source.shipping, DEFAULT_SHOP_SHIPPING),
+    shipping: normalizeShopShipping(source.shipping),
   };
 }
 
@@ -82,6 +97,7 @@ export function shopProductDto(product: ShopDocument, categoryValues: ReadonlySe
     descrizione: cleanText(product.descrizione, 2_000) || '',
     ...price,
     photosRequired: Math.min(SHOP_MAX_PHOTOS_PER_PRODUCT, Math.max(0, photos)),
+    weightGrams: productWeightGrams(product.pesoGrammi),
     categoria,
     images: productImages(product.immagini),
     displayOrder: Number.isFinite(product.displayOrder) ? Number(product.displayOrder) : Number.MAX_SAFE_INTEGER,

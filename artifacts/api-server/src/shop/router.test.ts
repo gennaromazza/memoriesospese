@@ -171,6 +171,34 @@ describe('catalogo e impostazioni', () => {
     expect(invalid.status).toBe(400);
     expect((await json(invalid)).error.code).toBe('invalid_request');
   });
+
+  it('la spedizione per peso: si salvano le fasce valide e la vetrina le mostra', async () => {
+    const { call, db } = await start();
+    db.seed('products/mug', { nome: 'Tazza con foto', descrizione: 'Con la tua foto', prezzo: 15, sconto: 0, numeroFoto: 1, pesoGrammi: 450, categoria: 'natale', attivo: true, immagini: [] });
+    const put = (tiers: unknown) =>
+      call('/admin/settings', { method: 'PUT', as: 'admin@studio.test', json: { ...settingsBody, shipping: { ...settingsBody.shipping, tiers } } });
+    const tiers = [{ maxGrams: 1000, priceCents: 590 }, { maxGrams: 3000, priceCents: 790 }];
+    const saved = await put(tiers);
+    expect(saved.status).toBe(200);
+    expect((await json(saved)).settings.shipping.tiers).toEqual(tiers);
+
+    const catalog = await json(await call('/catalog'));
+    expect(catalog.shipping.tiers).toEqual(tiers);
+    expect(catalog.products.find((product: any) => product.id === 'mug').weightGrams).toBe(450);
+    expect(catalog.products.find((product: any) => product.id === 'card').weightGrams).toBeNull();
+
+    // Fuori ordine, con limiti uguali, vuote di senso o troppe: rifiutate.
+    expect((await put([{ maxGrams: 3000, priceCents: 790 }, { maxGrams: 1000, priceCents: 590 }])).status).toBe(400);
+    expect((await put([{ maxGrams: 1000, priceCents: 590 }, { maxGrams: 1000, priceCents: 790 }])).status).toBe(400);
+    expect((await put([{ maxGrams: 0, priceCents: 590 }])).status).toBe(400);
+    expect((await put([{ maxGrams: 1000, priceCents: -1 }])).status).toBe(400);
+    expect((await put([{ maxGrams: 1000, priceCents: 590, extra: 1 }])).status).toBe(400);
+    expect((await put(Array.from({ length: 13 }, (_, index) => ({ maxGrams: (index + 1) * 100, priceCents: 500 })))).status).toBe(400);
+    // Senza fasce torna il costo unico.
+    const flat = await put([]);
+    expect(flat.status).toBe(200);
+    expect((await json(flat)).settings.shipping.tiers).toBeUndefined();
+  });
 });
 
 describe('accesso del cliente', () => {

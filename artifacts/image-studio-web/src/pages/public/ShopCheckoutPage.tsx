@@ -4,7 +4,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, ArrowRight, Loader2, Minus, Plus, ShoppingBag, Trash2, Truck } from 'lucide-react';
 import type { PrintShopPostalAddress } from '@shared/print-shop-types';
 import { SHOP_TERMS_PATH } from '@shared/shop-legal';
-import { SHOP_MAX_QUANTITY, formatShopPrice, type ShopOrderDto } from '@shared/shop-types';
+import { SHOP_MAX_QUANTITY, formatShopPrice, type ShopOrderDto, type ShopShippingConfig } from '@shared/shop-types';
+import { formatShopWeight, isShopShippingByWeight, shopShippingPriceRange, shopShippingQuote, shopShippingUnavailableMessage } from '@shared/shop-shipping';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
@@ -46,6 +47,14 @@ function Section({ title, children, hint }: { title: string; children: React.Rea
       <div className="mt-5">{children}</div>
     </section>
   );
+}
+
+/** Costo della spedizione prima di conoscere il peso dell'ordine: l'importo unico oppure "da X". */
+function shippingPriceText(config: ShopShippingConfig | undefined): string {
+  const range = config ? shopShippingPriceRange(config) : null;
+  if (!range) return '';
+  if (range.minCents === range.maxCents) return range.minCents > 0 ? formatShopPrice(range.minCents) : 'Gratuita';
+  return `da ${formatShopPrice(range.minCents)}`;
 }
 
 export default function ShopCheckoutPage() {
@@ -179,7 +188,10 @@ export default function ShopCheckoutPage() {
 
   const shippingConfig = catalog?.shipping;
   const shippingOffered = Boolean(shippingConfig?.enabled);
-  const shippingCents = method === 'shipping' && shippingConfig?.enabled ? shippingConfig.priceCents : 0;
+  // Stessa funzione del server: il costo mostrato è quello che verrà addebitato.
+  const shippingQuote = shippingConfig && order ? shopShippingQuote(shippingConfig, order.lines) : null;
+  const shippingBlocked = Boolean(shippingQuote && !shippingQuote.available);
+  const shippingCents = method === 'shipping' && shippingQuote?.available ? shippingQuote.cents : 0;
   const subtotalCents = order?.totals.subtotalCents ?? 0;
   const totalCents = subtotalCents + shippingCents;
   const hasPhotoLines = order?.lines.some(line => line.photosRequired > 0) ?? false;
@@ -190,10 +202,11 @@ export default function ShopCheckoutPage() {
     () => ({ name, phone, notes, method, shippingAddress, fiscalCode, residenceSame, residenceAddress }),
     [name, phone, notes, method, shippingAddress, fiscalCode, residenceSame, residenceAddress],
   );
-  const problems = useMemo(
+  const baseProblems = useMemo(
     () => checkoutProblems({ ...form, terms, privacy, personalized, orderingOpen: Boolean(catalog?.orderingOpen), hasPhotoLines }),
     [form, terms, privacy, personalized, catalog?.orderingOpen, hasPhotoLines],
   );
+  const problems = method === 'shipping' && shippingBlocked ? [...baseProblems, 'una consegna possibile (scegli il ritiro in studio)'] : baseProblems;
   const buildPatch = useCallback((): ShopOrderUpdate => buildOrderPatch(form), [form]);
 
   const refresh = useCallback(async () => {
@@ -393,8 +406,16 @@ export default function ShopCheckoutPage() {
             </label>
             {shippingOffered && shippingConfig && (
               <label className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 text-sm ${method === 'shipping' ? 'border-terracotta bg-terracotta/5' : 'border-sage/25'}`}>
-                <input type="radio" name="shop-delivery" checked={method === 'shipping'} onChange={() => setMethod('shipping')} className="mt-1" />
-                <span><Truck className="mr-1 inline h-4 w-4" aria-hidden="true" /><strong>Spedizione in Italia</strong><br />{shippingConfig.priceCents > 0 ? formatShopPrice(shippingConfig.priceCents) : 'Gratuita'} · circa {shippingConfig.estimatedMinDays}-{shippingConfig.estimatedMaxDays} giorni dal pagamento, preparazione compresa.</span>
+                <input type="radio" name="shop-delivery" checked={method === 'shipping'} onChange={() => setMethod('shipping')} disabled={shippingBlocked} className="mt-1" />
+                <span><Truck className="mr-1 inline h-4 w-4" aria-hidden="true" /><strong>Spedizione in Italia</strong><br />{shippingQuote && !shippingQuote.available ? (
+                  <span className="text-amber-800">{shopShippingUnavailableMessage(shippingQuote)}</span>
+                ) : (
+                  <>
+                    {shippingQuote?.available ? (shippingQuote.cents > 0 ? formatShopPrice(shippingQuote.cents) : 'Gratuita') : shippingPriceText(shippingConfig)}
+                    {shippingQuote?.available && isShopShippingByWeight(shippingConfig) && shippingQuote.weightGrams ? ` (ordine di circa ${formatShopWeight(shippingQuote.weightGrams)})` : ''}
+                    {' '}· circa {shippingConfig.estimatedMinDays}-{shippingConfig.estimatedMaxDays} giorni dal pagamento, preparazione compresa.
+                  </>
+                )}</span>
               </label>
             )}
           </div>

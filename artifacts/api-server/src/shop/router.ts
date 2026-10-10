@@ -1,7 +1,7 @@
 import archiver from 'archiver';
 import express, { type RequestHandler } from 'express';
 import { z } from 'zod/v4';
-import { SHOP_MAX_CATEGORIES, SHOP_RESENDABLE_MAILS, SHOP_TRACKING_CARRIER_MAX, SHOP_TRACKING_CODE_MAX } from '@shared/shop-types';
+import { SHOP_MAX_CATEGORIES, SHOP_MAX_SHIPPING_GRAMS, SHOP_MAX_SHIPPING_TIERS, SHOP_RESENDABLE_MAILS, SHOP_TRACKING_CARRIER_MAX, SHOP_TRACKING_CODE_MAX } from '@shared/shop-types';
 import { billingDetailsSchema, customerSchema, postalAddressSchema } from '../commerce/schemas.js';
 import { CommerceHttpError } from '../commerce/errors.js';
 import { configuredAdminEmails, identity, requireAdmin, route, setSensitiveHeaders } from '../commerce/http.js';
@@ -30,14 +30,23 @@ export interface ShopRouterDependencies {
   adminEmails: readonly string[];
 }
 
+const shippingTierSchema = z.object({
+  maxGrams: z.number().int().min(1).max(SHOP_MAX_SHIPPING_GRAMS),
+  priceCents: z.number().int().min(0).max(100_000_000),
+}).strict();
+
 const shippingSchema = z.object({
   enabled: z.boolean(),
   priceCents: z.number().int().min(0).max(100_000_000),
   estimatedMinDays: z.number().int().min(1).max(60),
   estimatedMaxDays: z.number().int().min(1).max(90),
+  tiers: z.array(shippingTierSchema).max(SHOP_MAX_SHIPPING_TIERS).optional(),
 }).strict().refine(
   value => value.estimatedMaxDays >= value.estimatedMinDays,
   { message: 'Il tempo massimo non può essere inferiore al minimo', path: ['estimatedMaxDays'] },
+).refine(
+  value => (value.tiers ?? []).every((tier, index, tiers) => index === 0 || tier.maxGrams > tiers[index - 1].maxGrams),
+  { message: 'Le fasce di peso devono essere in ordine crescente e senza limiti uguali', path: ['tiers'] },
 );
 
 const settingsSchema = z.object({

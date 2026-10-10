@@ -14,6 +14,23 @@ export const SHOP_CURRENCY = 'EUR' as const;
 export const SHOP_MAX_PHOTOS_PER_PRODUCT = 50;
 export const SHOP_MAX_CATEGORIES = 30;
 export const SHOP_DEFAULT_PHOTO_WAIT_DAYS = 7;
+/** Fasce di peso della spedizione: al massimo 12, la più alta fino a 100 kg. */
+export const SHOP_MAX_SHIPPING_TIERS = 12;
+export const SHOP_MAX_SHIPPING_GRAMS = 100_000;
+
+/** Una fascia di peso: l'ordine che pesa fino a `maxGrams` (compresi) paga `priceCents`. */
+export interface ShopShippingTier {
+  maxGrams: number;
+  priceCents: number;
+}
+
+/**
+ * Spedizione dello shop. Senza `tiers` vale il costo unico `priceCents`; con le
+ * fasce il costo dipende dal peso dell'ordine e `priceCents` non si usa.
+ */
+export interface ShopShippingConfig extends PrintShopShippingConfig {
+  tiers?: ShopShippingTier[];
+}
 
 /**
  * Impostazioni salvate in `settings/shop`. Quel documento è leggibile da
@@ -30,10 +47,10 @@ export interface ShopSettings {
   lastOrderDate: string | null;
   /** Giorni di attesa delle foto mancanti prima di annullare l'ordine. */
   photoWaitDays: number;
-  shipping: PrintShopShippingConfig;
+  shipping: ShopShippingConfig;
 }
 
-export const DEFAULT_SHOP_SHIPPING: PrintShopShippingConfig = {
+export const DEFAULT_SHOP_SHIPPING: ShopShippingConfig = {
   enabled: false,
   priceCents: 0,
   estimatedMinDays: 3,
@@ -65,6 +82,8 @@ export interface ShopProductDto {
   discountPercent: number;
   /** Foto che il cliente deve fornire (0 = nessuna). */
   photosRequired: number;
+  /** Peso di un esemplare in grammi, per calcolare la spedizione; null se non indicato. */
+  weightGrams?: number | null;
   categoria: string;
   images: string[];
   displayOrder: number;
@@ -78,7 +97,7 @@ export interface ShopCatalogDto {
   currency: typeof SHOP_CURRENCY;
   categories: ShopCategoryDto[];
   products: ShopProductDto[];
-  shipping: PrintShopShippingConfig;
+  shipping: ShopShippingConfig;
   photoWaitDays: number;
 }
 
@@ -180,6 +199,8 @@ export interface ShopOrderLineDto {
   /** Foto richieste per questa riga (0 = nessuna). */
   photosRequired: number;
   lineTotalCents: number;
+  /** Peso di un esemplare in grammi al momento dell'ordine; null se il prodotto non ha il peso. */
+  weightGrams?: number | null;
 }
 
 export interface ShopAssetDto {
@@ -292,6 +313,8 @@ export interface ShopAdminOrderDto extends ShopAdminOrderSummaryDto {
   adminNotes: string | null;
   lines: Array<ShopOrderLineDto & { photos: ShopAssetDto[]; photosMissing: number }>;
   totals: { subtotalCents: number; shippingCents: number; totalCents: number };
+  /** Peso complessivo dell'ordine in grammi, per preparare il pacco; null se manca il peso di un prodotto. */
+  weightGrams?: number | null;
   fulfillment: {
     shippingAddress: PrintShopPostalAddress | null;
     tracking: { carrier: string; code: string } | null;

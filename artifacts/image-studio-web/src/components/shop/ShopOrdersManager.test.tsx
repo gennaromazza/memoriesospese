@@ -124,6 +124,13 @@ describe('dettaglio ordine per lo studio', () => {
     expect(html).toContain('In lavorazione');
   });
 
+  it('mostra il peso complessivo per preparare il pacco, solo se lo conosce', () => {
+    expect(renderDetail(detail({ weightGrams: 1650 }))).toContain('peso circa 1,65 kg');
+    expect(renderDetail(detail({ weightGrams: 800 }))).toContain('peso circa 800 g');
+    expect(renderDetail(detail({ weightGrams: null }))).not.toContain('peso circa');
+    expect(renderDetail(detail())).not.toContain('peso circa');
+  });
+
   it('offre solo i passaggi consentiti', () => {
     const html = renderDetail(detail());
     expect(html).toContain('Inizia la lavorazione');

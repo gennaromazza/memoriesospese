@@ -9,7 +9,8 @@ import {
   type ShopProductDto,
   type ShopQuoteDto,
 } from '@shared/shop-types';
-import type { PrintShopShippingConfig } from '@shared/print-shop-types';
+import { shopShippingQuote, shopShippingUnavailableMessage } from '@shared/shop-shipping';
+import type { ShopShippingConfig } from '@shared/shop-types';
 import { CommerceHttpError } from '../commerce/errors.js';
 import { hashId, stableStringify } from '../commerce/text.js';
 
@@ -89,6 +90,7 @@ export function priceLines(
       quantity: input.quantity,
       photosRequired: product.photosRequired,
       lineTotalCents: product.priceCents * input.quantity,
+      weightGrams: product.weightGrams ?? null,
     };
   });
 }
@@ -97,13 +99,18 @@ export function priceLines(
 export function computeTotals(
   lines: readonly ShopOrderLineDto[],
   method: ShopFulfillmentMethod,
-  shipping: PrintShopShippingConfig,
+  shipping: ShopShippingConfig,
 ): ShopQuoteDto['totals'] {
-  if (method === 'shipping' && !shipping.enabled) {
-    throw new CommerceHttpError(409, 'shipping_disabled', 'La spedizione non è disponibile');
-  }
   const subtotalCents = lines.reduce((total, line) => total + line.lineTotalCents, 0);
-  const shippingCents = method === 'shipping' ? shipping.priceCents : 0;
+  let shippingCents = 0;
+  if (method === 'shipping') {
+    const priced = shopShippingQuote(shipping, lines);
+    if (!priced.available) {
+      const code = priced.reason === 'disabled' ? 'shipping_disabled' : priced.reason === 'too_heavy' ? 'shipping_too_heavy' : 'shipping_weight_missing';
+      throw new CommerceHttpError(409, code, shopShippingUnavailableMessage(priced));
+    }
+    shippingCents = priced.cents;
+  }
   return { subtotalCents, shippingCents, totalCents: subtotalCents + shippingCents };
 }
 
@@ -131,7 +138,7 @@ export function quoteFingerprint(
 export function buildQuote(
   lines: readonly ShopOrderLineDto[],
   method: ShopFulfillmentMethod,
-  shipping: PrintShopShippingConfig,
+  shipping: ShopShippingConfig,
 ): ShopQuoteDto {
   const totals = computeTotals(lines, method, shipping);
   return {

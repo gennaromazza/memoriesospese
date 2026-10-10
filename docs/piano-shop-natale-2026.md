@@ -181,7 +181,7 @@ Controllo specifico del nuovo modulo:
 3. Pubblicare le **regole** Firestore (fase 2). **Indici nuovi non servono**: tutte le ricerche dello shop usano un solo campo (e `firestore.indexes.json` non esiste nel repository).
 4. ~~Regole di scadenza del bucket per `shop-orders/`.~~ **Non servono**: lo shop non imposta `customTime`, le foto le cancella la pulizia oraria del server.
 5. Confrontarti con il **commercialista** sul documento fiscale delle vendite online: oggi le fatture elettroniche sono legate a un lavoro e le stampe non ne generano. Il piano non emette fatture; la raccolta del codice fiscale per le spedizioni è già prevista come per le stampe.
-6. Far rivedere le **condizioni di vendita** e l'informativa privacy: testi scritti il 10 ottobre 2026 (versione `2026-10-10.2`), da far controllare in particolare per recesso, prodotti personalizzati e termine di consegna.
+6. Far rivedere le **condizioni di vendita** e l'informativa privacy: testi scritti il 10 ottobre 2026 (versione `2026-10-10.3`), da far controllare in particolare per recesso, prodotti personalizzati e termine di consegna.
 
 ## 11. Cosa non ho potuto verificare
 
@@ -217,7 +217,7 @@ Fasi 0-6 completate nel codice, con test automatici. Restano il collaudo con Pay
 | 3 | Ultimo giorno ordini | Impostazione `lastOrderDate`, vuota finché non la scegli. |
 | 4 | Carrello | Più prodotti per ordine, una zona foto per ogni riga. |
 | 5 | Indirizzo vetrina | `/shop-natale` (le condizioni sono su `/shop-natale/condizioni`). |
-| 6 | Spedizione | Impostazioni proprie dello shop; solo Italia. |
+| 6 | Spedizione | Impostazioni proprie dello shop; solo Italia. Costo unico oppure **per fasce di peso** (il peso di ogni prodotto si indica nel Catalogo Prodotti; oltre l'ultima fascia resta il ritiro in studio). |
 | 7 | Prodotti Natale in preventivi e campagne | **Ancora aperta**: il catalogo è unico e li mostra. |
 | 8 | Ordini in admin | Scheda separata "Shop online". |
 | 9 | Codice fiscale e residenza | Richiesti per ogni spedizione, come nelle stampe. |

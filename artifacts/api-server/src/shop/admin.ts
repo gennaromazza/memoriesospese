@@ -1,3 +1,4 @@
+import { shopOrderWeight } from '@shared/shop-shipping';
 import {
   SHOP_ORDER_TYPE,
   SHOP_RESENDABLE_MAILS,
@@ -214,6 +215,10 @@ export class ShopAdminService {
         shippingCents: Number(order.totals?.shippingCents || 0),
         totalCents: Number(order.totals?.totalCents || 0),
       },
+      weightGrams: (() => {
+        const weight = shopOrderWeight(lines);
+        return weight.complete && weight.grams > 0 ? weight.grams : null;
+      })(),
       fulfillment: {
         shippingAddress: order.fulfillment?.shippingAddress ?? null,
         tracking: tracking?.code ? { carrier: String(tracking.carrier || ''), code: String(tracking.code) } : null,

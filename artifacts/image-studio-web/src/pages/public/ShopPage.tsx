@@ -8,6 +8,7 @@ import {
   type ShopCatalogDto,
   type ShopProductDto,
 } from '@shared/shop-types';
+import { isShopShippingByWeight, shopShippingPriceRange } from '@shared/shop-shipping';
 import { getWhatsAppLink } from '@shared/phone-utils';
 import { useStudio } from '@/context/StudioContext';
 import { useSEO } from '@/hooks/useSEO';
@@ -33,8 +34,14 @@ function shippingLine(shipping: ShopCatalogDto['shipping']): string {
   const days = shipping.estimatedMinDays === shipping.estimatedMaxDays
     ? `${shipping.estimatedMinDays} giorni`
     : `${shipping.estimatedMinDays}-${shipping.estimatedMaxDays} giorni`;
-  const price = shipping.priceCents > 0 ? `da ${formatShopPrice(shipping.priceCents)}` : 'gratuita';
-  return `Spedizione in tutta Italia ${price}, a casa in circa ${days} dal pagamento. Oppure ritiro gratuito in studio.`;
+  const range = shopShippingPriceRange(shipping);
+  const byWeight = isShopShippingByWeight(shipping);
+  const min = range?.minCents ?? 0;
+  const price = min > 0
+    ? `da ${formatShopPrice(min)}`
+    : byWeight && (range?.maxCents ?? 0) > 0 ? 'gratuita per gli ordini più leggeri' : 'gratuita';
+  const weightNote = byWeight ? ' (il costo dipende dal peso)' : '';
+  return `Spedizione in tutta Italia ${price}${weightNote}, a casa in circa ${days} dal pagamento. Oppure ritiro gratuito in studio.`;
 }
 
 export default function ShopPage() {

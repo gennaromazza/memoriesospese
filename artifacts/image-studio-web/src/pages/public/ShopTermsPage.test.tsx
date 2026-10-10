@@ -73,6 +73,8 @@ describe('condizioni di vendita dello shop', () => {
     const html = render();
     expect(html).toContain('pagamento al ritiro');
     expect(html).toContain('solo in Italia');
+    expect(html).toContain('Il costo può dipendere dal peso');
+    expect(html).toContain('supera il peso massimo che');
     expect(html).toContain('Foto non ancora caricate');
     expect(html).toContain("l&#x27;intero importo pagato");
     expect(html).toContain('solo file JPG, fino a 30 MB');

@@ -68,6 +68,22 @@ describe('vetrina shop', () => {
     expect(html).toContain('href="/regala"');
   });
 
+  it('con la spedizione per peso scrive "da" il costo più basso e che dipende dal peso', () => {
+    const html = render(catalog({
+      shipping: {
+        enabled: true, priceCents: 0, estimatedMinDays: 5, estimatedMaxDays: 8,
+        tiers: [{ maxGrams: 1000, priceCents: 590 }, { maxGrams: 3000, priceCents: 790 }],
+      },
+    }));
+    expect(html).toContain('Spedizione in tutta Italia da 5,90');
+    expect(html).toContain('il costo dipende dal peso');
+    expect(html).toContain('5-8 giorni dal pagamento');
+  });
+
+  it('con il costo unico non parla di peso', () => {
+    expect(render(catalog())).not.toContain('dipende dal peso');
+  });
+
   it('mostra il prezzo di listino barrato quando c\'è uno sconto', () => {
     const html = render(catalog());
     expect(html).toContain('<s ');

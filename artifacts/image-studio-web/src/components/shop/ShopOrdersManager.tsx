@@ -10,6 +10,7 @@ import {
   type ShopAssetDto,
 } from '@shared/shop-types';
 import { getWhatsAppLink } from '@shared/phone-utils';
+import { formatShopWeight } from '@shared/shop-shipping';
 import { shopApi } from '@/features/shop/shop-api';
 import { downloadBlob } from '@/features/shop/download';
 import { addressText, formatOrderDate } from '@/features/shop/ShopOrderParts';
@@ -257,7 +258,10 @@ export function OrderDetail({ orderId, onClose }: { orderId: string; onClose: ()
           ))}
         </ul>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-sage/20 pt-3">
-          <span className="font-semibold">Totale {formatShopPrice(order.totals.totalCents)}{order.totals.shippingCents > 0 ? ` (spedizione ${formatShopPrice(order.totals.shippingCents)})` : ''}</span>
+          <span className="font-semibold">
+            Totale {formatShopPrice(order.totals.totalCents)}{order.totals.shippingCents > 0 ? ` (spedizione ${formatShopPrice(order.totals.shippingCents)})` : ''}
+            {order.weightGrams ? <span className="ml-2 font-normal text-blue-gray/70">· peso circa {formatShopWeight(order.weightGrams)}</span> : null}
+          </span>
           {hasPhotos && <Button size="sm" variant="outline" disabled={zipping} onClick={() => void downloadZip()}>{zipping ? <Loader2 className="animate-spin" /> : <FileArchive />} Scarica tutte le foto (zip)</Button>}
         </div>
       </section>

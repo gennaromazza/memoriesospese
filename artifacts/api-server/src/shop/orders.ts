@@ -8,6 +8,7 @@ import {
   type ShopProductDto,
 } from '@shared/shop-types';
 import type { PrintShopBillingDetails, PrintShopPostalAddress } from '@shared/print-shop-types';
+import { shopShippingQuote } from '@shared/shop-shipping';
 import {
   assertDocumentId,
   normalizeBillingDetails,
@@ -204,7 +205,10 @@ export class ShopOrderService {
       assertEditable(order, now.getTime());
       const previous: ShopOrderLineDto[] = Array.isArray(order.lines) ? order.lines : [];
       const lines = priceLines(inputs, products, new Set(previous.map(line => line.lineId)));
-      const method = order.fulfillment?.method === 'shipping' ? 'shipping' : 'studio_pickup';
+      // Se con le righe nuove la spedizione non si può più calcolare (per esempio pesano troppo),
+      // l'ordine torna al ritiro in studio: il cliente lo vede e può scegliere di nuovo.
+      const wanted = order.fulfillment?.method === 'shipping' ? 'shipping' : 'studio_pickup';
+      const method = wanted === 'shipping' && !shopShippingQuote(shipping, lines).available ? 'studio_pickup' : wanted;
       const quote = buildQuote(lines, method, shipping);
       const kept = new Set(lines.map(line => line.lineId));
       removedLineIds = previous.map(line => line.lineId).filter(lineId => !kept.has(lineId));
@@ -217,7 +221,7 @@ export class ShopOrderService {
         saldo: centsToEuros(quote.totals.totalCents),
         quoteFingerprint: quote.fingerprint,
         payment: resetPendingPayment(order.payment),
-        fulfillment: { ...order.fulfillment, status: 'draft' },
+        fulfillment: { ...order.fulfillment, method, status: 'draft' },
         retention: draftRetention(now),
         updatedAt: now,
       });
