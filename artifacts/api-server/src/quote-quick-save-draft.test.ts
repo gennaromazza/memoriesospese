@@ -128,7 +128,12 @@ vi.mock("./job-aggregates.js", () => ({
   recomputeJobQuoteStatus: vi.fn(async () => {}),
 }));
 
+vi.mock("./google-calendar.js", () => ({
+  createEvent: vi.fn(async () => ({ id: "mock-calendar-event" })),
+}));
+
 import quoteRoutes from "./quote-routes.js";
+import { sendGmailEmail } from "./email-routes.js";
 
 let server: any;
 let baseUrl = "";
@@ -266,5 +271,91 @@ describe("POST /api/quotes/quick/:token/save-draft — quickQuoteCompiledAt", ()
   it('does not let an authenticated non-admin fetch a private quote share token', async () => {
     const { status } = await postGenerateToken();
     expect(status).toBe(403);
+  });
+});
+
+describe("Preventivo rapido — data evento nelle email in Europe/Rome", () => {
+  beforeEach(async () => {
+    seed();
+    vi.mocked(sendGmailEmail).mockClear();
+    if (!server) await startServer();
+  });
+
+  function emailOfType(type: string) {
+    return vi.mocked(sendGmailEmail).mock.calls.find(
+      call => call[4]?.type === type,
+    );
+  }
+
+  it.each([
+    ["inverno", "2026-12-12T23:00:00.000Z", "13 dicembre 2026"],
+    ["estate", "2026-07-12T22:00:00.000Z", "13 luglio 2026"],
+    ["inizio ora legale", "2026-03-28T23:00:00.000Z", "29 marzo 2026"],
+    ["fine ora legale", "2026-10-24T22:00:00.000Z", "25 ottobre 2026"],
+    ["cambio anno", "2026-12-31T23:00:00.000Z", "01 gennaio 2027"],
+    ["anno bisestile", "2028-02-28T23:00:00.000Z", "29 febbraio 2028"],
+  ])("email cliente: conserva il giorno italiano (%s)", async (_, eventDate, expected) => {
+    const { status, json } = await postSaveDraft({
+      dataNonDefinita: false,
+      eventDate,
+    });
+    expect(status).toBe(200);
+    await vi.waitFor(() => {
+      expect(emailOfType("quick_quote_link_client")?.[2])
+        .toContain(`<strong>Data:</strong> ${expected}`);
+    });
+    // La correzione riguarda la visualizzazione, non riscrive l'istante salvato.
+    expect(h.state.jobs[json.jobId].eventDate.toISOString()).toBe(eventDate);
+  });
+
+  it("email cliente: mantiene il giorno anche riutilizzando un lead", async () => {
+    await postSaveDraft();
+    vi.mocked(sendGmailEmail).mockClear();
+    const { status, json } = await postSaveDraft({
+      dataNonDefinita: false,
+      eventDate: "2026-12-12T23:00:00.000Z",
+    });
+    expect(status).toBe(200);
+    expect(json.isExisting).toBe(true);
+    await vi.waitFor(() => {
+      expect(emailOfType("quick_quote_link_client")?.[2])
+        .toContain("<strong>Data:</strong> 13 dicembre 2026");
+    });
+  });
+
+  it("email cliente: non inventa una data quando è da definire", async () => {
+    expect((await postSaveDraft()).status).toBe(200);
+    await vi.waitFor(() => {
+      const email = emailOfType("quick_quote_link_client");
+      expect(email).toBeDefined();
+      expect(email?.[2]).toContain("<strong>Data:</strong> Da definire");
+      expect(email?.[2]).not.toContain("Invalid Date");
+    });
+  });
+
+  it("email amministratore: usa il 13 dicembre anche dopo l'attivazione", async () => {
+    const email = "admin-date-check@example.test";
+    const post = async (action: string, body: Record<string, any>) => {
+      const response = await fetch(`${baseUrl}/api/quotes/quick/${TOKEN}/${action}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      expect(response.status).toBe(200);
+      return response.json();
+    };
+    await post("send-otp", { email, nome: "Mario" });
+    const otpHtml = vi.mocked(sendGmailEmail).mock.calls[0][2];
+    const code = otpHtml.match(/>\s*(\d{6})\s*</)?.[1];
+    expect(code).toBeDefined();
+    await post("verify-otp", { email, code });
+    await post("activate", {
+      nome: "Mario", cognome: "Rossi", email,
+      nomeEvento: "Evento di prova",
+      dataNonDefinita: false,
+      eventDate: "2026-12-12T23:00:00.000Z",
+    });
+    expect(emailOfType("quick_quote_created_admin")?.[2])
+      .toContain("13 dicembre 2026");
   });
 });

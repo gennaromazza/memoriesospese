@@ -13,7 +13,7 @@ import {
   startAuthentication,
   startRegistration,
 } from '@simplewebauthn/browser';
-import type { User } from 'firebase/auth';
+import { signInWithCustomToken, type User } from 'firebase/auth';
 import { auth } from './firebase';
 import { createUrl } from './basePath';
 
@@ -54,6 +54,16 @@ export interface ExpectedAdminPasskeyClaim {
   at: number;
   sat: number;
 }
+
+export interface PreviewPasskeyHandoff {
+  handoffId: string;
+  verifier: string;
+  verificationUrl: string;
+  expiresAt: number;
+  uid: string;
+}
+
+type PasskeyHandoffStatus = 'pending' | 'verified' | 'expired';
 
 export class AdminSecurityError extends Error {
   constructor(
@@ -120,6 +130,18 @@ function claimMatches(expected: ExpectedAdminPasskeyClaim, actual: AdminPasskeyC
   return (['req', 'exp', 'at', 'sat'] as const).every(
     (key) => actual[key] === expected[key],
   );
+}
+
+function base64Url(bytes: Uint8Array): string {
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+async function createHandoffVerifier(): Promise<{ verifier: string; verifierHash: string }> {
+  const verifier = base64Url(crypto.getRandomValues(new Uint8Array(32)));
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
+  return { verifier, verifierHash: base64Url(new Uint8Array(digest)) };
 }
 
 /** Forza il refresh del token; se fornito, conferma anche la claim attesa dal server. */
@@ -199,6 +221,68 @@ export const AdminPasskeyClient = {
       `/desktop-handoff/${encodedId}/authentication/verify`,
       { method: 'POST', body: JSON.stringify({ response }) },
     );
+  },
+
+  async startPreviewHandoff(): Promise<PreviewPasskeyHandoff> {
+    const user = auth.currentUser;
+    if (!user) throw new AdminSecurityError(401, 'unauthenticated', 'Sessione scaduta: accedi di nuovo');
+    const { verifier, verifierHash } = await createHandoffVerifier();
+    const started = await securityRequest<{
+      handoffId: string;
+      verificationUrl: string;
+      expiresAt: number;
+    }>('/desktop-handoff/start', {
+      method: 'POST',
+      body: JSON.stringify({ verifierHash, target: 'preview' }),
+    });
+
+    const verificationUrl = new URL(started.verificationUrl);
+    if (
+      verificationUrl.origin !== 'https://imagestudiofotografico.com' ||
+      verificationUrl.pathname !== '/admin/sicurezza' ||
+      verificationUrl.searchParams.get('desktopHandoff') !== started.handoffId ||
+      verificationUrl.searchParams.get('handoffTarget') !== 'preview'
+    ) {
+      throw new Error('Il server ha restituito un indirizzo di verifica non attendibile.');
+    }
+
+    return { ...started, verifier, uid: user.uid };
+  },
+
+  async getPreviewHandoffStatus(
+    handoff: PreviewPasskeyHandoff,
+  ): Promise<{ status: PasskeyHandoffStatus }> {
+    const user = auth.currentUser;
+    if (!user || user.uid !== handoff.uid) {
+      throw new Error('L’account amministratore è cambiato. Avvia una nuova verifica.');
+    }
+    return securityRequest<{ status: PasskeyHandoffStatus }>(
+      `/desktop-handoff/${encodeURIComponent(handoff.handoffId)}/status`,
+      { method: 'POST', body: JSON.stringify({ verifier: handoff.verifier }) },
+    );
+  },
+
+  async completePreviewHandoff(handoff: PreviewPasskeyHandoff): Promise<number> {
+    const user = auth.currentUser;
+    if (!user || user.uid !== handoff.uid) {
+      throw new Error('L’account amministratore è cambiato. Avvia una nuova verifica.');
+    }
+
+    const redeemed = await securityRequest<{ customToken: string }>(
+      `/desktop-handoff/${encodeURIComponent(handoff.handoffId)}/redeem`,
+      { method: 'POST', body: JSON.stringify({ verifier: handoff.verifier }) },
+    );
+    const signedIn = await signInWithCustomToken(auth, redeemed.customToken);
+    if (signedIn.user.uid !== handoff.uid) {
+      throw new Error('La sessione verificata non corrisponde all’account amministratore.');
+    }
+
+    const finalized = await securityRequest<{
+      verifiedUntil: number;
+      expectedClaim: ExpectedAdminPasskeyClaim;
+    }>('/desktop-handoff/finalize', { method: 'POST' });
+    await refreshClaims(finalized.expectedClaim);
+    return finalized.verifiedUntil;
   },
 
   async redeemRecoveryCode(code: string): Promise<number> {

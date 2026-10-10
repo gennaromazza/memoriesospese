@@ -19,6 +19,7 @@ import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import html2pdf from 'html2pdf.js';
 import { formatPhoneForWhatsApp } from '@shared/phone-utils';
+import { formatQuotePortalDate as formatDate } from '@/lib/quote-portal-date';
 
 interface QuoteSignedPortalData {
   quote: Quote & { signedAt?: any };
@@ -130,21 +131,6 @@ export default function QuoteSignedPortalPage() {
   };
 
   const displayTotal = getDisplayTotal();
-
-  const formatDate = (date: any) => {
-    if (!date) return '-';
-    try {
-      const d = date.toDate ? date.toDate() : new Date(date);
-      if (isNaN(d.getTime())) return '-';
-      return d.toLocaleDateString('it-IT', {
-        day: '2-digit',
-        month: 'long',
-        year: 'numeric',
-      });
-    } catch {
-      return '-';
-    }
-  };
 
   const getPaymentStatusBadge = (stato: string) => {
     switch (stato) {

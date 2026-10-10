@@ -33,10 +33,14 @@ export default function AdminLogin() {
   const [location, navigate] = useLocation();
   const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
-  const handoffId = new URLSearchParams(window.location.search).get('desktopHandoff');
-  const printOrderId = new URLSearchParams(window.location.search).get('printOrderId');
+  const loginParams = new URLSearchParams(window.location.search);
+  const handoffId = loginParams.get('desktopHandoff');
+  const handoffTarget = loginParams.get('handoffTarget');
+  const printOrderId = loginParams.get('printOrderId');
   const destination = handoffId && /^[A-Za-z0-9_-]{43}$/.test(handoffId)
-    ? `/admin/sicurezza?desktopHandoff=${encodeURIComponent(handoffId)}`
+    ? `/admin/sicurezza?desktopHandoff=${encodeURIComponent(handoffId)}${
+        handoffTarget === 'preview' ? '&handoffTarget=preview' : ''
+      }`
     : printOrderId ? `/admin/dashboard?printOrderId=${encodeURIComponent(printOrderId)}`
     : '/admin/dashboard';
 

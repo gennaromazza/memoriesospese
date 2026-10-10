@@ -19,6 +19,7 @@ import {
   AdminPasskeyClient,
   AdminPasskeyRefreshError,
   AdminSecurityError,
+  type PreviewPasskeyHandoff,
   type ExpectedAdminPasskeyClaim,
   type AdminSecurityStatus,
 } from '@/lib/admin-passkey';
@@ -169,8 +170,95 @@ export function AdminPasskeyVerification({ status }: { status: AdminSecurityStat
   const [refreshingSession, setRefreshingSession] = useState(false);
   const [refreshExpectedClaim, setRefreshExpectedClaim] = useState<ExpectedAdminPasskeyClaim | null>(null);
   const [needsSessionRefresh, setNeedsSessionRefresh] = useState(false);
+  const [previewHandoff, setPreviewHandoff] = useState<PreviewPasskeyHandoff | null>(null);
+  const [startingPreviewHandoff, setStartingPreviewHandoff] = useState(false);
+  const [previewHandoffError, setPreviewHandoffError] = useState<string | null>(null);
   const supportsPasskeys = AdminPasskeyClient.supportsPasskeys();
   const locked = status.lockedUntil !== null && status.lockedUntil > Date.now();
+  const hostname = window.location.hostname.toLowerCase();
+  const currentRpId = hostname.startsWith('www.') ? hostname.slice(4) : hostname;
+  const hasCurrentOriginPasskey = status.passkeys.some((passkey) => passkey.rpId === currentRpId);
+  const canUseProductionHandoff =
+    currentRpId !== 'imagestudiofotografico.com' &&
+    status.passkeys.some((passkey) => passkey.rpId === 'imagestudiofotografico.com');
+
+  useEffect(() => {
+    if (!previewHandoff) return;
+    let cancelled = false;
+    let pollTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const poll = async () => {
+      if (cancelled) return;
+      if (Date.now() >= previewHandoff.expiresAt) {
+        setPreviewHandoffError('La richiesta è scaduta. Avviane una nuova.');
+        setPreviewHandoff(null);
+        return;
+      }
+
+      try {
+        const result = await AdminPasskeyClient.getPreviewHandoffStatus(previewHandoff);
+        if (cancelled) return;
+        if (result.status === 'expired') {
+          setPreviewHandoffError('La richiesta è scaduta. Avviane una nuova.');
+          setPreviewHandoff(null);
+          return;
+        }
+        if (result.status === 'verified') {
+          try {
+            await AdminPasskeyClient.completePreviewHandoff(previewHandoff);
+            if (cancelled) return;
+            setPreviewHandoff(null);
+            setPreviewHandoffError(null);
+            await queryClient.invalidateQueries({ queryKey: ADMIN_SECURITY_STATUS_KEY });
+            toast({
+              title: 'Accesso Preview verificato',
+              description: 'La passkey del sito pubblico ha autorizzato questa sessione.',
+            });
+          } catch (error) {
+            if (cancelled) return;
+            setPreviewHandoff(null);
+            setPreviewHandoffError(
+              error instanceof Error ? error.message : 'Non è stato possibile completare la verifica.',
+            );
+            void queryClient.invalidateQueries({ queryKey: ADMIN_SECURITY_STATUS_KEY });
+          }
+          return;
+        }
+      } catch (error) {
+        if (cancelled) return;
+        if (error instanceof AdminSecurityError && error.status < 500) {
+          setPreviewHandoffError(error.message);
+          setPreviewHandoff(null);
+          return;
+        }
+        setPreviewHandoffError('Connessione in attesa: continuo a controllare la verifica.');
+      }
+
+      if (!cancelled) {
+        pollTimer = setTimeout(() => void poll(), 1800);
+      }
+    };
+
+    void poll();
+    return () => {
+      cancelled = true;
+      if (pollTimer !== undefined) clearTimeout(pollTimer);
+    };
+  }, [previewHandoff, queryClient, toast]);
+
+  const startPreviewHandoff = async () => {
+    setStartingPreviewHandoff(true);
+    setPreviewHandoffError(null);
+    try {
+      setPreviewHandoff(await AdminPasskeyClient.startPreviewHandoff());
+    } catch (error) {
+      setPreviewHandoffError(
+        error instanceof Error ? error.message : 'Non è stato possibile avviare la verifica.',
+      );
+    } finally {
+      setStartingPreviewHandoff(false);
+    }
+  };
 
   const finish = async (action: () => Promise<number>) => {
     setBusy(true);
@@ -279,6 +367,11 @@ export function AdminPasskeyVerification({ status }: { status: AdminSecurityStat
               {refreshError}
             </p>
           )}
+          {previewHandoffError && (
+            <p className="text-sm text-amber-800 text-center" role="status" data-testid="text-preview-handoff-error">
+              {previewHandoffError}
+            </p>
+          )}
 
           {(needsSessionRefresh || status.expectedClaim) && (
             <Button
@@ -302,15 +395,64 @@ export function AdminPasskeyVerification({ status }: { status: AdminSecurityStat
 
           {!showRecovery ? (
             <div className="space-y-3">
-              <Button
-                className="w-full"
-                disabled={busy || needsSessionRefresh || locked || !supportsPasskeys || status.passkeys.length === 0}
-                onClick={() => void finish(() => AdminPasskeyClient.verify())}
-                data-testid="button-verify-passkey"
-              >
-                <ShieldCheck className="h-4 w-4 mr-2" />
-                {busy ? 'Verifica in corso…' : 'Verifica con passkey'}
-              </Button>
+              {canUseProductionHandoff && (
+                <div className="rounded-md border border-sage/30 bg-sage/5 p-3 space-y-2">
+                  <p className="text-sm text-blue-gray">
+                    La tua passkey è associata al sito ufficiale, non a questo dominio Preview. Verificala sul sito
+                    ufficiale: autorizzeremo questa sessione senza registrare un’altra passkey.
+                  </p>
+                  {!previewHandoff ? (
+                    <Button
+                      className="w-full"
+                      disabled={startingPreviewHandoff || locked || needsSessionRefresh}
+                      onClick={() => void startPreviewHandoff()}
+                      data-testid="button-start-preview-handoff"
+                    >
+                      <ShieldCheck className="h-4 w-4 mr-2" />
+                      {startingPreviewHandoff ? 'Preparo la verifica…' : 'Verifica con la passkey del sito'}
+                    </Button>
+                  ) : (
+                    <div className="space-y-2">
+                      <a
+                        className="inline-flex w-full items-center justify-center rounded-md bg-sage px-4 py-2 text-sm font-medium text-white hover:bg-sage/90"
+                        href={previewHandoff.verificationUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        data-testid="link-open-production-handoff"
+                      >
+                        Apri il sito e conferma la passkey
+                      </a>
+                      <p className="text-xs text-center text-muted-foreground">
+                        Torna qui dopo la conferma: questa scheda si sbloccherà automaticamente.
+                      </p>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="w-full"
+                        onClick={() => {
+                          setPreviewHandoff(null);
+                          setPreviewHandoffError(null);
+                        }}
+                        data-testid="button-cancel-preview-handoff"
+                      >
+                        Annulla richiesta
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {hasCurrentOriginPasskey && (
+                <Button
+                  className="w-full"
+                  disabled={busy || needsSessionRefresh || locked || !supportsPasskeys}
+                  onClick={() => void finish(() => AdminPasskeyClient.verify())}
+                  data-testid="button-verify-passkey"
+                >
+                  <ShieldCheck className="h-4 w-4 mr-2" />
+                  {busy ? 'Verifica in corso…' : 'Verifica con passkey'}
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 className="w-full"

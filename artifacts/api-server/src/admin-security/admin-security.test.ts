@@ -212,6 +212,37 @@ describe('gate centrale passkey', () => {
 });
 
 describe('route di sicurezza', () => {
+  it('crea una richiesta di verifica passkey per la Preview sul dominio di produzione', async () => {
+    await store.savePasskey(h.uid, {
+      id: 'cred-1',
+      publicKey: 'AQID',
+      counter: 0,
+      transports: ['internal'],
+      rpId: 'imagestudiofotografico.com',
+      label: 'Telefono',
+      deviceType: 'multiDevice',
+      backedUp: true,
+      createdAt: 1,
+      lastUsedAt: null,
+    });
+    await store.updateState(h.uid, { passkeyRequired: true });
+
+    const verifier = 'V'.repeat(43);
+    const verifierHash = createHash('sha256').update(verifier).digest('base64url');
+    const response = await call('/api/admin/security/desktop-handoff/start', {
+      method: 'POST',
+      body: JSON.stringify({ verifierHash, target: 'preview' }),
+    });
+
+    expect(response.status).toBe(200);
+    const started = await json(response);
+    const verificationUrl = new URL(started.verificationUrl);
+    expect(verificationUrl.origin).toBe(ORIGIN);
+    expect(verificationUrl.pathname).toBe('/admin/sicurezza');
+    expect(verificationUrl.searchParams.get('desktopHandoff')).toBe(started.handoffId);
+    expect(verificationUrl.searchParams.get('handoffTarget')).toBe('preview');
+  });
+
   it('completa un handoff Windows con challenge HTTPS dedicata e claim legato alla nuova sessione', async () => {
     h.webauthn = true;
     await store.savePasskey(h.uid, {

@@ -172,7 +172,7 @@ const STATIC_IMAGES: Record<string, SocialImageCandidate> = {
   },
   '/vision': {
     url: '/assets/og-image.jpg',
-    alt: 'Video matrimoniali cinematografici iMaGe Vision',
+    alt: 'Film di matrimonio Image Vision ad Aversa, Napoli e Caserta',
     width: 1200,
     height: 630,
     type: 'image/jpeg',

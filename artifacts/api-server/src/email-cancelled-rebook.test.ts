@@ -208,3 +208,26 @@ describe("send-consultation-cancelled rebook link security", () => {
     expect(html).toContain("contattaci direttamente");
   });
 });
+
+describe("booking-cancelled: data e ora italiane su server UTC", () => {
+  it.each([
+    ["2026-01-14T23:15:00Z", "15 gennaio 2026", "00:15"],
+    ["2026-07-14T22:15:00Z", "15 luglio 2026", "00:15"],
+    ["2026-03-29T01:15:00Z", "29 marzo 2026", "03:15"],
+    ["2026-10-25T02:15:00Z", "25 ottobre 2026", "03:15"],
+  ])("mostra %s nel giorno e orario di Roma", async (instant, day, time) => {
+    h.sentMessages.length = 0;
+    const response = await fetchOriginal(`${baseUrl}/api/email/booking-cancelled`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        clientEmail: "test@example.invalid", clientName: "Test Cliente",
+        prodottoNome: "Test Shooting", dataPrenotazione: instant,
+      }),
+    });
+    expect(response.status).toBe(200);
+    const html = decodeLastEmailHtml();
+    expect(html).toContain(day);
+    expect(html).toContain(time);
+  });
+});

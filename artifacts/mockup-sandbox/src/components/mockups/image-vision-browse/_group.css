@@ -1,0 +1,48 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Raleway:wght@300;400;500;600;700&display=swap');
+
+@theme inline {
+  --color-sage: hsl(var(--sage));
+  --color-terracotta: hsl(var(--terracotta));
+}
+
+:root {
+  --mint: 140 23% 84%;
+  --sage: 120 11% 66%;
+  --blue-gray: 200 21% 47%;
+  --terracotta: 14 37% 63%;
+  --cream: 43 42% 85%;
+  --beige: 41 18% 79%;
+  --off-white: 60 20% 96%;
+  --light-mint: 140 26% 92%;
+  --dark-sage: 120 7% 46%;
+  --background: 150 13% 8%;
+  --foreground: 36 24% 94%;
+  --muted: 142 11% 18%;
+  --muted-foreground: 125 8% 72%;
+  --popover: 150 13% 10%;
+  --popover-foreground: 36 24% 94%;
+  --card: 150 13% 11%;
+  --card-foreground: 36 24% 94%;
+  --border: 140 10% 26%;
+  --input: 140 10% 26%;
+  --primary: 120 11% 66%;
+  --primary-foreground: 150 13% 8%;
+  --secondary: 14 37% 63%;
+  --secondary-foreground: 36 24% 94%;
+  --accent: 140 23% 84%;
+  --accent-foreground: 150 13% 8%;
+  --ring: 120 11% 66%;
+  --radius: .75rem;
+}
+
+.image-vision-browse {
+  font-family: 'Raleway', sans-serif;
+  color: #f4efe8;
+  background: #111714;
+}
+
+.image-vision-browse h1,
+.image-vision-browse h2,
+.image-vision-browse h3 {
+  font-family: 'Playfair Display', serif;
+}

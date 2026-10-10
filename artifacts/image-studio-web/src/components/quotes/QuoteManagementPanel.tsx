@@ -48,6 +48,7 @@ import {
 import type { Quote, QuoteStatus } from '@shared/quotes-types';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
+import { getQuoteManualSignatureDateValue } from '@/lib/quote-portal-date';
 
 interface QuoteManagementPanelProps {
   quote: Quote;
@@ -216,7 +217,7 @@ export default function QuoteManagementPanel({ quote }: QuoteManagementPanelProp
     
     setSignatureData({
       clientName: defaultClientName,
-      signedAt: new Date().toISOString().split('T')[0], // Oggi
+      signedAt: getQuoteManualSignatureDateValue(),
       reason: ''
     });
     setShowSignatureDialog(true);

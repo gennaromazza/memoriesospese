@@ -187,7 +187,7 @@ describe('SEO prerender wedding-first', () => {
     ['/portfolio', '/1200x630px.jpg'],
     ['/fotografo-aversa', '/assets/og-image.jpg'],
     ['/stampa-foto-aversa', '/images/print-service/printed-memories-table.jpg'],
-    ['/vision', '/assets/og-image.jpg'],
+    ['/vision', '/images/image-vision-social.jpg'],
     ['/storie', '/images/couple-standing.png'],
     ['/prenota', '/images/couple-heart-balloon.png'],
     ['/consulenze', '/images/couple-flower-bouquet.png'],
@@ -201,6 +201,19 @@ describe('SEO prerender wedding-first', () => {
     expect(html.match(/<meta property="og:image:alt"/g)).toHaveLength(1);
     expect(html.match(/<meta name="twitter:image"/g)).toHaveLength(1);
     expect(html.match(/<meta name="twitter:image:alt"/g)).toHaveLength(1);
+  });
+
+  it('prerenders relevant Italian SEO content for Image Vision', async () => {
+    const { response } = await renderForCrawler('/vision');
+    const html = response.body || '';
+
+    expect(html).toContain('<title>Video di matrimonio ad Aversa | Image Vision</title>');
+    expect(html).toContain('content="Image Vision di Image Studio: film di matrimonio raccontati con uno stile cinematografico"');
+    expect(html).toContain('<meta property="og:image:width" content="1200" />');
+    expect(html).toContain('<meta property="og:image:height" content="630" />');
+    expect(html).toContain('<h1>Image Vision: film di matrimonio</h1>');
+    expect(html).toContain('Video di matrimonio ad Aversa, Napoli e Caserta');
+    expect(html).toContain('Parla con Image Studio del video del tuo matrimonio');
   });
 
   it.each([

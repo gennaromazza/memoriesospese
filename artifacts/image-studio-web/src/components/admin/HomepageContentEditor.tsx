@@ -87,16 +87,6 @@ export default function HomepageContentEditor({ value, onChange }: Props) {
         { key: 'initialMessage', label: 'Messaggio iniziale WhatsApp', multiline: true },
       ],
     },
-    {
-      key: 'instagramNotice',
-      title: 'Avviso Instagram',
-      description: 'Avviso temporaneo mostrato nella sezione Instagram della homepage.',
-      fields: [
-        { key: 'title', label: 'Titolo' },
-        { key: 'description', label: 'Messaggio', multiline: true },
-        { key: 'buttonText', label: 'Testo pulsante' },
-      ],
-    },
   ];
 
   return (

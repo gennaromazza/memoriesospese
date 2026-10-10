@@ -13,7 +13,7 @@ import { getAuth } from "firebase-admin/auth";
 import { adminPasskeyGate } from "./admin-security/admin-guard.js";
 import { isAdminEmail } from "./admin-security/admin-identity.js";
 import { formatPhoneForWhatsApp } from "../shared/phone-utils.js";
-import { nowRomeDate } from "./utils/timezone.js";
+import { nowRomeDate, formatRomeDateLocale, toRomeDateTime } from "./utils/timezone.js";
 import { generateGallerySelectionCopyEmail } from "./email-templates/gallery-selection-copy.js";
 import { safeErrorMessage } from "./utils/safe-logging.js";
 
@@ -4608,7 +4608,7 @@ export function createQuoteSignedEmailHTML(
   };
 
   const formatDate = (date: Date) => {
-    return date.toLocaleDateString("it-IT", {
+    return formatRomeDateLocale(date, {
       day: "2-digit",
       month: "long",
       year: "numeric",
@@ -4956,36 +4956,11 @@ export function createAdminQuoteSignedNotificationHTML(
       currency: "EUR",
     }).format(amount);
 
-  const formatDate = (date: Date) =>
-    date.toLocaleDateString("it-IT", {
-      day: "2-digit",
-      month: "long",
-      year: "numeric",
-      weekday: "long",
-    });
-
-  const monthNames = [
-    "gennaio",
-    "febbraio",
-    "marzo",
-    "aprile",
-    "maggio",
-    "giugno",
-    "luglio",
-    "agosto",
-    "settembre",
-    "ottobre",
-    "novembre",
-    "dicembre",
-  ];
-  const d = signatureDate;
-  const formattedDay = d.getDate();
-  const formattedMonth = monthNames[d.getMonth()];
-  const formattedYear = d.getFullYear();
-  const formattedTime = d.toLocaleTimeString("it-IT", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const d = toRomeDateTime(signatureDate).setLocale("it");
+  const formattedDay = d.day;
+  const formattedMonth = d.toFormat("LLLL");
+  const formattedYear = d.year;
+  const formattedTime = d.toFormat("HH:mm");
 
   return `<!DOCTYPE html>
 <html lang="it">
@@ -6617,6 +6592,7 @@ router.post("/booking-cancelled", async (req, res): Promise<HttpHandlerResult> =
           year: "numeric",
           hour: "2-digit",
           minute: "2-digit",
+          timeZone: "Europe/Rome",
         });
       } catch (e) {
         formattedDate = dataPrenotazione;

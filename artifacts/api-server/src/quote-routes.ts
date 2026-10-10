@@ -1518,19 +1518,11 @@ router.post(
       const clienteName = quote.signature.clientName || "Cliente";
 
       // Data firma
-      const signedAt = quote.signature.signedAt
-        .toDate()
-        .toLocaleDateString("it-IT", {
-          day: "2-digit",
-          month: "long",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        });
+      const signedAt = quote.signature.signedAt.toDate();
 
       // Recupera prossimo pagamento (se esiste payment schedule)
       let nextPaymentAmount: number | undefined;
-      let nextPaymentDate: string | undefined;
+      let nextPaymentDate: Date | undefined;
 
       if (quote.paymentScheduleIds && quote.paymentScheduleIds.length > 0) {
         const scheduleDoc = await db
@@ -1544,13 +1536,7 @@ router.post(
           );
           if (nextPayment) {
             nextPaymentAmount = nextPayment.importo;
-            nextPaymentDate = nextPayment.dataScadenza
-              .toDate()
-              .toLocaleDateString("it-IT", {
-                day: "2-digit",
-                month: "long",
-                year: "numeric",
-              });
+            nextPaymentDate = nextPayment.dataScadenza.toDate();
           }
         }
       }
@@ -1569,7 +1555,7 @@ router.post(
         nextPaymentAmount && nextPaymentDate
           ? {
               importo: nextPaymentAmount,
-              dataScadenza: new Date(nextPaymentDate),
+              dataScadenza: nextPaymentDate,
               descrizione: "Prossimo pagamento",
             }
           : undefined;
@@ -1582,7 +1568,7 @@ router.post(
         quote.type || "fisso",
         quote.jobInfo?.nomeEvento || "Evento",
         quoteTotaleEmail,
-        new Date(signedAt),
+        signedAt,
         portalUrl,
         nextPaymentData,
         undefined,
@@ -3165,7 +3151,7 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
         if (studioInfo?.email) {
           try {
             const eventDateFormatted = eventDate
-              ? new Date(eventDate).toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" })
+              ? formatRomeDateLocale(eventDate)
               : "Data non definita";
             const adminEmailHtml = `
               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -3650,7 +3636,7 @@ router.post("/quick/:token/save-draft", async (req: Request, res: Response) => {
           : "http://localhost:5000";
         const portalLink = `${baseUrl}/quote/${publicToken}`;
         const eventDateFormatted = eventDate
-          ? new Date(eventDate).toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" })
+          ? formatRomeDateLocale(eventDate)
           : "Da definire";
         const isVariabile = template.type === "variabile";
          const totalFormatted = `€${draftTotalAfterDiscount.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
