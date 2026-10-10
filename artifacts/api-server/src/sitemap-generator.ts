@@ -29,7 +29,7 @@ const STATIC_SITEMAP_IMAGES: Record<string, { url: string; title: string }> = {
   },
   '/vision': {
     url: '/assets/og-image.jpg',
-    title: 'Video matrimonio cinematografico iMaGe Vision',
+    title: 'Film di matrimonio Image Vision ad Aversa',
   },
   '/image-experience': {
     url: '/images/image-experience/image-experience-social-1200x630.jpg',
@@ -49,7 +49,7 @@ export const STATIC_SITEMAP_PAGES: Array<{
 }> = [
   { path: '/', changefreq: 'weekly', priority: '1.0', lastmod: '2026-09-11' },
   { path: '/portfolio/matrimonio', changefreq: 'weekly', priority: '0.98', lastmod: '2026-08-21' },
-  { path: '/vision', changefreq: 'monthly', priority: '0.95', lastmod: '2026-08-21' },
+  { path: '/vision', changefreq: 'monthly', priority: '0.95', lastmod: '2026-10-10' },
   { path: '/portfolio', changefreq: 'weekly', priority: '0.9', lastmod: '2026-08-21' },
   { path: '/portfolio/battesimo', changefreq: 'weekly', priority: '0.85', lastmod: '2026-08-18' },
   { path: '/portfolio/comunione', changefreq: 'weekly', priority: '0.85', lastmod: '2026-08-18' },

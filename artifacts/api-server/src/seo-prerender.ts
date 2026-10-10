@@ -372,20 +372,16 @@ function getStaticPageMeta(path: string): PageMeta | null {
       `
     },
     '/vision': {
-      title: 'iMaGe Vision | Video Matrimoni Cinematografici | Napoli Caserta',
-      description: 'iMaGe Vision: video matrimoniali cinematografici ed emozionali. Raccontiamo la vostra storia d\'amore con riprese professionali e montaggio cinematografico a Napoli, Caserta e Campania.',
+      title: 'Video di matrimonio ad Aversa | Image Vision',
+      description: 'Guarda i film di matrimonio di Image Studio ad Aversa, Napoli e Caserta: racconti cinematografici autentici da rivivere insieme.',
       canonical: `${BASE_URL}/vision`,
-      keywords: 'video matrimoni napoli, video matrimoni caserta, videografo matrimoni campania, video matrimoniali cinematografici',
+      keywords: 'film di matrimonio aversa, video matrimonio napoli, videografo matrimonio caserta, video matrimoniali campania',
       bodyContent: `
-        <h1>iMaGe Vision - Video Matrimoni Cinematografici</h1>
-        <p>iMaGe Vision è il servizio video di Image Studio dedicato ai matrimoni. Realizziamo video cinematografici emozionali che raccontano la vostra storia d'amore con riprese professionali in alta definizione e montaggio artistico.</p>
-        <h2>Cosa Include</h2>
-        <ul>
-          <li>Riprese in alta definizione con attrezzatura professionale</li>
-          <li>Montaggio cinematografico con musica personalizzata</li>
-          <li>Trailer e highlight reel</li>
-          <li>Film completo della giornata</li>
-        </ul>
+        <h1>Image Vision: film di matrimonio</h1>
+        <p>Image Vision raccoglie i video di matrimonio di Image Studio, pensati per gli sposi che vogliono rivivere le emozioni del loro giorno. I film sono realizzati ad Aversa e raccontano storie e momenti autentici con uno stile cinematografico.</p>
+        <h2>Video di matrimonio ad Aversa, Napoli e Caserta</h2>
+        <p>Scopri una selezione di film matrimoniali e video realizzati in Campania. Scegli un video per guardarlo e condividere la storia che racconta.</p>
+        <p><a href="${BASE_URL}/consulenze">Parla con Image Studio del video del tuo matrimonio</a></p>
       `
     },
     '/storie': {

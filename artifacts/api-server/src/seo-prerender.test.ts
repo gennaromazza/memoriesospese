@@ -202,6 +202,16 @@ describe('SEO prerender wedding-first', () => {
     expect(html.match(/<meta name="twitter:image:alt"/g)).toHaveLength(1);
   });
 
+  it('prerenders relevant Italian SEO content for Image Vision', async () => {
+    const { response } = await renderForCrawler('/vision');
+    const html = response.body || '';
+
+    expect(html).toContain('<title>Video di matrimonio ad Aversa | Image Vision</title>');
+    expect(html).toContain('<h1>Image Vision: film di matrimonio</h1>');
+    expect(html).toContain('Video di matrimonio ad Aversa, Napoli e Caserta');
+    expect(html).toContain('Parla con Image Studio del video del tuo matrimonio');
+  });
+
   it.each([
     ['/portfolio/matrimonio', '/images/portfolio/matrimonio.jpg'],
     ['/portfolio/battesimo', '/images/portfolio/battesimo.jpg'],
