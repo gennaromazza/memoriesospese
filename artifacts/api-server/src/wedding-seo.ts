@@ -7,6 +7,7 @@ import { authenticateFirebase } from './email-routes.js';
 import type {
   PublicWeddingStory,
   PublicWeddingStoryPreview,
+  PublicWeddingVideoAssociation,
   WeddingEditorialJobFacts,
   WeddingCoverPosition,
   WeddingSeoStory,
@@ -1638,6 +1639,115 @@ router.get('/public', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('[wedding-seo] public stories:', error);
     return res.status(500).json({ error: 'Impossibile caricare le storie.' });
+  }
+});
+
+export function getYouTubeVideoId(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return null;
+  }
+
+  const host = url.hostname.toLowerCase().replace(/^www\./, '');
+  const path = url.pathname.split('/').filter(Boolean);
+  let videoId: string | null = null;
+
+  if (host === 'youtu.be') {
+    videoId = path[0] || null;
+  } else if (
+    host === 'youtube.com' ||
+    host.endsWith('.youtube.com') ||
+    host === 'youtube-nocookie.com' ||
+    host.endsWith('.youtube-nocookie.com')
+  ) {
+    videoId = url.searchParams.get('v');
+    if (!videoId && ['embed', 'shorts', 'live', 'v'].includes(path[0] || '')) {
+      videoId = path[1] || null;
+    }
+  }
+
+  return videoId && /^[A-Za-z0-9_-]{11}$/.test(videoId) ? videoId : null;
+}
+
+export function buildPublicWeddingVideoAssociations(
+  videos: Array<{ slug?: unknown; youtubeUrl?: unknown }>,
+  stories: Array<{ slug?: unknown; title?: unknown; excerpt?: unknown; youtubeUrls?: unknown }>,
+): PublicWeddingVideoAssociation[] {
+  const videoSlugsById = new Map<string, Set<string>>();
+
+  for (const video of videos) {
+    const videoId = getYouTubeVideoId(video.youtubeUrl);
+    const slug = typeof video.slug === 'string' ? video.slug.trim() : '';
+    if (!videoId || !slug) continue;
+
+    const slugs = videoSlugsById.get(videoId) || new Set<string>();
+    slugs.add(slug);
+    videoSlugsById.set(videoId, slugs);
+  }
+
+  const associationsByVideoSlug = new Map<string, PublicWeddingVideoAssociation>();
+  for (const story of stories) {
+    const storySlug = typeof story.slug === 'string' ? story.slug.trim() : '';
+    const storyTitle = typeof story.title === 'string' ? story.title.trim() : '';
+    const excerpt = typeof story.excerpt === 'string' ? story.excerpt.trim() : '';
+    const youtubeUrls = Array.isArray(story.youtubeUrls) ? story.youtubeUrls : [];
+    if (!storySlug || !storyTitle) continue;
+
+    for (const url of youtubeUrls) {
+      const videoId = getYouTubeVideoId(url);
+      if (!videoId) continue;
+
+      for (const videoSlug of videoSlugsById.get(videoId) || []) {
+        // Le storie sono ordinate dalla più recente: se un video fosse riutilizzato,
+        // viene collegato una sola volta alla prima storia pubblicata corrispondente.
+        if (!associationsByVideoSlug.has(videoSlug)) {
+          associationsByVideoSlug.set(videoSlug, {
+            videoSlug,
+            storySlug,
+            storyTitle,
+            excerpt,
+          });
+        }
+      }
+    }
+  }
+
+  return [...associationsByVideoSlug.values()];
+}
+
+router.get('/public/video-links', async (_req: Request, res: Response) => {
+  try {
+    const [storiesSnapshot, videosSnapshot] = await Promise.all([
+      db.collection(STORIES_COL).where('status', '==', 'published').get(),
+      db.collection('weddingVideos').where('active', '==', true).get(),
+    ]);
+
+    const publishedDocuments = [...storiesSnapshot.docs]
+      .sort((a, b) => (b.data().publishedAt?.seconds || 0) - (a.data().publishedAt?.seconds || 0));
+    const storiesWithGalleryVideos = await Promise.all(publishedDocuments.map(async document => {
+      const story = storyFromDocument(document.id, document.data());
+      const gallery = await loadGallery(story.galleryId);
+      return {
+        slug: story.slug,
+        title: story.title,
+        excerpt: story.excerpt,
+        youtubeUrls: gallery
+          ? [gallery.youtubeUrl, ...(Array.isArray(gallery.youtubeUrls) ? gallery.youtubeUrls : [])]
+          : [],
+      };
+    }));
+    const activeVideos = videosSnapshot.docs.map(document => document.data());
+    const associations = buildPublicWeddingVideoAssociations(activeVideos, storiesWithGalleryVideos);
+
+    res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=3600');
+    return res.json({ associations });
+  } catch (error) {
+    console.error('[wedding-seo] public video links:', error);
+    return res.status(500).json({ error: 'Impossibile caricare i collegamenti ai Real Wedding.' });
   }
 });
 

@@ -150,3 +150,11 @@ export interface PublicWeddingStoryPreview {
   coverPhotoCardPosition?: WeddingCoverPosition;
   coverPhotoCardMobilePosition?: WeddingCoverPosition;
 }
+
+/** Collegamento pubblico tra un video Image Vision attivo e il suo Real Wedding pubblicato. */
+export interface PublicWeddingVideoAssociation {
+  videoSlug: string;
+  storySlug: string;
+  storyTitle: string;
+  excerpt: string;
+}

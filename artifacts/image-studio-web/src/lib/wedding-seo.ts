@@ -4,6 +4,7 @@ import type { CSSProperties } from 'react';
 import type {
   PublicWeddingStory,
   PublicWeddingStoryPreview,
+  PublicWeddingVideoAssociation,
   WeddingCoverPosition,
   WeddingSeoStory,
   WeddingStoryEditorContext,
@@ -161,4 +162,11 @@ export async function getPublicWeddingStoryPreviews(limit = 24): Promise<PublicW
   if (!response.ok) throw new Error('Impossibile caricare le storie');
   const data = await responseJson<{ stories: PublicWeddingStoryPreview[] }>(response);
   return data.stories;
+}
+
+export async function getPublicWeddingVideoAssociations(): Promise<PublicWeddingVideoAssociation[]> {
+  const response = await fetch(createUrl('/api/wedding-seo/public/video-links'));
+  if (!response.ok) throw new Error('Impossibile caricare i Real Wedding collegati ai video');
+  const data = await responseJson<{ associations: PublicWeddingVideoAssociation[] }>(response);
+  return data.associations;
 }

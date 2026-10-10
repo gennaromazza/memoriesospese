@@ -31,9 +31,11 @@ import {
   buildGeminiMessageContent,
   buildWeddingStoryPrompt,
   buildWeddingVendorSearchPrompt,
+  buildPublicWeddingVideoAssociations,
   buildWeddingEditorialJobFacts,
   buildSafeWeddingDraft,
   generateWeddingDraftWithGemini,
+  getYouTubeVideoId,
   inspectWeddingDraftQuality,
   GEMINI_BASE_URL,
   GEMINI_MODEL,
@@ -62,6 +64,44 @@ function weddingDraft(story: string) {
 function repeatedWords(count: number): string {
   return Array.from({ length: count }, (_, index) => `gesto${index}`).join(' ');
 }
+
+describe('Image Vision Real Wedding associations', () => {
+  it('matches a public video with its story through the YouTube URL stored on the source gallery', () => {
+    expect(buildPublicWeddingVideoAssociations(
+      [{ slug: 'anna-luca-film', youtubeUrl: 'https://www.youtube.com/watch?v=Abc_def-123' }],
+      [{
+        slug: 'anna-e-luca',
+        title: 'Anna e Luca',
+        excerpt: 'Una giornata piena di emozioni.',
+        youtubeUrls: ['https://youtu.be/Abc_def-123?t=15'],
+      }],
+    )).toEqual([{
+      videoSlug: 'anna-luca-film',
+      storySlug: 'anna-e-luca',
+      storyTitle: 'Anna e Luca',
+      excerpt: 'Una giornata piena di emozioni.',
+    }]);
+  });
+
+  it('does not guess a story from similar names when the YouTube IDs do not match', () => {
+    expect(buildPublicWeddingVideoAssociations(
+      [{ slug: 'anna-luca-film', youtubeUrl: 'https://youtu.be/Abc_def-123' }],
+      [{
+        slug: 'anna-e-luca',
+        title: 'Anna e Luca',
+        excerpt: 'Una giornata piena di emozioni.',
+        youtubeUrls: ['https://youtu.be/Other_id-456'],
+      }],
+    )).toEqual([]);
+  });
+
+  it('accepts YouTube watch, short, and embed URLs but rejects invalid IDs', () => {
+    expect(getYouTubeVideoId('https://m.youtube.com/shorts/Abc_def-123')).toBe('Abc_def-123');
+    expect(getYouTubeVideoId('https://www.youtube-nocookie.com/embed/Abc_def-123')).toBe('Abc_def-123');
+    expect(getYouTubeVideoId('https://example.com/watch?v=Abc_def-123')).toBeNull();
+    expect(getYouTubeVideoId('https://youtu.be/too-short')).toBeNull();
+  });
+});
 
 describe('Real Wedding editorial safety', () => {
   it('normalizes cover focal points to the safe 0-100 range', () => {

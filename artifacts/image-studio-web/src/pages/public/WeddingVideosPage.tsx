@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
-import { Play, Loader2, Eye, Sparkles, TrendingUp, Heart, Share2 } from 'lucide-react';
+import { Play, Loader2, Eye, Sparkles, TrendingUp, Heart, Share2, ArrowUpRight } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import { JobTypeIcon } from '@/lib/job-type-icons';
 import WeddingVideoService from '@/lib/weddingVideos';
 import { getActiveJobTypes } from '@/lib/job-types';
 import type { WeddingVideo } from '@shared/schema';
 import type { JobTypeFE as JobType } from '@shared/job-types';
+import type { PublicWeddingVideoAssociation } from '@shared/wedding-seo-types';
+import { getPublicWeddingVideoAssociations } from '@/lib/wedding-seo';
 import { useToast } from '@/hooks/use-toast';
 import { Link } from 'wouter';
 import {
@@ -38,13 +40,14 @@ function getRandomBaseViews(videoId: string): number {
 }
 
 // VideoCard component
-function VideoCard({ video, onClick, onLike, onShare, isLiked, likeCount }: { 
+function VideoCard({ video, onClick, onLike, onShare, isLiked, likeCount, realWedding }: {
   video: WeddingVideo; 
   onClick: () => void;
   onLike: (e: React.MouseEvent) => void;
   onShare: (e: React.MouseEvent) => void;
   isLiked: boolean;
   likeCount: number;
+  realWedding?: PublicWeddingVideoAssociation;
 }) {
   // Visualizzazioni: base casuale + conteggio reale
   const displayViews = getRandomBaseViews(video.id) + (video.views || 0);
@@ -81,6 +84,23 @@ function VideoCard({ video, onClick, onLike, onShare, isLiked, likeCount }: {
         <h3 className="mb-3 line-clamp-2 min-h-12 text-sm font-bold leading-6 text-[#F4EFE8]">
           {video.title}
         </h3>
+        {realWedding && (
+          <Link
+            href={`/real-wedding/${encodeURIComponent(realWedding.storySlug)}`}
+            aria-label={`Leggi il Real Wedding: ${realWedding.storyTitle}`}
+            className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-sage/20 bg-sage/[0.06] p-3 transition-colors hover:border-sage/45 hover:bg-sage/[0.1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage"
+          >
+            <span className="min-w-0">
+              <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-sage">
+                Real Wedding
+              </span>
+              <span className="mt-0.5 block truncate text-xs font-semibold text-[#F4EFE8]">
+                {realWedding.storyTitle}
+              </span>
+            </span>
+            <ArrowUpRight className="h-4 w-4 shrink-0 text-sage" aria-hidden="true" />
+          </Link>
+        )}
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-1.5 text-xs text-[#C7CEC7]/70">
             <Eye className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
@@ -115,6 +135,7 @@ function VideoCard({ video, onClick, onLike, onShare, isLiked, likeCount }: {
 export default function WeddingVideosPage() {
   const [videos, setVideos] = useState<WeddingVideo[]>([]);
   const [featuredVideos, setFeaturedVideos] = useState<WeddingVideo[]>([]);
+  const [realWeddingByVideoSlug, setRealWeddingByVideoSlug] = useState<Record<string, PublicWeddingVideoAssociation>>({});
   const [jobTypes, setJobTypes] = useState<JobType[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedVideo, setSelectedVideo] = useState<WeddingVideo | null>(null);
@@ -133,6 +154,13 @@ export default function WeddingVideosPage() {
   useEffect(() => {
     loadVideos();
     loadJobTypes();
+    getPublicWeddingVideoAssociations()
+      .then(associations => {
+        setRealWeddingByVideoSlug(Object.fromEntries(
+          associations.map(association => [association.videoSlug, association])
+        ));
+      })
+      .catch(error => console.error('Errore caricamento Real Wedding collegati ai video:', error));
   }, []);
 
   const loadVideos = async () => {
@@ -249,6 +277,7 @@ export default function WeddingVideosPage() {
   const filteredVideos = selectedCategory === 'all' 
     ? videos 
     : videos.filter(v => v.category === selectedCategory);
+  const selectedRealWedding = selectedVideo ? realWeddingByVideoSlug[selectedVideo.slug] : undefined;
 
   return (
     <div className="min-h-screen bg-[#111714] text-[#F4EFE8]">
@@ -331,10 +360,15 @@ export default function WeddingVideosPage() {
                         className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
                       />
                       <span aria-hidden="true" className="absolute inset-0 bg-black/25 transition-colors group-hover:bg-black/45" />
-                      <span className="absolute left-4 top-4">
+                      <span className="absolute left-4 top-4 flex flex-wrap gap-2">
                         <span className="inline-flex rounded-full bg-terracotta px-3 py-1 text-xs font-bold text-white">
                           In evidenza
                         </span>
+                        {realWeddingByVideoSlug[video.slug] && (
+                          <span className="inline-flex rounded-full bg-sage px-3 py-1 text-xs font-bold text-[#111714]">
+                            Real Wedding
+                          </span>
+                        )}
                       </span>
                       <span className="absolute inset-x-0 bottom-0 bg-[#111714]/90 p-5 backdrop-blur-sm sm:p-6">
                         <span className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-sage">
@@ -377,6 +411,7 @@ export default function WeddingVideosPage() {
                       onShare={(e) => handleShare(video, e)}
                       isLiked={likedVideos.has(video.id)}
                       likeCount={likeCounts[video.id] || 0}
+                      realWedding={realWeddingByVideoSlug[video.slug]}
                     />
                   ))}
                 </div>
@@ -405,6 +440,7 @@ export default function WeddingVideosPage() {
                       onShare={(e) => handleShare(video, e)}
                       isLiked={likedVideos.has(video.id)}
                       likeCount={likeCounts[video.id] || 0}
+                      realWedding={realWeddingByVideoSlug[video.slug]}
                     />
                   ))}
                 </div>
@@ -433,6 +469,7 @@ export default function WeddingVideosPage() {
                       onShare={(e) => handleShare(video, e)}
                       isLiked={likedVideos.has(video.id)}
                       likeCount={likeCounts[video.id] || 0}
+                      realWedding={realWeddingByVideoSlug[video.slug]}
                     />
                   ))}
                 </div>
@@ -487,6 +524,7 @@ export default function WeddingVideosPage() {
                       onShare={(e) => handleShare(video, e)}
                       isLiked={likedVideos.has(video.id)}
                       likeCount={likeCounts[video.id] || 0}
+                      realWedding={realWeddingByVideoSlug[video.slug]}
                     />
                   ))}
                 </div>
@@ -515,7 +553,7 @@ export default function WeddingVideosPage() {
 
       {/* Video Player Modal */}
       <Dialog open={!!selectedVideo} onOpenChange={() => setSelectedVideo(null)}>
-        <DialogContent className="max-h-[90vh] max-w-5xl border border-white/10 bg-[#151D19] p-0">
+        <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto border border-white/10 bg-[#151D19] p-0">
           <DialogHeader className="px-6 pt-6">
             <DialogTitle className="text-2xl text-[#F4EFE8]">{selectedVideo?.title}</DialogTitle>
           </DialogHeader>
@@ -531,9 +569,31 @@ export default function WeddingVideosPage() {
               ></iframe>
             )}
           </div>
-          {selectedVideo?.description && (
-            <div className="px-6 pb-6">
-              <p className="text-gray-300">{selectedVideo.description}</p>
+          {(selectedVideo?.description || selectedRealWedding) && (
+            <div className="space-y-4 px-6 pb-6">
+              {selectedVideo?.description && (
+                <p className="text-gray-300">{selectedVideo.description}</p>
+              )}
+              {selectedRealWedding && (
+                <section className="rounded-2xl border border-sage/25 bg-sage/[0.06] p-5 sm:p-6">
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-sage">
+                    La storia dietro il film
+                  </p>
+                  <h3 className="mt-2 text-lg font-bold text-[#F4EFE8] sm:text-xl">
+                    {selectedRealWedding.storyTitle}
+                  </h3>
+                  <Link
+                    href={`/real-wedding/${encodeURIComponent(selectedRealWedding.storySlug)}`}
+                    className="mt-3 block rounded-lg text-sm leading-6 text-[#D8DED6] transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage"
+                  >
+                    <span>{selectedRealWedding.excerpt}</span>
+                    <span className="mt-3 inline-flex items-center gap-1 font-bold text-sage">
+                      Leggi il Real Wedding completo
+                      <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+                    </span>
+                  </Link>
+                </section>
+              )}
             </div>
           )}
         </DialogContent>
