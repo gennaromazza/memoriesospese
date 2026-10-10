@@ -27,18 +27,7 @@ export interface HomepageContent {
     buttonText: string;
     initialMessage: string;
   };
-  instagramNotice: {
-    title: string;
-    description: string;
-    buttonText: string;
-  };
 }
-
-export const INSTAGRAM_NOTICE_PROFILES = {
-  oldHandle: 'image_studio_fotografico',
-  temporaryHandle: 'imagesocialwedding',
-  temporaryUrl: 'https://www.instagram.com/imagesocialwedding/',
-} as const;
 
 export const DEFAULT_HOMEPAGE_CONTENT: HomepageContent = {
   version: 3,
@@ -72,12 +61,6 @@ export const DEFAULT_HOMEPAGE_CONTENT: HomepageContent = {
     buttonText: 'Scrivici su WhatsApp',
     initialMessage: 'Ciao, vorrei ricevere informazioni sui vostri servizi fotografici.',
   },
-  instagramNotice: {
-    title: 'Il nostro profilo Instagram principale è temporaneamente non raggiungibile',
-    description:
-      'Stiamo lavorando per recuperare @image_studio_fotografico. Nel frattempo puoi seguirci sul nostro profilo temporaneo.',
-    buttonText: 'Visita il profilo temporaneo',
-  },
 };
 
 function textOrDefault(value: unknown, fallback: string): string {
@@ -89,7 +72,6 @@ export function resolveHomepageContent(value?: Partial<HomepageContent> | null):
   const portfolio: Partial<HomepageContent['portfolio']> = value?.portfolio || {};
   const secondaryServices: Partial<HomepageContent['secondaryServices']> = value?.secondaryServices || {};
   const whatsapp: Partial<HomepageContent['whatsapp']> = value?.whatsapp || {};
-  const instagramNotice: Partial<HomepageContent['instagramNotice']> = value?.instagramNotice || {};
   return {
     version: 3,
     hero: {
@@ -118,14 +100,6 @@ export function resolveHomepageContent(value?: Partial<HomepageContent> | null):
       description: textOrDefault(whatsapp.description, DEFAULT_HOMEPAGE_CONTENT.whatsapp.description),
       buttonText: textOrDefault(whatsapp.buttonText, DEFAULT_HOMEPAGE_CONTENT.whatsapp.buttonText),
       initialMessage: textOrDefault(whatsapp.initialMessage, DEFAULT_HOMEPAGE_CONTENT.whatsapp.initialMessage),
-    },
-    instagramNotice: {
-      title: textOrDefault(instagramNotice.title, DEFAULT_HOMEPAGE_CONTENT.instagramNotice.title),
-      description: textOrDefault(
-        instagramNotice.description,
-        DEFAULT_HOMEPAGE_CONTENT.instagramNotice.description,
-      ),
-      buttonText: textOrDefault(instagramNotice.buttonText, DEFAULT_HOMEPAGE_CONTENT.instagramNotice.buttonText),
     },
   };
 }

@@ -48,7 +48,6 @@ import PublicStudioStructuredData from "@/components/PublicStudioStructuredData"
 import { useSEO } from "@/hooks/useSEO";
 import { WEDDING_HOME_SEO } from "@shared/public-seo-content";
 import {
-  INSTAGRAM_NOTICE_PROFILES,
   resolveHomepageContent,
 } from "@shared/homepage-content";
 import { getPublicWeddingStoryPreviews, weddingCoverPositionStyle } from "@/lib/wedding-seo";
@@ -83,6 +82,22 @@ type HomepageEditorialCard = {
 
 type PortfolioPreviewMode = "wedding" | "mixed-fallback";
 
+function getInstagramProfile(value?: string | null) {
+  const input = value?.trim();
+  if (!input) return null;
+
+  const profileUrlMatch = input.match(
+    /^(?:https?:\/\/)?(?:www\.)?instagram\.com\/([^/?#]+)/i,
+  );
+  const handle = (profileUrlMatch?.[1] ?? input).replace(/^@+/, "").trim();
+  if (!handle || /[\s/?#]/.test(handle)) return null;
+
+  return {
+    handle,
+    url: `https://www.instagram.com/${encodeURIComponent(handle)}/`,
+  };
+}
+
 export default function PublicHomepage() {
   const {
     studioSettings,
@@ -95,8 +110,7 @@ export default function PublicHomepage() {
   const publicWhatsapp = studioSettings.whatsapp?.trim() || "";
   const whatsappNumber = (publicWhatsapp || publicPhone).replace(/\D/g, "");
   const homepageContent = resolveHomepageContent(studioSettings.homepageContent);
-  const instagramUrl = INSTAGRAM_NOTICE_PROFILES.temporaryUrl;
-  const instagramUsername = INSTAGRAM_NOTICE_PROFILES.temporaryHandle;
+  const instagramProfile = getInstagramProfile(studioSettings.socialLinks?.instagram);
   const [, navigate] = useLocation();
   const [portfolioPhotos, setPortfolioPhotos] = useState<PortfolioPhoto[]>([]);
   const [portfolioPreviewMode, setPortfolioPreviewMode] =
@@ -1331,7 +1345,7 @@ export default function PublicHomepage() {
       </section>
 
       {/* Instagram Feed */}
-      {instagramUrl && instagramUsername && (
+      {instagramProfile && (
         <section className="py-20 bg-gradient-to-b from-cream/30 to-white relative overflow-hidden">
           <FloralCorner
             position="top-left"
@@ -1357,40 +1371,15 @@ export default function PublicHomepage() {
                 ispirare dalle emozioni che catturiamo ogni giorno
               </p>
 
-              <div className="mx-auto mb-8 max-w-3xl rounded-2xl border border-[#d9a083]/40 bg-[#fff8f2] px-5 py-5 text-left shadow-sm sm:px-7">
-                <p className="text-lg font-playfair text-blue-gray">
-                  {homepageContent.instagramNotice.title}
-                </p>
-                <p className="mt-2 text-sm leading-relaxed text-gray-600">
-                  {homepageContent.instagramNotice.description}
-                </p>
-                <p className="mt-2 text-sm text-gray-600">
-                  Il vecchio profilo resta <strong>@{INSTAGRAM_NOTICE_PROFILES.oldHandle}</strong>.
-                </p>
-                <a
-                  href={instagramUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-4 inline-flex items-center gap-2 rounded-lg bg-[#c4724a] px-5 py-3 font-medium text-white transition hover:bg-[#a85d3b]"
-                  data-testid="link-instagram-temporary-profile"
-                >
-                  <Instagram className="h-5 w-5" />
-                  {homepageContent.instagramNotice.buttonText}
-                </a>
-              </div>
-
               <a
-                href={instagramUrl}
+                href={instagramProfile.url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-6 py-3 bg-sage hover:bg-dark-sage text-white font-medium rounded-lg shadow-md transition-all hover:shadow-lg hover:scale-105"
                 data-testid="link-instagram-section"
               >
                 <Instagram className="w-5 h-5" />
-                <span>
-                  @
-                  {instagramUsername}
-                </span>
+                <span>@{instagramProfile.handle}</span>
               </a>
             </div>
 
@@ -1401,7 +1390,7 @@ export default function PublicHomepage() {
                 style={{ maxHeight: "600px", overflowY: "auto" }}
               >
                 <iframe
-                  src={`https://www.instagram.com/${instagramUsername}/embed`}
+                  src={`https://www.instagram.com/${instagramProfile.handle}/embed`}
                   className="w-full border-0 rounded-lg"
                   style={{ minHeight: "350px", height: "450px" }}
                   scrolling="yes"
@@ -1461,9 +1450,9 @@ export default function PublicHomepage() {
               {studioSettings.about ||
                 "Studio fotografico per matrimoni ed eventi a Napoli e Caserta"}
             </p>
-            {instagramUrl && (
+            {instagramProfile && (
               <a
-                href={instagramUrl}
+                href={instagramProfile.url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 text-gray-300 hover:text-white transition"

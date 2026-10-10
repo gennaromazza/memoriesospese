@@ -190,7 +190,7 @@ export default function ReviewsWidget({ className = '' }: ReviewsWidgetProps) {
             La soddisfazione dei nostri clienti è la nostra priorità. Leggi tutte le recensioni sui nostri portali!
           </p>
           
-          <div className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-sage to-dark-sage text-white rounded-lg shadow-md">
+          <div className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-sage to-dark-sage rounded-lg shadow-md text-[color:var(--color-yellow-600)]">
             <Star className="w-5 h-5 fill-white" />
             <span className="font-semibold">5.0 stelle su tutti i portali</span>
           </div>
