@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Badge } from '@/components/ui/badge';
-import { Play, Loader2, Eye, Sparkles, TrendingUp, Heart, Share2, ArrowUpRight } from 'lucide-react';
+import { Play, Loader2, Eye, Sparkles, TrendingUp, Heart, Share2, ArrowUpRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import { JobTypeIcon } from '@/lib/job-type-icons';
 import WeddingVideoService from '@/lib/weddingVideos';
@@ -14,6 +14,7 @@ import { Link } from 'wouter';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -39,8 +40,95 @@ function getRandomBaseViews(videoId: string): number {
   return 8000 + (seed % 17000);
 }
 
+function VideoRail({ children, label, itemCount }: {
+  children: React.ReactNode;
+  label: string;
+  itemCount: number;
+}) {
+  const railRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  useEffect(() => {
+    const rail = railRef.current;
+    if (!rail) return;
+
+    const syncScrollButtons = () => {
+      const firstItem = rail.firstElementChild as HTMLElement | null;
+      const scrollportLeft = rail.getBoundingClientRect().left + rail.clientLeft;
+      setCanScrollLeft(
+        firstItem
+          ? firstItem.getBoundingClientRect().left < scrollportLeft - 8
+          : rail.scrollLeft > 8
+      );
+      setCanScrollRight(rail.scrollLeft + rail.clientWidth < rail.scrollWidth - 8);
+    };
+
+    syncScrollButtons();
+    rail.addEventListener('scroll', syncScrollButtons, { passive: true });
+    window.addEventListener('resize', syncScrollButtons);
+    const resizeObserver = new ResizeObserver(syncScrollButtons);
+    resizeObserver.observe(rail);
+
+    return () => {
+      rail.removeEventListener('scroll', syncScrollButtons);
+      window.removeEventListener('resize', syncScrollButtons);
+      resizeObserver.disconnect();
+    };
+  }, [itemCount]);
+
+  const scroll = (direction: -1 | 1) => {
+    const rail = railRef.current;
+    if (!rail) return;
+    const behavior: ScrollBehavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      ? 'auto'
+      : 'smooth';
+    rail.scrollBy({ left: direction * Math.max(rail.clientWidth * 0.82, 280), behavior });
+  };
+
+  return (
+    <div className="relative -mx-4 sm:-mx-6 lg:-mx-8">
+      {canScrollLeft && (
+        <button
+          type="button"
+          aria-label={`Scorri indietro: ${label}`}
+          onClick={() => scroll(-1)}
+          className="absolute left-2 top-[34%] z-20 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-[#111714]/90 text-white shadow-lg backdrop-blur transition hover:border-sage hover:bg-[#26332D] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage"
+        >
+          <ChevronLeft className="h-6 w-6" aria-hidden="true" />
+        </button>
+      )}
+      <div
+        ref={railRef}
+        role="region"
+        aria-label={label}
+        tabIndex={0}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+            event.preventDefault();
+            scroll(event.key === 'ArrowLeft' ? -1 : 1);
+          }
+        }}
+        className="flex snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain px-4 py-3 scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:px-6 lg:px-8"
+      >
+        {children}
+      </div>
+      {canScrollRight && (
+        <button
+          type="button"
+          aria-label={`Scorri avanti: ${label}`}
+          onClick={() => scroll(1)}
+          className="absolute right-2 top-[34%] z-20 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-[#111714]/90 text-white shadow-lg backdrop-blur transition hover:border-sage hover:bg-[#26332D] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage"
+        >
+          <ChevronRight className="h-6 w-6" aria-hidden="true" />
+        </button>
+      )}
+    </div>
+  );
+}
+
 // VideoCard component
-function VideoCard({ video, onClick, onLike, onShare, isLiked, likeCount, realWedding }: {
+function VideoCard({ video, onClick, onLike, onShare, isLiked, likeCount, realWedding, cardClassName }: {
   video: WeddingVideo; 
   onClick: () => void;
   onLike: (e: React.MouseEvent) => void;
@@ -48,16 +136,18 @@ function VideoCard({ video, onClick, onLike, onShare, isLiked, likeCount, realWe
   isLiked: boolean;
   likeCount: number;
   realWedding?: PublicWeddingVideoAssociation;
+  cardClassName: string;
 }) {
   // Visualizzazioni: base casuale + conteggio reale
   const displayViews = getRandomBaseViews(video.id) + (video.views || 0);
+  const previewDescription = video.description || realWedding?.excerpt;
 
   return (
-    <article className="group overflow-hidden rounded-2xl border border-white/10 bg-[#1B2420] shadow-lg shadow-black/15 transition-colors hover:border-sage/40">
+    <article className={`group shrink-0 snap-start overflow-hidden rounded-2xl border border-white/10 bg-[#1B2420] shadow-lg shadow-black/15 transition-all duration-300 hover:-translate-y-1 hover:border-sage/45 hover:shadow-2xl ${cardClassName}`}>
       <button
         type="button"
         onClick={onClick}
-        aria-label={`Riproduci il video: ${video.title}`}
+        aria-label={`Apri la descrizione del video: ${video.title}`}
         className="relative block aspect-video w-full overflow-hidden bg-black text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-terracotta"
       >
         <img
@@ -74,6 +164,14 @@ function VideoCard({ video, onClick, onLike, onShare, isLiked, likeCount, realWe
             <Play className="ml-0.5 h-5 w-5 fill-current" aria-hidden="true" />
           </span>
         </span>
+        {previewDescription && (
+          <span className="absolute inset-x-0 bottom-0 max-h-0 overflow-hidden bg-[#111714]/95 px-4 text-xs leading-5 text-[#F4EFE8] opacity-0 backdrop-blur-sm transition-all duration-300 group-hover:max-h-28 group-hover:py-3 group-hover:opacity-100 group-focus-within:max-h-28 group-focus-within:py-3 group-focus-within:opacity-100">
+            <span className="line-clamp-3">{previewDescription}</span>
+            <span className="mt-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-sage">
+              Apri i dettagli
+            </span>
+          </span>
+        )}
         {video.duration && (
           <span className="absolute bottom-3 right-3 rounded-md bg-black/80 px-2 py-1 text-xs font-semibold text-white">
             {video.duration}
@@ -139,6 +237,7 @@ export default function WeddingVideosPage() {
   const [jobTypes, setJobTypes] = useState<JobType[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedVideo, setSelectedVideo] = useState<WeddingVideo | null>(null);
+  const [isPlayingVideo, setIsPlayingVideo] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [likedVideos, setLikedVideos] = useState<Set<string>>(new Set());
   const [likeCounts, setLikeCounts] = useState<Record<string, number>>({});
@@ -196,9 +295,15 @@ export default function WeddingVideosPage() {
     }
   };
 
-  const handlePlayVideo = (video: WeddingVideo) => {
-    WeddingVideoService.incrementViews(video.id);
+  const handleSelectVideo = (video: WeddingVideo) => {
     setSelectedVideo(video);
+    setIsPlayingVideo(false);
+  };
+
+  const handleStartPlayback = () => {
+    if (!selectedVideo) return;
+    WeddingVideoService.incrementViews(selectedVideo.id);
+    setIsPlayingVideo(true);
   };
 
   const handleLike = (videoId: string, e: React.MouseEvent) => {
@@ -342,14 +447,14 @@ export default function WeddingVideosPage() {
                   </div>
                   <span className="hidden text-sm text-[#C7CEC7]/65 sm:block">Storie da rivivere</span>
                 </div>
-                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-                  {featuredVideos.slice(0, 2).map(video => (
+                <VideoRail label="Film in evidenza" itemCount={featuredVideos.length}>
+                  {featuredVideos.map(video => (
                     <button
                       type="button"
                       key={video.id}
-                      aria-label={`Riproduci il video in evidenza: ${video.title}`}
-                      onClick={() => handlePlayVideo(video)}
-                      className="group relative block aspect-video w-full overflow-hidden rounded-2xl border border-white/10 bg-[#1B2420] text-left shadow-xl shadow-black/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-terracotta"
+                      aria-label={`Apri i dettagli del film in evidenza: ${video.title}`}
+                      onClick={() => handleSelectVideo(video)}
+                      className="group relative block aspect-video w-[86vw] max-w-[720px] shrink-0 snap-start overflow-hidden rounded-2xl border border-white/10 bg-[#1B2420] text-left shadow-xl shadow-black/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-terracotta md:w-[calc(50%-0.5rem)]"
                     >
                       <img
                         src={video.thumbnailUrl}
@@ -372,8 +477,8 @@ export default function WeddingVideosPage() {
                       </span>
                       <span className="absolute inset-x-0 bottom-0 bg-[#111714]/90 p-5 backdrop-blur-sm sm:p-6">
                         <span className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-sage">
-                          <Play className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
-                          Riproduci film
+                          <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+                          Scopri il film
                           {video.duration && <span className="text-[#C7CEC7]/70">· {video.duration}</span>}
                         </span>
                         <span className="block text-xl font-bold leading-tight text-white sm:text-2xl">{video.title}</span>
@@ -385,7 +490,7 @@ export default function WeddingVideosPage() {
                       </span>
                     </button>
                   ))}
-                </div>
+                </VideoRail>
               </section>
             )}
 
@@ -401,20 +506,21 @@ export default function WeddingVideosPage() {
                     <h2 id="vision-new-title" className="text-xl font-bold text-[#F4EFE8] sm:text-2xl">Nuovi video</h2>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <VideoRail label="Nuovi video" itemCount={newVideos.length}>
                   {newVideos.map(video => (
                     <VideoCard 
                       key={video.id} 
                       video={video} 
-                      onClick={() => handlePlayVideo(video)}
+                      onClick={() => handleSelectVideo(video)}
                       onLike={(e) => handleLike(video.id, e)}
                       onShare={(e) => handleShare(video, e)}
                       isLiked={likedVideos.has(video.id)}
                       likeCount={likeCounts[video.id] || 0}
                       realWedding={realWeddingByVideoSlug[video.slug]}
+                      cardClassName="w-[78vw] max-w-[320px] sm:w-[calc(50%-0.5rem)] lg:w-[calc(25%-0.75rem)]"
                     />
                   ))}
-                </div>
+                </VideoRail>
               </section>
             )}
 
@@ -430,20 +536,21 @@ export default function WeddingVideosPage() {
                     <h2 id="vision-recommended-title" className="text-xl font-bold text-[#F4EFE8] sm:text-2xl">Consigliati</h2>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <VideoRail label="Video consigliati" itemCount={recommendedVideos.length}>
                   {recommendedVideos.map(video => (
                     <VideoCard 
                       key={video.id} 
                       video={video} 
-                      onClick={() => handlePlayVideo(video)}
+                      onClick={() => handleSelectVideo(video)}
                       onLike={(e) => handleLike(video.id, e)}
                       onShare={(e) => handleShare(video, e)}
                       isLiked={likedVideos.has(video.id)}
                       likeCount={likeCounts[video.id] || 0}
                       realWedding={realWeddingByVideoSlug[video.slug]}
+                      cardClassName="w-[78vw] max-w-[320px] sm:w-[calc(50%-0.5rem)] lg:w-[calc(25%-0.75rem)]"
                     />
                   ))}
-                </div>
+                </VideoRail>
               </section>
             )}
 
@@ -459,20 +566,21 @@ export default function WeddingVideosPage() {
                   </h2>
                   <Badge variant="outline" className="border-sage/30 text-sage">{typeVideos.length}</Badge>
                 </div>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <VideoRail label={`Video ${jobType.nome.toLocaleLowerCase('it-IT')}`} itemCount={typeVideos.length}>
                   {typeVideos.map(video => (
                     <VideoCard 
                       key={video.id} 
                       video={video} 
-                      onClick={() => handlePlayVideo(video)}
+                      onClick={() => handleSelectVideo(video)}
                       onLike={(e) => handleLike(video.id, e)}
                       onShare={(e) => handleShare(video, e)}
                       isLiked={likedVideos.has(video.id)}
                       likeCount={likeCounts[video.id] || 0}
                       realWedding={realWeddingByVideoSlug[video.slug]}
+                      cardClassName="w-[78vw] max-w-[320px] sm:w-[calc(50%-0.5rem)] lg:w-[calc(25%-0.75rem)]"
                     />
                   ))}
-                </div>
+                </VideoRail>
               </section>
             ))}
 
@@ -514,20 +622,21 @@ export default function WeddingVideosPage() {
                     ))}
                   </div>
                 )}
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <VideoRail label={`Catalogo video ${selectedCategory === 'all' ? 'completo' : selectedCategory}`} itemCount={filteredVideos.length}>
                   {filteredVideos.map(video => (
                     <VideoCard 
                       key={video.id} 
                       video={video} 
-                      onClick={() => handlePlayVideo(video)}
+                      onClick={() => handleSelectVideo(video)}
                       onLike={(e) => handleLike(video.id, e)}
                       onShare={(e) => handleShare(video, e)}
                       isLiked={likedVideos.has(video.id)}
                       likeCount={likeCounts[video.id] || 0}
                       realWedding={realWeddingByVideoSlug[video.slug]}
+                      cardClassName="w-[78vw] max-w-[320px] sm:w-[calc(50%-0.5rem)] lg:w-[calc(25%-0.75rem)]"
                     />
                   ))}
-                </div>
+                </VideoRail>
               </section>
             )}
 
@@ -551,23 +660,51 @@ export default function WeddingVideosPage() {
         )}
       </main>
 
-      {/* Video Player Modal */}
-      <Dialog open={!!selectedVideo} onOpenChange={() => setSelectedVideo(null)}>
+      {/* Film details first, with playback as an explicit action */}
+      <Dialog
+        open={!!selectedVideo}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedVideo(null);
+            setIsPlayingVideo(false);
+          }
+        }}
+      >
         <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto border border-white/10 bg-[#151D19] p-0">
           <DialogHeader className="px-6 pt-6">
             <DialogTitle className="text-2xl text-[#F4EFE8]">{selectedVideo?.title}</DialogTitle>
+            <DialogDescription className="sr-only">
+              Dettagli del film e storia del matrimonio. Avvia la riproduzione quando vuoi.
+            </DialogDescription>
           </DialogHeader>
-          <div className="relative w-full aspect-video">
-            {selectedVideo && (
+          <div className="relative aspect-video w-full bg-black">
+            {selectedVideo && (isPlayingVideo ? (
               <iframe
                 src={`https://www.youtube.com/embed/${getYouTubeVideoId(selectedVideo.youtubeUrl)}?autoplay=1`}
                 title={selectedVideo.title}
-                className="w-full h-full"
+                className="h-full w-full"
                 frameBorder="0"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                 allowFullScreen
-              ></iframe>
-            )}
+              />
+            ) : (
+              <>
+                <img
+                  src={selectedVideo.thumbnailUrl}
+                  alt={`Anteprima del film: ${selectedVideo.title}`}
+                  className="h-full w-full object-cover"
+                />
+                <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-[#111714]/95 via-[#111714]/15 to-black/10" />
+                <button
+                  type="button"
+                  onClick={handleStartPlayback}
+                  className="absolute bottom-5 left-5 inline-flex min-h-12 items-center gap-2 rounded-lg bg-terracotta px-5 py-3 text-sm font-bold text-white shadow-lg transition hover:bg-[#A86552] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                >
+                  <Play className="h-4 w-4 fill-current" aria-hidden="true" />
+                  Guarda il film
+                </button>
+              </>
+            ))}
           </div>
           {(selectedVideo?.description || selectedRealWedding) && (
             <div className="space-y-4 px-6 pb-6">
@@ -582,15 +719,15 @@ export default function WeddingVideosPage() {
                   <h3 className="mt-2 text-lg font-bold text-[#F4EFE8] sm:text-xl">
                     {selectedRealWedding.storyTitle}
                   </h3>
+                  <p className="mt-3 text-sm leading-6 text-[#D8DED6]">
+                    {selectedRealWedding.excerpt}
+                  </p>
                   <Link
                     href={`/real-wedding/${encodeURIComponent(selectedRealWedding.storySlug)}`}
-                    className="mt-3 block rounded-lg text-sm leading-6 text-[#D8DED6] transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage"
+                    className="mt-4 inline-flex min-h-10 items-center gap-1 rounded-md font-bold text-sage transition-colors hover:text-[#F4EFE8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage"
                   >
-                    <span>{selectedRealWedding.excerpt}</span>
-                    <span className="mt-3 inline-flex items-center gap-1 font-bold text-sage">
-                      Leggi il Real Wedding completo
-                      <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
-                    </span>
+                    Leggi il Real Wedding completo
+                    <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
                   </Link>
                 </section>
               )}

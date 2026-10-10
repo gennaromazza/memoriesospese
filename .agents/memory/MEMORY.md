@@ -38,3 +38,4 @@
 - [NPM firewall registry protocol](npm-firewall-registry-protocol.md) — installazioni nel workflow corrompono node_modules; recupero esplicito dal lockfile con host registry sostituito.
 - [Heartbeat JSON per operazioni lunghe](long-json-heartbeat.md) — le API IA lente devono inviare whitespace periodico o il proxy può sostituire la risposta con HTML di errore.
 - [Appuntamenti e ore legali](appointment-timezones.md) — consulenze legacy a mezzanotte: promemoria dall'orario scelto; preservare l'occorrenza nell'ora autunnale ripetuta.
+- [Audience e collegamento Image Vision](image-vision-audience.md) — per gli sposi; film associati in automatico via galleria→job→Real Wedding, con estratto e link all'articolo.
