@@ -32,6 +32,7 @@ export interface StudioSettings {
   };
   about: string;
   logo?: string;
+  storyImageUrl?: string;
   whatsapp?: string;
   // Testi personalizzabili della Hero Section
   heroTitle: string;
@@ -67,6 +68,7 @@ const defaultSettings: StudioSettings = {
   },
   about: '',
   logo: '',
+  storyImageUrl: '',
   whatsapp: '',
   // Valori predefiniti per i testi della Hero Section
   heroTitle: 'Catturiamo i momenti più preziosi',

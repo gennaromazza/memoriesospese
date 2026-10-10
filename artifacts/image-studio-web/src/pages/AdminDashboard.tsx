@@ -230,6 +230,7 @@ interface StudioSettings {
   };
   about: string;
   logo?: string;
+  storyImageUrl?: string;
   // Testi personalizzabili della Hero Section
   heroTitle: string;
   heroSubtitle: string;
@@ -317,6 +318,7 @@ export default function AdminDashboard() {
   const [dashboardJobTypes, setDashboardJobTypes] = useState<JobTypeFE[]>([]); // 🏷️ Tipi evento disponibili
   const [passwordRequests, setPasswordRequests] = useState<any[]>([]);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
+  const [isStoryImageUploading, setIsStoryImageUploading] = useState(false);
   const [activeTab, setActiveTab] = useSessionStorageState<AdminTab>(
     "activeTab",
     "calendario",
@@ -378,6 +380,7 @@ export default function AdminDashboard() {
     },
     about: "",
     logo: "",
+    storyImageUrl: "",
     // Valori predefiniti per i testi personalizzabili
     heroTitle: "Catturiamo i momenti più preziosi",
     heroSubtitle: "Ogni scatto racconta una storia unica",
@@ -743,6 +746,66 @@ export default function AdminDashboard() {
         description: `Caricamento logo non riuscito: ${message}`,
         variant: "destructive",
       });
+    }
+  };
+
+  const handleStoryImageUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const input = e.currentTarget;
+    const file = input.files?.[0];
+    if (!file) return;
+    // Reset subito il picker: permette di selezionare di nuovo lo stesso file.
+    input.value = "";
+
+    if (!file.type.startsWith("image/")) {
+      toast({
+        title: "Formato non supportato",
+        description: "Seleziona un file immagine.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast({
+        title: "Immagine troppo grande",
+        description: "La foto deve pesare al massimo 10 MB.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsStoryImageUploading(true);
+    try {
+      // Percorso stabile: sostituire la foto non lascia copie orfane nello Storage.
+      const imageRef = ref(storage, "admin/studio-story-image");
+      await uploadBytes(imageRef, file, { contentType: file.type });
+      const downloadUrl = await getDownloadURL(imageRef);
+
+      // Salva solo la foto, senza sovrascrivere altre modifiche ancora in compilazione.
+      await setDoc(
+        doc(db, "settings", "studio"),
+        { storyImageUrl: downloadUrl },
+        { merge: true },
+      );
+      setStudioSettings((prev) => ({ ...prev, storyImageUrl: downloadUrl }));
+
+      toast({
+        title: "Foto caricata",
+        description: "La foto è stata salvata e aggiornata nella homepage.",
+      });
+    } catch (error) {
+      console.error("[handleStoryImageUpload] Errore upload foto:", error);
+      const message =
+        error instanceof Error ? error.message : "Errore sconosciuto";
+      toast({
+        title: "Caricamento non riuscito",
+        description: `Non è stato possibile salvare la foto: ${message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsStoryImageUploading(false);
     }
   };
 
@@ -2402,36 +2465,80 @@ export default function AdminDashboard() {
                             </div>
                           </div>
                           {/* Colonna destra: Logo */}
-                          <div className="space-y-1.5">
-                            <Label className="text-xs font-medium text-stone-600 uppercase tracking-wide">Logo dello Studio</Label>
-                            <div className="mt-1 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-stone-200 bg-stone-50 p-6 text-center gap-3 hover:border-[#6b7f6b]/40 transition-colors">
-                              {studioSettings.logo ? (
-                                <>
-                                  <img
-                                    src={studioSettings.logo}
-                                    alt="Logo dello studio"
-                                    className="h-24 w-auto object-contain rounded-lg shadow-sm"
-                                    onError={(e) => { e.currentTarget.style.display = "none"; }}
-                                  />
-                                  <p className="text-xs text-stone-400">Logo attuale</p>
-                                </>
-                              ) : (
-                                <>
-                                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-stone-200">
-                                    <Camera className="h-6 w-6 text-stone-400" />
-                                  </div>
-                                  <p className="text-sm text-stone-500">Nessun logo caricato</p>
-                                  <p className="text-xs text-stone-400">PNG, JPG o SVG consigliati</p>
-                                </>
-                              )}
-                              <Label
-                                htmlFor="logo-upload"
-                                className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-[#6b7f6b] text-[#6b7f6b] text-sm font-medium hover:bg-[#6b7f6b] hover:text-white transition-colors"
-                              >
-                                <Upload className="h-3.5 w-3.5" />
-                                {studioSettings.logo ? "Cambia logo" : "Carica logo"}
+                          <div className="space-y-5">
+                            <div className="space-y-1.5">
+                              <Label className="text-xs font-medium text-stone-600 uppercase tracking-wide">Logo dello Studio</Label>
+                              <div className="mt-1 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-stone-200 bg-stone-50 p-6 text-center gap-3 hover:border-[#6b7f6b]/40 transition-colors">
+                                {studioSettings.logo ? (
+                                  <>
+                                    <img
+                                      src={studioSettings.logo}
+                                      alt="Logo dello studio"
+                                      className="h-24 w-auto object-contain rounded-lg shadow-sm"
+                                      onError={(e) => { e.currentTarget.style.display = "none"; }}
+                                    />
+                                    <p className="text-xs text-stone-400">Logo attuale</p>
+                                  </>
+                                ) : (
+                                  <>
+                                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-stone-200">
+                                      <Camera className="h-6 w-6 text-stone-400" />
+                                    </div>
+                                    <p className="text-sm text-stone-500">Nessun logo caricato</p>
+                                    <p className="text-xs text-stone-400">PNG, JPG o SVG consigliati</p>
+                                  </>
+                                )}
+                                <Label
+                                  htmlFor="logo-upload"
+                                  className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-[#6b7f6b] text-[#6b7f6b] text-sm font-medium hover:bg-[#6b7f6b] hover:text-white transition-colors"
+                                >
+                                  <Upload className="h-3.5 w-3.5" />
+                                  {studioSettings.logo ? "Cambia logo" : "Carica logo"}
+                                </Label>
+                                <Input id="logo-upload" type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+                              </div>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <Label className="text-xs font-medium text-stone-600 uppercase tracking-wide">
+                                Foto della sezione “La Mia Storia”
                               </Label>
-                              <Input id="logo-upload" type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+                              <div className="flex flex-col items-center gap-3 rounded-xl border border-stone-200 bg-stone-50 p-4 text-center">
+                                {studioSettings.storyImageUrl ? (
+                                  <img
+                                    src={studioSettings.storyImageUrl}
+                                    alt="Anteprima della foto La Mia Storia"
+                                    className="h-36 w-full rounded-lg object-cover"
+                                  />
+                                ) : (
+                                  <div className="flex h-36 w-full flex-col items-center justify-center gap-2 rounded-lg bg-stone-100 text-stone-400">
+                                    <Camera className="h-7 w-7" />
+                                    <span className="text-sm">Nessuna foto caricata</span>
+                                  </div>
+                                )}
+                                <Label
+                                  htmlFor="story-image-upload"
+                                  className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border border-[#6b7f6b] px-4 py-2 text-sm font-medium text-[#6b7f6b] transition-colors hover:bg-[#6b7f6b] hover:text-white ${isStoryImageUploading ? "pointer-events-none opacity-60" : ""}`}
+                                >
+                                  <Upload className="h-3.5 w-3.5" />
+                                  {isStoryImageUploading
+                                    ? "Caricamento..."
+                                    : studioSettings.storyImageUrl
+                                      ? "Sostituisci foto"
+                                      : "Carica foto"}
+                                </Label>
+                                <Input
+                                  id="story-image-upload"
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  disabled={isStoryImageUploading}
+                                  onChange={handleStoryImageUpload}
+                                />
+                                <p className="text-xs text-stone-500">
+                                  Questa foto appare nella homepage e si salva automaticamente. Massimo 10 MB.
+                                </p>
+                              </div>
                             </div>
                           </div>
                         </div>

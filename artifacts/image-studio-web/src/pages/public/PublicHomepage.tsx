@@ -104,6 +104,8 @@ export default function PublicHomepage() {
     loading: studioSettingsLoading,
     error: studioSettingsError,
   } = useStudio();
+  const storyImageUrl = studioSettings.storyImageUrl?.trim() || "";
+  const [storyImageFailed, setStoryImageFailed] = useState(false);
   const publicAddress = studioSettings.address?.trim() || "";
   const publicPhone = studioSettings.phone?.trim() || "";
   const publicEmail = studioSettings.email?.trim() || "";
@@ -121,6 +123,10 @@ export default function PublicHomepage() {
   const [weddingVideos, setWeddingVideos] = useState<any[]>([]);
   const [loadingBlog, setLoadingBlog] = useState(true);
   const [loadingVideos, setLoadingVideos] = useState(true);
+
+  useEffect(() => {
+    setStoryImageFailed(false);
+  }, [storyImageUrl]);
 
   usePrefetchPopularPages();
 
@@ -947,15 +953,18 @@ export default function PublicHomepage() {
       {/* About Preview */}
       <section className="py-12 sm:py-16 md:py-20 bg-cream/30 px-4">
         <div className="max-w-7xl mx-auto">
-          <div className="grid md:grid-cols-2 gap-6 sm:gap-8 md:gap-12 items-center">
-            <div className="rounded-xl sm:rounded-2xl overflow-hidden shadow-lg animate-slide-up group">
-              <img
-                src="/images/gennaro-mazzacane.jpg"
-                alt="Gennaro Mazzacane - Fotografo Professionista"
-                className="w-full h-auto object-cover transition-transform duration-500 group-hover:scale-105"
-                loading="lazy"
-              />
-            </div>
+          <div className={`grid gap-6 sm:gap-8 md:gap-12 items-center ${storyImageUrl && !storyImageFailed ? "md:grid-cols-2" : "max-w-3xl mx-auto"}`}>
+            {storyImageUrl && !storyImageFailed && (
+              <div className="rounded-xl sm:rounded-2xl overflow-hidden shadow-lg animate-slide-up group">
+                <img
+                  src={storyImageUrl}
+                  alt="Gennaro Mazzacane - Fotografo Professionista"
+                  className="w-full h-auto object-cover transition-transform duration-500 group-hover:scale-105"
+                  loading="lazy"
+                  onError={() => setStoryImageFailed(true)}
+                />
+              </div>
+            )}
             <div className="animate-fade-in">
               <h2 className="text-3xl sm:text-4xl md:text-5xl font-playfair text-blue-gray mb-3 sm:mb-4 md:mb-6">
                 La Mia Storia
