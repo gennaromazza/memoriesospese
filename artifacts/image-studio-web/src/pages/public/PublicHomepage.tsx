@@ -308,6 +308,69 @@ export default function PublicHomepage() {
       {/* Navigation */}
       <Navigation />
 
+      {/* Hero Section */}
+      <section className="pt-24 sm:pt-28 md:pt-32 pb-12 sm:pb-16 md:pb-20 px-4 overflow-hidden">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid w-full min-w-0 grid-cols-1 items-center gap-8 sm:gap-10 md:grid-cols-2 md:gap-12">
+            <div className="min-w-0 max-w-full animate-fade-in">
+              <p className="text-sm sm:text-base font-semibold uppercase tracking-[0.2em] text-sage mb-3">
+                {homepageContent.hero.eyebrow}
+              </p>
+              <h1 className="text-4xl sm:text-5xl md:text-6xl font-playfair text-blue-gray mb-4 sm:mb-6 leading-tight">
+                {homepageContent.hero.title}
+              </h1>
+              <p className="text-2xl sm:text-3xl font-playfair text-[#C67B5C] mb-4">
+                {homepageContent.hero.tagline}
+              </p>
+              <p className="text-lg sm:text-xl text-gray-600 mb-3 sm:mb-4">
+                {homepageContent.hero.description}
+              </p>
+              <p className="text-base sm:text-lg text-gray-500 mb-6 sm:mb-8">
+                {homepageContent.hero.signature}
+              </p>
+              <div className="flex w-full flex-col gap-3 sm:flex-row sm:gap-4">
+                <Link href="/consulenze" className="w-full sm:w-auto">
+                  <Button
+                    size="lg"
+                    className="h-auto min-h-11 w-full whitespace-normal bg-sage px-5 py-3 text-center leading-snug text-white hover:bg-dark-sage sm:w-auto"
+                    data-testid="button-prenota-hero"
+                  >
+                    <Calendar className="mr-2 h-5 w-5" />
+                    <span className="min-w-0">{homepageContent.hero.primaryCta}</span>
+                  </Button>
+                </Link>
+                <Link href="/portfolio/matrimonio" className="w-full sm:w-auto">
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="h-auto min-h-11 w-full whitespace-normal border-sage px-5 py-3 text-center leading-snug text-sage hover:bg-sage/10 sm:w-auto"
+                    data-testid="button-portfolio-hero"
+                  >
+                    <Camera className="mr-2 h-5 w-5" />
+                    <span className="min-w-0">{homepageContent.hero.portfolioCta}</span>
+                  </Button>
+                </Link>
+              </div>
+              <div className="mt-5 w-full sm:mt-6">
+                <Link href="/accesso-galleria" className="block w-full sm:inline-block sm:w-auto">
+                  <Button
+                    variant="link"
+                    className="h-auto min-h-11 w-full max-w-full whitespace-normal px-3 py-2 text-center leading-snug text-blue-gray hover:text-sage sm:w-auto"
+                    data-testid="link-accesso-galleria-hero"
+                  >
+                    <ImageIcon className="mr-2 h-4 w-4" />
+                    <span className="min-w-0">{homepageContent.hero.galleryAccessText}</span>
+                  </Button>
+                </Link>
+              </div>
+            </div>
+            <div className="relative isolate mx-auto h-[280px] w-full min-w-0 max-w-full overflow-hidden rounded-xl shadow-lg sm:h-[400px] sm:rounded-2xl sm:shadow-2xl md:mx-0 md:h-[500px] md:animate-slide-up">
+              <HeroSlideshow />
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* iMaGe Vision Section */}
       <section className="py-12 sm:py-16 md:py-20 bg-gradient-to-b from-gray-900 via-gray-800 to-black text-white px-4">
         <div className="max-w-7xl mx-auto">
@@ -391,69 +454,6 @@ export default function PublicHomepage() {
               </p>
             </div>
           )}
-        </div>
-      </section>
-
-      {/* Hero Section */}
-      <section className="pt-24 sm:pt-28 md:pt-32 pb-12 sm:pb-16 md:pb-20 px-4 overflow-hidden">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid w-full min-w-0 grid-cols-1 items-center gap-8 sm:gap-10 md:grid-cols-2 md:gap-12">
-            <div className="min-w-0 max-w-full animate-fade-in">
-              <p className="text-sm sm:text-base font-semibold uppercase tracking-[0.2em] text-sage mb-3">
-                {homepageContent.hero.eyebrow}
-              </p>
-              <h1 className="text-4xl sm:text-5xl md:text-6xl font-playfair text-blue-gray mb-4 sm:mb-6 leading-tight">
-                {homepageContent.hero.title}
-              </h1>
-              <p className="text-2xl sm:text-3xl font-playfair text-[#C67B5C] mb-4">
-                {homepageContent.hero.tagline}
-              </p>
-              <p className="text-lg sm:text-xl text-gray-600 mb-3 sm:mb-4">
-                {homepageContent.hero.description}
-              </p>
-              <p className="text-base sm:text-lg text-gray-500 mb-6 sm:mb-8">
-                {homepageContent.hero.signature}
-              </p>
-              <div className="flex w-full flex-col gap-3 sm:flex-row sm:gap-4">
-                <Link href="/consulenze" className="w-full sm:w-auto">
-                  <Button
-                    size="lg"
-                    className="h-auto min-h-11 w-full whitespace-normal bg-sage px-5 py-3 text-center leading-snug text-white hover:bg-dark-sage sm:w-auto"
-                    data-testid="button-prenota-hero"
-                  >
-                    <Calendar className="mr-2 h-5 w-5" />
-                    <span className="min-w-0">{homepageContent.hero.primaryCta}</span>
-                  </Button>
-                </Link>
-                <Link href="/portfolio/matrimonio" className="w-full sm:w-auto">
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    className="h-auto min-h-11 w-full whitespace-normal border-sage px-5 py-3 text-center leading-snug text-sage hover:bg-sage/10 sm:w-auto"
-                    data-testid="button-portfolio-hero"
-                  >
-                    <Camera className="mr-2 h-5 w-5" />
-                    <span className="min-w-0">{homepageContent.hero.portfolioCta}</span>
-                  </Button>
-                </Link>
-              </div>
-              <div className="mt-5 w-full sm:mt-6">
-                <Link href="/accesso-galleria" className="block w-full sm:inline-block sm:w-auto">
-                  <Button
-                    variant="link"
-                    className="h-auto min-h-11 w-full max-w-full whitespace-normal px-3 py-2 text-center leading-snug text-blue-gray hover:text-sage sm:w-auto"
-                    data-testid="link-accesso-galleria-hero"
-                  >
-                    <ImageIcon className="mr-2 h-4 w-4" />
-                    <span className="min-w-0">{homepageContent.hero.galleryAccessText}</span>
-                  </Button>
-                </Link>
-              </div>
-            </div>
-            <div className="relative isolate mx-auto h-[280px] w-full min-w-0 max-w-full overflow-hidden rounded-xl shadow-lg sm:h-[400px] sm:rounded-2xl sm:shadow-2xl md:mx-0 md:h-[500px] md:animate-slide-up">
-              <HeroSlideshow />
-            </div>
-          </div>
         </div>
       </section>
 
