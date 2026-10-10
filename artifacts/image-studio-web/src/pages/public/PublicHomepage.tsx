@@ -1058,7 +1058,7 @@ export default function PublicHomepage() {
       </section>
 
       {/* Accesso Gallerie CTA */}
-      <section className="py-10 sm:py-16 md:py-20 bg-gradient-to-r from-terracotta to-[#C67B5C] px-4">
+      <section className="py-10 sm:py-16 md:py-20 from-terracotta to-[#C67B5C] px-4 bg-[color:var(--color-gray-500)]">
         <div className="max-w-4xl mx-auto text-center text-white">
           <h2 className="text-3xl sm:text-4xl md:text-5xl font-playfair mb-3 sm:mb-4">
             Hai partecipato a un evento?
