@@ -51,7 +51,9 @@ export default function AdminSecurityPage() {
   const queryClient = useQueryClient();
   const { user, isAdmin } = useFirebaseAuth();
   const status = useAdminSecurityStatus(!!user && isAdmin);
-  const desktopHandoffId = new URLSearchParams(window.location.search).get('desktopHandoff');
+  const pageParams = new URLSearchParams(window.location.search);
+  const desktopHandoffId = pageParams.get('desktopHandoff');
+  const handoffTarget = pageParams.get('handoffTarget') === 'preview' ? 'preview' : 'windows';
   const [label, setLabel] = useState('');
   const [freshCodes, setFreshCodes] = useState<string[] | null>(null);
   const [pendingRevoke, setPendingRevoke] = useState<{ id: string; label: string } | null>(null);
@@ -98,15 +100,17 @@ export default function AdminSecurityPage() {
     },
   });
 
-  const verifyForWindows = useMutation({
+  const verifyForHandoff = useMutation({
     mutationFn: () => {
-      if (!desktopHandoffId) throw new Error('Richiesta Windows non valida.');
+      if (!desktopHandoffId) throw new Error('Richiesta di verifica non valida.');
       return AdminPasskeyClient.verifyForDesktopHandoff(desktopHandoffId);
     },
     onSuccess: () => {
       toast({
         title: 'Passkey verificata',
-        description: 'Torna all’app Windows: la sessione si aggiornerà automaticamente.',
+        description: handoffTarget === 'preview'
+          ? 'Torna alla Preview Replit: si sbloccherà automaticamente.'
+          : 'Torna all’app Windows: la sessione si aggiornerà automaticamente.',
       });
       void refresh();
     },
@@ -198,31 +202,40 @@ export default function AdminSecurityPage() {
         {data && (
           <>
             {desktopHandoffId && (
-              <Card data-testid="card-windows-passkey-handoff">
+              <Card data-testid={handoffTarget === 'preview' ? 'card-preview-passkey-handoff' : 'card-windows-passkey-handoff'}>
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
                     <Fingerprint className="h-5 w-5 text-sage" />
-                    Verifica per l’app Windows
+                    {handoffTarget === 'preview'
+                      ? 'Verifica per la Preview Replit'
+                      : 'Verifica per l’app Windows'}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {verifyForWindows.isSuccess ? (
+                  {verifyForHandoff.isSuccess ? (
                     <p className="text-sm text-sage" role="status">
-                      Verifica completata. Torna all’app Windows; la sessione si aggiornerà automaticamente.
+                      {handoffTarget === 'preview'
+                        ? 'Verifica completata. Torna alla Preview Replit: si sbloccherà automaticamente.'
+                        : 'Verifica completata. Torna all’app Windows; la sessione si aggiornerà automaticamente.'}
                     </p>
                   ) : (
                     <>
                       <p className="text-sm text-blue-gray">
-                        Questa richiesta è stata avviata dall’app Windows. Verifica qui la tua passkey per
-                        autorizzare solo la sessione Windows che ha aperto questa pagina.
+                        {handoffTarget === 'preview'
+                          ? 'Questa richiesta è stata avviata dalla Preview Replit. Verifica qui la tua passkey per autorizzare solo quella sessione.'
+                          : 'Questa richiesta è stata avviata dall’app Windows. Verifica qui la tua passkey per autorizzare solo la sessione Windows che ha aperto questa pagina.'}
                       </p>
                       <Button
-                        disabled={verifyForWindows.isPending || !AdminPasskeyClient.supportsPasskeys()}
-                        onClick={() => verifyForWindows.mutate()}
-                        data-testid="button-verify-windows-handoff"
+                        disabled={verifyForHandoff.isPending || !AdminPasskeyClient.supportsPasskeys()}
+                        onClick={() => verifyForHandoff.mutate()}
+                        data-testid={handoffTarget === 'preview' ? 'button-verify-preview-handoff' : 'button-verify-windows-handoff'}
                       >
                         <Fingerprint className="h-4 w-4 mr-1" />
-                        {verifyForWindows.isPending ? 'Attendi il dispositivo…' : 'Verifica passkey per Windows'}
+                        {verifyForHandoff.isPending
+                          ? 'Attendi il dispositivo…'
+                          : handoffTarget === 'preview'
+                            ? 'Verifica passkey per la Preview'
+                            : 'Verifica passkey per Windows'}
                       </Button>
                       {!AdminPasskeyClient.supportsPasskeys() && (
                         <p className="text-sm text-amber-700">

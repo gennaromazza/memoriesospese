@@ -39,3 +39,4 @@
 - [Heartbeat JSON per operazioni lunghe](long-json-heartbeat.md) — le API IA lente devono inviare whitespace periodico o il proxy può sostituire la risposta con HTML di errore.
 - [Appuntamenti e ore legali](appointment-timezones.md) — consulenze legacy a mezzanotte: promemoria dall'orario scelto; preservare l'occorrenza nell'ora autunnale ripetuta.
 - [Audience e collegamento Image Vision](image-vision-audience.md) — per gli sposi; film associati in automatico via galleria→job→Real Wedding, con estratto e link all'articolo.
+- [Passkey in Preview](passkey-preview-handoff.md) — non indebolire MFA in produzione: autorizzare la Preview con una verifica temporanea sul dominio WebAuthn ufficiale.

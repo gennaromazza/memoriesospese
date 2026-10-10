@@ -180,11 +180,14 @@ router.get('/status', async (req, res) => {
 });
 
 /**
- * The desktop cannot perform WebAuthn from its app:// origin. Start a short,
- * session-bound handoff that the trusted production website can complete.
+ * A client on another origin can ask the trusted production website to verify
+ * its passkey, then redeem a short, session-bound handoff on the original app.
  */
 router.post('/desktop-handoff/start', async (req, res) => {
-  const body = z.object({ verifierHash: verifierHashSchema }).safeParse(req.body);
+  const body = z.object({
+    verifierHash: verifierHashSchema,
+    target: z.enum(['windows', 'preview']).optional(),
+  }).safeParse(req.body);
   if (!body.success) {
     res.status(400).json({ error: 'Richiesta Windows non valida', code: 'invalid_body' });
     return;
@@ -223,6 +226,9 @@ router.post('/desktop-handoff/start', async (req, res) => {
 
     const verificationUrl = new URL('/admin/sicurezza', 'https://imagestudiofotografico.com');
     verificationUrl.searchParams.set('desktopHandoff', handoffId);
+    if (body.data.target === 'preview') {
+      verificationUrl.searchParams.set('handoffTarget', 'preview');
+    }
     res.json({
       handoffId,
       verificationUrl: verificationUrl.toString(),
