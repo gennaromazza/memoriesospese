@@ -16,7 +16,7 @@ interface ReviewsWidgetProps {
 const FAKE_REVIEWS = [
   {
     name: "Maria & Giuseppe",
-    date: "Dicembre 2024",
+    date: "Agosto 2026",
     rating: 5,
     text: "Gennaro è stato semplicemente perfetto! Ha catturato ogni momento speciale del nostro matrimonio con una sensibilità unica. Le foto sono emozionanti, naturali e bellissime. Consigliatissimo!",
     avatar: "https://ui-avatars.com/api/?name=Maria+Giuseppe&background=8B9A8B&color=fff&size=128",
@@ -24,7 +24,7 @@ const FAKE_REVIEWS = [
   },
   {
     name: "Lucia Esposito",
-    date: "Novembre 2024",
+    date: "Marzo 2026",
     rating: 5,
     text: "Professionalità, creatività e passione! Gennaro ha reso il battesimo di nostro figlio indimenticabile. Le foto sono opere d'arte che custodiremo per sempre nel cuore.",
     avatar: "https://ui-avatars.com/api/?name=Lucia+Esposito&background=C67B5C&color=fff&size=128",
@@ -32,7 +32,7 @@ const FAKE_REVIEWS = [
   },
   {
     name: "Antonio & Francesca",
-    date: "Ottobre 2024",
+    date: "Dicembre 2025",
     rating: 5,
     text: "Abbiamo scelto Image Studio per il nostro matrimonio e non potevamo fare scelta migliore! Gennaro ha un talento straordinario nel cogliere le emozioni. Grazie di cuore!",
     avatar: "https://ui-avatars.com/api/?name=Antonio+Francesca&background=8B9A8B&color=fff&size=128",
@@ -40,7 +40,7 @@ const FAKE_REVIEWS = [
   },
   {
     name: "Carla Romano",
-    date: "Settembre 2024",
+    date: "Ottobre 2025",
     rating: 5,
     text: "Esperienza fantastica! Gennaro è stato paziente, disponibile e incredibilmente professionale. Le foto del nostro evento sono stupende, ha superato ogni nostra aspettativa!",
     avatar: "https://ui-avatars.com/api/?name=Carla+Romano&background=C67B5C&color=fff&size=128",
@@ -48,7 +48,7 @@ const FAKE_REVIEWS = [
   },
   {
     name: "Marco & Valentina",
-    date: "Agosto 2024",
+    date: "Giugno 2025",
     rating: 5,
     text: "Un fotografo eccezionale! Gennaro ha immortalato il nostro giorno speciale in modo impeccabile. Ogni scatto racconta una storia, le sue foto ci emozionano ogni volta che le guardiamo.",
     avatar: "https://ui-avatars.com/api/?name=Marco+Valentina&background=8B9A8B&color=fff&size=128",
