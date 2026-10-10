@@ -1675,8 +1675,38 @@ export function getYouTubeVideoId(value: unknown): string | null {
 
 export function buildPublicWeddingVideoAssociations(
   videos: Array<{ slug?: unknown; youtubeUrl?: unknown }>,
-  stories: Array<{ slug?: unknown; title?: unknown; excerpt?: unknown; youtubeUrls?: unknown }>,
+  stories: Array<{ slug?: unknown; title?: unknown; excerpt?: unknown; story?: unknown; youtubeUrls?: unknown }>,
 ): PublicWeddingVideoAssociation[] {
+  const getExcerpt = (excerptValue: unknown, storyValue: unknown): string => {
+    const savedExcerpt = typeof excerptValue === 'string' ? excerptValue.trim() : '';
+    if (savedExcerpt) return savedExcerpt;
+    if (typeof storyValue !== 'string') return '';
+
+    const firstParagraph = storyValue
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/p\s*>/gi, '\n\n')
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/^[ \t]*#{1,6}[ \t]+.*$/gm, '')
+      .split(/\n\s*\n/)
+      .map(paragraph => paragraph
+        .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+        .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+        .replace(/^[ \t]*(?:[-*+]|\d+\.)[ \t]+/gm, '')
+        .replace(/[>*_~`]/g, '')
+        .replace(/&nbsp;|&#160;/gi, ' ')
+        .replace(/&amp;/gi, '&')
+        .replace(/&quot;/gi, '"')
+        .replace(/&#39;|&apos;/gi, "'")
+        .replace(/\s+/g, ' ')
+        .trim())
+      .find(paragraph => paragraph.length > 0);
+
+    if (!firstParagraph) return '';
+    if (firstParagraph.length <= 360) return firstParagraph;
+    const cutoff = firstParagraph.lastIndexOf(' ', 357);
+    return `${firstParagraph.slice(0, cutoff > 240 ? cutoff : 357).trimEnd()}…`;
+  };
+
   const videoSlugsById = new Map<string, Set<string>>();
 
   for (const video of videos) {
@@ -1693,7 +1723,7 @@ export function buildPublicWeddingVideoAssociations(
   for (const story of stories) {
     const storySlug = typeof story.slug === 'string' ? story.slug.trim() : '';
     const storyTitle = typeof story.title === 'string' ? story.title.trim() : '';
-    const excerpt = typeof story.excerpt === 'string' ? story.excerpt.trim() : '';
+    const excerpt = getExcerpt(story.excerpt, story.story);
     const youtubeUrls = Array.isArray(story.youtubeUrls) ? story.youtubeUrls : [];
     if (!storySlug || !storyTitle) continue;
 
@@ -1735,6 +1765,7 @@ router.get('/public/video-links', async (_req: Request, res: Response) => {
         slug: story.slug,
         title: story.title,
         excerpt: story.excerpt,
+        story: story.story,
         youtubeUrls: gallery
           ? [gallery.youtubeUrl, ...(Array.isArray(gallery.youtubeUrls) ? gallery.youtubeUrls : [])]
           : [],

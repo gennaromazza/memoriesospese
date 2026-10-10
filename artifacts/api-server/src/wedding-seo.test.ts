@@ -83,6 +83,24 @@ describe('Image Vision Real Wedding associations', () => {
     }]);
   });
 
+  it('uses the first story paragraph as a preview when the published excerpt is blank', () => {
+    expect(buildPublicWeddingVideoAssociations(
+      [{ slug: 'anna-luca-film', youtubeUrl: 'https://www.youtube.com/watch?v=Abc_def-123' }],
+      [{
+        slug: 'anna-e-luca',
+        title: 'Anna e Luca',
+        excerpt: '  ',
+        story: '## Il giorno del matrimonio\n\n[Anna e Luca](https://example.com) hanno festeggiato ad Aversa, circondati dalla loro famiglia.\n\nIl secondo paragrafo non deve comparire nell’anteprima.',
+        youtubeUrls: ['https://youtu.be/Abc_def-123'],
+      }],
+    )).toEqual([{
+      videoSlug: 'anna-luca-film',
+      storySlug: 'anna-e-luca',
+      storyTitle: 'Anna e Luca',
+      excerpt: 'Anna e Luca hanno festeggiato ad Aversa, circondati dalla loro famiglia.',
+    }]);
+  });
+
   it('does not guess a story from similar names when the YouTube IDs do not match', () => {
     expect(buildPublicWeddingVideoAssociations(
       [{ slug: 'anna-luca-film', youtubeUrl: 'https://youtu.be/Abc_def-123' }],
