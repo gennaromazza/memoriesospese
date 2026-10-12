@@ -384,7 +384,7 @@ describe('pagina regalo /regala', () => {
     await withFlag('true', async () => {
       const { response } = await renderForCrawler('/regala');
       const html = response.body ?? '';
-      expect(html).toContain('Idee regalo di Natale: foto, stampe e tele | Image Studio');
+      expect(html).toContain('Gift card e idee regalo di Natale ad Aversa | Image Studio');
       expect(html).toContain('<link rel="canonical" href="https://imagestudiofotografico.com/regala"');
       expect(html).toContain('<h1>Idee regalo di Natale: regala un ricordo che resta</h1>');
       const blocks = [...html.matchAll(/<script type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)].map(match => JSON.parse(match[1]));
@@ -422,7 +422,7 @@ describe('vetrina shop /shop-natale', () => {
     await withFlag('true', async () => {
       const { response } = await renderForCrawler('/shop-natale');
       const html = response.body ?? '';
-      expect(html).toContain('Regali di Natale con le tue foto: stampe e prodotti | Image Studio');
+      expect(html).toContain('Regali di Natale con le tue foto, Aversa | Image Studio');
       expect(html).toContain('<link rel="canonical" href="https://imagestudiofotografico.com/shop-natale"');
       expect(html).toContain('<h1>Shopping di Natale: regali che nascono da una tua foto</h1>');
       const blocks = [...html.matchAll(/<script type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)].map(match => JSON.parse(match[1])).flat();

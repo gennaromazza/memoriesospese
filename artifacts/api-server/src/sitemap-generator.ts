@@ -164,13 +164,13 @@ export function buildStaticSitemapEntries(
   // Le pagine regalo entrano nella mappa solo quando si decide di aprirle a Google.
   const giftPages = process.env.GIFT_SHOP_INDEXABLE === 'true'
     ? [
-        { path: '/regala', changefreq: 'weekly', priority: '0.9', lastmod: '2026-10-07' },
+        { path: '/regala', changefreq: 'weekly', priority: '0.9', lastmod: '2026-10-12' },
         { path: '/regala/come-funziona', changefreq: 'monthly', priority: '0.7', lastmod: '2026-10-07' },
       ]
     : [];
   // La vetrina dello shop entra nella mappa con il suo interruttore.
   const shopPages = process.env.SHOP_INDEXABLE === 'true'
-    ? [{ path: '/shop-natale', changefreq: 'weekly', priority: '0.9', lastmod: '2026-10-08' }]
+    ? [{ path: '/shop-natale', changefreq: 'weekly', priority: '0.9', lastmod: '2026-10-12' }]
     : [];
   for (const page of [...STATIC_SITEMAP_PAGES, ...giftPages, ...shopPages]) {
     entries += `  <url>

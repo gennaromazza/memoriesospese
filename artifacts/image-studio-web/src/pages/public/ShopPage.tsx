@@ -209,8 +209,8 @@ export default function ShopPage() {
         <aside className="gcx-final">
           <p className="gcx-sub gcx-center-text"><Link href={MY_ORDERS_PATH} className="underline">Hai già ordinato? Vedi i tuoi ordini</Link></p>
           <h2 className="gcx-h2 gcx-h2-center">Vuoi regalare un servizio?</h2>
-          <p className="gcx-sub gcx-center-text">Shooting, sconti e idee da usare in studio: scegli un'idea regalo.</p>
-          <div className="gcx-cta-row"><Link href="/regala" className="gcx-btn-gold">Vedi le idee regalo</Link></div>
+          <p className="gcx-sub gcx-center-text">Shooting, stampe e sconti da usare in studio: scegli una gift card e consegnala quando vuoi.</p>
+          <div className="gcx-cta-row"><Link href="/regala" className="gcx-btn-gold">Vedi le gift card</Link></div>
         </aside>
       </>
     );
@@ -248,7 +248,7 @@ export default function ShopPage() {
                 event.preventDefault();
                 document.getElementById('prodotti')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
               }}>Scegli il prodotto</a>
-              <Link href="/regala" className="gcx-btn-line">Idee regalo</Link>
+              <Link href="/regala" className="gcx-btn-line">Gift card</Link>
             </div>
           ) : null}
           <ul className="gcx-proof">
@@ -280,7 +280,7 @@ export default function ShopPage() {
   );
 }
 
-/** Barra in alto: tornare al sito, alle idee regalo, ai propri ordini e al carrello è sempre a un tocco. */
+/** Barra in alto: tornare al sito, alle gift card, ai propri ordini e al carrello è sempre a un tocco. */
 export function ShopTopBar({ cartCount, showCart, showOrders }: { cartCount: number; showCart: boolean; showOrders: boolean }) {
   return (
     <nav className="gcx-shop-bar" aria-label="Navigazione dello shop">
@@ -290,7 +290,7 @@ export function ShopTopBar({ cartCount, showCart, showOrders }: { cartCount: num
           <span>Torna al sito</span>
         </Link>
         <div className="gcx-shop-bar-actions">
-          <Link href="/regala" className="gcx-shop-bar-link gcx-shop-bar-link-optional">Idee regalo</Link>
+          <Link href="/regala" className="gcx-shop-bar-link gcx-shop-bar-link-optional">Gift card</Link>
           {showOrders ? <Link href={MY_ORDERS_PATH} className="gcx-shop-bar-link gcx-shop-bar-link-optional">I miei ordini</Link> : null}
           {showCart ? (
             <Link
@@ -347,7 +347,7 @@ export function ProductCard({
   const savings = savingsCents(product);
   const hint = photosHint(product.photosRequired, waitDays);
   return (
-    <article className="gcx-idea">
+    <article className="gcx-idea" id={`prodotto-${product.id}`}>
       <div className={`gcx-idea-ph${cover ? '' : ' gcx-shop-noimg'}`}>
         {cover ? <img src={cover} alt={product.nome} loading="lazy" /> : <Gift aria-hidden="true" />}
         {percent > 0 ? <span className="gcx-shop-badge">-{percent}%</span> : null}

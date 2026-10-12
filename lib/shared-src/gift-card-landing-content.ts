@@ -7,9 +7,9 @@
 export const GIFT_SHOP_PATH = '/regala';
 
 export const GIFT_SHOP_SEO = {
-  title: 'Idee regalo di Natale: foto, stampe e tele | Image Studio',
+  title: 'Gift card e idee regalo di Natale ad Aversa | Image Studio',
   description:
-    "Regala un ricordo che resta: idee regalo Image Studio ad Aversa, tra foto, stampe, tele e prodotti di Natale. Scegli, scrivi due righe e consegna quando vuoi.",
+    "Regala un servizio fotografico, stampe o tele con una gift card Image Studio ad Aversa: scegli l'idea, scrivi un messaggio e consegnala quando vuoi.",
   h1: 'Idee regalo di Natale',
   script: 'regala un ricordo che resta',
   lede: "Servizi fotografici, stampe, tele e prodotti da regalare: ogni idea si scarta come un vero regalo. Scegli, scrivi due righe e consegnala il giorno che vuoi.",

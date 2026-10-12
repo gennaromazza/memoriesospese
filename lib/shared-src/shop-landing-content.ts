@@ -7,9 +7,9 @@
 export const SHOP_PATH = '/shop-natale';
 
 export const SHOP_SEO = {
-  title: 'Regali di Natale con le tue foto: stampe e prodotti | Image Studio',
+  title: 'Regali di Natale con le tue foto, Aversa | Image Studio',
   description:
-    'Shopping di Natale Image Studio ad Aversa: prodotti personalizzati con le tue foto, spediti in tutta Italia o da ritirare in studio. Ordina online, paghi con PayPal.',
+    'Shopping di Natale Image Studio ad Aversa: regali personalizzati con le tue foto. Ritiro gratuito in studio o spedizione in tutta Italia, paghi con PayPal.',
   h1: 'Shopping di Natale',
   script: 'regali che nascono da una tua foto',
   lede: 'Scegli il prodotto, carica la foto e la trasformiamo in un regalo vero. Lo ritiri in studio o lo ricevi a casa, in tutta Italia.',
@@ -43,9 +43,19 @@ export const SHOP_FAQS: readonly ShopFaq[] = [
       'Sì, il ritiro in studio è sempre disponibile e gratuito. Ti scriviamo quando il prodotto è pronto.',
   },
   {
+    question: 'Che foto posso caricare?',
+    answer:
+      'File JPG, fino a 30 MB ciascuno. Se una foto è troppo piccola per venire nitida ti avvisiamo, e se non è adatta ti chiediamo di inviarne un\'altra.',
+  },
+  {
+    question: 'Quanto costa la spedizione?',
+    answer:
+      'La spedizione in Italia è indicata prima di pagare e può dipendere dal peso dell\'ordine. Il ritiro in studio ad Aversa è gratuito.',
+  },
+  {
     question: 'Voglio regalare un servizio, non un prodotto: come faccio?',
     answer:
-      'Per servizi fotografici e sconti usa le idee regalo: chi le riceve sceglie come usarle in studio.',
+      'Per servizi fotografici, stampe e sconti da usare in studio scegli una gift card: chi la riceve decide come usarla.',
   },
 ];
 

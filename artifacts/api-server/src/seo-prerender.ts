@@ -39,6 +39,9 @@ import {
   GIFT_SHOP_SEO,
 } from '@shared/gift-card-landing-content';
 import { SHOP_FAQS, SHOP_SEO } from '@shared/shop-landing-content';
+import type { ShopCatalogDto } from '@shared/shop-types';
+import { ShopService } from './shop/service';
+import { shopProductsBody, shopProductsJsonLd } from './shop/seo';
 import {
   buildBlogContextualLinks,
   type BlogWeddingStoryCandidate,
@@ -482,7 +485,7 @@ function getStaticPageMeta(path: string): PageMeta | null {
         <p>${GIFT_SHOP_SEO.lede}</p>
         <h2>Domande frequenti</h2>
         ${GIFT_SHOP_FAQS.map(faq => `<h3>${faq.question}</h3><p>${faq.answer}</p>`).join('')}
-        <p><a href="${BASE_URL}/">Image Studio Fotografico, Aversa</a></p>
+        <p><a href="${BASE_URL}/shop-natale">Shopping di Natale: prodotti personalizzati con le tue foto</a> · <a href="${BASE_URL}/">Image Studio Fotografico, Aversa</a></p>
       `,
       jsonLd: [
         {
@@ -548,7 +551,7 @@ function getStaticPageMeta(path: string): PageMeta | null {
         <p>${SHOP_SEO.lede}</p>
         <h2>Domande frequenti</h2>
         ${SHOP_FAQS.map(faq => `<h3>${faq.question}</h3><p>${faq.answer}</p>`).join('')}
-        <p><a href="${BASE_URL}/regala">Idee regalo di Natale</a> · <a href="${BASE_URL}/">Image Studio Fotografico, Aversa</a></p>
+        <p><a href="${BASE_URL}/regala">Gift card e idee regalo di Natale</a> · <a href="${BASE_URL}/">Image Studio Fotografico, Aversa</a></p>
       `,
       jsonLd: [
         {
@@ -1462,6 +1465,37 @@ function renderSeoHtml(meta: PageMeta, indexHtml: string): string {
   return html;
 }
 
+const SHOP_SEO_CACHE_MS = 60 * 1000;
+let shopCatalogCache: { expiresAt: number; catalog: ShopCatalogDto } | null = null;
+const shopForSeo = new ShopService({ db });
+
+/**
+ * Vetrina di Natale per Google: testi fissi più, se lo shop è aperto, l'elenco dei
+ * prodotti con prezzo e i dati strutturati. Se il catalogo non si legge, la pagina
+ * esce comunque con i testi fissi.
+ */
+async function getShopPageMeta(): Promise<PageMeta | null> {
+  const base = getStaticPageMeta('/shop-natale');
+  if (!base) return null;
+  try {
+    if (!shopCatalogCache || shopCatalogCache.expiresAt <= Date.now()) {
+      shopCatalogCache = { expiresAt: Date.now() + SHOP_SEO_CACHE_MS, catalog: await shopForSeo.publicCatalog() };
+    }
+    const { catalog } = shopCatalogCache;
+    const products = shopProductsBody(catalog);
+    if (!products) return base;
+    const baseLd = Array.isArray(base.jsonLd) ? base.jsonLd : base.jsonLd ? [base.jsonLd] : [];
+    return {
+      ...base,
+      bodyContent: (base.bodyContent || '').replace('<h2>Domande frequenti</h2>', `${products}<h2>Domande frequenti</h2>`),
+      jsonLd: [...baseLd, ...shopProductsJsonLd(catalog, new Date())],
+    };
+  } catch (error) {
+    logger.warn({ err: error }, 'Catalogo shop non letto per la pagina SEO: uso i testi fissi');
+    return base;
+  }
+}
+
 export function createSeoMiddleware(options: { indexHtmlPath?: string } = {}) {
   const indexHtmlPath = options.indexHtmlPath
     || path.resolve(process.cwd(), 'artifacts/image-studio-web/dist/public/index.html');
@@ -1534,6 +1568,8 @@ export function createSeoMiddleware(options: { indexHtmlPath?: string } = {}) {
           res.status(404).type('text/plain').send('Not Found');
           return;
         }
+      } else if (path === '/shop-natale') {
+        meta = await getShopPageMeta();
       } else if (path.startsWith('/portfolio/') && path !== '/portfolio') {
         const category = path.replace('/portfolio/', '');
         meta = getPortfolioCategoryMeta(category);

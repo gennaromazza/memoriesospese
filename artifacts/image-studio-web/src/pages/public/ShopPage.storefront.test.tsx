@@ -191,3 +191,19 @@ describe('altre migliorie della vetrina', () => {
     expect(html).toContain('Un momento');
   });
 });
+
+describe('collegamento alle gift card', () => {
+  it('il pulsante che porta a /regala si chiama "Gift card", non "Idee regalo"', () => {
+    const html = renderPage(catalog());
+    expect(html).toMatch(/<a [^>]*href="\/regala"[^>]*>Gift card<\/a>/);
+    expect(html).toContain('Vedi le gift card');
+    expect(html).not.toContain('>Idee regalo<');
+    expect(html).not.toContain('Vedi le idee regalo');
+    const bar = renderToStaticMarkup(<ShopTopBar cartCount={0} showCart showOrders />);
+    expect(bar).toMatch(/href="\/regala"[^>]*>Gift card</);
+  });
+
+  it('ogni scheda ha un indirizzo proprio, quello citato nei dati per Google', () => {
+    expect(card({ product: product({ id: 'tazza' }) })).toContain('id="prodotto-tazza"');
+  });
+});
