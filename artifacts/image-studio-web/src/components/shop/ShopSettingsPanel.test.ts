@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SHOP_SETTINGS, type ShopSettings } from '@shared/shop-types';
-import { validateShopSettings } from './ShopSettingsPanel';
+import { shopShareLinks, validateShopSettings } from './ShopSettingsPanel';
 
 const valid = (patch: Partial<ShopSettings> = {}): ShopSettings => ({
   ...DEFAULT_SHOP_SETTINGS,
@@ -41,5 +41,21 @@ describe('validazione delle impostazioni shop', () => {
     expect(validateShopSettings(valid({ shipping: { ...shipping, priceCents: -1 } }))).toHaveLength(1);
     expect(validateShopSettings(valid({ shipping: { ...shipping, estimatedMinDays: 0 } }))).toHaveLength(1);
     expect(validateShopSettings(valid({ shipping: { ...shipping, estimatedMinDays: 5, estimatedMaxDays: 3 } }))).toHaveLength(1);
+  });
+});
+
+describe('link da condividere', () => {
+  const categories = [{ value: 'natale', nome: 'Natale' }, { value: 'stampe-e-album', nome: 'Stampe e album' }, { value: 'altro', nome: 'Altro' }];
+
+  it('da il link dello shop e quello di ogni categoria scelta', () => {
+    expect(shopShareLinks(categories, ['natale', 'stampe-e-album']).map(link => link.url)).toEqual([
+      'https://imagestudiofotografico.com/shop-natale',
+      'https://imagestudiofotografico.com/shop-natale/categoria/natale',
+      'https://imagestudiofotografico.com/shop-natale/categoria/stampe-e-album',
+    ]);
+  });
+
+  it('non mostra le categorie non scelte', () => {
+    expect(shopShareLinks(categories, [])).toHaveLength(1);
   });
 });

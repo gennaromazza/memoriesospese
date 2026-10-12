@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Plus, Save, Settings2, Trash2 } from 'lucide-react';
+import { Check, Copy, ExternalLink, Loader2, Plus, Save, Settings2, Trash2 } from 'lucide-react';
 import { SHOP_MAX_CATEGORIES, SHOP_MAX_SHIPPING_TIERS, formatShopPrice, type ShopSettings } from '@shared/shop-types';
 import { describeShopShippingTier, formatShopWeight, shopShippingTiers } from '@shared/shop-shipping';
 import { parseTierRows, tiersToRows, type ShippingTierRow } from '@/features/shop/shop-shipping-form';
+import { SHOP_PATH, shopCategoryPath } from '@shared/shop-landing-content';
 import { getProductCategories } from '@/lib/product-categories';
 import { shopApi } from '@/features/shop/shop-api';
 import { useToast } from '@/hooks/use-toast';
@@ -21,6 +22,59 @@ function withoutTiers(shipping: ShopSettings['shipping']): ShopSettings['shippin
 }
 
 /** Errori da correggere prima di salvare; vuoto se i dati sono validi. */
+const SHOP_PUBLIC_ORIGIN = 'https://imagestudiofotografico.com';
+
+/** Link pubblici da condividere: lo shop e una pagina per ogni categoria scelta. */
+export function shopShareLinks(categories: Array<{ value: string; nome: string }>, selectedValues: string[]) {
+  return [
+    { key: 'shop', label: 'Shop di Natale (tutte le categorie)', url: `${SHOP_PUBLIC_ORIGIN}${SHOP_PATH}` },
+    ...categories
+      .filter(category => selectedValues.includes(category.value))
+      .map(category => ({ key: category.value, label: category.nome, url: `${SHOP_PUBLIC_ORIGIN}${shopCategoryPath(category.value)}` })),
+  ];
+}
+
+function ShopShareLinks({ links }: { links: ReturnType<typeof shopShareLinks> }) {
+  const { toast } = useToast();
+  const [copied, setCopied] = useState<string | null>(null);
+  const copy = async (key: string, url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(key);
+      setTimeout(() => setCopied(current => (current === key ? null : current)), 2000);
+    } catch {
+      toast({ title: 'Copia non riuscita', description: 'Seleziona il link e copialo a mano.', variant: 'destructive' });
+    }
+  };
+  return (
+    <section className="space-y-3 rounded-xl border p-4" aria-labelledby="shop-links-t">
+      <div>
+        <h3 id="shop-links-t" className="text-base font-medium">Link da condividere</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Ogni categoria con prodotti in vendita ha una pagina sua. Il link funziona quando la vetrina è visibile.
+        </p>
+      </div>
+      <ul className="space-y-2">
+        {links.map(link => (
+          <li key={link.key} className="flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm">
+            <div className="min-w-0 flex-1">
+              <p className="font-medium">{link.label}</p>
+              <p className="break-all text-xs text-muted-foreground">{link.url}</p>
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={() => copy(link.key, link.url)}>
+              {copied === link.key ? <Check className="mr-1 h-4 w-4" aria-hidden="true" /> : <Copy className="mr-1 h-4 w-4" aria-hidden="true" />}
+              {copied === link.key ? 'Copiato' : 'Copia'}
+            </Button>
+            <Button type="button" variant="outline" size="sm" asChild>
+              <a href={link.url} target="_blank" rel="noopener noreferrer"><ExternalLink className="mr-1 h-4 w-4" aria-hidden="true" />Apri</a>
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export function validateShopSettings(draft: ShopSettings): string[] {
   const errors: string[] = [];
   if (draft.categoryValues.length > SHOP_MAX_CATEGORIES) errors.push(`Puoi scegliere al massimo ${SHOP_MAX_CATEGORIES} categorie.`);
@@ -126,6 +180,8 @@ export default function ShopSettingsPanel() {
               </div>
               <Switch id="shop-orders-open" checked={draft.ordersOpen} onCheckedChange={(ordersOpen) => setDraft({ ...draft, ordersOpen })} />
             </div>
+
+            <ShopShareLinks links={shopShareLinks(categories, draft.categoryValues)} />
 
             <fieldset className="space-y-3 rounded-xl border p-4">
               <legend className="px-1 text-base font-medium">Categorie mostrate nella vetrina</legend>

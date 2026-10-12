@@ -21,6 +21,7 @@ const PUBLIC_STATIC_PATHS = new Set([
   '/regala',
   '/regala/come-funziona',
   '/shop-natale',
+  '/negozi',
 ]);
 
 const PORTFOLIO_CATEGORIES = new Set([
@@ -83,6 +84,7 @@ export function isPrivateClientPath(pathname: string): boolean {
     || hasOneSegmentAfter('/regalo', path)
     || isGiftShopHidden(path)
     || isShopHidden(path)
+    || path === '/negozi'
     || path === '/shop-natale/condizioni'
     || path === '/shop-natale/ordine'
     || path.startsWith('/shop-natale/ordine/')

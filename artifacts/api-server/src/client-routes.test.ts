@@ -49,6 +49,12 @@ describe('percorsi delle gift card', () => {
       expect(isKnownClientPath('/shop-natale/altro')).toBe(false);
     });
 
+    it('la pagina con tutti gli shop e raggiungibile ma non indicizzata', () => {
+      process.env.SHOP_INDEXABLE = 'true';
+      expect(isKnownClientPath('/negozi')).toBe(true);
+      expect(isPrivateClientPath('/negozi')).toBe(true);
+    });
+
     it('con SHOP_INDEXABLE=true diventa una pagina pubblica indicizzabile', () => {
       process.env.SHOP_INDEXABLE = 'true';
       expect(isKnownClientPath('/shop-natale')).toBe(true);
