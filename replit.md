@@ -44,3 +44,15 @@ _Populate as you build — sharp edges, "always run X before Y" rules._
 ## Pointers
 
 - See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+
+## Flusso Git
+
+- GitHub `main` è l'unica linea di verità. Replit e il computer di Gennaro devono avere sempre lo stesso commit di `main`.
+- Prima di lavorare: eseguire `git fetch origin`; se `origin/main` è avanti, eseguire `git merge --ff-only origin/main`.
+- Dopo aver lavorato: creare un commit con messaggio chiaro; poi Gennaro spinge con `git push origin HEAD:main`, solo se è un avanzamento semplice.
+- Mai force push, mai `reset --hard`, mai rebase, mai modificare commit già pubblicati, mai usare "Sync Changes" alla cieca.
+- Se il push è rifiutato o `origin/main` ha commit nuovi che non sono tuoi: fermarsi e avvisare Gennaro, senza risolvere da soli.
+- I file non tracciati in `attached_assets/Pasted-*`, creati da Replit per i messaggi incollati, non contano come modifiche e non vanno committati.
+- Non cancellare rami o file di backup (`backup/*`, `restore/*`, `codex/*`, `snyk-*`).
+- Mai committare chiavi o credenziali.
+- Claude Code lavora su rami `claude/*`; quando Gennaro lo chiede, portarli in `main` con un'unione normale.
