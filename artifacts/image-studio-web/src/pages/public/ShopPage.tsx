@@ -71,7 +71,7 @@ export default function ShopPage({ categoryValue }: { categoryValue?: string } =
   const studioAddress = studioSettings.address?.trim();
   const studioEmail = studioSettings.email?.trim();
 
-  const catalogQuery = useQuery({ queryKey: ['shop-catalog'], queryFn: shopApi.getCatalog, staleTime: 60_000 });
+  const catalogQuery = useQuery({ queryKey: ['shop-catalog'], queryFn: shopApi.getCatalog, staleTime: 10_000 });
   const catalog = catalogQuery.data;
   const { cart, count: cartCount, add } = useShopCart();
   const [flash, setFlash] = useState<Flash | null>(null);

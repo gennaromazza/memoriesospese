@@ -141,7 +141,7 @@ export function createShopRouter(
   // Il catalogo lo legge chiunque, senza accesso: una breve cache evita che ogni richiesta
   // costi letture su Firestore. Vale solo per questa rotta: i prezzi degli ordini restano
   // sempre ricalcolati sui dati freschi.
-  const CATALOG_CACHE_MS = 30_000;
+  const CATALOG_CACHE_MS = 10_000;
   let catalogCache: { at: number; value: ReturnType<ShopRouterDependencies['service']['publicCatalog']> } | null = null;
   const publicCatalog = () => {
     const now = Date.now();
@@ -159,7 +159,7 @@ export function createShopRouter(
 
   router.get('/catalog', handle(async (_req, res) => {
     // Il catalogo cambia di rado e viene letto da chiunque: una breve cache basta.
-    res.setHeader('Cache-Control', 'public, max-age=60');
+    res.setHeader('Cache-Control', 'public, max-age=10');
     res.json(await publicCatalog());
   }));
 

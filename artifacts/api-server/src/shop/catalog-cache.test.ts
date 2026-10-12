@@ -70,11 +70,11 @@ describe('cache del catalogo pubblico', () => {
     expect(service.publicCatalog).toHaveBeenCalledTimes(1);
   });
 
-  it('dopo 30 secondi rilegge', async () => {
+  it('dopo 10 secondi rilegge', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     const { service, get } = await start(async () => emptyCatalog());
     await get();
-    vi.setSystemTime(Date.now() + 29_000);
+    vi.setSystemTime(Date.now() + 9_000);
     await get();
     expect(service.publicCatalog).toHaveBeenCalledTimes(1);
     vi.setSystemTime(Date.now() + 2_000);

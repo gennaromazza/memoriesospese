@@ -135,7 +135,7 @@ describe('catalogo e impostazioni', () => {
     const { call } = await start();
     const response = await call('/catalog');
     expect(response.status).toBe(200);
-    expect(response.headers.get('cache-control')).toBe('public, max-age=60');
+    expect(response.headers.get('cache-control')).toBe('public, max-age=10');
     const body = await json(response);
     expect(body).toMatchObject({ enabled: true, orderingOpen: true });
     // Senza ordine di visualizzazione i prodotti si ordinano per nome.
