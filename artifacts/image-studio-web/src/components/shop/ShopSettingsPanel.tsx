@@ -21,7 +21,6 @@ function withoutTiers(shipping: ShopSettings['shipping']): ShopSettings['shippin
   return flat;
 }
 
-/** Errori da correggere prima di salvare; vuoto se i dati sono validi. */
 const SHOP_PUBLIC_ORIGIN = 'https://imagestudiofotografico.com';
 
 /** Link pubblici da condividere: lo shop e una pagina per ogni categoria scelta. */
@@ -75,6 +74,7 @@ function ShopShareLinks({ links }: { links: ReturnType<typeof shopShareLinks> })
   );
 }
 
+/** Errori da correggere prima di salvare; vuoto se i dati sono validi. */
 export function validateShopSettings(draft: ShopSettings): string[] {
   const errors: string[] = [];
   if (draft.categoryValues.length > SHOP_MAX_CATEGORIES) errors.push(`Puoi scegliere al massimo ${SHOP_MAX_CATEGORIES} categorie.`);

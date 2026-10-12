@@ -201,7 +201,17 @@ function SortableProductCard({ product, categories, onEdit, onDelete }: Sortable
   );
 }
 
-export default function ProductsManager() {
+interface ProductsManagerProps {
+  /** Apre subito la finestra di creazione (uso dentro lo shop). */
+  autoCreate?: boolean;
+  /** Apre subito la modifica di questo prodotto. */
+  autoEditId?: string;
+  /** Chiamata dopo ogni salvataggio o eliminazione. */
+  onChanged?: () => void;
+}
+
+export default function ProductsManager({ autoCreate, autoEditId, onChanged }: ProductsManagerProps = {}) {
+  const autoOpened = useRef(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
@@ -330,6 +340,21 @@ export default function ProductsManager() {
   useEffect(() => {
     loadProducts();
   }, []);
+
+  // Dall'esterno si può chiedere di aprire subito la creazione o la modifica di un prodotto.
+  useEffect(() => {
+    if (autoOpened.current || isLoading || categoriesLoading) return;
+    if (autoCreate) {
+      autoOpened.current = true;
+      openCreateDialog();
+    } else if (autoEditId) {
+      const target = products.find(p => p.id === autoEditId);
+      if (target) {
+        autoOpened.current = true;
+        openEditDialog(target);
+      }
+    }
+  });
 
   async function loadProducts() {
     try {
@@ -679,6 +704,7 @@ export default function ProductsManager() {
 
       setIsDialogOpen(false);
       await loadProducts();
+      onChanged?.();
     } catch (error) {
       console.error('Errore salvataggio prodotto:', error);
       toast({
@@ -700,6 +726,7 @@ export default function ProductsManager() {
       });
       setDeleteConfirmId(null);
       await loadProducts();
+      onChanged?.();
     } catch (error) {
       console.error('Errore eliminazione prodotto:', error);
       toast({
