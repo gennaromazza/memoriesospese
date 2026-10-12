@@ -85,6 +85,9 @@ export function validateShopSettings(draft: ShopSettings): string[] {
   if (!Number.isInteger(shipping.priceCents) || shipping.priceCents < 0) errors.push('Inserisci un costo di spedizione valido.');
   if (!Number.isInteger(shipping.estimatedMinDays) || shipping.estimatedMinDays < 1) errors.push('Inserisci i giorni minimi di consegna.');
   if (!Number.isInteger(shipping.estimatedMaxDays) || shipping.estimatedMaxDays < shipping.estimatedMinDays) errors.push('I giorni massimi devono essere uguali o superiori ai minimi.');
+  if (shipping.freeShippingOverCents !== undefined && (!Number.isInteger(shipping.freeShippingOverCents) || shipping.freeShippingOverCents < 1 || shipping.freeShippingOverCents > 100_000_000)) {
+    errors.push("La cifra per la spedizione gratuita non è valida: lasciala vuota se non vuoi l'offerta.");
+  }
   if (shipping.tiers && shipping.tiers.length > 0 && shopShippingTiers(shipping).length !== shipping.tiers.length) {
     errors.push('Le fasce di peso non sono valide: pesi diversi tra loro e costi non negativi.');
   }
@@ -303,6 +306,27 @@ export default function ShopSettingsPanel() {
                   ) : null}
                 </div>
               )}
+
+              <div className="space-y-2 rounded-lg border p-4">
+                <Label htmlFor="shop-shipping-free">Spedizione gratuita sopra (€)</Label>
+                <Input
+                  id="shop-shipping-free"
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  step="0.01"
+                  placeholder="Nessuna offerta"
+                  value={draft.shipping.freeShippingOverCents ? draft.shipping.freeShippingOverCents / 100 : ''}
+                  onChange={(event) => {
+                    const { freeShippingOverCents: _free, ...rest } = draft.shipping;
+                    const cents = Math.round((Number(event.target.value) || 0) * 100);
+                    setDraft({ ...draft, shipping: cents > 0 ? { ...rest, freeShippingOverCents: cents } : rest });
+                  }}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Se i prodotti costano almeno questa cifra la spedizione è gratuita. Nello shop compare un banner che mostra quanto manca per sbloccarla. Lascia vuoto per non offrirla.
+                </p>
+              </div>
 
               <p className="text-sm text-muted-foreground">
                 I giorni qui sotto indicano il tempo dal pagamento (con tutte le foto) alla consegna a casa, preparazione e corriere compresi. Sono un'indicazione per il cliente, non una promessa.

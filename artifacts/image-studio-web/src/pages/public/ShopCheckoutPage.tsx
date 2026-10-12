@@ -5,7 +5,7 @@ import { AlertTriangle, ArrowRight, Loader2, Minus, Plus, ShoppingBag, Trash2, T
 import type { PrintShopPostalAddress } from '@shared/print-shop-types';
 import { SHOP_TERMS_PATH } from '@shared/shop-legal';
 import { SHOP_MAX_QUANTITY, formatShopPrice, type ShopOrderDto, type ShopShippingConfig } from '@shared/shop-types';
-import { formatShopWeight, isShopShippingByWeight, shopShippingPriceRange, shopShippingQuote, shopShippingUnavailableMessage } from '@shared/shop-shipping';
+import { formatShopWeight, isShopShippingByWeight, isShopShippingFree, shopFreeShippingProgress, shopShippingPriceRange, shopShippingQuote, shopShippingUnavailableMessage } from '@shared/shop-shipping';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
@@ -195,8 +195,12 @@ export default function ShopCheckoutPage() {
   // Stessa funzione del server: il costo mostrato è quello che verrà addebitato.
   const shippingQuote = shippingConfig && order ? shopShippingQuote(shippingConfig, order.lines) : null;
   const shippingBlocked = Boolean(shippingQuote && !shippingQuote.available);
-  const shippingCents = method === 'shipping' && shippingQuote?.available ? shippingQuote.cents : 0;
   const subtotalCents = order?.totals.subtotalCents ?? 0;
+  // Sopra la soglia indicata nelle impostazioni la spedizione è gratuita, come decide il server.
+  const shippingFree = isShopShippingFree(shippingConfig, subtotalCents);
+  const shippingCostCents = shippingQuote?.available ? (shippingFree ? 0 : shippingQuote.cents) : 0;
+  const shippingCents = method === 'shipping' ? shippingCostCents : 0;
+  const freeProgress = shopFreeShippingProgress(shippingConfig, subtotalCents);
   const totalCents = subtotalCents + shippingCents;
   const hasPhotoLines = order?.lines.some(line => line.photosRequired > 0) ?? false;
   const photosMissing = order?.photosMissing ?? 0;
@@ -415,9 +419,12 @@ export default function ShopCheckoutPage() {
                   <span className="text-amber-800">{shopShippingUnavailableMessage(shippingQuote)}</span>
                 ) : (
                   <>
-                    {shippingQuote?.available ? (shippingQuote.cents > 0 ? formatShopPrice(shippingQuote.cents) : 'Gratuita') : shippingPriceText(shippingConfig)}
+                    {shippingQuote?.available ? (shippingCostCents > 0 ? formatShopPrice(shippingCostCents) : 'Gratuita') : shippingPriceText(shippingConfig)}
                     {shippingQuote?.available && isShopShippingByWeight(shippingConfig) && shippingQuote.weightGrams ? ` (ordine di circa ${formatShopWeight(shippingQuote.weightGrams)})` : ''}
                     {' '}· circa {shippingConfig.estimatedMinDays}-{shippingConfig.estimatedMaxDays} giorni dal pagamento, preparazione compresa.
+                    {freeProgress && !freeProgress.unlocked ? (
+                      <><br /><span className="font-medium text-terracotta">Aggiungi {formatShopPrice(freeProgress.remainingCents)} di prodotti e la spedizione è gratuita.</span></>
+                    ) : null}
                   </>
                 )}</span>
               </label>
@@ -447,7 +454,7 @@ export default function ShopCheckoutPage() {
       <aside className="lg:sticky lg:top-28 lg:self-start">
         <div className="space-y-5 rounded-[2rem] border border-sage/20 bg-white p-5 shadow-sm sm:p-6">
           <h2 className="text-xl font-semibold">Riepilogo</h2>
-          <ShopOrderLines order={order} totalCents={totalCents} shippingCents={shippingCents} />
+          <ShopOrderLines order={order} totalCents={totalCents} shippingCents={shippingCents} shippingFree={method === 'shipping' && shippingFree && Boolean(shippingQuote?.available)} />
           {hasPhotoLines && photosMissing > 0 && (
             <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
               {photosMissing === 1 ? 'Manca ancora 1 foto' : `Mancano ancora ${photosMissing} foto`}: puoi pagare adesso e caricarle dopo.

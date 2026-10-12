@@ -72,6 +72,36 @@ export function shopShippingQuote(
   return { available: true, cents: tier.priceCents, weightGrams: weight.grams, tier };
 }
 
+/** Soglia di spedizione gratuita valida (centesimi), oppure null se non è attiva. */
+export function shopFreeShippingThreshold(config: ShopShippingConfig | null | undefined): number | null {
+  const value = config?.freeShippingOverCents;
+  if (!config?.enabled || !Number.isSafeInteger(value) || (value as number) < 1 || (value as number) > 100_000_000) return null;
+  return value as number;
+}
+
+/** La spedizione è gratuita per questo importo di prodotti? */
+export function isShopShippingFree(config: ShopShippingConfig | null | undefined, subtotalCents: number): boolean {
+  const threshold = shopFreeShippingThreshold(config);
+  return threshold !== null && subtotalCents >= threshold;
+}
+
+/** A che punto è il cliente verso la spedizione gratuita; null se l'offerta non c'è. */
+export function shopFreeShippingProgress(
+  config: ShopShippingConfig | null | undefined,
+  subtotalCents: number,
+): { thresholdCents: number; remainingCents: number; percent: number; unlocked: boolean } | null {
+  const thresholdCents = shopFreeShippingThreshold(config);
+  if (thresholdCents === null) return null;
+  const spent = Math.max(0, subtotalCents);
+  const remainingCents = Math.max(0, thresholdCents - spent);
+  return {
+    thresholdCents,
+    remainingCents,
+    percent: Math.min(100, Math.floor((spent / thresholdCents) * 100)),
+    unlocked: remainingCents === 0,
+  };
+}
+
 /** Costo più basso e più alto della spedizione, per la vetrina; null se non c'è un costo da mostrare. */
 export function shopShippingPriceRange(config: ShopShippingConfig): { minCents: number; maxCents: number } | null {
   if (!config.enabled) return null;

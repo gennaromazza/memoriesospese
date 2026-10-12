@@ -34,7 +34,11 @@ function validDay(value: unknown): string | null {
 function normalizeShopShipping(raw: unknown): ShopShippingConfig {
   const base = normalizeShippingConfig(raw, DEFAULT_SHOP_SHIPPING);
   const tiers = shopShippingTiers(raw && typeof raw === 'object' ? (raw as { tiers?: ShopShippingConfig['tiers'] }) : undefined);
-  return tiers.length > 0 ? { ...base, tiers } : base;
+  const withTiers = tiers.length > 0 ? { ...base, tiers } : base;
+  const free = raw && typeof raw === 'object' ? (raw as { freeShippingOverCents?: unknown }).freeShippingOverCents : undefined;
+  return Number.isSafeInteger(free) && Number(free) >= 1 && Number(free) <= 100_000_000
+    ? { ...withTiers, freeShippingOverCents: Number(free) }
+    : withTiers;
 }
 
 /** Peso di un esemplare in grammi dal prodotto del catalogo; null se non indicato. */

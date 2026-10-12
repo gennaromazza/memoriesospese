@@ -10,7 +10,7 @@ import {
   type ShopCatalogDto,
   type ShopProductDto,
 } from '@shared/shop-types';
-import { isShopShippingByWeight, shopShippingPriceRange } from '@shared/shop-shipping';
+import { isShopShippingByWeight, shopFreeShippingProgress, shopShippingPriceRange } from '@shared/shop-shipping';
 import { getWhatsAppLink } from '@shared/phone-utils';
 import { useStudio } from '@/context/StudioContext';
 import { useSEO } from '@/hooks/useSEO';
@@ -27,6 +27,9 @@ import {
   productsLabel,
   savingsCents,
   summarizeCart,
+  descriptionBlocks,
+  descriptionIsLong,
+  freeShippingMessage,
 } from '@/features/shop/shop-storefront';
 import { useShopCart } from '@/features/shop/useShopCart';
 import '@/components/gift-cards/gift-cards.css';
@@ -180,6 +183,7 @@ export default function ShopPage({ categoryValue }: { categoryValue?: string } =
         <section id="prodotti" className="gcx-block" aria-labelledby="gcx-shop-products-t">
           <h2 id="gcx-shop-products-t" className="gcx-h2">I nostri prodotti</h2>
           <p className="gcx-sub">{shippingLine(catalog.shipping)}</p>
+          <FreeShippingBanner shipping={catalog.shipping} spentCents={summary.subtotalCents} />
           {!categoryValue && sections.length > 1 ? <ShopCategoryNav sections={sections} label="Categorie dello shop" /> : null}
           {sections.map(section => (
             <div key={section.category.value}>
@@ -311,7 +315,7 @@ export default function ShopPage({ categoryValue }: { categoryValue?: string } =
       <div className="gcx-shop-toast-region" role="status" aria-live="polite">
         {flash ? <p key={flash.n} className={`gcx-shop-toast${flash.tone === 'warn' ? ' is-warn' : ''}`}>{flash.message}</p> : null}
       </div>
-      {showCartBar ? <ShopCartBar count={summary.count} subtotalCents={summary.subtotalCents} /> : null}
+      {showCartBar ? <ShopCartBar count={summary.count} subtotalCents={summary.subtotalCents} shipping={catalog?.shipping} /> : null}
     </main>
   );
 }
@@ -345,13 +349,16 @@ export function ShopTopBar({ cartCount, showCart, showOrders }: { cartCount: num
 }
 
 /** Riepilogo sempre visibile in basso, con la strada per concludere l'ordine. */
-export function ShopCartBar({ count, subtotalCents }: { count: number; subtotalCents: number }) {
+export function ShopCartBar({ count, subtotalCents, shipping }: { count: number; subtotalCents: number; shipping?: ShopCatalogDto['shipping'] }) {
+  const free = shopFreeShippingProgress(shipping, subtotalCents);
   return (
     <div className="gcx-shop-cartbar" role="region" aria-label="Il tuo carrello">
       <div className="gcx-shop-cartbar-in">
         <div className="gcx-shop-cartbar-info">
           <strong key={count}>{productsLabel(count)} nel carrello</strong>
-          <span>{formatShopPrice(subtotalCents)} di prodotti, spedizione esclusa</span>
+          <span>{formatShopPrice(subtotalCents)} di prodotti{free?.unlocked ? ', spedizione gratuita' : ', spedizione esclusa'}</span>
+          {free && !free.unlocked ? <span className="gcx-shop-cartbar-free">Ti mancano {formatShopPrice(free.remainingCents)} per la spedizione gratuita</span> : null}
+          {free?.unlocked ? <span className="gcx-shop-cartbar-free">Spedizione gratuita sbloccata</span> : null}
         </div>
         <Link href={ORDER_PATH} className="gcx-btn-gold">Vai all'ordine</Link>
       </div>
@@ -406,7 +413,7 @@ export function ProductCard({
       ) : null}
       <div className="gcx-idea-body">
         <h3>{product.nome}</h3>
-        {product.descrizione ? <p>{product.descrizione}</p> : null}
+        {product.descrizione ? <ExpandableDescription id={product.id} text={product.descrizione} /> : null}
         <p className="gcx-idea-incl">{photosLabel(product.photosRequired)}</p>
         {hint ? <p className="gcx-shop-hint">{hint}</p> : null}
         <div className="gcx-shop-buy">
@@ -455,5 +462,43 @@ export function ShopCategoryNav({
         ))}
       </ul>
     </nav>
+  );
+}
+
+/** Banner che invita a sbloccare la spedizione gratuita; non compare se l'offerta non c'è. */
+export function FreeShippingBanner({ shipping, spentCents }: { shipping: ShopCatalogDto['shipping']; spentCents: number }) {
+  const progress = shopFreeShippingProgress(shipping, spentCents);
+  if (!progress) return null;
+  return (
+    <div className="gcx-shop-free" role="status" data-unlocked={progress.unlocked ? 'true' : 'false'}>
+      <strong>{freeShippingMessage(progress, spentCents, formatShopPrice)}</strong>
+      {!progress.unlocked && spentCents > 0 ? <span>Spedizione gratuita per ordini da {formatShopPrice(progress.thresholdCents)}, a casa tua in tutta Italia.</span> : null}
+      {progress.unlocked ? <span>Scegli la spedizione all'ordine e non la paghi.</span> : null}
+      <div className="gcx-shop-free-bar" aria-hidden="true"><i style={{ width: `${progress.percent}%` }} /></div>
+    </div>
+  );
+}
+
+/** Descrizione del prodotto: se è lunga se ne vedono poche righe, con «Leggi tutto» per aprirla. */
+export function ExpandableDescription({ id, text }: { id: string; text: string }) {
+  const [open, setOpen] = useState(false);
+  const blocks = descriptionBlocks(text);
+  if (blocks.length === 0) return null;
+  const long = descriptionIsLong(text);
+  const bodyId = `descrizione-${id}`;
+  return (
+    <div className="gcx-shop-desc" data-clamped={long && !open ? 'true' : 'false'}>
+      <div className="gcx-shop-desc-body" id={bodyId}>
+        {blocks.map((block, index) => {
+          const content = block.parts.map((part, partIndex) => (part.bold ? <strong key={partIndex}>{part.text}</strong> : <span key={partIndex}>{part.text}</span>));
+          return block.kind === 'heading' ? <h4 key={index}>{content}</h4> : <p key={index}>{content}</p>;
+        })}
+      </div>
+      {long ? (
+        <button type="button" className="gcx-shop-desc-toggle" aria-expanded={open} aria-controls={bodyId} onClick={() => setOpen(value => !value)}>
+          {open ? 'Mostra meno' : 'Leggi tutto'}
+        </button>
+      ) : null}
+    </div>
   );
 }

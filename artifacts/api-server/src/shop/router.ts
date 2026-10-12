@@ -41,6 +41,7 @@ const shippingSchema = z.object({
   estimatedMinDays: z.number().int().min(1).max(60),
   estimatedMaxDays: z.number().int().min(1).max(90),
   tiers: z.array(shippingTierSchema).max(SHOP_MAX_SHIPPING_TIERS).optional(),
+  freeShippingOverCents: z.number().int().min(1).max(100_000_000).optional(),
 }).strict().refine(
   value => value.estimatedMaxDays >= value.estimatedMinDays,
   { message: 'Il tempo massimo non può essere inferiore al minimo', path: ['estimatedMaxDays'] },

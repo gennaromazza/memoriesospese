@@ -266,3 +266,65 @@ describe('pagine per categoria', () => {
     expect(html).toContain('Torna al sito');
   });
 });
+
+describe('descrizioni espandibili', () => {
+  const long = '# Bundle 4 Portachiavi\n\n**Quattro piccoli scrigni, per custodire i ricordi più grandi.**\n\nCi sono momenti che vorremmo portare sempre con noi. Un abbraccio, un sorriso, uno sguardo speciale.';
+
+  it('una descrizione lunga si legge a metà, con il pulsante per aprirla', () => {
+    const html = card({ product: product({ id: 'k', descrizione: long }) });
+    expect(html).toContain('data-clamped="true"');
+    expect(html).toContain('Leggi tutto');
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).toContain('aria-controls="descrizione-k"');
+    expect(html).toContain('id="descrizione-k"');
+  });
+
+  it('una descrizione breve resta intera, senza pulsante', () => {
+    const html = card({ product: product({ descrizione: 'Una tazza personalizzata' }) });
+    expect(html).toContain('Una tazza personalizzata');
+    expect(html).toContain('data-clamped="false"');
+    expect(html).not.toContain('Leggi tutto');
+  });
+
+  it('i segni di formattazione diventano testo normale, grassetto e titoletto', () => {
+    const html = card({ product: product({ descrizione: long }) });
+    expect(html).toContain('<h4><span>Bundle 4 Portachiavi</span></h4>');
+    expect(html).toContain('<strong>Quattro piccoli scrigni, per custodire i ricordi più grandi.</strong>');
+    expect(html).not.toContain('**');
+    expect(html).not.toMatch(/>\s*#/);
+  });
+
+  it('non tratta mai il testo come HTML', () => {
+    const html = card({ product: product({ descrizione: '<img src=x onerror=alert(1)> tazza' }) });
+    expect(html).not.toContain('<img src=x');
+    expect(html).toContain('&lt;img');
+  });
+});
+
+describe('spedizione gratuita', () => {
+  const shipping = { enabled: true, priceCents: 590, estimatedMinDays: 3, estimatedMaxDays: 7, freeShippingOverCents: 5000 };
+
+  it('con il carrello vuoto invita a raggiungere la cifra', () => {
+    const html = renderPage(catalog({ shipping }));
+    expect(html).toContain('Spedizione gratuita per ordini da');
+    expect(html).toContain('50,00');
+  });
+
+  it('senza offerta non compare nessun banner', () => {
+    const html = renderPage(catalog());
+    expect(html).not.toContain('gcx-shop-free');
+    expect(html).not.toContain('spedizione gratuita');
+  });
+
+  it('nel carrello dice quanto manca e poi che è sbloccata', () => {
+    const under = renderToStaticMarkup(<ShopCartBar count={1} subtotalCents={1500} shipping={shipping} />);
+    expect(under).toContain('Ti mancano');
+    expect(under).toContain('35,00');
+    const over = renderToStaticMarkup(<ShopCartBar count={2} subtotalCents={5500} shipping={shipping} />);
+    expect(over).toContain('Spedizione gratuita sbloccata');
+    expect(over).toContain('spedizione gratuita');
+    const none = renderToStaticMarkup(<ShopCartBar count={1} subtotalCents={1500} />);
+    expect(none).toContain('spedizione esclusa');
+    expect(none).not.toContain('Ti mancano');
+  });
+});

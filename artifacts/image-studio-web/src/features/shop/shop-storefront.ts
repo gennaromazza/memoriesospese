@@ -75,3 +75,59 @@ export function photosHint(count: number, waitDays: number): string | null {
 export function productsLabel(count: number): string {
   return count === 1 ? '1 prodotto' : `${count} prodotti`;
 }
+
+export interface DescriptionPart {
+  text: string;
+  bold: boolean;
+}
+
+export interface DescriptionBlock {
+  kind: 'heading' | 'paragraph';
+  parts: DescriptionPart[];
+}
+
+function boldParts(line: string): DescriptionPart[] {
+  return line
+    .split(/\*\*(.+?)\*\*/g)
+    .map((text, index) => ({ text, bold: index % 2 === 1 }))
+    .filter(part => part.text !== '');
+}
+
+/**
+ * Descrizione del prodotto in blocchi leggibili. Chi scrive la descrizione nel gestionale
+ * può usare `#` per un titoletto, `**` per il grassetto e `-` per un elenco: qui diventano
+ * testo normale, senza mai trattare il contenuto come HTML.
+ */
+export function descriptionBlocks(text: string): DescriptionBlock[] {
+  const blocks: DescriptionBlock[] = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    const heading = /^#{1,6}\s+(.*)$/.exec(line);
+    if (heading) {
+      blocks.push({ kind: 'heading', parts: boldParts(heading[1]) });
+      continue;
+    }
+    const item = /^[-*]\s+(.*)$/.exec(line);
+    blocks.push({ kind: 'paragraph', parts: boldParts(item ? `• ${item[1]}` : line) });
+  }
+  return blocks.filter(block => block.parts.length > 0);
+}
+
+/** Descrizione abbastanza lunga da nascondere in parte, con «Leggi tutto». */
+export function descriptionIsLong(text: string): boolean {
+  const blocks = descriptionBlocks(text);
+  const length = blocks.reduce((total, block) => total + block.parts.reduce((sum, part) => sum + part.text.length, 0), 0);
+  return length > 140 || blocks.length > 2;
+}
+
+/** Messaggio del banner della spedizione gratuita, in base a quanto c'è nel carrello. */
+export function freeShippingMessage(
+  progress: { thresholdCents: number; remainingCents: number; unlocked: boolean },
+  spentCents: number,
+  formatPrice: (cents: number) => string,
+): string {
+  if (progress.unlocked) return 'Hai sbloccato la spedizione gratuita!';
+  if (spentCents <= 0) return `Spedizione gratuita per ordini da ${formatPrice(progress.thresholdCents)}`;
+  return `Ti mancano ${formatPrice(progress.remainingCents)} per la spedizione gratuita`;
+}

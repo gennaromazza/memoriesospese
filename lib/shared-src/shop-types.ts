@@ -30,6 +30,8 @@ export interface ShopShippingTier {
  */
 export interface ShopShippingConfig extends PrintShopShippingConfig {
   tiers?: ShopShippingTier[];
+  /** Spedizione gratuita se i prodotti costano almeno questa cifra (centesimi); assente = mai gratuita. */
+  freeShippingOverCents?: number;
 }
 
 /**

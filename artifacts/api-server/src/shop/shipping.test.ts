@@ -3,6 +3,9 @@ import {
   describeShopShippingTier,
   formatShopWeight,
   isShopShippingByWeight,
+  isShopShippingFree,
+  shopFreeShippingProgress,
+  shopFreeShippingThreshold,
   shopOrderWeight,
   shopShippingPriceRange,
   shopShippingQuote,
@@ -220,5 +223,58 @@ describe('ordini con la spedizione per peso', () => {
     expect(draft.totals.shippingCents).toBe(0);
     await expect(orders.updateOrder(alice, draft.id, { fulfillment: { method: 'shipping', shippingAddress: address } }))
       .rejects.toMatchObject({ status: 409, code: 'shipping_weight_missing' });
+  });
+});
+
+describe('spedizione gratuita sopra una soglia', () => {
+  const catalog = new Map([
+    ['mug', { id: 'mug', nome: 'Tazza', priceCents: 1500, listPriceCents: 1500, discountPercent: 0, photosRequired: 0, weightGrams: 450, categoria: 'natale', images: [], displayOrder: 1, descrizione: '' }],
+    ['album', { id: 'album', nome: 'Album', priceCents: 4000, listPriceCents: 4000, discountPercent: 0, photosRequired: 0, weightGrams: 2200, categoria: 'natale', images: [], displayOrder: 2, descrizione: '' }],
+    ['nuovo', { id: 'nuovo', nome: 'Senza peso', priceCents: 6000, listPriceCents: 6000, discountPercent: 0, photosRequired: 0, weightGrams: null, categoria: 'natale', images: [], displayOrder: 3, descrizione: '' }],
+  ]);
+  const withFree: ShopShippingConfig = { ...byWeight, freeShippingOverCents: 5000 };
+
+  it('la soglia vale solo con la spedizione accesa e un importo valido', () => {
+    expect(shopFreeShippingThreshold(withFree)).toBe(5000);
+    expect(shopFreeShippingThreshold({ ...withFree, enabled: false })).toBeNull();
+    expect(shopFreeShippingThreshold({ ...withFree, freeShippingOverCents: 0 })).toBeNull();
+    expect(shopFreeShippingThreshold({ ...withFree, freeShippingOverCents: 12.5 })).toBeNull();
+    expect(shopFreeShippingThreshold(byWeight)).toBeNull();
+  });
+
+  it('è gratuita dalla soglia in su, non sotto', () => {
+    expect(isShopShippingFree(withFree, 4999)).toBe(false);
+    expect(isShopShippingFree(withFree, 5000)).toBe(true);
+    expect(isShopShippingFree(byWeight, 999_999)).toBe(false);
+  });
+
+  it('dice quanto manca per sbloccarla', () => {
+    expect(shopFreeShippingProgress(withFree, 1500)).toEqual({ thresholdCents: 5000, remainingCents: 3500, percent: 30, unlocked: false });
+    expect(shopFreeShippingProgress(withFree, 7000)).toMatchObject({ remainingCents: 0, percent: 100, unlocked: true });
+    expect(shopFreeShippingProgress(byWeight, 1500)).toBeNull();
+  });
+
+  it('il server azzera la spedizione sopra la soglia e la fa pagare sotto', () => {
+    const under = priceLines([{ productId: 'mug', quantity: 1 }], catalog as any);
+    const over = priceLines([{ productId: 'mug', quantity: 1 }, { productId: 'album', quantity: 1 }], catalog as any);
+    expect(computeTotals(under, 'shipping', withFree)).toEqual({ subtotalCents: 1500, shippingCents: 590, totalCents: 2090 });
+    expect(computeTotals(over, 'shipping', withFree)).toEqual({ subtotalCents: 5500, shippingCents: 0, totalCents: 5500 });
+    expect(computeTotals(over, 'studio_pickup', withFree)).toEqual({ subtotalCents: 5500, shippingCents: 0, totalCents: 5500 });
+  });
+
+  it('la spedizione gratuita non aggira il controllo del peso', () => {
+    const noWeight = priceLines([{ productId: 'nuovo', quantity: 1 }], catalog as any);
+    expect(() => computeTotals(noWeight, 'shipping', withFree)).toThrowError(expect.objectContaining({ code: 'shipping_weight_missing' }));
+  });
+
+  it("cambiare la soglia cambia l'impronta del preventivo", () => {
+    const lines = priceLines([{ productId: 'mug', quantity: 1 }, { productId: 'album', quantity: 1 }], catalog as any);
+    expect(buildQuote(lines, 'shipping', withFree).fingerprint).not.toBe(buildQuote(lines, 'shipping', byWeight).fingerprint);
+  });
+
+  it('le impostazioni salvate tengono la soglia valida e scartano quella sbagliata', () => {
+    expect(normalizeShopSettings({ shipping: { ...base, freeShippingOverCents: 5000 } }).shipping.freeShippingOverCents).toBe(5000);
+    expect(normalizeShopSettings({ shipping: { ...base, freeShippingOverCents: -5 } }).shipping.freeShippingOverCents).toBeUndefined();
+    expect(normalizeShopSettings({ shipping: base }).shipping.freeShippingOverCents).toBeUndefined();
   });
 });

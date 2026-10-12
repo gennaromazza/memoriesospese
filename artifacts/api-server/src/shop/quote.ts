@@ -9,7 +9,7 @@ import {
   type ShopProductDto,
   type ShopQuoteDto,
 } from '@shared/shop-types';
-import { shopShippingQuote, shopShippingUnavailableMessage } from '@shared/shop-shipping';
+import { isShopShippingFree, shopShippingQuote, shopShippingUnavailableMessage } from '@shared/shop-shipping';
 import type { ShopShippingConfig } from '@shared/shop-types';
 import { CommerceHttpError } from '../commerce/errors.js';
 import { hashId, stableStringify } from '../commerce/text.js';
@@ -95,7 +95,7 @@ export function priceLines(
   });
 }
 
-/** Totali dell'ordine; la spedizione si può scegliere solo se è attiva nelle impostazioni. */
+/** Totali dell'ordine; la spedizione si può scegliere solo se è attiva nelle impostazioni, ed è gratuita sopra la soglia. */
 export function computeTotals(
   lines: readonly ShopOrderLineDto[],
   method: ShopFulfillmentMethod,
@@ -109,7 +109,8 @@ export function computeTotals(
       const code = priced.reason === 'disabled' ? 'shipping_disabled' : priced.reason === 'too_heavy' ? 'shipping_too_heavy' : 'shipping_weight_missing';
       throw new CommerceHttpError(409, code, shopShippingUnavailableMessage(priced));
     }
-    shippingCents = priced.cents;
+    // Sopra la soglia indicata nelle impostazioni la spedizione è gratuita; resta valido il controllo di peso e disponibilità.
+    shippingCents = isShopShippingFree(shipping, subtotalCents) ? 0 : priced.cents;
   }
   return { subtotalCents, shippingCents, totalCents: subtotalCents + shippingCents };
 }

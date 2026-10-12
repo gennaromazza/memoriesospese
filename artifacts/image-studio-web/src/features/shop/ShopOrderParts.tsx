@@ -24,7 +24,7 @@ export function addressText(address: NonNullable<ShopOrderDto['fulfillment']['sh
 }
 
 /** Righe dell'ordine con i prezzi, la spedizione e il totale. */
-export function ShopOrderLines({ order, totalCents, shippingCents }: { order: Pick<ShopOrderDto, 'lines' | 'totals'>; totalCents?: number; shippingCents?: number }) {
+export function ShopOrderLines({ order, totalCents, shippingCents, shippingFree = false }: { order: Pick<ShopOrderDto, 'lines' | 'totals'>; totalCents?: number; shippingCents?: number; shippingFree?: boolean }) {
   const shipping = shippingCents ?? order.totals.shippingCents;
   const total = totalCents ?? order.totals.totalCents;
   return (
@@ -41,6 +41,9 @@ export function ShopOrderLines({ order, totalCents, shippingCents }: { order: Pi
         ))}
         {shipping > 0 && (
           <li className="flex justify-between gap-3 py-2.5 text-blue-gray/70"><span>Spedizione</span><span>{formatShopPrice(shipping)}</span></li>
+        )}
+        {shipping === 0 && shippingFree && (
+          <li className="flex justify-between gap-3 py-2.5 text-blue-gray/70"><span>Spedizione</span><strong className="text-terracotta">Gratuita</strong></li>
         )}
       </ul>
       <div className="mt-2 flex items-center justify-between border-t border-sage/25 pt-3 text-lg font-semibold">
