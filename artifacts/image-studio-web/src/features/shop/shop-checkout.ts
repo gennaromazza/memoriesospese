@@ -21,10 +21,14 @@ export interface CheckoutAcceptance {
 }
 
 /** Che cosa manca prima di poter pagare, in parole semplici. Vuoto se si può procedere. */
-export function checkoutProblems(input: CheckoutForm & CheckoutAcceptance & { orderingOpen: boolean; hasPhotoLines: boolean }): string[] {
+export function checkoutProblems(
+  input: CheckoutForm & CheckoutAcceptance & { orderingOpen: boolean; hasPhotoLines: boolean; sellerReady?: boolean },
+): string[] {
   const shipping = input.method === 'shipping';
   const list: string[] = [];
   if (!input.orderingOpen) list.push('gli ordini non sono aperti');
+  // Prima di comprare il cliente deve poter vedere chi vende: nome, partita IVA, sede e contatti.
+  if (input.sellerReady === false) list.push('la verifica dei dati dello studio');
   if (!input.name.trim()) list.push('il tuo nome');
   if (shipping && !postalAddressComplete(input.shippingAddress)) list.push('l\u2019indirizzo di consegna');
   if (shipping && !isValidCodiceFiscale(input.fiscalCode.trim().toUpperCase())) list.push('il codice fiscale');

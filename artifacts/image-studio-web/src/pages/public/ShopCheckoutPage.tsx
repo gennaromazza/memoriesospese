@@ -9,6 +9,8 @@ import { formatShopWeight, isShopShippingByWeight, shopShippingPriceRange, shopS
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
+import { useStudio } from '@/context/StudioContext';
+import { resolveStudioLegalDetails } from '@/features/print-shop/studio-legal-details';
 import { useSEO } from '@/hooks/useSEO';
 import { PrintShopAuthGate } from '@/features/print-shop/PrintShopAuthGate';
 import { WhatsAppHelp } from '@/features/print-shop/WhatsAppHelp';
@@ -67,6 +69,8 @@ export default function ShopCheckoutPage() {
   const [, navigate] = useLocation();
   const queryClient = useQueryClient();
   const { user, isLoading: authLoading } = useFirebaseAuth();
+  const { studioSettings, loading: studioLoading } = useStudio();
+  const sellerReady = !studioLoading && resolveStudioLegalDetails(studioSettings).complete;
   const { cart, clear: clearCart, replace: replaceCart } = useShopCart();
 
   const catalogQuery = useQuery({ queryKey: ['shop-catalog'], queryFn: shopApi.getCatalog, staleTime: 30_000 });
@@ -203,8 +207,8 @@ export default function ShopCheckoutPage() {
     [name, phone, notes, method, shippingAddress, fiscalCode, residenceSame, residenceAddress],
   );
   const baseProblems = useMemo(
-    () => checkoutProblems({ ...form, terms, privacy, personalized, orderingOpen: Boolean(catalog?.orderingOpen), hasPhotoLines }),
-    [form, terms, privacy, personalized, catalog?.orderingOpen, hasPhotoLines],
+    () => checkoutProblems({ ...form, terms, privacy, personalized, orderingOpen: Boolean(catalog?.orderingOpen), hasPhotoLines, sellerReady }),
+    [form, terms, privacy, personalized, catalog?.orderingOpen, hasPhotoLines, sellerReady],
   );
   const problems = method === 'shipping' && shippingBlocked ? [...baseProblems, 'una consegna possibile (scegli il ritiro in studio)'] : baseProblems;
   const buildPatch = useCallback((): ShopOrderUpdate => buildOrderPatch(form), [form]);

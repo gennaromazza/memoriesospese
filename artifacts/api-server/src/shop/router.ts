@@ -138,12 +138,29 @@ export function createShopRouter(
   const uploadLimiter = uidRateLimiter(1_200, 10 * 60_000);
   const paymentLimiter = uidRateLimiter(20, 10 * 60_000);
 
+  // Il catalogo lo legge chiunque, senza accesso: una breve cache evita che ogni richiesta
+  // costi letture su Firestore. Vale solo per questa rotta: i prezzi degli ordini restano
+  // sempre ricalcolati sui dati freschi.
+  const CATALOG_CACHE_MS = 30_000;
+  let catalogCache: { at: number; value: ReturnType<ShopRouterDependencies['service']['publicCatalog']> } | null = null;
+  const publicCatalog = () => {
+    const now = Date.now();
+    if (catalogCache && now - catalogCache.at < CATALOG_CACHE_MS) return catalogCache.value;
+    const value = deps.service.publicCatalog();
+    catalogCache = { at: now, value };
+    // Un errore non resta in cache: la richiesta dopo riprova.
+    value.catch(() => {
+      if (catalogCache?.value === value) catalogCache = null;
+    });
+    return value;
+  };
+
   // --- pubbliche ----------------------------------------------------------
 
   router.get('/catalog', handle(async (_req, res) => {
     // Il catalogo cambia di rado e viene letto da chiunque: una breve cache basta.
     res.setHeader('Cache-Control', 'public, max-age=60');
-    res.json(await deps.service.publicCatalog());
+    res.json(await publicCatalog());
   }));
 
   router.get('/paypal/config', (_req, res) => {
@@ -246,7 +263,9 @@ export function createShopRouter(
 
   router.put('/admin/settings', auth, admin, handle(async (req, res) => {
     const input = settingsSchema.parse(req.body);
-    res.json({ settings: await deps.service.updateSettings(input) });
+    const settings = await deps.service.updateSettings(input);
+    catalogCache = null;
+    res.json({ settings });
   }));
 
   router.get('/admin/orders', auth, admin, handle(async (req, res) => {

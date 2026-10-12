@@ -248,6 +248,28 @@ describe('avanzamento dell\'ordine', () => {
     expect(sent.map(mail => mail.log.type)).toEqual(['shop_order_cancelled']);
     expect(dto.allowedStatuses).toEqual([]);
   });
+
+  it('annullare dopo un rimborso parziale segnala ancora da rimborsare il resto', async () => {
+    const { db, service } = await setup();
+    db.seed('orders/o1', paidOrder({
+      payment: { method: 'paypal', status: 'partially_refunded', paidAt: daysAgo(2), amountCents: 1500, refundedCents: 500, paypalOrderId: 'PAYPAL-ORDER-1', paypalCaptureId: 'CAP-1' },
+    }));
+    const dto = await service.updateStatus('o1', admin, { status: 'cancelled', note: 'Cliente non raggiungibile' });
+    expect(db.value('orders/o1').shop.refundPending).toBe(true);
+    expect(dto.refundPending).toBe(true);
+  });
+
+  it('annullare un ordine già rimborsato per intero non lascia nulla da rimborsare', async () => {
+    const { db, service } = await setup();
+    // Un rimborso totale che non ha annullato l'ordine (era già spedito) e poi viene annullato a mano non esiste:
+    // lo stato "refunded" non offre passaggi. Qui il residuo è zero per costruzione.
+    db.seed('orders/o1', paidOrder({
+      fulfillment: { method: 'studio_pickup', status: 'photos_received' },
+      payment: { method: 'paypal', status: 'paid', paidAt: daysAgo(2), amountCents: 1500, refundedCents: 1500, paypalOrderId: 'PAYPAL-ORDER-1', paypalCaptureId: 'CAP-1' },
+    }));
+    await service.updateStatus('o1', admin, { status: 'cancelled', note: 'Annullato' });
+    expect(db.value('orders/o1').shop.refundPending).toBe(false);
+  });
 });
 
 describe('note, email e foto da sostituire', () => {

@@ -19,7 +19,7 @@ const form = (patch: Partial<CheckoutForm> = {}): CheckoutForm => ({
   ...patch,
 });
 const accepted: CheckoutAcceptance = { terms: true, privacy: true, personalized: true };
-const problems = (formPatch: Partial<CheckoutForm> = {}, extra: Partial<CheckoutAcceptance & { orderingOpen: boolean; hasPhotoLines: boolean }> = {}) =>
+const problems = (formPatch: Partial<CheckoutForm> = {}, extra: Partial<CheckoutAcceptance & { orderingOpen: boolean; hasPhotoLines: boolean; sellerReady: boolean }> = {}) =>
   checkoutProblems({ ...form(formPatch), ...accepted, orderingOpen: true, hasPhotoLines: true, ...extra });
 
 describe('cosa manca prima di pagare', () => {
@@ -36,6 +36,13 @@ describe('cosa manca prima di pagare', () => {
     expect(checkoutProblems({ ...form(), terms: true, privacy: true, personalized: false, orderingOpen: true, hasPhotoLines: true })).toEqual([
       'l’accettazione del prodotto personalizzato',
     ]);
+  });
+
+  it('senza i dati completi del venditore non si può pagare, come per le stampe', () => {
+    expect(problems({}, { sellerReady: false })).toEqual(['la verifica dei dati dello studio']);
+    expect(problems({}, { sellerReady: true })).toEqual([]);
+    // Chi non passa l'informazione (test o pagine vecchie) non viene bloccato.
+    expect(problems()).toEqual([]);
   });
 
   it('con gli ordini chiusi non si può pagare', () => {

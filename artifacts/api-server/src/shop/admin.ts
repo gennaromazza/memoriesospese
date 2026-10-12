@@ -308,8 +308,11 @@ export class ShopAdminService {
           fulfillment.cancellationReason = note;
           update.stato = 'annullato';
           update.retention = cancelledRetention(now, 'cancelled');
-          // Se è già pagato il rimborso si fa da PayPal: lo segnaliamo finché non arriva.
-          update.shop = { ...(update.shop as object), refundPending: order.payment?.status === 'paid' };
+          // Se resta del denaro incassato (anche dopo un rimborso parziale) il rimborso si fa da PayPal: lo segnaliamo finché non arriva.
+          update.shop = {
+            ...(update.shop as object),
+            refundPending: Number(order.payment?.amountCents || 0) - Number(order.payment?.refundedCents || 0) > 0,
+          };
           mailKind = 'cancelled';
           break;
       }
