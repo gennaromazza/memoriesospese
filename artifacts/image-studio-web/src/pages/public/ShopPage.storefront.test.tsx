@@ -50,12 +50,12 @@ const catalog = (patch: Partial<ShopCatalogDto> = {}): ShopCatalogDto => ({
   ...patch,
 });
 
-function renderPage(data: ShopCatalogDto | undefined) {
+function renderPage(data: ShopCatalogDto | undefined, categoryValue?: string) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   if (data) client.setQueryData(['shop-catalog'], data);
   return renderToStaticMarkup(
     <QueryClientProvider client={client}>
-      <ShopPage />
+      <ShopPage categoryValue={categoryValue} />
     </QueryClientProvider>,
   );
 }
@@ -205,5 +205,64 @@ describe('collegamento alle gift card', () => {
 
   it('ogni scheda ha un indirizzo proprio, quello citato nei dati per Google', () => {
     expect(card({ product: product({ id: 'tazza' }) })).toContain('id="prodotto-tazza"');
+  });
+});
+
+describe('pagine per categoria', () => {
+  const multi = catalog({
+    categories: [{ value: 'natale', nome: 'Natale 2026' }, { value: 'tazze', nome: 'Tazze e mug' }],
+    products: [
+      product({ id: 'a', nome: 'Album di Natale', categoria: 'natale' }),
+      product({ id: 'b', nome: 'Tazza rossa', categoria: 'tazze' }),
+      product({ id: 'c', nome: 'Tazza verde', categoria: 'tazze' }),
+    ],
+  });
+
+  it('la pagina principale con più categorie le elenca come collegamenti, con il numero dei prodotti', () => {
+    const html = renderPage(multi);
+    expect(html).toContain('aria-label="Categorie dello shop"');
+    expect(html).toContain('href="/shop-natale/categoria/tazze"');
+    expect(html).toContain('href="/shop-natale/categoria/natale"');
+    expect(html).toMatch(/Tazze e mug <span>\(2\)<\/span>/);
+    expect(html).toContain('Album di Natale');
+    expect(html).toContain('Tazza rossa');
+  });
+
+  it("con una sola categoria non mostra l'elenco né i titoli", () => {
+    const html = renderPage(catalog());
+    expect(html).not.toContain('Categorie dello shop');
+    expect(html).not.toContain('/shop-natale/categoria/');
+  });
+
+  it('la pagina di una categoria mostra solo i suoi prodotti, con titolo e percorso propri', () => {
+    const html = renderPage(multi, 'tazze');
+    expect(html).toContain('Tazza rossa');
+    expect(html).toContain('Tazza verde');
+    expect(html).not.toContain('Album di Natale');
+    expect(html).toMatch(/<h1>Tazze e mug<span/);
+    expect(html).toContain('aria-label="Percorso"');
+    expect(html).toMatch(/<a [^>]*href="\/shop-natale"[^>]*>Shopping di Natale<\/a>/);
+    expect(html).toContain('aria-current="page">Tazze e mug<');
+  });
+
+  it('la pagina di una categoria rimanda alle altre e non ripete le domande frequenti', () => {
+    const html = renderPage(multi, 'tazze');
+    expect(html).toContain('Altre categorie');
+    expect(html).toContain('href="/shop-natale/categoria/natale"');
+    expect(html).not.toContain('Domande frequenti');
+    expect(renderPage(multi)).toContain('Domande frequenti');
+  });
+
+  it('con una categoria che non esiste lo dice e porta allo shop', () => {
+    const html = renderPage(multi, 'inesistente');
+    expect(html).toContain('Questa categoria non è disponibile');
+    expect(html).toContain('Vai allo shop di Natale');
+    expect(html).not.toContain('Tazza rossa');
+  });
+
+  it('con la vetrina spenta una categoria mostra solo il messaggio di arrivo', () => {
+    const html = renderPage(catalog({ enabled: false, products: [], categories: [] }), 'tazze');
+    expect(html).toContain('Lo shop di Natale arriva presto');
+    expect(html).toContain('Torna al sito');
   });
 });

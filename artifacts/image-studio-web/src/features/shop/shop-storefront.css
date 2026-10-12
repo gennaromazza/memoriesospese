@@ -75,3 +75,13 @@
 @keyframes gcx-shop-flash { 0% { box-shadow: 0 0 0 4px var(--gk-f1), 0 22px 40px -24px #000; } 100% { box-shadow: 0 0 0 0 transparent, 0 22px 40px -24px #000; } }
 @keyframes gcx-shop-toast-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes gcx-shop-shimmer { to { background-position: -200% 0; } }
+
+/* Percorso e collegamenti alle categorie */
+.gcx-shop-crumbs { padding: 4px 0 0; font: 600 14px var(--gcx-body); color: var(--gk-sub); }
+.gcx-shop-crumbs a { display: inline-flex; align-items: center; min-height: 44px; color: var(--gk-ink); text-decoration: underline; text-underline-offset: 3px; }
+.gcx-shop-cats ul { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0 6px; padding: 0; list-style: none; }
+.gcx-shop-cats a { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 16px; border: 1px solid rgba(246, 213, 138, 0.55); border-radius: 999px; color: var(--gk-ink); font: 700 14px var(--gcx-body); text-decoration: none; }
+.gcx-shop-cats a:hover { background: rgba(255, 240, 207, 0.12); }
+.gcx-shop-cats a span { color: var(--gk-sub); font-weight: 600; }
+.gcx-shop-cats a:focus-visible, .gcx-shop-crumbs a:focus-visible, .gcx-h3 a:focus-visible { outline: 3px solid var(--gk-f1); outline-offset: 2px; }
+.gcx-shop-page .gcx-h3 a { color: inherit; text-decoration: underline; text-underline-offset: 4px; text-decoration-color: rgba(246, 213, 138, 0.5); }

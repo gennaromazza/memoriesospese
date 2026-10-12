@@ -1,3 +1,5 @@
+import { shopCategoryValueFromPath } from '@shared/shop-landing-content';
+
 const PUBLIC_STATIC_PATHS = new Set([
   '/',
   '/portfolio',
@@ -52,7 +54,7 @@ function isGiftShopHidden(path: string): boolean {
 
 /** La vetrina dello shop si apre a Google solo con SHOP_INDEXABLE=true: fino ad allora resta raggiungibile ma non indicizzata. */
 function isShopHidden(path: string): boolean {
-  return path === '/shop-natale' && process.env.SHOP_INDEXABLE !== 'true';
+  return (path === '/shop-natale' || shopCategoryValueFromPath(path) !== null) && process.env.SHOP_INDEXABLE !== 'true';
 }
 
 /**
@@ -103,6 +105,8 @@ export function isPrivateClientPath(pathname: string): boolean {
 export function isKnownClientPath(pathname: string): boolean {
   const path = normalizedPath(pathname);
   if (PUBLIC_STATIC_PATHS.has(path) || isPrivateClientPath(path)) return true;
+  // Una pagina per ogni categoria dello shop: l'esistenza della categoria la decide il catalogo.
+  if (shopCategoryValueFromPath(path) !== null) return true;
   if (/^\/portfolio\/[^/]+$/.test(path)) return PORTFOLIO_CATEGORIES.has(path.slice('/portfolio/'.length));
   if (hasOneSegmentAfter('/real-wedding', path) || hasOneSegmentAfter('/blog', path)) return true;
   if (hasOneSegmentAfter('/prenota', path)) return true;

@@ -64,3 +64,52 @@ export const SHOP_STEPS: readonly { title: string; text: string }[] = [
   { title: 'Carica la foto', text: 'Dal telefono o dal computer, anche dopo aver pagato.' },
   { title: 'Ritira o ricevi', text: 'In studio, oppure a casa con spedizione tracciata.' },
 ];
+
+// ---------------------------------------------------------------------------
+// Pagine per categoria: /shop-natale/categoria/<valore>
+// ---------------------------------------------------------------------------
+
+export const SHOP_CATEGORY_PATH = '/shop-natale/categoria';
+
+/** Forma ammessa per il valore tecnico di una categoria (la stessa delle impostazioni dello shop). */
+export const SHOP_CATEGORY_VALUE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/;
+
+/** Indirizzo della pagina di una categoria. */
+export function shopCategoryPath(value: string): string {
+  return `${SHOP_CATEGORY_PATH}/${encodeURIComponent(value)}`;
+}
+
+/** Valore della categoria da un indirizzo del tipo /shop-natale/categoria/<valore>, o null se non lo è. */
+export function shopCategoryValueFromPath(pathname: string): string | null {
+  const match = /^\/shop-natale\/categoria\/([^/]+)\/?$/.exec(pathname);
+  if (!match) return null;
+  try {
+    const value = decodeURIComponent(match[1]);
+    return SHOP_CATEGORY_VALUE_PATTERN.test(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Accorcia senza spezzare le parole, con i puntini se serve. */
+function fit(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max - 1);
+  const space = cut.lastIndexOf(' ');
+  return `${(space > max * 0.5 ? cut.slice(0, space) : cut).replace(/[\s,.;:–-]+$/, '')}…`;
+}
+
+/** Titolo, descrizione e testi di una categoria, nei limiti che Google mostra (titolo 60, descrizione 160). */
+export function shopCategorySeo(name: string) {
+  const nome = name.trim().replace(/\s+/g, ' ') || 'Prodotti';
+  const suffix = ' | Regali Image Studio Aversa';
+  return {
+    title: `${fit(nome, 60 - suffix.length)}${suffix}`,
+    // Si accorcia il nome, non il resto: dove si trova lo studio e come si ritira devono restare sempre.
+    description: `${fit(nome, 50)}: regali con le tue foto, shop di Natale Image Studio ad Aversa. Ritiro in studio o spedizione in Italia.`,
+    h1: nome,
+    script: SHOP_SEO.script,
+    lede: `Scegli un prodotto della categoria ${nome}, carica la foto e la trasformiamo in un regalo vero. Lo ritiri in studio o lo ricevi a casa, in tutta Italia.`,
+    breadcrumb: nome,
+  } as const;
+}

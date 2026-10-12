@@ -38,10 +38,10 @@ import {
   GIFT_SHOP_FAQS,
   GIFT_SHOP_SEO,
 } from '@shared/gift-card-landing-content';
-import { SHOP_FAQS, SHOP_SEO } from '@shared/shop-landing-content';
+import { SHOP_FAQS, SHOP_SEO, shopCategoryValueFromPath } from '@shared/shop-landing-content';
 import type { ShopCatalogDto } from '@shared/shop-types';
 import { ShopService } from './shop/service';
-import { shopProductsBody, shopProductsJsonLd } from './shop/seo';
+import { buildShopCategoryPageMeta, shopProductsBody, shopProductsJsonLd } from './shop/seo';
 import {
   buildBlogContextualLinks,
   type BlogWeddingStoryCandidate,
@@ -1474,14 +1474,23 @@ const shopForSeo = new ShopService({ db });
  * prodotti con prezzo e i dati strutturati. Se il catalogo non si legge, la pagina
  * esce comunque con i testi fissi.
  */
+async function getShopCatalogForSeo(): Promise<ShopCatalogDto> {
+  if (!shopCatalogCache || shopCatalogCache.expiresAt <= Date.now()) {
+    shopCatalogCache = { expiresAt: Date.now() + SHOP_SEO_CACHE_MS, catalog: await shopForSeo.publicCatalog() };
+  }
+  return shopCatalogCache.catalog;
+}
+
+/** Pagina di una categoria dello shop; null se la categoria non esiste (404). Un errore di lettura si propaga: non è un 404. */
+async function getShopCategoryMeta(value: string): Promise<PageMeta | null> {
+  return buildShopCategoryPageMeta(await getShopCatalogForSeo(), value, new Date());
+}
+
 async function getShopPageMeta(): Promise<PageMeta | null> {
   const base = getStaticPageMeta('/shop-natale');
   if (!base) return null;
   try {
-    if (!shopCatalogCache || shopCatalogCache.expiresAt <= Date.now()) {
-      shopCatalogCache = { expiresAt: Date.now() + SHOP_SEO_CACHE_MS, catalog: await shopForSeo.publicCatalog() };
-    }
-    const { catalog } = shopCatalogCache;
+    const catalog = await getShopCatalogForSeo();
     const products = shopProductsBody(catalog);
     if (!products) return base;
     const baseLd = Array.isArray(base.jsonLd) ? base.jsonLd : base.jsonLd ? [base.jsonLd] : [];
@@ -1563,6 +1572,13 @@ export function createSeoMiddleware(options: { indexHtmlPath?: string } = {}) {
         meta = await getBlogListMeta();
       } else if (path.startsWith('/prenota/') && path !== '/prenota') {
         meta = await getBookingCampaignMeta(path);
+        if (!meta) {
+          res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+          res.status(404).type('text/plain').send('Not Found');
+          return;
+        }
+      } else if (shopCategoryValueFromPath(path) !== null) {
+        meta = await getShopCategoryMeta(shopCategoryValueFromPath(path)!);
         if (!meta) {
           res.setHeader('X-Robots-Tag', 'noindex, nofollow');
           res.status(404).type('text/plain').send('Not Found');

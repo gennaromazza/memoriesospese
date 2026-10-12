@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { GIFT_HOW_SEO, GIFT_SHOP_FAQS, GIFT_SHOP_SEO } from '@shared/gift-card-landing-content';
-import { SHOP_FAQS, SHOP_SEO } from '@shared/shop-landing-content';
+import { SHOP_FAQS, SHOP_SEO, shopCategoryPath, shopCategorySeo, shopCategoryValueFromPath } from '@shared/shop-landing-content';
 import type { ShopCatalogDto, ShopProductDto } from '@shared/shop-types';
-import { shopAvailability, shopProductUrl, shopProductsBody, shopProductsJsonLd } from './seo';
+import { buildShopCategoryPageMeta, shopAvailability, shopCategoryCatalog, shopCategorySitemapPaths, shopProductUrl, shopProductsBody, shopProductsJsonLd } from './seo';
 
 const product = (patch: Partial<ShopProductDto> = {}): ShopProductDto => ({
   id: 'tazza',
@@ -151,5 +151,65 @@ describe('titoli e descrizioni per Google', () => {
   it('lo shop rimanda alle gift card, non più a "idee regalo" generiche', () => {
     expect(JSON.stringify(SHOP_FAQS)).toMatch(/gift card/);
     expect(JSON.stringify(SHOP_FAQS)).not.toMatch(/usa le idee regalo/);
+  });
+});
+
+describe('pagina di una categoria', () => {
+  const two = catalog({
+    categories: [{ value: 'natale', nome: 'Shopping online Natale 2026' }, { value: 'tazze', nome: 'Tazze & mug' }, { value: 'vuota', nome: 'Senza prodotti' }],
+    products: [
+      product({ id: 'tazza', categoria: 'natale' }),
+      product({ id: 'mug', nome: 'Mug nero', categoria: 'tazze' }),
+      product({ id: 'mug2', nome: 'Mug bianco', categoria: 'tazze' }),
+    ],
+  });
+
+  it('contiene solo i prodotti della categoria, con titolo e indirizzo propri', () => {
+    const meta = buildShopCategoryPageMeta(two, 'tazze', NOW)!;
+    expect(meta.title).toBe('Tazze & mug | Regali Image Studio Aversa');
+    expect(meta.canonical).toBe('https://imagestudiofotografico.com/shop-natale/categoria/tazze');
+    expect(meta.bodyContent).toContain('<h1>Tazze &amp; mug: regali che nascono da una tua foto</h1>');
+    expect(meta.bodyContent).toContain('Mug nero');
+    expect(meta.bodyContent).toContain('Mug bianco');
+    expect(meta.bodyContent).not.toContain('Tazza con la tua foto');
+    expect(meta.bodyContent).toContain('href="https://imagestudiofotografico.com/shop-natale"');
+    const types = (meta.jsonLd as any[]).map(item => item['@type']);
+    expect(types).toEqual(['BreadcrumbList', 'ItemList', 'Product', 'Product']);
+    expect((meta.jsonLd as any[])[0].itemListElement.map((item: any) => item.name)).toEqual(['Home', 'Shopping di Natale', 'Tazze & mug']);
+    expect((meta.jsonLd as any[])[1].itemListElement).toHaveLength(2);
+  });
+
+  it('non esiste per una categoria sconosciuta, senza prodotti, o con la vetrina spenta', () => {
+    expect(buildShopCategoryPageMeta(two, 'inesistente', NOW)).toBeNull();
+    expect(buildShopCategoryPageMeta(two, 'vuota', NOW)).toBeNull();
+    expect(buildShopCategoryPageMeta({ ...two, enabled: false }, 'tazze', NOW)).toBeNull();
+    expect(shopCategoryCatalog(two, 'tazze')?.products).toHaveLength(2);
+  });
+
+  it('titolo e descrizione restano nei limiti di Google anche con nomi lunghissimi', () => {
+    const long = 'Collezione speciale di regali personalizzati di Natale per tutta la famiglia con foto';
+    const seo = shopCategorySeo(long);
+    expect(seo.title.length).toBeLessThanOrEqual(60);
+    expect(seo.description.length).toBeLessThanOrEqual(160);
+    expect(seo.title).toContain('| Regali Image Studio Aversa');
+    expect(seo.title).toContain('…');
+    expect(shopCategorySeo('Album').title).toBe('Album | Regali Image Studio Aversa');
+    expect(shopCategorySeo('   ').h1).toBe('Prodotti');
+    expect(seo.description).toMatch(/Aversa/);
+  });
+
+  it('nella mappa del sito entrano solo le categorie con prodotti, e solo a vetrina accesa', () => {
+    expect(shopCategorySitemapPaths(two)).toEqual(['/shop-natale/categoria/natale', '/shop-natale/categoria/tazze']);
+    expect(shopCategorySitemapPaths({ ...two, enabled: false })).toEqual([]);
+  });
+
+  it("l'indirizzo si costruisce e si legge senza ambiguità, e rifiuta valori non validi", () => {
+    expect(shopCategoryPath('tazze')).toBe('/shop-natale/categoria/tazze');
+    expect(shopCategoryPath('a b/c')).toBe('/shop-natale/categoria/a%20b%2Fc');
+    expect(shopCategoryValueFromPath('/shop-natale/categoria/tazze')).toBe('tazze');
+    expect(shopCategoryValueFromPath('/shop-natale/categoria/tazze/')).toBe('tazze');
+    for (const bad of ['/shop-natale/categoria', '/shop-natale/categoria/', '/shop-natale/categoria/a/b', '/shop-natale/categoria/%E0%A4%A', '/shop-natale/categoria/-x', '/shop-natale/categoria/<script>', '/shop-natale/ordine', '/shop-natale']) {
+      expect(shopCategoryValueFromPath(bad), bad).toBeNull();
+    }
   });
 });

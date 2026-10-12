@@ -1,3 +1,4 @@
+import { SHOP_SEO, shopCategoryPath, shopCategorySeo } from '@shared/shop-landing-content';
 import { formatShopPrice, shopDayKey, type ShopCatalogDto, type ShopProductDto } from '@shared/shop-types';
 
 /**
@@ -48,14 +49,14 @@ export function shopProductsBody(catalog: ShopCatalogDto): string {
 }
 
 /** Dati strutturati: un elenco e un Product con Offer per ogni prodotto che ha almeno un'immagine pubblica. */
-export function shopProductsJsonLd(catalog: ShopCatalogDto, now: Date): object[] {
+export function shopProductsJsonLd(catalog: ShopCatalogDto, now: Date, listName = 'Shopping di Natale Image Studio'): object[] {
   if (!catalog.enabled || catalog.products.length === 0) return [];
   const availability = shopAvailability(catalog, now);
   const validUntil = catalog.lastOrderDate && shopDayKey(now) <= catalog.lastOrderDate ? catalog.lastOrderDate : undefined;
   const list = {
     '@context': 'https://schema.org',
     '@type': 'ItemList',
-    name: 'Shopping di Natale Image Studio',
+    name: listName,
     itemListElement: catalog.products.map((product, index) => ({
       '@type': 'ListItem',
       position: index + 1,
@@ -85,4 +86,64 @@ export function shopProductsJsonLd(catalog: ShopCatalogDto, now: Date): object[]
       },
     }));
   return [list, ...products];
+}
+
+// ---------------------------------------------------------------------------
+// Pagine per categoria
+// ---------------------------------------------------------------------------
+
+/** Il catalogo ridotto a una sola categoria, o null se lo shop è spento o la categoria non esiste o non ha prodotti. */
+export function shopCategoryCatalog(catalog: ShopCatalogDto, value: string): ShopCatalogDto | null {
+  if (!catalog.enabled) return null;
+  const category = catalog.categories.find(item => item.value === value);
+  const products = catalog.products.filter(product => product.categoria === value);
+  if (!category || products.length === 0) return null;
+  return { ...catalog, categories: [category], products };
+}
+
+export interface ShopCategoryPageSeo {
+  title: string;
+  description: string;
+  canonical: string;
+  bodyContent: string;
+  jsonLd: object[];
+}
+
+/** Titolo, testi e dati strutturati della pagina di una categoria; null se la pagina non deve esistere. */
+export function buildShopCategoryPageMeta(catalog: ShopCatalogDto, value: string, now: Date): ShopCategoryPageSeo | null {
+  const scoped = shopCategoryCatalog(catalog, value);
+  if (!scoped) return null;
+  const seo = shopCategorySeo(scoped.categories[0].nome);
+  const canonical = `${BASE_URL}${shopCategoryPath(value)}`;
+  return {
+    title: seo.title,
+    description: seo.description,
+    canonical,
+    bodyContent: `
+        <h1>${escapeHtml(seo.h1)}: ${escapeHtml(seo.script)}</h1>
+        <p>${escapeHtml(seo.lede)}</p>
+        ${shopProductsBody(scoped)}
+        <p><a href="${SHOP_URL}">${escapeHtml(SHOP_SEO.h1)}: tutte le categorie</a> · <a href="${BASE_URL}/regala">Gift card e idee regalo di Natale</a> · <a href="${BASE_URL}/">Image Studio Fotografico, Aversa</a></p>
+      `,
+    jsonLd: [
+      {
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'Home', item: `${BASE_URL}/` },
+          { '@type': 'ListItem', position: 2, name: SHOP_SEO.breadcrumb, item: SHOP_URL },
+          { '@type': 'ListItem', position: 3, name: seo.breadcrumb, item: canonical },
+        ],
+      },
+      ...shopProductsJsonLd(scoped, now, `${seo.h1} | Image Studio`),
+    ],
+  };
+}
+
+/** Indirizzi delle categorie da mettere nella mappa del sito: solo quelle con almeno un prodotto, a vetrina accesa. */
+export function shopCategorySitemapPaths(catalog: ShopCatalogDto): string[] {
+  if (!catalog.enabled) return [];
+  return catalog.categories
+    .filter(category => catalog.products.some(product => product.categoria === category.value))
+    .map(category => shopCategoryPath(category.value));
 }

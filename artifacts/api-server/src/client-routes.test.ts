@@ -65,6 +65,17 @@ describe('percorsi delle gift card', () => {
       expect(isKnownClientPath('/shop-natale/ordini')).toBe(false);
     });
 
+    it('le pagine delle categorie esistono, ma sono nascoste a Google finché lo shop non è indicizzabile', () => {
+      delete process.env.SHOP_INDEXABLE;
+      expect(isKnownClientPath('/shop-natale/categoria/tazze')).toBe(true);
+      expect(isPrivateClientPath('/shop-natale/categoria/tazze')).toBe(true);
+      process.env.SHOP_INDEXABLE = 'true';
+      expect(isKnownClientPath('/shop-natale/categoria/tazze')).toBe(true);
+      expect(isPrivateClientPath('/shop-natale/categoria/tazze')).toBe(false);
+      expect(isKnownClientPath('/shop-natale/categoria')).toBe(false);
+      expect(isKnownClientPath('/shop-natale/categoria/a/b')).toBe(false);
+    });
+
     it("non dipende dall'interruttore delle gift card", () => {
       process.env.SHOP_INDEXABLE = 'true';
       delete process.env.GIFT_SHOP_INDEXABLE;

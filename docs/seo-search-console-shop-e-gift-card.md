@@ -17,6 +17,7 @@ Dopo aver cambiato una variabile serve **Republish**. Le pagine d'ordine, «I mi
 - Contenuto leggibile anche senza JavaScript: testi, domande frequenti e, per lo shop, l'elenco dei prodotti con prezzo.
 - Dati strutturati: briciole di pane, domande frequenti, `HowTo` per «come funziona» e, per lo shop, un `ItemList` più un `Product` con `Offer` (prezzo, valuta, disponibilità, data limite) per ogni prodotto con immagine. Prezzi e disponibilità vengono dal catalogo reale, quindi coincidono con la pagina.
 - Mappa del sito: le pagine entrano in `sitemap.xml` solo quando l'interruttore è acceso; `robots.txt` indica già la mappa.
+- Pagine per categoria: ogni categoria con prodotti in vendita ha la sua pagina `/shop-natale/categoria/<valore>` (titolo, descrizione, breadcrumb e prodotti propri). Entrano nella mappa con l'interruttore `SHOP_INDEXABLE`; una categoria inesistente o vuota risponde 404 con `noindex`.
 - Ogni scheda prodotto ha un indirizzo proprio (`/shop-natale#prodotto-…`) e le immagini hanno il testo alternativo.
 
 ## Passi in Search Console

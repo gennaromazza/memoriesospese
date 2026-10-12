@@ -39,6 +39,7 @@ const GiftCardPage = lazyWithRetry(() => import("./pages/public/GiftCardPage"));
 const GiftCardShopPage = lazyWithRetry(() => import("./pages/public/GiftCardShopPage"));
 const GiftCardHowItWorksPage = lazyWithRetry(() => import("./pages/public/GiftCardHowItWorksPage"));
 const ShopPage = lazyWithRetry(() => import("./pages/public/ShopPage"));
+const ShopCategoryPage = lazyWithRetry(() => import("./pages/public/ShopCategoryPage"));
 const ShopCheckoutPage = lazyWithRetry(() => import("./pages/public/ShopCheckoutPage"));
 const ShopTermsPage = lazyWithRetry(() => import("./pages/public/ShopTermsPage"));
 const ShopConfirmationPage = lazyWithRetry(() => import("./pages/public/ShopConfirmationPage"));
@@ -196,6 +197,7 @@ function AppRoutes() {
 
         {/* Shop online: prodotti con foto, ritiro in studio o spedizione */}
         <Route path="/shop-natale" component={ShopPage} />
+        <Route path="/shop-natale/categoria/:value" component={ShopCategoryPage} />
         <Route path="/shop-natale/condizioni" component={ShopTermsPage} />
         <Route path="/shop-natale/ordine" component={ShopCheckoutPage} />
         <Route path="/shop-natale/ordine/conferma" component={ShopConfirmationPage} />

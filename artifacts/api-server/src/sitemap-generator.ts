@@ -1,4 +1,6 @@
 import { db } from './firebase-admin';
+import { ShopService } from './shop/service';
+import { shopCategorySitemapPaths } from './shop/seo';
 import { BlogPost, BlogPostStatus } from '@shared/schema';
 
 interface BlogPostMedia {
@@ -193,6 +195,28 @@ export function buildStaticSitemapEntries(
   return entries;
 }
 
+/** Pagine delle categorie dello shop: solo con lo shop indicizzabile, aperto e con almeno un prodotto per categoria. */
+export async function buildShopCategorySitemapEntries(baseUrl = 'https://imagestudiofotografico.com'): Promise<string> {
+  if (process.env.SHOP_INDEXABLE !== 'true') return '';
+  try {
+    const catalog = await new ShopService({ db }).publicCatalog();
+    const lastmod = new Date().toISOString().slice(0, 10);
+    return shopCategorySitemapPaths(catalog)
+      .map(path => `  <url>
+    <loc>${escapeXml(`${baseUrl}${path}`)}</loc>
+    <lastmod>${lastmod}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+`)
+      .join('');
+  } catch (error) {
+    // Una mappa senza le categorie è meglio di nessuna mappa.
+    console.warn('[sitemap] categorie dello shop non lette:', error);
+    return '';
+  }
+}
+
 export async function generateDynamicSitemap(): Promise<string> {
   const baseUrl = 'https://imagestudiofotografico.com';
 
@@ -231,6 +255,7 @@ export async function generateDynamicSitemap(): Promise<string> {
 `;
 
   sitemap += buildStaticSitemapEntries(baseUrl);
+  sitemap += await buildShopCategorySitemapEntries(baseUrl);
 
   sitemap += `
   <!-- Blog Posts Dinamici -->

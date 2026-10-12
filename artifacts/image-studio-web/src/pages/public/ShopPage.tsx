@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Check, Gift, ShoppingBag } from 'lucide-react';
-import { SHOP_FAQS, SHOP_PATH, SHOP_SEO, SHOP_STEPS } from '@shared/shop-landing-content';
+import { SHOP_FAQS, SHOP_PATH, SHOP_SEO, SHOP_STEPS, shopCategoryPath, shopCategorySeo } from '@shared/shop-landing-content';
 import { SHOP_TERMS_PATH } from '@shared/shop-legal';
 import {
   formatShopPrice,
@@ -62,7 +62,8 @@ interface Flash {
   n: number;
 }
 
-export default function ShopPage() {
+/** La vetrina; con `categoryValue` è la pagina di una sola categoria, con indirizzo, titolo e testi propri. */
+export default function ShopPage({ categoryValue }: { categoryValue?: string } = {}) {
   const { studioSettings } = useStudio();
   const studioName = studioSettings.name || 'Image Studio';
   const whatsapp = studioSettings.whatsapp?.trim();
@@ -82,14 +83,7 @@ export default function ShopPage() {
     return () => window.clearTimeout(timer);
   }, [flash]);
 
-  useSEO({
-    title: SHOP_SEO.title,
-    description: SHOP_SEO.description,
-    canonical: SHOP_PATH,
-    noindex: Boolean(catalog && !catalog.enabled),
-  });
-
-  const sections = useMemo(() => {
+  const allSections = useMemo(() => {
     if (!catalog) return [];
     return catalog.categories
       .map(category => ({
@@ -98,6 +92,19 @@ export default function ShopPage() {
       }))
       .filter(section => section.products.length > 0);
   }, [catalog]);
+  const sections = categoryValue ? allSections.filter(section => section.category.value === categoryValue) : allSections;
+  const currentCategory = categoryValue ? allSections.find(section => section.category.value === categoryValue)?.category : undefined;
+  const otherSections = categoryValue ? allSections.filter(section => section.category.value !== categoryValue) : [];
+  const pagePath = categoryValue ? shopCategoryPath(categoryValue) : SHOP_PATH;
+  const categorySeo = currentCategory ? shopCategorySeo(currentCategory.nome) : null;
+  const categoryMissing = Boolean(categoryValue && catalog && !currentCategory);
+
+  useSEO({
+    title: categorySeo?.title ?? SHOP_SEO.title,
+    description: categorySeo?.description ?? SHOP_SEO.description,
+    canonical: pagePath,
+    noindex: Boolean(catalog && (!catalog.enabled || categoryMissing)),
+  });
 
   const summary = useMemo(() => summarizeCart(cart, catalog?.products ?? []), [cart, catalog]);
 
@@ -108,7 +115,7 @@ export default function ShopPage() {
     <span>scrivici</span>
   );
 
-  const showCatalog = Boolean(catalog?.enabled && catalog.products.length > 0);
+  const showCatalog = Boolean(catalog?.enabled && (categoryValue ? sections.length > 0 : catalog.products.length > 0));
   const canOrder = Boolean(catalog?.orderingOpen);
   const showCartBar = showCatalog && canOrder && summary.count > 0;
 
@@ -139,6 +146,14 @@ export default function ShopPage() {
         </div>
       </div>
     );
+  } else if (categoryMissing && catalog.enabled) {
+    body = (
+      <div className="gcx-panel gcx-center">
+        <h2>Questa categoria non è disponibile</h2>
+        <p>Non c'è nessun prodotto in vendita in questa categoria. Guarda tutto lo shop di Natale.</p>
+        <div className="gcx-cta-row"><Link href={SHOP_PATH} className="gcx-btn-gold">Vai allo shop di Natale</Link></div>
+      </div>
+    );
   } else if (!showCatalog) {
     body = (
       <div className="gcx-panel gcx-center">
@@ -165,9 +180,14 @@ export default function ShopPage() {
         <section id="prodotti" className="gcx-block" aria-labelledby="gcx-shop-products-t">
           <h2 id="gcx-shop-products-t" className="gcx-h2">I nostri prodotti</h2>
           <p className="gcx-sub">{shippingLine(catalog.shipping)}</p>
+          {!categoryValue && sections.length > 1 ? <ShopCategoryNav sections={sections} label="Categorie dello shop" /> : null}
           {sections.map(section => (
             <div key={section.category.value}>
-              {sections.length > 1 ? <h3 className="gcx-h3">{section.category.nome}</h3> : null}
+              {!categoryValue && sections.length > 1 ? (
+                <h3 className="gcx-h3">
+                  <Link href={shopCategoryPath(section.category.value)}>{section.category.nome}</Link>
+                </h3>
+              ) : null}
               <div className="gcx-ideas">
                 {section.products.map(product => (
                   <ProductCard
@@ -196,15 +216,24 @@ export default function ShopPage() {
           </ol>
         </section>
 
-        <section className="gcx-block" aria-labelledby="gcx-shop-faq-t">
-          <h2 id="gcx-shop-faq-t" className="gcx-h2">Domande frequenti</h2>
-          {SHOP_FAQS.map(faq => (
-            <details key={faq.question} className="gcx-faq">
-              <summary>{faq.question}</summary>
-              <p>{faq.answer}</p>
-            </details>
-          ))}
-        </section>
+        {categoryValue && otherSections.length > 0 ? (
+          <section className="gcx-block" aria-labelledby="gcx-shop-others-t">
+            <h2 id="gcx-shop-others-t" className="gcx-h2">Altre categorie</h2>
+            <ShopCategoryNav sections={otherSections} label="Altre categorie dello shop" />
+          </section>
+        ) : null}
+
+        {!categoryValue ? (
+          <section className="gcx-block" aria-labelledby="gcx-shop-faq-t">
+            <h2 id="gcx-shop-faq-t" className="gcx-h2">Domande frequenti</h2>
+            {SHOP_FAQS.map(faq => (
+              <details key={faq.question} className="gcx-faq">
+                <summary>{faq.question}</summary>
+                <p>{faq.answer}</p>
+              </details>
+            ))}
+          </section>
+        ) : null}
 
         <aside className="gcx-final">
           <p className="gcx-sub gcx-center-text"><Link href={MY_ORDERS_PATH} className="underline">Hai già ordinato? Vedi i tuoi ordini</Link></p>
@@ -222,7 +251,7 @@ export default function ShopPage() {
       {showCatalog ? (
         <a
           className="gcx-skip"
-          href={`${SHOP_PATH}#prodotti`}
+          href={`${pagePath}#prodotti`}
           onClick={event => {
             event.preventDefault();
             document.getElementById('prodotti')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -237,14 +266,21 @@ export default function ShopPage() {
         showOrders={Boolean(catalog?.enabled)}
       />
       <div className="gcx-scene-inner gcx-shop">
+        {categoryValue ? (
+          <nav className="gcx-shop-crumbs" aria-label="Percorso">
+            <Link href={SHOP_PATH}>{SHOP_SEO.breadcrumb}</Link>
+            <span aria-hidden="true"> › </span>
+            <span aria-current="page">{currentCategory?.nome ?? categoryValue}</span>
+          </nav>
+        ) : null}
         <header className="gcx-hero">
           <div className="gcx-bulbs" aria-hidden="true" />
           <p className="gcx-eyebrow-l">Natale 2026 · {studioName}</p>
-          <h1>{SHOP_SEO.h1}<span className="gcx-hero-script">{SHOP_SEO.script}</span></h1>
-          <p className="gcx-lede">{SHOP_SEO.lede}</p>
+          <h1>{categorySeo?.h1 ?? SHOP_SEO.h1}<span className="gcx-hero-script">{SHOP_SEO.script}</span></h1>
+          <p className="gcx-lede">{categorySeo?.lede ?? SHOP_SEO.lede}</p>
           {showCatalog ? (
             <div className="gcx-cta-row">
-              <a className="gcx-btn-gold" href={`${SHOP_PATH}#prodotti`} onClick={event => {
+              <a className="gcx-btn-gold" href={`${pagePath}#prodotti`} onClick={event => {
                 event.preventDefault();
                 document.getElementById('prodotti')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
               }}>Scegli il prodotto</a>
@@ -398,3 +434,26 @@ export function ProductCard({
   );
 }
 
+
+/** Elenco di collegamenti alle pagine delle categorie, con il numero dei prodotti. */
+export function ShopCategoryNav({
+  sections,
+  label,
+}: {
+  sections: Array<{ category: { value: string; nome: string }; products: unknown[] }>;
+  label: string;
+}) {
+  return (
+    <nav className="gcx-shop-cats" aria-label={label}>
+      <ul>
+        {sections.map(section => (
+          <li key={section.category.value}>
+            <Link href={shopCategoryPath(section.category.value)}>
+              {section.category.nome} <span>({section.products.length})</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
