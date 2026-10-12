@@ -19,7 +19,7 @@ Non servono: nuovi **indici Firestore** (tutte le ricerche dello shop usano un s
 ## B. Preparare i dati (pannello admin)
 
 1. **Prodotti**: in **Impostazioni → Catalogo Prodotti**, creare i prodotti con categoria "Shopping online Natale 2026". Per ognuno: nome, descrizione, prezzo, sconto, immagini, **numero foto** (0 se non servono foto), **peso di un esemplare in grammi** (imballo compreso, serve alla spedizione) e prodotto attivo.
-2. **Shop online → Impostazioni**: scegliere la categoria, impostare l'ultimo giorno ordini, i giorni di attesa foto (da 1 a 60, consigliati 7), la spedizione, poi salvare. Per la spedizione scegliere **Costo unico** oppure **In base al peso** (fasce "fino a X kg = costo"; oltre l'ultima fascia si può solo ritirare in studio), più il tempo indicativo in giorni. Il pannello avvisa se ci sono prodotti senza peso. Lasciare **vetrina spenta** e **ordini chiusi**.
+2. **Shop online → Shop di Natale → Impostazioni**: scegliere la categoria, impostare l'ultimo giorno ordini, i giorni di attesa foto (da 1 a 60, consigliati 7), la spedizione, poi salvare. Per la spedizione scegliere **Costo unico** oppure **In base al peso** (fasce "fino a X kg = costo"; oltre l'ultima fascia si può solo ritirare in studio), più il tempo indicativo in giorni. Il pannello avvisa se ci sono prodotti senza peso. Lasciare **vetrina spenta** e **ordini chiusi**.
 3. Controllare in **Impostazioni → Impostazioni Studio** che nome, partita IVA, sede, telefono ed email siano compilati: compaiono nelle condizioni di vendita e nell'informativa.
 
 ## C. Collaudo in sandbox PayPal
@@ -33,7 +33,7 @@ Usare un account cliente di prova (email e password) e il conto buyer sandbox.
 | C3 | Aprire **Condizioni di vendita** e **Privacy** dal checkout. | Si aprono, mostrano i dati dello studio, la versione `2026-10-10.3` e i giorni di conservazione. |
 | C4 | Ritiro in sede: pagare **senza caricare tutte le foto**. | Ordine pagato in stato "mancano le foto"; email di conferma al cliente e avviso allo studio; riga in Cassa con origine "Shop online". |
 | C5 | Dall'area "I miei ordini" caricare la foto mancante. | Stato "foto ricevute"; email al cliente e allo studio. |
-| C6 | Admin → Shop online → Ordini: aprire l'ordine, vedere anteprima, scaricare l'originale e lo zip delle foto. | Foto leggibili. |
+| C6 | Admin → Shop online → Shop di Natale → Ordini: aprire l'ordine, vedere anteprima, scaricare l'originale e lo zip delle foto. | Foto leggibili. |
 | C7 | Portare l'ordine a "In lavorazione", "Pronto per il ritiro", "Consegnato". | Ogni passaggio manda l'email giusta. Non si saltano passaggi. |
 | C8 | Secondo ordine con **spedizione**: servono indirizzo, residenza e codice fiscale. | Senza dati validi non si paga. Per segnare "spedito" serve il tracking, che finisce nell'email. |
 | C8b | Con la spedizione **per peso**: un ordine leggero, uno medio, uno pesante, uno oltre l'ultima fascia e uno con un prodotto senza peso. | Il costo cambia con la fascia (il limite è compreso). Oltre l'ultima fascia, o senza peso, la spedizione non è selezionabile e resta il ritiro con un messaggio chiaro. Nella scheda ordine dello studio compare il peso. |
@@ -62,7 +62,7 @@ Usare un account cliente di prova (email e password) e il conto buyer sandbox.
 
 ## F. Come tornare indietro
 
-- Fermare le vendite: **Shop online → Impostazioni → ordini chiusi** (la vetrina resta visibile) oppure **vetrina spenta**. Effetto immediato, nessun deploy.
+- Fermare le vendite: **Shop online → Shop di Natale → Impostazioni → ordini chiusi** (la vetrina resta visibile) oppure **vetrina spenta**. Effetto immediato, nessun deploy.
 - Gli ordini già pagati restano e si lavorano normalmente.
 - Il codice nuovo è separato dalle stampe e dalle gift card: un `git revert` dei commit dello shop le lascia intatte.
 

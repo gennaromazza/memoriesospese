@@ -1,7 +1,9 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
+import { ArrowLeft, Check, Gift, ShoppingBag } from 'lucide-react';
 import { SHOP_FAQS, SHOP_PATH, SHOP_SEO, SHOP_STEPS } from '@shared/shop-landing-content';
+import { SHOP_TERMS_PATH } from '@shared/shop-legal';
 import {
   formatShopPrice,
   shopDayKey,
@@ -15,15 +17,24 @@ import { useSEO } from '@/hooks/useSEO';
 import { GiftCardAmbient } from '@/components/gift-cards/GiftCardArt';
 import { giftCardThemeVars } from '@/components/gift-cards/giftCardThemes';
 import { shopApi } from '@/features/shop/shop-api';
+import {
+  ADDED_FEEDBACK_MS,
+  addOutcome,
+  addedMessage,
+  discountPercent,
+  photosHint,
+  photosLabel,
+  productsLabel,
+  savingsCents,
+  summarizeCart,
+} from '@/features/shop/shop-storefront';
 import { useShopCart } from '@/features/shop/useShopCart';
 import '@/components/gift-cards/gift-cards.css';
+import '@/features/shop/shop-storefront.css';
 
 const THEME = 'natale' as const;
-
-function photosLabel(count: number): string {
-  if (count <= 0) return 'Nessuna foto da caricare';
-  return count === 1 ? 'Serve 1 tua foto' : `Servono ${count} tue foto`;
-}
+const ORDER_PATH = '/shop-natale/ordine';
+const MY_ORDERS_PATH = '/shop-natale/i-miei-ordini';
 
 function longDay(isoDay: string): string {
   return new Intl.DateTimeFormat('it-IT', { timeZone: 'UTC', day: 'numeric', month: 'long' }).format(new Date(`${isoDay}T12:00:00Z`));
@@ -44,6 +55,13 @@ function shippingLine(shipping: ShopCatalogDto['shipping']): string {
   return `Spedizione in tutta Italia ${price}${weightNote}, a casa in circa ${days} dal pagamento. Oppure ritiro gratuito in studio.`;
 }
 
+interface Flash {
+  id: string;
+  message: string;
+  tone: 'ok' | 'warn';
+  n: number;
+}
+
 export default function ShopPage() {
   const { studioSettings } = useStudio();
   const studioName = studioSettings.name || 'Image Studio';
@@ -55,6 +73,14 @@ export default function ShopPage() {
   const catalogQuery = useQuery({ queryKey: ['shop-catalog'], queryFn: shopApi.getCatalog, staleTime: 60_000 });
   const catalog = catalogQuery.data;
   const { cart, count: cartCount, add } = useShopCart();
+  const [flash, setFlash] = useState<Flash | null>(null);
+
+  // Il messaggio "aggiunto" sparisce da solo.
+  useEffect(() => {
+    if (!flash) return undefined;
+    const timer = window.setTimeout(() => setFlash(current => (current?.n === flash.n ? null : current)), ADDED_FEEDBACK_MS);
+    return () => window.clearTimeout(timer);
+  }, [flash]);
 
   useSEO({
     title: SHOP_SEO.title,
@@ -73,6 +99,8 @@ export default function ShopPage() {
       .filter(section => section.products.length > 0);
   }, [catalog]);
 
+  const summary = useMemo(() => summarizeCart(cart, catalog?.products ?? []), [cart, catalog]);
+
   const ordersClosedForGood = Boolean(catalog?.lastOrderDate && shopDayKey(new Date()) > catalog.lastOrderDate);
   const contact = whatsappUrl ? (
     <a className="underline" href={whatsappUrl} target="_blank" rel="noopener noreferrer">scrivici su WhatsApp</a>
@@ -81,15 +109,34 @@ export default function ShopPage() {
   );
 
   const showCatalog = Boolean(catalog?.enabled && catalog.products.length > 0);
+  const canOrder = Boolean(catalog?.orderingOpen);
+  const showCartBar = showCatalog && canOrder && summary.count > 0;
+
+  const handleAdd = (product: ShopProductDto) => {
+    const outcome = addOutcome(cart, product);
+    if (outcome === 'added') add(product);
+    setFlash({ id: product.id, message: addedMessage(product.nome, outcome), tone: outcome === 'added' ? 'ok' : 'warn', n: Date.now() });
+  };
 
   let body;
   if (catalogQuery.isLoading) {
-    body = <p className="gcx-note" role="status">Un momento…</p>;
+    body = (
+      <section className="gcx-block" aria-busy="true" aria-label="Caricamento dei prodotti">
+        <div className="gcx-ideas" aria-hidden="true">
+          {[0, 1, 2].map(index => <div key={index} className="gcx-shop-skel" />)}
+        </div>
+        <p className="gcx-note" role="status">Un momento…</p>
+      </section>
+    );
   } else if (catalogQuery.isError || !catalog) {
     body = (
       <div className="gcx-panel">
         <h2>Lo shop non è disponibile</h2>
         <p>Riprova tra poco.</p>
+        <div className="gcx-cta-row">
+          <button type="button" className="gcx-btn-gold" onClick={() => void catalogQuery.refetch()}>Riprova</button>
+          <Link href="/" className="gcx-btn-line" style={{ color: '#2b0a0e', borderColor: '#2b0a0e' }}>Torna al sito</Link>
+        </div>
       </div>
     );
   } else if (!showCatalog) {
@@ -115,13 +162,6 @@ export default function ShopPage() {
           <p className="gcx-note" role="status">Ordina entro il {longDay(catalog.lastOrderDate)} per ricevere il regalo a Natale.</p>
         ) : null}
 
-        {catalog.orderingOpen && cartCount > 0 ? (
-          <div className="gcx-panel gcx-center" role="status">
-            <h2>Hai {cartCount} {cartCount === 1 ? 'prodotto' : 'prodotti'} nel carrello</h2>
-            <div className="gcx-cta-row"><Link href="/shop-natale/ordine" className="gcx-btn-gold">Vai all'ordine</Link></div>
-          </div>
-        ) : null}
-
         <section id="prodotti" className="gcx-block" aria-labelledby="gcx-shop-products-t">
           <h2 id="gcx-shop-products-t" className="gcx-h2">I nostri prodotti</h2>
           <p className="gcx-sub">{shippingLine(catalog.shipping)}</p>
@@ -134,8 +174,11 @@ export default function ShopPage() {
                     key={product.id}
                     product={product}
                     canOrder={catalog.orderingOpen}
+                    ordersClosedForGood={ordersClosedForGood}
+                    waitDays={catalog.photoWaitDays}
                     inCart={cart.items.filter(item => item.productId === product.id).reduce((total, item) => total + item.quantity, 0)}
-                    onAdd={() => add(product)}
+                    justAdded={flash?.id === product.id && flash.tone === 'ok'}
+                    onAdd={() => handleAdd(product)}
                   />
                 ))}
               </div>
@@ -164,7 +207,7 @@ export default function ShopPage() {
         </section>
 
         <aside className="gcx-final">
-          <p className="gcx-sub gcx-center-text"><Link href="/shop-natale/i-miei-ordini" className="underline">Hai già ordinato? Vedi i tuoi ordini</Link></p>
+          <p className="gcx-sub gcx-center-text"><Link href={MY_ORDERS_PATH} className="underline">Hai già ordinato? Vedi i tuoi ordini</Link></p>
           <h2 className="gcx-h2 gcx-h2-center">Vuoi regalare un servizio?</h2>
           <p className="gcx-sub gcx-center-text">Shooting, sconti e idee da usare in studio: scegli un'idea regalo.</p>
           <div className="gcx-cta-row"><Link href="/regala" className="gcx-btn-gold">Vedi le idee regalo</Link></div>
@@ -174,8 +217,25 @@ export default function ShopPage() {
   }
 
   return (
-    <main className="gcx-scene gcx-landing" style={giftCardThemeVars(THEME)}>
+    <main className={`gcx-scene gcx-landing gcx-shop-page${showCartBar ? ' has-cartbar' : ''}`} style={giftCardThemeVars(THEME)}>
       <GiftCardAmbient theme={THEME} />
+      {showCatalog ? (
+        <a
+          className="gcx-skip"
+          href={`${SHOP_PATH}#prodotti`}
+          onClick={event => {
+            event.preventDefault();
+            document.getElementById('prodotti')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }}
+        >
+          Vai ai prodotti
+        </a>
+      ) : null}
+      <ShopTopBar
+        cartCount={catalog ? summary.count : cartCount}
+        showCart={Boolean(catalog?.enabled && catalog.orderingOpen)}
+        showOrders={Boolean(catalog?.enabled)}
+      />
       <div className="gcx-scene-inner gcx-shop">
         <header className="gcx-hero">
           <div className="gcx-bulbs" aria-hidden="true" />
@@ -204,36 +264,137 @@ export default function ShopPage() {
             {whatsappUrl && studioEmail ? ' · ' : null}
             {studioEmail ? <a href={`mailto:${studioEmail}`}>{studioEmail}</a> : null}
           </p>
+          <p className="gcx-shop-foot-links">
+            <Link href="/">Torna al sito</Link>
+            <Link href={SHOP_TERMS_PATH}>Condizioni di vendita</Link>
+            <Link href="/privacy">Privacy</Link>
+          </p>
         </footer>
       </div>
+
+      <div className="gcx-shop-toast-region" role="status" aria-live="polite">
+        {flash ? <p key={flash.n} className={`gcx-shop-toast${flash.tone === 'warn' ? ' is-warn' : ''}`}>{flash.message}</p> : null}
+      </div>
+      {showCartBar ? <ShopCartBar count={summary.count} subtotalCents={summary.subtotalCents} /> : null}
     </main>
   );
 }
 
-function ProductCard({ product, canOrder, inCart, onAdd }: { product: ShopProductDto; canOrder: boolean; inCart: number; onAdd: () => void }) {
-  const cover = product.images[0];
-  const discounted = product.priceCents < product.listPriceCents;
+/** Barra in alto: tornare al sito, alle idee regalo, ai propri ordini e al carrello è sempre a un tocco. */
+export function ShopTopBar({ cartCount, showCart, showOrders }: { cartCount: number; showCart: boolean; showOrders: boolean }) {
+  return (
+    <nav className="gcx-shop-bar" aria-label="Navigazione dello shop">
+      <div className="gcx-shop-bar-in">
+        <Link href="/" className="gcx-shop-bar-back">
+          <ArrowLeft aria-hidden="true" />
+          <span>Torna al sito</span>
+        </Link>
+        <div className="gcx-shop-bar-actions">
+          <Link href="/regala" className="gcx-shop-bar-link gcx-shop-bar-link-optional">Idee regalo</Link>
+          {showOrders ? <Link href={MY_ORDERS_PATH} className="gcx-shop-bar-link gcx-shop-bar-link-optional">I miei ordini</Link> : null}
+          {showCart ? (
+            <Link
+              href={ORDER_PATH}
+              className="gcx-shop-bar-cart"
+              aria-label={cartCount > 0 ? `Vai al carrello: ${productsLabel(cartCount)}` : 'Vai al carrello: vuoto'}
+            >
+              <ShoppingBag aria-hidden="true" />
+              {cartCount > 0 ? <span key={cartCount} className="gcx-shop-bar-badge" aria-hidden="true">{cartCount}</span> : null}
+            </Link>
+          ) : null}
+        </div>
+      </div>
+    </nav>
+  );
+}
+
+/** Riepilogo sempre visibile in basso, con la strada per concludere l'ordine. */
+export function ShopCartBar({ count, subtotalCents }: { count: number; subtotalCents: number }) {
+  return (
+    <div className="gcx-shop-cartbar" role="region" aria-label="Il tuo carrello">
+      <div className="gcx-shop-cartbar-in">
+        <div className="gcx-shop-cartbar-info">
+          <strong key={count}>{productsLabel(count)} nel carrello</strong>
+          <span>{formatShopPrice(subtotalCents)} di prodotti, spedizione esclusa</span>
+        </div>
+        <Link href={ORDER_PATH} className="gcx-btn-gold">Vai all'ordine</Link>
+      </div>
+    </div>
+  );
+}
+
+export function ProductCard({
+  product,
+  canOrder,
+  ordersClosedForGood = false,
+  waitDays,
+  inCart,
+  justAdded,
+  onAdd,
+}: {
+  product: ShopProductDto;
+  canOrder: boolean;
+  ordersClosedForGood?: boolean;
+  waitDays: number;
+  inCart: number;
+  justAdded: boolean;
+  onAdd: () => void;
+}) {
+  const [imageIndex, setImageIndex] = useState(0);
+  const images = product.images;
+  const cover = images[Math.min(imageIndex, Math.max(0, images.length - 1))];
+  const percent = discountPercent(product);
+  const savings = savingsCents(product);
+  const hint = photosHint(product.photosRequired, waitDays);
   return (
     <article className="gcx-idea">
-      <div className="gcx-idea-ph">
-        {cover ? <img src={cover} alt="" loading="lazy" /> : <span>{product.nome}</span>}
+      <div className={`gcx-idea-ph${cover ? '' : ' gcx-shop-noimg'}`}>
+        {cover ? <img src={cover} alt={product.nome} loading="lazy" /> : <Gift aria-hidden="true" />}
+        {percent > 0 ? <span className="gcx-shop-badge">-{percent}%</span> : null}
       </div>
+      {images.length > 1 ? (
+        <ul className="gcx-shop-thumbs" aria-label={`Foto di ${product.nome}`}>
+          {images.slice(0, 6).map((image, index) => (
+            <li key={image}>
+              <button
+                type="button"
+                aria-label={`Mostra la foto ${index + 1} di ${images.length}`}
+                aria-pressed={index === imageIndex}
+                onClick={() => setImageIndex(index)}
+              >
+                <img src={image} alt="" loading="lazy" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <div className="gcx-idea-body">
         <h3>{product.nome}</h3>
         {product.descrizione ? <p>{product.descrizione}</p> : null}
         <p className="gcx-idea-incl">{photosLabel(product.photosRequired)}</p>
-        <div className="gcx-idea-row">
-          <b>
-            {discounted ? <s style={{ opacity: 0.6, marginRight: 8, fontWeight: 400 }}>{formatShopPrice(product.listPriceCents)}</s> : null}
-            {formatShopPrice(product.priceCents)}
-          </b>
+        {hint ? <p className="gcx-shop-hint">{hint}</p> : null}
+        <div className="gcx-shop-buy">
+          <div className="gcx-shop-price">
+            <b>{formatShopPrice(product.priceCents)}</b>
+            {percent > 0 ? <s>{formatShopPrice(product.listPriceCents)}</s> : null}
+            {savings > 0 ? <span className="gcx-shop-save">Risparmi {formatShopPrice(savings)}</span> : null}
+          </div>
           {canOrder ? (
-            <button type="button" className="gcx-btn-gold" onClick={onAdd}>
-              {inCart > 0 ? `Aggiungi un altro (${inCart})` : 'Aggiungi al carrello'}
+            <button type="button" className="gcx-btn-gold gcx-shop-add" data-added={justAdded ? 'true' : 'false'} onClick={onAdd}>
+              {justAdded ? <Check aria-hidden="true" /> : <ShoppingBag aria-hidden="true" />}
+              <span>
+                {justAdded ? 'Aggiunto' : inCart > 0 ? `Aggiungi un altro (${inCart} nel carrello)` : 'Aggiungi al carrello'}
+                <span className="gcx-sr">: {product.nome}</span>
+              </span>
             </button>
-          ) : null}
+          ) : (
+            <button type="button" className="gcx-btn-gold gcx-shop-add" disabled>
+              {ordersClosedForGood ? 'Ordini chiusi' : 'Ordini non ancora aperti'}
+            </button>
+          )}
         </div>
       </div>
     </article>
   );
 }
+

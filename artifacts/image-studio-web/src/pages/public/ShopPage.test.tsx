@@ -86,7 +86,7 @@ describe('vetrina shop', () => {
 
   it('mostra il prezzo di listino barrato quando c\'è uno sconto', () => {
     const html = render(catalog());
-    expect(html).toContain('<s ');
+    expect(html).toContain('<s>');
     expect(html).toContain('50,00');
     expect(html).toContain('45,00');
   });

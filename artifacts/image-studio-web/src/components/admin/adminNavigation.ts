@@ -272,25 +272,32 @@ export const ADMIN_NAV_GROUPS: NavGroup[] = [
     target: { tab: "cassa" },
   },
   {
-    id: "stampe-online",
-    label: "Stampe online",
-    icon: Printer,
-    tabs: ["print-shop-orders"],
-    target: { tab: "print-shop-orders" },
-  },
-  {
-    id: "gift-card",
-    label: "Gift card",
-    icon: Gift,
-    tabs: ["gift-card"],
-    target: { tab: "gift-card" },
-  },
-  {
+    // Tutte le vendite online in un solo punto: shop di Natale, stampe e gift card.
+    // I valori delle schede restano quelli di sempre (collegamenti e notifiche li usano).
     id: "shop-online",
     label: "Shop online",
     icon: ShoppingBag,
-    tabs: ["shop-online"],
-    target: { tab: "shop-online" },
+    tabs: ["shop-online", "print-shop-orders", "gift-card"],
+    items: [
+      {
+        id: "shop-di-natale",
+        label: "Shop di Natale",
+        icon: ShoppingBag,
+        target: { tab: "shop-online" },
+      },
+      {
+        id: "stampe-online",
+        label: "Stampe online",
+        icon: Printer,
+        target: { tab: "print-shop-orders" },
+      },
+      {
+        id: "gift-card",
+        label: "Gift card",
+        icon: Gift,
+        target: { tab: "gift-card" },
+      },
+    ],
   },
   {
     id: "impostazioni",
