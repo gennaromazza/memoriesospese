@@ -2,6 +2,7 @@ import type {
   FinanceCampaign, FinanceDashboard, FinanceDocument, FinanceFilter,
   FinanceLedgerEntry, FinanceReceivable, FinanceSnapshot, FinanceTransaction,
 } from "./finance-types";
+import { isManagedOrderType } from "@shared/managed-order-types";
 
 const cents = (value: number) => Math.round(value * 100);
 const money = (value: number) => cents(value) / 100;
@@ -51,7 +52,7 @@ const sum = (entries: FinanceLedgerEntry[], direction: "income" | "expense") =>
 export function buildFinanceDashboard(snapshot: FinanceSnapshot, now = new Date()): FinanceDashboard {
   const warnings = new Set<string>();
   const jobs = new Map(snapshot.jobs.map(j => [j.id, j]));
-  const orders = new Map(snapshot.orders.filter(o => o.orderType !== "print_shop").map(o => [o.id, o]));
+  const orders = new Map(snapshot.orders.filter(o => !isManagedOrderType(o.orderType)).map(o => [o.id, o]));
   const bookings = new Map(snapshot.bookings.map(b => [b.id, b]));
   const clients = new Map(snapshot.clients.map(c => [c.id, c]));
   const plans = new Map(snapshot.schedules.map(s => [s.id, s]));
@@ -86,6 +87,7 @@ export function buildFinanceDashboard(snapshot: FinanceSnapshot, now = new Date(
       source: campaignId || bookingId ? "booking" as const :
         jobId ? "job" as const :
         item.origine === "print_shop" || item.origineTema === "print_shop" ? "print_shop" as const :
+        item.origine === "shop" || item.origineTema === "shop" ? "shop" as const :
         orderId ? "walk-in" as const : item.origine ?? "manuale" as const,
     };
   };

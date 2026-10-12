@@ -14,7 +14,8 @@ export interface Notification {
     | 'quick_quote'
     | 'info_form'
     | 'photobook'
-    | 'print_shop_order';
+    | 'print_shop_order'
+    | 'shop_order';
   title: string;
   description: string;
   createdAt: Timestamp | null;

@@ -30,6 +30,7 @@ export interface Product {
   sconto: number; // Sconto in percentuale (0-100)
   prezzoFinale: number; // Calcolato automaticamente
   numeroFoto: number; // Numero foto incluse nel prodotto (es. 20 per album)
+  pesoGrammi?: number; // Peso di un esemplare in grammi, per la spedizione dello shop (0 o assente = non indicato)
   categoria: string; // Riferimento a ProductCategory.value
   attivo: boolean;
   immagini: string[]; // Array URLs immagini prodotto da Firebase Storage
@@ -47,6 +48,7 @@ export interface InsertProduct {
   prezzo: number;
   sconto: number;
   numeroFoto: number;
+  pesoGrammi?: number; // Peso di un esemplare in grammi, per la spedizione dello shop
   categoria: string; // Riferimento a ProductCategory.value
   attivo: boolean;
   immagini?: string[]; // Opzionale in fase di creazione

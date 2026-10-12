@@ -38,6 +38,7 @@ import {
   GIFT_SHOP_FAQS,
   GIFT_SHOP_SEO,
 } from '@shared/gift-card-landing-content';
+import { SHOP_FAQS, SHOP_SEO } from '@shared/shop-landing-content';
 import {
   buildBlogContextualLinks,
   type BlogWeddingStoryCandidate,
@@ -534,6 +535,38 @@ function getStaticPageMeta(path: string): PageMeta | null {
             position: index + 1,
             name: step.title,
             text: step.text,
+          })),
+        },
+      ],
+    },
+    '/shop-natale': {
+      title: SHOP_SEO.title,
+      description: SHOP_SEO.description,
+      canonical: `${BASE_URL}/shop-natale`,
+      bodyContent: `
+        <h1>${SHOP_SEO.h1}: ${SHOP_SEO.script}</h1>
+        <p>${SHOP_SEO.lede}</p>
+        <h2>Domande frequenti</h2>
+        ${SHOP_FAQS.map(faq => `<h3>${faq.question}</h3><p>${faq.answer}</p>`).join('')}
+        <p><a href="${BASE_URL}/regala">Idee regalo di Natale</a> · <a href="${BASE_URL}/">Image Studio Fotografico, Aversa</a></p>
+      `,
+      jsonLd: [
+        {
+          '@context': 'https://schema.org',
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            { '@type': 'ListItem', position: 1, name: 'Home', item: `${BASE_URL}/` },
+            { '@type': 'ListItem', position: 2, name: SHOP_SEO.breadcrumb, item: `${BASE_URL}/shop-natale` },
+          ],
+        },
+        {
+          '@context': 'https://schema.org',
+          '@type': 'FAQPage',
+          // Le stesse domande mostrate nella pagina (testi condivisi in shop-landing-content)
+          mainEntity: SHOP_FAQS.map(faq => ({
+            '@type': 'Question',
+            name: faq.question,
+            acceptedAnswer: { '@type': 'Answer', text: faq.answer },
           })),
         },
       ],

@@ -316,6 +316,12 @@ router.patch('/:id', authenticateFirebase, async (req: any, res: Response): Prom
         code: 'print_shop_route_required',
       });
     }
+    if (currentOrder.orderType === 'shop') {
+      return res.status(409).json({
+        error: 'Gli ordini dello shop online si gestiscono esclusivamente dal pannello Shop online',
+        code: 'shop_route_required',
+      });
+    }
 
     // 2. Ricalcola totali se prodotti cambiano
     let totale = currentOrder.totale;
@@ -987,6 +993,12 @@ router.post('/:id/register-payment', authenticateFirebase, async (req: any, res:
         code: 'print_shop_route_required',
       });
     }
+    if (orderData.orderType === 'shop') {
+      return res.status(409).json({
+        error: 'I pagamenti dello shop online sono gestiti esclusivamente tramite PayPal',
+        code: 'shop_route_required',
+      });
+    }
     const totale = orderData.totale || 0;
     const accontoAttuale = orderData.acconto || 0;
     const saldoAttuale = orderData.saldo || totale - accontoAttuale;
@@ -1148,6 +1160,12 @@ router.post('/:id/delete-payment', authenticateFirebase, async (req: any, res: R
       return res.status(409).json({
         error: 'I pagamenti dello shop stampe non possono essere modificati dalle route legacy',
         code: 'print_shop_route_required',
+      });
+    }
+    if (orderData.orderType === 'shop') {
+      return res.status(409).json({
+        error: 'I pagamenti dello shop online non possono essere modificati dalle route legacy',
+        code: 'shop_route_required',
       });
     }
     const transactions: any[] = orderData.transactions || [];
@@ -1430,6 +1448,12 @@ router.delete('/:id', authenticateFirebase, async (req: any, res: Response): Pro
       return res.status(409).json({
         error: 'Gli ordini dello shop stampe vanno archiviati, non eliminati dalle route legacy',
         code: 'print_shop_route_required',
+      });
+    }
+    if (order.orderType === 'shop') {
+      return res.status(409).json({
+        error: 'Gli ordini dello shop online vanno archiviati, non eliminati dalle route legacy',
+        code: 'shop_route_required',
       });
     }
 

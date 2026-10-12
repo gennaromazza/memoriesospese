@@ -118,6 +118,7 @@ import CampaignsManager from "@/components/CampaignsManager";
 import BookingsManager from "@/components/BookingsManager";
 import CashDashboard from "@/components/CashDashboard";
 import PrintShopAdminManager from "@/components/print-shop/PrintShopAdminManager";
+import ShopAdminManager from "@/components/shop/ShopAdminManager";
 import { getAllThemes } from "@shared/special-themes";
 import JobsManager from "@/components/jobs/JobsManager";
 import ContractClausesManager from "@/components/contract-clauses/ContractClausesManager";
@@ -277,6 +278,7 @@ type AdminTab =
   | "photobook-changes"
   | "print-shop-orders"
   | "gift-card"
+  | "shop-online"
   | "follow-up";
 
 type BookingSection = "bookings-list" | "campaigns";
@@ -324,8 +326,11 @@ export default function AdminDashboard() {
     "calendario",
   );
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).has('printOrderId')) {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('printOrderId')) {
       setActiveTab('print-shop-orders');
+    } else if (params.has('shopOrderId')) {
+      setActiveTab('shop-online');
     }
   }, [setActiveTab]);
   const [activeBookingSection, setActiveBookingSection] =
@@ -466,9 +471,10 @@ export default function AdminDashboard() {
     const gallery = params.get("gallery");
     const job = params.get("job");
     const printOrderId = params.get("printOrderId");
+    const shopOrderId = params.get("shopOrderId");
 
     // Se non ci sono parametri, esci subito
-    if (!tab && !booking && !consultation && !gallery && !job && !printOrderId) return;
+    if (!tab && !booking && !consultation && !gallery && !job && !printOrderId && !shopOrderId) return;
 
     const tabMapping: Record<string, string> = {
       prenotazioni: "bookings",
@@ -493,6 +499,13 @@ export default function AdminDashboard() {
     if (printOrderId) {
       setActiveTab("print-shop-orders");
       sessionStorage.setItem("activeTab", "print-shop-orders");
+      return;
+    }
+
+    // Ordine dello shop online: stessa logica, nella scheda dedicata.
+    if (shopOrderId) {
+      setActiveTab("shop-online");
+      sessionStorage.setItem("activeTab", "shop-online");
       return;
     }
 
@@ -2216,6 +2229,10 @@ export default function AdminDashboard() {
 
             <TabsContent value="print-shop-orders">
               <PrintShopAdminManager />
+            </TabsContent>
+
+            <TabsContent value="shop-online">
+              <ShopAdminManager />
             </TabsContent>
 
             <TabsContent value="gift-card">

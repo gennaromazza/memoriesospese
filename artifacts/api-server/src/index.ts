@@ -13,6 +13,7 @@ import { runFollowUpCheck } from "./follow-up-routes";
 import { runLabShipmentExpiryCheck } from "./lab-routes";
 import { runPrintShopRetentionCleanup } from "./print-shop/router";
 import { runGiftCardDeliveries } from "./gift-cards";
+import { runShopMaintenance } from "./shop";
 import { startCancellationRetryWorker } from "./workers/cancellation-retry";
 import {
   startEventSyncWorker,
@@ -44,6 +45,7 @@ const runScheduledMaintenance = async () => {
     runLabShipmentExpiryCheck(),
     runPrintShopRetentionCleanup(),
     runGiftCardDeliveries(),
+    runShopMaintenance(),
     runFollowUpCheck(),
   ];
   const results = await Promise.allSettled(jobs);

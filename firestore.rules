@@ -54,7 +54,9 @@ service cloud.firestore {
     // Gli ordini storici non hanno `orderType`: Map.get mantiene compatibili
     // create/update/delete legacy senza dereferenziare un campo mancante.
     function isPrintShopOrder(data) {
-      return data.get('orderType', '') == 'print_shop';
+      // Stesso elenco di MANAGED_ORDER_TYPES in lib/shared-src/managed-order-types.ts:
+      // ordini che si scrivono solo dal backend dedicato (stampe e shop online).
+      return data.get('orderType', '') in ['print_shop', 'shop'];
     }
 
     function isPrintShopProduct(data) {
@@ -229,7 +231,9 @@ service cloud.firestore {
     // Settings collection (new structure)
     match /settings/{documentId} {
       allow read: if true; // Ospiti possono leggere le informazioni dello studio
-      allow write: if isAdmin(); // Solo admin può modificare le impostazioni
+      // Solo admin può modificare le impostazioni. Le impostazioni dello shop
+      // online (settings/shop) si scrivono soltanto dal server, che le valida.
+      allow write: if isAdmin() && documentId != 'shop';
     }
 
     // ====== QUESTIONARIO SYSTEM RULES ======

@@ -3,7 +3,6 @@ import { Readable } from 'node:stream';
 import sharp from 'sharp';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { hasValidLabDpa } from '../lab-dpa.js';
-import { isValidCodiceFiscale } from '../../shared/fiscal-validation.js';
 import {
   PRINT_FINISH_OPTIONS,
   PRINT_FIT_OPTIONS,
@@ -38,6 +37,24 @@ import {
   type PrintShopLegalManifest,
 } from '../../shared/print-shop-legal.js';
 import { normalizeEmail } from '../utils/normalize.js';
+import { CommerceHttpError } from '../commerce/errors.js';
+import {
+  assertDocumentId,
+  assertIdempotencyMatch,
+  normalizeBillingDetails,
+  normalizePostalAddress,
+  normalizeRequiredEmail,
+  normalizeShippingConfig as normalizeShippingConfigWith,
+} from '../commerce/checkout-input.js';
+import {
+  centsToEuros,
+  cleanText,
+  createOrderNumber,
+  hashId,
+  splitCustomerName,
+  stableStringify,
+  timestampMillis,
+} from '../commerce/text.js';
 import { PrintOrderMail, newPrintRecovery, PRINT_REMINDER_DAY, recoverablePrintOrder } from './order-mail.js';
 import {
   CUSTOMER_STATUS_NOTIFICATIONS, customerNotificationCopy, customerNotificationKey, customerNotificationEvent,
@@ -109,17 +126,9 @@ export interface PrintShopServiceDependencies {
   siteUrl?: () => string;
 }
 
-export class PrintShopHttpError extends Error {
-  constructor(
-    readonly status: number,
-    readonly code: string,
-    message: string,
-    readonly details?: unknown,
-  ) {
-    super(message);
-    this.name = 'PrintShopHttpError';
-  }
-}
+/** Stessa classe usata dai moduli di vendita online: i controlli instanceof esistenti restano validi. */
+export const PrintShopHttpError = CommerceHttpError;
+export type PrintShopHttpError = CommerceHttpError;
 
 export interface PrintShopManifestRow {
   orderNumber: string;
@@ -152,6 +161,10 @@ const DEFAULT_PRINT_SHOP_SHIPPING: PrintShopShippingConfig = {
   estimatedMinDays: 2,
   estimatedMaxDays: 5,
 };
+
+function normalizeShippingConfig(value: any): PrintShopShippingConfig {
+  return normalizeShippingConfigWith(value, DEFAULT_PRINT_SHOP_SHIPPING);
+}
 
 interface PrintShopSellerSnapshot {
   name: string;
@@ -5238,14 +5251,6 @@ function mapPayPalError(error: unknown): PrintShopHttpError {
   return new PrintShopHttpError(502, 'paypal_error', 'PayPal temporaneamente non disponibile');
 }
 
-function createOrderNumber(id: string, date: Date): string {
-  const year = new Intl.DateTimeFormat('en', {
-    year: 'numeric',
-    timeZone: 'Europe/Rome',
-  }).format(date);
-  return `ST-${year}-${id.replace(/[^a-z0-9]/gi, '').slice(0, 8).toUpperCase()}`;
-}
-
 function quoteFingerprint(quote: PrintShopQuote): string {
   return createHash('sha256')
     .update(
@@ -5371,38 +5376,10 @@ function assertDeferredCandidateData(order: any, nowMillis: number,
   }
 }
 
-function assertIdempotencyMatch(marker: any, payloadHash: string): void {
-  if (marker?.payloadHash !== payloadHash) {
-    throw new PrintShopHttpError(
-      409,
-      'idempotency_payload_mismatch',
-      'La stessa Idempotency-Key è già stata usata con dati diversi',
-    );
-  }
-  if (marker?.status !== 'completed') {
-    throw new PrintShopHttpError(
-      409,
-      'idempotency_incomplete',
-      'La richiesta precedente è ancora in elaborazione',
-    );
-  }
-}
-
 export function printShopLegalManifestHash(
   manifest: PrintShopLegalManifest | Record<string, unknown> = PRINT_SHOP_LEGAL_MANIFEST,
 ): string {
   return createHash('sha256').update(stableStringify(manifest)).digest('hex');
-}
-
-function stableStringify(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
-  if (value && typeof value === 'object') {
-    return `{${Object.entries(value as Record<string, unknown>)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, item]) => `${JSON.stringify(key)}:${stableStringify(item)}`)
-      .join(',')}}`;
-  }
-  return JSON.stringify(value);
 }
 
 function compatibilityProducts(items: readonly PrintOrderItemSnapshot[]): any[] {
@@ -5745,107 +5722,12 @@ function publicAsset(asset: any): any {
   };
 }
 
-function normalizeRequiredEmail(value: string): string {
-  const normalized = normalizeEmail(value || '');
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
-    throw new PrintShopHttpError(400, 'email_required', 'Account senza email valida');
-  }
-  return normalized;
-}
-
-function normalizeShippingConfig(value: any): PrintShopShippingConfig {
-  const enabled = value?.enabled === true;
-  const priceCents = Number.isSafeInteger(value?.priceCents) && value.priceCents >= 0
-    ? Math.min(value.priceCents, 100_000_000)
-    : DEFAULT_PRINT_SHOP_SHIPPING.priceCents;
-  const estimatedMinDays = Number.isSafeInteger(value?.estimatedMinDays) && value.estimatedMinDays >= 1
-    ? Math.min(value.estimatedMinDays, 60)
-    : DEFAULT_PRINT_SHOP_SHIPPING.estimatedMinDays;
-  const estimatedMaxDays = Number.isSafeInteger(value?.estimatedMaxDays) && value.estimatedMaxDays >= estimatedMinDays
-    ? Math.min(value.estimatedMaxDays, 90)
-    : Math.max(estimatedMinDays, DEFAULT_PRINT_SHOP_SHIPPING.estimatedMaxDays);
-  return { enabled, priceCents, estimatedMinDays, estimatedMaxDays };
-}
-
-function normalizePostalAddress(value: any): PrintShopPostalAddress {
-  const address: PrintShopPostalAddress = {
-    street: cleanText(value?.street, 160) || '',
-    houseNumber: cleanText(value?.houseNumber, 20) || '',
-    postalCode: cleanText(value?.postalCode, 5) || '',
-    city: cleanText(value?.city, 100) || '',
-    province: (cleanText(value?.province, 2) || '').toUpperCase(),
-    country: 'IT',
-  };
-  if (
-    !address.street ||
-    !address.houseNumber ||
-    !/^\d{5}$/.test(address.postalCode) ||
-    !address.city ||
-    !/^[A-Z]{2}$/.test(address.province) ||
-    value?.country !== 'IT'
-  ) {
-    throw new PrintShopHttpError(
-      400,
-      'shipping_address_required',
-      'Completa correttamente via, numero civico, CAP, città e provincia dell’indirizzo',
-    );
-  }
-  return address;
-}
-
-function normalizeBillingDetails(value: any): PrintShopBillingDetails {
-  const fiscalCode = (cleanText(value?.fiscalCode, 16) || '').replace(/\s+/g, '').toUpperCase();
-  if (!isValidCodiceFiscale(fiscalCode)) {
-    throw new PrintShopHttpError(
-      400,
-      'fiscal_code_required',
-      'Inserisci un codice fiscale italiano valido',
-    );
-  }
-  return {
-    fiscalCode,
-    residenceAddress: normalizePostalAddress(value?.residenceAddress),
-  };
-}
-
 function normalizeCatalogSku(value: string): string {
   const normalized = (cleanText(value, 80) || '').trim().toUpperCase();
   if (!/^[A-Z0-9][A-Z0-9._-]{1,79}$/.test(normalized)) {
     throw new PrintShopHttpError(400, 'invalid_sku', 'SKU non valido');
   }
   return normalized;
-}
-
-function splitCustomerName(value: string): { first: string; last: string } {
-  const parts = value.trim().split(/\s+/).filter(Boolean);
-  return {
-    first: parts.shift() || 'Cliente',
-    last: parts.join(' ') || 'Shop stampe',
-  };
-}
-
-function cleanText(value: unknown, maxLength: number): string | undefined {
-  if (typeof value !== 'string') return undefined;
-  const cleaned = value.trim().replace(/[\u0000-\u001f\u007f]/g, ' ');
-  return cleaned ? cleaned.slice(0, maxLength) : undefined;
-}
-
-function assertDocumentId(value: string, field: string): void {
-  if (
-    typeof value !== 'string' ||
-    value.length < 1 ||
-    value.length > 200 ||
-    value.includes('/') ||
-    value === '.' ||
-    value === '..'
-  ) {
-    throw new PrintShopHttpError(400, 'invalid_id', `${field} non valido`);
-  }
-}
-
-function centsToEuros(cents: number): number {
-  if (!Number.isSafeInteger(cents)) throw new Error('Importo in centesimi non valido');
-  return cents / 100;
 }
 
 function positiveEnvInt(name: string, fallback: number, minimum: number, maximum: number): number {
@@ -5883,21 +5765,6 @@ function isOrderEligibleForRetentionPurge(order: any, nowMillis: number): boolea
     );
   }
   return true;
-}
-
-function timestampMillis(value: any): number {
-  if (!value) return 0;
-  if (typeof value.toMillis === 'function') return value.toMillis();
-  if (typeof value.toDate === 'function') return value.toDate().getTime();
-  if (value instanceof Date) return value.getTime();
-  const seconds = value.seconds ?? value._seconds;
-  if (typeof seconds === 'number') return seconds * 1000;
-  if (typeof value === 'string') return Date.parse(value) || 0;
-  return 0;
-}
-
-function hashId(value: string): string {
-  return createHash('sha256').update(value).digest('hex');
 }
 
 async function computePerceptualFingerprint(

@@ -16,6 +16,7 @@ export const SOURCE_LABELS: Record<FinanceSource, string> = {
   booking: "Prenotazioni",
   "walk-in": "Walk-in",
   print_shop: "Stampe",
+  shop: "Shop online",
   manuale: "Manuale",
 };
 export const SOURCES = Object.keys(SOURCE_LABELS) as FinanceSource[];

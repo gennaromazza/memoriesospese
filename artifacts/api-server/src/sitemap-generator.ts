@@ -66,7 +66,7 @@ export const STATIC_SITEMAP_PAGES: Array<{
   { path: '/prenota', changefreq: 'weekly', priority: '0.9', lastmod: '2026-08-05' },
   { path: '/consulenze', changefreq: 'monthly', priority: '0.85', lastmod: '2026-08-05' },
   { path: '/lasciati-trasportare', changefreq: 'monthly', priority: '0.8', lastmod: '2026-02-06' },
-  { path: '/privacy', changefreq: 'yearly', priority: '0.3', lastmod: '2026-08-31' },
+  { path: '/privacy', changefreq: 'yearly', priority: '0.3', lastmod: '2026-10-10' },
   { path: '/terms', changefreq: 'yearly', priority: '0.3', lastmod: '2026-08-31' },
 ];
 
@@ -168,7 +168,11 @@ export function buildStaticSitemapEntries(
         { path: '/regala/come-funziona', changefreq: 'monthly', priority: '0.7', lastmod: '2026-10-07' },
       ]
     : [];
-  for (const page of [...STATIC_SITEMAP_PAGES, ...giftPages]) {
+  // La vetrina dello shop entra nella mappa con il suo interruttore.
+  const shopPages = process.env.SHOP_INDEXABLE === 'true'
+    ? [{ path: '/shop-natale', changefreq: 'weekly', priority: '0.9', lastmod: '2026-10-08' }]
+    : [];
+  for (const page of [...STATIC_SITEMAP_PAGES, ...giftPages, ...shopPages]) {
     entries += `  <url>
     <loc>${baseUrl}${page.path}</loc>
     <lastmod>${page.lastmod}</lastmod>

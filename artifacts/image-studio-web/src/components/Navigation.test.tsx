@@ -38,6 +38,12 @@ vi.mock("../hooks/useIsAdmin", () => ({
 vi.mock("@/context/FirebaseAuthContext", () => ({
   useFirebaseAuth: () => ({ user: fixture.user, userProfile: null, isLoading: false }),
 }));
+vi.mock("@/hooks/useGiftShopAvailable", () => ({
+  useGiftShopAvailable: () => false,
+}));
+vi.mock("@/hooks/useShopAvailable", () => ({
+  useShopAvailable: () => false,
+}));
 vi.mock("@/lib/basePath", () => ({
   createUrl: fixture.createUrl,
 }));

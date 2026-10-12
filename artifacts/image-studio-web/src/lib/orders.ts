@@ -22,6 +22,7 @@ import { db } from "@/lib/firebase";
 import { apiRequest } from "@/lib/queryClient";
 import { recomputeJobAggregates } from "@/lib/jobs";
 import type { Order, InsertOrder, Transaction } from "@shared/booking-types";
+import { isManagedOrderType } from "@shared/managed-order-types";
 
 const COLLECTION = "orders";
 
@@ -191,11 +192,11 @@ export async function getAllOrders(): Promise<Order[]> {
 
   const snapshot = await getDocs(q);
 
-  // Gli ordini print_shop hanno un workflow dedicato con PayPal, retention e
-  // laboratori: non devono finire nel manager legacy che scrive direttamente
-  // su Firestore.
+  // Gli ordini degli shop online (stampe e vetrina prodotti) hanno un workflow
+  // dedicato con PayPal, retention e foto: non devono finire nel manager legacy
+  // che scrive direttamente su Firestore.
   return snapshot.docs
-    .filter((orderDoc) => orderDoc.data().orderType !== 'print_shop')
+    .filter((orderDoc) => !isManagedOrderType(orderDoc.data().orderType))
     .map((orderDoc) => ({
       id: orderDoc.id,
       ...ensureProdottiArray(orderDoc.data()),
@@ -213,7 +214,7 @@ export async function getOrderById(id: string): Promise<Order | null> {
     return null;
   }
 
-  if (docSnap.data().orderType === 'print_shop') {
+  if (isManagedOrderType(docSnap.data().orderType)) {
     return null;
   }
 

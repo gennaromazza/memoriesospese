@@ -192,7 +192,7 @@ export default function GiftCardShopPage() {
   const approve = useCallback(async (paypalOrderId: string) => {
     const payment = pending.current;
     if (!payment || payment.paypalOrderId !== paypalOrderId) {
-      setError('Non riesco a collegare il pagamento alla tua gift card. Scrivici: controlliamo subito.');
+      setError('Non riesco a collegare il pagamento al tuo regalo. Scrivici: controlliamo subito.');
       return;
     }
     setBusy(true);
@@ -238,7 +238,7 @@ export default function GiftCardShopPage() {
   } else if (shop.isError || !shop.data) {
     body = (
       <div className="gcx-panel">
-        <h2>Le gift card non sono disponibili</h2>
+        <h2>Le idee regalo non sono disponibili</h2>
         <p>{shop.error instanceof Error ? shop.error.message : 'Riprova tra poco.'}</p>
       </div>
     );
@@ -282,7 +282,7 @@ export default function GiftCardShopPage() {
   } else if (!types.length) {
     body = (
       <div className="gcx-panel gcx-center">
-        <h2>Le gift card arrivano presto</h2>
+        <h2>Le idee regalo arrivano presto</h2>
         <p>In questo momento non c'è nessun regalo in vendita online. Per un regalo su misura {contact}.</p>
       </div>
     );
@@ -382,7 +382,7 @@ export default function GiftCardShopPage() {
             <span>Telefono (facoltativo)</span>
             <input type="tel" value={buyerPhone} maxLength={30} onChange={event => setBuyerPhone(event.target.value)} autoComplete="tel" />
           </label>
-          <label className="gcx-radio gcx-consent"><input type="checkbox" checked={terms} onChange={event => setTerms(event.target.checked)} /> <span>Ho letto le <Link href="/terms" className="underline">condizioni di vendita</Link>: la card scade alla data indicata e non è rimborsabile.</span></label>
+          <label className="gcx-radio gcx-consent"><input type="checkbox" checked={terms} onChange={event => setTerms(event.target.checked)} /> <span>Ho letto le <Link href="/terms" className="underline">condizioni di vendita</Link>: il regalo scade alla data indicata e non è rimborsabile.</span></label>
           <label className="gcx-radio gcx-consent"><input type="checkbox" checked={privacy} onChange={event => setPrivacy(event.target.checked)} /> <span>Ho letto l'<Link href="/privacy" className="underline">informativa privacy</Link>.</span></label>
           <div className="gcx-total"><span>Totale</span><b>{type ? formatGiftCardPrice(type.priceCents) : '—'}</b></div>
           {problems.length && !busy ? <p className="gcx-hint-text">Per pagare mancano: {problems.join(', ')}.</p> : null}
@@ -445,7 +445,7 @@ export default function GiftCardShopPage() {
           <>
             <div className="gcx-stripes" aria-hidden="true" />
             <section id="come-funziona" className="gcx-block" aria-labelledby="gcx-how-t">
-              <h2 id="gcx-how-t" className="gcx-h2">Come regalare una gift card</h2>
+              <h2 id="gcx-how-t" className="gcx-h2">Come fare un regalo</h2>
               <p className="gcx-sub">Tre passaggi, dal telefono, senza creare un account.</p>
               <ol className="gcx-how">
                 {GIFT_SHOP_STEPS.map((step, index) => (
@@ -461,7 +461,7 @@ export default function GiftCardShopPage() {
               </div>
               <div>
                 <h2 id="gcx-unwrap-t" className="gcx-h2">Un regalo che si scarta davvero</h2>
-                <p className="gcx-sub">Chi lo riceve apre il link e rompe il sigillo. Vede la card con il tuo messaggio e scopre cosa c'è dentro.</p>
+                <p className="gcx-sub">Chi lo riceve apre il link e rompe il sigillo. Legge il tuo messaggio e scopre cosa c'è dentro.</p>
                 <ul className="gcx-dots">
                   <li>Vede i prodotti inclusi, con foto e dettagli</li>
                   <li>Non deve pagare nulla</li>

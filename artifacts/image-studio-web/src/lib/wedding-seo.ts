@@ -137,11 +137,16 @@ export async function generateWeddingStoryDraft(
     { selectedSourceIds, selectedPhotoIds },
   );
   const data = await responseJson<{
-    draft: Pick<WeddingSeoStory, 'title' | 'excerpt' | 'story' | 'seoTitle' | 'seoDescription'>;
+    draft?: Pick<WeddingSeoStory, 'title' | 'excerpt' | 'story' | 'seoTitle' | 'seoDescription'>;
+    error?: string;
     vendorReviews?: WeddingVendorReview[];
     fallbackUsed?: boolean;
     fallbackReason?: string;
   }>(response);
+  if (data.error) throw new Error(data.error);
+  if (!data.draft) {
+    throw new Error('La generazione IA non ha restituito una bozza valida. Riprova.');
+  }
   return {
     ...data.draft,
     vendorReviews: data.vendorReviews || [],

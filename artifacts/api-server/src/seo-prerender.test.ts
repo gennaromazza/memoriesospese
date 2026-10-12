@@ -8,6 +8,7 @@ vi.mock('./firebase-admin', () => ({ db: { collection: mockCollection } }));
 import { buildWeddingStoryPageMeta, createSeoMiddleware } from './seo-prerender';
 const indexHtmlPath = fileURLToPath(new URL('../../image-studio-web/index.html', import.meta.url));
 import { GIFT_SHOP_FAQS } from '@shared/gift-card-landing-content';
+import { SHOP_FAQS } from '@shared/shop-landing-content';
 import {
   WEDDING_HOME_SEO,
   WEDDING_PORTFOLIO_SEO,
@@ -383,7 +384,7 @@ describe('pagina regalo /regala', () => {
     await withFlag('true', async () => {
       const { response } = await renderForCrawler('/regala');
       const html = response.body ?? '';
-      expect(html).toContain('Idee regalo di Natale: gift card foto e tela | Image Studio');
+      expect(html).toContain('Idee regalo di Natale: foto, stampe e tele | Image Studio');
       expect(html).toContain('<link rel="canonical" href="https://imagestudiofotografico.com/regala"');
       expect(html).toContain('<h1>Idee regalo di Natale: regala un ricordo che resta</h1>');
       const blocks = [...html.matchAll(/<script type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)].map(match => JSON.parse(match[1]));
@@ -391,6 +392,43 @@ describe('pagina regalo /regala', () => {
       const faq = flat.find((entry: any) => entry['@type'] === 'FAQPage');
       expect(faq.mainEntity.map((question: any) => question.name)).toEqual(GIFT_SHOP_FAQS.map(item => item.question));
       expect(flat.some((entry: any) => entry['@type'] === 'BreadcrumbList')).toBe(true);
+      expect(html).not.toContain('noindex');
+    });
+  });
+});
+
+describe('vetrina shop /shop-natale', () => {
+  async function withFlag(value: string | undefined, run: () => Promise<void>) {
+    const original = process.env.SHOP_INDEXABLE;
+    if (value === undefined) delete process.env.SHOP_INDEXABLE;
+    else process.env.SHOP_INDEXABLE = value;
+    try {
+      await run();
+    } finally {
+      if (original === undefined) delete process.env.SHOP_INDEXABLE;
+      else process.env.SHOP_INDEXABLE = original;
+    }
+  }
+
+  it('finché non è aperta a Google resta nascosta con noindex', async () => {
+    await withFlag(undefined, async () => {
+      const { response, next } = await renderForCrawler('/shop-natale');
+      expect(response.headers['X-Robots-Tag']).toContain('noindex');
+      expect(next).toHaveBeenCalled();
+    });
+  });
+
+  it('aperta a Google mostra titolo, testi e dati strutturati con le stesse domande della pagina', async () => {
+    await withFlag('true', async () => {
+      const { response } = await renderForCrawler('/shop-natale');
+      const html = response.body ?? '';
+      expect(html).toContain('Regali di Natale con le tue foto: stampe e prodotti | Image Studio');
+      expect(html).toContain('<link rel="canonical" href="https://imagestudiofotografico.com/shop-natale"');
+      expect(html).toContain('<h1>Shopping di Natale: regali che nascono da una tua foto</h1>');
+      const blocks = [...html.matchAll(/<script type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)].map(match => JSON.parse(match[1])).flat();
+      const faq = blocks.find((entry: any) => entry['@type'] === 'FAQPage');
+      expect(faq.mainEntity.map((question: any) => question.name)).toEqual(SHOP_FAQS.map(item => item.question));
+      expect(blocks.some((entry: any) => entry['@type'] === 'BreadcrumbList')).toBe(true);
       expect(html).not.toContain('noindex');
     });
   });
@@ -421,9 +459,9 @@ describe('pagina «Come funziona» delle gift card', () => {
     await withFlag('true', async () => {
       const { response } = await renderForCrawler('/regala/come-funziona');
       const html = response.body ?? '';
-      expect(html).toContain('Come funziona la gift card Image Studio | Idee regalo');
+      expect(html).toContain('Come funziona il regalo Image Studio | Idee regalo');
       expect(html).toContain('<link rel="canonical" href="https://imagestudiofotografico.com/regala/come-funziona"');
-      expect(html).toContain('<h1>Come funziona la gift card</h1>');
+      expect(html).toContain('<h1>Come funziona il regalo</h1>');
       const blocks = [...html.matchAll(/<script type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)].map(match => JSON.parse(match[1])).flat();
       const crumbs = blocks.find((entry: any) => entry['@type'] === 'BreadcrumbList');
       expect(crumbs.itemListElement.map((item: any) => item.name)).toEqual(['Home', 'Idee regalo di Natale', 'Come funziona']);

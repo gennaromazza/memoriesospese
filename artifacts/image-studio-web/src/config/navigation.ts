@@ -8,6 +8,7 @@ import {
   MapPin,
   Phone,
   Printer,
+  ShoppingBag,
   Sparkles,
   Star,
 } from 'lucide-react';
@@ -23,12 +24,13 @@ export interface NavItem {
   mobileOrder?: number;
   highlight?: boolean;
   /** Si mostra solo quando la funzione è disponibile (per esempio con almeno un regalo in vendita). */
-  requires?: 'giftShop';
+  requires?: 'giftShop' | 'shop';
 }
 
 /** Funzioni del sito che possono essere spente: le voci collegate compaiono solo se attive. */
 export interface NavAvailability {
   giftShop?: boolean;
+  shop?: boolean;
 }
 
 const isAvailable = (item: NavItem, availability: NavAvailability) =>
@@ -79,13 +81,23 @@ export const mainNavItems: NavItem[] = [
     requires: 'giftShop',
   },
   {
+    label: 'Shopping di Natale',
+    href: '/shop-natale',
+    icon: ShoppingBag,
+    showInHeader: true,
+    showInFooter: true,
+    showInMobile: true,
+    mobileOrder: 4,
+    requires: 'shop',
+  },
+  {
     label: 'Recensioni',
     href: '/#recensioni',
     icon: Star,
     showInHeader: true,
     showInFooter: true,
     showInMobile: true,
-    mobileOrder: 4,
+    mobileOrder: 5,
   },
   {
     label: 'Prenota una chiamata',
@@ -94,7 +106,7 @@ export const mainNavItems: NavItem[] = [
     showInHeader: true,
     showInFooter: false,
     showInMobile: true,
-    mobileOrder: 5,
+    mobileOrder: 6,
     highlight: true,
   },
 ];

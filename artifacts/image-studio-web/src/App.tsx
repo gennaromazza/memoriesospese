@@ -38,6 +38,11 @@ const OspitiPage = lazyWithRetry(() => import("./pages/public/OspitiPage"));
 const GiftCardPage = lazyWithRetry(() => import("./pages/public/GiftCardPage"));
 const GiftCardShopPage = lazyWithRetry(() => import("./pages/public/GiftCardShopPage"));
 const GiftCardHowItWorksPage = lazyWithRetry(() => import("./pages/public/GiftCardHowItWorksPage"));
+const ShopPage = lazyWithRetry(() => import("./pages/public/ShopPage"));
+const ShopCheckoutPage = lazyWithRetry(() => import("./pages/public/ShopCheckoutPage"));
+const ShopTermsPage = lazyWithRetry(() => import("./pages/public/ShopTermsPage"));
+const ShopConfirmationPage = lazyWithRetry(() => import("./pages/public/ShopConfirmationPage"));
+const ShopOrdersPage = lazyWithRetry(() => import("./pages/public/ShopOrdersPage"));
 const GiftCardAdminPage = lazyWithRetry(() => import("./pages/admin/GiftCardAdminPage"));
 const GiftCardPrintPage = lazyWithRetry(() => import("./pages/admin/GiftCardPrintPage"));
 const PortfolioPage = lazyWithRetry(() => import("./pages/public/PortfolioPage"));
@@ -188,6 +193,13 @@ function AppRoutes() {
         <Route path="/regalo/:code" component={GiftCardPage} />
         <Route path="/regala" component={GiftCardShopPage} />
         <Route path="/regala/come-funziona" component={GiftCardHowItWorksPage} />
+
+        {/* Shop online: prodotti con foto, ritiro in studio o spedizione */}
+        <Route path="/shop-natale" component={ShopPage} />
+        <Route path="/shop-natale/condizioni" component={ShopTermsPage} />
+        <Route path="/shop-natale/ordine" component={ShopCheckoutPage} />
+        <Route path="/shop-natale/ordine/conferma" component={ShopConfirmationPage} />
+        <Route path="/shop-natale/i-miei-ordini" component={ShopOrdersPage} />
 
         <Route path="/privacy" component={Privacy} />
         <Route path="/cookie-policy" component={CookiePolicy} />
