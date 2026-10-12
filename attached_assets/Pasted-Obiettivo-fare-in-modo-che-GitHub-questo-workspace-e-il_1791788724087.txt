@@ -1,0 +1,41 @@
+Obiettivo: fare in modo che GitHub, questo workspace e il computer di Gennaro abbiano ESATTAMENTE lo stesso commit su main. Non modificare codice. Procedi un passo alla volta e fermati al primo problema, riferendomi l'output.
+
+1. Controlla di essere pulito e dove sei:
+   git status --short
+   git log --oneline -3
+   (status non deve stampare nulla; il commit in cima deve essere un "Merge remote-tracking branch 'origin/claude/holiday-gifts-page-ae4521'")
+
+2. Verifica che il contenuto sia identico a quello di Claude:
+   git rev-parse HEAD^{tree}
+   Deve stampare esattamente: c7ab03c5447ef0d03717f34aadcf92b60c93a107
+   Se è diverso, FERMATI e dimmelo.
+
+3. Aggiorna i riferimenti e controlla che main possa avanzare senza forzare:
+   git fetch origin
+   git merge-base --is-ancestor origin/main HEAD && echo "ok: main puo avanzare"
+   Se non stampa "ok", FERMATI.
+
+4. Porta main allo stesso commit, solo con un avanzamento semplice (mai --force):
+   git push origin HEAD:main
+   Se viene rifiutato, FERMATI e non provare altro.
+
+5. Riportami questi due valori, devono essere uguali:
+   git rev-parse HEAD
+   git ls-remote origin refs/heads/main
+
+6. Poi rispondi a queste domande, senza modificare nulla:
+   a) Che tipo di pubblicazione usa l'app (Autoscale, Reserved VM, altro)? Resta sempre accesa?
+   b) Quali variabili d'ambiente PAYPAL_* esistono? Solo i NOMI, mai i valori.
+   c) I file in .agents/memory contengono chiavi, token o credenziali? Rispondi sì/no per file e dimmi il tipo di dato, senza stampare nessun valore.
+
+7. Infine aggiungi in replit.md una sezione "Flusso Git" con queste regole, e conferma di averle capite:
+   - GitHub main è l'unica linea di verità. Replit e il computer di Gennaro devono avere sempre lo stesso commit di main.
+   - Prima di lavorare: git fetch origin; se origin/main è avanti, git merge --ff-only origin/main.
+   - Dopo aver lavorato: commit con messaggio chiaro, poi git push origin HEAD:main solo se è un avanzamento semplice.
+   - Mai force push, mai reset --hard, mai rebase, mai modificare commit già pubblicati, mai "Sync Changes" alla cieca.
+   - Se il push è rifiutato, o se origin/main ha commit nuovi che non sono tuoi: fermarsi, non risolvere da soli, avvisare Gennaro.
+   - Se Replit crea un commit automatico ("Published your App"), vale la stessa regola prima del push.
+   - Non cancellare rami o file di backup (backup/*, restore/*, codex/*, ecc.).
+   - Mai committare chiavi o credenziali.
+   - Dopo ogni push riportare a Gennaro l'hash e verificare che git ls-remote origin refs/heads/main coincida con HEAD.
+   - Claude Code lavora su rami claude/*; quando Gennaro lo chiede, l'agente li porta in main con un'unione normale e poi spinge main.
