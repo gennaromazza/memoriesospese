@@ -98,7 +98,7 @@ Le regole nuove (ordini dello shop scrivibili solo dal server, `settings/shop` n
 
 ## 7. Sequenza consigliata per allineare Replit
 
-1. **Rivedi i file di Replit entrati con l'unione** (`.agents/memory`, 43 file, e `.migration-backup`) prima di spingere: non li ho aperti perché potrebbero contenere credenziali, e uno ha un nome che lo suggerisce. Se lo sono, vanno tolti dal repository prima del push.
+1. **Fai controllare i file `.agents/memory` di Replit.** Non sono stati aggiunti da questo lavoro: sono già su GitHub, 37 su `main` e 43 nel ramo di backup, quindi spingere il ramo dello shop non aggiunge esposizione. Non li ho aperti, perché potrebbero contenere credenziali e uno ha un nome che lo suggerisce. Chi li controlla è l'agente di Replit, che può dirti solo se contengono chiavi, senza stamparle. Se ne contengono, la chiave va sostituita (revocata e rigenerata): toglierla dal repository non basta, perché resta nella cronologia.
 2. **Fai un unico push del ramo** `claude/holiday-gifts-page-ae4521` (il push lo fai tu, come d'accordo).
 3. **Su Replit**: aggiorna con un'unione che sia un semplice avanzamento (`git merge --ff-only`). Il commit `acda06f1` ("Published your App") ha lo stesso contenuto di `b8b9488c`, quindi non c'è lavoro da perdere; ma non è nel mio ramo, perciò l'avanzamento semplice funziona solo se unisco prima quel commit vuoto. Posso farlo se vuoi.
 4. **Nessuna installazione di pacchetti** e nessun cambiamento ai pacchetti: basta riavviare.
