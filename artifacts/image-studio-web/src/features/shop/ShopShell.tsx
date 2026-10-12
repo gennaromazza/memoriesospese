@@ -4,7 +4,7 @@ import Footer from '@/components/Footer';
 
 /** Contenitore comune delle pagine d'ordine dello shop: menu, titolo e piè di pagina del sito. */
 export function ShopShell({
-  eyebrow = 'Shop di Natale',
+  eyebrow = 'Shop online',
   title,
   subtitle,
   actions,

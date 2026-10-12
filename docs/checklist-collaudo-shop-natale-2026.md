@@ -28,7 +28,7 @@ Usare un account cliente di prova (email e password) e il conto buyer sandbox.
 
 | # | Prova | Atteso |
 |---|-------|--------|
-| C1 | Accendere vetrina e ordini. Aprire `/shop-natale` da loggato e da non loggato. | Prodotti attivi visibili, prezzi giusti, bottone "aggiungi" funziona. |
+| C1 | Accendere vetrina e ordini. Aprire `/online-shop` da loggato e da non loggato. | Prodotti attivi visibili, prezzi giusti, bottone "aggiungi" funziona. |
 | C2 | Carrello con **un prodotto con foto + uno senza foto**, andare al pagamento. | Una zona foto per il prodotto che le richiede, nessuna per l'altro. Totale = somma + spedizione se scelta. |
 | C3 | Aprire **Condizioni di vendita** e **Privacy** dal checkout. | Si aprono, mostrano i dati dello studio, la versione `2026-10-10.3` e i giorni di conservazione. |
 | C4 | Ritiro in sede: pagare **senza caricare tutte le foto**. | Ordine pagato in stato "mancano le foto"; email di conferma al cliente e avviso allo studio; riga in Cassa con origine "Shop online". |
@@ -57,7 +57,7 @@ Usare un account cliente di prova (email e password) e il conto buyer sandbox.
 
 1. Vetrina accesa e ordini aperti, con l'ultimo giorno utile impostato.
 2. Per far comparire la vetrina su Google: impostare `SHOP_INDEXABLE=true` e riavviare. Fino ad allora la pagina è raggiungibile ma non indicizzata. Le pagine d'ordine e le condizioni di vendita **non** si indicizzano mai.
-3. Controllare `https://imagestudiofotografico.com/sitemap.xml`: deve elencare `/shop-natale`.
+3. Controllare `https://imagestudiofotografico.com/sitemap.xml`: deve elencare `/online-shop`.
 4. Annunciare solo dopo aver visto un ordine reale arrivare in Cassa.
 
 ## F. Come tornare indietro

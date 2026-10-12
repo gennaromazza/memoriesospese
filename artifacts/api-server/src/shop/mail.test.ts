@@ -56,7 +56,7 @@ describe('testi delle email', () => {
     expect(content.html).toContain('21,00');
     expect(content.html).toContain('manca 1 foto');
     expect(content.html).toContain('8 dicembre 2026');
-    expect(content.html).toContain('https://sito.test/shop-natale/i-miei-ordini?ordine=o1');
+    expect(content.html).toContain('https://sito.test/online-shop/i-miei-ordini?ordine=o1');
     expect(content.html).toContain('Ritiro in studio');
   });
 

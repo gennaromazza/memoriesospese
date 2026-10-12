@@ -20,7 +20,7 @@ const PUBLIC_STATIC_PATHS = new Set([
   '/consulenze',
   '/regala',
   '/regala/come-funziona',
-  '/shop-natale',
+  '/online-shop',
   '/negozi',
 ]);
 
@@ -55,7 +55,7 @@ function isGiftShopHidden(path: string): boolean {
 
 /** La vetrina dello shop si apre a Google solo con SHOP_INDEXABLE=true: fino ad allora resta raggiungibile ma non indicizzata. */
 function isShopHidden(path: string): boolean {
-  return (path === '/shop-natale' || shopCategoryValueFromPath(path) !== null) && process.env.SHOP_INDEXABLE !== 'true';
+  return (path === '/online-shop' || shopCategoryValueFromPath(path) !== null) && process.env.SHOP_INDEXABLE !== 'true';
 }
 
 /**
@@ -85,10 +85,10 @@ export function isPrivateClientPath(pathname: string): boolean {
     || isGiftShopHidden(path)
     || isShopHidden(path)
     || path === '/negozi'
-    || path === '/shop-natale/condizioni'
-    || path === '/shop-natale/ordine'
-    || path.startsWith('/shop-natale/ordine/')
-    || path === '/shop-natale/i-miei-ordini'
+    || path === '/online-shop/condizioni'
+    || path === '/online-shop/ordine'
+    || path.startsWith('/online-shop/ordine/')
+    || path === '/online-shop/i-miei-ordini'
     || hasTwoSegmentsAfter('/collaboratori/assignment', path)
     || hasOneSegmentAfter('/collaboratori/dashboard', path)
     || path === '/stampa-foto-aversa/ordine'

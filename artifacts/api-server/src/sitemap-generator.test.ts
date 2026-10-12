@@ -71,12 +71,12 @@ describe('Sitemap della vetrina shop', () => {
 
   it('non elenca la vetrina finché è nascosta a Google', () => {
     delete process.env.SHOP_INDEXABLE;
-    expect(buildStaticSitemapEntries('https://example.test')).not.toContain('/shop-natale');
+    expect(buildStaticSitemapEntries('https://example.test')).not.toContain('/online-shop');
   });
 
   it('la elenca quando viene aperta a Google', () => {
     process.env.SHOP_INDEXABLE = 'true';
-    expect(buildStaticSitemapEntries('https://example.test')).toContain('<loc>https://example.test/shop-natale</loc>');
+    expect(buildStaticSitemapEntries('https://example.test')).toContain('<loc>https://example.test/online-shop</loc>');
   });
 });
 

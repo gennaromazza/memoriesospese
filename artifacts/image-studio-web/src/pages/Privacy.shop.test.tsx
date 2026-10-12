@@ -21,7 +21,7 @@ describe('informativa privacy e shop di Natale', () => {
 
   it('descrive il trattamento dei dati degli ordini dello shop e rimanda alle condizioni', () => {
     expect(html).toContain('Shopping online Natale: ordini, foto e consegna');
-    expect(html).toContain('href="/shop-natale/condizioni"');
+    expect(html).toContain('href="/online-shop/condizioni"');
     expect(html).toContain('codice fiscale');
     expect(html).toContain('10 ottobre 2026');
   });

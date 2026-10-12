@@ -1,7 +1,7 @@
 import { SHOP_MAX_PHOTO_BYTES } from './shop-types';
 
 /** Indirizzo della pagina con le condizioni di vendita dello shop. */
-export const SHOP_TERMS_PATH = '/shop-natale/condizioni';
+export const SHOP_TERMS_PATH = '/online-shop/condizioni';
 
 /**
  * Numeri citati nei testi legali dello shop. Il server li usa per cancellare le

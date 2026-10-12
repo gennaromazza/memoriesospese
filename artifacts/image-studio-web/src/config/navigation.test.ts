@@ -25,17 +25,17 @@ describe('public navigation', () => {
     ]);
   });
 
-  it('mostra «Shopping di Natale» solo con la vetrina shop attiva, dopo le idee regalo', () => {
+  it('mostra «Shop online» solo con la vetrina shop attiva, dopo le idee regalo', () => {
     for (const get of [getHeaderItems, getMobileItems, getFooterItems]) {
-      expect(get().some((item) => item.href === '/shop-natale')).toBe(false);
-      expect(get({ shop: false }).some((item) => item.href === '/shop-natale')).toBe(false);
-      expect(get({ shop: true }).some((item) => item.href === '/shop-natale')).toBe(true);
+      expect(get().some((item) => item.href === '/online-shop')).toBe(false);
+      expect(get({ shop: false }).some((item) => item.href === '/online-shop')).toBe(false);
+      expect(get({ shop: true }).some((item) => item.href === '/online-shop')).toBe(true);
     }
     expect(getHeaderItems({ giftShop: true, shop: true }).map((item) => item.label)).toEqual([
-      'Portfolio', 'Blog', 'Idee regalo', 'Shopping di Natale', 'Recensioni', 'Prenota una chiamata',
+      'Portfolio', 'Blog', 'Idee regalo', 'Shop online', 'Recensioni', 'Prenota una chiamata',
     ]);
     const mobile = getMobileItems({ giftShop: true, shop: true }).map((item) => item.label);
-    expect(mobile).toEqual(['Portfolio', 'Blog', 'Idee regalo', 'Shopping di Natale', 'Recensioni', 'Prenota una chiamata']);
+    expect(mobile).toEqual(['Portfolio', 'Blog', 'Idee regalo', 'Shop online', 'Recensioni', 'Prenota una chiamata']);
   });
 
   it('collega tutte le destinazioni editoriali senza esporre le route private o QR', () => {

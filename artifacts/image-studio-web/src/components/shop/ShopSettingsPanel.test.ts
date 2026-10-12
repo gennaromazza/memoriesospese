@@ -49,9 +49,9 @@ describe('link da condividere', () => {
 
   it('da il link dello shop e quello di ogni categoria scelta', () => {
     expect(shopShareLinks(categories, ['natale', 'stampe-e-album']).map(link => link.url)).toEqual([
-      'https://imagestudiofotografico.com/shop-natale',
-      'https://imagestudiofotografico.com/shop-natale/categoria/natale',
-      'https://imagestudiofotografico.com/shop-natale/categoria/stampe-e-album',
+      'https://imagestudiofotografico.com/online-shop',
+      'https://imagestudiofotografico.com/online-shop/categoria/natale',
+      'https://imagestudiofotografico.com/online-shop/categoria/stampe-e-album',
     ]);
   });
 

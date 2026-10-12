@@ -1,19 +1,19 @@
 /**
- * Testi della vetrina Natale (/shop-natale). Li usano sia la pagina sia il
+ * Testi della vetrina dello shop online (/online-shop). Li usano sia la pagina sia il
  * server che la prepara per Google, così domande frequenti e dati strutturati
  * coincidono sempre.
  */
 
-export const SHOP_PATH = '/shop-natale';
+export const SHOP_PATH = '/online-shop';
 
 export const SHOP_SEO = {
-  title: 'Regali di Natale con le tue foto, Aversa | Image Studio',
+  title: 'Shop online con le tue foto, Aversa | Image Studio',
   description:
-    'Shopping di Natale Image Studio ad Aversa: regali personalizzati con le tue foto. Ritiro gratuito in studio o spedizione in tutta Italia, paghi con PayPal.',
-  h1: 'Shopping di Natale',
+    'Shop online Image Studio ad Aversa: regali personalizzati con le tue foto. Ritiro gratuito in studio o spedizione in tutta Italia, paghi con PayPal.',
+  h1: 'Shop online',
   script: 'regali che nascono da una tua foto',
   lede: 'Scegli il prodotto, carica la foto e la trasformiamo in un regalo vero. Lo ritiri in studio o lo ricevi a casa, in tutta Italia.',
-  breadcrumb: 'Shopping di Natale',
+  breadcrumb: 'Shop online',
 } as const;
 
 export interface ShopFaq {
@@ -66,10 +66,10 @@ export const SHOP_STEPS: readonly { title: string; text: string }[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Pagine per categoria: /shop-natale/categoria/<valore>
+// Pagine per categoria: /online-shop/categoria/<valore>
 // ---------------------------------------------------------------------------
 
-export const SHOP_CATEGORY_PATH = '/shop-natale/categoria';
+export const SHOP_CATEGORY_PATH = '/online-shop/categoria';
 
 /** Forma ammessa per il valore tecnico di una categoria (la stessa delle impostazioni dello shop). */
 export const SHOP_CATEGORY_VALUE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/;
@@ -79,9 +79,9 @@ export function shopCategoryPath(value: string): string {
   return `${SHOP_CATEGORY_PATH}/${encodeURIComponent(value)}`;
 }
 
-/** Valore della categoria da un indirizzo del tipo /shop-natale/categoria/<valore>, o null se non lo è. */
+/** Valore della categoria da un indirizzo del tipo /online-shop/categoria/<valore>, o null se non lo è. */
 export function shopCategoryValueFromPath(pathname: string): string | null {
-  const match = /^\/shop-natale\/categoria\/([^/]+)\/?$/.exec(pathname);
+  const match = /^\/online-shop\/categoria\/([^/]+)\/?$/.exec(pathname);
   if (!match) return null;
   try {
     const value = decodeURIComponent(match[1]);
@@ -106,7 +106,7 @@ export function shopCategorySeo(name: string) {
   return {
     title: `${fit(nome, 60 - suffix.length)}${suffix}`,
     // Si accorcia il nome, non il resto: dove si trova lo studio e come si ritira devono restare sempre.
-    description: `${fit(nome, 50)}: regali con le tue foto, shop di Natale Image Studio ad Aversa. Ritiro in studio o spedizione in Italia.`,
+    description: `${fit(nome, 50)}: regali con le tue foto, shop online Image Studio ad Aversa. Ritiro in studio o spedizione in Italia.`,
     h1: nome,
     script: SHOP_SEO.script,
     lede: `Scegli un prodotto della categoria ${nome}, carica la foto e la trasformiamo in un regalo vero. Lo ritiri in studio o lo ricevi a casa, in tutta Italia.`,

@@ -58,7 +58,7 @@ function render(data: ShopCatalogDto | undefined) {
 describe('vetrina shop', () => {
   it('mostra prodotti, prezzi, foto richieste e spedizione', () => {
     const html = render(catalog());
-    expect(html).toContain('Shopping di Natale');
+    expect(html).toContain('Shop online');
     expect(html).toContain('Tazza con la tua foto');
     expect(html).toContain('15,00');
     expect(html).toContain('Serve 1 tua foto');
@@ -94,7 +94,7 @@ describe('vetrina shop', () => {
   it('con gli ordini aperti ogni prodotto si può aggiungere al carrello', () => {
     const html = render(catalog());
     expect(html.match(/Aggiungi al carrello/g)).toHaveLength(3);
-    expect(html).toContain('/shop-natale/i-miei-ordini');
+    expect(html).toContain('/online-shop/i-miei-ordini');
   });
 
   it("con gli ordini chiusi non c'è nessun pulsante per ordinare", () => {
@@ -110,14 +110,14 @@ describe('vetrina shop', () => {
 
   it('dopo l\'ultimo giorno dice che gli ordini sono chiusi', () => {
     const html = render(catalog({ orderingOpen: false, lastOrderDate: '2020-12-18' }));
-    expect(html).toContain('Gli ordini di Natale sono chiusi');
+    expect(html).toContain('Gli ordini sono chiusi');
   });
 
   it('con la vetrina spenta o vuota mostra solo il messaggio di arrivo', () => {
     for (const data of [catalog({ enabled: false, products: [], categories: [] }), catalog({ products: [] })]) {
       const html = render(data);
-      expect(html).toContain('Lo shop di Natale arriva presto');
-      expect(html).not.toContain('href="/shop-natale#prodotti"');
+      expect(html).toContain('Lo shop online arriva presto');
+      expect(html).not.toContain('href="/online-shop#prodotti"');
     }
   });
 

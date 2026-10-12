@@ -29,8 +29,8 @@ import { shopNextStep } from '@/features/shop/shop-status';
 export default function ShopOrdersPage() {
   useSEO({
     title: 'I miei ordini dello shop | Image Studio',
-    description: 'Segui lo stato dei tuoi ordini dello shop di Natale e carica le foto che mancano.',
-    canonical: '/shop-natale/i-miei-ordini',
+    description: 'Segui lo stato dei tuoi ordini dello shop online e carica le foto che mancano.',
+    canonical: '/online-shop/i-miei-ordini',
     noindex: true,
   });
   const [, navigate] = useLocation();
@@ -48,7 +48,7 @@ export default function ShopOrdersPage() {
 
   const resume = (order: ShopOrderDto) => {
     writeStored(SHOP_DRAFT_STORAGE_KEY, order.id);
-    navigate('/shop-natale/ordine');
+    navigate('/online-shop/ordine');
   };
 
   const removeDraft = async () => {
@@ -73,7 +73,7 @@ export default function ShopOrdersPage() {
       eyebrow="Area personale"
       title="I miei ordini"
       subtitle="Segui ogni passaggio, dalle foto al ritiro o alla spedizione."
-      actions={user ? <Link href="/shop-natale"><Button className="h-12 rounded-full bg-terracotta px-6 text-white hover:bg-terracotta/90"><ShoppingBag aria-hidden="true" /> Vai allo shop</Button></Link> : undefined}
+      actions={user ? <Link href="/online-shop"><Button className="h-12 rounded-full bg-terracotta px-6 text-white hover:bg-terracotta/90"><ShoppingBag aria-hidden="true" /> Vai allo shop</Button></Link> : undefined}
     >
       {actionError && (
         <div className="mb-5 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">
@@ -96,8 +96,8 @@ export default function ShopOrdersPage() {
         <section className="rounded-[2.5rem] border border-sage/20 bg-white p-8 text-center shadow-sm sm:p-12">
           <PackageOpen className="mx-auto h-14 w-14 text-sage" aria-hidden="true" />
           <h2 className="mt-5 text-2xl font-semibold">Non hai ancora fatto ordini</h2>
-          <p className="mx-auto mt-3 max-w-lg text-blue-gray/55">Scegli un prodotto dalla vetrina di Natale: puoi fare tutto dal telefono.</p>
-          <Link href="/shop-natale"><Button className="mt-7 h-12 rounded-full bg-terracotta px-7 text-white hover:bg-terracotta/90">Vai alla vetrina <ArrowRight aria-hidden="true" /></Button></Link>
+          <p className="mx-auto mt-3 max-w-lg text-blue-gray/55">Scegli un prodotto dalla vetrina dello shop: puoi fare tutto dal telefono.</p>
+          <Link href="/online-shop"><Button className="mt-7 h-12 rounded-full bg-terracotta px-7 text-white hover:bg-terracotta/90">Vai alla vetrina <ArrowRight aria-hidden="true" /></Button></Link>
         </section>
       ) : (
         <div className="space-y-5">

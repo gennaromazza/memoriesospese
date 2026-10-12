@@ -49,7 +49,7 @@ describe('dati strutturati dello shop', () => {
         priceCurrency: 'EUR',
         availability: 'https://schema.org/InStock',
         priceValidUntil: '2026-12-18',
-        url: 'https://imagestudiofotografico.com/shop-natale#prodotto-tazza',
+        url: 'https://imagestudiofotografico.com/online-shop#prodotto-tazza',
       },
     });
   });
@@ -133,9 +133,9 @@ describe('titoli e descrizioni per Google', () => {
     expect(new Set(descriptions).size).toBe(descriptions.length);
   });
 
-  it('dicono dove e di cosa si tratta: Aversa, regali di Natale, gift card', () => {
+  it('dicono dove e di cosa si tratta: Aversa, shop online, gift card', () => {
     expect(SHOP_SEO.title + SHOP_SEO.description).toMatch(/Aversa/);
-    expect(SHOP_SEO.title).toMatch(/Natale/);
+    expect(SHOP_SEO.title).toMatch(/Shop online/);
     expect(GIFT_SHOP_SEO.title).toMatch(/[Gg]ift card/);
     expect(GIFT_SHOP_SEO.title + GIFT_SHOP_SEO.description).toMatch(/Aversa/);
   });
@@ -167,15 +167,15 @@ describe('pagina di una categoria', () => {
   it('contiene solo i prodotti della categoria, con titolo e indirizzo propri', () => {
     const meta = buildShopCategoryPageMeta(two, 'tazze', NOW)!;
     expect(meta.title).toBe('Tazze & mug | Regali Image Studio Aversa');
-    expect(meta.canonical).toBe('https://imagestudiofotografico.com/shop-natale/categoria/tazze');
+    expect(meta.canonical).toBe('https://imagestudiofotografico.com/online-shop/categoria/tazze');
     expect(meta.bodyContent).toContain('<h1>Tazze &amp; mug: regali che nascono da una tua foto</h1>');
     expect(meta.bodyContent).toContain('Mug nero');
     expect(meta.bodyContent).toContain('Mug bianco');
     expect(meta.bodyContent).not.toContain('Tazza con la tua foto');
-    expect(meta.bodyContent).toContain('href="https://imagestudiofotografico.com/shop-natale"');
+    expect(meta.bodyContent).toContain('href="https://imagestudiofotografico.com/online-shop"');
     const types = (meta.jsonLd as any[]).map(item => item['@type']);
     expect(types).toEqual(['BreadcrumbList', 'ItemList', 'Product', 'Product']);
-    expect((meta.jsonLd as any[])[0].itemListElement.map((item: any) => item.name)).toEqual(['Home', 'Shopping di Natale', 'Tazze & mug']);
+    expect((meta.jsonLd as any[])[0].itemListElement.map((item: any) => item.name)).toEqual(['Home', 'Shop online', 'Tazze & mug']);
     expect((meta.jsonLd as any[])[1].itemListElement).toHaveLength(2);
   });
 
@@ -199,16 +199,16 @@ describe('pagina di una categoria', () => {
   });
 
   it('nella mappa del sito entrano solo le categorie con prodotti, e solo a vetrina accesa', () => {
-    expect(shopCategorySitemapPaths(two)).toEqual(['/shop-natale/categoria/natale', '/shop-natale/categoria/tazze']);
+    expect(shopCategorySitemapPaths(two)).toEqual(['/online-shop/categoria/natale', '/online-shop/categoria/tazze']);
     expect(shopCategorySitemapPaths({ ...two, enabled: false })).toEqual([]);
   });
 
   it("l'indirizzo si costruisce e si legge senza ambiguità, e rifiuta valori non validi", () => {
-    expect(shopCategoryPath('tazze')).toBe('/shop-natale/categoria/tazze');
-    expect(shopCategoryPath('a b/c')).toBe('/shop-natale/categoria/a%20b%2Fc');
-    expect(shopCategoryValueFromPath('/shop-natale/categoria/tazze')).toBe('tazze');
-    expect(shopCategoryValueFromPath('/shop-natale/categoria/tazze/')).toBe('tazze');
-    for (const bad of ['/shop-natale/categoria', '/shop-natale/categoria/', '/shop-natale/categoria/a/b', '/shop-natale/categoria/%E0%A4%A', '/shop-natale/categoria/-x', '/shop-natale/categoria/<script>', '/shop-natale/ordine', '/shop-natale']) {
+    expect(shopCategoryPath('tazze')).toBe('/online-shop/categoria/tazze');
+    expect(shopCategoryPath('a b/c')).toBe('/online-shop/categoria/a%20b%2Fc');
+    expect(shopCategoryValueFromPath('/online-shop/categoria/tazze')).toBe('tazze');
+    expect(shopCategoryValueFromPath('/online-shop/categoria/tazze/')).toBe('tazze');
+    for (const bad of ['/online-shop/categoria', '/online-shop/categoria/', '/online-shop/categoria/a/b', '/online-shop/categoria/%E0%A4%A', '/online-shop/categoria/-x', '/online-shop/categoria/<script>', '/online-shop/ordine', '/online-shop']) {
       expect(shopCategoryValueFromPath(bad), bad).toBeNull();
     }
   });

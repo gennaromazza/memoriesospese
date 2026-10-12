@@ -26,7 +26,7 @@ const SHOP_PUBLIC_ORIGIN = 'https://imagestudiofotografico.com';
 /** Link pubblici da condividere: lo shop e una pagina per ogni categoria scelta. */
 export function shopShareLinks(categories: Array<{ value: string; nome: string }>, selectedValues: string[]) {
   return [
-    { key: 'shop', label: 'Shop di Natale (tutte le categorie)', url: `${SHOP_PUBLIC_ORIGIN}${SHOP_PATH}` },
+    { key: 'shop', label: 'Shop online (tutte le categorie)', url: `${SHOP_PUBLIC_ORIGIN}${SHOP_PATH}` },
     ...categories
       .filter(category => selectedValues.includes(category.value))
       .map(category => ({ key: category.value, label: category.nome, url: `${SHOP_PUBLIC_ORIGIN}${shopCategoryPath(category.value)}` })),

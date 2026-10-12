@@ -130,6 +130,38 @@ describe('SEO prerender wedding-first', () => {
     expect(response.headers.Location).toBe('/');
   });
 
+  it.each([
+    ['/shop-natale', '/shop-natale', '/online-shop'],
+    ['/shop-natale/categoria/natale', '/shop-natale/categoria/natale', '/online-shop/categoria/natale'],
+    ['/shop-natale/ordine/conferma', '/shop-natale/ordine/conferma?token=abc&ordine=1', '/online-shop/ordine/conferma?token=abc&ordine=1'],
+  ])('porta il vecchio indirizzo dello shop %s a quello nuovo', async (path, originalUrl, expected) => {
+    const response: RenderedResponse = { headers: {} };
+    const res = {
+      setHeader: (name: string, value: string) => {
+        response.headers[name] = value;
+      },
+      send: (body: string) => {
+        response.body = body;
+      },
+      status: (statusCode: number) => {
+        response.statusCode = statusCode;
+        return res;
+      },
+      type: () => res,
+    };
+    const next = vi.fn();
+
+    await createSeoMiddleware({ indexHtmlPath })(
+      { path, originalUrl, query: {}, headers: { 'user-agent': 'Googlebot/2.1' } } as any,
+      res as any,
+      next,
+    );
+
+    expect(next).not.toHaveBeenCalled();
+    expect(response.statusCode).toBe(301);
+    expect(response.headers.Location).toBe(expected);
+  });
+
   it.each(['/admin', '/gallery/riservata', '/view/riservata'])(
     'does not prerender protected route %s',
     async (path) => {
@@ -397,7 +429,7 @@ describe('pagina regalo /regala', () => {
   });
 });
 
-describe('vetrina shop /shop-natale', () => {
+describe('vetrina shop /online-shop', () => {
   async function withFlag(value: string | undefined, run: () => Promise<void>) {
     const original = process.env.SHOP_INDEXABLE;
     if (value === undefined) delete process.env.SHOP_INDEXABLE;
@@ -412,7 +444,7 @@ describe('vetrina shop /shop-natale', () => {
 
   it('finché non è aperta a Google resta nascosta con noindex', async () => {
     await withFlag(undefined, async () => {
-      const { response, next } = await renderForCrawler('/shop-natale');
+      const { response, next } = await renderForCrawler('/online-shop');
       expect(response.headers['X-Robots-Tag']).toContain('noindex');
       expect(next).toHaveBeenCalled();
     });
@@ -420,11 +452,11 @@ describe('vetrina shop /shop-natale', () => {
 
   it('aperta a Google mostra titolo, testi e dati strutturati con le stesse domande della pagina', async () => {
     await withFlag('true', async () => {
-      const { response } = await renderForCrawler('/shop-natale');
+      const { response } = await renderForCrawler('/online-shop');
       const html = response.body ?? '';
-      expect(html).toContain('Regali di Natale con le tue foto, Aversa | Image Studio');
-      expect(html).toContain('<link rel="canonical" href="https://imagestudiofotografico.com/shop-natale"');
-      expect(html).toContain('<h1>Shopping di Natale: regali che nascono da una tua foto</h1>');
+      expect(html).toContain('Shop online con le tue foto, Aversa | Image Studio');
+      expect(html).toContain('<link rel="canonical" href="https://imagestudiofotografico.com/online-shop"');
+      expect(html).toContain('<h1>Shop online: regali che nascono da una tua foto</h1>');
       const blocks = [...html.matchAll(/<script type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)].map(match => JSON.parse(match[1])).flat();
       const faq = blocks.find((entry: any) => entry['@type'] === 'FAQPage');
       expect(faq.mainEntity.map((question: any) => question.name)).toEqual(SHOP_FAQS.map(item => item.question));

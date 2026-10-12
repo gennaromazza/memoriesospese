@@ -8,7 +8,7 @@ import { formatShopPrice, shopDayKey, type ShopCatalogDto, type ShopProductDto }
  */
 
 const BASE_URL = 'https://imagestudiofotografico.com';
-const SHOP_URL = `${BASE_URL}/shop-natale`;
+const SHOP_URL = `${BASE_URL}/online-shop`;
 const BRAND = 'Image Studio';
 
 const escapeHtml = (value: string) =>
@@ -24,7 +24,7 @@ function productDescription(product: ShopProductDto): string {
   if (text) return text;
   return product.photosRequired > 0
     ? `${product.nome}: prodotto personalizzato con ${product.photosRequired === 1 ? 'una tua foto' : `${product.photosRequired} tue foto`}.`
-    : `${product.nome}, in vendita nello shop di Natale Image Studio.`;
+    : `${product.nome}, in vendita nello shop online Image Studio.`;
 }
 
 /** Disponibilità come la vede il cliente: ordini aperti, non ancora aperti, oppure chiusi dopo l'ultimo giorno. */
@@ -49,7 +49,7 @@ export function shopProductsBody(catalog: ShopCatalogDto): string {
 }
 
 /** Dati strutturati: un elenco e un Product con Offer per ogni prodotto che ha almeno un'immagine pubblica. */
-export function shopProductsJsonLd(catalog: ShopCatalogDto, now: Date, listName = 'Shopping di Natale Image Studio'): object[] {
+export function shopProductsJsonLd(catalog: ShopCatalogDto, now: Date, listName = 'Shop online Image Studio'): object[] {
   if (!catalog.enabled || catalog.products.length === 0) return [];
   const availability = shopAvailability(catalog, now);
   const validUntil = catalog.lastOrderDate && shopDayKey(now) <= catalog.lastOrderDate ? catalog.lastOrderDate : undefined;

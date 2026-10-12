@@ -172,7 +172,7 @@ export function buildStaticSitemapEntries(
     : [];
   // La vetrina dello shop entra nella mappa con il suo interruttore.
   const shopPages = process.env.SHOP_INDEXABLE === 'true'
-    ? [{ path: '/shop-natale', changefreq: 'weekly', priority: '0.9', lastmod: '2026-10-12' }]
+    ? [{ path: '/online-shop', changefreq: 'weekly', priority: '0.9', lastmod: '2026-10-12' }]
     : [];
   for (const page of [...STATIC_SITEMAP_PAGES, ...giftPages, ...shopPages]) {
     entries += `  <url>

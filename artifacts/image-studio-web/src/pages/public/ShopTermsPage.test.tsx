@@ -39,7 +39,7 @@ function render() {
 
 describe('condizioni di vendita dello shop', () => {
   it("l'indirizzo è quello a cui rimanda il checkout", () => {
-    expect(SHOP_TERMS_PATH).toBe('/shop-natale/condizioni');
+    expect(SHOP_TERMS_PATH).toBe('/online-shop/condizioni');
   });
 
   it('mostra la versione del manifesto e i dati del professionista', () => {
@@ -93,7 +93,7 @@ describe('condizioni di vendita dello shop', () => {
     const html = render();
     expect(html).toContain('href="/terms"');
     expect(html).toContain('href="/privacy"');
-    expect(seo).toHaveBeenCalledWith(expect.objectContaining({ canonical: '/shop-natale/condizioni', noindex: true }));
+    expect(seo).toHaveBeenCalledWith(expect.objectContaining({ canonical: '/online-shop/condizioni', noindex: true }));
   });
 
   it('senza dati dello studio non inventa nulla', () => {

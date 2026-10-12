@@ -19,7 +19,7 @@ describe('testi legali e comportamento del server', () => {
   });
 
   it('la pagina delle condizioni esiste per il sito ma non finisce su Google', () => {
-    expect(SHOP_TERMS_PATH).toBe('/shop-natale/condizioni');
+    expect(SHOP_TERMS_PATH).toBe('/online-shop/condizioni');
     expect(isPrivateClientPath(SHOP_TERMS_PATH)).toBe(true);
   });
 

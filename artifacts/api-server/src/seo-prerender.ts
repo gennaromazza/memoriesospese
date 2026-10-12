@@ -485,7 +485,7 @@ function getStaticPageMeta(path: string): PageMeta | null {
         <p>${GIFT_SHOP_SEO.lede}</p>
         <h2>Domande frequenti</h2>
         ${GIFT_SHOP_FAQS.map(faq => `<h3>${faq.question}</h3><p>${faq.answer}</p>`).join('')}
-        <p><a href="${BASE_URL}/shop-natale">Shopping di Natale: prodotti personalizzati con le tue foto</a> · <a href="${BASE_URL}/">Image Studio Fotografico, Aversa</a></p>
+        <p><a href="${BASE_URL}/online-shop">Shop online: prodotti personalizzati con le tue foto</a> · <a href="${BASE_URL}/">Image Studio Fotografico, Aversa</a></p>
       `,
       jsonLd: [
         {
@@ -542,10 +542,10 @@ function getStaticPageMeta(path: string): PageMeta | null {
         },
       ],
     },
-    '/shop-natale': {
+    '/online-shop': {
       title: SHOP_SEO.title,
       description: SHOP_SEO.description,
-      canonical: `${BASE_URL}/shop-natale`,
+      canonical: `${BASE_URL}/online-shop`,
       bodyContent: `
         <h1>${SHOP_SEO.h1}: ${SHOP_SEO.script}</h1>
         <p>${SHOP_SEO.lede}</p>
@@ -559,7 +559,7 @@ function getStaticPageMeta(path: string): PageMeta | null {
           '@type': 'BreadcrumbList',
           itemListElement: [
             { '@type': 'ListItem', position: 1, name: 'Home', item: `${BASE_URL}/` },
-            { '@type': 'ListItem', position: 2, name: SHOP_SEO.breadcrumb, item: `${BASE_URL}/shop-natale` },
+            { '@type': 'ListItem', position: 2, name: SHOP_SEO.breadcrumb, item: `${BASE_URL}/online-shop` },
           ],
         },
         {
@@ -1487,7 +1487,7 @@ async function getShopCategoryMeta(value: string): Promise<PageMeta | null> {
 }
 
 async function getShopPageMeta(): Promise<PageMeta | null> {
-  const base = getStaticPageMeta('/shop-natale');
+  const base = getStaticPageMeta('/online-shop');
   if (!base) return null;
   try {
     const catalog = await getShopCatalogForSeo();
@@ -1521,6 +1521,19 @@ export function createSeoMiddleware(options: { indexHtmlPath?: string } = {}) {
     if (path === '/' && typeof legacyWordPressId === 'string' && /^\d+$/.test(legacyWordPressId)) {
       res.status(301);
       res.setHeader('Location', '/');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      res.type('text/plain').send('Moved Permanently');
+      return;
+    }
+
+    // Lo shop prima stava su /shop-natale: i vecchi link (email, PayPal, condivisioni)
+    // continuano a funzionare e portano all'indirizzo nuovo, con lo stesso percorso e gli stessi parametri.
+    if (path === '/shop-natale' || path.startsWith('/shop-natale/')) {
+      const originalUrl = req.originalUrl || '';
+      const queryStart = originalUrl.indexOf('?');
+      const query = queryStart >= 0 ? originalUrl.slice(queryStart) : '';
+      res.status(301);
+      res.setHeader('Location', `/online-shop${path.slice('/shop-natale'.length)}${query}`);
       res.setHeader('Cache-Control', 'public, max-age=86400');
       res.type('text/plain').send('Moved Permanently');
       return;
@@ -1584,7 +1597,7 @@ export function createSeoMiddleware(options: { indexHtmlPath?: string } = {}) {
           res.status(404).type('text/plain').send('Not Found');
           return;
         }
-      } else if (path === '/shop-natale') {
+      } else if (path === '/online-shop') {
         meta = await getShopPageMeta();
       } else if (path.startsWith('/portfolio/') && path !== '/portfolio') {
         const category = path.replace('/portfolio/', '');

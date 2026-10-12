@@ -33,8 +33,8 @@ import '@/components/gift-cards/gift-cards.css';
 import '@/features/shop/shop-storefront.css';
 
 const THEME = 'natale' as const;
-const ORDER_PATH = '/shop-natale/ordine';
-const MY_ORDERS_PATH = '/shop-natale/i-miei-ordini';
+const ORDER_PATH = '/online-shop/ordine';
+const MY_ORDERS_PATH = '/online-shop/i-miei-ordini';
 
 function longDay(isoDay: string): string {
   return new Intl.DateTimeFormat('it-IT', { timeZone: 'UTC', day: 'numeric', month: 'long' }).format(new Date(`${isoDay}T12:00:00Z`));
@@ -150,14 +150,14 @@ export default function ShopPage({ categoryValue }: { categoryValue?: string } =
     body = (
       <div className="gcx-panel gcx-center">
         <h2>Questa categoria non è disponibile</h2>
-        <p>Non c'è nessun prodotto in vendita in questa categoria. Guarda tutto lo shop di Natale.</p>
-        <div className="gcx-cta-row"><Link href={SHOP_PATH} className="gcx-btn-gold">Vai allo shop di Natale</Link></div>
+        <p>Non c'è nessun prodotto in vendita in questa categoria. Guarda tutto lo shop online.</p>
+        <div className="gcx-cta-row"><Link href={SHOP_PATH} className="gcx-btn-gold">Vai allo shop online</Link></div>
       </div>
     );
   } else if (!showCatalog) {
     body = (
       <div className="gcx-panel gcx-center">
-        <h2>Lo shop di Natale arriva presto</h2>
+        <h2>Lo shop online arriva presto</h2>
         <p>In questo momento non c'è nessun prodotto in vendita online. Per un regalo su misura {contact}.</p>
       </div>
     );
@@ -166,7 +166,7 @@ export default function ShopPage({ categoryValue }: { categoryValue?: string } =
       <>
         {!catalog.orderingOpen ? (
           <div className="gcx-panel gcx-center" role="status">
-            <h2>{ordersClosedForGood ? 'Gli ordini di Natale sono chiusi' : 'Gli ordini online apriranno a breve'}</h2>
+            <h2>{ordersClosedForGood ? 'Gli ordini sono chiusi' : 'Gli ordini online apriranno a breve'}</h2>
             <p>
               {ordersClosedForGood
                 ? <>Per un regalo dell'ultimo minuto {contact}.</>
@@ -275,7 +275,7 @@ export default function ShopPage({ categoryValue }: { categoryValue?: string } =
         ) : null}
         <header className="gcx-hero">
           <div className="gcx-bulbs" aria-hidden="true" />
-          <p className="gcx-eyebrow-l">Natale 2026 · {studioName}</p>
+          <p className="gcx-eyebrow-l">{studioName}</p>
           <h1>{categorySeo?.h1 ?? SHOP_SEO.h1}<span className="gcx-hero-script">{SHOP_SEO.script}</span></h1>
           <p className="gcx-lede">{categorySeo?.lede ?? SHOP_SEO.lede}</p>
           {showCatalog ? (

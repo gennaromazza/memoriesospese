@@ -16,8 +16,8 @@ import { ShopShell } from '@/features/shop/ShopShell';
 export default function ShopConfirmationPage() {
   useSEO({
     title: 'Ordine confermato | Image Studio',
-    description: 'Riepilogo del tuo ordine dello shop di Natale.',
-    canonical: '/shop-natale/ordine/conferma',
+    description: 'Riepilogo del tuo ordine dello shop online.',
+    canonical: '/online-shop/ordine/conferma',
     noindex: true,
   });
   const { user, isLoading: authLoading } = useFirebaseAuth();
@@ -49,7 +49,7 @@ export default function ShopConfirmationPage() {
       <div className="mx-auto max-w-xl rounded-[2rem] border border-red-200 bg-white p-8 text-center shadow-sm" role="alert">
         <AlertTriangle className="mx-auto h-9 w-9 text-red-700" aria-hidden="true" />
         <p className="mt-4 font-semibold text-red-900">Non troviamo questo ordine.</p>
-        <Link href="/shop-natale/i-miei-ordini"><Button variant="outline" className="mt-5 rounded-full">Vai ai miei ordini</Button></Link>
+        <Link href="/online-shop/i-miei-ordini"><Button variant="outline" className="mt-5 rounded-full">Vai ai miei ordini</Button></Link>
       </div>,
     );
   }
@@ -61,7 +61,7 @@ export default function ShopConfirmationPage() {
       {!paid && (
         <div className="rounded-[2rem] border border-amber-200 bg-amber-50 p-6 text-amber-900" role="status">
           <p className="font-semibold">Questo ordine non risulta ancora pagato.</p>
-          <Link href="/shop-natale/ordine"><Button className="mt-4 rounded-full bg-terracotta text-white hover:bg-terracotta/90">Torna all'ordine <ArrowRight aria-hidden="true" /></Button></Link>
+          <Link href="/online-shop/ordine"><Button className="mt-4 rounded-full bg-terracotta text-white hover:bg-terracotta/90">Torna all'ordine <ArrowRight aria-hidden="true" /></Button></Link>
         </div>
       )}
 
@@ -97,8 +97,8 @@ export default function ShopConfirmationPage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <WhatsAppHelp orderNumber={order.orderNumber} />
         <div className="flex gap-3">
-          <Link href="/shop-natale/i-miei-ordini"><Button variant="outline" className="rounded-full">I miei ordini</Button></Link>
-          <Link href="/shop-natale"><Button className="rounded-full bg-terracotta text-white hover:bg-terracotta/90">Torna alla vetrina</Button></Link>
+          <Link href="/online-shop/i-miei-ordini"><Button variant="outline" className="rounded-full">I miei ordini</Button></Link>
+          <Link href="/online-shop"><Button className="rounded-full bg-terracotta text-white hover:bg-terracotta/90">Torna alla vetrina</Button></Link>
         </div>
       </div>
     </div>,

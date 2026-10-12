@@ -12,10 +12,10 @@ export interface ShopDirectoryEntry {
 export const SHOP_DIRECTORY: readonly ShopDirectoryEntry[] = [
   {
     key: 'natale',
-    title: 'Shop di Natale',
+    title: 'Shop online',
     description: 'Regali personalizzati con le tue foto, con ritiro in studio o spedizione in tutta Italia.',
-    href: '/shop-natale',
-    cta: 'Vai allo shop di Natale',
+    href: '/online-shop',
+    cta: 'Vai allo shop online',
   },
   {
     key: 'gift-card',

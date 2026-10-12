@@ -24,7 +24,7 @@ async function loadActivity(): Promise<ShopActivity> {
 export default function ShopDirectoryPage() {
   useSEO({
     title: 'I nostri shop online | Image Studio',
-    description: 'Tutti gli shop online di Image Studio ad Aversa: regali di Natale con le tue foto, gift card e stampe fotografiche.',
+    description: 'Tutti gli shop online di Image Studio ad Aversa: regali con le tue foto, gift card e stampe fotografiche.',
     canonical: SHOP_DIRECTORY_PATH,
     noindex: true,
   });

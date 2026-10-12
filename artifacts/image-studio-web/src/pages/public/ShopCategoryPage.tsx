@@ -1,7 +1,7 @@
 import { useParams } from 'wouter';
 import ShopPage from './ShopPage';
 
-/** Pagina di una categoria dello shop: /shop-natale/categoria/<valore>. */
+/** Pagina di una categoria dello shop: /online-shop/categoria/<valore>. */
 export default function ShopCategoryPage() {
   const { value } = useParams<{ value: string }>();
   let categoryValue = value;

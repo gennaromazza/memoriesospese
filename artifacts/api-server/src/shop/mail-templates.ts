@@ -114,7 +114,7 @@ function delivery(order: any, ctx: ShopMailContext): string {
 }
 
 function ordersLink(order: any, ctx: ShopMailContext): string {
-  return `${ctx.siteUrl}/shop-natale/i-miei-ordini?ordine=${encodeURIComponent(order.id)}`;
+  return `${ctx.siteUrl}/online-shop/i-miei-ordini?ordine=${encodeURIComponent(order.id)}`;
 }
 
 function adminLink(order: any, ctx: ShopMailContext): string {

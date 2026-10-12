@@ -71,21 +71,21 @@ describe('uscite verso il sito', () => {
 
   it('in fondo alla pagina ci sono anche il ritorno al sito, le condizioni di vendita e la privacy', () => {
     const html = renderPage(catalog());
-    expect(html).toContain('href="/shop-natale/condizioni"');
+    expect(html).toContain('href="/online-shop/condizioni"');
     expect(html).toContain('href="/privacy"');
     expect(html.match(/Torna al sito/g)!.length).toBeGreaterThanOrEqual(2);
   });
 
   it('la barra mostra il carrello solo quando si può ordinare, con il numero dei prodotti', () => {
     const open = renderToStaticMarkup(<ShopTopBar cartCount={3} showCart showOrders />);
-    expect(open).toContain('href="/shop-natale/ordine"');
+    expect(open).toContain('href="/online-shop/ordine"');
     expect(open).toContain('Vai al carrello: 3 prodotti');
     expect(open).toContain('I miei ordini');
     const empty = renderToStaticMarkup(<ShopTopBar cartCount={0} showCart showOrders={false} />);
     expect(empty).toContain('Vai al carrello: vuoto');
     expect(empty).not.toContain('I miei ordini');
     const closed = renderToStaticMarkup(<ShopTopBar cartCount={0} showCart={false} showOrders />);
-    expect(closed).not.toContain('/shop-natale/ordine');
+    expect(closed).not.toContain('/online-shop/ordine');
     expect(closed).toContain('Torna al sito');
   });
 
@@ -136,7 +136,7 @@ describe('feedback quando si aggiunge un prodotto', () => {
     expect(html).toContain('2 prodotti nel carrello');
     expect(html).toContain('90,00');
     expect(html).toContain('spedizione esclusa');
-    expect(html).toContain('href="/shop-natale/ordine"');
+    expect(html).toContain('href="/online-shop/ordine"');
     expect(html).toContain('Vai all&#x27;ordine');
     expect(renderToStaticMarkup(<ShopCartBar count={1} subtotalCents={1500} />)).toContain('1 prodotto nel carrello');
   });
@@ -221,8 +221,8 @@ describe('pagine per categoria', () => {
   it('la pagina principale con più categorie le elenca come collegamenti, con il numero dei prodotti', () => {
     const html = renderPage(multi);
     expect(html).toContain('aria-label="Categorie dello shop"');
-    expect(html).toContain('href="/shop-natale/categoria/tazze"');
-    expect(html).toContain('href="/shop-natale/categoria/natale"');
+    expect(html).toContain('href="/online-shop/categoria/tazze"');
+    expect(html).toContain('href="/online-shop/categoria/natale"');
     expect(html).toMatch(/Tazze e mug <span>\(2\)<\/span>/);
     expect(html).toContain('Album di Natale');
     expect(html).toContain('Tazza rossa');
@@ -231,7 +231,7 @@ describe('pagine per categoria', () => {
   it("con una sola categoria non mostra l'elenco né i titoli", () => {
     const html = renderPage(catalog());
     expect(html).not.toContain('Categorie dello shop');
-    expect(html).not.toContain('/shop-natale/categoria/');
+    expect(html).not.toContain('/online-shop/categoria/');
   });
 
   it('la pagina di una categoria mostra solo i suoi prodotti, con titolo e percorso propri', () => {
@@ -241,14 +241,14 @@ describe('pagine per categoria', () => {
     expect(html).not.toContain('Album di Natale');
     expect(html).toMatch(/<h1>Tazze e mug<span/);
     expect(html).toContain('aria-label="Percorso"');
-    expect(html).toMatch(/<a [^>]*href="\/shop-natale"[^>]*>Shopping di Natale<\/a>/);
+    expect(html).toMatch(/<a [^>]*href="\/online-shop"[^>]*>Shop online<\/a>/);
     expect(html).toContain('aria-current="page">Tazze e mug<');
   });
 
   it('la pagina di una categoria rimanda alle altre e non ripete le domande frequenti', () => {
     const html = renderPage(multi, 'tazze');
     expect(html).toContain('Altre categorie');
-    expect(html).toContain('href="/shop-natale/categoria/natale"');
+    expect(html).toContain('href="/online-shop/categoria/natale"');
     expect(html).not.toContain('Domande frequenti');
     expect(renderPage(multi)).toContain('Domande frequenti');
   });
@@ -256,13 +256,13 @@ describe('pagine per categoria', () => {
   it('con una categoria che non esiste lo dice e porta allo shop', () => {
     const html = renderPage(multi, 'inesistente');
     expect(html).toContain('Questa categoria non è disponibile');
-    expect(html).toContain('Vai allo shop di Natale');
+    expect(html).toContain('Vai allo shop online');
     expect(html).not.toContain('Tazza rossa');
   });
 
   it('con la vetrina spenta una categoria mostra solo il messaggio di arrivo', () => {
     const html = renderPage(catalog({ enabled: false, products: [], categories: [] }), 'tazze');
-    expect(html).toContain('Lo shop di Natale arriva presto');
+    expect(html).toContain('Lo shop online arriva presto');
     expect(html).toContain('Torna al sito');
   });
 });

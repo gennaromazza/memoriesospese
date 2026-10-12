@@ -198,12 +198,12 @@ function AppRoutes() {
 
         {/* Shop online: prodotti con foto, ritiro in studio o spedizione */}
         <Route path="/negozi" component={ShopDirectoryPage} />
-        <Route path="/shop-natale" component={ShopPage} />
-        <Route path="/shop-natale/categoria/:value" component={ShopCategoryPage} />
-        <Route path="/shop-natale/condizioni" component={ShopTermsPage} />
-        <Route path="/shop-natale/ordine" component={ShopCheckoutPage} />
-        <Route path="/shop-natale/ordine/conferma" component={ShopConfirmationPage} />
-        <Route path="/shop-natale/i-miei-ordini" component={ShopOrdersPage} />
+        <Route path="/online-shop" component={ShopPage} />
+        <Route path="/online-shop/categoria/:value" component={ShopCategoryPage} />
+        <Route path="/online-shop/condizioni" component={ShopTermsPage} />
+        <Route path="/online-shop/ordine" component={ShopCheckoutPage} />
+        <Route path="/online-shop/ordine/conferma" component={ShopConfirmationPage} />
+        <Route path="/online-shop/i-miei-ordini" component={ShopOrdersPage} />
 
         <Route path="/privacy" component={Privacy} />
         <Route path="/cookie-policy" component={CookiePolicy} />

@@ -30,7 +30,7 @@ import {
 import { buildOrderPatch, checkoutProblems } from '@/features/shop/shop-checkout';
 import { useShopCart } from '@/features/shop/useShopCart';
 
-const CONFIRMATION_PATH = '/shop-natale/ordine/conferma';
+const CONFIRMATION_PATH = '/online-shop/ordine/conferma';
 
 function ConsentRow({ checked, onChange, children }: { checked: boolean; onChange: (checked: boolean) => void; children: React.ReactNode }) {
   return (
@@ -62,8 +62,8 @@ function shippingPriceText(config: ShopShippingConfig | undefined): string {
 export default function ShopCheckoutPage() {
   useSEO({
     title: 'Il tuo ordine | Image Studio',
-    description: 'Completa l’ordine dello shop di Natale: foto, consegna e pagamento sicuro con PayPal.',
-    canonical: '/shop-natale/ordine',
+    description: 'Completa l’ordine dello shop online: foto, consegna e pagamento sicuro con PayPal.',
+    canonical: '/online-shop/ordine',
     noindex: true,
   });
   const [, navigate] = useLocation();
@@ -226,7 +226,7 @@ export default function ShopCheckoutPage() {
       if (lines.length === 0) {
         await shopApi.cancelOrder(order.id);
         forgetDraft();
-        navigate('/shop-natale');
+        navigate('/online-shop');
         return;
       }
       setOrder(await shopApi.replaceLines(order.id, lines));
@@ -343,7 +343,7 @@ export default function ShopCheckoutPage() {
           {syncError && cart.items.length > 0 && (
             <Button type="button" variant="outline" className="rounded-full" onClick={() => { failedFor.current = null; setRetryTick(tick => tick + 1); }}>Riprova</Button>
           )}
-          <Link href="/shop-natale"><Button className="h-12 rounded-full bg-terracotta px-7 text-white hover:bg-terracotta/90">Vai alla vetrina <ArrowRight aria-hidden="true" /></Button></Link>
+          <Link href="/online-shop"><Button className="h-12 rounded-full bg-terracotta px-7 text-white hover:bg-terracotta/90">Vai alla vetrina <ArrowRight aria-hidden="true" /></Button></Link>
         </div>
       </div>,
     );
@@ -378,7 +378,7 @@ export default function ShopCheckoutPage() {
               </li>
             ))}
           </ul>
-          <Link href="/shop-natale" className="mt-3 inline-block text-sm font-semibold text-terracotta underline underline-offset-2">Aggiungi altri prodotti</Link>
+          <Link href="/online-shop" className="mt-3 inline-block text-sm font-semibold text-terracotta underline underline-offset-2">Aggiungi altri prodotti</Link>
         </Section>
 
         {hasPhotoLines && (

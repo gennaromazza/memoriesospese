@@ -28,7 +28,7 @@ export default function ShopTermsPage() {
   useSEO({
     title: 'Condizioni di vendita Shopping online Natale | Image Studio',
     description: 'Condizioni di vendita degli ordini online di idee regalo e prodotti personalizzati di Natale: foto, pagamento PayPal, consegna, recesso e conservazione dei dati.',
-    canonical: '/shop-natale/condizioni',
+    canonical: '/online-shop/condizioni',
     noindex: true,
   });
 

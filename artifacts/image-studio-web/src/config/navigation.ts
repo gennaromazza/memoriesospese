@@ -81,8 +81,8 @@ export const mainNavItems: NavItem[] = [
     requires: 'giftShop',
   },
   {
-    label: 'Shopping di Natale',
-    href: '/shop-natale',
+    label: 'Shop online',
+    href: '/online-shop',
     icon: ShoppingBag,
     showInHeader: true,
     showInFooter: true,

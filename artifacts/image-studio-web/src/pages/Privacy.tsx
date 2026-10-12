@@ -78,7 +78,7 @@ export default function Privacy() {
               </p>
               <p className="text-gray-600">
                 Le condizioni di vendita dello shop sono nella pagina{' '}
-                <Link href={createUrl('/shop-natale/condizioni')} className="text-sage-600 hover:underline">Condizioni di vendita</Link>.
+                <Link href={createUrl('/online-shop/condizioni')} className="text-sage-600 hover:underline">Condizioni di vendita</Link>.
               </p>
             </section>
 
