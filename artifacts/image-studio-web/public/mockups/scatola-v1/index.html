@@ -15,7 +15,9 @@ button:hover:not(:disabled){background:#e8eeeb}
 button:disabled{opacity:.5;cursor:default}
 button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid #458b9b;outline-offset:3px}
 button[aria-pressed=true]{border:2px solid #315f6a;background:#eaf1ef;padding:9px}
-.panel-tabs{display:flex;gap:5px;margin:14px 0 16px}.panel-tabs button{flex:1;padding:9px 5px;font-size:13px}.panel-tabs button[aria-pressed=true]{padding:8px 4px}
+.panel-tabs{display:flex;gap:4px;margin:14px 0 16px}.panel-tabs button{flex:1;padding:9px 2px;font-size:12.5px}.panel-tabs button[aria-pressed=true]{padding:8px 1px}
+input[type=text]{width:100%;font:inherit;font-size:18px;padding:11px 12px;border:1px solid #b7c7c2;border-radius:8px;background:#fff;color:inherit}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}.chips button{font-size:13px;padding:8px 12px}.chips button[aria-pressed=true]{padding:7px 11px}
 .panel-content{min-height:0;flex:1;overflow:auto}
 .segmented{display:flex;gap:6px;margin:10px 0}.segmented button{flex:1;font-size:13px}
 label{display:block;margin:12px 0 6px;font-size:14px}
@@ -57,9 +59,17 @@ input[type=file]{width:100%;font-size:13px}
 <main><aside>
 <h1>Scatola, quadro e cornice.</h1>
 <p>L’album vive nella scatola. Toglilo e il fondo diventa un quadro da parete, il tappo una cornice da tavolo.</p>
-<nav class="panel-tabs" aria-label="Personalizzazione"><button type="button" data-panel="fabricPanel" aria-pressed="true">Tessuti</button><button type="button" data-panel="photoPanel" aria-pressed="false">Foto</button><button type="button" data-panel="summaryPanel" aria-pressed="false">Riepilogo</button></nav>
+<nav class="panel-tabs" aria-label="Personalizzazione"><button type="button" data-panel="formatPanel" aria-pressed="true">Formato</button><button type="button" data-panel="fabricPanel" aria-pressed="false">Tessuti</button><button type="button" data-panel="photoPanel" aria-pressed="false">Foto</button><button type="button" data-panel="summaryPanel" aria-pressed="false">Riepilogo</button></nav>
 <div class="panel-content">
-<section id="fabricPanel"><h2>Peppe Lab</h2>
+<section id="formatPanel"><h2>Misura dell’album</h2>
+<form id="formatForm"><label for="formatInput">Larghezza × altezza, in cm</label>
+<input id="formatInput" type="text" inputmode="decimal" autocomplete="off" value="25 × 35" aria-describedby="formatInfo formatStatus"></form>
+<div class="segmented" role="group" aria-label="Orientamento"><button type="button" id="orientV" aria-pressed="true">Verticale</button><button type="button" id="orientH" aria-pressed="false">Orizzontale</button></div>
+<h2>Misure comuni</h2>
+<div class="chips"><button type="button" data-size="25x35" aria-pressed="false">25 × 35</button><button type="button" data-size="35x25" aria-pressed="false">35 × 25</button><button type="button" data-size="20x30" aria-pressed="false">20 × 30</button><button type="button" data-size="30x20" aria-pressed="false">30 × 20</button><button type="button" data-size="30x30" aria-pressed="false">30 × 30</button></div>
+<p id="formatInfo"></p><p id="formatStatus" role="status">Scrivi la misura (per esempio 25x35 o 30x20) e premi Invio.</p>
+<p class="note">La misura è quella dell’album. Scatola e tappo sono più grandi di 2,2 cm per lato. Da 15 a 50 cm per lato.</p></section>
+<section id="fabricPanel" hidden><h2>Peppe Lab</h2>
 <label class="check"><input id="sameFabric" type="checkbox" checked> Album dello stesso tessuto della scatola</label>
 <div class="segmented" role="group" aria-label="Elemento da rivestire"><button type="button" data-target="box" aria-pressed="true">Scatola e tappo</button><button type="button" data-target="album" aria-pressed="false">Album</button></div>
 <div class="materials" id="materials"></div></section>
@@ -68,7 +78,7 @@ input[type=file]{width:100%;font-size:13px}
 <div class="photo-slot"><strong>Tappo</strong><p>Sul coperchio: diventa la cornice da tavolo.</p><input id="lidUpload" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Foto del tappo"><button type="button" id="lidRestore">Ripristina foto di esempio</button><p id="lidStatus" role="status"></p></div>
 <div class="photo-slot"><strong>Copertina dell’album</strong><p>La foto sulla copertina dell’album.</p><input id="albumUpload" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Foto della copertina dell’album"><button type="button" id="albumRestore">Ripristina foto di esempio</button><p id="albumStatus" role="status"></p></div>
 <p>JPG, PNG o WebP, massimo 20 MB. Le foto restano in questa prova locale.</p></section>
-<section id="summaryPanel" hidden><h2>La tua configurazione</h2><p id="configurationSummary" aria-live="polite"></p><p class="note">Prototipo con geometria semplificata, scatola verticale di circa 26 × 34 cm. Texture e scala della trama indicative.</p></section>
+<section id="summaryPanel" hidden><h2>La tua configurazione</h2><p id="configurationSummary" aria-live="polite"></p><p class="note">Prototipo con geometria semplificata. Misure, texture e scala della trama indicative.</p></section>
 </div></aside>
 <div class="workspace">
 <section class="stage" aria-label="Modello tridimensionale della scatola"><div class="badge" id="materialLabel">Caricamento rivestimento…</div><canvas id="viewport" aria-label="Scatola 3D: trascina per ruotare"></canvas><div class="status" id="status" role="status">Caricamento del modello 3D…</div><div class="hint">Trascina per ruotare · rotellina per zoom</div><div class="zoom"><button type="button" id="plus" aria-label="Ingrandisci">+</button><button type="button" id="minus" aria-label="Riduci">−</button></div></section>
