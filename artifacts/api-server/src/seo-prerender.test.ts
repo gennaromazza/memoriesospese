@@ -425,6 +425,50 @@ describe('SEO prerender wedding-first', () => {
     expect(response.body).toContain(`content="${contentType}"`);
     expect(response.body).toContain(`content="${post.coverImage}"`);
   });
+
+  it('renders the selected Blog cover and custom alt text in crawler social metadata', async () => {
+    const coverImage = 'https://images.example/blog-cover.jpg';
+    const coverImageAlt = 'Gli sposi festeggiano al tramonto';
+    const post = {
+      slug: 'festa-al-tramonto',
+      status: 'published',
+      title: 'Una festa al tramonto',
+      excerpt: 'Il racconto della giornata.',
+      content: '<p>Una giornata speciale.</p>',
+      coverImage,
+      coverImageAlt,
+      publishedAt: { seconds: 1_780_000_000 },
+    };
+    const chain = {
+      where: () => chain,
+      limit: () => chain,
+      get: async () => ({ empty: false, docs: [{ id: 'festa-al-tramonto', data: () => post }] }),
+    };
+    mockCollection.mockImplementation((collectionName: string) => {
+      if (collectionName === 'blogPosts') return chain;
+      return {
+        where: () => ({
+          get: async () => ({ docs: [], empty: true }),
+        }),
+      };
+    });
+
+    const { response, next } = await renderForCrawler('/blog/festa-al-tramonto');
+    const html = response.body || '';
+    const ogImageUrl = html.match(/<meta property="og:image" content="([^"]+)" \/>/)?.[1];
+
+    expect(next).not.toHaveBeenCalled();
+    expect(ogImageUrl).toBe(coverImage);
+    expect(() => new URL(ogImageUrl!)).not.toThrow();
+    expect(html.match(/<meta property="og:image" content="https:\/\/images\.example\/blog-cover\.jpg" \/>/g))
+      .toHaveLength(1);
+    expect(html.match(/<meta property="og:image:alt" content="Gli sposi festeggiano al tramonto" \/>/g))
+      .toHaveLength(1);
+    expect(html.match(/<meta name="twitter:image" content="https:\/\/images\.example\/blog-cover\.jpg" \/>/g))
+      .toHaveLength(1);
+    expect(html.match(/<meta name="twitter:image:alt" content="Gli sposi festeggiano al tramonto" \/>/g))
+      .toHaveLength(1);
+  });
 });
 
 describe('pagina regalo /regala', () => {
