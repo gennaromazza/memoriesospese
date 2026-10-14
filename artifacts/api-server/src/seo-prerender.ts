@@ -46,6 +46,7 @@ import {
   buildBlogContextualLinks,
   type BlogWeddingStoryCandidate,
 } from '../shared/blog-contextual-links';
+import { getBlogCoverImageFormatFromUrl } from '@shared/blog-cover-image';
 
 const BASE_URL = 'https://imagestudiofotografico.com';
 const OG_IMAGE = defaultSocialImage().url;
@@ -932,7 +933,7 @@ async function getBlogPostMeta(slug: string): Promise<PageMeta | null> {
         alt: post.coverImageAlt || post.title,
         width: post.coverImageWidth,
         height: post.coverImageHeight,
-        type: post.coverImageType,
+        type: post.coverImageType || getBlogCoverImageFormatFromUrl(post.coverImage)?.contentType,
         source: 'editorial-cover',
       },
       ...(contentImage ? [contentImage] : []),

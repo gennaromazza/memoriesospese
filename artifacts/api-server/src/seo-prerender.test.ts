@@ -389,6 +389,42 @@ describe('SEO prerender wedding-first', () => {
     expect(response.body).toContain('https://imagestudiofotografico.com/portfolio/matrimonio');
     expect(response.body).toContain('https://imagestudiofotografico.com/consulenze');
   });
+
+  it.each([
+    ['jpg', 'image/jpeg'],
+    ['png', 'image/png'],
+    ['webp', 'image/webp'],
+  ])('publishes matching Blog image metadata for .%s covers', async (extension, contentType) => {
+    const post = {
+      slug: `cover-${extension}`,
+      status: 'published',
+      title: `Cover ${extension}`,
+      excerpt: 'Test immagine copertina.',
+      content: '<p>Contenuto di prova.</p>',
+      coverImage: `https://firebasestorage.googleapis.com/v0/b/example/o/blog-covers%2Fcover.${extension}?alt=media`,
+      coverImageType: contentType,
+      publishedAt: { seconds: 1_780_000_000 },
+    };
+    const chain = {
+      where: () => chain,
+      limit: () => chain,
+      get: async () => ({ empty: false, docs: [{ id: 'cover-post', data: () => post }] }),
+    };
+    mockCollection.mockImplementation((collectionName: string) => {
+      if (collectionName === 'blogPosts') return chain;
+      return {
+        where: () => ({
+          get: async () => ({ docs: [], empty: true }),
+        }),
+      };
+    });
+
+    const { response, next } = await renderForCrawler(`/blog/cover-${extension}`);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(response.body).toContain(`content="${contentType}"`);
+    expect(response.body).toContain(`content="${post.coverImage}"`);
+  });
 });
 
 describe('pagina regalo /regala', () => {

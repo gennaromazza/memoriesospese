@@ -1,0 +1,35 @@
+directories:
+  output: release
+  buildResources: build
+appId: com.imagestudio.gallerie
+productName: Image Studio Gallerie
+artifactName: Image-Studio-Gallerie-${version}-${arch}.${ext}
+files:
+  - filter:
+      - dist/public/**/*
+      - electron/**/*
+      - build/icon.png
+      - build/icon.ico
+      - package.json
+asar: true
+compression: maximum
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: build/icon.ico
+  signAndEditExecutable: true
+publish:
+  - provider: github
+    owner: gennaromazza
+    repo: memoriesospese
+    releaseType: release
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Image Studio Gallerie
+  deleteAppDataOnUninstall: false
+electronVersion: 39.8.10
