@@ -342,7 +342,7 @@ router.get('/notifications', authenticateFirebase, requireAdmin, async (req: any
       const createdDate = data.createdAt?.toDate ? data.createdAt.toDate() : null;
       if (!createdDate || createdDate < sevenDaysAgo) return;
 
-      const type = data.type === 'photobook_approved'
+      const type = data.type === 'photobook_approved' || data.type === 'photobook_changes'
         ? 'photobook'
         : data.type === 'print_shop_order'
           ? 'print_shop_order'

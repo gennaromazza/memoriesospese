@@ -6,6 +6,8 @@
  */
 
 import { useRef, useState } from 'react';
+import { assignPageNumbers } from '@/lib/photobook-page-numbers';
+import { Checkbox } from '@/components/ui/checkbox';
 import PhotobookMockup from '@/components/photobook/PhotobookMockup';
 import PhotobookConfirmDialog from '@/components/photobook/PhotobookConfirmDialog';
 import {
@@ -62,6 +64,10 @@ export default function PhotobookEditorPage() {
   const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
   const [currentVersionTarget, setCurrentVersionTarget] = useState<number | null>(null);
   const [notificationBusy, setNotificationBusy] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [selectedPageIds, setSelectedPageIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const { data: book, isLoading: bookLoading, isError: bookError, refetch: refetchBook } = useQuery({
     queryKey: ['/api/photobooks', id],
@@ -90,37 +96,72 @@ export default function PhotobookEditorPage() {
     queryClient.invalidateQueries({ queryKey: ['/api/photobooks'] });
   };
 
-  const handleFiles = async (files: FileList | null) => {
+  const handleFiles = async (files: FileList | File[] | null) => {
     if (!files || files.length === 0 || !book) return;
-    const list = Array.from(files).sort((a, b) =>
-      a.name.localeCompare(b.name, undefined, { numeric: true }),
-    );
+    const list = Array.from(files).filter((f) => /^image\/(jpeg|png|webp)$/.test(f.type));
+    if (list.length === 0) {
+      toast({ title: 'Nessuna immagine valida', description: 'Trascina file JPEG, PNG o WebP.', variant: 'destructive' });
+      return;
+    }
     try {
       // Numero di partenza dall'elenco pagine FRESCO dal server: lo stato
       // locale può essere vuoto/stale (query non ancora caricata o upload
       // ravvicinati) e produrrebbe numeri di pagina duplicati.
       setUploadProgress('Preparazione caricamento...');
       const freshPages = await listPhotobookPages(id, version);
-      let nextNumber = freshPages.reduce((m, p) => Math.max(m, p.pageNumber), 0) + 1;
-      for (let i = 0; i < list.length; i++) {
-        setUploadProgress(`Caricamento pagina ${i + 1} di ${list.length} (${list[i].name})...`);
+      const plan = assignPageNumbers(list, freshPages.map((p) => p.pageNumber));
+      for (let i = 0; i < plan.length; i++) {
+        setUploadProgress(`Caricamento pagina ${plan[i].pageNumber} (${i + 1} di ${plan.length}: ${plan[i].file.name})...`);
         await uploadPhotobookPage({
           photobookId: id,
           version,
-          pageNumber: nextNumber++,
-          file: list[i],
+          pageNumber: plan[i].pageNumber,
+          file: plan[i].file,
         });
         invalidatePages();
       }
+      const appended = plan.filter((p) => p.appended).length;
       toast({
         title: 'Pagine caricate',
-        description: `${list.length} pagine caricate. Se stai preparando una bozza, controllala e premi Pubblica versione quando è completa.`,
+        description: `${list.length} pagine caricate${appended > 0 ? ` (${appended} messe in coda: numero nel nome assente o già occupato)` : ' secondo il numero nel nome del file'}. Se stai preparando una bozza, controllala e premi Pubblica versione quando è completa.`,
       });
     } catch (e: any) {
       toast({ title: 'Errore caricamento', description: e.message, variant: 'destructive' });
     } finally {
       setUploadProgress(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const togglePageSelected = (pageId: string) =>
+    setSelectedPageIds((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(pageId)) next.add(pageId);
+      return next;
+    });
+
+  const deleteSelectedPages = async () => {
+    // Le eliminazioni vanno in sequenza: ognuna aggiorna il contatore pagine
+    // del fotolibro in transazione.
+    const ids = pages.filter((p) => selectedPageIds.has(p.id)).map((p) => p.id);
+    setBulkDeleting(true);
+    let deleted = 0;
+    try {
+      for (const pageId of ids) {
+        await deletePhotobookPage(id, pageId);
+        deleted++;
+      }
+      toast({ title: 'Pagine eliminate', description: `${deleted} pagine eliminate.` });
+    } catch (e: any) {
+      toast({
+        title: 'Eliminazione interrotta',
+        description: `${deleted} di ${ids.length} eliminate. ${e.message}`,
+        variant: 'destructive',
+      });
+    } finally {
+      setSelectedPageIds(new Set());
+      setBulkDeleting(false);
+      invalidatePages();
     }
   };
 
@@ -186,7 +227,10 @@ export default function PhotobookEditorPage() {
     publishMutation.isPending ||
     newVersionMutation.isPending ||
     setCurrentVersionMutation.isPending ||
-    deletePageMutation.isPending;
+    deletePageMutation.isPending ||
+    bulkDeleting;
+  const canUpload =
+    !busy && !book.locked && book.versions.find((v) => v.version === version)?.status !== 'published';
 
   const notificationKey = book?.mockupPath === 'client'
     ? `approved_v${book.currentVersion}`
@@ -244,7 +288,7 @@ export default function PhotobookEditorPage() {
            />
         </div>
 
-        {/* Barra versioni + upload */}
+        {/* Barra versioni + upload (accetta anche il trascinamento dei file) */}
         <PhotobookMockup key={`${id}-${version}`} photobookId={id} version={version} readOnly={book.currentVersion !== version} />
          <Card><CardContent className="pt-4 space-y-3">
            <label className="block text-sm font-medium" htmlFor="mockup-path">Percorso mockup di questo fotolibro</label>
@@ -264,14 +308,33 @@ export default function PhotobookEditorPage() {
             {(notification?.state === 'uncertain' || notification?.state === 'pending') && <div className="flex gap-2 flex-wrap"><Button variant="outline" disabled={notificationBusy} onClick={() => void handleNotification('delivered')}>Verificata: consegnata</Button><Button variant="outline" disabled={notificationBusy} onClick={() => void handleNotification('not-delivered')}>Verificata: non consegnata</Button></div>}
            {(['missing-email', 'not-delivered'].includes(notification?.state || '') || !notification || (notification?.state === 'waiting-approval' && !waitingForPageApproval && book.mockupPath !== 'client')) && (book.mockupPath === 'client' ? book.approval?.version === book.currentVersion : !!notificationKey && !waitingForPageApproval) && <Button variant="outline" disabled={notificationBusy} onClick={() => void handleNotification('send')}>Verifica e invia email mockup</Button>}
          </CardContent></Card>
-        <Card>
-          <p className="px-4 pt-4 text-sm">1. Crea una nuova bozza. 2. Carica tutte le pagine e controllale. 3. Pubblica: solo allora il cliente vedrà la nuova versione e riceverà l’email.</p>
+        <Card
+          className={isDragging ? 'ring-2 ring-primary bg-primary/5' : undefined}
+          data-testid="dropzone-upload-pages"
+          onDragOver={(e) => {
+            if (!canUpload || !e.dataTransfer.types.includes('Files')) return;
+            e.preventDefault();
+            setIsDragging(true);
+          }}
+          onDragLeave={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setIsDragging(false);
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            setIsDragging(false);
+            if (canUpload) void handleFiles(Array.from(e.dataTransfer.files));
+          }}
+        >
+          {isDragging && (
+            <p className="px-4 pt-4 text-sm font-medium text-primary">Rilascia qui le immagini per caricarle come pagine</p>
+          )}
+          <p className="px-4 pt-4 text-sm">Trascina qui le immagini delle pagine, oppure usa Carica pagine. 1. Crea una nuova bozza. 2. Carica tutte le pagine e controllale. 3. Pubblica: solo allora il cliente vedrà la nuova versione e riceverà l’email.</p>
           <CardContent className="pt-4 flex items-center gap-3 flex-wrap">
              <div className="flex items-center gap-2">
                <label htmlFor="photobook-version" className="text-sm text-muted-foreground">Versione:</label>
               <Select
                 value={String(version)}
-                onValueChange={(v) => { if (!busy) setSelectedVersion(Number(v)); }}
+                onValueChange={(v) => { if (!busy) { setSelectedVersion(Number(v)); setSelectedPageIds(new Set()); } }}
               >
                  <SelectTrigger id="photobook-version" aria-label="Versione da modificare" className="w-40" data-testid="select-version">
                   <SelectValue />
@@ -324,7 +387,7 @@ export default function PhotobookEditorPage() {
             />
             <Button
               size="sm"
-              disabled={busy || book.locked || book.versions.find(v => v.version === version)?.status === 'published'}
+              disabled={!canUpload}
               onClick={() => fileInputRef.current?.click()}
               data-testid="button-upload-pages"
             >
@@ -355,6 +418,39 @@ export default function PhotobookEditorPage() {
         ) : pages.length === 0 ? (
            <PhotobookEmptyState title="Nessuna pagina in questa versione" message="Carica le immagini delle pagine per preparare la revisione del cliente." />
         ) : (
+          <>
+          {!book.locked && book.versions.find((v) => v.version === version)?.status !== 'published' && (
+            <div className="flex flex-wrap items-center gap-3 text-sm" data-testid="bar-bulk-pages">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={busy}
+                onClick={() =>
+                  setSelectedPageIds(
+                    selectedPageIds.size === pages.length ? new Set() : new Set(pages.map((p) => p.id)),
+                  )
+                }
+                data-testid="button-select-all-pages"
+              >
+                {selectedPageIds.size === pages.length ? 'Deseleziona tutte' : 'Seleziona tutte'}
+              </Button>
+              {selectedPageIds.size > 0 && (
+                <>
+                  <span className="text-muted-foreground">{selectedPageIds.size} selezionate</span>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    disabled={busy}
+                    onClick={() => setBulkDeleteOpen(true)}
+                    data-testid="button-delete-selected-pages"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                    Elimina selezionate
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {pages.map((page) => (
               <Card key={page.id} data-testid={`card-page-${page.pageNumber}`}>
@@ -368,7 +464,16 @@ export default function PhotobookEditorPage() {
                     />
                   </div>
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium">Pagina {page.pageNumber}</span>
+                    <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                      <Checkbox
+                        checked={selectedPageIds.has(page.id)}
+                        onCheckedChange={() => togglePageSelected(page.id)}
+                        disabled={busy || book.locked}
+                        aria-label={`Seleziona pagina ${page.pageNumber}`}
+                        data-testid={`checkbox-page-${page.pageNumber}`}
+                      />
+                      Pagina {page.pageNumber}
+                    </label>
                     <Button
                       size="sm"
                       variant="ghost"
@@ -385,8 +490,22 @@ export default function PhotobookEditorPage() {
               </Card>
             ))}
           </div>
+          </>
         )}
       </div>
+      <PhotobookConfirmDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        title={`Eliminare ${selectedPageIds.size} pagine?`}
+        description="Le pagine selezionate verranno rimosse da questa versione del fotolibro. L’azione non si può annullare."
+        confirmLabel="Elimina pagine"
+        destructive
+        onConfirm={() => {
+          setBulkDeleteOpen(false);
+          void deleteSelectedPages();
+        }}
+        pending={bulkDeleting}
+      />
       <PhotobookConfirmDialog
         open={publishConfirmOpen}
         onOpenChange={setPublishConfirmOpen}

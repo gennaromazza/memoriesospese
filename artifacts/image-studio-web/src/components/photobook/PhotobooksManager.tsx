@@ -88,6 +88,8 @@ import {
   CheckCircle2,
   MessageSquareWarning,
   FileText,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import PhotobookTutorial from '@/components/photobook/PhotobookTutorial';
 import PhotobookMockup from '@/components/photobook/PhotobookMockup';
@@ -140,6 +142,7 @@ export default function PhotobooksManager({
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const [createOpen, setCreateOpen] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const [newName, setNewName] = useState('');
   const [newGalleryId, setNewGalleryId] = useState('');
   const [newJobId, setNewJobId] = useState('');
@@ -412,53 +415,10 @@ export default function PhotobooksManager({
     g.name.toLowerCase().includes(gallerySearch.trim().toLowerCase()),
   );
 
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <p className="text-sm text-muted-foreground">
-          Carica le pagine JPEG del fotolibro e invia al cliente il link di revisione: il cliente
-          disegna una X sulle foto da modificare.
-        </p>
-        <div className="flex items-center gap-2">
-          <PhotobookTutorial />
-          <Button onClick={() => setCreateOpen(true)} data-testid="button-create-photobook">
-            <Plus className="h-4 w-4 mr-2" />
-            Nuovo Fotolibro
-          </Button>
-        </div>
-      </div>
+  const activeBooks = books.filter((b) => !b.locked);
+  const archivedBooks = books.filter((b) => b.locked);
 
-      {totalPending > 0 && (
-        <button
-          type="button"
-          onClick={goToChanges}
-          className="w-full flex items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-left hover:bg-amber-100 transition-colors"
-          data-testid="banner-pending-changes"
-        >
-          <MessageSquareWarning className="h-5 w-5 text-amber-600 shrink-0" />
-          <span className="text-sm text-amber-900">
-            <span className="font-semibold">
-              {totalPending} {totalPending === 1 ? 'richiesta di modifica' : 'richieste di modifica'}
-            </span>{' '}
-            in attesa dai clienti — clicca per aprire "Modifiche Fotolibro"
-          </span>
-        </button>
-      )}
-
-      {isLoading ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
-      ) : books.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            <BookImage className="h-10 w-10 mx-auto mb-3 opacity-40" />
-            Nessun fotolibro ancora creato.
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {books.map((book) => {
+  const renderBook = (book: Photobook) => {
             const currentVer = book.versions.find((v) => v.version === book.currentVersion);
             return (
               <Card key={book.id} data-testid={`card-photobook-${book.id}`}>
@@ -595,7 +555,78 @@ export default function PhotobooksManager({
                 </CardContent>
               </Card>
             );
-          })}
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <p className="text-sm text-muted-foreground">
+          Carica le pagine JPEG del fotolibro e invia al cliente il link di revisione: il cliente
+          disegna una X sulle foto da modificare.
+        </p>
+        <div className="flex items-center gap-2">
+          <PhotobookTutorial />
+          <Button onClick={() => setCreateOpen(true)} data-testid="button-create-photobook">
+            <Plus className="h-4 w-4 mr-2" />
+            Nuovo Fotolibro
+          </Button>
+        </div>
+      </div>
+
+      {totalPending > 0 && (
+        <button
+          type="button"
+          onClick={goToChanges}
+          className="w-full flex items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-left hover:bg-amber-100 transition-colors"
+          data-testid="banner-pending-changes"
+        >
+          <MessageSquareWarning className="h-5 w-5 text-amber-600 shrink-0" />
+          <span className="text-sm text-amber-900">
+            <span className="font-semibold">
+              {totalPending} {totalPending === 1 ? 'richiesta di modifica' : 'richieste di modifica'}
+            </span>{' '}
+            in attesa dai clienti — clicca per aprire "Modifiche Fotolibro"
+          </span>
+        </button>
+      )}
+
+      {isLoading ? (
+        <div className="flex justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : books.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            <BookImage className="h-10 w-10 mx-auto mb-3 opacity-40" />
+            Nessun fotolibro ancora creato.
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-6">
+          {activeBooks.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {activeBooks.map(renderBook)}
+            </div>
+          )}
+          {archivedBooks.length > 0 && (
+            <div className="space-y-3" data-testid="section-archived-photobooks">
+              <button
+                type="button"
+                onClick={() => setShowArchived((v) => !v)}
+                className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+                aria-expanded={showArchived}
+                data-testid="button-toggle-archived"
+              >
+                {showArchived ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                Archivio — mandati in stampa ({archivedBooks.length})
+              </button>
+              {showArchived && (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 opacity-80">
+                  {archivedBooks.map(renderBook)}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

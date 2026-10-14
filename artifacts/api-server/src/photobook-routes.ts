@@ -555,6 +555,57 @@ router.post('/by-token/:token/requests', async (req: Request, res: Response) => 
 
     await batch.commit();
     console.log(`📖 [photobooks] ${created.length} richieste modifica ricevute per "${book.name}" (batch ${batchId})`);
+
+    // Notifica nel campanello + email all'admin (best-effort: le richieste
+    // sono già salvate e non vanno perse se la notifica fallisce).
+    const countLabel = `${created.length} ${created.length === 1 ? 'richiesta di modifica' : 'richieste di modifica'}`;
+    try {
+      await db.collection('adminNotifications')
+        .doc(`photobook-changes-${batchId}`)
+        .set({
+          type: 'photobook_changes',
+          title: 'Modifiche al fotolibro',
+          description: `${book.clientName || 'Il cliente'} ha inviato ${countLabel} per "${book.name || 'Fotolibro'}" (v${book.currentVersion})`,
+          photobookId: bookDoc.id,
+          relatedDocId: bookDoc.id,
+          relatedDocType: 'photobook',
+          isRead: false,
+          createdAt: FieldValue.serverTimestamp(),
+          deepLink: '/admin/dashboard?tab=photobook-changes',
+        });
+    } catch (notificationError) {
+      console.error('[photobooks] Notifica admin richieste non salvata (non bloccante):', notificationError);
+    }
+    try {
+      const esc = (s: any) =>
+        String(s ?? '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      const html = `
+        <div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#44403c">
+          <h2 style="color:#d97706;font-weight:normal">Nuove modifiche richieste sul fotolibro</h2>
+          <p><strong>${esc(book.clientName || 'Il cliente')}</strong> ha inviato <strong>${countLabel}</strong>
+          per il fotolibro &laquo;${esc(book.name || 'Fotolibro')}&raquo; (versione ${book.currentVersion}).</p>
+          <p>Le trovi nella sezione Modifiche Fotolibro del pannello admin.</p>
+          <p style="color:#a8a29e;font-size:13px;margin-top:32px">Image Studio Fotografico</p>
+        </div>`;
+      await sendGmailEmail(
+        ADMIN_EMAILS[0],
+        `Modifiche richieste: "${book.name}" (v${book.currentVersion})`,
+        html,
+        undefined,
+        {
+          type: 'photobook_changes',
+          relatedDocId: bookDoc.id,
+          relatedDocType: 'photobook',
+          clientName: book.clientName || null,
+        },
+      );
+    } catch (emailErr) {
+      console.error('[photobooks] Email richieste modifica non inviata (non bloccante):', emailErr);
+    }
     return res.json({ ok: true, batchId, count: created.length });
   } catch (error) {
     console.error('[photobooks] Errore submit richieste:', error);
