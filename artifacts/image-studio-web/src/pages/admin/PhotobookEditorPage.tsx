@@ -10,6 +10,7 @@ import { assignPageNumbers } from '@/lib/photobook-page-numbers';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import PhotobookMockup from '@/components/photobook/PhotobookMockup';
+import MockupAdminFlow from '@/components/photobook/MockupAdminFlow';
 import PhotobookConfirmDialog from '@/components/photobook/PhotobookConfirmDialog';
 import {
   CopyFeedbackButton,
@@ -312,24 +313,28 @@ export default function PhotobookEditorPage() {
 
         {/* Barra versioni + upload (accetta anche il trascinamento dei file) */}
         <PhotobookMockup key={`${id}-${version}`} photobookId={id} version={version} readOnly={book.currentVersion !== version} />
-         <Card><CardContent className="pt-4 space-y-3">
-           <label className="block text-sm font-medium" htmlFor="mockup-path">Percorso mockup di questo fotolibro</label>
-           <select id="mockup-path" className="rounded border p-2 w-full max-w-lg" value={book.mockupPath || 'studio'} onChange={async e => {
+         <MockupAdminFlow
+           photobookId={id}
+           version={version}
+           currentVersion={book.currentVersion}
+           pagesApproved={book.approval?.version === book.currentVersion}
+           mockupPath={book.mockupPath || 'studio'}
+           pathBusy={busy}
+           readOnly={book.currentVersion !== version || !!book.locked}
+           onPathChange={async path => {
              try {
-               await updatePhotobook(id, { mockupPath: e.target.value as 'client' | 'studio' });
+               await updatePhotobook(id, { mockupPath: path });
                await refetchBook();
                toast({ title: 'Percorso aggiornato', description: 'Nessuna email retroattiva inviata.' });
              } catch (error) { toast({ title: 'Percorso non aggiornato', description: (error as Error).message, variant: 'destructive' }); }
-           }}>
-             <option value="client">Cliente configura dopo l’approvazione delle pagine</option>
-             <option value="studio">Lo studio prepara e conferma prima di avvisare</option>
-           </select>
-           <p className="text-sm">Email mockup: {waitingForPageApproval ? 'in attesa dell’approvazione delle pagine' : notification?.state === 'waiting-approval' ? 'approvazione completata: invio da verificare' : notification?.state === 'sent' || (notification && !notification.state) ? 'inviata' : notification?.state === 'missing-email' ? 'non inviata: manca l’indirizzo cliente' : notification?.state === 'not-delivered' ? 'non consegnata (verificata)' : notification?.state === 'pending' || notification?.state === 'uncertain' ? 'esito incerto: verifica la posta inviata' : 'non ancora prevista o inviata'}</p>
-           {notification?.state === 'missing-email' && <p className="text-sm text-amber-700">Completa l’email nella galleria o nel cliente del lavoro, poi usa “Verifica e invia”.</p>}
-           {(notification?.state === 'uncertain' || notification?.state === 'pending') && <p className="text-sm text-amber-700">Controlla la posta inviata prima di indicare se è stata consegnata. Non viene ritentata automaticamente.</p>}
-            {(notification?.state === 'uncertain' || notification?.state === 'pending') && <div className="flex gap-2 flex-wrap"><Button variant="outline" disabled={notificationBusy} onClick={() => void handleNotification('delivered')}>Verificata: consegnata</Button><Button variant="outline" disabled={notificationBusy} onClick={() => void handleNotification('not-delivered')}>Verificata: non consegnata</Button></div>}
-           {(['missing-email', 'not-delivered'].includes(notification?.state || '') || !notification || (notification?.state === 'waiting-approval' && !waitingForPageApproval && book.mockupPath !== 'client')) && (book.mockupPath === 'client' ? book.approval?.version === book.currentVersion : !!notificationKey && !waitingForPageApproval) && <Button variant="outline" disabled={notificationBusy} onClick={() => void handleNotification('send')}>Verifica e invia email mockup</Button>}
-         </CardContent></Card>
+           }}
+           emailStatus={waitingForPageApproval ? 'in attesa dell’approvazione delle pagine' : notification?.state === 'waiting-approval' ? 'approvazione completata: invio da verificare' : notification?.state === 'sent' || (notification && !notification.state) ? 'inviata' : notification?.state === 'missing-email' ? 'non inviata: manca l’indirizzo cliente' : notification?.state === 'not-delivered' ? 'non consegnata (verificata)' : notification?.state === 'pending' || notification?.state === 'uncertain' ? 'esito incerto: verifica la posta inviata' : 'non ancora prevista o inviata'}
+           emailNote={notification?.state === 'missing-email' ? 'Completa l’email nella galleria o nel cliente del lavoro, poi usa “Verifica e invia”.' : notification?.state === 'uncertain' || notification?.state === 'pending' ? 'Controlla la posta inviata prima di indicare se è stata consegnata. Non viene ritentata automaticamente.' : undefined}
+           emailActions={<>
+             {(notification?.state === 'uncertain' || notification?.state === 'pending') && <><Button variant="outline" disabled={notificationBusy} onClick={() => void handleNotification('delivered')}>Verificata: consegnata</Button><Button variant="outline" disabled={notificationBusy} onClick={() => void handleNotification('not-delivered')}>Verificata: non consegnata</Button></>}
+             {(['missing-email', 'not-delivered'].includes(notification?.state || '') || !notification || (notification?.state === 'waiting-approval' && !waitingForPageApproval && book.mockupPath !== 'client')) && (book.mockupPath === 'client' ? book.approval?.version === book.currentVersion : !!notificationKey && !waitingForPageApproval) && <Button variant="outline" disabled={notificationBusy} onClick={() => void handleNotification('send')}>Verifica e invia email mockup</Button>}
+           </>}
+         />
         <Card>
           <p className="px-4 pt-4 text-sm">1. Crea una nuova bozza. 2. Carica tutte le pagine e controllale. 3. Pubblica: solo allora il cliente vedrà la nuova versione e riceverà l’email.</p>
           <CardContent className="pt-4 flex items-center gap-3 flex-wrap">

@@ -13,6 +13,7 @@ import PhotobookPhotoPicker from './PhotobookPhotoPicker';
 import { mockupConfigurationSchema, mockupPhotoSchema, type MockupConfiguration, type MockupPayload, type MockupPhoto, type SavedMockup } from '@shared/mockup-types';
 import { MOCKUP_STATUS_LABELS, optionFor, type MockupSelection } from '@shared/mockup-workflow';
 import MockupOfferEditor from './MockupOfferEditor';
+import { OPEN_MOCKUP_EVENT, type MockupAdminTab } from './MockupAdminFlow';
 import { MOCKUP_RENDERERS } from '@shared/mockup-catalog';
 import type { MockupOption } from '@shared/mockup-workflow';
 import MockupModelChooser from './MockupModelChooser';
@@ -123,7 +124,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   const state = useQuery<MockupPayload>({
     queryKey: stateKey,
     queryFn: async () => (await request()).json(),
-    enabled: !!token || open || summary,
+    enabled: !!token || open || summary || !compact,
     refetchOnWindowFocus: false,
   });
   const gallery = useQuery({
@@ -151,6 +152,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
           ? 'Lo studio ha confermato il mockup. Puoi ancora modificarlo fino alla stampa: una nuova modifica richiederà una nuova verifica.'
           : 'Bozza salvata: puoi riprenderla quando vuoi oppure inviarla allo studio per la verifica.';
   const title = presentation.title;
+  const noModelAssigned = !token && !!state.data && !state.data.offer?.options.length && !state.data.saved;
   const apply = (payload: Record<string, unknown>) => frame.current?.contentWindow?.postMessage({ channel: 'memorie-mockup-v1', type: 'apply', ...payload }, window.location.origin);
   const recordSaved = (value: SavedMockup) => {
     revision.current = value.revision;
@@ -178,6 +180,19 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     setGuideOpen(mobile && !guideSeen);
     void state.refetch();
   }
+
+  // Dai passi della scheda admin: apre il configuratore direttamente sulla scheda richiesta.
+  useEffect(() => {
+    if (token || compact) return;
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ photobookId: string; tab: MockupAdminTab }>).detail;
+      if (detail?.photobookId !== photobookId) return;
+      if (!open) openConfigurator();
+      setAdminTab(detail.tab);
+    };
+    window.addEventListener(OPEN_MOCKUP_EVENT, handler);
+    return () => window.removeEventListener(OPEN_MOCKUP_EVENT, handler);
+  });
 
   useEffect(() => {
     if (!open || !state.data) return;
@@ -637,8 +652,8 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   };
   return <section className={compact ? 'inline-flex shrink-0' : 'rounded-lg border bg-white p-4 space-y-3'} data-testid="photobook-mockup">
     {compact ? <Button variant="outline" className="h-10 px-3 text-xs" onClick={openConfigurator} disabled={!!token && !!state.data?.offerError}>{!token ? (saved ? 'Mockup 3D' : 'Configura 3D') : (saved ? 'Apri il tuo album' : 'Personalizza album')}</Button> : <div className="flex flex-wrap items-center justify-between gap-2">
-      <div><h2 className="font-semibold">{title} · Anteprima album 3D</h2><p className="text-sm text-muted-foreground">Foto, rivestimento e scritte · versione {version}</p></div>
-      <Button variant="outline" onClick={openConfigurator} disabled={!!token && !!state.data?.offerError}>Apri mockup {title}</Button>
+      <div><h2 className="font-semibold">{noModelAssigned ? 'Anteprima album 3D' : `${title} · Anteprima album 3D`}</h2><p className="text-sm text-muted-foreground">{noModelAssigned ? 'Nessun modello assegnato: scegli prima i modelli nel passo 2.' : `Foto, rivestimento e scritte · versione ${version}`}</p></div>
+      <Button variant="outline" className="min-h-11" onClick={openConfigurator} disabled={!!token && !!state.data?.offerError}>{noModelAssigned ? 'Apri anteprima' : `Apri anteprima ${title}`}</Button>
      </div>}
      {saved && !compact && !token && <p className="text-sm text-muted-foreground">{MOCKUP_STATUS_LABELS[saved.status || 'draft']} · revisione {saved.revision} · versione fotolibro {version}</p>}
      {!compact && token && <div className="mockup-status-card" role="status" data-status={saved?.status || 'draft'}>
