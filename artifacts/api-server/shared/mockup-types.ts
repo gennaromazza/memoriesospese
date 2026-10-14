@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { MOCKUP_MODEL, PLAZA_MOCKUP_MODEL, ROTATING_MOCKUP_MODEL } from './mockup-catalog';
+import { BOX_MOCKUP_MODEL, MOCKUP_MODEL, PLAZA_MOCKUP_MODEL, ROTATING_MOCKUP_MODEL } from './mockup-catalog';
 import type { MockupOffer, MockupOfferMode, MockupOption, MockupSelection, MockupStatus } from './mockup-workflow';
 
 const isCatalogMaterial = (variants: readonly { readonly id: string; readonly appearanceRevision: number }[], materialId: string, appearanceRevision: number) =>
@@ -75,7 +75,24 @@ const plazaConfigurationSchema = plazaConfigurationObject
   .refine(c => isCatalogMaterial(PLAZA_MOCKUP_MODEL.variants, c.materialId, c.appearanceRevision), 'Revisione del rivestimento non disponibile')
   .refine(c => c.coverLayout === 'plaque' || !!c.photoAssetId, 'Seleziona una foto per questa copertina')
   .refine(c => c.backCover === 'fabric' || !!c.backPhotoAssetId, 'Seleziona una foto per il plexiglass dello scrigno');
-export const mockupConfigurationSchema = z.union([custodiaConfigurationSchema, rotatingConfigurationSchema, rotatingPlexConfigurationSchema, rotatingMonogramConfigurationSchema, rotatingBoxConfigurationSchema, plazaConfigurationSchema]);
+// Scatola con cornice: `photoAssetId` è la foto del fondo (appeso), `lidPhotoAssetId` quella del tappo/cornice.
+// `coverLayout` è il tipo di copertina scelto (foto del cliente o grafica dello studio). Il formato è copiato dalla
+// proposta dello studio e viene ricontrollato dal server: il cliente non può cambiarlo.
+const boxCm = z.number().finite().min(15).max(50);
+const boxConfigurationSchema = z.object({
+  modelId: z.literal(BOX_MOCKUP_MODEL.id), assetRevision: z.literal(1),
+  materialId: z.string(), appearanceRevision: z.number().int(),
+  albumMaterialId: z.string(), albumAppearanceRevision: z.number().int(),
+  coverLayout: z.enum(['photo', 'graphic']),
+  format: z.object({ w: boxCm, h: boxCm }).strict(),
+  photoAssetId: z.string().uuid(),
+  lidPhotoAssetId: z.string().uuid(),
+  coverPhotoAssetId: z.string().uuid().nullable(),
+}).strict()
+  .refine(c => isCatalogMaterial(BOX_MOCKUP_MODEL.variants, c.materialId, c.appearanceRevision), 'Revisione del rivestimento non disponibile')
+  .refine(c => isCatalogMaterial(BOX_MOCKUP_MODEL.variants, c.albumMaterialId, c.albumAppearanceRevision), 'Revisione del tessuto album non disponibile')
+  .refine(c => c.coverLayout === 'graphic' || !!c.coverPhotoAssetId, 'Seleziona una foto per la copertina');
+export const mockupConfigurationSchema = z.union([custodiaConfigurationSchema, rotatingConfigurationSchema, rotatingPlexConfigurationSchema, rotatingMonogramConfigurationSchema, rotatingBoxConfigurationSchema, plazaConfigurationSchema, boxConfigurationSchema]);
 
 export type MockupConfiguration = z.infer<typeof mockupConfigurationSchema>;
 export interface MockupPhoto { id: string; name: string; source: 'upload' | 'gallery'; photoId?: string; width: number; height: number }

@@ -1,6 +1,6 @@
 import { I_NOBILI_MATERIALS } from './i-nobili-catalog';
 import { z } from 'zod';
-import { MOCKUP_MODEL, PLAZA_MOCKUP_MODEL, ROTATING_MOCKUP_MODEL } from './mockup-catalog';
+import { BOX_MOCKUP_MODEL, MOCKUP_MODEL, PLAZA_MOCKUP_MODEL, ROTATING_MOCKUP_MODEL } from './mockup-catalog';
 
 export const mockupIdSchema = z.string().min(1).max(128).regex(/^[a-zA-Z0-9_-]+$/);
 const materialSchema = z.object({
@@ -11,7 +11,7 @@ const materialSchema = z.object({
 export const labMockupModelSchema = z.object({
   id: z.string().uuid(), name: z.string().trim().min(1).max(100),
   supplierCode: z.string().trim().max(100),
-  rendererId: z.union([z.literal(MOCKUP_MODEL.id), z.literal(ROTATING_MOCKUP_MODEL.id), z.literal(PLAZA_MOCKUP_MODEL.id)]).nullable(),
+  rendererId: z.union([z.literal(MOCKUP_MODEL.id), z.literal(ROTATING_MOCKUP_MODEL.id), z.literal(PLAZA_MOCKUP_MODEL.id), z.literal(BOX_MOCKUP_MODEL.id)]).nullable(),
   active: z.boolean(),
   materialIds: z.array(z.string().uuid()).max(200).refine(items => new Set(items).size === items.length),
 }).strict().refine(model => !model.rendererId || model.materialIds.length > 0, 'Seleziona almeno un rivestimento');
@@ -22,15 +22,31 @@ export const labMockupCatalogSchema = z.object({
 }).strict().refine(catalog => catalog.models.every(model => model.materialIds.every(id => catalog.materials.some(m => m.id === id))), 'Rivestimento non presente nel laboratorio').refine(catalog => catalog.models.every(model => model.materialIds.every(id => materialFitsRenderer(model.rendererId, id))), 'Rivestimento incompatibile con il modello 3D');
 export type LabMockupModel = z.infer<typeof labMockupModelSchema>;
 export type LabMockupCatalog = z.infer<typeof labMockupCatalogSchema>;
-export interface MockupOption extends LabMockupModel { labId: string; labName: string; materials: z.infer<typeof materialSchema>[] }
+/**
+ * Scatola con cornice: impostazioni decise solo dallo studio quando assegna il modello.
+ * Il cliente non sceglie mai il formato; la copertina può essere imposta (foto o grafica) o lasciata a lui.
+ */
+export const BOX_FORMAT_MIN_CM = 15;
+export const BOX_FORMAT_MAX_CM = 50;
+const boxCmSchema = z.number().finite().min(BOX_FORMAT_MIN_CM).max(BOX_FORMAT_MAX_CM);
+export const mockupBoxSetupSchema = z.object({
+  format: z.object({ w: boxCmSchema, h: boxCmSchema }).strict(),
+  cover: z.object({
+    mode: z.enum(['choice', 'photo', 'graphic']),
+    // Grafica caricata dal fotografo (asset del fotolibro). Obbligatoria se il cliente può vederla.
+    graphicAssetId: z.string().uuid().optional(),
+  }).strict().refine(c => c.mode === 'photo' || !!c.graphicAssetId, 'Carica la grafica di copertina'),
+}).strict();
+export type MockupBoxSetup = z.infer<typeof mockupBoxSetupSchema>;
+export interface MockupOption extends LabMockupModel { labId: string; labName: string; materials: z.infer<typeof materialSchema>[]; setup?: MockupBoxSetup }
 export type MockupOfferMode = 'fixed' | 'choice';
 export interface MockupOffer { revision: number; options: MockupOption[]; updatedAt: string; mode?: MockupOfferMode }
 export type MockupStatus = 'draft' | 'submitted' | 'changes_requested' | 'confirmed';
 export const MOCKUP_STATUS_LABELS: Record<MockupStatus, string> = {
   draft: 'Bozza', submitted: 'Da verificare', changes_requested: 'Modifiche richieste', confirmed: 'Confermato dallo studio',
 };
-export interface MockupSelection { labId: string; modelId: string }
-export const mockupSelectionSchema = z.object({ labId: mockupIdSchema, modelId: z.string().uuid() }).strict();
+export interface MockupSelection { labId: string; modelId: string; setup?: MockupBoxSetup }
+export const mockupSelectionSchema = z.object({ labId: mockupIdSchema, modelId: z.string().uuid(), setup: mockupBoxSetupSchema.optional() }).strict();
 export const mockupOfferInputSchema = z.object({
   revision: z.number().int().min(0),
   savedRevision: z.number().int().min(0),
@@ -44,9 +60,18 @@ export function optionFor(offer: MockupOffer | null, selection?: MockupSelection
 }
 
 /** Both C frames must use materials offered by the selected laboratory. */
-export function optionAllowsMaterials(option: MockupOption, configuration: { materialId: string; innerMaterialId?: string }): boolean {
-  if ((option.rendererId === 'plaza-led' || [configuration.materialId, configuration.innerMaterialId].some(id => id && isNobiliMaterial(id))) && !isNobiliLab(option.labName)) return false;
-  return [configuration.materialId, configuration.innerMaterialId].filter(Boolean).every(id => option.materials.some(m => m.id === id));
+export function optionAllowsMaterials(option: MockupOption, configuration: { materialId: string; innerMaterialId?: string; albumMaterialId?: string }): boolean {
+  const ids = [configuration.materialId, configuration.innerMaterialId, configuration.albumMaterialId];
+  if ((option.rendererId === 'plaza-led' || ids.some(id => id && isNobiliMaterial(id))) && !isNobiliLab(option.labName)) return false;
+  return ids.filter(Boolean).every(id => option.materials.some(m => m.id === id));
+}
+/** La scatola richiede formato e copertina decisi dallo studio; la configurazione deve rispettarli. */
+export function optionAllowsBoxSetup(option: MockupOption, configuration: { format?: { w: number; h: number }; coverLayout: string }): boolean {
+  if (option.rendererId !== BOX_MOCKUP_MODEL.id) return !option.setup;
+  const setup = option.setup;
+  if (!setup || !configuration.format) return false;
+  if (configuration.format.w !== setup.format.w || configuration.format.h !== setup.format.h) return false;
+  return setup.cover.mode === 'choice' ? ['photo', 'graphic'].includes(configuration.coverLayout) : configuration.coverLayout === setup.cover.mode;
 }
 export const isNobiliLab = (name: unknown) => String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '') === 'inobili';
 
@@ -54,7 +79,7 @@ const nobiliMaterialIds = new Set<string>(I_NOBILI_MATERIALS.map(m => m.id));
 export const isNobiliMaterial = (id: string) => nobiliMaterialIds.has(id);
 export function materialFitsRenderer(rendererId: string | null, id: string): boolean {
   if (!rendererId) return true;
-  const model = [MOCKUP_MODEL, ROTATING_MOCKUP_MODEL, PLAZA_MOCKUP_MODEL].find(m => m.id === rendererId);
+  const model = [MOCKUP_MODEL, ROTATING_MOCKUP_MODEL, PLAZA_MOCKUP_MODEL, BOX_MOCKUP_MODEL].find(m => m.id === rendererId);
   return !!model?.variants.some(v => v.id === id);
 }
 export function catalogAllowedForLab(catalog: LabMockupCatalog, name: unknown): boolean {

@@ -182,6 +182,15 @@ export const PLAZA_MOCKUP_MODEL = {
   variants: [...MOCKUP_MODEL.variants, ...I_NOBILI_MATERIALS],
 } as const;
 
+// Scatola con cornice: fondo appeso, tappo che diventa cornice su piedistallo, album separato.
+// Formato e tipo di copertina li decide lo studio quando assegna il modello (vedi MockupBoxSetup).
+export const BOX_MOCKUP_MODEL = {
+  id: 'scatola-cornice', name: 'Scatola con cornice', assetRevision: 1,
+  coverLayouts: ['photo', 'graphic'], defaultCoverLayout: 'photo',
+  // Stesso campionario tessuti della Custodia.
+  variants: MOCKUP_MODEL.variants,
+} as const;
+
 /**
  * Step semantici del wizard cliente.
  *
@@ -231,6 +240,16 @@ const ROTATING_WIZARD_STEPS: readonly MockupWizardStepDefinition[] = [
   { id: 'summary', title: 'Riepilogo e invio', description: 'Controlla tutte le scelte prima di salvare o inviare la proposta.', nativeStep: 6, panel: 'summary' },
 ];
 
+// Ogni scelta del cliente è una slide a sé; "Copertina" compare solo se lo studio la lascia scegliere.
+const BOX_WIZARD_STEPS: readonly MockupWizardStepDefinition[] = [
+  { id: 'box-fabric', title: 'Tessuto della scatola', description: 'Scegli il tessuto di scatola, cornice e piedistallo.', nativeStep: 0, panel: 'box-fabric' },
+  { id: 'album-fabric', title: 'Tessuto dell’album', description: 'Scegli il tessuto dell’album, anche uguale alla scatola.', nativeStep: 0, panel: 'album-fabric' },
+  { id: 'base-photo', title: 'Foto da appendere', description: 'La foto stampata sul fondo della scatola, che si appende al muro.', nativeStep: 0, panel: 'base-photo' },
+  { id: 'lid-photo', title: 'Foto della cornice', description: 'La foto nel tappo, che diventa la cornice sul piedistallo.', nativeStep: 0, panel: 'lid-photo' },
+  { id: 'cover', title: 'Copertina dell’album', description: 'Scegli se la copertina è una foto o la grafica dello studio.', nativeStep: 0, panel: 'cover' },
+  { id: 'summary', title: 'Riepilogo e invio', description: 'Controlla tutte le scelte prima di salvare o inviare la proposta.', nativeStep: 0, panel: 'summary' },
+];
+
 function defineRenderer<T extends MockupRendererDefinition>(renderer: T): T {
   const layouts = new Set(renderer.coverLayouts);
   const examples = new Set(renderer.coverExamples.map(example => example.layout));
@@ -275,6 +294,15 @@ export const MOCKUP_RENDERERS = [
       { layout: 'plaque', title: 'Incisione con i vostri nomi', description: 'La placchetta centrale sull’album estraibile.', image: 'plaza-plaque.webp' },
       { layout: 'photo-plaque', title: 'Foto piccola sul tessuto', description: 'Una fotografia centrale nel formato della placchetta.', image: 'plaza-photo-plaque.webp' },
       { layout: 'split-photo-fabric', title: 'Foto, tessuto e placchetta', description: 'Foto a destra e placchetta con nomi sulla copertina in tessuto.', image: 'plaza-split-photo-fabric.webp' },
+    ],
+  }),
+  defineRenderer({
+    ...BOX_MOCKUP_MODEL,
+    path: 'scatola-v1/index.html',
+    wizardSteps: BOX_WIZARD_STEPS,
+    coverExamples: [
+      { layout: 'photo', title: 'Foto in copertina', description: 'Una tua fotografia sulla copertina dell’album.', image: 'scatola-photo.webp' },
+      { layout: 'graphic', title: 'Grafica dello studio', description: 'Una grafica preparata dallo studio per la copertina.', image: 'scatola-graphic.webp' },
     ],
   }),
 ] as const;

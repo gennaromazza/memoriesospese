@@ -8,7 +8,7 @@ import { db, storage } from './firebase-admin.js';
 import { loadGalleryPhotoDocs } from './photobook-gallery.js';
 import { uidRateLimiter } from './print-shop/rate-limit.js';
 import { mockupConfigurationSchema, mockupEditable, type MockupPhoto, type SavedMockup } from '../shared/mockup-types.js';
-import { catalogAllowedForLab, optionAllowsMaterials, labMockupCatalogSchema, mockupOfferInputSchema, mockupSelectionSchema, mockupWorkflowInputSchema, optionFor, type MockupOffer, type MockupOption, type MockupOfferMode } from '../shared/mockup-workflow.js';
+import { catalogAllowedForLab, optionAllowsBoxSetup, optionAllowsMaterials, labMockupCatalogSchema, mockupOfferInputSchema, mockupSelectionSchema, mockupWorkflowInputSchema, optionFor, type MockupOffer, type MockupOption, type MockupOfferMode } from '../shared/mockup-workflow.js';
 import { buildMockupReport, mockupConfirmSchema } from './mockup-report.js';
 
 class MockupError extends Error { constructor(public status: number, message: string) { super(message); } }
@@ -229,7 +229,15 @@ export function createPhotobookMockupRouter(
           const model = catalog.models.find(m => m.id === selection.modelId && m.active && m.rendererId);
           if (!model) throw new MockupError(400, 'Modello non disponibile o asset 3D non ancora integrato');
           if (!catalogAllowedForLab({ ...catalog, models: [model] }, lab.data()?.nome)) throw new MockupError(400, 'Plaza LED è disponibile solo per i Nobili');
-          options.push({ ...model, materials: catalog.materials.filter(m => model.materialIds.includes(m.id)), labId: lab.id, labName: String(lab.data()!.nome) });
+          const isBox = model.rendererId === 'scatola-cornice';
+          if (isBox && !selection.setup) throw new MockupError(400, 'Imposta formato e copertina della scatola prima di pubblicare');
+          if (!isBox && selection.setup) throw new MockupError(400, 'Formato e copertina si impostano solo per la scatola con cornice');
+          const graphicId = selection.setup?.cover.graphicAssetId;
+          if (graphicId) {
+            const graphic = await tx.get(book.ref.collection('mockupAssets').doc(graphicId));
+            if (!graphic.exists) throw new MockupError(400, 'Grafica di copertina non trovata: caricala di nuovo');
+          }
+          options.push({ ...model, materials: catalog.materials.filter(m => model.materialIds.includes(m.id)), labId: lab.id, labName: String(lab.data()!.nome), ...(selection.setup ? { setup: selection.setup } : {}) });
         }
         const offer: MockupOffer = { revision: input.revision + 1, options, updatedAt: new Date().toISOString(), mode: input.mode };
         tx.set(ref, offer);
@@ -259,7 +267,7 @@ export function createPhotobookMockupRouter(
         const currentBook = await tx.get(book.ref);
         const offer = await effectiveOfferInTransaction(tx, book, version, currentBook.data()!, offerDoc);
         if (currentBook.data()!.mockupModelMode === 'fixed' && !offer) throw new MockupError(409, 'Il modello fisso non è più disponibile. Lo studio deve ripubblicare la proposta.');
-        const photoIds = [input.configuration.photoAssetId, ...('backPhotoAssetId' in input.configuration ? [input.configuration.backPhotoAssetId] : [])];
+        const photoIds = [input.configuration.photoAssetId, ...('backPhotoAssetId' in input.configuration ? [input.configuration.backPhotoAssetId] : []), ...('lidPhotoAssetId' in input.configuration ? [input.configuration.lidPhotoAssetId, input.configuration.coverPhotoAssetId] : [])];
         for (const id of new Set(photoIds.filter((id): id is string => !!id))) {
           const photo = await tx.get(book.ref.collection('mockupAssets').doc(id));
           if (!photo.exists || photo.data()!.version !== version) throw new MockupError(400, 'Foto non appartenente a questa versione del fotolibro');
@@ -267,7 +275,7 @@ export function createPhotobookMockupRouter(
         if ((previous.data()?.revision || 0) !== input.revision) throw new MockupError(409, 'Il mockup è stato modificato in un’altra sessione. Riaprilo per caricare la versione aggiornata.');
         if (!isAdmin && !previous.exists && !offer) throw new MockupError(403, 'Mockup non attivato');
         const option = optionFor(offer, input.selection);
-        if (offer && (offer.revision !== input.offerRevision || !option || option.rendererId !== input.configuration.modelId || !optionAllowsMaterials(option, input.configuration))) throw new MockupError(409, 'Seleziona un modello e un rivestimento inclusi nella proposta aggiornata');
+        if (offer && (offer.revision !== input.offerRevision || !option || option.rendererId !== input.configuration.modelId || !optionAllowsMaterials(option, input.configuration) || !optionAllowsBoxSetup(option, input.configuration))) throw new MockupError(409, 'Seleziona un modello, un rivestimento, un formato e una copertina inclusi nella proposta aggiornata');
         if (!offer && input.selection) throw new MockupError(400, 'Pubblica prima una proposta');
         // Una correzione dello studio non restituisce implicitamente al cliente
         // una proposta in verifica/confermata: serve Richiedi modifiche.
@@ -299,7 +307,7 @@ export function createPhotobookMockupRouter(
         if (currentBook.data()!.mockupModelMode === 'fixed' && !offer) throw new MockupError(409, 'Il modello fisso non è più disponibile. Lo studio deve ripubblicare la proposta.');
         const option = optionFor(offer, previous?.selection);
         if (!previous || previous.revision !== input.revision) throw new MockupError(409, 'Ricarica la proposta aggiornata');
-        if (action === 'submit' && (!option || !optionAllowsMaterials(option, previous.configuration))) throw new MockupError(409, 'Salva prima una scelta inclusa nella proposta dello studio');
+        if (action === 'submit' && (!option || !optionAllowsMaterials(option, previous.configuration) || !optionAllowsBoxSetup(option, previous.configuration))) throw new MockupError(409, 'Salva prima una scelta inclusa nella proposta dello studio');
         if (action === 'submit' && ['submitted', 'confirmed'].includes(previous.status || '')) throw new MockupError(409, 'Proposta già inviata. Salva una modifica prima di inviarla di nuovo.');
         const { confirmedAt, reportPath, ...draft } = previous;
         const result: SavedMockup = { ...draft, revision: previous.revision + 1, status: action === 'submit' ? 'submitted' : 'changes_requested', updatedBy: isAdmin ? 'studio' : 'client', updatedAt: new Date().toISOString(), note: input.note };
@@ -342,7 +350,7 @@ export function createPhotobookMockupRouter(
       const offerDoc = await book.ref.collection('mockupOffers').doc(`v${version}`).get();
       const offer = await effectiveOffer(book, version, offerDoc);
       const option = optionFor(offer || null, initial.selection);
-      if (!option || !optionAllowsMaterials(option, initial.configuration)) throw new MockupError(409, 'Salva prima un modello e un rivestimento inclusi nella proposta');
+      if (!option || !optionAllowsMaterials(option, initial.configuration) || !optionAllowsBoxSetup(option, initial.configuration)) throw new MockupError(409, 'Salva prima un modello e un rivestimento inclusi nella proposta');
       const now = new Date().toISOString();
       const reportPath = `photobook-mockups/${book.id}/v${version}/confirmed-${randomUUID()}.html`;
       const confirmed: SavedMockup = { ...initial, option, revision: initial.revision + 1, status: 'confirmed', confirmedAt: now, updatedAt: now, updatedBy: 'studio', reportPath };
@@ -489,6 +497,22 @@ export function createPhotobookMockupRouter(
       const book = res.locals.book as DocumentSnapshot;
       const asset = await book.ref.collection('mockupAssets').doc(id).get();
       if (!asset.exists || asset.data()!.version !== res.locals.version) throw new MockupError(404, 'Foto non trovata');
+      const [buffer] = await storage.bucket().file(asset.data()!.storagePath).download();
+      res.type('image/jpeg').send(buffer);
+    } catch (error) { next(error); }
+  });
+
+  // Grafica di copertina caricata dal fotografo: segue la proposta (anche ereditata da altre versioni),
+  // quindi si serve per id presente nell'offerta corrente e non per versione del file.
+  router.get('/cover-graphic', async (_req, res, next) => {
+    try {
+      const book = res.locals.book as DocumentSnapshot;
+      const version = res.locals.version as number;
+      const offer = await effectiveOffer(book, version);
+      const id = offer?.options.find(o => o.rendererId === 'scatola-cornice')?.setup?.cover.graphicAssetId;
+      if (!id) throw new MockupError(404, 'Nessuna grafica di copertina in questa proposta');
+      const asset = await book.ref.collection('mockupAssets').doc(id).get();
+      if (!asset.exists) throw new MockupError(404, 'Grafica non trovata');
       const [buffer] = await storage.bucket().file(asset.data()!.storagePath).download();
       res.type('image/jpeg').send(buffer);
     } catch (error) { next(error); }

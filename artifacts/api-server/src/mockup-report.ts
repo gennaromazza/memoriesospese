@@ -13,6 +13,7 @@ const escape = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, c => 
 export async function buildMockupReport(saved: SavedMockup, previews: z.infer<typeof mockupConfirmSchema>['previews']): Promise<Buffer> {
   const option = saved.option!;
   const material = option.materials.find(m => m.id === saved.configuration.materialId)!;
+  if (saved.configuration.modelId === 'scatola-cornice') return buildBoxReport(saved, material, previews);
   const engravedCover = ['plaque', 'split-photo-fabric'].includes(saved.configuration.coverLayout);
   const rows = [
     ['Laboratorio', option.labName], ['Modello', option.name], ['Codice modello fornitore', option.supplierCode || 'Non impostato'],
@@ -44,6 +45,10 @@ export async function buildMockupReport(saved: SavedMockup, previews: z.infer<ty
     const inner = option.materials.find(m => m.id === innerId);
     rows.push(['Telaio esterno e album', `${material.label} · ${material.supplierCode}`], ['Telaio interno', `${inner?.label || 'Non disponibile'} · ${inner?.supplierCode || ''}`]);
   }
+  return renderReport(option, saved, rows, previews);
+}
+
+async function renderReport(option: NonNullable<SavedMockup['option']>, saved: SavedMockup, rows: unknown[][], previews: z.infer<typeof mockupConfirmSchema>['previews']): Promise<Buffer> {
   const images: string[] = [];
   for (const preview of previews) {
     const input = Buffer.from(preview.image.split(',')[1], 'base64');
@@ -51,4 +56,21 @@ export async function buildMockupReport(saved: SavedMockup, previews: z.infer<ty
     images.push(`<figure><img alt="${escape(preview.label)}" src="data:image/jpeg;base64,${output.toString('base64')}"><figcaption>${escape(preview.label)}</figcaption></figure>`);
   }
   return Buffer.from(`<!doctype html><html lang="it"><meta charset="utf-8"><meta name="robots" content="noindex,nofollow"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mockup ${escape(option.name)} — revisione ${saved.revision}</title><style>body{font:16px system-ui;max-width:1100px;margin:32px auto;padding:16px;color:#26312d}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ddd;padding:10px;text-align:left;overflow-wrap:anywhere}img{width:100%;height:auto}figure{margin:24px 0;break-inside:avoid}small{display:block;margin:20px 0}</style><h1>${escape(option.name)} — mockup confermato</h1><table>${rows.map(([key,value]) => `<tr><th>${escape(key)}</th><td>${escape(value)}</td></tr>`).join('')}</table><small>Riferimento visivo approvato dallo studio. Materiali, colori e proporzioni sono indicativi. Non è un file esecutivo di stampa.</small>${images.join('')}</html>`, 'utf8');
+}
+
+async function buildBoxReport(saved: SavedMockup, material: { label: string; supplierCode: string }, previews: z.infer<typeof mockupConfirmSchema>['previews']): Promise<Buffer> {
+  const option = saved.option!;
+  const cfg = saved.configuration;
+  if (cfg.modelId !== 'scatola-cornice') throw new Error('Configurazione non valida');
+  const album = option.materials.find(m => m.id === cfg.albumMaterialId);
+  const rows: unknown[][] = [
+    ['Laboratorio', option.labName], ['Modello', option.name], ['Codice modello fornitore', option.supplierCode || 'Non impostato'],
+    ['Formato album (deciso dallo studio)', `${cfg.format.w} × ${cfg.format.h} cm`],
+    ['Tessuto scatola, cornice e piedistallo', `${material.label} · ${material.supplierCode || 'codice non impostato'}`],
+    ['Tessuto album', `${album?.label || 'Non disponibile'} · ${album?.supplierCode || 'codice non impostato'}`],
+    ['Copertina album', cfg.coverLayout === 'graphic' ? 'Grafica preparata dallo studio' : 'Foto scelta dal cliente'],
+    ['Foto del fondo (da appendere)', 'Stampata sul fondo della scatola'], ['Foto del tappo (cornice)', 'Nel tappo, appoggiato sul piedistallo'],
+    ['Versione fotolibro', saved.version], ['Revisione mockup confermata', saved.revision], ['Confermato dallo studio', saved.confirmedAt],
+  ];
+  return renderReport(option, saved, rows, previews);
 }
