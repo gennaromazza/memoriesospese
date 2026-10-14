@@ -251,7 +251,24 @@ export default function PhotobookEditorPage() {
   }
 
   return (
-    <div className="min-h-screen bg-muted/30">
+    <div
+      className="min-h-screen bg-muted/30"
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes('Files')) return;
+        // Sempre preventDefault: altrimenti il browser apre l'immagine rilasciata
+        e.preventDefault();
+        if (canUpload) setIsDragging(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setIsDragging(false);
+      }}
+      onDrop={(e) => {
+        if (!e.dataTransfer.types.includes('Files')) return;
+        e.preventDefault();
+        setIsDragging(false);
+        if (canUpload) void handleFiles(Array.from(e.dataTransfer.files));
+      }}
+    >
       <div className="max-w-6xl mx-auto p-4 md:p-6 space-y-4">
         {/* Header */}
         <div className="flex items-center gap-3 flex-wrap">
@@ -308,27 +325,8 @@ export default function PhotobookEditorPage() {
             {(notification?.state === 'uncertain' || notification?.state === 'pending') && <div className="flex gap-2 flex-wrap"><Button variant="outline" disabled={notificationBusy} onClick={() => void handleNotification('delivered')}>Verificata: consegnata</Button><Button variant="outline" disabled={notificationBusy} onClick={() => void handleNotification('not-delivered')}>Verificata: non consegnata</Button></div>}
            {(['missing-email', 'not-delivered'].includes(notification?.state || '') || !notification || (notification?.state === 'waiting-approval' && !waitingForPageApproval && book.mockupPath !== 'client')) && (book.mockupPath === 'client' ? book.approval?.version === book.currentVersion : !!notificationKey && !waitingForPageApproval) && <Button variant="outline" disabled={notificationBusy} onClick={() => void handleNotification('send')}>Verifica e invia email mockup</Button>}
          </CardContent></Card>
-        <Card
-          className={isDragging ? 'ring-2 ring-primary bg-primary/5' : undefined}
-          data-testid="dropzone-upload-pages"
-          onDragOver={(e) => {
-            if (!canUpload || !e.dataTransfer.types.includes('Files')) return;
-            e.preventDefault();
-            setIsDragging(true);
-          }}
-          onDragLeave={(e) => {
-            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setIsDragging(false);
-          }}
-          onDrop={(e) => {
-            e.preventDefault();
-            setIsDragging(false);
-            if (canUpload) void handleFiles(Array.from(e.dataTransfer.files));
-          }}
-        >
-          {isDragging && (
-            <p className="px-4 pt-4 text-sm font-medium text-primary">Rilascia qui le immagini per caricarle come pagine</p>
-          )}
-          <p className="px-4 pt-4 text-sm">Trascina qui le immagini delle pagine, oppure usa Carica pagine. 1. Crea una nuova bozza. 2. Carica tutte le pagine e controllale. 3. Pubblica: solo allora il cliente vedrà la nuova versione e riceverà l’email.</p>
+        <Card>
+          <p className="px-4 pt-4 text-sm">1. Crea una nuova bozza. 2. Carica tutte le pagine e controllale. 3. Pubblica: solo allora il cliente vedrà la nuova versione e riceverà l’email.</p>
           <CardContent className="pt-4 flex items-center gap-3 flex-wrap">
              <div className="flex items-center gap-2">
                <label htmlFor="photobook-version" className="text-sm text-muted-foreground">Versione:</label>
@@ -400,6 +398,27 @@ export default function PhotobookEditorPage() {
             </Button>
           </CardContent>
         </Card>
+
+        {canUpload && (
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className={`w-full rounded-lg border-2 border-dashed px-4 py-8 text-center transition-colors ${
+              isDragging
+                ? 'border-primary bg-primary/10 text-primary'
+                : 'border-muted-foreground/30 bg-background text-muted-foreground hover:border-primary/60 hover:text-foreground'
+            }`}
+            data-testid="dropzone-upload-pages"
+          >
+            <Upload className="h-6 w-6 mx-auto mb-2" />
+            <span className="block text-sm font-medium">
+              {isDragging ? 'Rilascia qui le immagini' : 'Trascina qui le immagini delle pagine, oppure clicca per sceglierle'}
+            </span>
+            <span className="block text-xs mt-1">
+              JPEG, PNG o WebP · il numero nel nome del file (es. 7.jpg) diventa il numero di pagina
+            </span>
+          </button>
+        )}
 
         {/* Progress upload */}
         {busy && (
