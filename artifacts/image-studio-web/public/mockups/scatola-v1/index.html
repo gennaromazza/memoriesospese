@@ -76,12 +76,13 @@ dialog::backdrop{background:#12292c70}.close-dialog{float:right}dialog h2{margin
 <h1 id="stepTitle" tabindex="-1"></h1>
 <div class="progress" id="progress" aria-hidden="true"></div>
 <div class="panel-content">
-<section id="stepFormat" data-step hidden><p>Scegli le misure dell’album. La scatola viene fatta di conseguenza.</p><div class="formats" id="formatChoices" role="group" aria-label="Formati disponibili"></div></section>
 <section id="stepBoxFabric" data-step hidden><p>Il tessuto riveste scatola, tappo e base della cornice da tavolo.</p><div data-for="box" id="materialsBox"></div></section>
 <section id="stepAlbumFabric" data-step hidden><p>Scegli il tessuto dell’album, oppure tienilo uguale alla scatola.</p><button type="button" class="same" id="albumSame" aria-pressed="true">Uguale al tessuto della scatola</button><div data-for="album" id="materialsAlbum"></div></section>
 <section id="stepBasePhoto" data-step hidden><p>Questa foto è stampata sul fondo della scatola. Appesa al muro diventa un quadro.</p><div class="photo-slot"><input id="baseUpload" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Foto del quadro da parete"><button type="button" id="baseRestore">Usa la foto di esempio</button><p id="baseStatus" role="status"></p></div><p>JPG, PNG o WebP, massimo 20 MB.</p></section>
 <section id="stepLidPhoto" data-step hidden><p>Questa foto è sul tappo. Appoggiato sulla sua base diventa una cornice da tavolo.</p><div class="photo-slot"><input id="lidUpload" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Foto della cornice da tavolo"><button type="button" id="lidRestore">Usa la foto di esempio</button><p id="lidStatus" role="status"></p></div><p>JPG, PNG o WebP, massimo 20 MB.</p></section>
-<section id="stepAlbumPhoto" data-step hidden><p>Questa foto è sulla copertina dell’album.</p><div class="photo-slot"><input id="albumUpload" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Foto della copertina dell’album"><button type="button" id="albumRestore">Usa la foto di esempio</button><p id="albumStatus" role="status"></p></div><p>JPG, PNG o WebP, massimo 20 MB.</p></section>
+<section id="stepCover" data-step hidden><div class="segmented" id="coverChoice" role="group" aria-label="Tipo di copertina"><button type="button" data-cover="photo" aria-pressed="true">Una tua foto</button><button type="button" data-cover="graphic" aria-pressed="false">Grafica dello studio</button></div>
+<div id="coverPhotoBox"><p>Questa foto è sulla copertina dell’album.</p><div class="photo-slot"><input id="albumUpload" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Foto della copertina dell’album"><button type="button" id="albumRestore">Usa la foto di esempio</button><p id="albumStatus" role="status"></p></div><p>JPG, PNG o WebP, massimo 20 MB.</p></div>
+<div id="coverGraphicBox" hidden><p>In copertina c’è la grafica preparata dallo studio: la vedi sull’album nell’anteprima.</p></div></section>
 <section id="stepSummary" data-step hidden><p id="configurationSummary" aria-live="polite"></p><p class="note">Prototipo con geometria semplificata. Misure, texture e scala della trama indicative. Le foto restano in questa prova locale.</p></section>
 </div>
 <nav class="wizard-nav" aria-label="Passi"><button type="button" id="prev">Indietro</button><button type="button" id="next" class="primary">Avanti</button></nav>
@@ -94,9 +95,13 @@ dialog::backdrop{background:#12292c70}.close-dialog{float:right}dialog h2{margin
 <div><h2>Esplora</h2><div class="row"><button type="button" id="rotate" aria-pressed="false">Rotazione automatica</button><button type="button" id="reset">Ripristina vista</button></div></div></section>
 </div></main>
 <dialog id="studioDialog" aria-labelledby="studioTitle"><form method="dialog"><button class="close-dialog" aria-label="Chiudi strumenti studio">Chiudi</button></form><h2 id="studioTitle">Strumenti studio</h2>
-<p>Per provare una misura qualsiasi. Ai clienti si propongono solo i formati dell’elenco impostato dallo studio.</p>
-<form id="formatForm"><label for="formatInput">Larghezza × altezza dell’album, in cm</label>
+<p>Qui si simulano le scelte che lo studio assegna dal pannello admin insieme al modello. Il cliente non le può cambiare.</p>
+<form id="formatForm"><label for="formatInput">Formato dell’album (larghezza × altezza, in cm)</label>
 <input id="formatInput" type="text" inputmode="decimal" autocomplete="off" value="25 × 35" aria-describedby="formatInfo formatStatus"></form>
 <div class="segmented" role="group" aria-label="Orientamento"><button type="button" id="orientV" aria-pressed="true">Verticale</button><button type="button" id="orientH" aria-pressed="false">Orizzontale</button></div>
-<p id="formatInfo"></p><p id="formatStatus" role="status">Scrivi per esempio 25x35 o 30x20 e premi Invio. Da 15 a 50 cm per lato.</p></dialog>
+<p id="formatInfo"></p><p id="formatStatus" role="status">Scrivi per esempio 25x35 o 30x20 e premi Invio. Da 15 a 50 cm per lato.</p>
+<h2>Copertina dell’album</h2>
+<div class="segmented" role="group" aria-label="Copertina offerta al cliente"><button type="button" data-covermode="choice" aria-pressed="true">Sceglie il cliente</button><button type="button" data-covermode="photo" aria-pressed="false">Solo foto</button><button type="button" data-covermode="graphic" aria-pressed="false">Solo grafica</button></div>
+<label for="graphicUpload">Grafica di copertina (la carica lo studio)</label>
+<input id="graphicUpload" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Grafica di copertina"><button type="button" id="graphicRestore">Usa la grafica di esempio</button><p id="graphicStatus" role="status"></p></dialog>
 <script type="module" src="./viewer.js"></script></body></html>

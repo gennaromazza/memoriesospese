@@ -182,7 +182,8 @@ function setPhoto(name, source, state) {
 /** Dopo un cambio di formato: le foto di esempio si ridisegnano, quelle caricate si ritagliano di nuovo. */
 function refreshPhotos() {
   for (const [name, slot] of Object.entries(photoSlots)) {
-    setPhoto(name, slot.state === 'esempio' ? sampleCanvas(slot.hue, 'La tua foto', slot.aspect()) : slot.source, slot.state);
+    if (name === 'album') showCover();
+    else setPhoto(name, slot.state === 'esempio' ? sampleCanvas(slot.hue, 'La tua foto', slot.aspect()) : slot.source, slot.state);
   }
 }
 const plane = (w, h, name) => {
@@ -391,44 +392,80 @@ function markSwatches() {
 const orientation = () => AW > AH + 1e-6 ? 'orizzontale' : AH > AW + 1e-6 ? 'verticale' : 'quadrato';
 function updateSummary() {
   const lines = [
-    `Formato album: ${cm(AW * 100)} × ${cm(AH * 100)} cm (${orientation()})`,
+    `Formato album: ${cm(AW * 100)} × ${cm(AH * 100)} cm (${orientation()}), stabilito dallo studio`,
     `Scatola e tappo: ${cm(W * 100)} × ${cm(H * 100)} cm`,
     `Tessuto di scatola, tappo e base della cornice: ${chosen.box ? chosen.box.label : '—'}`,
     `Tessuto dell’album: ${albumFollows ? 'uguale alla scatola' : chosen.album ? chosen.album.label : '—'}`,
-    ...Object.values(photoSlots).map(s => `${s.label}: ${s.state === 'esempio' ? 'foto di esempio' : s.state}`),
+    ...Object.values(photoSlots).map(s => s === photoSlots.album
+      ? `Copertina dell’album: ${effectiveCover() === 'graphic' ? `grafica dello studio (${graphic.name})` : s.state === 'esempio' ? 'foto di esempio' : s.state}`
+      : `${s.label}: ${s.state === 'esempio' ? 'foto di esempio' : s.state}`),
   ];
   $('configurationSummary').textContent = lines.join('\n');
   $('materialLabel').textContent = chosen.box ? `${laboratory.name} · ${chosen.box.internalCode} · ${cm(AW * 100)} × ${cm(AH * 100)} cm` : 'Caricamento rivestimento…';
 }
 
-// Formati proposti ai clienti: li imposta lo studio (scatola-formats.json, scritto in futuro dal pannello admin).
+// Scelte che fa lo studio, non il cliente: formato dell'album e tipo di copertina.
+// In piattaforma arrivano con il messaggio 'apply' (option.format, option.cover); nel prototipo
+// da scatola-offer.json o dagli strumenti studio (#studio).
+const offer = {cover: {mode: 'choice'}};   // mode: 'choice' (sceglie il cliente) | 'photo' | 'graphic'
+let coverChoice = 'photo';                   // scelta del cliente quando mode è 'choice'
+const graphic = {source: null, name: 'grafica di esempio'};
+const albumPhoto = {source: null, state: 'esempio'};
+const COVER_MODES = ['choice', 'photo', 'graphic'];
+const effectiveCover = () => offer.cover.mode === 'choice' ? coverChoice : offer.cover.mode;
+
 /** Accetta "25x35", "25 × 35", "30,5 per 20", con o senza "cm". */
 function parseSize(text) {
   const m = String(text).trim().toLowerCase().replace(/,/g, '.').match(/^(\d+(?:\.\d+)?)\s*(?:x|×|\*|per)\s*(\d+(?:\.\d+)?)\s*(?:cm)?$/);
   return m ? [Number(m[1]), Number(m[2])] : null;
 }
-async function loadFormats() {
-  let list = ['25x35', '35x25', '30x20', '20x30', '30x30'];
-  try {
-    const response = await fetch(new URL('scatola-formats.json', import.meta.url));
-    if (response.ok) { const json = await response.json(); if (Array.isArray(json.formats) && json.formats.length) list = json.formats; }
-  } catch { /* resta l'elenco di esempio */ }
-  return list.map(item => typeof item === 'string' ? parseSize(item) : [Number(item.w), Number(item.h)])
-    .filter(size => size && size.every(n => n >= MIN_CM && n <= MAX_CM));
+function normalizeFormat(f) {
+  const size = typeof f === 'string' ? parseSize(f) : f && f.w && f.h ? [Number(f.w), Number(f.h)] : null;
+  return size && size.every(n => n >= MIN_CM && n <= MAX_CM) ? size : null;
 }
-function renderFormats(list) {
-  const box = $('formatChoices'); box.textContent = '';
-  for (const [w, h] of list) {
-    const button = document.createElement('button');
-    button.type = 'button'; button.className = 'format'; button.dataset.size = `${w}x${h}`;
-    const k = 54 / Math.max(w, h), shape = document.createElement('span');
-    shape.className = 'shape'; shape.style.width = `${Math.round(w * k)}px`; shape.style.height = `${Math.round(h * k)}px`;
-    const label = document.createElement('strong'); label.textContent = `${cm(w)} × ${cm(h)} cm`;
-    const kind = document.createElement('small'); kind.textContent = w > h ? 'orizzontale' : h > w ? 'verticale' : 'quadrato';
-    button.append(shape, label, kind);
-    button.onclick = () => applyFormat(w, h);
-    box.append(button);
-  }
+async function loadOffer() {
+  try {
+    const response = await fetch(new URL('scatola-offer.json', import.meta.url));
+    if (response.ok) return await response.json();
+  } catch { /* si usano i valori di esempio */ }
+  return {};
+}
+/** Grafica di esempio: la sostituisce quella caricata dallo studio. */
+function sampleGraphic(aspect) {
+  const w = aspect >= 1 ? 1600 : Math.round(1600 * aspect), h = aspect >= 1 ? Math.round(1600 / aspect) : 1600;
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d'), u = Math.min(w, h);
+  x.fillStyle = '#1f3f46'; x.fillRect(0, 0, w, h);
+  x.strokeStyle = '#d6b979'; x.lineWidth = u * .006; x.strokeRect(u * .06, u * .06, w - u * .12, h - u * .12);
+  x.lineWidth = u * .0025; x.strokeRect(u * .085, u * .085, w - u * .17, h - u * .17);
+  x.fillStyle = '#d6b979'; x.textAlign = 'center';
+  x.font = `italic 400 ${Math.round(u * .34)}px Georgia,serif`; x.fillText('M&S', w / 2, h * .54);
+  x.font = `400 ${Math.round(u * .045)}px Georgia,serif`; x.fillText('I VOSTRI NOMI', w / 2, h * .66);
+  x.font = `400 ${Math.round(u * .03)}px system-ui,sans-serif`; x.fillText('GRAFICA DI ESEMPIO', w / 2, h * .9);
+  return c;
+}
+/** Copertina: la foto del cliente oppure la grafica dello studio, secondo quanto deciso. */
+function showCover() {
+  const slot = photoSlots.album, aspect = slot.aspect();
+  if (effectiveCover() === 'graphic') setPhoto('album', graphic.source || sampleGraphic(aspect), graphic.name);
+  else if (albumPhoto.source) setPhoto('album', albumPhoto.source, albumPhoto.state);
+  else setPhoto('album', sampleCanvas(slot.hue, 'La tua foto', aspect), 'esempio');
+}
+function syncCoverUi() {
+  const choice = offer.cover.mode === 'choice', graphicOn = effectiveCover() === 'graphic';
+  $('coverChoice').hidden = !choice;
+  $('coverPhotoBox').hidden = graphicOn; $('coverGraphicBox').hidden = !graphicOn;
+  for (const b of document.querySelectorAll('[data-cover]')) b.setAttribute('aria-pressed', String(b.dataset.cover === effectiveCover()));
+  for (const b of document.querySelectorAll('[data-covermode]')) b.setAttribute('aria-pressed', String(b.dataset.covermode === offer.cover.mode));
+}
+/** Applica le scelte dello studio (dal messaggio della piattaforma, dal file o dagli strumenti studio). */
+function applyOffer(next = {}) {
+  if (COVER_MODES.includes(next.cover?.mode)) offer.cover.mode = next.cover.mode;
+  if (offer.cover.mode !== 'choice') coverChoice = offer.cover.mode;
+  const size = normalizeFormat(next.format);
+  if (size) applyFormat(size[0], size[1]); else refreshPhotos();
+  rebuildSteps(); syncCoverUi(); updateSummary();
+  goStep(Math.min(step, STEPS.length - 1), {focus: false});
 }
 
 function syncFormatUi() {
@@ -460,8 +497,19 @@ const orient = vertical => {
 };
 $('orientV').onclick = () => orient(true);
 $('orientH').onclick = () => orient(false);
+for (const b of document.querySelectorAll('[data-covermode]')) b.onclick = () => applyOffer({cover: {mode: b.dataset.covermode}});
+$('graphicUpload').onchange = async () => {
+  const input = $('graphicUpload'), file = input.files?.[0], status = $('graphicStatus'); if (!file) return;
+  if (!/^image\/(jpeg|png|webp)$/.test(file.type)) { status.textContent = 'Formato non supportato: usa JPG, PNG o WebP.'; input.value = ''; return; }
+  if (file.size > 20 * 1024 * 1024) { status.textContent = 'La grafica supera i 20 MB.'; input.value = ''; return; }
+  try { graphic.source = await readImage(file); graphic.name = file.name; status.textContent = `Caricata: ${file.name}`; showCover(); updateSummary(); }
+  catch (error) { status.textContent = 'Impossibile leggere questa grafica.'; console.error(error); }
+};
+$('graphicRestore').onclick = () => { graphic.source = null; graphic.name = 'grafica di esempio'; $('graphicUpload').value = ''; $('graphicStatus').textContent = 'Grafica di esempio ripristinata.'; showCover(); updateSummary(); };
 $('openStudio').hidden = location.hash !== '#studio'; // riservato allo studio: si apre aggiungendo #studio all'indirizzo
 $('openStudio').onclick = () => $('studioDialog').showModal();
+
+for (const b of document.querySelectorAll('[data-cover]')) b.onclick = () => { coverChoice = b.dataset.cover; showCover(); syncCoverUi(); updateSummary(); };
 
 // Campionario: una griglia per ogni scelta (scatola, album).
 const initial = variants.find(v => v.legacyId === 'mist-03') || variants[0];
@@ -492,21 +540,26 @@ buildSwatches($('materialsBox'), 'box');
 buildSwatches($('materialsAlbum'), 'album');
 $('albumSame').onclick = () => { albumFollows = true; if (chosen.box) setFabric(chosen.box.id, ['album']); markSwatches(); updateSummary(); };
 
-// Un passo per ogni scelta del cliente.
-const STEPS = [
-  {id: 'stepFormat', title: 'Scegli il formato', view: 'closed'},
+// Un passo per ogni scelta del cliente. Formato e tipo di copertina li decide lo studio.
+const ALL_STEPS = [
   {id: 'stepBoxFabric', title: 'Tessuto della scatola', view: 'closed'},
   {id: 'stepAlbumFabric', title: 'Tessuto dell’album', view: 'uses'},
   {id: 'stepBasePhoto', title: 'Foto del quadro da parete', view: 'uses'},
   {id: 'stepLidPhoto', title: 'Foto della cornice da tavolo', view: 'uses'},
-  {id: 'stepAlbumPhoto', title: 'Foto di copertina', view: 'uses'},
+  {id: 'stepCover', title: 'Copertina dell’album', view: 'uses'},
   {id: 'stepSummary', title: 'Riepilogo', view: 'uses'},
 ];
-let step = 0;
-for (let i = 0; i < STEPS.length; i++) $('progress').append(document.createElement('i'));
+let STEPS = [...ALL_STEPS], step = 0;
+function rebuildSteps() {
+  STEPS = ALL_STEPS.filter(s => s.id !== 'stepCover' || offer.cover.mode !== 'graphic');
+  $('progress').textContent = '';
+  for (let i = 0; i < STEPS.length; i++) $('progress').append(document.createElement('i'));
+}
 function goStep(index, {focus = true} = {}) {
   step = Math.max(0, Math.min(index, STEPS.length - 1));
-  STEPS.forEach((s, i) => { $(s.id).hidden = i !== step; $('progress').children[i].className = i <= step ? 'done' : ''; });
+  for (const section of document.querySelectorAll('[data-step]')) section.hidden = true;
+  $(STEPS[step].id).hidden = false;
+  [...$('progress').children].forEach((bar, i) => { bar.className = i <= step ? 'done' : ''; });
   $('stepCount').textContent = `Passo ${step + 1} di ${STEPS.length}`;
   $('stepTitle').textContent = STEPS[step].title;
   $('prev').disabled = step === 0;
@@ -545,13 +598,15 @@ for (const name of Object.keys(photoSlots)) {
     if (file.size > MAX_PHOTO_BYTES) { status.textContent = 'La foto supera i 20 MB.'; input.value = ''; return; }
     try {
       const image = await readImage(file);
-      setPhoto(name, image, file.name);
+      if (name === 'album') { albumPhoto.source = image; albumPhoto.state = file.name; showCover(); }
+      else setPhoto(name, image, file.name);
       status.textContent = `Caricata: ${file.name}`;
       updateSummary();
     } catch (error) { status.textContent = 'Impossibile leggere questa foto.'; console.error(error); }
   };
   $(`${name}Restore`).onclick = () => {
-    setPhoto(name, sampleCanvas(photoSlots[name].hue, 'La tua foto', photoSlots[name].aspect()), 'esempio');
+    if (name === 'album') { albumPhoto.source = null; albumPhoto.state = 'esempio'; showCover(); }
+    else setPhoto(name, sampleCanvas(photoSlots[name].hue, 'La tua foto', photoSlots[name].aspect()), 'esempio');
     input.value = ''; status.textContent = 'Foto di esempio ripristinata.'; updateSummary();
   };
 }
@@ -589,15 +644,41 @@ renderer.setAnimationLoop(() => {
 });
 
 // ---- Avvio -------------------------------------------------------------------
-const formatList = await loadFormats();
-if (formatList.length) setDims(formatList[0][0] / 100, formatList[0][1] / 100);
-renderFormats(formatList);
+const initialOffer = await loadOffer();
+{
+  const size = normalizeFormat(initialOffer.format);
+  if (size) setDims(size[0] / 100, size[1] / 100);
+  if (COVER_MODES.includes(initialOffer.cover?.mode)) offer.cover.mode = initialOffer.cover.mode;
+  if (offer.cover.mode !== 'choice') coverChoice = offer.cover.mode;
+}
 refreshPhotos();
 buildPieces();
 layoutNow = computeLayout(); buildEnv(layoutNow);
 await setFabric(initial.id, ['box', 'album']);
 syncFormatUi();
 setMode('closed', true);
+rebuildSteps(); syncCoverUi();
 goStep(0, {focus: false});
 $('status').textContent = '';
 document.body.dataset.ready = 'true';
+
+// Dentro la piattaforma: le scelte dello studio arrivano con il messaggio 'apply'.
+const embedded = window.parent !== window;
+const notify = (type, payload = {}) => { if (embedded) window.parent.postMessage({channel: 'memorie-mockup-v1', type, ...payload}, location.origin); };
+if (embedded) {
+  window.addEventListener('message', async event => {
+    if (event.source !== window.parent || event.origin !== location.origin || event.data?.channel !== 'memorie-mockup-v1') return;
+    const data = event.data;
+    if (data.type !== 'apply') return;
+    try {
+      const option = data.option || {};
+      if (option.cover?.graphicUrl) {
+        const image = new Image(); image.crossOrigin = 'anonymous'; image.src = option.cover.graphicUrl; await image.decode();
+        graphic.source = image; graphic.name = 'grafica dello studio';
+      }
+      applyOffer({format: option.format, cover: option.cover});
+      notify('applied');
+    } catch (error) { console.error(error); notify('fatal-error', {message: 'Impossibile applicare le scelte dello studio'}); }
+  });
+}
+notify('ready');

@@ -1,0 +1,5 @@
+{
+  "_note": "Scelte dello studio per questo album (le imposta il fotografo dal pannello admin insieme al modello, non il cliente). format: larghezza x altezza dell'album in cm, da 15 a 50 per lato. cover.mode: 'choice' (sceglie il cliente tra foto e grafica), 'photo' o 'graphic'.",
+  "format": "25x35",
+  "cover": { "mode": "choice" }
+}
