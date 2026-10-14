@@ -23,7 +23,7 @@ export function mockupPresentation(payload: MockupPayload | undefined, selection
   return {
     staleFixedSave,
     title: payload?.offerError ? 'Modello non disponibile' : displayOption?.name || payload?.offer?.options[0]?.name || saved?.option?.name || 'Custodia',
-    rendererId: override || (staleFixedSave || awaitingClientChoice ? displayOption?.rendererId : undefined) || option?.rendererId || saved?.configuration?.modelId || displayOption?.rendererId,
+    rendererId: override || (staleFixedSave || awaitingClientChoice ? displayOption?.rendererId : undefined) || option?.rendererId || (fixed && !saved ? payload?.offer?.options[0]?.rendererId : undefined) || saved?.configuration?.modelId || displayOption?.rendererId,
   };
 }
 

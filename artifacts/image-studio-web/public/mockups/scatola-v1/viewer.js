@@ -406,7 +406,7 @@ function updateSummary() {
   ];
   $('configurationSummary').textContent = lines.join('\n');
   emitChange();
-  $('materialLabel').textContent = chosen.box ? `${laboratory.name} · ${chosen.box.internalCode} · ${cm(AW * 100)} × ${cm(AH * 100)} cm` : 'Caricamento rivestimento…';
+  $('materialLabel').textContent = chosen.box ? (embedded ? `${chosen.box.label} · album ${cm(AW * 100)} × ${cm(AH * 100)} cm` : `${laboratory.name} · ${chosen.box.internalCode} · ${cm(AW * 100)} × ${cm(AH * 100)} cm`) : 'Caricamento rivestimento…';
 }
 
 // Scelte che fa lo studio, non il cliente: formato dell'album e tipo di copertina.

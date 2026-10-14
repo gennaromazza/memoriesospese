@@ -224,8 +224,11 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       setChoosing(true);
     } else if (mobile && editable && !saved && !viewerStarted && !state.data.offer?.options.length) {
       setViewerStarted(true);
+    } else if (mobile && !viewerStarted && isBox) {
+      // Il Quadrobook ha già formato e copertina decisi dallo studio: si parte subito dal primo slide.
+      setViewerStarted(true);
     }
-  }, [open, mobile, editable, saved?.revision, saved?.updatedBy, viewerStarted, state.data?.offer?.revision, state.data?.offer?.options.length, state.data?.modelMode, selection?.labId, selection?.modelId, shouldPromptForModel]);
+  }, [open, mobile, isBox, editable, saved?.revision, saved?.updatedBy, viewerStarted, state.data?.offer?.revision, state.data?.offer?.options.length, state.data?.modelMode, selection?.labId, selection?.modelId, shouldPromptForModel]);
 
   function chooseExample(option: MockupOption, layout: string) {
     if (!editable) return;
@@ -976,11 +979,11 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
         {!editable && <p className="text-sm" role="status">Sola lettura: stai vedendo la configurazione salvata.</p>}
         {editable && configurationIssue && <p className="text-sm text-amber-800" role="status">{configurationIssue}</p>}
         {message && <p className="text-sm" role="status">{message}</p>}
-        {editable && <div className="flex flex-wrap gap-2">
+        {editable && <div className="flex gap-2">
           <Button variant="outline" className="min-h-11 flex-1" disabled={busy || renderBusy || !ready || !configuration || !dirty || !selectedOption} onClick={() => void save()}>Salva bozza</Button>
-          <Button className="min-h-11 flex-1" disabled={busy || renderBusy || !ready || !configuration || !selectedOption || (!dirty && ['submitted', 'confirmed'].includes(saved?.status || ''))} onClick={() => void submitWizard()}>Invia allo studio per verifica</Button>
+          <Button className="min-h-11 flex-1" disabled={busy || renderBusy || !ready || !configuration || !selectedOption || (!dirty && ['submitted', 'confirmed'].includes(saved?.status || ''))} onClick={() => void submitWizard()}>Invia allo studio</Button>
         </div>}
-        <p className="text-xs text-muted-foreground">L’invio chiede la verifica allo studio: non manda l’album in stampa. Puoi creare altre revisioni finché lo studio non avvia la stampa.</p>
+        <p className="hidden sm:block text-xs text-muted-foreground">L’invio chiede la verifica allo studio: non manda l’album in stampa. Puoi creare altre revisioni finché lo studio non avvia la stampa.</p>
       </div>}
       {!mobile && !token && (adminTab === 'edit' || dirty) && <div className="mockup-actions shrink-0 border-t bg-background p-3 sm:px-4 space-y-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         {dirty && <p className="text-sm text-amber-800" role="status">Modifiche da salvare</p>}
