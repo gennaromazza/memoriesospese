@@ -68,6 +68,13 @@ export default function MockupAdminFlow({ photobookId, version, currentVersion, 
         <h2 className="font-semibold">Mockup dell’album</h2>
         <p className="text-sm text-muted-foreground">Quattro passi, in ordine. Le foto arrivano sempre dalla galleria collegata a questo fotolibro.</p>
       </div>
+      {readOnly && (
+        <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900" data-testid="mockup-flow-readonly">
+          {version !== currentVersion
+            ? `Stai guardando la v${version}, che non è la versione corrente (v${currentVersion}). Il mockup si imposta sulla v${currentVersion}: selezionala dal menu “Versione” qui sotto.`
+            : 'Il fotolibro è bloccato (inviato in stampa): il mockup non si può più modificare.'}
+        </p>
+      )}
       <ol className="space-y-5">
         <Step n={1} title="Pagine approvate dal cliente" done={pagesApproved}>
           <p className="text-sm">{pagesApproved ? `Il cliente ha approvato la versione ${currentVersion}.` : `In attesa che il cliente approvi la versione ${currentVersion}. Il mockup si apre al cliente solo dopo.`}</p>
