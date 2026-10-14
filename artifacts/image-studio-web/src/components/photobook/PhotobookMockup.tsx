@@ -81,6 +81,8 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   const [busy, setBusy] = useState(false);
   const [renderBusy, setRenderBusy] = useState(true);
   const [ready, setReady] = useState(false);
+  // Ogni avvio del visualizzatore (anche un ricaricamento) richiede di rimandargli le scelte.
+  const [readyTick, setReadyTick] = useState(0);
   const [rendererError, setRendererError] = useState('');
   const [dirty, setDirty] = useState(false);
   const [message, setMessage] = useState('');
@@ -345,7 +347,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   useEffect(() => {
     const receive = (event: MessageEvent) => {
       if (event.origin !== window.location.origin || event.source !== frame.current?.contentWindow || event.data?.channel !== 'memorie-mockup-v1') return;
-      if (event.data.type === 'ready') setReady(true);
+      if (event.data.type === 'ready') { setReady(true); setReadyTick(tick => tick + 1); }
       if (event.data.type === 'busy') setRenderBusy(event.data.busy === true);
       const waiter = exportWaiter.current;
       if (event.data.type === 'exported' && waiter && event.data.requestId === waiter.id) { waiter.resolve({ previews: event.data.previews, configuration: event.data.configuration }); exportWaiter.current = null; }
@@ -431,11 +433,11 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     };
     void restore();
     return () => { cancelled = true; };
-  }, [ready, state.data?.saved?.revision, state.data?.offer?.revision, editable, staleFixedSave, fixedModel]);
+  }, [ready, readyTick, state.data?.saved?.revision, state.data?.offer?.revision, editable, staleFixedSave, fixedModel]);
 
   useEffect(() => {
     if (ready) frame.current?.contentWindow?.postMessage({ channel: 'memorie-mockup-v1', type: 'lock', readOnly: busy || !editable }, window.location.origin);
-  }, [ready, busy, editable]);
+  }, [ready, readyTick, busy, editable]);
 
   useEffect(() => {
     if (!ready || !readOnly || !state.data) return;

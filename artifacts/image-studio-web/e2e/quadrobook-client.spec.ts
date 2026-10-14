@@ -24,6 +24,7 @@ async function jpeg(page: Page, color: string) {
 }
 
 test("il cliente personalizza il Quadrobook e salva senza poter cambiare il formato", async ({ page }) => {
+  test.setTimeout(240_000);
   await page.goto("/");
   const images: Record<string, Buffer> = {
     [ids.base]: await jpeg(page, "#2a6"), [ids.lid]: await jpeg(page, "#c63"), [ids.cover]: await jpeg(page, "#36c"), [ids.graphic]: await jpeg(page, "#a3a"),
@@ -85,8 +86,8 @@ test("il cliente personalizza il Quadrobook e salva senza poter cambiare il form
   });
   await expect(page.getByTestId("quadrobook-actions")).toContainText("Bozza salvata");
   // Il cliente sceglie la grafica dello studio: la foto di copertina non viene più salvata.
-  await next.isHidden();
-  await viewer.locator("#prev").click();
+  // Dopo il salvataggio il viewer esporta le viste (lento con il renderer software): attendiamo che sia libero.
+  await viewer.locator("#prev").click({ timeout: 90_000 });
   await viewer.locator('[data-cover="graphic"]').click();
   await page.getByRole("button", { name: "Salva bozza" }).click();
   await expect.poll(() => saveBody?.revision).toBe(1);
