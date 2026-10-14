@@ -54,6 +54,12 @@ dialog{width:min(480px,calc(100% - 32px));max-height:88dvh;overflow:auto;border:
 dialog::backdrop{background:#12292c70}.close-dialog{float:right}dialog h2{margin-top:10px}
 .segmented{display:flex;gap:6px;margin:10px 0}.segmented button{flex:1;font-size:13px;min-height:44px}
 [hidden]{display:none!important}
+.host-only{display:none}
+.embedded .host-only{display:inline-block}
+.embedded .local-only,.embedded header,.embedded .note{display:none!important}
+.embedded main{height:100%}
+.pick-row{display:flex;gap:8px;flex-wrap:wrap}.pick-row button{flex:1;min-width:140px}
+.locked .photo-slot{opacity:.6}
 @media(max-width:760px){
  header{height:52px;padding:8px 14px}header strong{font-size:14px}header span{display:none}
  main{display:flex;flex-direction:column;height:calc(100% - 52px)}
@@ -78,10 +84,10 @@ dialog::backdrop{background:#12292c70}.close-dialog{float:right}dialog h2{margin
 <div class="panel-content">
 <section id="stepBoxFabric" data-step hidden><p>Il tessuto riveste scatola, tappo e base della cornice da tavolo.</p><div data-for="box" id="materialsBox"></div></section>
 <section id="stepAlbumFabric" data-step hidden><p>Scegli il tessuto dell’album, oppure tienilo uguale alla scatola.</p><button type="button" class="same" id="albumSame" aria-pressed="true">Uguale al tessuto della scatola</button><div data-for="album" id="materialsAlbum"></div></section>
-<section id="stepBasePhoto" data-step hidden><p>Questa foto è stampata sul fondo della scatola. Appesa al muro diventa un quadro.</p><div class="photo-slot"><input id="baseUpload" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Foto del quadro da parete"><button type="button" id="baseRestore">Usa la foto di esempio</button><p id="baseStatus" role="status"></p></div><p>JPG, PNG o WebP, massimo 20 MB.</p></section>
-<section id="stepLidPhoto" data-step hidden><p>Questa foto è sul tappo. Appoggiato sulla sua base diventa una cornice da tavolo.</p><div class="photo-slot"><input id="lidUpload" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Foto della cornice da tavolo"><button type="button" id="lidRestore">Usa la foto di esempio</button><p id="lidStatus" role="status"></p></div><p>JPG, PNG o WebP, massimo 20 MB.</p></section>
+<section id="stepBasePhoto" data-step hidden><p>Questa foto è stampata sul fondo della scatola. Appesa al muro diventa un quadro.</p><div class="photo-slot"><input id="baseUpload" class="local-only" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Foto del quadro da parete"><div class="pick-row host-only"><button type="button" data-pick="base:gallery">Scegli dalla galleria</button><button type="button" data-pick="base:upload">Carica una foto</button></div><button type="button" class="local-only" id="baseRestore">Usa la foto di esempio</button><p id="baseStatus" role="status"></p></div><p>JPG, PNG o WebP, massimo 20 MB.</p></section>
+<section id="stepLidPhoto" data-step hidden><p>Questa foto è sul tappo. Appoggiato sulla sua base diventa una cornice da tavolo.</p><div class="photo-slot"><input id="lidUpload" class="local-only" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Foto della cornice da tavolo"><div class="pick-row host-only"><button type="button" data-pick="lid:gallery">Scegli dalla galleria</button><button type="button" data-pick="lid:upload">Carica una foto</button></div><button type="button" class="local-only" id="lidRestore">Usa la foto di esempio</button><p id="lidStatus" role="status"></p></div><p>JPG, PNG o WebP, massimo 20 MB.</p></section>
 <section id="stepCover" data-step hidden><div class="segmented" id="coverChoice" role="group" aria-label="Tipo di copertina"><button type="button" data-cover="photo" aria-pressed="true">Una tua foto</button><button type="button" data-cover="graphic" aria-pressed="false">Grafica dello studio</button></div>
-<div id="coverPhotoBox"><p>Questa foto è sulla copertina dell’album.</p><div class="photo-slot"><input id="albumUpload" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Foto della copertina dell’album"><button type="button" id="albumRestore">Usa la foto di esempio</button><p id="albumStatus" role="status"></p></div><p>JPG, PNG o WebP, massimo 20 MB.</p></div>
+<div id="coverPhotoBox"><p>Questa foto è sulla copertina dell’album.</p><div class="photo-slot"><input id="albumUpload" class="local-only" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Foto della copertina dell’album"><div class="pick-row host-only"><button type="button" data-pick="album:gallery">Scegli dalla galleria</button><button type="button" data-pick="album:upload">Carica una foto</button></div><button type="button" class="local-only" id="albumRestore">Usa la foto di esempio</button><p id="albumStatus" role="status"></p></div><p>JPG, PNG o WebP, massimo 20 MB.</p></div>
 <div id="coverGraphicBox" hidden><p>In copertina c’è la grafica preparata dallo studio: la vedi sull’album nell’anteprima.</p></div></section>
 <section id="stepSummary" data-step hidden><p id="configurationSummary" aria-live="polite"></p><p class="note">Prototipo con geometria semplificata. Misure, texture e scala della trama indicative. Le foto restano in questa prova locale.</p></section>
 </div>

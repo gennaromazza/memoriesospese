@@ -11,6 +11,10 @@ import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
  */
 
 const $ = id => document.getElementById(id);
+// Dentro la piattaforma il visualizzatore è in un iframe: foto, scelte dello studio e salvataggio li gestisce l'host.
+const embedded = window.parent !== window;
+if (embedded) document.body.classList.add('embedded');
+const notify = (type, payload = {}) => { if (embedded) window.parent.postMessage({channel: 'memorie-mockup-v1', type, ...payload}, location.origin); };
 const SRC = new URL('../custodia-v1/', import.meta.url);
 
 // ---- Misure (metri) --------------------------------------------------------
@@ -401,6 +405,7 @@ function updateSummary() {
       : `${s.label}: ${s.state === 'esempio' ? 'foto di esempio' : s.state}`),
   ];
   $('configurationSummary').textContent = lines.join('\n');
+  emitChange();
   $('materialLabel').textContent = chosen.box ? `${laboratory.name} · ${chosen.box.internalCode} · ${cm(AW * 100)} × ${cm(AH * 100)} cm` : 'Caricamento rivestimento…';
 }
 
@@ -411,6 +416,11 @@ const offer = {cover: {mode: 'choice'}};   // mode: 'choice' (sceglie il cliente
 let coverChoice = 'photo';                   // scelta del cliente quando mode è 'choice'
 const graphic = {source: null, name: 'grafica di esempio'};
 const albumPhoto = {source: null, state: 'esempio'};
+// Id degli asset del fotolibro scelti dal cliente (solo in piattaforma) e formato deciso dallo studio.
+const assets = {base: null, lid: null, album: null};
+let studioFormat = null;
+let allowedMaterials = null;   // Set di id consentiti dal laboratorio; null = tutto il campionario
+let locked = false;
 const COVER_MODES = ['choice', 'photo', 'graphic'];
 const effectiveCover = () => offer.cover.mode === 'choice' ? coverChoice : offer.cover.mode;
 
@@ -450,6 +460,30 @@ function showCover() {
   if (effectiveCover() === 'graphic') setPhoto('album', graphic.source || sampleGraphic(aspect), graphic.name);
   else if (albumPhoto.source) setPhoto('album', albumPhoto.source, albumPhoto.state);
   else setPhoto('album', sampleCanvas(slot.hue, 'La tua foto', aspect), 'esempio');
+}
+/** Configurazione nel formato che la piattaforma salva (vedi mockup-types.ts). */
+function currentConfiguration() {
+  const box = chosen.box, album = chosen.album || chosen.box;
+  const round = n => Math.round(n * 10) / 10;
+  const cover = effectiveCover();
+  return {
+    modelId: 'scatola-cornice', assetRevision: 1,
+    materialId: box?.id ?? null, appearanceRevision: box?.appearanceRevision ?? 0,
+    albumMaterialId: album?.id ?? null, albumAppearanceRevision: album?.appearanceRevision ?? 0,
+    coverLayout: cover,
+    format: studioFormat ? {w: studioFormat.w, h: studioFormat.h} : {w: round(AW * 100), h: round(AH * 100)},
+    photoAssetId: assets.base, lidPhotoAssetId: assets.lid,
+    coverPhotoAssetId: cover === 'photo' ? assets.album : null,
+  };
+}
+let lastSignature = '';
+/** Avvisa l'host solo se la configurazione è davvero cambiata (cambiare vista non è una modifica). */
+function emitChange(force = false) {
+  if (!embedded) return;
+  const configuration = currentConfiguration(), signature = JSON.stringify(configuration);
+  if (!force && signature === lastSignature) return;
+  lastSignature = signature;
+  notify('change', {configuration});
 }
 function syncCoverUi() {
   const choice = offer.cover.mode === 'choice', graphicOn = effectiveCover() === 'graphic';
@@ -514,8 +548,9 @@ for (const b of document.querySelectorAll('[data-cover]')) b.onclick = () => { c
 // Campionario: una griglia per ogni scelta (scatola, album).
 const initial = variants.find(v => v.legacyId === 'mist-03') || variants[0];
 function buildSwatches(container, which) {
+  container.textContent = '';
   for (const family of catalog.families.filter(f => f.laboratoryId === laboratory.id)) {
-    const samples = variants.filter(v => v.familyId === family.id);
+    const samples = variants.filter(v => v.familyId === family.id && (!allowedMaterials || allowedMaterials.has(v.id)));
     if (!samples.length) continue;
     const section = document.createElement('details'); section.className = 'material-category';
     if (samples.some(v => v.id === initial.id)) section.open = true;
@@ -536,8 +571,8 @@ function buildSwatches(container, which) {
     section.append(title, grid); container.append(section);
   }
 }
-buildSwatches($('materialsBox'), 'box');
-buildSwatches($('materialsAlbum'), 'album');
+function rebuildSwatches() { buildSwatches($('materialsBox'), 'box'); buildSwatches($('materialsAlbum'), 'album'); markSwatches(); }
+rebuildSwatches();
 $('albumSame').onclick = () => { albumFollows = true; if (chosen.box) setFabric(chosen.box.id, ['album']); markSwatches(); updateSummary(); };
 
 // Un passo per ogni scelta del cliente. Formato e tipo di copertina li decide lo studio.
@@ -564,6 +599,7 @@ function goStep(index, {focus = true} = {}) {
   $('stepTitle').textContent = STEPS[step].title;
   $('prev').disabled = step === 0;
   $('next').textContent = step === STEPS.length - 1 ? 'Ricomincia' : 'Avanti';
+  $('next').hidden = embedded && step === STEPS.length - 1;
   document.querySelector('.panel-content').scrollTop = 0;
   if (mode !== STEPS[step].view) setMode(STEPS[step].view);
   if (focus) $('stepTitle').focus({preventScroll: true});
@@ -662,23 +698,103 @@ goStep(0, {focus: false});
 $('status').textContent = '';
 document.body.dataset.ready = 'true';
 
-// Dentro la piattaforma: le scelte dello studio arrivano con il messaggio 'apply'.
-const embedded = window.parent !== window;
-const notify = (type, payload = {}) => { if (embedded) window.parent.postMessage({channel: 'memorie-mockup-v1', type, ...payload}, location.origin); };
 if (embedded) {
+  /** Foto scelta dal cliente nell'host (galleria o caricamento): arriva già ridotta, con il suo id. */
+  async function setHostPhoto(slot, {id, blob, name}) {
+    const image = await readImage(blob), label = name || 'foto scelta';
+    assets[slot] = id;
+    if (slot === 'album') { albumPhoto.source = image; albumPhoto.state = label; showCover(); }
+    else setPhoto(slot, image, label);
+    $(`${slot}Status`).textContent = `Foto scelta: ${label}`;
+  }
+  function applyLock(value) {
+    locked = value === true;
+    for (const b of document.querySelectorAll('.panel-content button')) b.disabled = locked;
+    document.body.classList.toggle('locked', locked);
+  }
+  async function applyFromHost(data) {
+    const option = data.option || {}, setup = option.setup;
+    if (Array.isArray(option.materials)) { allowedMaterials = new Set(option.materials.map(m => m.id)); rebuildSwatches(); }
+    if (data.photos?.graphic) { graphic.source = await readImage(data.photos.graphic.blob); graphic.name = data.photos.graphic.name || 'grafica dello studio'; }
+    if (setup) {
+      const size = normalizeFormat(setup.format);
+      if (size) studioFormat = {w: setup.format.w, h: setup.format.h};
+      applyOffer({format: setup.format, cover: setup.cover});
+    }
+    const cfg = data.configuration;
+    if (cfg && cfg.modelId === 'scatola-cornice') {
+      albumFollows = cfg.albumMaterialId === cfg.materialId;
+      if (offer.cover.mode === 'choice' && ['photo', 'graphic'].includes(cfg.coverLayout)) coverChoice = cfg.coverLayout;
+      await setFabric(cfg.materialId, albumFollows ? ['box', 'album'] : ['box']);
+      if (!albumFollows) await setFabric(cfg.albumMaterialId, ['album']);
+    } else if (allowedMaterials && chosen.box && !allowedMaterials.has(chosen.box.id)) {
+      const first = variants.find(v => allowedMaterials.has(v.id));
+      if (first) await setFabric(first.id, ['box', 'album']);
+    }
+    for (const slot of ['base', 'lid', 'album']) {
+      const photo = data.photos?.[slot === 'album' ? 'cover' : slot];
+      if (photo) await setHostPhoto(slot, photo);
+    }
+    showCover(); syncCoverUi(); updateSummary();
+    if (data.readOnly !== undefined) applyLock(data.readOnly);
+  }
+
+  /** Otto viste per il report di conferma dello studio. */
+  const EXPORT_SIZE = [1200, 900];
+  function exportViews() {
+    const L = computeLayout(), s = Math.max(1, Math.max(W, H) / .342);
+    const prevMode = mode, prevCam = camera.position.clone(), prevTarget = controls.target.clone();
+    const prevRatio = renderer.getPixelRatio(), prevPose = Object.fromEntries(Object.entries(pieces).map(([k, p]) => [k, {p: p.position.toArray(), r: p.rotation.toArray().slice(0, 3)}]));
+    const add = (t, o) => ({t, p: [t[0] + o[0], t[1] + o[1], t[2] + o[2]]});
+    const wall = [L.wallX, L.wallY, -.30], lid = [L.lidX, L.lidY, L.lidZ], album = [L.albumX, AD, L.albumZ];
+    const views = [
+      ['Scatola chiusa', 'closed', poses().closed.cam],
+      ['Scatola chiusa, vista laterale', 'closed', add([0, H / 2, 0], [-.95 * s, .12 * s, .55 * s])],
+      ['I tre usi', 'uses', poses().uses.cam],
+      ['Quadro da parete (fondo)', 'uses', add(wall, [.1, .05, 1.25 * s])],
+      ['Cornice da tavolo (tappo)', 'uses', add(lid, [.2 * s, .12, .75 * s])],
+      ['Album sul tavolo', 'uses', add(album, [.1, .55 * s, .55 * s])],
+      ['Dettaglio tessuto della scatola', 'closed', add([W / 2 - .04, H - .04, D / 2], [.12, .05, .22])],
+      ['Dettaglio tessuto dell’album', 'uses', add([L.albumX + AW * .2, AD, L.albumZ], [.08, .18, .3])],
+    ];
+    renderer.setPixelRatio(1); renderer.setSize(...EXPORT_SIZE, false);
+    camera.aspect = EXPORT_SIZE[0] / EXPORT_SIZE[1]; camera.updateProjectionMatrix();
+    const previews = [];
+    try {
+      for (const [label, viewMode, cam] of views) {
+        setMode(viewMode, true);
+        for (const m of envMats) m.opacity = envOpacity;
+        envGroup.visible = envOpacity > .01;
+        camera.position.set(...cam.p); controls.target.set(...cam.t); controls.update();
+        renderer.render(scene, camera);
+        previews.push({label, image: canvas.toDataURL('image/jpeg', .85)});
+      }
+    } finally {
+      renderer.setPixelRatio(prevRatio); resize();
+      setMode(prevMode === 'open' ? 'uses' : prevMode, true);
+      for (const [k, v] of Object.entries(prevPose)) { pieces[k].position.set(...v.p); pieces[k].rotation.set(...v.r); }
+      camera.position.copy(prevCam); controls.target.copy(prevTarget); controls.update();
+    }
+    return previews;
+  }
+
+  for (const b of document.querySelectorAll('[data-pick]')) b.onclick = () => notify('pick-photo', {slot: b.dataset.pick.split(':')[0], source: b.dataset.pick.split(':')[1]});
   window.addEventListener('message', async event => {
     if (event.source !== window.parent || event.origin !== location.origin || event.data?.channel !== 'memorie-mockup-v1') return;
     const data = event.data;
-    if (data.type !== 'apply') return;
     try {
-      const option = data.option || {};
-      if (option.cover?.graphicUrl) {
-        const image = new Image(); image.crossOrigin = 'anonymous'; image.src = option.cover.graphicUrl; await image.decode();
-        graphic.source = image; graphic.name = 'grafica dello studio';
+      if (data.type === 'apply') {
+        notify('busy', {busy: true});
+        await applyFromHost(data);
+        notify('busy', {busy: false});
+        emitChange(true);
+        notify('applied');
+      } else if (data.type === 'lock') applyLock(data.readOnly);
+      else if (data.type === 'export') {
+        try { notify('exported', {requestId: data.requestId, previews: exportViews(), configuration: currentConfiguration()}); }
+        catch (error) { console.error(error); notify('export-error', {requestId: data.requestId}); }
       }
-      applyOffer({format: option.format, cover: option.cover});
-      notify('applied');
-    } catch (error) { console.error(error); notify('fatal-error', {message: 'Impossibile applicare le scelte dello studio'}); }
+    } catch (error) { console.error(error); notify('busy', {busy: false}); notify('fatal-error', {message: 'Impossibile applicare le scelte'}); }
   });
 }
 notify('ready');

@@ -287,6 +287,35 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     expect(notifySubmission).toHaveBeenCalledTimes(2);
   });
 
+  it('Quadrobook: formato e copertina li decide lo studio, il cliente non li cambia', async () => {
+    const graphicId = '44444444-4444-4444-8444-444444444444';
+    h.docs.get('photobooks/book').jobId = 'job';
+    h.docs.set(`photobooks/book/mockupAssets/${graphicId}`, { version: 1, storagePath: 'graphic.jpg' });
+    h.files.set('graphic.jpg', Buffer.from('grafica'));
+    h.docs.set('labs/lab', { nome: 'Laboratorio scelto', attivo: true, mockupCatalog: { revision: 1, materials: [{ id: material.id, label: 'Tessuto scelto', supplierCode: 'LAB-01' }], models: [{ id: entryId, name: 'Quadrobook', supplierCode: 'Q-01', rendererId: 'scatola-cornice', active: true, materialIds: [material.id] }] } });
+    const offerBody = (setup?: unknown) => JSON.stringify({ revision: 0, savedRevision: 0, mode: 'fixed', selections: [{ ...selection, ...(setup ? { setup } : {}) }] });
+    const put = (body: string) => fetch(`${base}/admin/offer?version=1`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body });
+    // Senza formato e copertina lo studio non può pubblicare il Quadrobook; con la grafica mancante nemmeno.
+    expect((await put(offerBody())).status).toBe(400);
+    expect((await put(offerBody({ format: { w: 25, h: 35 }, cover: { mode: 'graphic', graphicAssetId: '55555555-5555-4555-8555-555555555555' } }))).status).toBe(400);
+    const setup = { format: { w: 30, h: 20 }, cover: { mode: 'choice', graphicAssetId: graphicId } };
+    const published = await put(offerBody(setup));
+    expect(published.status).toBe(200);
+    expect((await published.json()).options[0].setup).toEqual(setup);
+    const box = { modelId: 'scatola-cornice', assetRevision: 1, materialId: material.id, appearanceRevision: material.appearanceRevision, albumMaterialId: material.id, albumAppearanceRevision: material.appearanceRevision, coverLayout: 'photo', format: { w: 30, h: 20 }, photoAssetId: photoId, lidPhotoAssetId: photoId, coverPhotoAssetId: photoId };
+    const mine = { selection, offerRevision: 1 };
+    // Il cliente non può cambiare il formato deciso dallo studio.
+    expect((await save(base, { revision: 0, configuration: { ...box, format: { w: 25, h: 35 } }, ...mine }, 'client')).status).toBe(409);
+    // Può scegliere foto o grafica perché la copertina è lasciata a lui.
+    expect((await save(base, { revision: 0, configuration: box, ...mine }, 'client')).status).toBe(200);
+    expect((await save(base, { revision: 1, configuration: { ...box, coverLayout: 'graphic', coverPhotoAssetId: null }, ...mine }, 'client')).status).toBe(200);
+    // La grafica dello studio si legge dal link cliente e segue la proposta.
+    const graphic = await globalThis.fetch(`${base}/client/cover-graphic?version=1`);
+    expect(graphic.status).toBe(200);
+    expect(Buffer.from(await graphic.arrayBuffer()).toString()).toBe('grafica');
+    expect((await action(base, 'client', 'submit', 2)).status).toBe(200);
+  });
+
   it('avvisa lo studio solo dopo l’invio acquisito, mai dopo bozza, rifiuto o richiesta di correzioni', async () => {
     await publish(base);
     await save(base, { revision: 0, configuration, selection, offerRevision: 1 }, 'client');

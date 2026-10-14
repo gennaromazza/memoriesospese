@@ -25,11 +25,16 @@ const EMPTY_EXAMPLES: readonly MockupCoverExample[] = [];
 
 export function mockupCoverExamples(
   rendererId: MockupOption["rendererId"],
+  setup?: MockupOption["setup"],
 ): readonly MockupCoverExample[] {
-  return (
+  const examples =
     MOCKUP_RENDERERS.find((renderer) => renderer.id === rendererId)
-      ?.coverExamples ?? EMPTY_EXAMPLES
-  );
+      ?.coverExamples ?? EMPTY_EXAMPLES;
+  // Quadrobook: se lo studio ha imposto foto o grafica, il cliente vede solo quella.
+  const mode = setup?.cover.mode;
+  return mode === "photo" || mode === "graphic"
+    ? examples.filter((example) => example.layout === mode)
+    : examples;
 }
 
 export interface MockupModelChooserProps {
@@ -59,7 +64,7 @@ export default function MockupModelChooser({
     () =>
       options.filter(
         (option) =>
-          option.active && mockupCoverExamples(option.rendererId).length > 0,
+          option.active && mockupCoverExamples(option.rendererId, option.setup).length > 0,
       ),
     [options],
   );
@@ -119,7 +124,7 @@ export default function MockupModelChooser({
     (option) => optionKey(option) === selectedKey,
   );
   const examples = selected
-    ? mockupCoverExamples(selected.rendererId)
+    ? mockupCoverExamples(selected.rendererId, selected.setup)
     : EMPTY_EXAMPLES;
 
   const examplesSignature = useMemo(
@@ -373,6 +378,7 @@ export default function MockupModelChooser({
               {visibleOptions.map((option, itemIndex) => {
                 const representative = mockupCoverExamples(
                   option.rendererId,
+                  option.setup,
                 )[0];
                 const key = optionKey(option);
                 const isSelected = selectedKey === key;

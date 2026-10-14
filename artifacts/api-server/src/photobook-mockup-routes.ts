@@ -21,7 +21,7 @@ type ClientMockupNotification = (
   event: 'changes_requested' | 'confirmed',
 ) => Promise<void>;
 
-function optionFromLab(lab: DocumentSnapshot, selection: { labId: string; modelId: string }): MockupOption | null {
+function optionFromLab(lab: DocumentSnapshot, selection: { labId: string; modelId: string; setup?: MockupOption['setup'] }): MockupOption | null {
   if (!lab.exists || lab.id !== selection.labId || lab.data()?.attivo === false) return null;
   const parsed = labMockupCatalogSchema.safeParse(lab.data()!.mockupCatalog);
   if (!parsed.success) return null;
@@ -33,6 +33,7 @@ function optionFromLab(lab: DocumentSnapshot, selection: { labId: string; modelI
     materials: catalog.materials.filter(m => model.materialIds.includes(m.id)),
     labId: lab.id,
     labName: String(lab.data()!.nome),
+    ...(selection.setup ? { setup: selection.setup } : {}),
   };
 }
 
@@ -41,7 +42,7 @@ async function validatedPublishedOffer(
   getLab: (labId: string) => Promise<DocumentSnapshot>,
 ): Promise<MockupOffer | null> {
   for (const option of published.options) {
-    const labOption = optionFromLab(await getLab(option.labId), { labId: option.labId, modelId: option.id });
+    const labOption = optionFromLab(await getLab(option.labId), { labId: option.labId, modelId: option.id, setup: option.setup });
     if (!labOption) return null;
   }
   return {
