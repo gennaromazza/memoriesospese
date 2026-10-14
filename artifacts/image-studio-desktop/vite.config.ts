@@ -69,6 +69,10 @@ export default defineConfig({
     strictPort: true,
     host: '0.0.0.0',
     allowedHosts: true,
+    watch: {
+      // Installer output is not source; Wine prefixes may contain root symlinks.
+      ignored: ['**/release/**'],
+    },
     fs: {
       strict: true,
     },

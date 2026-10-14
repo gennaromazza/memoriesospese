@@ -63,7 +63,24 @@ export interface PreviewPasskeyHandoff {
   uid: string;
 }
 
+/** Matches DESKTOP_HANDOFF_TTL_MS on the server; this is only a local polling limit. */
+export const PREVIEW_HANDOFF_TIMEOUT_MS = 10 * 60 * 1000;
+
 type PasskeyHandoffStatus = 'pending' | 'verified' | 'expired';
+
+/** Verification and lock state are already evaluated against the server clock. */
+export function isAdminPasskeyVerificationRequired(status: AdminSecurityStatus): boolean {
+  return status.passkeyRequired && !status.verified;
+}
+
+export function isAdminPasskeyLocked(status: AdminSecurityStatus): boolean {
+  return status.lockedUntil !== null;
+}
+
+/** The deadline is measured with performance.now(), never against server timestamps. */
+export function hasPreviewHandoffTimedOut(deadline: number, monotonicNow: number): boolean {
+  return monotonicNow >= deadline;
+}
 
 export class AdminSecurityError extends Error {
   constructor(

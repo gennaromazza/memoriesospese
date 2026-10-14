@@ -7,7 +7,7 @@
  *    montato, quindi non parte nessuna lettura Firestore o chiamata API.
  * 3. Finché l'obbligo non è attivo mostra un promemoria per configurarla.
  */
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocation } from 'wouter';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { signOut } from 'firebase/auth';
@@ -19,6 +19,10 @@ import {
   AdminPasskeyClient,
   AdminPasskeyRefreshError,
   AdminSecurityError,
+  hasPreviewHandoffTimedOut,
+  isAdminPasskeyLocked,
+  isAdminPasskeyVerificationRequired,
+  PREVIEW_HANDOFF_TIMEOUT_MS,
   type PreviewPasskeyHandoff,
   type ExpectedAdminPasskeyClaim,
   type AdminSecurityStatus,
@@ -91,10 +95,9 @@ export function AdminRouteGuard({ children }: { children: ReactNode }) {
   }
 
   const data = status.data;
-  const expired = data.verifiedUntil !== null && data.verifiedUntil <= Date.now();
   const allowHandoffPage =
     location.startsWith('/admin/sicurezza') && validDesktopHandoff;
-  if (data.passkeyRequired && (!data.verified || expired) && !allowHandoffPage) {
+  if (isAdminPasskeyVerificationRequired(data) && !allowHandoffPage) {
     return <AdminPasskeyVerification status={data} />;
   }
 
@@ -171,10 +174,11 @@ export function AdminPasskeyVerification({ status }: { status: AdminSecurityStat
   const [refreshExpectedClaim, setRefreshExpectedClaim] = useState<ExpectedAdminPasskeyClaim | null>(null);
   const [needsSessionRefresh, setNeedsSessionRefresh] = useState(false);
   const [previewHandoff, setPreviewHandoff] = useState<PreviewPasskeyHandoff | null>(null);
+  const previewHandoffDeadline = useRef<number | null>(null);
   const [startingPreviewHandoff, setStartingPreviewHandoff] = useState(false);
   const [previewHandoffError, setPreviewHandoffError] = useState<string | null>(null);
   const supportsPasskeys = AdminPasskeyClient.supportsPasskeys();
-  const locked = status.lockedUntil !== null && status.lockedUntil > Date.now();
+  const locked = isAdminPasskeyLocked(status);
   const hostname = window.location.hostname.toLowerCase();
   const currentRpId = hostname.startsWith('www.') ? hostname.slice(4) : hostname;
   const hasCurrentOriginPasskey = status.passkeys.some((passkey) => passkey.rpId === currentRpId);
@@ -186,10 +190,14 @@ export function AdminPasskeyVerification({ status }: { status: AdminSecurityStat
     if (!previewHandoff) return;
     let cancelled = false;
     let pollTimer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = previewHandoffDeadline.current ??
+      (performance.now() + PREVIEW_HANDOFF_TIMEOUT_MS);
+    previewHandoffDeadline.current = deadline;
 
     const poll = async () => {
       if (cancelled) return;
-      if (Date.now() >= previewHandoff.expiresAt) {
+      if (hasPreviewHandoffTimedOut(deadline, performance.now())) {
+        previewHandoffDeadline.current = null;
         setPreviewHandoffError('La richiesta è scaduta. Avviane una nuova.');
         setPreviewHandoff(null);
         return;
@@ -199,6 +207,7 @@ export function AdminPasskeyVerification({ status }: { status: AdminSecurityStat
         const result = await AdminPasskeyClient.getPreviewHandoffStatus(previewHandoff);
         if (cancelled) return;
         if (result.status === 'expired') {
+          previewHandoffDeadline.current = null;
           setPreviewHandoffError('La richiesta è scaduta. Avviane una nuova.');
           setPreviewHandoff(null);
           return;
@@ -207,6 +216,7 @@ export function AdminPasskeyVerification({ status }: { status: AdminSecurityStat
           try {
             await AdminPasskeyClient.completePreviewHandoff(previewHandoff);
             if (cancelled) return;
+            previewHandoffDeadline.current = null;
             setPreviewHandoff(null);
             setPreviewHandoffError(null);
             await queryClient.invalidateQueries({ queryKey: ADMIN_SECURITY_STATUS_KEY });
@@ -216,6 +226,7 @@ export function AdminPasskeyVerification({ status }: { status: AdminSecurityStat
             });
           } catch (error) {
             if (cancelled) return;
+            previewHandoffDeadline.current = null;
             setPreviewHandoff(null);
             setPreviewHandoffError(
               error instanceof Error ? error.message : 'Non è stato possibile completare la verifica.',
@@ -227,6 +238,7 @@ export function AdminPasskeyVerification({ status }: { status: AdminSecurityStat
       } catch (error) {
         if (cancelled) return;
         if (error instanceof AdminSecurityError && error.status < 500) {
+          previewHandoffDeadline.current = null;
           setPreviewHandoffError(error.message);
           setPreviewHandoff(null);
           return;
@@ -250,7 +262,9 @@ export function AdminPasskeyVerification({ status }: { status: AdminSecurityStat
     setStartingPreviewHandoff(true);
     setPreviewHandoffError(null);
     try {
-      setPreviewHandoff(await AdminPasskeyClient.startPreviewHandoff());
+      const handoff = await AdminPasskeyClient.startPreviewHandoff();
+      previewHandoffDeadline.current = performance.now() + PREVIEW_HANDOFF_TIMEOUT_MS;
+      setPreviewHandoff(handoff);
     } catch (error) {
       setPreviewHandoffError(
         error instanceof Error ? error.message : 'Non è stato possibile avviare la verifica.',
@@ -430,6 +444,7 @@ export function AdminPasskeyVerification({ status }: { status: AdminSecurityStat
                         variant="ghost"
                         className="w-full"
                         onClick={() => {
+                          previewHandoffDeadline.current = null;
                           setPreviewHandoff(null);
                           setPreviewHandoffError(null);
                         }}

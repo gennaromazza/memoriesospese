@@ -53,9 +53,17 @@ interface HandoffDependencies {
       claims: Record<string, unknown>;
     }>;
   } | null;
+  waitForCurrentUser?(): Promise<{
+    uid: string;
+    getIdTokenResult(forceRefresh?: boolean): Promise<{
+      claims: Record<string, unknown>;
+    }>;
+  } | null>;
+  confirmSession?(expectedClaim: DesktopPasskeyClaim): Promise<boolean>;
   createVerifier(): Promise<{ verifier: string; verifierHash: string }>;
   sleep(milliseconds: number): Promise<void>;
   now(): number;
+  monotonicNow?(): number;
   pollIntervalMs: number;
 }
 
@@ -74,17 +82,34 @@ async function createVerifier(): Promise<{ verifier: string; verifierHash: strin
   };
 }
 
-async function request<T>(path: string, body: unknown): Promise<T> {
+async function request<T>(
+  path: string,
+  body: unknown,
+  basePath = SECURITY_BASE,
+  method: 'POST' | 'GET' = 'POST',
+): Promise<T> {
+  // A newly loaded renderer may still be restoring its persisted Firebase user.
+  // A temporarily-null currentUser is not proof that the login has expired.
+  await auth.authStateReady();
   const user = auth.currentUser;
   if (!user) throw new Error('Sessione Windows scaduta: accedi di nuovo.');
-  const response = await fetch(getApiUrl(`${SECURITY_BASE}${path}`), {
-    method: 'POST',
+
+  const send = async (forceRefresh: boolean) => fetch(getApiUrl(`${basePath}${path}`), {
+    method,
+    cache: 'no-store',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${await user.getIdToken()}`,
+      Authorization: `Bearer ${await user.getIdToken(forceRefresh)}`,
     },
-    body: JSON.stringify(body),
+    body: method === 'POST' ? JSON.stringify(body) : undefined,
   });
+  let response = await send(false);
+  if (response.status === 401 && auth.currentUser?.uid === user.uid) {
+    // Retry only an explicit auth rejection, which occurs before the handoff
+    // operation. Never replay a redemption after an uncertain/network response.
+    response = await send(true);
+  }
+
   const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
   if (!response.ok) {
     throw new HandoffHttpError(
@@ -121,9 +146,23 @@ function createRuntimeDependencies(): HandoffDependencies {
       await signInWithCustomToken(auth, customToken);
     },
     getCurrentUser: () => auth.currentUser,
+    waitForCurrentUser: async () => {
+      await auth.authStateReady();
+      return auth.currentUser;
+    },
+    confirmSession: async (expectedClaim) => {
+      const status = await request<{
+        passkeyRequired: boolean;
+        verified: boolean;
+        verifiedUntil: number;
+      }>('/status', undefined, '/api/admin/security', 'GET');
+      return status.passkeyRequired === false ||
+        (status.verified === true && status.verifiedUntil === expectedClaim.exp);
+    },
     createVerifier,
     sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
     now: () => Date.now(),
+    monotonicNow: () => performance.now(),
     pollIntervalMs: POLL_INTERVAL_MS,
   };
 }
@@ -162,9 +201,18 @@ export async function refreshDesktopPasskeySession(
     actualClaim.exp !== expectedClaim.exp ||
     actualClaim.at !== expectedClaim.at ||
     actualClaim.sat !== expectedClaim.sat ||
-    authTime !== expectedClaim.sat ||
-    expectedClaim.exp <= dependencies.now()
+    authTime !== expectedClaim.sat
   ) {
+    throw new DesktopPasskeySessionRefreshError(expectedClaim, expectedUid);
+  }
+  try {
+    // Validity is checked with the server clock too: a Windows date far ahead
+    // must not reject a freshly issued proof (nor accept a revoked/expired one).
+    const valid = dependencies.confirmSession
+      ? await dependencies.confirmSession(expectedClaim)
+      : expectedClaim.exp > dependencies.now();
+    if (!valid) throw new Error('Session verification rejected');
+  } catch {
     throw new DesktopPasskeySessionRefreshError(expectedClaim, expectedUid);
   }
 }
@@ -196,16 +244,27 @@ export async function finalizeDesktopPasskeySession(
 export async function runDesktopPasskeyHandoff(
   dependencies: HandoffDependencies = createRuntimeDependencies(),
 ): Promise<void> {
-  const initialUser = dependencies.getCurrentUser();
+  let initialUser = dependencies.getCurrentUser();
+  if (!initialUser && dependencies.waitForCurrentUser) {
+    initialUser = await dependencies.waitForCurrentUser();
+  }
   if (!initialUser) throw new Error('Sessione Windows scaduta: accedi di nuovo.');
   const uid = initialUser.uid;
   const { verifier, verifierHash } = await dependencies.createVerifier();
   const started = await dependencies.request<HandoffApi>('/start', { verifierHash });
+  // expiresAt belongs to the server's clock, not the Windows clock. A PC ahead
+  // by ten minutes would otherwise skip polling and immediately report expiry.
+  // The server status is authoritative; this is only a monotonic local timeout.
+  const elapsedNow = dependencies.monotonicNow ?? dependencies.now;
+  const deadline = elapsedNow() + HANDOFF_TTL_MS;
   await dependencies.openExternal(started.verificationUrl);
 
-  const deadline = Math.min(started.expiresAt, dependencies.now() + HANDOFF_TTL_MS);
-  while (dependencies.now() < deadline) {
-    const currentUser = dependencies.getCurrentUser();
+  let verified = false;
+  while (elapsedNow() < deadline) {
+    let currentUser = dependencies.getCurrentUser();
+    if (!currentUser && dependencies.waitForCurrentUser) {
+      currentUser = await dependencies.waitForCurrentUser();
+    }
     if (!currentUser || currentUser.uid !== uid) {
       throw new Error('L’account Windows è cambiato durante la verifica. Ripeti la procedura.');
     }
@@ -214,14 +273,17 @@ export async function runDesktopPasskeyHandoff(
       `/${encodeURIComponent(started.handoffId)}/status`,
       { verifier },
     );
-    if (status.status === 'verified') break;
+    if (status.status === 'verified') {
+      verified = true;
+      break;
+    }
     if (status.status === 'expired') {
       throw new Error('La richiesta di verifica è scaduta. Avviane una nuova.');
     }
     await dependencies.sleep(dependencies.pollIntervalMs);
   }
 
-  if (dependencies.now() >= deadline) {
+  if (!verified) {
     throw new Error('La richiesta di verifica è scaduta. Avviane una nuova.');
   }
 
