@@ -23,7 +23,7 @@ export const labMockupCatalogSchema = z.object({
 export type LabMockupModel = z.infer<typeof labMockupModelSchema>;
 export type LabMockupCatalog = z.infer<typeof labMockupCatalogSchema>;
 /**
- * Scatola con cornice: impostazioni decise solo dallo studio quando assegna il modello.
+ * Quadrobook: impostazioni decise solo dallo studio quando assegna il modello.
  * Il cliente non sceglie mai il formato; la copertina può essere imposta (foto o grafica) o lasciata a lui.
  */
 export const BOX_FORMAT_MIN_CM = 15;

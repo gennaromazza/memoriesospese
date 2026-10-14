@@ -10,6 +10,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import PhotobookMockup from '@/components/photobook/PhotobookMockup';
+import PhotobookClientProgress from '@/components/photobook/PhotobookClientProgress';
 import { createPortal } from 'react-dom';
 import { usePhoneOrientation } from '@/hooks/use-phone-orientation';
 import { useParams } from 'wouter';
@@ -891,6 +892,34 @@ export default function PhotobookViewPage() {
           isTouchPhone ? 'px-1 py-1 space-y-1' : 'max-w-4xl px-2 sm:px-4 space-y-4 sm:space-y-6 py-4 sm:py-6'
         }`}
       >
+        <PhotobookClientProgress approved={isApproved} locked={isLocked} isCurrentVersion={isCurrentVersion} clientConfigures={clientConfiguresMockup} compact={isTouchPhone} />
+        {canEdit && !isTouchPhone && (
+          <Card className="border-green-200 bg-white" data-testid="card-approve">
+            <CardContent className="py-3 flex items-center gap-3 flex-wrap">
+              <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium">L'impaginato ti piace così com'è?</p>
+                <p className="text-xs text-muted-foreground">
+                  {drafts.size > 0
+                    ? 'Hai delle bozze non inviate: inviale o annullale prima di approvare.'
+                    : pendingSentCount > 0
+                      ? `Hai ${pendingSentCount === 1 ? 'una richiesta' : `${pendingSentCount} richieste`} in attesa di lavorazione: potrai approvare quando saranno state lavorate.`
+                      : 'Approva le pagine, poi personalizza album e box.'}
+                </p>
+              </div>
+              <Button
+                size="sm"
+                className="bg-green-600 hover:bg-green-700 text-white shrink-0"
+                disabled={drafts.size > 0 || pendingSentCount > 0}
+                onClick={() => setApproveOpen(true)}
+                data-testid="button-open-approve"
+              >
+                <CheckCircle2 className="h-4 w-4 mr-1.5" />
+                Approva l'impaginato
+              </Button>
+            </CardContent>
+          </Card>
+        )}
         {isTouchPhone && isApproved && isCurrentVersion && (
           <Card className="border-emerald-300 bg-emerald-50/80 shadow-sm mx-1 my-2" data-testid="card-photobook-mockup-mobile">
             <CardContent className="p-3.5 flex flex-col gap-2">
@@ -933,58 +962,8 @@ export default function PhotobookViewPage() {
           </Card>
         )}
 
-        {!isLocked && isApproved && isCurrentVersion && !isTouchPhone && (
-          <Card className="border-green-300 bg-green-50" data-testid="banner-approved">
-            <CardContent className="py-4 flex items-start gap-3">
-              <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <p className="font-semibold text-green-800">Impaginato approvato</p>
-                <p className="text-sm text-green-700">
-                  Le pagine di questa versione sono approvate. Ora puoi personalizzare
-                  album e box con il mockup, fino all'invio in stampa. Per altre
-                  modifiche alle pagine, contatta il tuo fotografo.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
-        {canEdit && !isTouchPhone && (
-          <Card className="border-green-200 bg-white" data-testid="card-approve">
-            <CardContent className="py-3 flex items-center gap-3 flex-wrap">
-              <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium">L'impaginato ti piace così com'è?</p>
-                <p className="text-xs text-muted-foreground">
-                  {drafts.size > 0
-                    ? 'Hai delle bozze non inviate: inviale o annullale prima di approvare.'
-                    : pendingSentCount > 0
-                      ? `Hai ${pendingSentCount === 1 ? 'una richiesta' : `${pendingSentCount} richieste`} in attesa di lavorazione: potrai approvare quando saranno state lavorate.`
-                      : 'Approva le pagine, poi personalizza album e box.'}
-                </p>
-              </div>
-              <Button
-                size="sm"
-                className="bg-green-600 hover:bg-green-700 text-white shrink-0"
-                disabled={drafts.size > 0 || pendingSentCount > 0}
-                onClick={() => setApproveOpen(true)}
-                data-testid="button-open-approve"
-              >
-                <CheckCircle2 className="h-4 w-4 mr-1.5" />
-                Approva l'impaginato
-              </Button>
-            </CardContent>
-          </Card>
-        )}
 
-        {!isCurrentVersion && !isLocked && !isTouchPhone && (
-          <Card className="border-amber-300 bg-amber-50">
-            <CardContent className="py-3 text-sm text-amber-800">
-              Stai guardando una versione precedente del fotolibro (solo lettura). Torna alla
-              versione attuale per richiedere modifiche.
-            </CardContent>
-          </Card>
-        )}
 
         {canEdit && !isTouchPhone && (
           <p className="text-sm text-muted-foreground px-1">

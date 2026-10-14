@@ -182,10 +182,10 @@ export const PLAZA_MOCKUP_MODEL = {
   variants: [...MOCKUP_MODEL.variants, ...I_NOBILI_MATERIALS],
 } as const;
 
-// Scatola con cornice: fondo appeso, tappo che diventa cornice su piedistallo, album separato.
+// Quadrobook: scatola con fondo appeso, tappo che diventa cornice su piedistallo, album separato.
 // Formato e tipo di copertina li decide lo studio quando assegna il modello (vedi MockupBoxSetup).
 export const BOX_MOCKUP_MODEL = {
-  id: 'scatola-cornice', name: 'Scatola con cornice', assetRevision: 1,
+  id: 'scatola-cornice', name: 'Quadrobook', assetRevision: 1,
   coverLayouts: ['photo', 'graphic'], defaultCoverLayout: 'photo',
   // Stesso campionario tessuti della Custodia.
   variants: MOCKUP_MODEL.variants,

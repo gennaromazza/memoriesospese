@@ -16,7 +16,7 @@ interface MockupOfferEditorProps {
   modelMode?: MockupOfferMode;
   modelSelection?: MockupSelection | null;
   disabled: boolean;
-  /** Carica la grafica di copertina e restituisce l'id dell'asset (solo per la scatola con cornice). */
+  /** Carica la grafica di copertina e restituisce l'id dell'asset (solo per il Quadrobook). */
   uploadGraphic?: (file: File) => Promise<string>;
   publish: (
     mode: MockupOfferMode,

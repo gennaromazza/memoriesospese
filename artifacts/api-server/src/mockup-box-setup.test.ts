@@ -8,7 +8,7 @@ const uuid = '11111111-1111-4111-8111-111111111111';
 const option = (setup?: unknown): MockupOption => ({ id: uuid, name: 'Scatola', supplierCode: '', rendererId: 'scatola-cornice', active: true, materialIds: [v.id], labId: 'lab', labName: 'Lab', materials: [], setup: setup as MockupOption['setup'] });
 const config = (extra: Record<string, unknown> = {}) => ({ modelId: 'scatola-cornice', assetRevision: 1, materialId: v.id, appearanceRevision: v.appearanceRevision, albumMaterialId: v.id, albumAppearanceRevision: v.appearanceRevision, coverLayout: 'photo', format: { w: 25, h: 35 }, photoAssetId: uuid, lidPhotoAssetId: uuid, coverPhotoAssetId: uuid, ...extra });
 
-describe('scatola con cornice: impostazioni dello studio', () => {
+describe('Quadrobook: impostazioni dello studio', () => {
   it('formato fuori misura o grafica mancante vengono rifiutati', () => {
     expect(mockupBoxSetupSchema.safeParse({ format: { w: 10, h: 35 }, cover: { mode: 'photo' } }).success).toBe(false);
     expect(mockupBoxSetupSchema.safeParse({ format: { w: 25, h: 35 }, cover: { mode: 'graphic' } }).success).toBe(false);

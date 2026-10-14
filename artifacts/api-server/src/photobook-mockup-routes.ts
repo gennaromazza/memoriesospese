@@ -230,8 +230,8 @@ export function createPhotobookMockupRouter(
           if (!model) throw new MockupError(400, 'Modello non disponibile o asset 3D non ancora integrato');
           if (!catalogAllowedForLab({ ...catalog, models: [model] }, lab.data()?.nome)) throw new MockupError(400, 'Plaza LED è disponibile solo per i Nobili');
           const isBox = model.rendererId === 'scatola-cornice';
-          if (isBox && !selection.setup) throw new MockupError(400, 'Imposta formato e copertina della scatola prima di pubblicare');
-          if (!isBox && selection.setup) throw new MockupError(400, 'Formato e copertina si impostano solo per la scatola con cornice');
+          if (isBox && !selection.setup) throw new MockupError(400, 'Imposta formato e copertina del Quadrobook prima di pubblicare');
+          if (!isBox && selection.setup) throw new MockupError(400, 'Formato e copertina si impostano solo per il Quadrobook');
           const graphicId = selection.setup?.cover.graphicAssetId;
           if (graphicId) {
             const graphic = await tx.get(book.ref.collection('mockupAssets').doc(graphicId));

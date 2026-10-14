@@ -75,7 +75,7 @@ const plazaConfigurationSchema = plazaConfigurationObject
   .refine(c => isCatalogMaterial(PLAZA_MOCKUP_MODEL.variants, c.materialId, c.appearanceRevision), 'Revisione del rivestimento non disponibile')
   .refine(c => c.coverLayout === 'plaque' || !!c.photoAssetId, 'Seleziona una foto per questa copertina')
   .refine(c => c.backCover === 'fabric' || !!c.backPhotoAssetId, 'Seleziona una foto per il plexiglass dello scrigno');
-// Scatola con cornice: `photoAssetId` è la foto del fondo (appeso), `lidPhotoAssetId` quella del tappo/cornice.
+// Quadrobook: `photoAssetId` è la foto del fondo (appeso), `lidPhotoAssetId` quella del tappo/cornice.
 // `coverLayout` è il tipo di copertina scelto (foto del cliente o grafica dello studio). Il formato è copiato dalla
 // proposta dello studio e viene ricontrollato dal server: il cliente non può cambiarlo.
 const boxCm = z.number().finite().min(15).max(50);
