@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getAllLabs } from "@/lib/labs";
 import { Button } from "@/components/ui/button";
-import { visibleCatalogForLab } from "@shared/mockup-workflow";
+import { BOX_FORMAT_MAX_CM, BOX_FORMAT_MIN_CM, mockupBoxSetupSchema, visibleCatalogForLab } from "@shared/mockup-workflow";
+import type { MockupBoxSetup } from "@shared/mockup-workflow";
 import type {
   LabMockupCatalog,
   MockupOffer,
@@ -15,6 +16,8 @@ interface MockupOfferEditorProps {
   modelMode?: MockupOfferMode;
   modelSelection?: MockupSelection | null;
   disabled: boolean;
+  /** Carica la grafica di copertina e restituisce l'id dell'asset (solo per la scatola con cornice). */
+  uploadGraphic?: (file: File) => Promise<string>;
   publish: (
     mode: MockupOfferMode,
     selections: MockupSelection[],
@@ -33,13 +36,28 @@ function computeDefaultMode(
   );
 }
 
+const BOX_RENDERER = "scatola-cornice";
+interface BoxDraft { w: string; h: string; mode: MockupBoxSetup["cover"]["mode"]; graphicAssetId?: string; graphicName?: string }
+const boxDraftOf = (setup?: MockupBoxSetup): BoxDraft => ({
+  w: String(setup?.format.w ?? 25), h: String(setup?.format.h ?? 35),
+  mode: setup?.cover.mode ?? "choice", graphicAssetId: setup?.cover.graphicAssetId, graphicName: setup?.cover.graphicAssetId ? "Grafica già caricata" : undefined,
+});
+const COVER_MODES: { id: BoxDraft["mode"]; label: string; hint: string }[] = [
+  { id: "choice", label: "Lascia scegliere al cliente", hint: "Il cliente sceglie tra la sua foto e la tua grafica." },
+  { id: "photo", label: "Solo foto del cliente", hint: "Il cliente carica o sceglie una foto dalla galleria." },
+  { id: "graphic", label: "Solo la mia grafica", hint: "Copertina decisa da te, il cliente non la cambia." },
+];
+
 export default function MockupOfferEditor({
   offer,
   modelMode,
   modelSelection,
   disabled,
+  uploadGraphic,
   publish,
 }: MockupOfferEditorProps) {
+  const [boxDrafts, setBoxDrafts] = useState<Record<string, BoxDraft>>({});
+  const [uploading, setUploading] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [selected, setSelected] = useState<string[] | null>(null);
   const [mode, setMode] = useState<MockupOfferMode>(() =>
@@ -95,6 +113,39 @@ export default function MockupOfferEditor({
     return offerKeys[0] ?? "";
   }, [selected, modelSelection, offerKeys]);
 
+  const boxDraft = (key: string): BoxDraft =>
+    boxDrafts[key] ?? boxDraftOf(offer?.options.find((o) => `${o.labId}/${o.id}` === key)?.setup);
+  const patchBox = (key: string, patch: Partial<BoxDraft>) =>
+    setBoxDrafts((prev) => ({ ...prev, [key]: { ...boxDraft(key), ...patch } }));
+  const boxKeys = useMemo(
+    () => new Set(choices.flatMap((l) => l.models.filter((m) => m.rendererId === BOX_RENDERER).map((m) => `${l.id}/${m.id}`))),
+    [choices],
+  );
+  function setupFor(key: string): { setup?: MockupBoxSetup; error?: string } {
+    if (!boxKeys.has(key)) return {};
+    const d = boxDraft(key);
+    const parsed = mockupBoxSetupSchema.safeParse({
+      format: { w: Number(d.w.replace(",", ".")), h: Number(d.h.replace(",", ".")) },
+      cover: { mode: d.mode, ...(d.mode !== "photo" && d.graphicAssetId ? { graphicAssetId: d.graphicAssetId } : {}) },
+    });
+    if (parsed.success) return { setup: parsed.data };
+    const graphicMissing = d.mode !== "photo" && !d.graphicAssetId;
+    return { error: graphicMissing ? "Carica la grafica di copertina." : `Il formato deve essere tra ${BOX_FORMAT_MIN_CM} e ${BOX_FORMAT_MAX_CM} cm per lato.` };
+  }
+  async function onGraphic(key: string, file: File | undefined) {
+    if (!file || !uploadGraphic) return;
+    setUploading(key);
+    setPublishError(null);
+    try {
+      const id = await uploadGraphic(file);
+      patchBox(key, { graphicAssetId: id, graphicName: file.name });
+    } catch (err) {
+      setPublishError(err instanceof Error ? err.message : "Caricamento della grafica non riuscito.");
+    } finally {
+      setUploading(null);
+    }
+  }
+
   function toggle(keys: string[], checked: boolean) {
     // FIX: uso l'updater funzionale per non dipendere da `selection` catturato
     // nella closure (poteva essere stantio in click rapidi).
@@ -116,12 +167,14 @@ export default function MockupOfferEditor({
       .map((key) => {
         const [labId, modelId] = key.split("/");
         return labId && modelId
-          ? ({ labId, modelId } as MockupSelection)
+          ? ({ labId, modelId, ...setupFor(key) } as MockupSelection)
           : null;
       })
       .filter((x): x is MockupSelection => x !== null);
 
     if (selections.length === 0) return;
+    const invalid = keys.map((key) => setupFor(key).error).find(Boolean);
+    if (invalid) { setPublishError(invalid); return; }
 
     setPublishing(true);
     setPublishError(null);
@@ -277,10 +330,8 @@ export default function MockupOfferEditor({
                 const isChecked =
                   mode === "fixed" ? fixedKey === key : selection.includes(key);
                 return (
-                  <label
-                    key={model.id}
-                    className="flex items-center gap-2 pl-5"
-                  >
+                  <div key={model.id} className="space-y-2">
+                  <label className="flex items-center gap-2 pl-5">
                     <input
                       type={mode === "fixed" ? "radio" : "checkbox"}
                       // FIX: `name` presente solo in modalità fixed, così i checkbox
@@ -295,6 +346,37 @@ export default function MockupOfferEditor({
                     />
                     {model.name}
                   </label>
+                  {isChecked && boxKeys.has(key) && (() => {
+                    const d = boxDraft(key);
+                    return (
+                      <div className="ml-5 rounded border p-3 space-y-3 bg-muted/30" data-testid="box-setup">
+                        <p className="text-sm font-medium">Formato album (lo decidi tu, il cliente non lo cambia)</p>
+                        <div className="flex items-center gap-2">
+                          <input aria-label="Larghezza in cm" inputMode="decimal" className="w-20 rounded border p-2 text-base" value={d.w} onChange={(e) => patchBox(key, { w: e.target.value })} />
+                          <span>×</span>
+                          <input aria-label="Altezza in cm" inputMode="decimal" className="w-20 rounded border p-2 text-base" value={d.h} onChange={(e) => patchBox(key, { h: e.target.value })} />
+                          <span className="text-sm">cm · es. 25×35 verticale, 35×25 orizzontale</span>
+                        </div>
+                        <fieldset className="space-y-2">
+                          <legend className="text-sm font-medium">Copertina dell’album</legend>
+                          {COVER_MODES.map((m) => (
+                            <label key={m.id} className="flex items-start gap-2 text-sm">
+                              <input type="radio" name={`cover-${key}`} checked={d.mode === m.id} onChange={() => patchBox(key, { mode: m.id })} />
+                              <span><strong>{m.label}</strong><small className="block text-muted-foreground">{m.hint}</small></span>
+                            </label>
+                          ))}
+                        </fieldset>
+                        {d.mode !== "photo" && (
+                          <label className="block text-sm">
+                            Grafica di copertina (JPG, PNG o WebP)
+                            <input type="file" accept="image/jpeg,image/png,image/webp" className="block mt-1 w-full min-h-11" disabled={disabled || uploading === key || !uploadGraphic} onChange={(e) => { void onGraphic(key, e.target.files?.[0]); e.target.value = ""; }} />
+                            <span className="block text-xs text-muted-foreground mt-1">{uploading === key ? "Caricamento…" : d.graphicName || "Nessuna grafica caricata"}</span>
+                          </label>
+                        )}
+                      </div>
+                    );
+                  })()}
+                  </div>
                 );
               })}
             </fieldset>
