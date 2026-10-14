@@ -73,11 +73,14 @@ function base64Url(bytes: Uint8Array): string {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-async function createVerifier(): Promise<{ verifier: string; verifierHash: string }> {
+export async function createVerifier(): Promise<{ verifier: string; verifierHash: string }> {
   const verifierBytes = crypto.getRandomValues(new Uint8Array(32));
-  const digest = await crypto.subtle.digest('SHA-256', verifierBytes);
+  const verifier = base64Url(verifierBytes);
+  // The server checks sha256(verifier as text), so hash the encoded string and
+  // not the raw bytes: otherwise the status poll always gets a 404.
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
   return {
-    verifier: base64Url(verifierBytes),
+    verifier,
     verifierHash: base64Url(new Uint8Array(digest)),
   };
 }
