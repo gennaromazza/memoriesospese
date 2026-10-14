@@ -1,0 +1,4 @@
+{
+  "_note": "Elenco dei formati proposti ai clienti (album, larghezza x altezza in cm). Verrà scritto dal pannello admin; per ora si modifica a mano. Da 15 a 50 cm per lato.",
+  "formats": ["25x35", "35x25", "30x20", "20x30", "30x30"]
+}

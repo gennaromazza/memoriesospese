@@ -1,85 +1,91 @@
 <!doctype html>
-<html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Scatola · Album, quadro e cornice</title>
+<html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><title>Scatola Memorie Sospese</title>
 <style>
 *{box-sizing:border-box}
+html,body{height:100%}
 body{margin:0;background:#f4f1eb;color:#243d44;font:15px system-ui,sans-serif}
-header{height:72px;padding:16px 28px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #d9ded8}
+header{height:72px;padding:16px 28px;display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:1px solid #d9ded8}
 header strong{letter-spacing:3px;font-size:17px}header span{color:#637571;font-size:13px}
-main{display:grid;grid-template-columns:330px minmax(0,1fr);height:calc(100dvh - 72px);min-height:0}
-aside{padding:22px 20px;border-right:1px solid #d9ded8;background:#faf8f3;display:flex;flex-direction:column;min-height:0;overflow:hidden}
-h1{font-size:24px;font-weight:500;margin:0 0 6px;line-height:1.2}
+header button{font-size:13px;padding:8px 12px}
+main{display:grid;grid-template-columns:350px minmax(0,1fr);height:calc(100% - 72px);min-height:0}
+aside{padding:20px 20px 0;border-right:1px solid #d9ded8;background:#faf8f3;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+h1{font-size:23px;font-weight:500;margin:0 0 10px;line-height:1.2;outline:none}
 h2{font-size:12px;letter-spacing:1.3px;text-transform:uppercase;margin:6px 0 12px}
 p{line-height:1.5;color:#627471;font-size:14px;margin:6px 0}
-button{font:inherit;color:inherit;cursor:pointer;border:1px solid #d2d9d4;background:#fff;border-radius:9px;padding:10px;transition:background .15s}
+button{font:inherit;color:inherit;cursor:pointer;border:1px solid #d2d9d4;background:#fff;border-radius:9px;padding:10px;transition:background .15s;touch-action:manipulation}
 button:hover:not(:disabled){background:#e8eeeb}
-button:disabled{opacity:.5;cursor:default}
-button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid #458b9b;outline-offset:3px}
+button:disabled{opacity:.45;cursor:default}
+button:focus-visible,input:focus-visible,summary:focus-visible,h1:focus-visible{outline:3px solid #458b9b;outline-offset:3px}
 button[aria-pressed=true]{border:2px solid #315f6a;background:#eaf1ef;padding:9px}
-.panel-tabs{display:flex;gap:4px;margin:14px 0 16px}.panel-tabs button{flex:1;padding:9px 2px;font-size:12.5px}.panel-tabs button[aria-pressed=true]{padding:8px 1px}
-input[type=text]{width:100%;font:inherit;font-size:18px;padding:11px 12px;border:1px solid #b7c7c2;border-radius:8px;background:#fff;color:inherit}
-.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}.chips button{font-size:13px;padding:8px 12px}.chips button[aria-pressed=true]{padding:7px 11px}
-.panel-content{min-height:0;flex:1;overflow:auto}
-.segmented{display:flex;gap:6px;margin:10px 0}.segmented button{flex:1;font-size:13px}
+.step-count{margin:0 0 4px;font-size:12px;letter-spacing:1.3px;text-transform:uppercase;color:#637571}
+.progress{display:flex;gap:4px;margin:0 0 14px}.progress i{flex:1;height:4px;border-radius:2px;background:#d9ded8}.progress i.done{background:#315f6a}
+.panel-content{min-height:0;flex:1;overflow:auto;padding-bottom:12px;-webkit-overflow-scrolling:touch}
+.wizard-nav{display:flex;gap:10px;padding:12px 0 max(14px,env(safe-area-inset-bottom,0px));border-top:1px solid #e1e5df;background:#faf8f3}
+.wizard-nav button{flex:1;min-height:48px;font-size:15px}.wizard-nav .primary{background:#315f6a;color:#fff;border-color:#315f6a}.wizard-nav .primary:hover:not(:disabled){background:#27505a}
 label{display:block;margin:12px 0 6px;font-size:14px}
-.check{display:flex;gap:8px;align-items:center;margin:10px 0}
-input[type=checkbox]{accent-color:#315f6a;width:18px;height:18px}
-input[type=file]{width:100%;font-size:13px}
+input[type=file]{width:100%;font-size:16px}input[type=file]::file-selector-button{min-height:44px;padding:0 16px;margin-right:12px;border:1px solid #d2d9d4;border-radius:9px;background:#fff;color:inherit;font:inherit;cursor:pointer}
+input[type=text]{width:100%;font:inherit;font-size:18px;padding:11px 12px;border:1px solid #b7c7c2;border-radius:8px;background:#fff;color:inherit}
+.formats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.format{display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 8px;min-height:120px;justify-content:center}.format[aria-pressed=true]{padding:13px 7px}
+.shape{display:block;border:2px solid #7f9a9a;border-radius:3px;background:#dfe7e3}
+.format strong{font-size:16px;font-weight:600}.format small{font-size:12px;color:#637571}
+.same{width:100%;margin-bottom:12px;text-align:left;min-height:48px}
 .material-category{border:1px solid #d2d9d4;border-radius:9px;margin-bottom:10px;overflow:hidden}
-.material-category summary{cursor:pointer;padding:13px 12px;font-size:14px;background:#fff}
+.material-category summary{cursor:pointer;padding:14px 12px;font-size:14px;background:#fff;min-height:48px}
 .material-category[open] summary{border-bottom:1px solid #d2d9d4;background:#eaf1ef}
-.materials{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px}.materials button{font-size:12px}
+.materials{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px}.materials button{font-size:12px;min-height:56px}
 .swatch{display:block;height:31px;border-radius:5px;margin-bottom:5px;background-size:90px}
-.photo-slot{border:1px solid #d2d9d4;border-radius:9px;background:#fff;padding:12px;margin-bottom:12px}
-.photo-slot strong{display:block;font-size:14px;margin-bottom:6px}.photo-slot button{margin-top:8px;font-size:13px;padding:7px 10px}
-.photo-slot p{font-size:12px;margin:6px 0 0}
+.photo-slot{border:1px solid #d2d9d4;border-radius:9px;background:#fff;padding:12px;margin:10px 0}
+.photo-slot button{margin-top:10px;font-size:14px;padding:10px 12px;min-height:44px}
+.photo-slot p{font-size:13px;margin:8px 0 0}
 .note{font-size:12px;margin-top:20px;color:#75817c}
 #configurationSummary{white-space:pre-line}
 .workspace{min-height:0;min-width:0;display:grid;grid-template-rows:minmax(0,1fr) auto}
 .stage{position:relative;min-height:0;overflow:hidden;background:radial-gradient(ellipse at center,#faf8f3,#e1e1d9)}
 #viewport{width:100%;height:100%;display:block;touch-action:none;cursor:grab}#viewport:active{cursor:grabbing}
-.badge{position:absolute;top:16px;left:18px;font-size:11px;letter-spacing:1px;text-transform:uppercase}
-.hint{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);padding:9px 14px;background:#ffffffe8;border:1px solid #d5dcd6;border-radius:30px;white-space:nowrap;font-size:12px;pointer-events:none}
-.zoom{position:absolute;right:16px;bottom:16px;display:flex;gap:6px}.zoom button{width:44px;font-size:20px;padding:6px}
+.badge{position:absolute;top:14px;left:16px;font-size:11px;letter-spacing:1px;text-transform:uppercase}
+.hint{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);padding:8px 14px;background:#ffffffe8;border:1px solid #d5dcd6;border-radius:30px;white-space:nowrap;font-size:12px;pointer-events:none}
+.zoom{position:absolute;right:14px;bottom:14px;display:flex;gap:6px}.zoom button{width:44px;height:44px;font-size:20px;padding:0}
 .status{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);padding:18px;background:#fff;border-radius:10px}.status:empty{display:none}
 .view-tools{display:grid;grid-template-columns:minmax(260px,1.4fr) minmax(200px,1fr);gap:24px;background:#faf8f3;border-top:1px solid #d9ded8;padding:12px 22px;align-items:start}
-.view-tools h2{margin:0 0 8px}.view-tools .row{display:flex;gap:7px}.view-tools .row button{flex:1;font-size:13px;padding:9px 6px}.view-tools .row button[aria-pressed=true]{padding:8px 5px}
+.view-tools h2{margin:0 0 8px}.view-tools .row{display:flex;gap:7px}.view-tools .row button{flex:1;font-size:13px;padding:9px 6px;min-height:44px}.view-tools .row button[aria-pressed=true]{padding:8px 5px}
 #modeText{font-size:13px;margin:8px 0 0;min-height:2.8em}
+dialog{width:min(480px,calc(100% - 32px));max-height:88dvh;overflow:auto;border:1px solid #d2d9d4;border-radius:14px;padding:22px;color:#243d44;background:#faf8f3}
+dialog::backdrop{background:#12292c70}.close-dialog{float:right}dialog h2{margin-top:10px}
+.segmented{display:flex;gap:6px;margin:10px 0}.segmented button{flex:1;font-size:13px;min-height:44px}
 [hidden]{display:none!important}
 @media(max-width:760px){
- header{height:64px;padding:10px 16px}header strong{font-size:14px}header span{display:none}
- main{height:auto;display:flex;flex-direction:column-reverse}
- .workspace{display:block}.stage{position:sticky;top:0;z-index:2;height:44dvh;min-height:280px}
- .view-tools{grid-template-columns:1fr;gap:10px;padding:12px 16px}
- aside{padding:18px;overflow:visible;border:0}.panel-content{max-height:none;overflow:visible}
- .materials{grid-template-columns:repeat(3,1fr)}.hint{left:12px;transform:none;font-size:10px}.zoom{bottom:52px;right:12px}.zoom button{width:36px}
+ header{height:52px;padding:8px 14px}header strong{font-size:14px}header span{display:none}
+ main{display:flex;flex-direction:column;height:calc(100% - 52px)}
+ .workspace{display:block;flex:none}
+ .stage{height:32dvh;min-height:190px;max-height:300px}
+ .view-tools{display:block;padding:6px 12px}
+ .panel-content>section>p:first-child{font-size:13px;margin-top:0}.view-tools>div:last-child,.view-tools h2,#modeText{display:none}
+ .view-tools .row button{font-size:13px;padding:8px 4px}
+ aside{flex:1;min-height:0;padding:12px 14px 0;border:0;border-top:1px solid #d9ded8}
+ h1{font-size:20px;margin-bottom:8px}.progress{margin-bottom:10px}
+ .materials{grid-template-columns:repeat(3,1fr)}
+ .hint{display:none}.zoom{bottom:10px;right:10px}
+ .formats{grid-template-columns:1fr 1fr}
 }
 </style>
 <script type="importmap">{"imports":{"three":"../custodia-v1/vendor/package/build/three.module.js","three/addons/":"../custodia-v1/vendor/package/examples/jsm/"}}</script></head>
-<body><header><strong>IMAGE STUDIO</strong><span>Un’unica scatola, tre modi di viverla</span></header>
+<body><header><strong>IMAGE STUDIO</strong><span>Un’unica scatola, tre modi di viverla</span><button type="button" id="openStudio">Strumenti studio</button></header>
 <main><aside>
-<h1>Scatola, quadro e cornice.</h1>
-<p>L’album vive nella scatola. Toglilo e il fondo diventa un quadro da parete, il tappo una cornice da tavolo.</p>
-<nav class="panel-tabs" aria-label="Personalizzazione"><button type="button" data-panel="formatPanel" aria-pressed="true">Formato</button><button type="button" data-panel="fabricPanel" aria-pressed="false">Tessuti</button><button type="button" data-panel="photoPanel" aria-pressed="false">Foto</button><button type="button" data-panel="summaryPanel" aria-pressed="false">Riepilogo</button></nav>
+<p class="step-count" id="stepCount"></p>
+<h1 id="stepTitle" tabindex="-1"></h1>
+<div class="progress" id="progress" aria-hidden="true"></div>
 <div class="panel-content">
-<section id="formatPanel"><h2>Misura dell’album</h2>
-<form id="formatForm"><label for="formatInput">Larghezza × altezza, in cm</label>
-<input id="formatInput" type="text" inputmode="decimal" autocomplete="off" value="25 × 35" aria-describedby="formatInfo formatStatus"></form>
-<div class="segmented" role="group" aria-label="Orientamento"><button type="button" id="orientV" aria-pressed="true">Verticale</button><button type="button" id="orientH" aria-pressed="false">Orizzontale</button></div>
-<h2>Misure comuni</h2>
-<div class="chips"><button type="button" data-size="25x35" aria-pressed="false">25 × 35</button><button type="button" data-size="35x25" aria-pressed="false">35 × 25</button><button type="button" data-size="20x30" aria-pressed="false">20 × 30</button><button type="button" data-size="30x20" aria-pressed="false">30 × 20</button><button type="button" data-size="30x30" aria-pressed="false">30 × 30</button></div>
-<p id="formatInfo"></p><p id="formatStatus" role="status">Scrivi la misura (per esempio 25x35 o 30x20) e premi Invio.</p>
-<p class="note">La misura è quella dell’album. Scatola e tappo sono più grandi di 2,2 cm per lato. Da 15 a 50 cm per lato.</p></section>
-<section id="fabricPanel" hidden><h2>Peppe Lab</h2>
-<label class="check"><input id="sameFabric" type="checkbox" checked> Album dello stesso tessuto della scatola</label>
-<div class="segmented" role="group" aria-label="Elemento da rivestire"><button type="button" data-target="box" aria-pressed="true">Scatola e tappo</button><button type="button" data-target="album" aria-pressed="false">Album</button></div>
-<div class="materials" id="materials"></div></section>
-<section id="photoPanel" hidden><h2>Le tue foto</h2>
-<div class="photo-slot"><strong>Fondo della scatola</strong><p>Stampata sul fondo: diventa il quadro da parete.</p><input id="baseUpload" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Foto del fondo della scatola"><button type="button" id="baseRestore">Ripristina foto di esempio</button><p id="baseStatus" role="status"></p></div>
-<div class="photo-slot"><strong>Tappo</strong><p>Sul coperchio: diventa la cornice da tavolo.</p><input id="lidUpload" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Foto del tappo"><button type="button" id="lidRestore">Ripristina foto di esempio</button><p id="lidStatus" role="status"></p></div>
-<div class="photo-slot"><strong>Copertina dell’album</strong><p>La foto sulla copertina dell’album.</p><input id="albumUpload" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Foto della copertina dell’album"><button type="button" id="albumRestore">Ripristina foto di esempio</button><p id="albumStatus" role="status"></p></div>
-<p>JPG, PNG o WebP, massimo 20 MB. Le foto restano in questa prova locale.</p></section>
-<section id="summaryPanel" hidden><h2>La tua configurazione</h2><p id="configurationSummary" aria-live="polite"></p><p class="note">Prototipo con geometria semplificata. Misure, texture e scala della trama indicative.</p></section>
-</div></aside>
+<section id="stepFormat" data-step hidden><p>Scegli le misure dell’album. La scatola viene fatta di conseguenza.</p><div class="formats" id="formatChoices" role="group" aria-label="Formati disponibili"></div></section>
+<section id="stepBoxFabric" data-step hidden><p>Il tessuto riveste scatola, tappo e base della cornice da tavolo.</p><div data-for="box" id="materialsBox"></div></section>
+<section id="stepAlbumFabric" data-step hidden><p>Scegli il tessuto dell’album, oppure tienilo uguale alla scatola.</p><button type="button" class="same" id="albumSame" aria-pressed="true">Uguale al tessuto della scatola</button><div data-for="album" id="materialsAlbum"></div></section>
+<section id="stepBasePhoto" data-step hidden><p>Questa foto è stampata sul fondo della scatola. Appesa al muro diventa un quadro.</p><div class="photo-slot"><input id="baseUpload" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Foto del quadro da parete"><button type="button" id="baseRestore">Usa la foto di esempio</button><p id="baseStatus" role="status"></p></div><p>JPG, PNG o WebP, massimo 20 MB.</p></section>
+<section id="stepLidPhoto" data-step hidden><p>Questa foto è sul tappo. Appoggiato sulla sua base diventa una cornice da tavolo.</p><div class="photo-slot"><input id="lidUpload" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Foto della cornice da tavolo"><button type="button" id="lidRestore">Usa la foto di esempio</button><p id="lidStatus" role="status"></p></div><p>JPG, PNG o WebP, massimo 20 MB.</p></section>
+<section id="stepAlbumPhoto" data-step hidden><p>Questa foto è sulla copertina dell’album.</p><div class="photo-slot"><input id="albumUpload" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Foto della copertina dell’album"><button type="button" id="albumRestore">Usa la foto di esempio</button><p id="albumStatus" role="status"></p></div><p>JPG, PNG o WebP, massimo 20 MB.</p></section>
+<section id="stepSummary" data-step hidden><p id="configurationSummary" aria-live="polite"></p><p class="note">Prototipo con geometria semplificata. Misure, texture e scala della trama indicative. Le foto restano in questa prova locale.</p></section>
+</div>
+<nav class="wizard-nav" aria-label="Passi"><button type="button" id="prev">Indietro</button><button type="button" id="next" class="primary">Avanti</button></nav>
+</aside>
 <div class="workspace">
 <section class="stage" aria-label="Modello tridimensionale della scatola"><div class="badge" id="materialLabel">Caricamento rivestimento…</div><canvas id="viewport" aria-label="Scatola 3D: trascina per ruotare"></canvas><div class="status" id="status" role="status">Caricamento del modello 3D…</div><div class="hint">Trascina per ruotare · rotellina per zoom</div><div class="zoom"><button type="button" id="plus" aria-label="Ingrandisci">+</button><button type="button" id="minus" aria-label="Riduci">−</button></div></section>
 <section class="view-tools" aria-label="Comandi vista 3D"><div>
@@ -87,4 +93,10 @@ input[type=file]{width:100%;font-size:13px}
 <p id="modeText" role="status"></p></div>
 <div><h2>Esplora</h2><div class="row"><button type="button" id="rotate" aria-pressed="false">Rotazione automatica</button><button type="button" id="reset">Ripristina vista</button></div></div></section>
 </div></main>
+<dialog id="studioDialog" aria-labelledby="studioTitle"><form method="dialog"><button class="close-dialog" aria-label="Chiudi strumenti studio">Chiudi</button></form><h2 id="studioTitle">Strumenti studio</h2>
+<p>Per provare una misura qualsiasi. Ai clienti si propongono solo i formati dell’elenco impostato dallo studio.</p>
+<form id="formatForm"><label for="formatInput">Larghezza × altezza dell’album, in cm</label>
+<input id="formatInput" type="text" inputmode="decimal" autocomplete="off" value="25 × 35" aria-describedby="formatInfo formatStatus"></form>
+<div class="segmented" role="group" aria-label="Orientamento"><button type="button" id="orientV" aria-pressed="true">Verticale</button><button type="button" id="orientH" aria-pressed="false">Orizzontale</button></div>
+<p id="formatInfo"></p><p id="formatStatus" role="status">Scrivi per esempio 25x35 o 30x20 e premi Invio. Da 15 a 50 cm per lato.</p></dialog>
 <script type="module" src="./viewer.js"></script></body></html>

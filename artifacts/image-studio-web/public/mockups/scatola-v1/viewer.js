@@ -229,15 +229,34 @@ const envMats = [wallMat, tableMat, standFabric];
 const envGroup = new THREE.Group(); envGroup.visible = false; scene.add(envGroup);
 let envOpacity = 0, envTarget = 0;
 
+// Piedistallo: blocco lungo con una fessura in cui si incastra la cornice, fronte arrotondato.
+const STAND = {depth: .065, height: .04, slotWidth: .012, slotDepth: .02, slotAt: .38, radius: .016};
+
 /** Posizioni della scena "tre usi": dipendono dal formato scelto. */
 function computeLayout() {
-  const lidTilt = -.15, lidX = W / 2 + .45, lidZ = -.05;
-  const lidY = .012 + (H / 2) * Math.cos(lidTilt) + .003;
-  const wallX = .05, wallY = .45 + H / 2, top = wallY + H / 2;
+  const lidX = W / 2 + .45, standZ = -.05;
+  const slotZ = standZ - STAND.depth / 2 + STAND.slotAt * STAND.depth;     // centro della fessura
+  const lidZ = slotZ, lidY = STAND.height - STAND.slotDepth + H / 2;        // cornice dritta, bordo basso nella fessura
+  const wallX = .05, wallY = .45 + H / 2, top = Math.max(wallY + H / 2, lidY + H / 2);
   const albumX = (wallX + lidX) / 2, albumZ = .16 + AH / 2;
   const tableMinX = Math.min(-.25, wallX - W / 2 - .1), tableMaxX = lidX + W / 2 + .15;
   const tableMaxZ = Math.max(.545, albumZ + AH / 2 + .08);
-  return {lidTilt, lidX, lidZ, lidY, wallX, wallY, top, albumX, albumZ, tableMinX, tableMaxX, tableMaxZ};
+  return {lidTilt: 0, lidX, lidZ, lidY, standZ, wallX, wallY, top, albumX, albumZ, tableMinX, tableMaxX, tableMaxZ};
+}
+
+function buildStandBlock(length) {
+  const {depth, height, slotWidth, slotDepth, slotAt, radius: r} = STAND;
+  const back = -depth / 2, front = depth / 2, zs = back + slotAt * depth, s0 = zs - slotWidth / 2, s1 = zs + slotWidth / 2;
+  const shape = new THREE.Shape();           // sezione: x = verso l'osservatore, y = altezza
+  shape.moveTo(back, 0); shape.lineTo(front, 0); shape.lineTo(front, height - r);
+  shape.quadraticCurveTo(front, height, front - r, height);
+  shape.lineTo(s1, height); shape.lineTo(s1, height - slotDepth); shape.lineTo(s0, height - slotDepth);
+  shape.lineTo(s0, height); shape.lineTo(back, height); shape.closePath();
+  const geometry = new THREE.ExtrudeGeometry(shape, {depth: length, bevelEnabled: false, curveSegments: 8});
+  geometry.rotateY(-Math.PI / 2); geometry.translate(length / 2, 0, 0);
+  const mesh = new THREE.Mesh(geometry, standFabric);
+  mesh.castShadow = mesh.receiveShadow = true;
+  return mesh;
 }
 
 function buildEnv(L) {
@@ -245,10 +264,7 @@ function buildEnv(L) {
   const wallW = L.tableMaxX - L.tableMinX + .9, wallH = L.top + .45;
   envGroup.add(at(metricBox(wallW, wallH, .01, wallMat), (L.tableMinX + L.tableMaxX) / 2, wallH / 2 - .1, -.31));
   envGroup.add(at(metricBox(L.tableMaxX - L.tableMinX, .02, L.tableMaxZ + .30, tableMat), (L.tableMinX + L.tableMaxX) / 2, -.01, (L.tableMaxZ - .30) / 2));
-  const stand = new THREE.Group();
-  stand.add(at(metricBox(W + .038, .012, .09, standFabric), L.lidX, .006, L.lidZ + .012));
-  stand.add(at(metricBox(W + .023, .016, .010, standFabric), L.lidX, .020, L.lidZ + .0355));
-  envGroup.add(stand); // solo la base sotto la cornice, senza puntelli dietro
+  envGroup.add(at(buildStandBlock(W * .9), L.lidX, 0, L.standZ));
 }
 
 // ---- Pezzi e pose ------------------------------------------------------------
@@ -325,9 +341,9 @@ async function playSequence() {
       lid: {p: [L.lidX - .12, H / 2 + .02, .34], r: still}},
     {text: '4 · Appoggi l’album sul tavolo.', ms: 1500,
       album: {p: [L.albumX, AD / 2 + .0002, L.albumZ], r: [-Math.PI / 2, .25, 0]}},
-    {text: '5 · Il tappo diventa una cornice da tavolo, sul piedistallo.', ms: 1700,
-      lid: {p: [L.lidX, L.lidY + .05, L.lidZ + .08], r: [L.lidTilt * .4, 0, 0]}},
-    {text: '', ms: 900, lid: {p: [L.lidX, L.lidY, L.lidZ], r: [L.lidTilt, 0, 0]}},
+    {text: '5 · Il tappo diventa una cornice: si incastra nella fessura del piedistallo.', ms: 1700,
+      lid: {p: [L.lidX, L.lidY + .12, L.lidZ + .02], r: still}},
+    {text: '', ms: 1000, lid: {p: [L.lidX, L.lidY, L.lidZ], r: still}},
     {text: '6 · Il fondo, ormai vuoto, si stacca…', ms: 1500,
       base: {p: [0, H / 2 + .1, -.02], r: still}},
     {text: '7 · …e si appende al muro: la foto stampata sul fondo diventa un quadro.', ms: 1900,
@@ -364,23 +380,55 @@ function applyFormat(wCm, hCm) {
 
 // ---- Interfaccia -------------------------------------------------------------
 const cm = n => String(Math.round(n * 10) / 10).replace('.', ',');
+let albumFollows = true; // l'album ha lo stesso tessuto della scatola finché il cliente non ne sceglie un altro
 function markSwatches() {
-  const current = chosen[target]?.id;
-  for (const b of document.querySelectorAll('[data-finish]')) b.setAttribute('aria-pressed', String(b.dataset.finish === current));
+  for (const b of document.querySelectorAll('[data-finish]')) {
+    const which = b.closest('[data-for]').dataset.for;
+    b.setAttribute('aria-pressed', String(chosen[which]?.id === b.dataset.finish));
+  }
+  $('albumSame').setAttribute('aria-pressed', String(albumFollows));
 }
 const orientation = () => AW > AH + 1e-6 ? 'orizzontale' : AH > AW + 1e-6 ? 'verticale' : 'quadrato';
 function updateSummary() {
-  const same = $('sameFabric').checked;
   const lines = [
     `Formato album: ${cm(AW * 100)} × ${cm(AH * 100)} cm (${orientation()})`,
     `Scatola e tappo: ${cm(W * 100)} × ${cm(H * 100)} cm`,
-    `Rivestimento scatola, tappo e piedistallo: ${chosen.box ? chosen.box.label : '—'}`,
-    `Album: ${same ? 'stesso tessuto della scatola' : chosen.album ? chosen.album.label : '—'}`,
+    `Tessuto di scatola, tappo e base della cornice: ${chosen.box ? chosen.box.label : '—'}`,
+    `Tessuto dell’album: ${albumFollows ? 'uguale alla scatola' : chosen.album ? chosen.album.label : '—'}`,
     ...Object.values(photoSlots).map(s => `${s.label}: ${s.state === 'esempio' ? 'foto di esempio' : s.state}`),
-    `Vista: ${{closed: 'scatola chiusa', open: 'apri e smonta', uses: 'i tre usi'}[mode]}`,
   ];
   $('configurationSummary').textContent = lines.join('\n');
   $('materialLabel').textContent = chosen.box ? `${laboratory.name} · ${chosen.box.internalCode} · ${cm(AW * 100)} × ${cm(AH * 100)} cm` : 'Caricamento rivestimento…';
+}
+
+// Formati proposti ai clienti: li imposta lo studio (scatola-formats.json, scritto in futuro dal pannello admin).
+/** Accetta "25x35", "25 × 35", "30,5 per 20", con o senza "cm". */
+function parseSize(text) {
+  const m = String(text).trim().toLowerCase().replace(/,/g, '.').match(/^(\d+(?:\.\d+)?)\s*(?:x|×|\*|per)\s*(\d+(?:\.\d+)?)\s*(?:cm)?$/);
+  return m ? [Number(m[1]), Number(m[2])] : null;
+}
+async function loadFormats() {
+  let list = ['25x35', '35x25', '30x20', '20x30', '30x30'];
+  try {
+    const response = await fetch(new URL('scatola-formats.json', import.meta.url));
+    if (response.ok) { const json = await response.json(); if (Array.isArray(json.formats) && json.formats.length) list = json.formats; }
+  } catch { /* resta l'elenco di esempio */ }
+  return list.map(item => typeof item === 'string' ? parseSize(item) : [Number(item.w), Number(item.h)])
+    .filter(size => size && size.every(n => n >= MIN_CM && n <= MAX_CM));
+}
+function renderFormats(list) {
+  const box = $('formatChoices'); box.textContent = '';
+  for (const [w, h] of list) {
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'format'; button.dataset.size = `${w}x${h}`;
+    const k = 54 / Math.max(w, h), shape = document.createElement('span');
+    shape.className = 'shape'; shape.style.width = `${Math.round(w * k)}px`; shape.style.height = `${Math.round(h * k)}px`;
+    const label = document.createElement('strong'); label.textContent = `${cm(w)} × ${cm(h)} cm`;
+    const kind = document.createElement('small'); kind.textContent = w > h ? 'orizzontale' : h > w ? 'verticale' : 'quadrato';
+    button.append(shape, label, kind);
+    button.onclick = () => applyFormat(w, h);
+    box.append(button);
+  }
 }
 
 function syncFormatUi() {
@@ -394,11 +442,7 @@ function syncFormatUi() {
   }
   updateSummary();
 }
-/** Accetta "25x35", "25 × 35", "30,5 per 20", con o senza "cm". */
-function parseSize(text) {
-  const m = text.trim().toLowerCase().replace(/,/g, '.').match(/^(\d+(?:\.\d+)?)\s*(?:x|×|\*|per)\s*(\d+(?:\.\d+)?)\s*(?:cm)?$/);
-  return m ? [Number(m[1]), Number(m[2])] : null;
-}
+// Strumenti studio: misura libera per provare formati fuori elenco.
 function submitFormat() {
   const status = $('formatStatus'), size = parseSize($('formatInput').value);
   if (!size) { status.textContent = 'Scrivi la misura così: 25x35 oppure 30x20 (larghezza per altezza, in cm).'; return; }
@@ -416,52 +460,64 @@ const orient = vertical => {
 };
 $('orientV').onclick = () => orient(true);
 $('orientH').onclick = () => orient(false);
-for (const b of document.querySelectorAll('[data-size]')) b.onclick = () => {
-  const [w, h] = b.dataset.size.split('x').map(Number);
-  $('formatStatus').textContent = `Formato applicato: ${cm(w)} × ${cm(h)} cm.`;
-  applyFormat(w, h);
-};
+$('openStudio').hidden = location.hash !== '#studio'; // riservato allo studio: si apre aggiungendo #studio all'indirizzo
+$('openStudio').onclick = () => $('studioDialog').showModal();
 
-$('materials').className = 'material-categories';
+// Campionario: una griglia per ogni scelta (scatola, album).
 const initial = variants.find(v => v.legacyId === 'mist-03') || variants[0];
-for (const family of catalog.families.filter(f => f.laboratoryId === laboratory.id)) {
-  const samples = variants.filter(v => v.familyId === family.id);
-  if (!samples.length) continue;
-  const section = document.createElement('details'); section.className = 'material-category';
-  if (samples.some(v => v.id === initial.id)) section.open = true;
-  const title = document.createElement('summary'); title.textContent = `${family.name} · ${samples.length} rivestimenti`;
-  const grid = document.createElement('div'); grid.className = 'materials';
-  for (const variant of samples) {
-    const button = document.createElement('button');
-    button.type = 'button'; button.dataset.finish = variant.id; button.title = variant.internalCode;
-    const swatch = document.createElement('span'); swatch.className = 'swatch'; swatch.style.backgroundImage = `url('${assetUrl(variant.textureUrl)}')`;
-    button.append(swatch, document.createTextNode(variant.label));
-    button.onclick = () => setFabric(variant.id, $('sameFabric').checked ? ['box', 'album'] : [target]);
-    button.setAttribute('aria-pressed', 'false');
-    grid.append(button);
+function buildSwatches(container, which) {
+  for (const family of catalog.families.filter(f => f.laboratoryId === laboratory.id)) {
+    const samples = variants.filter(v => v.familyId === family.id);
+    if (!samples.length) continue;
+    const section = document.createElement('details'); section.className = 'material-category';
+    if (samples.some(v => v.id === initial.id)) section.open = true;
+    const title = document.createElement('summary'); title.textContent = `${family.name} · ${samples.length} rivestimenti`;
+    const grid = document.createElement('div'); grid.className = 'materials';
+    for (const variant of samples) {
+      const button = document.createElement('button');
+      button.type = 'button'; button.dataset.finish = variant.id; button.title = variant.internalCode;
+      const swatch = document.createElement('span'); swatch.className = 'swatch'; swatch.style.backgroundImage = `url('${assetUrl(variant.textureUrl)}')`;
+      button.append(swatch, document.createTextNode(variant.label));
+      button.onclick = () => {
+        if (which === 'box') setFabric(variant.id, albumFollows ? ['box', 'album'] : ['box']);
+        else { albumFollows = false; setFabric(variant.id, ['album']); }
+      };
+      button.setAttribute('aria-pressed', 'false');
+      grid.append(button);
+    }
+    section.append(title, grid); container.append(section);
   }
-  section.append(title, grid); $('materials').append(section);
 }
-document.querySelector('#fabricPanel h2').textContent = `${laboratory.name} · ${variants.length} rivestimenti`;
+buildSwatches($('materialsBox'), 'box');
+buildSwatches($('materialsAlbum'), 'album');
+$('albumSame').onclick = () => { albumFollows = true; if (chosen.box) setFabric(chosen.box.id, ['album']); markSwatches(); updateSummary(); };
 
-function syncTargetButtons() {
-  const same = $('sameFabric').checked;
-  for (const b of document.querySelectorAll('[data-target]')) {
-    b.disabled = same; b.setAttribute('aria-pressed', String(!same && b.dataset.target === target));
-  }
-  markSwatches(); updateSummary();
+// Un passo per ogni scelta del cliente.
+const STEPS = [
+  {id: 'stepFormat', title: 'Scegli il formato', view: 'closed'},
+  {id: 'stepBoxFabric', title: 'Tessuto della scatola', view: 'closed'},
+  {id: 'stepAlbumFabric', title: 'Tessuto dell’album', view: 'uses'},
+  {id: 'stepBasePhoto', title: 'Foto del quadro da parete', view: 'uses'},
+  {id: 'stepLidPhoto', title: 'Foto della cornice da tavolo', view: 'uses'},
+  {id: 'stepAlbumPhoto', title: 'Foto di copertina', view: 'uses'},
+  {id: 'stepSummary', title: 'Riepilogo', view: 'uses'},
+];
+let step = 0;
+for (let i = 0; i < STEPS.length; i++) $('progress').append(document.createElement('i'));
+function goStep(index, {focus = true} = {}) {
+  step = Math.max(0, Math.min(index, STEPS.length - 1));
+  STEPS.forEach((s, i) => { $(s.id).hidden = i !== step; $('progress').children[i].className = i <= step ? 'done' : ''; });
+  $('stepCount').textContent = `Passo ${step + 1} di ${STEPS.length}`;
+  $('stepTitle').textContent = STEPS[step].title;
+  $('prev').disabled = step === 0;
+  $('next').textContent = step === STEPS.length - 1 ? 'Ricomincia' : 'Avanti';
+  document.querySelector('.panel-content').scrollTop = 0;
+  if (mode !== STEPS[step].view) setMode(STEPS[step].view);
+  if (focus) $('stepTitle').focus({preventScroll: true});
 }
-for (const b of document.querySelectorAll('[data-target]')) b.onclick = () => { target = b.dataset.target; syncTargetButtons(); };
-$('sameFabric').onchange = () => {
-  if ($('sameFabric').checked && chosen.box) setFabric(chosen.box.id, ['box', 'album']);
-  if (!$('sameFabric').checked) target = 'box';
-  syncTargetButtons();
-};
-for (const b of document.querySelectorAll('[data-panel]')) b.onclick = () => {
-  for (const tab of document.querySelectorAll('[data-panel]')) {
-    const active = tab === b; tab.setAttribute('aria-pressed', String(active)); $(tab.dataset.panel).hidden = !active;
-  }
-};
+$('prev').onclick = () => goStep(step - 1);
+$('next').onclick = () => goStep(step === STEPS.length - 1 ? 0 : step + 1);
+
 for (const b of document.querySelectorAll('[data-mode]')) b.onclick = () => b.dataset.mode === 'open' ? playSequence() : setMode(b.dataset.mode);
 $('reset').onclick = () => (mode === 'open' ? playSequence() : setMode(mode));
 $('rotate').onclick = () => {
@@ -533,12 +589,15 @@ renderer.setAnimationLoop(() => {
 });
 
 // ---- Avvio -------------------------------------------------------------------
+const formatList = await loadFormats();
+if (formatList.length) setDims(formatList[0][0] / 100, formatList[0][1] / 100);
+renderFormats(formatList);
 refreshPhotos();
 buildPieces();
 layoutNow = computeLayout(); buildEnv(layoutNow);
 await setFabric(initial.id, ['box', 'album']);
-syncTargetButtons();
 syncFormatUi();
 setMode('closed', true);
+goStep(0, {focus: false});
 $('status').textContent = '';
 document.body.dataset.ready = 'true';
