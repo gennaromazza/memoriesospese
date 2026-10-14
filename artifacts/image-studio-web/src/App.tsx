@@ -106,6 +106,7 @@ const PaymentDiscrepanciesAudit = lazyWithRetry(() => import("./pages/admin/Paym
 const BlogAdminE2EHarness = lazyWithRetry(() => import("./pages/BlogAdminE2EHarness"));
 const PhotobookJobGalleryE2EHarness = lazyWithRetry(() => import("./pages/PhotobookJobGalleryE2EHarness"));
 const WeddingSeoDraftE2EHarness = lazyWithRetry(() => import("./pages/WeddingSeoDraftE2EHarness"));
+const MockupOfferE2EHarness = lazyWithRetry(() => import("./pages/MockupOfferE2EHarness"));
 const DateSelectorE2EHarness = lazyWithRetry(() => import("./pages/DateSelectorE2EHarness"));
 const FinancialDashboardE2EHarness = lazyWithRetry(() => import("./pages/FinancialDashboardE2EHarness"));
 const CollaboratorProductsE2EHarness = lazyWithRetry(() => import("./pages/CollaboratorProductsE2EHarness"));
@@ -283,6 +284,9 @@ function AppRoutes() {
             path="/admin/__e2e/photobook-job-gallery"
             component={PhotobookJobGalleryE2EHarness}
           />
+        )}
+        {import.meta.env.DEV && (
+          <Route path="/admin/__e2e/mockup-offer" component={MockupOfferE2EHarness} />
         )}
         {import.meta.env.DEV && (
           <Route
