@@ -8,6 +8,7 @@
 import { useRef, useState } from 'react';
 import { assignPageNumbers } from '@/lib/photobook-page-numbers';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import PhotobookMockup from '@/components/photobook/PhotobookMockup';
 import PhotobookConfirmDialog from '@/components/photobook/PhotobookConfirmDialog';
 import {
@@ -45,6 +46,9 @@ import {
 } from '@/components/ui/select';
 import {
   ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+  Maximize2,
   Layers,
   Loader2,
   Trash2,
@@ -65,6 +69,7 @@ export default function PhotobookEditorPage() {
   const [currentVersionTarget, setCurrentVersionTarget] = useState<number | null>(null);
   const [notificationBusy, setNotificationBusy] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [selectedPageIds, setSelectedPageIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -474,14 +479,23 @@ export default function PhotobookEditorPage() {
             {pages.map((page) => (
               <Card key={page.id} data-testid={`card-page-${page.pageNumber}`}>
                 <CardContent className="pt-4 space-y-2">
-                  <div className="w-full rounded-md overflow-hidden border bg-muted">
+                  <button
+                    type="button"
+                    onClick={() => setViewerIndex(pages.findIndex((p) => p.id === page.id))}
+                    className="group relative block w-full rounded-md overflow-hidden border bg-muted cursor-zoom-in"
+                    aria-label={`Ingrandisci pagina ${page.pageNumber}`}
+                    data-testid={`button-view-page-${page.pageNumber}`}
+                  >
                     <img
-                      src={page.url}
+                      src={page.displayUrl || page.url}
                       alt={`Pagina ${page.pageNumber}`}
                       loading="lazy"
                       className="w-full h-auto"
                     />
-                  </div>
+                    <span className="absolute right-2 top-2 rounded bg-black/60 p-1 text-white opacity-0 transition-opacity group-hover:opacity-100">
+                      <Maximize2 className="h-4 w-4" />
+                    </span>
+                  </button>
                   <div className="flex items-center justify-between gap-2">
                     <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
                       <Checkbox
@@ -512,6 +526,55 @@ export default function PhotobookEditorPage() {
           </>
         )}
       </div>
+      <Dialog open={viewerIndex !== null} onOpenChange={(open) => !open && setViewerIndex(null)}>
+        <DialogContent
+          className="max-w-[96vw] w-auto max-h-[96vh] p-3 gap-2"
+          onKeyDown={(e) => {
+            if (viewerIndex === null) return;
+            if (e.key === 'ArrowRight') setViewerIndex(Math.min(pages.length - 1, viewerIndex + 1));
+            if (e.key === 'ArrowLeft') setViewerIndex(Math.max(0, viewerIndex - 1));
+          }}
+        >
+          {viewerIndex !== null && pages[viewerIndex] && (
+            <>
+              <DialogTitle className="text-sm">
+                Pagina {pages[viewerIndex].pageNumber} di {pages.length}
+              </DialogTitle>
+              <DialogDescription className="sr-only">
+                Anteprima ingrandita della pagina. Usa le frecce per scorrere le pagine.
+              </DialogDescription>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="icon"
+                  variant="outline"
+                  disabled={viewerIndex === 0}
+                  onClick={() => setViewerIndex(viewerIndex - 1)}
+                  aria-label="Pagina precedente"
+                  data-testid="button-viewer-prev"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <img
+                  src={pages[viewerIndex].url}
+                  alt={`Pagina ${pages[viewerIndex].pageNumber}`}
+                  className="max-h-[82vh] max-w-[80vw] object-contain mx-auto"
+                  data-testid="img-viewer-page"
+                />
+                <Button
+                  size="icon"
+                  variant="outline"
+                  disabled={viewerIndex >= pages.length - 1}
+                  onClick={() => setViewerIndex(viewerIndex + 1)}
+                  aria-label="Pagina successiva"
+                  data-testid="button-viewer-next"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
       <PhotobookConfirmDialog
         open={bulkDeleteOpen}
         onOpenChange={setBulkDeleteOpen}
