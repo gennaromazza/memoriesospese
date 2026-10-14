@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Scatola · Album, quadro e cornice</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f4f1eb;color:#243d44;font:15px system-ui,sans-serif}
+header{height:72px;padding:16px 28px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #d9ded8}
+header strong{letter-spacing:3px;font-size:17px}header span{color:#637571;font-size:13px}
+main{display:grid;grid-template-columns:330px minmax(0,1fr);height:calc(100dvh - 72px);min-height:0}
+aside{padding:22px 20px;border-right:1px solid #d9ded8;background:#faf8f3;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+h1{font-size:24px;font-weight:500;margin:0 0 6px;line-height:1.2}
+h2{font-size:12px;letter-spacing:1.3px;text-transform:uppercase;margin:6px 0 12px}
+p{line-height:1.5;color:#627471;font-size:14px;margin:6px 0}
+button{font:inherit;color:inherit;cursor:pointer;border:1px solid #d2d9d4;background:#fff;border-radius:9px;padding:10px;transition:background .15s}
+button:hover:not(:disabled){background:#e8eeeb}
+button:disabled{opacity:.5;cursor:default}
+button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid #458b9b;outline-offset:3px}
+button[aria-pressed=true]{border:2px solid #315f6a;background:#eaf1ef;padding:9px}
+.panel-tabs{display:flex;gap:5px;margin:14px 0 16px}.panel-tabs button{flex:1;padding:9px 5px;font-size:13px}.panel-tabs button[aria-pressed=true]{padding:8px 4px}
+.panel-content{min-height:0;flex:1;overflow:auto}
+.segmented{display:flex;gap:6px;margin:10px 0}.segmented button{flex:1;font-size:13px}
+label{display:block;margin:12px 0 6px;font-size:14px}
+.check{display:flex;gap:8px;align-items:center;margin:10px 0}
+input[type=checkbox]{accent-color:#315f6a;width:18px;height:18px}
+input[type=file]{width:100%;font-size:13px}
+.material-category{border:1px solid #d2d9d4;border-radius:9px;margin-bottom:10px;overflow:hidden}
+.material-category summary{cursor:pointer;padding:13px 12px;font-size:14px;background:#fff}
+.material-category[open] summary{border-bottom:1px solid #d2d9d4;background:#eaf1ef}
+.materials{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px}.materials button{font-size:12px}
+.swatch{display:block;height:31px;border-radius:5px;margin-bottom:5px;background-size:90px}
+.photo-slot{border:1px solid #d2d9d4;border-radius:9px;background:#fff;padding:12px;margin-bottom:12px}
+.photo-slot strong{display:block;font-size:14px;margin-bottom:6px}.photo-slot button{margin-top:8px;font-size:13px;padding:7px 10px}
+.photo-slot p{font-size:12px;margin:6px 0 0}
+.note{font-size:12px;margin-top:20px;color:#75817c}
+#configurationSummary{white-space:pre-line}
+.workspace{min-height:0;min-width:0;display:grid;grid-template-rows:minmax(0,1fr) auto}
+.stage{position:relative;min-height:0;overflow:hidden;background:radial-gradient(ellipse at center,#faf8f3,#e1e1d9)}
+#viewport{width:100%;height:100%;display:block;touch-action:none;cursor:grab}#viewport:active{cursor:grabbing}
+.badge{position:absolute;top:16px;left:18px;font-size:11px;letter-spacing:1px;text-transform:uppercase}
+.hint{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);padding:9px 14px;background:#ffffffe8;border:1px solid #d5dcd6;border-radius:30px;white-space:nowrap;font-size:12px;pointer-events:none}
+.zoom{position:absolute;right:16px;bottom:16px;display:flex;gap:6px}.zoom button{width:44px;font-size:20px;padding:6px}
+.status{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);padding:18px;background:#fff;border-radius:10px}.status:empty{display:none}
+.view-tools{display:grid;grid-template-columns:minmax(260px,1.4fr) minmax(200px,1fr);gap:24px;background:#faf8f3;border-top:1px solid #d9ded8;padding:12px 22px;align-items:start}
+.view-tools h2{margin:0 0 8px}.view-tools .row{display:flex;gap:7px}.view-tools .row button{flex:1;font-size:13px;padding:9px 6px}.view-tools .row button[aria-pressed=true]{padding:8px 5px}
+#modeText{font-size:13px;margin:8px 0 0;min-height:2.8em}
+[hidden]{display:none!important}
+@media(max-width:760px){
+ header{height:64px;padding:10px 16px}header strong{font-size:14px}header span{display:none}
+ main{height:auto;display:flex;flex-direction:column-reverse}
+ .workspace{display:block}.stage{position:sticky;top:0;z-index:2;height:44dvh;min-height:280px}
+ .view-tools{grid-template-columns:1fr;gap:10px;padding:12px 16px}
+ aside{padding:18px;overflow:visible;border:0}.panel-content{max-height:none;overflow:visible}
+ .materials{grid-template-columns:repeat(3,1fr)}.hint{left:12px;transform:none;font-size:10px}.zoom{bottom:52px;right:12px}.zoom button{width:36px}
+}
+</style>
+<script type="importmap">{"imports":{"three":"../custodia-v1/vendor/package/build/three.module.js","three/addons/":"../custodia-v1/vendor/package/examples/jsm/"}}</script></head>
+<body><header><strong>IMAGE STUDIO</strong><span>Un’unica scatola, tre modi di viverla</span></header>
+<main><aside>
+<h1>Scatola, quadro e cornice.</h1>
+<p>L’album vive nella scatola. Toglilo e il fondo diventa un quadro da parete, il tappo una cornice da tavolo.</p>
+<nav class="panel-tabs" aria-label="Personalizzazione"><button type="button" data-panel="fabricPanel" aria-pressed="true">Tessuti</button><button type="button" data-panel="photoPanel" aria-pressed="false">Foto</button><button type="button" data-panel="summaryPanel" aria-pressed="false">Riepilogo</button></nav>
+<div class="panel-content">
+<section id="fabricPanel"><h2>Peppe Lab</h2>
+<label class="check"><input id="sameFabric" type="checkbox" checked> Album dello stesso tessuto della scatola</label>
+<div class="segmented" role="group" aria-label="Elemento da rivestire"><button type="button" data-target="box" aria-pressed="true">Scatola e tappo</button><button type="button" data-target="album" aria-pressed="false">Album</button></div>
+<div class="materials" id="materials"></div></section>
+<section id="photoPanel" hidden><h2>Le tue foto</h2>
+<div class="photo-slot"><strong>Fondo della scatola</strong><p>Stampata sul fondo: diventa il quadro da parete.</p><input id="baseUpload" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Foto del fondo della scatola"><button type="button" id="baseRestore">Ripristina foto di esempio</button><p id="baseStatus" role="status"></p></div>
+<div class="photo-slot"><strong>Tappo</strong><p>Sul coperchio: diventa la cornice da tavolo.</p><input id="lidUpload" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Foto del tappo"><button type="button" id="lidRestore">Ripristina foto di esempio</button><p id="lidStatus" role="status"></p></div>
+<div class="photo-slot"><strong>Copertina dell’album</strong><p>La foto sulla copertina dell’album.</p><input id="albumUpload" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Foto della copertina dell’album"><button type="button" id="albumRestore">Ripristina foto di esempio</button><p id="albumStatus" role="status"></p></div>
+<p>JPG, PNG o WebP, massimo 20 MB. Le foto restano in questa prova locale.</p></section>
+<section id="summaryPanel" hidden><h2>La tua configurazione</h2><p id="configurationSummary" aria-live="polite"></p><p class="note">Prototipo con geometria semplificata, scatola verticale di circa 26 × 34 cm. Texture e scala della trama indicative.</p></section>
+</div></aside>
+<div class="workspace">
+<section class="stage" aria-label="Modello tridimensionale della scatola"><div class="badge" id="materialLabel">Caricamento rivestimento…</div><canvas id="viewport" aria-label="Scatola 3D: trascina per ruotare"></canvas><div class="status" id="status" role="status">Caricamento del modello 3D…</div><div class="hint">Trascina per ruotare · rotellina per zoom</div><div class="zoom"><button type="button" id="plus" aria-label="Ingrandisci">+</button><button type="button" id="minus" aria-label="Riduci">−</button></div></section>
+<section class="view-tools" aria-label="Comandi vista 3D"><div>
+<h2>Come la usi</h2><div class="row"><button type="button" data-mode="closed" aria-pressed="true">Scatola chiusa</button><button type="button" data-mode="open" aria-pressed="false">Apri e smonta</button><button type="button" data-mode="uses" aria-pressed="false">I tre usi</button></div>
+<p id="modeText" role="status"></p></div>
+<div><h2>Esplora</h2><div class="row"><button type="button" id="rotate" aria-pressed="false">Rotazione automatica</button><button type="button" id="reset">Ripristina vista</button></div></div></section>
+</div></main>
+<script type="module" src="./viewer.js"></script></body></html>
