@@ -26,6 +26,7 @@ interface Props {
   emailNote?: string;
   emailActions?: React.ReactNode;
   readOnly: boolean;
+  onSelectVersion?: (version: number) => void;
 }
 
 async function fetchState(photobookId: string, version: number): Promise<MockupPayload> {
@@ -56,7 +57,7 @@ function Step({ n, title, done, children }: { n: number; title: string; done?: b
 }
 
 /** Gestione dell'album in 4 passi: pagine, modello, chi prepara la bozza, stato e invio. */
-export default function MockupAdminFlow({ photobookId, version, currentVersion, pagesApproved, mockupPath, pathBusy, onPathChange, emailStatus, emailNote, emailActions, readOnly }: Props) {
+export default function MockupAdminFlow({ photobookId, version, currentVersion, pagesApproved, mockupPath, pathBusy, onPathChange, emailStatus, emailNote, emailActions, readOnly, onSelectVersion }: Props) {
   const state = useQuery<MockupPayload>({ queryKey: ['photobook-mockup-flow', photobookId, version], queryFn: () => fetchState(photobookId, version), refetchOnWindowFocus: false });
   const offer = state.data?.offer;
   const saved = state.data?.saved;
@@ -71,7 +72,7 @@ export default function MockupAdminFlow({ photobookId, version, currentVersion, 
       {readOnly && (
         <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900" data-testid="mockup-flow-readonly">
           {version !== currentVersion
-            ? `Stai guardando la v${version}, che non è la versione corrente (v${currentVersion}). Il mockup si imposta sulla v${currentVersion}: selezionala dal menu “Versione” qui sotto.`
+            ? <>Stai guardando la v{version}, che non è la versione corrente (v{currentVersion}). Il mockup si imposta sulla v{currentVersion}.{onSelectVersion && <Button type="button" size="sm" variant="outline" className="ml-2 min-h-9" onClick={() => onSelectVersion(currentVersion)}>Passa alla v{currentVersion}</Button>}</>
             : 'Il fotolibro è bloccato (inviato in stampa): il mockup non si può più modificare.'}
         </p>
       )}

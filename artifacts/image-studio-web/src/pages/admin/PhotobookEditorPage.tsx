@@ -321,6 +321,7 @@ export default function PhotobookEditorPage() {
            mockupPath={book.mockupPath || 'studio'}
            pathBusy={busy}
            readOnly={book.currentVersion !== version || !!book.locked}
+           onSelectVersion={v => { if (!busy) { setSelectedVersion(v); setSelectedPageIds(new Set()); } }}
            onPathChange={async path => {
              try {
                await updatePhotobook(id, { mockupPath: path });
