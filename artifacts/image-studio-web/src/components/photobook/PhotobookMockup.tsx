@@ -21,7 +21,7 @@ import { initialMockupSelection, mockupPresentation, needsClientModelChoice } fr
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, ArrowRight, HelpCircle, LogOut, Rotate3D, RotateCcw, Save, X, ZoomIn, ZoomOut } from 'lucide-react';
 
-interface Props { photobookId: string; version: number; token?: string; readOnly?: boolean; summary?: boolean; compact?: boolean; onOpenChange?: (open: boolean) => void }
+interface Props { photobookId: string; version: number; token?: string; readOnly?: boolean; summary?: boolean; compact?: boolean; /** Admin: solo la finestra, aperta dai passi della card Mockup. */ headless?: boolean; onOpenChange?: (open: boolean) => void }
 type RuntimePhoto = { id: string; name: string; source: string; blob: Blob };
 
 function stableSerialize(value: unknown): string {
@@ -46,7 +46,7 @@ function exposeReadonlyDownload(doc: Document) {
   return true;
 }
 
-export default function PhotobookMockup({ photobookId, version, token, readOnly = false, summary = false, compact = false, onOpenChange }: Props) {
+export default function PhotobookMockup({ photobookId, version, token, readOnly = false, summary = false, compact = false, headless = false, onOpenChange }: Props) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -603,7 +603,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     setConfiguration(item.configuration);
     if (item.selection) setSelection(item.selection);
     setDirty(true);
-    setMessage(`Revisione r${item.revision} caricata come bozza attiva. Premi Salva mockup per confermare.`);
+    setMessage(`Revisione r${item.revision} caricata come bozza attiva. Premi Salva bozza per tenerla.`);
   }
   async function submitWizard() {
     if (busy || renderBusy || !editable || !configuration || !selectedOption) return;
@@ -653,9 +653,9 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
         : true;
   const nextAllowed = ready && !renderBusy && !busy && (step === 1 ? (!state.data?.offer || !!selectedOption || !editable) : photoStepValid || !editable);
   const confirmBlock = !editable ? 'Versione in sola lettura: la conferma non è disponibile.'
-    : !saved ? 'Non c’è ancora una proposta salvata. Attendi il cliente oppure preparala dalla scheda Modifica.'
+    : !saved ? 'Non c’è ancora una proposta salvata. Attendi il cliente oppure preparala dalla scheda Bozza.'
     : dirty ? 'Ci sono modifiche non salvate: salva la revisione prima di confermarla.'
-    : !saved.selection ? 'Associa un modello dalla scheda Modifica e salva prima di confermare.'
+    : !saved.selection ? 'Associa un modello dalla scheda Bozza e salva prima di confermare.'
     : saved.status === 'confirmed' ? 'Questa revisione è già confermata. Puoi scaricare la conferma qui sotto.'
     : !ready || renderBusy ? 'Attendi il caricamento dell’anteprima prima di confermare.' : '';
   if (token && state.isError) return (
@@ -697,12 +697,12 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     const nativeRotation = frame.current?.contentDocument?.getElementById('rotate');
     setViewMessage({ front: 'Vista frontale', back: 'Vista posteriore', reset: 'Vista ripristinata', plus: 'Zoom avanti', minus: 'Zoom indietro', extract: 'Estrazione album', rotate: nativeRotation?.hasAttribute('disabled') ? 'Reinserisci l’album per ruotare lo scrigno' : nativeRotation?.getAttribute('aria-pressed') === 'true' ? 'Scrigno in rotazione' : 'Rotazione ferma' }[action]);
   };
-  return <section className={compact ? 'inline-flex shrink-0' : 'rounded-lg border bg-white p-4 space-y-3'} data-testid="photobook-mockup">
-    {compact ? <Button variant="outline" className="h-10 px-3 text-xs" onClick={openConfigurator} disabled={!!token && !!state.data?.offerError}>{!token ? 'Mockup album' : (saved ? 'Apri il tuo album' : 'Personalizza album')}</Button> : <div className="flex flex-wrap items-center justify-between gap-2">
+  return <section className={compact ? 'inline-flex shrink-0' : headless ? 'contents' : 'rounded-lg border bg-white p-4 space-y-3'} data-testid="photobook-mockup">
+    {headless ? null : compact ? <Button variant="outline" className="h-10 px-3 text-xs" onClick={openConfigurator} disabled={!!token && !!state.data?.offerError}>{!token ? 'Mockup album' : (saved ? 'Apri il tuo album' : 'Personalizza album')}</Button> : <div className="flex flex-wrap items-center justify-between gap-2">
       <div><h2 className="font-semibold">{noModelAssigned ? 'Anteprima album 3D' : `${title} · Anteprima album 3D`}</h2><p className="text-sm text-muted-foreground">{noModelAssigned ? 'Nessun modello assegnato: scegli prima i modelli nel passo 2.' : `Foto, rivestimento e scritte · versione ${version}`}</p></div>
       <Button variant="outline" className="min-h-11" onClick={openConfigurator} disabled={!!token && !!state.data?.offerError}>{token ? 'Personalizza il tuo album' : noModelAssigned ? 'Apri anteprima' : `Apri anteprima ${title}`}</Button>
      </div>}
-     {saved && !compact && !token && <p className="text-sm text-muted-foreground">{MOCKUP_STATUS_LABELS[saved.status || 'draft']} · revisione {saved.revision} · versione fotolibro {version}</p>}
+     {saved && !compact && !token && !headless && <p className="text-sm text-muted-foreground">{MOCKUP_STATUS_LABELS[saved.status || 'draft']} · revisione {saved.revision} · versione fotolibro {version}</p>}
      {!compact && token && <div className="mockup-status-card" role="status" data-status={saved?.status || 'draft'}>
        <div className="mockup-status-card-heading">
          <strong>{saved ? MOCKUP_STATUS_LABELS[saved.status || 'draft'] : fixedModel ? 'Modello scelto dallo studio' : 'Personalizzazione pronta'}</strong>
@@ -716,7 +716,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       <div className="mockup-header flex shrink-0 items-center justify-between gap-2 border-b px-3 sm:px-4">
          <div className="mockup-header-title-box">
           <DialogTitle className="text-sm sm:text-base font-semibold truncate">
-            {!token ? 'Verifica proposta album' : choosing ? 'Scegli il tuo album' : title}
+            {!token ? ({ offer: 'Assegna modello', edit: 'Prepara la bozza', review: 'Verifica e conferma' } as const)[adminTab] : choosing ? 'Scegli il tuo album' : title}
           </DialogTitle>
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground truncate">
             <span>{title}</span>
@@ -772,10 +772,10 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       <div style={choosing ? { display: 'none' } : undefined} className={token ? 'min-h-0 flex-1 flex flex-col overflow-hidden' : 'mockup-admin-body'} data-testid="mockup-dialog-body">
       {!token && <div className="mockup-admin-panel" ref={setAdminSlot}>
         <nav className="sticky top-0 z-10 bg-background flex flex-wrap gap-1 border-b pb-3" aria-label="Gestione proposta album">
-          {([['review', 'Verifica'], ['edit', 'Modifica'], ['offer', 'Modelli disponibili']] as const).map(([tab, label]) => <Button key={tab} size="sm" variant={adminTab === tab ? 'default' : 'outline'} aria-pressed={adminTab === tab} onClick={() => setAdminTab(tab)}>{label}</Button>)}
+          {([['offer', '1 · Modello'], ['edit', '2 · Bozza'], ['review', '3 · Verifica e conferma']] as const).map(([tab, label]) => <Button key={tab} size="sm" variant={adminTab === tab ? 'default' : 'outline'} aria-pressed={adminTab === tab} onClick={() => setAdminTab(tab)}>{label}</Button>)}
          </nav>
        </div>}
-      {open && !token && adminPanel(<Button variant="ghost" size="sm" disabled={busy} onClick={async () => {
+      {open && !token && adminPanel(<Button hidden={adminTab !== 'edit'} variant="ghost" size="sm" className="self-start" disabled={busy} onClick={async () => {
         if (dirty && !window.confirm('Ricaricare la proposta e abbandonare le modifiche non salvate?')) return;
         const fresh = await state.refetch();
         if (!fresh.isError) { pendingOption.current = null; pendingPreview.current = null; setRendererOverride(null); setDirty(false); setReady(false); setRenderBusy(true); setGeneration(g => g + 1); }
@@ -787,7 +787,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       {state.data?.offerError && <p role="alert" className="text-destructive">{state.data.offerError}</p>}
       {staleFixedSave && <p role="alert" className="text-amber-700">La bozza precedente usa un modello non più proposto. Scegli il modello aggiornato e salva una nuova revisione.</p>}
       {state.data && <>
-        {!token && adminPanel(<div hidden={adminTab !== 'offer'}><p className="text-sm mb-3">Scegli quali modelli proporre nel link di questo cliente. Questa sezione non conferma il suo mockup.</p><MockupOfferEditor offer={state.data.offer} modelMode={state.data.modelMode} modelSelection={state.data.modelSelection} disabled={readOnly || busy || dirty} uploadGraphic={async file => (await (await request(`/upload?name=${encodeURIComponent(file.name)}`, { method: 'POST', headers: { 'Content-Type': file.type }, body: file })).json() as { id: string }).id} publish={async (mode, selections) => {
+        {!token && adminPanel(<div hidden={adminTab !== 'offer'}><p className="text-sm mb-3">Scegli il modello dell’album, oppure più modelli tra cui sceglierà il cliente. Qui non confermi il mockup.</p><MockupOfferEditor alwaysOpen offer={state.data.offer} modelMode={state.data.modelMode} modelSelection={state.data.modelSelection} disabled={readOnly || busy || dirty} uploadGraphic={async file => (await (await request(`/upload?name=${encodeURIComponent(file.name)}`, { method: 'POST', headers: { 'Content-Type': file.type }, body: file })).json() as { id: string }).id} publish={async (mode, selections) => {
           setBusy(true);
           try { await request('/offer', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: state.data?.offer?.revision || 0, savedRevision: saved?.revision || 0, mode, selections }) }); await state.refetch({ throwOnError: true }); setReady(false); setGeneration(g => g + 1); setMessage('Proposta pubblicata nel link cliente.'); return true; }
           catch (error) { setMessage((error as Error).message); return false; }
@@ -802,8 +802,8 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
          {!editable && token && <p role="status">Questa versione è in sola lettura: puoi esplorare l’album e scaricare le viste.</p>}
          {!editable && !token && !mobile && adminPanel(<p role="status" className="text-sm">Versione in sola lettura: puoi esplorare l’album e consultare le conferme.</p>)}
         {!token && (renderer.id === 'album-girevole' || renderer.id === 'plaza-led') && adminPanel(<div hidden={adminTab !== 'edit'}><label className="block text-sm">Foto da personalizzare<select aria-label="Foto da personalizzare" className="block border rounded p-2 mt-1" value={photoSide} disabled={!editable || busy || picker || renderBusy} onChange={e => setPhotoSide(e.target.value === 'back' ? 'back' : 'front')}><option value="front">Copertina album</option><option value="back">Plexiglass posteriore dello scrigno</option></select></label></div>)}
-        {!token && isBox && adminPanel(<div hidden={adminTab !== 'edit'}><label className="block text-sm">Foto da personalizzare<select aria-label="Foto da personalizzare" className="block border rounded p-2 mt-1" value={boxSlot} disabled={!editable || busy || picker || renderBusy} onChange={e => setBoxSlot(e.target.value === 'lid' ? 'lid' : e.target.value === 'cover' ? 'cover' : 'base')}><option value="base">Fondo della scatola (quadro da parete)</option><option value="lid">Tappo (cornice da tavolo)</option><option value="cover">Copertina dell’album</option></select></label></div>)}
-        {!token && adminPanel(<div hidden={adminTab !== 'edit'}><p className="text-sm mb-3">Modifica i dettagli nell’anteprima, poi salva la nuova revisione. Per approvarla torna in Verifica.</p><div className="flex flex-wrap gap-2">
+        {!token && isBox && adminPanel(<div hidden={adminTab !== 'edit'}><p className="text-sm">Scegli tessuti e foto direttamente nell’anteprima, uno slide alla volta: le foto arrivano dalla galleria del fotolibro. Poi salva e passa a “Verifica e conferma”.</p></div>)}
+        {!token && !isBox && adminPanel(<div hidden={adminTab !== 'edit'}><p className="text-sm mb-3">Modifica i dettagli nell’anteprima, poi salva la nuova revisione e passa a “Verifica e conferma”.</p><div className="flex flex-wrap gap-2">
           <Button variant="outline" disabled={!editable || busy || !ready || renderBusy} onClick={() => upload.current?.click()}>Carica una foto</Button>
           <Button variant="outline" disabled={!editable || busy || !ready || renderBusy} onClick={() => setPicker(true)}>Scegli dalla galleria</Button>
         </div></div>)}
@@ -923,8 +923,8 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
             {state.data?.mockupPath !== 'studio' && <Button className="w-full" variant="outline" disabled={!editable || busy || dirty || !saved} onClick={() => setAskingChanges(!askingChanges)}>Richiedi modifiche al cliente</Button>}
           </div>
           {askingChanges && state.data?.mockupPath !== 'studio' && <div className="rounded border p-3 space-y-3"><label className="block text-sm">Cosa deve correggere il cliente?<textarea className="block border rounded p-2 w-full mt-2" rows={3} maxLength={2000} value={note} onChange={e => setNote(e.target.value)} /></label><p className="text-xs text-muted-foreground">Il messaggio sarà visibile nel suo link e inviato via email.</p><Button disabled={!editable || busy || dirty || !saved || !note.trim()} onClick={() => action('/request-changes')}>Invia richiesta di modifiche</Button></div>}
-          <details className="border-t pt-3"><summary className="cursor-pointer text-sm font-medium py-2">Revisioni, documenti e invio al laboratorio</summary><div className="flex flex-wrap gap-2 py-2">
-            {saved?.status === 'confirmed' && <><Button variant="outline" onClick={() => downloadReport(saved.revision)}>Scarica conferma</Button><Button disabled={readOnly || busy || dirty} onClick={() => action('/attach')}>Allega all’invio fotolibro su Drive</Button></>}
+          {saved?.status === 'confirmed' && <div className="rounded border p-3 space-y-2"><p className="text-sm font-medium">Mockup confermato: prepara l’invio</p><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => downloadReport(saved.revision)}>Scarica conferma</Button><Button disabled={readOnly || busy || dirty} onClick={() => action('/attach')}>Allega all’invio fotolibro su Drive</Button></div></div>}
+          <details className="border-t pt-3"><summary className="cursor-pointer text-sm font-medium py-2">Storico revisioni e verifiche</summary><div className="flex flex-wrap gap-2 py-2">
             <Button variant="outline" disabled={busy} onClick={async () => { try { setHistory(await (await request('/history')).json()); } catch (error) { setMessage((error as Error).message); } }}>Storico revisioni</Button>
             {saved?.status === 'confirmed' && <Button variant="outline" disabled={busy || dirty} onClick={() => action('/reconcile-attachment')}>Verifica allegato Drive dopo un errore</Button>}
           </div>
@@ -988,8 +988,8 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       {!mobile && !token && (adminTab === 'edit' || dirty) && <div className="mockup-actions shrink-0 border-t bg-background p-3 sm:px-4 space-y-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         {dirty && <p className="text-sm text-amber-800" role="status">Modifiche da salvare</p>}
          <div className="flex flex-wrap gap-2">
-          <Button className="min-h-11 flex-1 sm:flex-none" disabled={!editable || busy || renderBusy || !configuration || !dirty || (!!state.data?.offer && !selectedOption)} onClick={save}>Salva mockup</Button>
-           <p className="text-sm text-muted-foreground self-center">{dirty ? 'Salva le modifiche, poi torna in Verifica per confermarle.' : 'Nessuna modifica da salvare. Per approvare usa Conferma mockup nella scheda Verifica.'}</p>
+          <Button className="min-h-11 flex-1 sm:flex-none" disabled={!editable || busy || renderBusy || !configuration || !dirty || (!!state.data?.offer && !selectedOption)} onClick={save}>Salva bozza</Button>
+           <p className="text-sm text-muted-foreground self-center">{dirty ? 'Salva le modifiche, poi passa a “Verifica e conferma”.' : 'Nessuna modifica da salvare. Per approvare usa “Conferma mockup” nella scheda Verifica e conferma.'}</p>
          </div>
       </div>}
     </DialogContent>

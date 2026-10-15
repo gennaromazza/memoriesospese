@@ -16,6 +16,8 @@ interface MockupOfferEditorProps {
   modelMode?: MockupOfferMode;
   modelSelection?: MockupSelection | null;
   disabled: boolean;
+  /** Mostra subito il form, senza il pulsante che lo apre (finestra admin “Assegna modello”). */
+  alwaysOpen?: boolean;
   /** Carica la grafica di copertina e restituisce l'id dell'asset (solo per il Quadrobook). */
   uploadGraphic?: (file: File) => Promise<string>;
   publish: (
@@ -32,7 +34,8 @@ function computeDefaultMode(
   return (
     modelMode ??
     offer?.mode ??
-    (offer?.options.length === 1 ? "fixed" : "choice")
+    // Quasi sempre si assegna un solo modello: è il punto di partenza.
+    ((offer?.options.length ?? 0) > 1 ? "choice" : "fixed")
   );
 }
 
@@ -43,7 +46,7 @@ const boxDraftOf = (setup?: MockupBoxSetup): BoxDraft => ({
   mode: setup?.cover.mode ?? "choice", graphicAssetId: setup?.cover.graphicAssetId, graphicName: setup?.cover.graphicAssetId ? "Grafica già caricata" : undefined,
 });
 const COVER_MODES: { id: BoxDraft["mode"]; label: string; hint: string }[] = [
-  { id: "choice", label: "Lascia scegliere al cliente", hint: "Il cliente sceglie tra la sua foto e la tua grafica." },
+  { id: "choice", label: "Decide il cliente", hint: "Sceglie tra una sua foto e la tua grafica." },
   { id: "photo", label: "Solo foto del cliente", hint: "Il cliente carica o sceglie una foto dalla galleria." },
   { id: "graphic", label: "Solo la mia grafica", hint: "Copertina decisa da te, il cliente non la cambia." },
 ];
@@ -53,12 +56,13 @@ export default function MockupOfferEditor({
   modelMode,
   modelSelection,
   disabled,
+  alwaysOpen = false,
   uploadGraphic,
   publish,
 }: MockupOfferEditorProps) {
   const [boxDrafts, setBoxDrafts] = useState<Record<string, BoxDraft>>({});
   const [uploading, setUploading] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(alwaysOpen);
   const [selected, setSelected] = useState<string[] | null>(null);
   const [mode, setMode] = useState<MockupOfferMode>(() =>
     computeDefaultMode(modelMode, offer),
@@ -205,7 +209,7 @@ export default function MockupOfferEditor({
 
   return (
     <div className="mockup-offer-editor space-y-3">
-      <Button
+      {!alwaysOpen && <Button
         variant="outline"
         disabled={disabled}
         aria-expanded={expanded}
@@ -219,7 +223,7 @@ export default function MockupOfferEditor({
         }}
       >
         Configura modello fotolibro
-      </Button>
+      </Button>}
 
       <p className="text-sm">
         {mode === "fixed"
@@ -243,7 +247,7 @@ export default function MockupOfferEditor({
                 onChange={() => setMode("fixed")}
               />
               <span>
-                <strong>Modello già deciso</strong>
+                <strong>Un solo modello, deciso da me</strong>
                 <small className="block text-muted-foreground">
                   Il cliente lo vede e poi continua con la personalizzazione.
                 </small>
@@ -257,18 +261,20 @@ export default function MockupOfferEditor({
                 onChange={() => setMode("choice")}
               />
               <span>
-                <strong>Lascia scegliere al cliente</strong>
+                <strong>Il cliente sceglie tra più modelli</strong>
                 <small className="block text-muted-foreground">
-                  Pubblica due o più modelli tra cui scegliere.
+                  Proponi due o più modelli: il cliente ne sceglie uno.
                 </small>
               </span>
             </label>
           </fieldset>
 
-          <p className="text-xs">
-            La pubblicazione richiede una nuova verifica del mockup. Le conferme
-            precedenti restano nello storico.
-          </p>
+          {!!offer?.options.length && (
+            <p className="text-xs text-muted-foreground">
+              Se cambi modello, il mockup già preparato va verificato di nuovo.
+              Le conferme precedenti restano nello storico.
+            </p>
+          )}
 
           {labs.isError && <p role="alert">Impossibile leggere i cataloghi.</p>}
 
@@ -390,8 +396,8 @@ export default function MockupOfferEditor({
 
           <Button disabled={publishDisabled} onClick={publishCurrent}>
             {mode === "fixed"
-              ? "Salva modello unico"
-              : "Pubblica modelli disponibili"}
+              ? "Salva modello"
+              : "Salva modelli proposti"}
           </Button>
         </>
       )}

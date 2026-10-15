@@ -29,7 +29,7 @@ interface Props {
   onSelectVersion?: (version: number) => void;
 }
 
-async function fetchState(photobookId: string, version: number): Promise<MockupPayload> {
+export async function fetchMockupState(photobookId: string, version: number): Promise<MockupPayload> {
   await auth.authStateReady();
   if (!auth.currentUser) throw new Error('Accedi nuovamente per proseguire');
   const token = await auth.currentUser.getIdToken();
@@ -58,7 +58,7 @@ function Step({ n, title, done, children }: { n: number; title: string; done?: b
 
 /** Gestione dell'album in 4 passi: pagine, modello, chi prepara la bozza, stato e invio. */
 export default function MockupAdminFlow({ photobookId, version, currentVersion, pagesApproved, mockupPath, pathBusy, onPathChange, emailStatus, emailNote, emailActions, readOnly, onSelectVersion }: Props) {
-  const state = useQuery<MockupPayload>({ queryKey: ['photobook-mockup-flow', photobookId, version], queryFn: () => fetchState(photobookId, version), refetchOnWindowFocus: false });
+  const state = useQuery<MockupPayload>({ queryKey: ['photobook-mockup-flow', photobookId, version], queryFn: () => fetchMockupState(photobookId, version), refetchOnWindowFocus: false });
   const offer = state.data?.offer;
   const saved = state.data?.saved;
   const assigned = !!offer?.options.length;
@@ -86,7 +86,10 @@ export default function MockupAdminFlow({ photobookId, version, currentVersion, 
           {state.data && (assigned
             ? <ul className="text-sm space-y-1">{offer!.options.map(o => <li key={`${o.labId}/${o.id}`}>{describeOption(o)}</li>)}</ul>
             : <p className="text-sm">Nessun modello assegnato. Scegli uno o più album, anche con formato e copertina per la scatola.</p>)}
-          <Button variant="outline" className="min-h-11" disabled={readOnly} onClick={() => openMockupTab(photobookId, 'offer')}>{assigned ? 'Cambia modelli' : 'Assegna modello'}</Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant={assigned ? 'outline' : 'default'} className="min-h-11" disabled={readOnly} onClick={() => openMockupTab(photobookId, 'offer')}>{assigned ? 'Cambia modello' : 'Assegna modello'}</Button>
+            {assigned && <Button variant="outline" className="min-h-11" onClick={() => openMockupTab(photobookId, 'review')}>Vedi in 3D</Button>}
+          </div>
         </Step>
         <Step n={3} title="Chi prepara la bozza?" done>
           <fieldset className="space-y-2" disabled={pathBusy}>
@@ -108,4 +111,15 @@ export default function MockupAdminFlow({ photobookId, version, currentVersion, 
       </ol>
     </CardContent></Card>
   );
+}
+
+/** Riga di stato per la lista fotolibri: dice a che punto è il mockup senza aprirlo. */
+export function MockupStatusLine({ photobookId, version }: { photobookId: string; version: number }) {
+  const state = useQuery<MockupPayload>({ queryKey: ['photobook-mockup-flow', photobookId, version], queryFn: () => fetchMockupState(photobookId, version), refetchOnWindowFocus: false, staleTime: 60_000 });
+  if (!state.data) return null;
+  const saved = state.data.saved;
+  const text = !state.data.offer?.options.length ? 'nessun modello assegnato'
+    : !saved ? `${state.data.offer.options.length === 1 ? state.data.offer.options[0].name : `${state.data.offer.options.length} modelli`} · bozza da preparare`
+    : MOCKUP_STATUS_LABELS[saved.status || 'draft'].toLowerCase();
+  return <p className="text-xs text-muted-foreground" data-testid={`mockup-status-${photobookId}`}>Mockup: {text}</p>;
 }

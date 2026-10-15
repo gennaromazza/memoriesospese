@@ -12,7 +12,7 @@ import {
   BookImage,
   Layers,
   Upload,
-  Link2,
+  Box,
   Pencil,
   ClipboardCheck,
   Lock,
@@ -33,73 +33,71 @@ const STEPS: TutorialStep[] = [
     icon: BookImage,
     title: '1. Crea il fotolibro',
     description:
-      'Da "Nuovo Fotolibro" scegli nome, galleria collegata e cliente. La galleria serve al cliente per selezionare le foto sostitutive.',
+      'Da "Nuovo Fotolibro" scegli nome, galleria e lavoro. Dalla galleria arrivano sia le foto sostitutive sia le foto del mockup.',
     points: [
-      'Il sistema genera automaticamente un link segreto di revisione.',
-      'Ogni fotolibro parte dalla Versione 1.',
+      'Il sistema genera un link segreto per il cliente.',
+      'Ogni fotolibro parte dalla versione 1.',
     ],
   },
   {
     icon: Upload,
-    title: '2. Carica le pagine',
+    title: '2. Carica e pubblica le pagine',
     description:
-      'Apri l\'editor del fotolibro e carica le pagine della bozza come immagini (JPG, PNG o WebP), anche tutte insieme.',
+      'Premi "Apri editor", carica le pagine (JPG, PNG o WebP) e controllale. Una nuova versione resta privata finché non premi "Pubblica versione e avvisa cliente".',
     points: [
-      'La numerazione delle pagine viene assegnata automaticamente in sequenza.',
-      'Puoi eliminare singole pagine: le richieste del cliente su quella pagina vengono ripulite in automatico.',
-    ],
-  },
-  {
-    icon: Link2,
-    title: '3. Invia il link al cliente',
-    description:
-      'Copia il link di revisione con il pulsante "Copia link" e invialo al cliente (email o WhatsApp).',
-    points: [
-      'Il link non richiede password: il token segreto è già nel link.',
-      'Il cliente vede solo la versione corrente della bozza.',
+      'Il numero nel nome del file (es. 7.jpg) diventa il numero di pagina.',
+      'Alla pubblicazione il cliente riceve l’email con il suo solito link.',
+      'Il link si copia anche con "Copia link cliente".',
     ],
   },
   {
     icon: Pencil,
-    title: '4. Il cliente segna le modifiche',
+    title: '3. Il cliente controlla le pagine',
     description:
-      'Il cliente sfoglia le pagine e disegna una X colorata (o un tratto a penna) sul punto da modificare.',
+      'Il cliente sfoglia le pagine e segna con una X le foto da cambiare, oppure approva l’impaginato.',
     points: [
-      'Tipi di richiesta: Sostituisci foto (scelta dalla galleria), Elimina, Modifica (con nota).',
-      'Le richieste restano in bozza finché il cliente non preme "Invia": partono tutte insieme.',
-      'Ad ogni invio viene salvato uno snapshot della pagina con i segni disegnati.',
-      'Il cliente può cancellare una richiesta già inviata se ci ripensa.',
-    ],
-  },
-  {
-    icon: ClipboardCheck,
-    title: '5. Rivedi le richieste',
-    description:
-      'Nella sezione "Modifiche Fotolibro" trovi tutte le richieste ricevute, con snapshot, foto sostitutiva scelta e note.',
-    points: [
-      'Segna le richieste come gestite man mano che le applichi alla bozza.',
+      'Le richieste partono tutte insieme quando preme "Invia".',
+      'Le trovi in "Modifiche Fotolibro", con snapshot, foto sostitutiva e note.',
     ],
   },
   {
     icon: Layers,
-    title: '6. Nuova versione della bozza',
+    title: '4. Correggi con una nuova versione',
     description:
-      'Dopo aver fatto correggere l\'album, crea una nuova Versione e carica le pagine aggiornate.',
+      'Applica le modifiche, poi nell’editor premi "Nuova versione", carica le pagine aggiornate e pubblica.',
     points: [
-      'Il cliente vedrà solo la nuova versione: non può segnare modifiche su bozze vecchie.',
-      'Lo storico delle richieste delle versioni precedenti resta consultabile.',
-      'Si ripete il ciclo finché il cliente non approva.',
+      'Il cliente vede solo la versione pubblicata.',
+      'Si ripete finché il cliente non approva.',
+    ],
+  },
+  {
+    icon: Box,
+    title: '5. Assegna il modello dell’album',
+    description:
+      'Nell’editor, card "Mockup dell’album", passo 2: "Assegna modello". Scegli un modello oppure più modelli tra cui sceglierà il cliente.',
+    points: [
+      'Per il Quadrobook decidi tu il formato in cm e la copertina: foto del cliente, tua grafica o a scelta del cliente.',
+      'Il cliente non può cambiare il formato.',
+    ],
+  },
+  {
+    icon: ClipboardCheck,
+    title: '6. Bozza, verifica e conferma',
+    description:
+      'Al passo 3 scegli chi prepara la bozza: tu, oppure il cliente dopo aver approvato le pagine. Al passo 4 "Rivedi e conferma".',
+    points: [
+      'Se la prepara il cliente, riceve il link appena approva le pagine.',
+      'Dopo la conferma: "Invia email: mockup pronto" e "Allega all’invio fotolibro su Drive".',
     ],
   },
   {
     icon: Lock,
-    title: '7. Manda in Stampa',
+    title: '7. Manda in stampa',
     description:
-      'Quando l\'album è approvato, premi "Manda in Stampa": il fotolibro si blocca definitivamente.',
+      'Quando pagine e mockup sono a posto, premi "Manda in stampa" nella lista: il fotolibro si blocca.',
     points: [
-      'Il cliente vede il banner "Album mandato in stampa" e non può più inviare o cancellare richieste.',
-      'Il blocco è applicato anche lato server, non solo grafico.',
-      'Solo tu puoi sbloccarlo se serve un\'altra revisione.',
+      'Il cliente vede "Album mandato in stampa" e non può più inviare richieste.',
+      'Solo tu puoi sbloccarlo se serve un’altra revisione.',
     ],
   },
 ];

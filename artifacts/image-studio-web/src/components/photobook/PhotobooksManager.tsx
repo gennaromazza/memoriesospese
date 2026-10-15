@@ -12,7 +12,6 @@ import { useToast } from '@/hooks/use-toast';
 import {
   listPhotobooks,
   createPhotobook,
-  createPhotobookVersion,
   deletePhotobook,
   updatePhotobook,
   photobookClientLink,
@@ -73,7 +72,6 @@ import {
 import {
   BookImage,
   Copy,
-  Layers,
   Lock,
   Unlock,
   Pencil,
@@ -92,7 +90,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import PhotobookTutorial from '@/components/photobook/PhotobookTutorial';
-import PhotobookMockup from '@/components/photobook/PhotobookMockup';
+import { MockupStatusLine } from '@/components/photobook/MockupAdminFlow';
 import LabFileUploader from '@/components/jobs/operativo/LabFileUploader';
 import LabSendFeedback from '@/components/jobs/operativo/LabSendFeedback';
 import type { Job } from '@shared/jobs-types';
@@ -146,7 +144,6 @@ export default function PhotobooksManager({
   const [newName, setNewName] = useState('');
   const [newGalleryId, setNewGalleryId] = useState('');
   const [newJobId, setNewJobId] = useState('');
-  const [newMockupPath, setNewMockupPath] = useState<'client' | 'studio'>('client');
   const [associationMismatchConfirmed, setAssociationMismatchConfirmed] = useState(false);
   const [gallerySearch, setGallerySearch] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<Photobook | null>(null);
@@ -200,7 +197,8 @@ export default function PhotobooksManager({
       name: newName.trim(),
       galleryId: newGalleryId,
       jobId: newJobId,
-      mockupPath: newMockupPath,
+      // Il percorso si sceglie dopo, nel passo 3 del mockup: si parte sempre da "lo prepara lo studio".
+      mockupPath: 'studio',
       allowAssociationMismatch: associationMismatchConfirmed,
     }),
     onSuccess: (book) => {
@@ -215,20 +213,6 @@ export default function PhotobooksManager({
     },
     onError: (e: any) =>
       toast({ title: 'Errore creazione fotolibro', description: e.message, variant: 'destructive' }),
-  });
-
-  const versionMutation = useMutation({
-    mutationFn: (id: string) => createPhotobookVersion(id),
-    onSuccess: (book) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/photobooks'] });
-      toast({
-        title: `Bozza versione ${Math.max(...book.versions.map(v => v.version))} creata`,
-        description: 'Carica le nuove pagine nell\u2019editor.',
-      });
-      navigate(`/admin/photobooks/${book.id}`);
-    },
-    onError: (e: any) =>
-      toast({ title: 'Errore nuova versione', description: e.message, variant: 'destructive' }),
   });
 
   const deleteMutation = useMutation({
@@ -473,6 +457,7 @@ export default function PhotobooksManager({
                     {currentVer?.pageCount ?? 0} pagine · {book.versions.length}{' '}
                     {book.versions.length === 1 ? 'versione' : 'versioni'}
                   </p>
+                  <MockupStatusLine photobookId={book.id} version={book.currentVersion} />
                   <div className="flex flex-wrap items-center gap-2">
                     <Button
                       size="sm"
@@ -480,26 +465,11 @@ export default function PhotobooksManager({
                       data-testid={`button-edit-photobook-${book.id}`}
                     >
                       <Pencil className="h-3.5 w-3.5 mr-1.5" />
-                      Apri Editor
+                      Apri editor
                     </Button>
-                    <PhotobookMockup
-                      key={`manager-mockup-${book.id}-${book.currentVersion}`}
-                      photobookId={book.id}
-                      version={book.currentVersion}
-                      compact={true}
-                    />
                     <Button size="sm" variant="outline" onClick={() => copyLink(book)}>
                       <Copy className="h-3.5 w-3.5 mr-1.5" />
-                      Link Cliente
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={versionMutation.isPending}
-                      onClick={() => versionMutation.mutate(book.id)}
-                    >
-                      <Layers className="h-3.5 w-3.5 mr-1.5" />
-                      Nuova Versione
+                      Copia link cliente
                     </Button>
                     {!book.locked && book.approval?.version === book.currentVersion && (
                       <Button
@@ -510,7 +480,7 @@ export default function PhotobooksManager({
                         data-testid={`button-reset-approval-${book.id}`}
                       >
                         <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-                        Annulla Approvazione
+                        Annulla approvazione
                       </Button>
                     )}
                     {book.locked ? (
@@ -533,7 +503,7 @@ export default function PhotobooksManager({
                         data-testid={`button-lock-${book.id}`}
                       >
                         <Lock className="h-3.5 w-3.5 mr-1.5" />
-                        Manda in Stampa
+                        Manda in stampa
                       </Button>
                     )}
                     <Button
@@ -561,8 +531,8 @@ export default function PhotobooksManager({
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <p className="text-sm text-muted-foreground">
-          Carica le pagine JPEG del fotolibro e invia al cliente il link di revisione: il cliente
-          disegna una X sulle foto da modificare.
+          Carichi le pagine, il cliente le controlla e le approva dal suo link, poi assegni il
+          modello dell’album e prepari il mockup. Ogni passo si fa da “Apri editor”.
         </p>
         <div className="flex items-center gap-2">
           <PhotobookTutorial />
@@ -650,13 +620,6 @@ export default function PhotobooksManager({
                 placeholder="Es. Fotolibro Matrimonio Anna e Marco"
                 data-testid="input-photobook-name"
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="new-mockup-path">Chi prepara il mockup?</Label>
-              <select id="new-mockup-path" className="w-full rounded border p-2" value={newMockupPath} onChange={e => setNewMockupPath(e.target.value as 'client' | 'studio')}>
-                <option value="client">Cliente: invito dopo approvazione pagine</option>
-                <option value="studio">Studio: notifica dopo conferma mockup</option>
-              </select>
             </div>
             <div className="space-y-2">
               <Label>Galleria</Label>
@@ -982,7 +945,7 @@ export default function PhotobooksManager({
                   {lockMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                   {lockMutation.isPending && createShip
                     ? 'Avvio trasferimento…'
-                    : 'Manda in Stampa'}
+                    : 'Manda in stampa'}
                 </Button>
               </DialogFooter>
             </>

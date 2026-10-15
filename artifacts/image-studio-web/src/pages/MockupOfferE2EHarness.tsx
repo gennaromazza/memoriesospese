@@ -9,6 +9,7 @@ export default function MockupOfferE2EHarness() {
       <MockupOfferEditor
         offer={null}
         disabled={false}
+        alwaysOpen
         uploadGraphic={async () => '10000000-0000-4000-8000-000000000009'}
         publish={async (mode, selections) => { window.__mockupOfferPublished = { mode, selections }; return true; }}
       />

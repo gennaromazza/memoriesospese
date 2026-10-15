@@ -20,22 +20,22 @@ test("l'admin imposta formato e copertina del Quadrobook", async ({ page }) => {
   });
   await page.goto("/admin/__e2e/mockup-offer");
   await page.getByRole("button", { name: "Solo Necessari" }).click();
-  await page.getByRole("button", { name: "Configura modello fotolibro" }).click();
   await page.getByText("Quadrobook").first().waitFor();
   await page.screenshot({ path: "/tmp/qb-admin-0.png", fullPage: true });
-  await page.getByRole("checkbox").first().check();
+  await page.getByRole("radio", { name: "Quadrobook" }).check();
   await expect(page.getByLabel("Larghezza in cm")).toBeVisible();
   await page.getByLabel("Larghezza in cm").fill("30");
   await page.getByLabel("Altezza in cm").fill("20");
   await page.getByText("Solo la mia grafica").click();
   // Senza grafica non si pubblica.
-  await page.getByRole("button", { name: /Pubblica|Assegna/ }).last().click();
+  await page.getByRole("button", { name: /Salva modell/ }).last().click();
   await expect(page.getByText("Carica la grafica di copertina.")).toBeVisible();
   await page.locator('input[type="file"]').setInputFiles({ name: "grafica.jpg", mimeType: "image/jpeg", buffer: Buffer.from("x") });
   await expect(page.getByText("grafica.jpg")).toBeVisible();
   await page.screenshot({ path: "/tmp/qb-admin-1.png", fullPage: true });
-  await page.getByRole("button", { name: /Pubblica|Assegna/ }).last().click();
+  await page.getByRole("button", { name: /Salva modell/ }).last().click();
   await expect.poll(() => page.evaluate(() => (window as unknown as { __mockupOfferPublished?: unknown }).__mockupOfferPublished)).toMatchObject({
+    mode: "fixed",
     selections: [{ labId: "lab1", modelId, setup: { format: { w: 30, h: 20 }, cover: { mode: "graphic", graphicAssetId: "10000000-0000-4000-8000-000000000009" } } }],
   });
 });

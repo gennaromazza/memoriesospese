@@ -1724,11 +1724,6 @@ export default function AdminDashboard() {
                   <h2 className="text-xl font-semibold text-blue-gray mb-2">
                     Fotolibri
                   </h2>
-                  <p className="text-sm text-muted-foreground">
-                    Carica le pagine del fotolibro, verifica le foto
-                    riconosciute e condividi il link di revisione con il
-                    cliente.
-                  </p>
                 </div>
                 <PhotobooksManager />
               </div>

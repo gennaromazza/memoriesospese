@@ -312,30 +312,6 @@ export default function PhotobookEditorPage() {
         </div>
 
         {/* Barra versioni + upload (accetta anche il trascinamento dei file) */}
-        <PhotobookMockup key={`${id}-${version}`} photobookId={id} version={version} readOnly={book.currentVersion !== version} />
-         <MockupAdminFlow
-           photobookId={id}
-           version={version}
-           currentVersion={book.currentVersion}
-           pagesApproved={book.approval?.version === book.currentVersion}
-           mockupPath={book.mockupPath || 'studio'}
-           pathBusy={busy}
-           readOnly={book.currentVersion !== version || !!book.locked}
-           onSelectVersion={v => { if (!busy) { setSelectedVersion(v); setSelectedPageIds(new Set()); } }}
-           onPathChange={async path => {
-             try {
-               await updatePhotobook(id, { mockupPath: path });
-               await refetchBook();
-               toast({ title: 'Percorso aggiornato', description: 'Nessuna email retroattiva inviata.' });
-             } catch (error) { toast({ title: 'Percorso non aggiornato', description: (error as Error).message, variant: 'destructive' }); }
-           }}
-           emailStatus={waitingForPageApproval ? 'in attesa dell’approvazione delle pagine' : notification?.state === 'waiting-approval' ? 'approvazione completata: invio da verificare' : notification?.state === 'sent' || (notification && !notification.state) ? 'inviata' : notification?.state === 'missing-email' ? 'non inviata: manca l’indirizzo cliente' : notification?.state === 'not-delivered' ? 'non consegnata (verificata)' : notification?.state === 'pending' || notification?.state === 'uncertain' ? 'esito incerto: verifica la posta inviata' : 'non ancora prevista o inviata'}
-           emailNote={notification?.state === 'missing-email' ? 'Completa l’email nella galleria o nel cliente del lavoro, poi usa “Verifica e invia”.' : notification?.state === 'uncertain' || notification?.state === 'pending' ? 'Controlla la posta inviata prima di indicare se è stata consegnata. Non viene ritentata automaticamente.' : undefined}
-           emailActions={<>
-             {(notification?.state === 'uncertain' || notification?.state === 'pending') && <><Button variant="outline" disabled={notificationBusy} onClick={() => void handleNotification('delivered')}>Verificata: consegnata</Button><Button variant="outline" disabled={notificationBusy} onClick={() => void handleNotification('not-delivered')}>Verificata: non consegnata</Button></>}
-             {(['missing-email', 'not-delivered'].includes(notification?.state || '') || !notification || (notification?.state === 'waiting-approval' && !waitingForPageApproval && book.mockupPath !== 'client')) && (book.mockupPath === 'client' ? book.approval?.version === book.currentVersion : !!notificationKey && !waitingForPageApproval) && <Button variant="outline" disabled={notificationBusy} onClick={() => void handleNotification('send')}>Verifica e invia email mockup</Button>}
-           </>}
-         />
         <Card>
           <p className="px-4 pt-4 text-sm">1. Crea una nuova bozza. 2. Carica tutte le pagine e controllale. 3. Pubblica: solo allora il cliente vedrà la nuova versione e riceverà l’email.</p>
           <CardContent className="pt-4 flex items-center gap-3 flex-wrap">
@@ -384,7 +360,7 @@ export default function PhotobookEditorPage() {
             {version === book.currentVersion && version > 1 && <Button variant="outline" disabled={busy || book.locked} onClick={async () => {
               try { const result = await notifyPhotobookVersion(id, version); toast({ title: result.notified ? 'Email inviata' : result.alreadyNotified ? 'Cliente già avvisato' : 'Email cliente assente', description: result.skipped === 'no-client-email' ? 'Completa l’email del cliente nel lavoro o nella galleria, poi riprova.' : undefined }); }
               catch (error) { toast({ title: 'Verifica email', description: (error as Error).message, variant: 'destructive' }); }
-            }}>Avvisa cliente / verifica invio</Button>}
+            }}>Invia email: nuove pagine</Button>}
             <input
               ref={fileInputRef}
               type="file"
@@ -409,6 +385,32 @@ export default function PhotobookEditorPage() {
             </Button>
           </CardContent>
         </Card>
+
+        {/* Mockup dell'album: dopo le versioni, prima della griglia delle pagine */}
+        <PhotobookMockup key={`${id}-${version}`} photobookId={id} version={version} readOnly={book.currentVersion !== version} headless />
+         <MockupAdminFlow
+           photobookId={id}
+           version={version}
+           currentVersion={book.currentVersion}
+           pagesApproved={book.approval?.version === book.currentVersion}
+           mockupPath={book.mockupPath || 'studio'}
+           pathBusy={busy}
+           readOnly={book.currentVersion !== version || !!book.locked}
+           onSelectVersion={v => { if (!busy) { setSelectedVersion(v); setSelectedPageIds(new Set()); } }}
+           onPathChange={async path => {
+             try {
+               await updatePhotobook(id, { mockupPath: path });
+               await refetchBook();
+               toast({ title: 'Percorso aggiornato', description: 'Nessuna email retroattiva inviata.' });
+             } catch (error) { toast({ title: 'Percorso non aggiornato', description: (error as Error).message, variant: 'destructive' }); }
+           }}
+           emailStatus={waitingForPageApproval ? 'in attesa dell’approvazione delle pagine' : notification?.state === 'waiting-approval' ? 'approvazione completata: invio da verificare' : notification?.state === 'sent' || (notification && !notification.state) ? 'inviata' : notification?.state === 'missing-email' ? 'non inviata: manca l’indirizzo cliente' : notification?.state === 'not-delivered' ? 'non consegnata (verificata)' : notification?.state === 'pending' || notification?.state === 'uncertain' ? 'esito incerto: verifica la posta inviata' : 'non ancora prevista o inviata'}
+           emailNote={notification?.state === 'missing-email' ? 'Completa l’email nella galleria o nel cliente del lavoro, poi usa “Verifica e invia”.' : notification?.state === 'uncertain' || notification?.state === 'pending' ? 'Controlla la posta inviata prima di indicare se è stata consegnata. Non viene ritentata automaticamente.' : undefined}
+           emailActions={<>
+             {(notification?.state === 'uncertain' || notification?.state === 'pending') && <><Button variant="outline" disabled={notificationBusy} onClick={() => void handleNotification('delivered')}>Verificata: consegnata</Button><Button variant="outline" disabled={notificationBusy} onClick={() => void handleNotification('not-delivered')}>Verificata: non consegnata</Button></>}
+             {(['missing-email', 'not-delivered'].includes(notification?.state || '') || !notification || (notification?.state === 'waiting-approval' && !waitingForPageApproval && book.mockupPath !== 'client')) && (book.mockupPath === 'client' ? book.approval?.version === book.currentVersion : !!notificationKey && !waitingForPageApproval) && <Button variant="outline" disabled={notificationBusy} onClick={() => void handleNotification('send')}>Invia email: mockup pronto</Button>}
+           </>}
+         />
 
         {canUpload && (
           <button
