@@ -1,0 +1,44 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "Ug1KrzXGMIQnFu7iPZ_uM"
+uri = "file://generated-artifacts/portfolio-matrimoni-pubblici-parte-1-20261015.zip"
+type = "unspecified"
+title = "Foto Real Wedding pubblici — parte 1 di 2"
+description = "ZIP con 96 foto originali di 8 matrimoni del portfolio pubblico, organizzate in cartelle. Circa 58 MB."
+logical_id = "bebc3062-c8bb-4cd6-83a8-2898e41eb798"
+content_hash = "sha256:89998157d1fa04a575ac15193e349275c112b678034a12e695d32b07aa9a89bc"
+size = 61138182
+mtime_ms = 1792056632364
+storage_uri = "gcs://replit-rams-assets-spock/rams/assets/repl:65b2695f-b200-424b-9509-5c251e0658fe/bebc3062-c8bb-4cd6-83a8-2898e41eb798/687c0325-2f96-4c41-9442-9d510aa8ad19"
+storage_version_token = "1792056643512220"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "O3_tutx4qhBwIO8DhMhNI"
+uri = "file://generated-artifacts/portfolio-matrimoni-pubblici-parte-2-20261015.zip"
+type = "unspecified"
+title = "Foto Real Wedding pubblici — parte 2 di 2"
+description = "ZIP con 84 foto originali di 7 matrimoni del portfolio pubblico, organizzate in cartelle. Circa 68 MB."
+logical_id = "9f08545d-462d-4b05-97b1-93e79c4a4df7"
+content_hash = "sha256:d5ed2176f8b8ac6f449f22af8bdf8ca48ff0ffd8021d44c4927fde5c8cc56c03"
+size = 71436948
+mtime_ms = 1792056633180
+storage_uri = "gcs://replit-rams-assets-spock/rams/assets/repl:65b2695f-b200-424b-9509-5c251e0658fe/9f08545d-462d-4b05-97b1-93e79c4a4df7/a0201409-5854-4b58-9371-ecda717fee1c"
+storage_version_token = "1792056645139226"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "_TYrZebl7PBrfPXfomH31"
+uri = "file://generated-artifacts/portfolio-matrimonio-pagina-pubblica-20261015.zip"
+type = "unspecified"
+title = "Foto della pagina Portfolio Matrimoni"
+description = "ZIP con 141 immagini originali attualmente presenti in /portfolio/matrimonio, suddivise in 16 cartelle secondo il nome della galleria. Circa 64 MB."
+logical_id = "c68df27d-4c7c-4370-ba4e-0f1819503ff5"
+content_hash = "sha256:a919f8d2be78b8f6e4eb0948cd555061678a74c267264eaae4394ea5591ef440"
+size = 67345651
+mtime_ms = 1792056777127
+storage_uri = "gcs://replit-rams-assets-spock/rams/assets/repl:65b2695f-b200-424b-9509-5c251e0658fe/c68df27d-4c7c-4370-ba4e-0f1819503ff5/53a08368-5a42-4b6a-95df-527e227ab99a"
+storage_version_token = "1792056792908566"
+content_type = "application/octet-stream"

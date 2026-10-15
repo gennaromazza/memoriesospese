@@ -51,3 +51,6 @@ attached_assets/Pasted-*
 
 # Output di build del programma desktop (non va nel repository)
 artifacts/image-studio-desktop/release/
+
+# Download e report generati per l'utente
+generated-artifacts/
