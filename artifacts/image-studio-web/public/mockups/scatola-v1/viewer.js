@@ -13,6 +13,7 @@ import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
 const $ = id => document.getElementById(id);
 // Dentro la piattaforma il visualizzatore è in un iframe: foto, scelte dello studio e salvataggio li gestisce l'host.
 const embedded = window.parent !== window;
+let phone = false;   // telefono nella piattaforma: lo decide l'host
 if (embedded) document.body.classList.add('embedded');
 const notify = (type, payload = {}) => { if (embedded) window.parent.postMessage({channel: 'memorie-mockup-v1', type, ...payload}, location.origin); };
 const SRC = new URL('../custodia-v1/', import.meta.url);
@@ -385,26 +386,28 @@ function applyFormat(wCm, hCm) {
 
 // ---- Interfaccia -------------------------------------------------------------
 const cm = n => String(Math.round(n * 10) / 10).replace('.', ',');
-let albumFollows = true; // l'album ha lo stesso tessuto della scatola finché il cliente non ne sceglie un altro
 function markSwatches() {
   for (const b of document.querySelectorAll('[data-finish]')) {
-    const which = b.closest('[data-for]').dataset.for;
-    b.setAttribute('aria-pressed', String(chosen[which]?.id === b.dataset.finish));
+    b.setAttribute('aria-pressed', String(chosen.box?.id === b.dataset.finish));
   }
-  $('albumSame').setAttribute('aria-pressed', String(albumFollows));
 }
 const orientation = () => AW > AH + 1e-6 ? 'orizzontale' : AH > AW + 1e-6 ? 'verticale' : 'quadrato';
 function updateSummary() {
   const lines = [
     `Formato album: ${cm(AW * 100)} × ${cm(AH * 100)} cm (${orientation()}), stabilito dallo studio`,
     `Scatola e tappo: ${cm(W * 100)} × ${cm(H * 100)} cm`,
-    `Tessuto di scatola, tappo e base della cornice: ${chosen.box ? chosen.box.label : '—'}`,
-    `Tessuto dell’album: ${albumFollows ? 'uguale alla scatola' : chosen.album ? chosen.album.label : '—'}`,
+    `Tessuto (scatola, album e piedistallo): ${chosen.box ? chosen.box.label : '—'}`,
     ...Object.values(photoSlots).map(s => s === photoSlots.album
       ? `Copertina dell’album: ${effectiveCover() === 'graphic' ? `grafica dello studio (${graphic.name})` : s.state === 'esempio' ? 'foto di esempio' : s.state}`
       : `${s.label}: ${s.state === 'esempio' ? 'foto di esempio' : s.state}`),
   ];
-  $('configurationSummary').textContent = lines.join('\n');
+  const phoneLines = [
+    `Album ${cm(AW * 100)} × ${cm(AH * 100)} cm · ${chosen.box ? chosen.box.label : '—'}`,
+    ...Object.values(photoSlots).map(sl => sl === photoSlots.album
+      ? `Copertina: ${effectiveCover() === 'graphic' ? 'grafica dello studio' : sl.state === 'esempio' ? 'da scegliere' : 'la tua foto'}`
+      : `${sl === photoSlots.base ? 'Quadro da parete' : 'Cornice da tavolo'}: ${sl.state === 'esempio' ? 'da scegliere' : 'la tua foto'}`),
+  ];
+  $('configurationSummary').textContent = (phone ? phoneLines : lines).join('\n');
   emitChange();
   $('materialLabel').textContent = chosen.box ? (embedded ? `${chosen.box.label} · album ${cm(AW * 100)} × ${cm(AH * 100)} cm` : `${laboratory.name} · ${chosen.box.internalCode} · ${cm(AW * 100)} × ${cm(AH * 100)} cm`) : 'Caricamento rivestimento…';
 }
@@ -547,13 +550,13 @@ for (const b of document.querySelectorAll('[data-cover]')) b.onclick = () => { c
 
 // Campionario: una griglia per ogni scelta (scatola, album).
 const initial = variants.find(v => v.legacyId === 'mist-03') || variants[0];
-function buildSwatches(container, which) {
+function buildSwatches(container) {
   container.textContent = '';
   for (const family of catalog.families.filter(f => f.laboratoryId === laboratory.id)) {
     const samples = variants.filter(v => v.familyId === family.id && (!allowedMaterials || allowedMaterials.has(v.id)));
     if (!samples.length) continue;
     const section = document.createElement('details'); section.className = 'material-category';
-    if (samples.some(v => v.id === initial.id)) section.open = true;
+    if (phone || samples.some(v => v.id === initial.id)) section.open = true;
     const title = document.createElement('summary'); title.textContent = `${family.name} · ${samples.length} rivestimenti`;
     const grid = document.createElement('div'); grid.className = 'materials';
     for (const variant of samples) {
@@ -561,24 +564,20 @@ function buildSwatches(container, which) {
       button.type = 'button'; button.dataset.finish = variant.id; button.title = variant.internalCode;
       const swatch = document.createElement('span'); swatch.className = 'swatch'; swatch.style.backgroundImage = `url('${assetUrl(variant.textureUrl)}')`;
       button.append(swatch, document.createTextNode(variant.label));
-      button.onclick = () => {
-        if (which === 'box') setFabric(variant.id, albumFollows ? ['box', 'album'] : ['box']);
-        else { albumFollows = false; setFabric(variant.id, ['album']); }
-      };
+      // Un solo tessuto per scatola, album e piedistallo.
+      button.onclick = () => setFabric(variant.id, ['box', 'album']);
       button.setAttribute('aria-pressed', 'false');
       grid.append(button);
     }
     section.append(title, grid); container.append(section);
   }
 }
-function rebuildSwatches() { buildSwatches($('materialsBox'), 'box'); buildSwatches($('materialsAlbum'), 'album'); markSwatches(); }
+function rebuildSwatches() { buildSwatches($('materialsBox')); markSwatches(); }
 rebuildSwatches();
-$('albumSame').onclick = () => { albumFollows = true; if (chosen.box) setFabric(chosen.box.id, ['album']); markSwatches(); updateSummary(); };
 
 // Un passo per ogni scelta del cliente. Formato e tipo di copertina li decide lo studio.
 const ALL_STEPS = [
-  {id: 'stepBoxFabric', title: 'Tessuto della scatola', view: 'closed'},
-  {id: 'stepAlbumFabric', title: 'Tessuto dell’album', view: 'uses'},
+  {id: 'stepBoxFabric', title: 'Il tessuto', view: 'closed'},
   {id: 'stepBasePhoto', title: 'Foto del quadro da parete', view: 'uses'},
   {id: 'stepLidPhoto', title: 'Foto della cornice da tavolo', view: 'uses'},
   {id: 'stepCover', title: 'Copertina dell’album', view: 'uses'},
@@ -596,7 +595,11 @@ function goStep(index, {focus = true} = {}) {
   $(STEPS[step].id).hidden = false;
   [...$('progress').children].forEach((bar, i) => { bar.className = i <= step ? 'done' : ''; });
   $('stepCount').textContent = `Passo ${step + 1} di ${STEPS.length}`;
-  $('stepTitle').textContent = STEPS[step].title;
+  const last = step === STEPS.length - 1;
+  $('stepTitle').textContent = phone && last ? 'Ecco il tuo Quadrobook' : STEPS[step].title;
+  document.body.classList.toggle('final', phone && last);
+  document.body.classList.remove('full3d');
+  notify('step', {index: step, last});
   $('prev').disabled = step === 0;
   $('next').textContent = step === STEPS.length - 1 ? 'Ricomincia' : 'Avanti';
   $('next').hidden = embedded && step === STEPS.length - 1;
@@ -723,10 +726,8 @@ if (embedded) {
     }
     const cfg = data.configuration;
     if (cfg && cfg.modelId === 'scatola-cornice') {
-      albumFollows = cfg.albumMaterialId === cfg.materialId;
       if (offer.cover.mode === 'choice' && ['photo', 'graphic'].includes(cfg.coverLayout)) coverChoice = cfg.coverLayout;
-      await setFabric(cfg.materialId, albumFollows ? ['box', 'album'] : ['box']);
-      if (!albumFollows) await setFabric(cfg.albumMaterialId, ['album']);
+      await setFabric(cfg.materialId, ['box', 'album']);
     } else if (allowedMaterials && chosen.box && !allowedMaterials.has(chosen.box.id)) {
       const first = variants.find(v => allowedMaterials.has(v.id));
       if (first) await setFabric(first.id, ['box', 'album']);
@@ -778,6 +779,48 @@ if (embedded) {
     return previews;
   }
 
+  // ---- Telefono: galleria nello slide, 3D in miniatura, azioni finali ----
+  const picked = {base: null, lid: null, album: null};
+  let galleryData = {photos: [], chapters: []};
+  function renderGallery(slot) {
+    const box = document.querySelector(`[data-gallery="${slot}"]`); if (!box) return;
+    const active = box.dataset.chapter || '';
+    const used = galleryData.chapters.filter(c => galleryData.photos.some(p => p.chapterId === c.id));
+    box.textContent = '';
+    if (used.length) {
+      const chips = document.createElement('div'); chips.className = 'chips';
+      for (const [id, label] of [['', 'Tutte'], ...used.map(c => [c.id, c.titolo])]) {
+        const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.setAttribute('aria-pressed', String(id === active));
+        b.onclick = () => { box.dataset.chapter = id; renderGallery(slot); };
+        chips.append(b);
+      }
+      box.append(chips);
+    }
+    const grid = document.createElement('div'); grid.className = 'thumbs';
+    for (const photo of galleryData.photos.filter(p => !active || p.chapterId === active)) {
+      const b = document.createElement('button'); b.type = 'button'; b.setAttribute('aria-label', photo.name || 'Foto');
+      b.style.backgroundImage = `url("${String(photo.thumbnailUrl || photo.url).replace(/"/g, '%22')}")`;
+      b.setAttribute('aria-pressed', String(picked[slot] === photo.id));
+      b.disabled = locked;
+      b.onclick = () => { picked[slot] = photo.id; renderGallery(slot); notify('pick-gallery', {slot, photoId: photo.id}); };
+      grid.append(b);
+    }
+    if (!galleryData.photos.length) { const p = document.createElement('p'); p.textContent = 'Caricamento della galleria…'; grid.append(p); }
+    box.append(grid);
+  }
+  function setPhone(value) {
+    phone = value === true;
+    document.body.classList.toggle('phone', phone);
+    if (phone) for (const d of document.querySelectorAll('.material-category')) d.open = true;
+    updateSummary();
+    goStep(step, {focus: false});
+  }
+  $('pipOpen').onclick = () => document.body.classList.add('full3d');
+  $('pipClose').onclick = () => document.body.classList.remove('full3d');
+  $('closeHost').onclick = () => notify('close');
+  $('editAgain').onclick = () => goStep(0);
+  $('submitHost').onclick = () => notify('submit');
+
   for (const b of document.querySelectorAll('[data-pick]')) b.onclick = () => notify('pick-photo', {slot: b.dataset.pick.split(':')[0], source: b.dataset.pick.split(':')[1]});
   window.addEventListener('message', async event => {
     if (event.source !== window.parent || event.origin !== location.origin || event.data?.channel !== 'memorie-mockup-v1') return;
@@ -790,6 +833,9 @@ if (embedded) {
         emitChange(true);
         notify('applied');
       } else if (data.type === 'lock') applyLock(data.readOnly);
+      else if (data.type === 'layout') setPhone(data.phone);
+      else if (data.type === 'gallery') { galleryData = {photos: data.photos || [], chapters: data.chapters || []}; for (const slot of ['base', 'lid', 'album']) renderGallery(slot); }
+      else if (data.type === 'status') { $('hostStatus').textContent = data.text || ''; $('submitHost').disabled = !data.canSubmit; $('submitHost').textContent = data.submitLabel || 'Invia allo studio'; }
       else if (data.type === 'export') {
         try { notify('exported', {requestId: data.requestId, previews: exportViews(), configuration: currentConfiguration()}); }
         catch (error) { console.error(error); notify('export-error', {requestId: data.requestId}); }

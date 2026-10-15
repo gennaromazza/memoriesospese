@@ -735,28 +735,36 @@
   white-space: nowrap;
 }
 
-.mockup-chooser-primary {
+/* Specificità alzata (.mockup-chooser button azzerava lo sfondo → testo bianco su bianco) */
+.mockup-chooser button.mockup-chooser-primary {
   display: inline-flex;
   min-height: 44px;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 9px 18px;
-  border: 0;
+  padding: 9px 22px;
+  border: 1px solid #335e56;
   border-radius: 8px;
   background: #335e56;
   color: #fff;
-  font-size: 12px !important;
+  font-size: 13px !important;
   font-weight: 700;
+  box-shadow: 0 2px 8px rgba(51, 94, 86, .28);
 }
 
-.mockup-chooser-primary:hover:not(:disabled) {
+.mockup-chooser button.mockup-chooser-primary:hover:not(:disabled) {
   background: #274b45;
+  border-color: #274b45;
 }
 
-.mockup-chooser-primary:disabled {
-  background: #aebeb7;
+/* Disabilitato: resta un pulsante pieno e visibile (grigio-verde), mai trasparente */
+.mockup-chooser button.mockup-chooser-primary:disabled {
+  opacity: 1;
+  background: #86a097;
+  border-color: #86a097;
+  color: #fff;
+  box-shadow: none;
 }
 
 /* ============================================================
@@ -790,5 +798,5 @@
   .mockup-chooser-model-copy .mockup-chooser-model-description { margin: 6px 0 10px; }
 
   .mockup-chooser-action-bar { min-height: 62px; padding: 8px 12px; }
-  .mockup-chooser-primary { min-height: 44px; padding: 8px 13px; }
+  .mockup-chooser button.mockup-chooser-primary { min-height: 46px; padding: 8px 16px; }
 }

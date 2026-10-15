@@ -58,11 +58,10 @@ test("il cliente personalizza il Quadrobook e salva senza poter cambiare il form
   await page.getByRole("button", { name: /Personalizza il tuo album|Apri il tuo album|Personalizza album/ }).first().click();
 
   const viewer = page.frameLocator("iframe").first();
-  await expect(viewer.locator("#stepTitle")).toHaveText("Tessuto della scatola", { timeout: 60_000 });
+  await expect(viewer.locator("#stepTitle")).toHaveText("Il tessuto", { timeout: 60_000 });
   // Formato e copertina arrivano dallo studio: il cliente non ha controlli per cambiarli.
   await expect(viewer.locator("#formatInput")).toBeHidden();
   const next = viewer.locator("#next");
-  await next.click(); await expect(viewer.locator("#stepTitle")).toHaveText("Tessuto dell’album");
   await next.click(); await expect(viewer.locator("#stepTitle")).toHaveText("Foto del quadro da parete");
   const choosePhoto = async (slot: string) => {
     await viewer.locator(`[data-pick="${slot}:gallery"]`).click();
