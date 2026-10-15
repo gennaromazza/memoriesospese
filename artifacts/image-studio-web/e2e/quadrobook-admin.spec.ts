@@ -19,14 +19,25 @@ test("l'admin imposta formato e copertina del Quadrobook", async ({ page }) => {
     return route.continue();
   });
   await page.goto("/admin/__e2e/mockup-offer");
-  await page.getByRole("button", { name: "Solo Necessari" }).click();
+  await page.getByRole("button", { name: "Solo Necessari" }).click({ timeout: 8_000 }).catch(() => undefined);
   await page.getByText("Quadrobook").first().waitFor();
   await page.screenshot({ path: "/tmp/qb-admin-0.png", fullPage: true });
   await page.getByRole("radio", { name: "Quadrobook" }).check();
   await expect(page.getByLabel("Larghezza in cm")).toBeVisible();
   await page.getByLabel("Larghezza in cm").fill("30");
   await page.getByLabel("Altezza in cm").fill("20");
-  await page.getByText("Solo la mia grafica").click();
+  // Di serie la copertina è la foto scelta dal cliente: si salva senza caricare nulla.
+  await expect(page.getByRole("radio", { name: /Foto scelta dal cliente/ })).toBeChecked();
+  await expect(page.locator('input[type="file"]')).toHaveCount(0);
+  await page.getByRole("button", { name: /Salva modell/ }).last().click();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __mockupOfferPublished?: unknown }).__mockupOfferPublished)).toMatchObject({
+    selections: [{ setup: { format: { w: 30, h: 20 }, cover: { mode: "photo" } } }],
+  });
+  // Nella pagina di prova l'offerta non viene ricaricata dopo il salvataggio: si riseleziona il modello.
+  await page.getByRole("radio", { name: "Quadrobook" }).check();
+  await page.getByLabel("Larghezza in cm").fill("30");
+  await page.getByLabel("Altezza in cm").fill("20");
+  await page.getByText("La mia grafica", { exact: true }).click();
   // Senza grafica non si pubblica.
   await page.getByRole("button", { name: /Salva modell/ }).last().click();
   await expect(page.getByText("Carica la grafica di copertina.")).toBeVisible();

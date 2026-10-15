@@ -43,12 +43,12 @@ const BOX_RENDERER = "scatola-cornice";
 interface BoxDraft { w: string; h: string; mode: MockupBoxSetup["cover"]["mode"]; graphicAssetId?: string; graphicName?: string }
 const boxDraftOf = (setup?: MockupBoxSetup): BoxDraft => ({
   w: String(setup?.format.w ?? 25), h: String(setup?.format.h ?? 35),
-  mode: setup?.cover.mode ?? "choice", graphicAssetId: setup?.cover.graphicAssetId, graphicName: setup?.cover.graphicAssetId ? "Grafica già caricata" : undefined,
+  mode: setup?.cover.mode ?? "photo", graphicAssetId: setup?.cover.graphicAssetId, graphicName: setup?.cover.graphicAssetId ? "Grafica già caricata" : undefined,
 });
 const COVER_MODES: { id: BoxDraft["mode"]; label: string; hint: string }[] = [
-  { id: "choice", label: "Decide il cliente", hint: "Sceglie tra una sua foto e la tua grafica." },
-  { id: "photo", label: "Solo foto del cliente", hint: "Il cliente carica o sceglie una foto dalla galleria." },
-  { id: "graphic", label: "Solo la mia grafica", hint: "Copertina decisa da te, il cliente non la cambia." },
+  { id: "photo", label: "Foto scelta dal cliente", hint: "La sceglie dalla sua galleria nello slide della copertina. Non devi caricare niente." },
+  { id: "graphic", label: "La mia grafica", hint: "Carichi tu la grafica; il cliente non la cambia." },
+  { id: "choice", label: "Il cliente sceglie tra la sua foto e la mia grafica", hint: "Carichi la grafica; il cliente può usarla oppure scegliere una sua foto." },
 ];
 
 export default function MockupOfferEditor({
@@ -374,7 +374,7 @@ export default function MockupOfferEditor({
                         </fieldset>
                         {d.mode !== "photo" && (
                           <label className="block text-sm">
-                            Grafica di copertina (JPG, PNG o WebP)
+                            La tua grafica di copertina (JPG, PNG o WebP)
                             <input type="file" accept="image/jpeg,image/png,image/webp" className="block mt-1 w-full min-h-11" disabled={disabled || uploading === key || !uploadGraphic} onChange={(e) => { void onGraphic(key, e.target.files?.[0]); e.target.value = ""; }} />
                             <span className="block text-xs text-muted-foreground mt-1">{uploading === key ? "Caricamento…" : d.graphicName || "Nessuna grafica caricata"}</span>
                           </label>
