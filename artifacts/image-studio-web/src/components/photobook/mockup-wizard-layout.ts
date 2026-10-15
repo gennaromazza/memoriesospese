@@ -451,6 +451,7 @@ export function installMockupWizard(doc: Document, mobile = false) {
       background-position: center;
     }
 
+    body[data-wizard][data-wizard-single-family="true"] .wizard-family-breadcrumb { display: none !important; }
     /* CAMBIA COLLEZIONE BREADCRUMB */
     body[data-wizard] .wizard-family-breadcrumb {
       display: flex;
@@ -811,10 +812,19 @@ export function installMockupWizard(doc: Document, mobile = false) {
   const fabricPanel = doc.getElementById("fabricPanel");
   const materialsDiv = doc.getElementById("materials");
   const familyCards: { category: HTMLDetailsElement; button: HTMLButtonElement }[] = [];
-  const syncFamilies = () =>
+  const familyBadges: { category: HTMLDetailsElement; badge: HTMLElement }[] = [];
+  // "11 colori" / "1 colore": il numero reale dei colori disponibili, mai un testo fisso.
+  const updateBadges = () =>
+    familyBadges.forEach(({ category, badge }) => {
+      const count = category.querySelectorAll(".materials button").length;
+      badge.textContent = count ? `${count} ${count === 1 ? "colore" : "colori"} →` : "Scegli →";
+    });
+  const syncFamilies = () => {
     familyCards.forEach(({ category, button }) => {
       button.hidden = category.hidden;
     });
+    updateBadges();
+  };
   const familyObserver = new MutationObserver(syncFamilies);
   let selectedFamily = "";
   let onFamilySelectCallback: ((family: string) => void) | null = null;
@@ -858,6 +868,7 @@ export function installMockupWizard(doc: Document, mobile = false) {
       badge.className = "wizard-family-badge";
       badge.textContent = `${countText || "Scegli"} →`;
       btn.append(info, badge);
+      familyBadges.push({ category: cat, badge });
 
       btn.onclick = () => {
         selectedFamily = familyName;
@@ -1113,6 +1124,12 @@ export function installMockupWizard(doc: Document, mobile = false) {
   }
 
   function refresh() {
+    updateBadges();
+    // Una sola collezione: niente "Cambia tessuto" (non c'è alternativa).
+    const visibleFamilies = familyCards.filter(({ category }) => !category.hidden);
+    doc.body.dataset.wizardSingleFamily = String(visibleFamilies.length <= 1);
+    // Con una sola collezione si salta il passo: i suoi colori devono essere già aperti.
+    if (visibleFamilies.length === 1 && !visibleFamilies[0].category.open) visibleFamilies[0].category.open = true;
     mirrors.forEach(({ select, buttons }) =>
       buttons.forEach((button, index) => {
         button.disabled = select.disabled;
@@ -1160,6 +1177,10 @@ export function installMockupWizard(doc: Document, mobile = false) {
     controlsSlot,
     topSlot,
     refresh,
+    /** Quante collezioni di tessuto sono davvero disponibili (con una sola il passo "tessuto" si salta). */
+    familyCount() {
+      return familyCards.filter(({ category }) => !category.hidden).length;
+    },
     dispose() {
       if (disposed) return;
       disposed = true;
@@ -1185,6 +1206,7 @@ export function installMockupWizard(doc: Document, mobile = false) {
       // FIX: chiave allineata al CSS ([data-workspace-expanded])
       delete doc.body.dataset.workspaceExpanded;
       delete doc.body.dataset.wizardReadonly;
+      delete doc.body.dataset.wizardSingleFamily;
     },
     onFamilySelect(callback: (family: string) => void) {
       onFamilySelectCallback = callback;

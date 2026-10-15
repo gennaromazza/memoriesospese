@@ -81,8 +81,8 @@ for (const model of models) {
       const name = (await title.textContent())?.trim() || "";
       await shot(String(guard + 1));
       if (name === "Ecco il tuo album") break;
-      if (name === "Collezione tessuto") { await viewer.locator(".wizard-family-card:visible").first().click(); continue; }
-      if (name === "Colore rivestimento") await viewer.locator(".materials button:visible").first().click();
+      if (name === "Il tessuto") { await viewer.locator(".wizard-family-card:visible").first().click(); continue; }
+      if (name === "Il colore") await viewer.locator(".materials button:visible").first().click();
       if (name === "Disposizione copertina") await viewer.locator(".wizard-cards button", { hasText: /foto/i }).first().click();
       if (name === "Personalizzazione copertina") { await viewer.locator(".mq-thumbs button").first().click(); await expect(viewer.locator(".mq-status")).toContainText("Foto scelta", { timeout: 30_000 }); }
       await expect(primary).toBeEnabled({ timeout: 30_000 });

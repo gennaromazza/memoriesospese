@@ -81,6 +81,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   const [phoneBox, setPhoneBox] = useState(false);
   // Telefono, altri modelli: 3D a schermo pieno solo su richiesta; ultime foto scelte dalla galleria nello slide.
   const [phone3d, setPhone3d] = useState(false);
+  const [familyCount, setFamilyCount] = useState(0);
   const [pickedPhoto, setPickedPhoto] = useState<{ front?: string; back?: string }>({});
   const skipRestoreRevision = useRef<number | null>(null);
   const hostActions = useRef<{ close: () => void; submit: () => void; step: () => void; pickGallery: (slot: string, photoId: string) => void }>({ close: () => undefined, submit: () => undefined, step: () => undefined, pickGallery: () => undefined });
@@ -349,7 +350,10 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     const timer = window.setTimeout(() => setViewMessage(''), 2500);
     return () => window.clearTimeout(timer);
   }, [viewMessage]);
-  useEffect(() => { wizard?.refresh(); }, [wizard, configuration, busy, renderBusy, editable]);
+  useEffect(() => { wizard?.refresh(); setFamilyCount(wizard?.familyCount() ?? 0); }, [wizard, configuration, busy, renderBusy, editable]);
+  // Con una sola collezione di tessuto non c'è niente da scegliere: si passa direttamente ai colori.
+  const skipFamilyStep = familyCount === 1 && renderer.id !== 'plaza-led';
+  useEffect(() => { if (skipFamilyStep && step === 2) setStep(3); }, [skipFamilyStep, step]);
   useEffect(() => {
     if (!mobile && token && ready && !renderBusy && !busy && editable && !selection && !initializing.current && state.data?.offer?.options.length === 1) chooseOption(state.data.offer.options[0]);
   }, [token, ready, renderBusy, busy, editable, selection, configuration, state.data?.offer]);
@@ -689,11 +693,12 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     pendingPreview.current = null;
     pendingLayout.current = null;
   }
-  const steps = renderer.id === 'album-girevole' || renderer.id === 'plaza-led' ? [2, 3, 4, 5, 6, 7, 9] : [2, 3, 5, 6, 9];
+  const allSteps = renderer.id === 'album-girevole' || renderer.id === 'plaza-led' ? [2, 3, 4, 5, 6, 7, 9] : [2, 3, 5, 6, 9];
+  const steps = skipFamilyStep ? allSteps.filter(value => value !== 2) : allSteps;
   const stepNames: Record<number, string> = {
     1: 'Modello',
-    2: 'Collezione tessuto',
-    3: 'Colore rivestimento',
+    2: 'Il tessuto',
+    3: 'Il colore',
     4: 'Struttura dello scrigno',
     5: 'Disposizione copertina',
     6: 'Personalizzazione copertina',
@@ -894,8 +899,8 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
           {editable && ready && !renderBusy && configurationIssue && ((mobile && (step === 7 || (step === 6 && !(draftCoverLayout !== 'plaque' && !frontPhotoPresent)))) || (!mobile && step >= 5)) && <p role="status" className="wizard-validation">{configurationIssue}</p>}
           <div className="wizard-step-heading" aria-live="polite"><span>Passo {steps.indexOf(step) + 1} di {steps.length}</span><strong>{stepNames[step] || 'Configurazione'}</strong></div>
          {step === 1 && <><h3>Scegli il tuo modello</h3><p>Trovi qui i modelli proposti dallo studio.</p>{state.data?.offer?.options.map(option => <button type="button" className="wizard-model" key={`${option.labId}/${option.id}`} aria-pressed={selectedOption?.id === option.id && selectedOption?.labId === option.labId} disabled={!editable || busy || !ready || renderBusy} onClick={() => chooseOption(option)}>{option.name}<small>{option.labName} · {MOCKUP_RENDERERS.find(r => r.id === option.rendererId)?.name}</small></button>)}{!state.data?.offer && <p>{title}</p>}</>}
-          {step === 2 && <><h3>Collezione tessuto</h3><p>{renderer.id === 'plaza-led' ? 'Scegli prima telaio esterno e album oppure telaio interno, poi la serie i Nobili. Nella schermata successiva scegli il codice.' : 'Tocca la collezione di tessuti che preferisci per il tuo album. I colori disponibili appariranno nella schermata successiva.'}</p></>}
-          {step === 3 && <><h3>Colore del rivestimento</h3><p>Tocca un colore per applicarlo istantaneamente all’anteprima 3D sopra la scheda.</p></>}
+          {step === 2 && <><h3>Il tessuto</h3><p>{renderer.id === 'plaza-led' ? 'Scegli telaio esterno e album oppure telaio interno, poi la collezione. Il colore lo scegli subito dopo.' : 'Scegli la collezione di tessuti per il tuo album. Il colore lo scegli subito dopo.'}</p></>}
+          {step === 3 && <><h3>Il colore</h3><p>Tocca un colore: lo vedi subito sull’album nell’anteprima 3D.</p></>}
           {step === 4 && <><h3>Struttura dello scrigno</h3><p>Scegli la finitura della cornice che racchiude l'album.</p></>}
           {step === 5 && <><h3>Disposizione della copertina</h3><p>Scegli lo stile e la disposizione della copertina: placchetta con incisione, foto grande a tutta copertina oppure foto formato placchetta.</p></>}
           {step === 6 && <>
