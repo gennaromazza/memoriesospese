@@ -1,0 +1,205 @@
+/*
+ * STANDARD "TELEFONO" PER I CONFIGURATORI 3D (tutti i modelli di album)
+ * ----------------------------------------------------------------------
+ * Un solo foglio di stile, un solo contratto. Ogni nuovo modello lo riusa:
+ * non si riscrive il CSS per telefono modello per modello.
+ *
+ * Idea (proposta B): si sceglie a SCHERMO PIENO, il 3D è una miniatura nell'angolo
+ * ("Vedi in 3D ›"), il 3D grande compare solo se lo tocchi e alla fine.
+ * Un solo pulsante principale, sempre verde pieno e ben visibile.
+ *
+ * CONTRATTO (classi da mettere nel documento del visualizzatore)
+ *   body.mq-phone            attiva lo standard (solo telefono)
+ *   body.mq-3d               il cliente ha aperto il 3D a schermo pieno
+ *   body.mq-final            ultima schermata: 3D grande in alto + riepilogo sotto
+ *
+ *   .mq-panel                pannello delle scelte (a schermo pieno)
+ *     .mq-top                riga in alto: .mq-step-count "Passo X di N", .mq-top-actions (.mq-text-btn, .mq-round)
+ *     .mq-round              pulsante tondo (chiudi ✕)
+ *     .mq-title              titolo del passo
+ *     .mq-progress           barra dei passi (figli = segmenti, .done = fatti)
+ *     .mq-content            parte scorrevole con le scelte
+ *       .mq-swatches         griglia 3 colonne di rivestimenti (.materials > button > .swatch)
+ *       .mq-gallery          galleria del cliente nello slide
+ *         .mq-chips          capitoli come filtri
+ *         .mq-thumbs         miniature (button[aria-pressed=true] = scelta)
+ *       .mq-link             azione secondaria testuale (es. "Carica una foto")
+ *       .mq-final-actions    Modifica / Invia (solo schermata finale)
+ *     .mq-nav                barra fissa in basso
+ *       .mq-prev             indietro, tondo
+ *       .mq-primary          unico pulsante principale (.mq-next è un alias)
+ *   .mq-stage                contenitore del 3D: miniatura, schermo pieno o in alto
+ *     .mq-pip-open           "Vedi in 3D ›" sopra la miniatura
+ *     .mq-pip-close          "‹ Torna alle scelte" nel 3D a schermo pieno
+ *     .mq-only-3d            controlli visibili solo nel 3D grande (icone vista, zoom…)
+ *
+ * Colori e misure sono variabili: si cambiano qui, per tutti i modelli insieme.
+ */
+
+body.mq-phone {
+  --mq-bg: #f6f3ec;
+  --mq-ink: #1f2a28;
+  --mq-muted: #5c6f68;
+  --mq-line: #e2ded3;
+  --mq-accent: #335e56;
+  --mq-accent-dark: #274b45;
+  --mq-accent-off: #86a097;
+  --mq-pip: 112px;
+  --mq-nav: 88px;
+  --mq-final-stage: 58dvh;
+  background: var(--mq-bg);
+  color: var(--mq-ink);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ---------- Pannello delle scelte: schermo pieno ---------- */
+body.mq-phone .mq-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 16px 0;
+  border: 0;
+  background: var(--mq-bg);
+  overflow: hidden;
+}
+body.mq-phone .mq-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; order: 0; }
+body.mq-phone .mq-top > * { margin: 0; }
+body.mq-phone .mq-step-count { font-size: 12px; letter-spacing: 1px; text-transform: uppercase; color: var(--mq-muted); }
+body.mq-phone .mq-top-actions { display: flex; align-items: center; gap: 8px; }
+body.mq-phone .mq-text-btn {
+  min-height: 0; padding: 8px 12px; border: 1px solid var(--mq-line); border-radius: 999px; background: #fff;
+  color: var(--mq-ink); font-size: 13px; font-weight: 600; cursor: pointer;
+}
+body.mq-phone .mq-status { font-size: 13px; color: var(--mq-accent); margin: 10px 0 0; }
+body.mq-phone .mq-progress { order: 1; display: flex; gap: 6px; margin: 10px 0 0; }
+body.mq-phone .mq-progress > * { flex: 1; height: 3px; border-radius: 2px; background: var(--mq-line); }
+body.mq-phone .mq-progress > .done { background: var(--mq-accent); }
+body.mq-phone .mq-title { order: 2; font: 400 26px/1.15 Georgia, "Times New Roman", serif; margin: 12px 0 4px; color: var(--mq-ink); }
+body.mq-phone .mq-content {
+  order: 3;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 0 calc(var(--mq-nav) + var(--mq-pip) + 24px);
+}
+body.mq-phone .mq-content p { color: var(--mq-muted); font-size: 13.5px; line-height: 1.45; margin: 0 0 14px; }
+body.mq-phone .mq-round {
+  width: 36px; height: 36px; border-radius: 50%; padding: 0; min-height: 0;
+  display: grid; place-items: center; font-size: 15px; line-height: 1;
+  border: 1px solid var(--mq-line); background: #fff; color: var(--mq-ink);
+}
+
+/* ---------- Rivestimenti: tre colonne, quadrati arrotondati ---------- */
+body.mq-phone .material-category { border: 0; margin: 0 0 14px; padding: 0; overflow: visible; background: none; }
+body.mq-phone .material-category > summary {
+  list-style: none; pointer-events: none; padding: 0 0 8px; min-height: 0; border: 0; background: none;
+  font-size: 12px; letter-spacing: 1px; text-transform: uppercase; color: var(--mq-muted);
+}
+body.mq-phone .material-category > summary::-webkit-details-marker { display: none; }
+body.mq-phone .mq-swatches .materials,
+body.mq-phone .material-category .materials { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 0; max-height: none; }
+body.mq-phone .materials button {
+  border: 0; background: none; padding: 0; min-height: 0; font-size: 12px; color: #3c4542; text-align: center; box-shadow: none;
+}
+body.mq-phone .materials button[aria-pressed="true"] { padding: 0; background: none; border: 0; box-shadow: none; }
+body.mq-phone .materials .swatch {
+  display: block; width: 100%; height: auto; aspect-ratio: 1; border-radius: 14px; margin: 0 0 6px;
+  background-size: cover; background-position: center; box-shadow: inset 0 0 0 1px #0000001a;
+}
+body.mq-phone .materials button[aria-pressed="true"] .swatch { box-shadow: 0 0 0 3px var(--mq-bg), 0 0 0 5px var(--mq-accent); }
+
+/* ---------- Galleria del cliente dentro lo slide ---------- */
+body.mq-phone .mq-gallery { margin: 0 -16px; }
+.mq-chips { display: flex; gap: 6px; overflow-x: auto; padding: 0 16px 10px; scrollbar-width: none; }
+.mq-chips::-webkit-scrollbar { display: none; }
+.mq-chips button {
+  white-space: nowrap; padding: 7px 12px; min-height: 0; border-radius: 999px; font-size: 13px;
+  border: 1px solid var(--mq-line, #e2ded3); background: #fff; color: var(--mq-ink, #1f2a28); cursor: pointer;
+}
+.mq-chips button[aria-pressed="true"] { background: var(--mq-ink, #1f2a28); color: #fff; border-color: var(--mq-ink, #1f2a28); }
+.mq-thumbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; }
+.mq-thumbs button {
+  position: relative; padding: 0; border: 0; border-radius: 0; aspect-ratio: 1; cursor: pointer;
+  background: #e2ded3 center / cover no-repeat;
+}
+.mq-thumbs button[aria-pressed="true"] { box-shadow: inset 0 0 0 4px var(--mq-accent, #335e56); }
+.mq-thumbs button[aria-pressed="true"]::after {
+  content: "✓"; position: absolute; right: 6px; top: 6px; width: 24px; height: 24px; border-radius: 50%;
+  background: var(--mq-accent, #335e56); color: #fff; font-size: 13px; display: grid; place-items: center;
+}
+body.mq-phone .mq-link {
+  display: block; border: 0; background: none; padding: 12px 0; min-height: 0; margin: 0;
+  font-size: 14px; text-decoration: underline; color: var(--mq-accent); cursor: pointer;
+}
+
+/* ---------- Barra in basso: un solo pulsante principale, sempre visibile ---------- */
+body.mq-phone .mq-nav {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 4; display: flex; gap: 10px; align-items: center;
+  border: 0; padding: 12px 16px max(16px, env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(#f6f3ec00, var(--mq-bg) 35%);
+}
+body.mq-phone .mq-nav button {
+  min-height: 52px; border-radius: 14px; font-weight: 600; font-size: 15px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;
+  border: 1px solid #b7c7be; background: #fff; color: var(--mq-ink);
+}
+body.mq-phone .mq-nav .mq-prev { flex: none; width: 52px; padding: 0; font-size: 0; }
+body.mq-phone .mq-nav .mq-prev::before { content: "‹"; font-size: 24px; line-height: 1; }
+body.mq-phone .mq-nav .mq-prev svg, body.mq-phone .mq-nav .mq-prev span { display: none; }
+body.mq-phone .mq-nav .mq-primary,
+body.mq-phone .mq-nav .mq-next {
+  flex: 1; background: var(--mq-accent) !important; border-color: var(--mq-accent) !important; color: #fff !important;
+  box-shadow: 0 2px 8px rgba(51, 94, 86, .28);
+}
+body.mq-phone .mq-nav .mq-primary:hover:not(:disabled),
+body.mq-phone .mq-nav .mq-next:hover:not(:disabled) { background: var(--mq-accent-dark) !important; border-color: var(--mq-accent-dark) !important; }
+/* Disattivo: resta un pulsante pieno e leggibile, mai bianco su bianco */
+body.mq-phone .mq-nav .mq-primary:disabled,
+body.mq-phone .mq-nav .mq-next:disabled {
+  opacity: 1 !important; background: var(--mq-accent-off) !important; border-color: var(--mq-accent-off) !important; color: #fff !important; box-shadow: none;
+}
+body.mq-phone .mq-nav .mq-prev:disabled { opacity: .45; }
+
+/* ---------- 3D: miniatura nell'angolo ---------- */
+body.mq-phone .mq-stage {
+  position: fixed; top: auto; left: auto; right: 16px; bottom: var(--mq-nav); width: var(--mq-pip); height: var(--mq-pip);
+  min-height: 0; max-height: none; z-index: 5; overflow: hidden; border-radius: 16px;
+  box-shadow: 0 10px 30px #1f2a2833, 0 0 0 1px var(--mq-line); background: #ece8df;
+}
+body.mq-phone .mq-pip-open {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 12; border: 0; border-radius: 0; padding: 6px 8px; min-height: 0;
+  background: #fffffff0; font-size: 11.5px; font-weight: 700; color: var(--mq-accent); text-align: left; cursor: pointer; pointer-events: auto;
+}
+body.mq-phone .mq-pip-close { display: none; }
+/* controlli del 3D grande: nascosti nella miniatura */
+body.mq-phone:not(.mq-3d):not(.mq-final) .mq-only-3d { display: none !important; }
+
+/* ---------- 3D a schermo pieno ---------- */
+body.mq-phone.mq-3d .mq-stage { inset: 0; width: auto; height: auto; border-radius: 0; z-index: 20; box-shadow: none; }
+body.mq-phone.mq-3d .mq-nav { display: none; }
+body.mq-phone.mq-3d .mq-pip-open { display: none !important; }
+body.mq-phone.mq-3d .mq-pip-close {
+  display: block; position: absolute; z-index: 25; left: 16px; top: max(12px, env(safe-area-inset-top, 0px)); pointer-events: auto;
+  border: 1px solid var(--mq-line); border-radius: 999px; padding: 9px 14px; min-height: 0;
+  background: #fffffff0; color: var(--mq-ink); font-size: 13px; font-weight: 600; cursor: pointer;
+}
+
+/* ---------- Ultima schermata: 3D grande in alto, riepilogo sotto ---------- */
+body.mq-phone.mq-final .mq-stage { inset: 0 0 auto 0; width: auto; height: var(--mq-final-stage); border-radius: 0; z-index: 2; box-shadow: none; }
+body.mq-phone.mq-final .mq-pip-open { display: none !important; }
+body.mq-phone.mq-final .mq-panel { top: var(--mq-final-stage); padding-top: 8px; }
+body.mq-phone.mq-final .mq-progress { display: none; }
+body.mq-phone.mq-final .mq-content { padding-bottom: calc(var(--mq-nav) + 12px); }
+body.mq-phone .mq-final-actions { display: flex; gap: 10px; margin: 14px 0 0; }
+body.mq-phone .mq-final-actions button {
+  min-height: 52px; border-radius: 14px; font-weight: 600; font-size: 15px; padding: 0 18px;
+  border: 1px solid #b7c7be; background: #fff; color: var(--mq-ink); cursor: pointer;
+}
+body.mq-phone .mq-final-actions .mq-primary {
+  flex: 1; background: var(--mq-accent); color: #fff; border-color: var(--mq-accent); box-shadow: 0 2px 8px rgba(51, 94, 86, .28);
+}
+body.mq-phone .mq-final-actions .mq-primary:disabled { opacity: 1; background: var(--mq-accent-off); border-color: var(--mq-accent-off); box-shadow: none; }

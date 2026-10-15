@@ -19,6 +19,7 @@ import type { MockupOption } from '@shared/mockup-workflow';
 import MockupModelChooser from './MockupModelChooser';
 import { initialMockupSelection, mockupPresentation, needsClientModelChoice } from './mockup-presentation';
 import { useToast } from '@/hooks/use-toast';
+import PhotobookInlineGallery from './PhotobookInlineGallery';
 import { ArrowLeft, ArrowRight, HelpCircle, LogOut, Rotate3D, RotateCcw, Save, X, ZoomIn, ZoomOut } from 'lucide-react';
 
 interface Props { photobookId: string; version: number; token?: string; readOnly?: boolean; summary?: boolean; compact?: boolean; /** Admin: solo la finestra, aperta dai passi della card Mockup. */ headless?: boolean; onOpenChange?: (open: boolean) => void }
@@ -78,6 +79,9 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   // Quadrobook: quale foto sta scegliendo il cliente (fondo, tappo o copertina dell'album).
   const [boxSlot, setBoxSlot] = useState<'base' | 'lid' | 'cover'>('base');
   const [phoneBox, setPhoneBox] = useState(false);
+  // Telefono, altri modelli: 3D a schermo pieno solo su richiesta; ultime foto scelte dalla galleria nello slide.
+  const [phone3d, setPhone3d] = useState(false);
+  const [pickedPhoto, setPickedPhoto] = useState<{ front?: string; back?: string }>({});
   const skipRestoreRevision = useRef<number | null>(null);
   const hostActions = useRef<{ close: () => void; submit: () => void; step: () => void; pickGallery: (slot: string, photoId: string) => void }>({ close: () => undefined, submit: () => undefined, step: () => undefined, pickGallery: () => undefined });
   const graphicBlob = useRef<Promise<Blob> | null>(null);
@@ -137,7 +141,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   });
   const gallery = useQuery({
     queryKey: ['mockup-gallery', photobookId, token ? 'client' : 'admin'],
-    enabled: picker || phoneBox,
+    enabled: picker || phoneBox || (!!token && mobile),
     queryFn: async () => token ? getPhotobookGalleryPhotosByToken(token) : { photos: await listPhotobookGalleryPhotos(photobookId), chapters: [] },
   });
   const editable = !readOnly && state.data?.editable === true;
@@ -227,11 +231,11 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       setChoosing(true);
     } else if (mobile && editable && !saved && !viewerStarted && !state.data.offer?.options.length) {
       setViewerStarted(true);
-    } else if (mobile && !viewerStarted && isBox) {
-      // Il Quadrobook ha già formato e copertina decisi dallo studio: si parte subito dal primo slide.
+    } else if (mobile && !viewerStarted && (isBox || fixedModel)) {
+      // Modello deciso dallo studio (Quadrobook, ma anche Custodia, Girevole, Plaza assegnati): si parte subito dal primo slide.
       setViewerStarted(true);
     }
-  }, [open, mobile, isBox, editable, saved?.revision, saved?.updatedBy, viewerStarted, state.data?.offer?.revision, state.data?.offer?.options.length, state.data?.modelMode, selection?.labId, selection?.modelId, shouldPromptForModel]);
+  }, [open, mobile, isBox, fixedModel, editable, saved?.revision, saved?.updatedBy, viewerStarted, state.data?.offer?.revision, state.data?.offer?.options.length, state.data?.modelMode, selection?.labId, selection?.modelId, shouldPromptForModel]);
 
   function chooseExample(option: MockupOption, layout: string) {
     if (!editable) return;
@@ -352,6 +356,10 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
 
   // Telefono + Quadrobook: si sceglie a schermo pieno dentro il visualizzatore, il 3D è una miniatura.
   useEffect(() => { setPhoneBox(!!token && mobile && isBox); }, [token, mobile, isBox]);
+  // Telefono, Custodia / Album girevole / Plaza: stesso standard del Quadrobook (public/mockups/phone-ui.css).
+  const phoneWizard = !!token && mobile && !isBox && !!wizard;
+  useEffect(() => { wizard?.phone3d(phone3d); }, [wizard, phone3d]);
+  useEffect(() => { setPhone3d(false); }, [step, wizard, choosing]);
   const postToViewer = (payload: Record<string, unknown>) => frame.current?.contentWindow?.postMessage({ channel: 'memorie-mockup-v1', ...payload }, window.location.origin);
   useEffect(() => { if (ready && isBox) postToViewer({ type: 'layout', phone: phoneBox }); }, [ready, readyTick, isBox, phoneBox]);
   useEffect(() => {
@@ -549,6 +557,10 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       return undefined;
     }
     finally { setBusy(false); }
+  }
+  /** Telefono: salva da solo quando si cambia passo, se c'è qualcosa di nuovo e la configurazione è completa. */
+  function autoSave() {
+    if (phoneWizard && editable && dirty && configuration && !configurationIssue && !busy && !renderBusy) void save(true);
   }
   async function action(path: string, targetRevision?: number, persisted?: SavedMockup) {
     const current = persisted || saved;
@@ -758,7 +770,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
      </div>}
     <Dialog open={open} onOpenChange={next => { if (!next) closeConfigurator(); }}>
     <DialogContent ref={dialog} data-mobile-mockup={mobile ? 'true' : undefined} className="flex flex-col gap-0 p-0 sm:p-0 w-screen sm:w-[96vw] max-w-none sm:max-w-[1500px] h-[100dvh] sm:h-[94dvh] max-h-[100dvh] rounded-none sm:rounded-lg overflow-hidden [&>button]:hidden" onInteractOutside={event => event.preventDefault()}>
-      <div className="mockup-header flex shrink-0 items-center justify-between gap-2 border-b px-3 sm:px-4" style={phoneBox && !choosing ? { display: 'none' } : undefined}>
+      <div className="mockup-header flex shrink-0 items-center justify-between gap-2 border-b px-3 sm:px-4" style={(phoneBox || phoneWizard) && !choosing ? { display: 'none' } : undefined}>
          <div className="mockup-header-title-box">
           <DialogTitle className="text-sm sm:text-base font-semibold truncate">
             {!token ? ({ offer: 'Assegna modello', edit: 'Prepara la bozza', review: 'Verifica e conferma' } as const)[adminTab] : choosing ? 'Scegli il tuo album' : title}
@@ -867,8 +879,19 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
          </section>}
          {token && !rendererError && (!ready || (!wizard && !isBox)) && !choosing && <p role="status" className="p-4 text-sm">Preparazione del tuo configuratore…</p>}
          {(!mobile || viewerStarted) && !!state.data && <iframe key={`${renderer.id}-${generation}`} ref={frame} title={`Configuratore 3D ${renderer.name}`} src={`${import.meta.env.BASE_URL}mockups/${renderer.path}`} sandbox="allow-scripts allow-same-origin allow-downloads" style={{ visibility: token && (!ready || (!wizard && !isBox) || !!rendererError) ? 'hidden' : undefined }} aria-hidden={token && (!ready || (!wizard && !isBox) || !!rendererError) ? true : undefined} className={`${token ? 'w-full min-h-0 flex-1 border-0' : 'mockup-admin-viewer'} ${busy ? 'pointer-events-none' : ''}`} />}
+        {phoneWizard && wizard.topSlot && createPortal(<>
+          <div className="mq-top">
+            <p className="mq-step-count">Passo {steps.indexOf(step) + 1} di {steps.length}</p>
+            <div className="mq-top-actions">
+              {editable && ready && !busy && !renderBusy && !!state.data?.offer?.options.length && (!fixedModel || (state.data.offer.options.length || 0) > 1) && <button type="button" className="mq-text-btn" onClick={() => setChoosing(true)}>{fixedModel ? 'Vedi modello' : 'Cambia modello'}</button>}
+              <button type="button" className="mq-round" aria-label="Chiudi mockup" disabled={busy} onClick={closeConfigurator}>✕</button>
+            </div>
+          </div>
+          <div className="mq-progress" aria-hidden="true">{steps.map(value => <i key={value} className={value <= step ? 'done' : ''} />)}</div>
+          <h1 className="mq-title">{step === lastStep ? 'Ecco il tuo album' : stepNames[step]}</h1>
+        </>, wizard.topSlot)}
         {token && wizard && createPortal(<>
-          {editable && ready && !renderBusy && configurationIssue && ((mobile && [5, 6, 7].includes(step)) || (!mobile && step >= 5)) && <p role="status" className="wizard-validation">{configurationIssue}</p>}
+          {editable && ready && !renderBusy && configurationIssue && ((mobile && (step === 7 || (step === 6 && !(draftCoverLayout !== 'plaque' && !frontPhotoPresent)))) || (!mobile && step >= 5)) && <p role="status" className="wizard-validation">{configurationIssue}</p>}
           <div className="wizard-step-heading" aria-live="polite"><span>Passo {steps.indexOf(step) + 1} di {steps.length}</span><strong>{stepNames[step] || 'Configurazione'}</strong></div>
          {step === 1 && <><h3>Scegli il tuo modello</h3><p>Trovi qui i modelli proposti dallo studio.</p>{state.data?.offer?.options.map(option => <button type="button" className="wizard-model" key={`${option.labId}/${option.id}`} aria-pressed={selectedOption?.id === option.id && selectedOption?.labId === option.labId} disabled={!editable || busy || !ready || renderBusy} onClick={() => chooseOption(option)}>{option.name}<small>{option.labName} · {MOCKUP_RENDERERS.find(r => r.id === option.rendererId)?.name}</small></button>)}{!state.data?.offer && <p>{title}</p>}</>}
           {step === 2 && <><h3>Collezione tessuto</h3><p>{renderer.id === 'plaza-led' ? 'Scegli prima telaio esterno e album oppure telaio interno, poi la serie i Nobili. Nella schermata successiva scegli il codice.' : 'Tocca la collezione di tessuti che preferisci per il tuo album. I colori disponibili appariranno nella schermata successiva.'}</p></>}
@@ -882,12 +905,14 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
               <>
                 <h3>Foto di copertina</h3>
                 <p>Personalizza la fotografia per la copertina del tuo album.</p>
-                <div className="wizard-photo-actions">
+                {phoneWizard && <PhotobookInlineGallery photos={gallery.data?.photos || []} chapters={gallery.data?.chapters || []} disabled={!editable || busy || !ready || renderBusy} selectedId={pickedPhoto.front} onPick={photo => { setPickedPhoto(prev => ({ ...prev, front: photo.id })); void selectPhoto(() => request('/gallery-photo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ photoId: photo.id }) })); }} />}
+                {phoneWizard && frontPhotoPresent && <p className="mq-status" role="status">Foto scelta ✓</p>}
+                {!phoneWizard && <div className="wizard-photo-actions">
                   <button type="button" disabled={!editable || busy || !ready || renderBusy} onClick={() => { setPhotoSide('front'); setPicker(true); }}>
                     Scegli dalla galleria
                   </button>
                   {!mobile && <button type="button" disabled={!editable || busy || !ready || renderBusy} onClick={() => upload.current?.click()}>Carica una foto</button>}
-                </div>
+                </div>}
                 {!photoStepValid && editable && <p role="status" className="wizard-validation">Scegli una foto per continuare.</p>}
               </>
             )}
@@ -895,7 +920,11 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
           {step === 7 && <>
             <h3>Plexiglass posteriore dello scrigno</h3>
             <p>Scegli l'effetto del retro dello scrigno: lastra trasparente senza stampa, oppure stampa fotografica su plexiglass.</p>
-            {draftBackCover === 'photo' && (
+            {draftBackCover === 'photo' && phoneWizard && <>
+              <PhotobookInlineGallery photos={gallery.data?.photos || []} chapters={gallery.data?.chapters || []} disabled={!editable || busy || !ready || renderBusy} selectedId={pickedPhoto.back} onPick={photo => { setPickedPhoto(prev => ({ ...prev, back: photo.id })); void selectPhoto(() => request('/gallery-photo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ photoId: photo.id }) })); }} />
+              {backPhotoPresent && <p className="mq-status" role="status">Foto scelta ✓</p>}
+            </>}
+            {draftBackCover === 'photo' && !phoneWizard && (
               <div className="wizard-photo-actions">
                 <button type="button" disabled={!editable || busy || !ready || renderBusy} onClick={() => { setPhotoSide('back'); setPicker(true); }}>
                   Scegli foto per il retro
@@ -908,7 +937,10 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
             <h3>Vedi l’album nella tua casa</h3>
             <p>Visualizza in tempo reale come si presenta il tuo album appoggiato su un mobile o nella zona living. Questo passaggio è facoltativo: puoi lasciare “Solo album” o scegliere un’ambientazione.</p>
           </>}
-          {step === lastStep && <>
+          {step === lastStep && phoneWizard && <>
+            {message ? <p className="mq-status" role="status">{message}</p> : phoneStatus ? <p className="mq-status" role="status">{phoneStatus}</p> : null}
+          </>}
+          {step === lastStep && !phoneWizard && <>
             <h3>Riepilogo e conferma</h3>
             {saved && <p>{MOCKUP_STATUS_LABELS[saved.status || 'draft']} · revisione {saved.revision}{saved.note && ` · ${saved.note}`}</p>}
             <p>Controlla le scelte riassunte qui sotto. Puoi esplorare l'album a 360° con i comandi sullo stage 3D.</p>
@@ -919,21 +951,21 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
         {token && wizard && createPortal(<div className="wizard-mobile-actions">
           {!editable && <span className="wizard-unsaved">Sola lettura</span>}
           {homeOpen ? <button type="button" onClick={() => setHomeOpen(false)}><ArrowLeft size={15} /> Torna alla configurazione</button> : <>
-          <div className="wizard-nav">
-            <button type="button" aria-label={steps.indexOf(step) === 0 ? 'Torna alla scelta modello' : 'Indietro'} disabled={busy || (steps.indexOf(step) === 0 && (!editable || (state.data?.offer?.options.length || 0) <= 1))} onClick={previousStep}>
+          <div className={`wizard-nav${phoneWizard ? ' mq-nav' : ''}`}>
+            <button type="button" className="mq-prev" aria-label={steps.indexOf(step) === 0 ? 'Torna alla scelta modello' : 'Indietro'} disabled={busy || (steps.indexOf(step) === 0 && (!editable || (state.data?.offer?.options.length || 0) <= 1))} onClick={previousStep}>
               <ArrowLeft size={17} /><span>Indietro</span>
             </button>
             {step < lastStep ? (
-              <button type="button" className="wizard-primary" disabled={!nextAllowed} onClick={() => setStep(steps[steps.indexOf(step) + 1])}>
+              <button type="button" className="wizard-primary mq-primary" disabled={!nextAllowed} onClick={() => { autoSave(); setStep(steps[steps.indexOf(step) + 1]); }}>
                 Avanti <ArrowRight size={16} />
               </button>
             ) : editable ? (
-              <button type="button" className="wizard-primary" disabled={!editable || busy || renderBusy || !configuration || !selectedOption || (!dirty && ['submitted', 'confirmed'].includes(saved?.status || ''))} onClick={submitWizard}>
-                Invia allo studio per verifica
+              <button type="button" className="wizard-primary mq-primary" disabled={!editable || busy || renderBusy || !configuration || !selectedOption || (!dirty && ['submitted', 'confirmed'].includes(saved?.status || ''))} onClick={submitWizard}>
+                {phoneWizard ? (submittedNow ? 'Inviato allo studio' : 'Invia allo studio') : 'Invia allo studio per verifica'}
               </button>
              ) : <span className="wizard-unsaved">Sola lettura</span>}
           </div>
-          {editable && configuration && (
+          {editable && configuration && !phoneWizard && (
             <button
               type="button"
               className="w-full mt-1.5 py-2 px-3 rounded-lg border border-[#335e56] text-[#335e56] bg-white font-medium text-xs flex items-center justify-center gap-1.5 hover:bg-[#eaf1ef] transition-colors disabled:opacity-40 shadow-sm"
@@ -947,7 +979,9 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
           </>}
         </div>, wizard.actionsSlot)}
         {mobile && wizard && createPortal(<>
-          <div className="wizard-iconbar" aria-label="Comandi vista album">
+          {phoneWizard && !phone3d && step !== lastStep && <button type="button" className="mq-pip-open" onClick={() => setPhone3d(true)}>Vedi in 3D ›</button>}
+          {phoneWizard && <button type="button" className="mq-pip-close" onClick={() => setPhone3d(false)}>‹ Torna alle scelte</button>}
+          <div className="wizard-iconbar mq-only-3d" aria-label="Comandi vista album">
             <button aria-label="Fronte" onClick={() => viewAction('front')}><b aria-hidden="true">F</b></button>
             <button aria-label="Retro" onClick={() => viewAction('back')}><b aria-hidden="true">R</b></button>
             <button aria-label="Estrai o reinserisci album" onClick={() => viewAction('extract')}><LogOut size={17} /><span>Estrai</span></button>
@@ -956,9 +990,9 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
             <button aria-label="Riduci album" onClick={() => viewAction('minus')}><ZoomOut size={17} /><span>Zoom −</span></button>
             <button aria-label="Reimposta vista" onClick={() => viewAction('reset')}><RotateCcw size={17} /><span>Reimposta</span></button>
           </div>
-          <button className="wizard-help" aria-label="Guida ai gesti" onClick={() => setGuideOpen(!guideOpen)}><HelpCircle size={18} /></button>
-          {viewMessage && <span className="wizard-view-message" role="status">{viewMessage}</span>}
-          {guideOpen && <div className="wizard-gesture-guide" role="region" aria-label="Guida ai gesti"><strong>Guarda l’album da vicino</strong><p>Trascina con un dito per girare la vista.<br />Allarga due dita per vedere la trama.<br />Le icone mostrano fronte, retro ed estrazione.</p><button onClick={() => { setGuideOpen(false); try { sessionStorage.setItem('mockup-touch-guide', 'seen'); } catch { /* Non impedire la personalizzazione se lo storage è disabilitato. */ } }}>Ho capito</button></div>}
+          <button className="wizard-help mq-only-3d" aria-label="Guida ai gesti" onClick={() => setGuideOpen(!guideOpen)}><HelpCircle size={18} /></button>
+          {viewMessage && <span className="wizard-view-message mq-only-3d" role="status">{viewMessage}</span>}
+          {guideOpen && <div className="wizard-gesture-guide mq-only-3d" role="region" aria-label="Guida ai gesti"><strong>Guarda l’album da vicino</strong><p>Trascina con un dito per girare la vista.<br />Allarga due dita per vedere la trama.<br />Le icone mostrano fronte, retro ed estrazione.</p><button onClick={() => { setGuideOpen(false); try { sessionStorage.setItem('mockup-touch-guide', 'seen'); } catch { /* Non impedire la personalizzazione se lo storage è disabilitato. */ } }}>Ho capito</button></div>}
         </>, wizard.controlsSlot)}
         {!token && adminPanel(<div hidden={adminTab !== 'review'} className="space-y-3">
           <h3 className="font-semibold">Controlla la proposta e scegli come proseguire</h3>

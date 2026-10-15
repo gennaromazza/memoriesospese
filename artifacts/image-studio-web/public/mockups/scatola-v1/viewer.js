@@ -597,8 +597,8 @@ function goStep(index, {focus = true} = {}) {
   $('stepCount').textContent = `Passo ${step + 1} di ${STEPS.length}`;
   const last = step === STEPS.length - 1;
   $('stepTitle').textContent = phone && last ? 'Ecco il tuo Quadrobook' : STEPS[step].title;
-  document.body.classList.toggle('final', phone && last);
-  document.body.classList.remove('full3d');
+  document.body.classList.toggle('mq-final', phone && last);
+  document.body.classList.remove('mq-3d');
   notify('step', {index: step, last});
   $('prev').disabled = step === 0;
   $('next').textContent = step === STEPS.length - 1 ? 'Ricomincia' : 'Avanti';
@@ -788,7 +788,7 @@ if (embedded) {
     const used = galleryData.chapters.filter(c => galleryData.photos.some(p => p.chapterId === c.id));
     box.textContent = '';
     if (used.length) {
-      const chips = document.createElement('div'); chips.className = 'chips';
+      const chips = document.createElement('div'); chips.className = 'mq-chips';
       for (const [id, label] of [['', 'Tutte'], ...used.map(c => [c.id, c.titolo])]) {
         const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.setAttribute('aria-pressed', String(id === active));
         b.onclick = () => { box.dataset.chapter = id; renderGallery(slot); };
@@ -796,7 +796,7 @@ if (embedded) {
       }
       box.append(chips);
     }
-    const grid = document.createElement('div'); grid.className = 'thumbs';
+    const grid = document.createElement('div'); grid.className = 'mq-thumbs';
     for (const photo of galleryData.photos.filter(p => !active || p.chapterId === active)) {
       const b = document.createElement('button'); b.type = 'button'; b.setAttribute('aria-label', photo.name || 'Foto');
       b.style.backgroundImage = `url("${String(photo.thumbnailUrl || photo.url).replace(/"/g, '%22')}")`;
@@ -810,13 +810,13 @@ if (embedded) {
   }
   function setPhone(value) {
     phone = value === true;
-    document.body.classList.toggle('phone', phone);
+    document.body.classList.toggle('phone', phone); document.body.classList.toggle('mq-phone', phone);
     if (phone) for (const d of document.querySelectorAll('.material-category')) d.open = true;
     updateSummary();
     goStep(step, {focus: false});
   }
-  $('pipOpen').onclick = () => document.body.classList.add('full3d');
-  $('pipClose').onclick = () => document.body.classList.remove('full3d');
+  $('pipOpen').onclick = () => document.body.classList.add('mq-3d');
+  $('pipClose').onclick = () => document.body.classList.remove('mq-3d');
   $('closeHost').onclick = () => notify('close');
   $('editAgain').onclick = () => goStep(0);
   $('submitHost').onclick = () => notify('submit');

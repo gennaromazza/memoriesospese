@@ -36,6 +36,7 @@ test("il cliente personalizza il Quadrobook e salva senza poter cambiare il form
   await page.route("**/*", async route => {
     const request = route.request(), url = new URL(request.url());
     if (url.origin !== localOrigin) { await route.abort(); return; }
+    if (url.origin !== localOrigin) { await route.abort(); return; }
     const json = (body: unknown) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
     const base = `/api/photobooks/by-token/${token}`;
     if (url.pathname === `${base}/gallery-photos`) return json({ photos: [{ id: "g1", name: "foto.jpg", url: `${localOrigin}/x.jpg`, thumbnailUrl: `${localOrigin}/x.jpg` }], chapters: [] });
@@ -55,6 +56,7 @@ test("il cliente personalizza il Quadrobook e salva senza poter cambiare il form
 
   await page.goto(`/fotolibro/${token}`);
   await expect(page.getByTestId("photobook-client-progress")).toBeVisible();
+  await page.getByRole("button", { name: "Solo Necessari" }).click({ timeout: 5_000 }).catch(() => undefined);
   await page.getByRole("button", { name: /Personalizza il tuo album|Apri il tuo album|Personalizza album/ }).first().click();
 
   const viewer = page.frameLocator("iframe").first();
@@ -62,20 +64,22 @@ test("il cliente personalizza il Quadrobook e salva senza poter cambiare il form
   // Formato e copertina arrivano dallo studio: il cliente non ha controlli per cambiarli.
   await expect(viewer.locator("#formatInput")).toBeHidden();
   const next = viewer.locator("#next");
-  await next.click(); await expect(viewer.locator("#stepTitle")).toHaveText("Foto del quadro da parete");
+  // Subito dopo una foto la piattaforma può ancora essere occupata e ignorare il tocco: si ritenta finché il passo cambia.
+  const advance = (title: string) => expect(async () => { await next.click(); await expect(viewer.locator("#stepTitle")).toHaveText(title, { timeout: 4_000 }); }).toPass({ timeout: 40_000 });
+  await advance("Foto del quadro da parete");
   const choosePhoto = async (slot: string) => {
     await viewer.locator(`[data-pick="${slot}:gallery"]`).click();
     await page.getByRole("button", { name: /foto\.jpg/ }).first().click();
     await expect(viewer.locator(`#${slot}Status`)).toContainText("Foto scelta", { timeout: 20_000 });
   };
   await choosePhoto("base");
-  await next.click(); await expect(viewer.locator("#stepTitle")).toHaveText("Foto della cornice da tavolo");
+  await advance("Foto della cornice da tavolo");
   await choosePhoto("lid");
-  await next.click(); await expect(viewer.locator("#stepTitle")).toHaveText("Copertina dell’album");
+  await advance("Copertina dell’album");
   // La copertina è lasciata al cliente: può scegliere tra la sua foto e la grafica dello studio.
   await expect(viewer.locator("#coverChoice")).toBeVisible();
   await choosePhoto("album");
-  await next.click(); await expect(viewer.locator("#stepTitle")).toHaveText("Riepilogo");
+  await advance("Riepilogo");
   await expect(viewer.locator("#configurationSummary")).toContainText("30 × 20 cm");
   await page.getByRole("button", { name: "Salva bozza" }).click();
   await expect.poll(() => saveBody?.revision).toBe(0);

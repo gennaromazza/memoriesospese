@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><title>Quadrobook</title>
-<style>
+<link rel="stylesheet" href="../phone-ui.css"><style>
 *{box-sizing:border-box}
 html,body{height:100%}
 body{margin:0;background:#f4f1eb;color:#243d44;font:15px system-ui,sans-serif}
@@ -53,67 +53,29 @@ input[type=text]{width:100%;font:inherit;font-size:18px;padding:11px 12px;border
 dialog{width:min(480px,calc(100% - 32px));max-height:88dvh;overflow:auto;border:1px solid #d2d9d4;border-radius:14px;padding:22px;color:#243d44;background:#faf8f3}
 dialog::backdrop{background:#12292c70}.close-dialog{float:right}dialog h2{margin-top:10px}
 .segmented{display:flex;gap:6px;margin:10px 0}.segmented button{flex:1;font-size:13px;min-height:44px}
-/* ---- Telefono nella piattaforma: si sceglie a schermo pieno, il 3D è una miniatura ---- */
+/* ---- Telefono nella piattaforma: stile STANDARD in ../phone-ui.css (stesso per tutti i modelli). Qui solo ciò che è del Quadrobook ---- */
 .phone-only{display:none!important}
-.phone-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .host-status{font-size:13px;margin:10px 0 0;color:#335e56}.host-status:empty{display:none}
 .phone .phone-only{display:revert!important}
-.phone body,body.phone{background:#f6f3ec}
-body.phone main{display:block;height:100%}
-body.phone aside{position:fixed;inset:0;z-index:1;padding:12px 16px 0;border:0;background:#f6f3ec}
-body.phone .phone-top{order:0}body.phone .progress{order:1}body.phone h1{order:2}body.phone .panel-content{order:3}body.phone .wizard-nav{order:4}
-body.phone.full3d .wizard-nav{display:none}
-body.phone .round{width:36px;height:36px;border-radius:50%;padding:0;display:grid!important;place-items:center;font-size:15px}
-body.phone .step-count{margin:0}
-body.phone h1{font:400 26px/1.15 Georgia,"Times New Roman",serif;margin:12px 0 4px;color:#1f2a28}
-body.phone .progress{margin:10px 0 0}
-body.phone .panel-content{padding-bottom:180px}
-body.phone .panel-content>section>p:first-child{font-size:13.5px;margin:0 0 14px}
-body.phone .material-category{border:0;margin:0 0 14px;overflow:visible}
-body.phone .material-category summary{list-style:none;pointer-events:none;padding:0 0 8px;min-height:0;background:none!important;border:0!important;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#6c7470}
-body.phone .material-category summary::-webkit-details-marker{display:none}
-body.phone .materials{grid-template-columns:repeat(3,1fr);gap:12px;padding:0}
-body.phone .materials button{border:0;background:none;padding:0;min-height:0;font-size:12px;color:#3c4542;text-align:center}
-body.phone .materials button[aria-pressed=true]{padding:0;background:none;border:0}
-body.phone .materials .swatch{height:auto;aspect-ratio:1;border-radius:14px;margin:0 0 6px;background-size:cover;box-shadow:inset 0 0 0 1px #0000001a}
-body.phone .materials button[aria-pressed=true] .swatch{box-shadow:0 0 0 3px #f6f3ec,0 0 0 5px #335e56}
-body.phone .photo-slot{border:0;background:none;padding:0;margin:0}
-body.phone .photo-slot+p{display:none}
-body.phone .pick-gallery{display:none}
-body.phone .pick-row{display:block}
-body.phone .pick-upload{border:0;background:none;padding:12px 0;min-height:0;margin:0;font-size:14px;text-decoration:underline;color:#335e56}
-body.phone .gallery{margin:0 -16px}
-.chips{display:flex;gap:6px;overflow-x:auto;padding:0 16px 10px;scrollbar-width:none}
-.chips button{white-space:nowrap;padding:7px 12px;border-radius:999px;font-size:13px;min-height:0}
-.chips button[aria-pressed=true]{background:#1f2a28;color:#fff;border:1px solid #1f2a28;padding:7px 12px}
-.thumbs{display:grid;grid-template-columns:repeat(3,1fr);gap:3px}
-.thumbs button{position:relative;padding:0;border:0;border-radius:0;aspect-ratio:1;background:#e2ded3 center/cover no-repeat}
-.thumbs button[aria-pressed=true]{padding:0;border:0;box-shadow:inset 0 0 0 4px #335e56}
-.thumbs button[aria-pressed=true]::after{content:"✓";position:absolute;right:6px;top:6px;width:24px;height:24px;border-radius:50%;background:#335e56;color:#fff;font-size:13px;display:grid;place-items:center}
-body.phone .wizard-nav{position:fixed;left:0;right:0;bottom:0;z-index:4;border:0;padding:12px 16px max(16px,env(safe-area-inset-bottom,0px));background:linear-gradient(#f6f3ec00,#f6f3ec 35%)}
-body.phone .wizard-nav button{min-height:52px;border-radius:14px;font-weight:600}
-body.phone #prev{flex:none;width:52px;font-size:0}body.phone #prev::before{content:"‹";font-size:22px}
-body.phone .wizard-nav .primary{background:#335e56;border-color:#335e56}
-body.phone .workspace{display:block}
-body.phone .stage{position:fixed;right:16px;bottom:88px;width:112px;height:112px;min-height:0;max-height:none;z-index:5;border-radius:16px;box-shadow:0 10px 30px #1f2a2833,0 0 0 1px #e2ded3;background:#ece8df}
-body.phone .badge,body.phone .hint,body.phone .zoom,body.phone .view-tools,body.phone .pip-close{display:none!important}
-body.phone .pip-open{position:absolute;left:0;right:0;bottom:0;border:0;border-radius:0;padding:6px 8px;min-height:0;background:#fffffff0;font-size:11.5px;font-weight:600;color:#335e56;text-align:left}
-body.phone.full3d .stage{inset:0;width:auto;height:auto;border-radius:0;z-index:20;box-shadow:none}
-body.phone.full3d .pip-open{display:none!important}
-body.phone.full3d .pip-close{display:block!important;position:absolute;left:16px;top:max(12px,env(safe-area-inset-top,0px));border-radius:999px;padding:8px 14px;min-height:0;background:#fffffff0;font-size:13px}
-body.phone.full3d .zoom{display:flex!important;bottom:96px}
-body.phone.full3d .view-tools,body.phone.final .view-tools{display:block!important;position:fixed;left:16px;right:16px;z-index:21;background:none;border:0;padding:0}
-body.phone.full3d .view-tools{bottom:max(24px,env(safe-area-inset-bottom,0px))}
-body.phone .view-tools h2,body.phone .view-tools #modeText,body.phone .view-tools>div:last-child{display:none}
-body.phone .view-tools .row button{background:#ffffffe0;border-radius:12px;font-size:12.5px}
-body.phone .view-tools .row button[aria-pressed=true]{background:#1f2a28;color:#fff;border:1px solid #1f2a28;padding:9px 6px}
-body.phone.final .stage{inset:0 0 auto 0;width:auto;height:58dvh;border-radius:0;z-index:2;box-shadow:none}
-body.phone.final .pip-open{display:none!important}
-body.phone.final .view-tools{top:calc(58dvh - 56px)}
-body.phone.final aside{top:58dvh;padding-top:8px}
-body.phone.final .progress,body.phone.final .wizard-nav{display:none}
-body.phone.final .panel-content{padding-bottom:24px}
-body.phone.final #configurationSummary{font-size:13px}
+body.mq-phone main{display:block;height:100%}
+body.mq-phone .step-count{margin:0}
+body.mq-phone .panel-content>section>p:first-child{margin:0 0 14px}
+body.mq-phone .photo-slot{border:0;background:none;padding:0;margin:0}
+body.mq-phone .photo-slot+p{display:none}
+body.mq-phone .pick-gallery{display:none}
+body.mq-phone .pick-row{display:block}
+body.mq-phone .pick-upload{border:0;background:none;padding:12px 0;min-height:0;margin:0;font-size:14px;text-decoration:underline;color:#335e56}
+body.mq-phone .workspace{display:block}
+body.mq-phone .badge,body.mq-phone .hint,body.mq-phone .zoom,body.mq-phone .view-tools{display:none!important}
+body.mq-phone.mq-3d .zoom{display:flex!important;bottom:96px}
+body.mq-phone.mq-3d .view-tools,body.mq-phone.mq-final .view-tools{display:block!important;position:fixed;left:16px;right:16px;z-index:21;background:none;border:0;padding:0}
+body.mq-phone.mq-3d .view-tools{bottom:max(24px,env(safe-area-inset-bottom,0px))}
+body.mq-phone .view-tools h2,body.mq-phone .view-tools #modeText,body.mq-phone .view-tools>div:last-child{display:none}
+body.mq-phone .view-tools .row button{background:#ffffffe0;border-radius:12px;font-size:12.5px}
+body.mq-phone .view-tools .row button[aria-pressed=true]{background:#1f2a28;color:#fff;border:1px solid #1f2a28;padding:9px 6px}
+body.mq-phone.mq-final .view-tools{top:calc(var(--mq-final-stage) - 56px)}
+body.mq-phone.mq-final .mq-nav{display:none}
+body.mq-phone.mq-final #configurationSummary{font-size:13px}
 .phone-final{gap:10px;margin:14px 0 0}.phone .phone-final{display:flex!important}
 .phone-final button{min-height:52px;border-radius:14px;font-weight:600;font-size:15px}.phone-final .primary{flex:1;background:#335e56;color:#fff;border-color:#335e56}
 [hidden]{display:none!important}
@@ -140,23 +102,23 @@ body.phone.final #configurationSummary{font-size:13px}
 </style>
 <script type="importmap">{"imports":{"three":"../custodia-v1/vendor/package/build/three.module.js","three/addons/":"../custodia-v1/vendor/package/examples/jsm/"}}</script></head>
 <body><header><strong>IMAGE STUDIO</strong><span>Un’unica scatola, tre modi di viverla</span><button type="button" id="openStudio">Strumenti studio</button></header>
-<main><aside>
-<div class="phone-top"><p class="step-count" id="stepCount"></p><button type="button" class="phone-only round" id="closeHost" aria-label="Chiudi">✕</button></div>
-<h1 id="stepTitle" tabindex="-1"></h1>
-<div class="progress" id="progress" aria-hidden="true"></div>
-<div class="panel-content">
+<main><aside class="mq-panel">
+<div class="phone-top mq-top"><p class="step-count" id="stepCount"></p><button type="button" class="phone-only mq-round" id="closeHost" aria-label="Chiudi">✕</button></div>
+<h1 class="mq-title" id="stepTitle" tabindex="-1"></h1>
+<div class="progress mq-progress" id="progress" aria-hidden="true"></div>
+<div class="panel-content mq-content">
 <section id="stepBoxFabric" data-step hidden><p>Un solo tessuto per scatola, album e piedistallo della cornice. Tocca per sceglierlo.</p><div data-for="box" id="materialsBox"></div></section>
-<section id="stepBasePhoto" data-step hidden><p>Questa foto è stampata sul fondo della scatola. Appesa al muro diventa un quadro.</p><div class="photo-slot"><input id="baseUpload" class="local-only" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Foto del quadro da parete"><div class="pick-row host-only"><button type="button" class="pick-gallery" data-pick="base:gallery">Scegli dalla galleria</button><button type="button" class="pick-upload" data-pick="base:upload">Carica una foto</button></div><div class="gallery phone-only" data-gallery="base"></div><button type="button" class="local-only" id="baseRestore">Usa la foto di esempio</button><p id="baseStatus" role="status"></p></div><p>JPG, PNG o WebP, massimo 20 MB.</p></section>
-<section id="stepLidPhoto" data-step hidden><p>Questa foto è sul tappo. Appoggiato sulla sua base diventa una cornice da tavolo.</p><div class="photo-slot"><input id="lidUpload" class="local-only" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Foto della cornice da tavolo"><div class="pick-row host-only"><button type="button" class="pick-gallery" data-pick="lid:gallery">Scegli dalla galleria</button><button type="button" class="pick-upload" data-pick="lid:upload">Carica una foto</button></div><div class="gallery phone-only" data-gallery="lid"></div><button type="button" class="local-only" id="lidRestore">Usa la foto di esempio</button><p id="lidStatus" role="status"></p></div><p>JPG, PNG o WebP, massimo 20 MB.</p></section>
+<section id="stepBasePhoto" data-step hidden><p>Questa foto è stampata sul fondo della scatola. Appesa al muro diventa un quadro.</p><div class="photo-slot"><input id="baseUpload" class="local-only" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Foto del quadro da parete"><div class="pick-row host-only"><button type="button" class="pick-gallery" data-pick="base:gallery">Scegli dalla galleria</button><button type="button" class="pick-upload" data-pick="base:upload">Carica una foto</button></div><div class="mq-gallery phone-only" data-gallery="base"></div><button type="button" class="local-only" id="baseRestore">Usa la foto di esempio</button><p id="baseStatus" role="status"></p></div><p>JPG, PNG o WebP, massimo 20 MB.</p></section>
+<section id="stepLidPhoto" data-step hidden><p>Questa foto è sul tappo. Appoggiato sulla sua base diventa una cornice da tavolo.</p><div class="photo-slot"><input id="lidUpload" class="local-only" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Foto della cornice da tavolo"><div class="pick-row host-only"><button type="button" class="pick-gallery" data-pick="lid:gallery">Scegli dalla galleria</button><button type="button" class="pick-upload" data-pick="lid:upload">Carica una foto</button></div><div class="mq-gallery phone-only" data-gallery="lid"></div><button type="button" class="local-only" id="lidRestore">Usa la foto di esempio</button><p id="lidStatus" role="status"></p></div><p>JPG, PNG o WebP, massimo 20 MB.</p></section>
 <section id="stepCover" data-step hidden><div class="segmented" id="coverChoice" role="group" aria-label="Tipo di copertina"><button type="button" data-cover="photo" aria-pressed="true">Una tua foto</button><button type="button" data-cover="graphic" aria-pressed="false">Grafica dello studio</button></div>
-<div id="coverPhotoBox"><p>Questa foto è sulla copertina dell’album.</p><div class="photo-slot"><input id="albumUpload" class="local-only" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Foto della copertina dell’album"><div class="pick-row host-only"><button type="button" class="pick-gallery" data-pick="album:gallery">Scegli dalla galleria</button><button type="button" class="pick-upload" data-pick="album:upload">Carica una foto</button></div><div class="gallery phone-only" data-gallery="album"></div><button type="button" class="local-only" id="albumRestore">Usa la foto di esempio</button><p id="albumStatus" role="status"></p></div><p>JPG, PNG o WebP, massimo 20 MB.</p></div>
+<div id="coverPhotoBox"><p>Questa foto è sulla copertina dell’album.</p><div class="photo-slot"><input id="albumUpload" class="local-only" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Foto della copertina dell’album"><div class="pick-row host-only"><button type="button" class="pick-gallery" data-pick="album:gallery">Scegli dalla galleria</button><button type="button" class="pick-upload" data-pick="album:upload">Carica una foto</button></div><div class="mq-gallery phone-only" data-gallery="album"></div><button type="button" class="local-only" id="albumRestore">Usa la foto di esempio</button><p id="albumStatus" role="status"></p></div><p>JPG, PNG o WebP, massimo 20 MB.</p></div>
 <div id="coverGraphicBox" hidden><p>In copertina c’è la grafica preparata dallo studio: la vedi sull’album nell’anteprima.</p></div></section>
 <section id="stepSummary" data-step hidden><p id="configurationSummary" aria-live="polite"></p><div class="phone-final phone-only"><button type="button" id="editAgain">Modifica</button><button type="button" id="submitHost" class="primary">Invia allo studio</button></div><p id="hostStatus" class="host-status" role="status"></p><p class="note">Prototipo con geometria semplificata. Misure, texture e scala della trama indicative. Le foto restano in questa prova locale.</p></section>
 </div>
-<nav class="wizard-nav" aria-label="Passi"><button type="button" id="prev">Indietro</button><button type="button" id="next" class="primary">Avanti</button></nav>
+<nav class="wizard-nav mq-nav" aria-label="Passi"><button type="button" id="prev" class="mq-prev" aria-label="Indietro">Indietro</button><button type="button" id="next" class="primary mq-primary">Avanti</button></nav>
 </aside>
 <div class="workspace">
-<section class="stage" aria-label="Modello tridimensionale della scatola"><div class="badge" id="materialLabel">Caricamento rivestimento…</div><canvas id="viewport" aria-label="Scatola 3D: trascina per ruotare"></canvas><button type="button" class="pip-open phone-only" id="pipOpen">Vedi in 3D ›</button><button type="button" class="pip-close phone-only" id="pipClose">‹ Torna alle scelte</button><div class="status" id="status" role="status">Caricamento del modello 3D…</div><div class="hint">Trascina per ruotare · rotellina per zoom</div><div class="zoom"><button type="button" id="plus" aria-label="Ingrandisci">+</button><button type="button" id="minus" aria-label="Riduci">−</button></div></section>
+<section class="stage mq-stage" aria-label="Modello tridimensionale della scatola"><div class="badge" id="materialLabel">Caricamento rivestimento…</div><canvas id="viewport" aria-label="Scatola 3D: trascina per ruotare"></canvas><button type="button" class="mq-pip-open phone-only" id="pipOpen">Vedi in 3D ›</button><button type="button" class="mq-pip-close phone-only" id="pipClose">‹ Torna alle scelte</button><div class="status" id="status" role="status">Caricamento del modello 3D…</div><div class="hint">Trascina per ruotare · rotellina per zoom</div><div class="zoom"><button type="button" id="plus" aria-label="Ingrandisci">+</button><button type="button" id="minus" aria-label="Riduci">−</button></div></section>
 <section class="view-tools" aria-label="Comandi vista 3D"><div>
 <h2>Come la usi</h2><div class="row"><button type="button" data-mode="closed" aria-pressed="true">Scatola chiusa</button><button type="button" data-mode="open" aria-pressed="false">Apri e smonta</button><button type="button" data-mode="uses" aria-pressed="false">I tre usi</button></div>
 <p id="modeText" role="status"></p></div>

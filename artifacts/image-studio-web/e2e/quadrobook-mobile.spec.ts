@@ -82,7 +82,7 @@ test("Quadrobook da telefono: la barra azioni non copre il 3D", async ({ page })
   await next.click(); await expect(viewer.locator("#stepTitle")).toHaveText("Foto del quadro da parete");
   // La galleria del cliente è dentro lo slide: un tocco e la foto è scelta.
   const pick = async (slot: string) => {
-    await viewer.locator(`[data-gallery="${slot}"] .thumbs button`).first().click();
+    await viewer.locator(`[data-gallery="${slot}"] .mq-thumbs button`).first().click();
     await expect(viewer.locator(`#${slot}Status`)).toContainText("Foto scelta", { timeout: 20_000 });
   };
   await pick("base");
