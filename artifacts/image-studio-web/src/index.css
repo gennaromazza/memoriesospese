@@ -18,16 +18,16 @@
   object-position: var(--wedding-cover-card-position-desktop, 50% 50%);
 }
 
+.blog-article-cover-image {
+  aspect-ratio: auto;
+  height: auto;
+  max-height: none;
+  object-fit: contain;
+}
+
 @media (max-width: 639px) {
   .wedding-cover-image {
     object-position: var(--wedding-cover-position-mobile, 50% 50%);
-  }
-
-  .blog-article-cover-image {
-    aspect-ratio: auto;
-    height: auto;
-    max-height: none;
-    object-fit: contain;
   }
 
   .wedding-cover-card-image {
