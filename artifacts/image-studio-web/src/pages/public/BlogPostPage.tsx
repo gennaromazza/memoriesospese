@@ -339,7 +339,7 @@ export default function BlogPostPage() {
             <img
               src={post.coverImage}
               alt={post.coverImageAlt || post.title}
-              className="wedding-cover-image w-full object-cover"
+              className="wedding-cover-image blog-article-cover-image w-full object-cover"
               style={weddingCoverPositionStyle(
                 post.coverImagePosition,
                 post.coverImageMobilePosition,
