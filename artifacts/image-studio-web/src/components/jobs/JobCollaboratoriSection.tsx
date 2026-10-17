@@ -462,7 +462,11 @@ export function JobCollaboratoriSection({
                 const pagato = assignment.pagamenti?.reduce((s, p) => s + p.importo, 0) ?? 0;
                 const residuo = assignment.saldoResiduo ?? assignment.compenso;
                 return (
-                  <div key={assignment.id} className="min-w-0 border rounded-lg p-3 sm:p-4 space-y-3 bg-white">
+                  <div
+                    key={assignment.id}
+                    data-testid={`job-collaborator-assignment-${assignment.id}`}
+                    className="min-w-0 border rounded-lg p-3 sm:p-4 space-y-3 bg-white"
+                  >
                     {/* Header: nome + stato + azioni */}
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
@@ -596,7 +600,10 @@ export function JobCollaboratoriSection({
                 </TableHeader>
                 <TableBody>
                   {assignments.map((assignment) => (
-                    <TableRow key={assignment.id}>
+                    <TableRow
+                      key={assignment.id}
+                      data-testid={`job-collaborator-assignment-${assignment.id}`}
+                    >
                       <TableCell className="font-medium">
                         {getCollaboratoreNome(assignment.collaboratoreId)}
                       </TableCell>

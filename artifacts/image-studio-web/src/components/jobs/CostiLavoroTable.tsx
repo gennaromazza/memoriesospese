@@ -296,19 +296,19 @@ export default function CostiLavoroTable({
       <div className="grid grid-cols-3 gap-2 sm:gap-4">
         <div className="p-3 sm:p-4 bg-blue-50 rounded-lg">
           <p className="text-xs sm:text-sm text-muted-foreground">Totale Costi</p>
-          <p className="text-base sm:text-2xl font-bold text-blue-600">
+          <p className="text-base sm:text-2xl font-bold text-blue-600" data-testid="text-job-total-costs">
             €{totaleCosti.toFixed(2)}
           </p>
         </div>
         <div className="p-3 sm:p-4 bg-green-50 rounded-lg">
           <p className="text-xs sm:text-sm text-muted-foreground">Margine</p>
-          <p className="text-base sm:text-2xl font-bold text-green-600">
+          <p className="text-base sm:text-2xl font-bold text-green-600" data-testid="text-job-margin">
             €{margine.toFixed(2)}
           </p>
         </div>
         <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
           <p className="text-xs sm:text-sm text-muted-foreground">Margine %</p>
-          <p className="text-base sm:text-2xl font-bold">
+          <p className="text-base sm:text-2xl font-bold" data-testid="text-job-margin-percentage">
             {marginePerc.toFixed(1)}%
           </p>
         </div>

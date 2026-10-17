@@ -35,6 +35,12 @@ type FirestoreRestValue =
   | { arrayValue: { values?: FirestoreRestValue[] } }
   | { mapValue: { fields: Record<string, FirestoreRestValue> } };
 
+interface LocalCollaboratorApiState {
+  assignments: Array<Record<string, any>>;
+  assignmentReads: number;
+  paymentWrites: Array<{ assignmentId: string; payload: Record<string, any> }>;
+}
+
 function requireLoopback(raw: string, label: string): void {
   const hostname = new URL(raw).hostname.replace(/^\[|\]$/g, "");
   if (!["localhost", "127.0.0.1", "::1"].includes(hostname)) {
@@ -289,6 +295,11 @@ async function installLocalRoutes(
     verifiedUntil: null,
     expectedClaim: null,
   },
+  localState: LocalCollaboratorApiState = {
+    assignments: [],
+    assignmentReads: 0,
+    paymentWrites: [],
+  },
 ): Promise<void> {
   requireLoopback(process.env.JOB_COST_PAYMENT_E2E_BASE_URL || "http://127.0.0.1:4181", "App URL");
   await page.route("**/*", async (route) => {
@@ -307,7 +318,60 @@ async function installLocalRoutes(
         contentType: "application/json",
         body: JSON.stringify(body),
       });
-    if (route.request().method() !== "GET") {
+    const method = route.request().method();
+    const addPaymentMatch = url.pathname.match(
+      /^\/api\/collaboratori\/assignments\/([^/]+)\/add-payment$/,
+    );
+    if (method === "POST" && addPaymentMatch) {
+      const assignmentId = decodeURIComponent(addPaymentMatch[1]);
+      const assignment = localState.assignments.find((item) => item.id === assignmentId);
+      if (!assignment) {
+        await route.fulfill({
+          status: 404,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "Fixture incarico non trovato." }),
+        });
+        return;
+      }
+
+      const payload = route.request().postDataJSON() as {
+        importo: number;
+        tipo: string;
+        metodo: string;
+        note?: string;
+        data: string;
+      };
+      localState.paymentWrites.push({ assignmentId, payload });
+      const paymentDate = new Date(`${payload.data}T12:00:00.000Z`);
+      const payment = {
+        id: `e2e-payment-${localState.paymentWrites.length}`,
+        tipo: payload.tipo,
+        importo: payload.importo,
+        metodo: payload.metodo,
+        ...(payload.note ? { note: payload.note } : {}),
+        data: {
+          _seconds: Math.floor(paymentDate.getTime() / 1000),
+          _nanoseconds: 0,
+        },
+        cashMovementId: `e2e-cash-movement-${localState.paymentWrites.length}`,
+      };
+      const pagamenti = [...(assignment.pagamenti || []), payment];
+      const totalePagato = pagamenti.reduce((sum, item) => sum + item.importo, 0);
+      const saldoResiduo = Math.max(0, assignment.compenso - totalePagato);
+      localState.assignments = localState.assignments.map((item) =>
+        item.id === assignmentId
+          ? {
+              ...item,
+              pagamenti,
+              saldoResiduo,
+              isPagato: assignment.compenso > 0 && saldoResiduo <= 0,
+            }
+          : item,
+      );
+      await json({ success: true });
+      return;
+    }
+    if (method !== "GET") {
       await route.fulfill({
         status: 403,
         contentType: "application/json",
@@ -379,7 +443,8 @@ async function installLocalRoutes(
       return;
     }
     if (url.pathname.startsWith("/api/collaboratori/assignments/job/")) {
-      await json([]);
+      localState.assignmentReads += 1;
+      await json(localState.assignments);
       return;
     }
     if (url.pathname.startsWith("/api/photobooks/mockup-jobs/")) {
@@ -435,11 +500,12 @@ async function installLocalRoutes(
 async function loginAdminSession(
   page: Page,
   securityStatus?: Record<string, unknown>,
+  localState?: LocalCollaboratorApiState,
 ): Promise<{ idToken: string; password: string }> {
   await resetDisposableEmulators();
   const session = await createAdminSession();
   await seedFixture(session.idToken);
-  await installLocalRoutes(page, session.idToken, securityStatus);
+  await installLocalRoutes(page, session.idToken, securityStatus, localState);
 
   await page.goto("/admin");
   const cookieButton = page.getByRole("button", { name: "Solo Necessari" });
@@ -451,8 +517,11 @@ async function loginAdminSession(
   return session;
 }
 
-async function preparePage(page: Page): Promise<{ idToken: string; password: string }> {
-  const session = await loginAdminSession(page);
+async function preparePage(
+  page: Page,
+  localState?: LocalCollaboratorApiState,
+): Promise<{ idToken: string; password: string }> {
+  const session = await loginAdminSession(page, undefined, localState);
   await page.goto(`/admin/jobs/${jobId}`);
   await expect(page.getByTestId(`row-costo-${costId}`)).toContainText(costDescription);
   return session;
@@ -1324,4 +1393,91 @@ test("a payment claimed by another cost is rejected without a partial job update
     ...pristineMovement,
     jobCostAssociation: existingAssociation,
   });
+});
+
+test("a new collaborator advance refreshes job costs and margin without reloading", async ({ page }) => {
+  test.setTimeout(120_000);
+  const assignmentId = "e2e-collaborator-advance";
+  const localState: LocalCollaboratorApiState = {
+    assignments: [
+      {
+        id: assignmentId,
+        jobId,
+        collaboratoreId: "e2e-collaboratore",
+        ruoloInJob: "assistente",
+        status: "pending",
+        compenso: 500,
+        saldoResiduo: 500,
+        isPagato: false,
+        pagamenti: [],
+        prodottiAssegnati: [],
+      },
+    ],
+    assignmentReads: 0,
+    paymentWrites: [],
+  };
+  const documentNavigations: string[] = [];
+  page.on("request", (request) => {
+    if (request.isNavigationRequest() && request.resourceType() === "document") {
+      documentNavigations.push(request.url());
+    }
+  });
+
+  await preparePage(page, localState);
+  await expect.poll(() => localState.assignmentReads).toBeGreaterThan(0);
+  await page.getByTestId("job-cost-details").locator("summary").click();
+  await expect(page.getByTestId("text-job-total-costs")).toHaveText("€145.50");
+  await expect(page.getByTestId("text-job-margin")).toHaveText("€254.50");
+  await expect(page.getByTestId("text-margine")).toContainText("255");
+
+  await page.getByTestId("collaborator-assignments-details").locator("summary").click();
+  const assignmentRow = page.locator(
+    `[data-testid="job-collaborator-assignment-${assignmentId}"]:visible`,
+  );
+  await expect(assignmentRow).toContainText("€500");
+  const assignmentReadsBeforePayment = localState.assignmentReads;
+  const navigationsBeforePayment = documentNavigations.length;
+  const jobUrlBeforePayment = page.url();
+
+  await page
+    .locator(`[data-testid="button-registra-pagamento-${assignmentId}"]:visible`)
+    .click();
+  await page.getByTestId("input-importo-pagamento").fill("100");
+  await page.getByTestId("input-data-pagamento").fill("2026-10-15");
+
+  const paymentResponsePromise = page.waitForResponse((response) => {
+    const request = response.request();
+    return (
+      request.method() === "POST" &&
+      new URL(response.url()).pathname ===
+        `/api/collaboratori/assignments/${assignmentId}/add-payment`
+    );
+  });
+  await page.getByTestId("button-submit-pagamento").click();
+  const paymentResponse = await paymentResponsePromise;
+  expect(paymentResponse.ok()).toBeTruthy();
+  await expect.poll(() => localState.paymentWrites.length).toBe(1);
+  await expect
+    .poll(() => localState.assignmentReads)
+    .toBeGreaterThan(assignmentReadsBeforePayment);
+
+  const paymentId = "e2e-payment-1";
+  await expect(page.getByTestId(`row-automatic-collaborator-payment-${paymentId}`)).toHaveCount(1);
+  await expect(page.getByTestId("text-job-total-costs")).toHaveText("€245.50");
+  await expect(page.getByTestId("text-job-margin")).toHaveText("€154.50");
+  await expect(page.getByTestId("text-margine")).toContainText("155");
+  await expect(assignmentRow).toContainText("€500");
+  await expect(assignmentRow).toContainText("€400.00");
+  expect(localState.assignments[0].compenso).toBe(500);
+  expect(localState.paymentWrites[0]).toMatchObject({
+    assignmentId,
+    payload: {
+      importo: 100,
+      tipo: "acconto",
+      metodo: "bonifico",
+      data: "2026-10-15",
+    },
+  });
+  expect(page.url()).toBe(jobUrlBeforePayment);
+  expect(documentNavigations).toHaveLength(navigationsBeforePayment);
 });
