@@ -449,6 +449,7 @@ export async function addPaymentToAssignment(
     metodo: PaymentMethod;
     note?: string;
     data?: string;
+    idempotencyKey: string;
   },
 ): Promise<void> {
   try {

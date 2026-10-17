@@ -1597,13 +1597,18 @@ router.post('/collaboratori/public/assignment/:id/decline', async (req, res) => 
 router.post('/collaboratori/assignments/:id/add-payment', authenticateFirebase, requireAdmin, async (req: any, res): Promise<HttpHandlerResult> => {
   try {
     const { id } = req.params;
-    const { importo, tipo, metodo, note, data } = req.body as {
+    const { importo, tipo, metodo, note, data, idempotencyKey } = req.body as {
       importo: number;
       tipo: CollaboratorPaymentType;
       metodo: PaymentMethod;
       note?: string;
       data?: string;
+      idempotencyKey: string;
     };
+
+    if (typeof idempotencyKey !== 'string' || !idempotencyKey.trim() || idempotencyKey.length > 128) {
+      return res.status(400).json({ error: 'Chiave pagamento non valida' });
+    }
     
     // Validazione input
     if (!importo || importo <= 0) {
@@ -1628,6 +1633,20 @@ router.post('/collaboratori/assignments/:id/add-payment', authenticateFirebase, 
       if (!assignmentDoc.exists) return null;
 
       const assignment = assignmentDoc.data() as JobCollaboratoreAssignment;
+      const existingPayment = assignment.pagamenti?.find(
+        (payment) => payment.idempotencyKey === idempotencyKey,
+      );
+      if (existingPayment) {
+        const totalePagato = (assignment.pagamenti || []).reduce((sum, payment) => sum + payment.importo, 0);
+        const nuovoSaldoResiduo = assignment.compenso - totalePagato;
+        return {
+          isDuplicate: true as const,
+          saldoResiduo: nuovoSaldoResiduo,
+          isPagato: nuovoSaldoResiduo <= 0,
+          cashMovementId: existingPayment.cashMovementId,
+        };
+      }
+
       const [collaboratoreDoc, jobDoc] = await Promise.all([
         transaction.get(db.collection('collaboratori').doc(assignment.collaboratoreId)),
         transaction.get(db.collection('jobs').doc(assignment.jobId))
@@ -1660,6 +1679,7 @@ router.post('/collaboratori/assignments/:id/add-payment', authenticateFirebase, 
 
       const pagamento: Omit<CollaboratorPayment, 'data'> & { data: any } = {
         id: paymentId,
+        idempotencyKey,
         tipo,
         importo,
         data: paymentDate,
@@ -1684,6 +1704,7 @@ router.post('/collaboratori/assignments/:id/add-payment', authenticateFirebase, 
       transaction.update(assignmentRef, assignmentUpdate);
 
       return {
+        isDuplicate: false as const,
         collaboratore,
         collaboratoreId: collaboratoreDoc.id,
         job,
@@ -1699,33 +1720,39 @@ router.post('/collaboratori/assignments/:id/add-payment', authenticateFirebase, 
     }
     
     // Invia email notifica pagamento (fire-and-forget)
-    const dataJob = paymentResult.job?.eventDate
-      ? formatRomeDateLocale(paymentResult.job.eventDate.toDate(), {
-          weekday: 'long',
-          day: 'numeric',
-          month: 'long',
-          year: 'numeric'
-        }) 
-      : 'Data da confermare';
-    
-    sendPaymentRegisteredEmail(
-      req,
-      { ...paymentResult.collaboratore, id: paymentResult.collaboratoreId },
-      paymentResult.nomeJob,
-      dataJob,
-      importo,
-      tipo,
-      metodo,
-      paymentResult.totalePagato,
-      paymentResult.nuovoSaldoResiduo,
-      note
-    ).catch(err => console.error('❌ Email pagamento fallita (non bloccante):', err));
+    if (!paymentResult.isDuplicate) {
+      const dataJob = paymentResult.job?.eventDate
+        ? formatRomeDateLocale(paymentResult.job.eventDate.toDate(), {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+          })
+        : 'Data da confermare';
+
+      sendPaymentRegisteredEmail(
+        req,
+        { ...paymentResult.collaboratore, id: paymentResult.collaboratoreId },
+        paymentResult.nomeJob,
+        dataJob,
+        importo,
+        tipo,
+        metodo,
+        paymentResult.totalePagato,
+        paymentResult.nuovoSaldoResiduo,
+        note
+      ).catch(err => console.error('❌ Email pagamento fallita (non bloccante):', err));
+    }
     
     res.json({ 
       success: true,
-      saldoResiduo: paymentResult.nuovoSaldoResiduo,
+      saldoResiduo: paymentResult.isDuplicate
+        ? paymentResult.saldoResiduo
+        : paymentResult.nuovoSaldoResiduo,
       isPagato: paymentResult.isPagato,
-      cashMovementId: cashMovementRef.id
+      cashMovementId: paymentResult.isDuplicate
+        ? paymentResult.cashMovementId
+        : cashMovementRef.id
     });
   } catch (error: any) {
     console.error('❌ Error adding payment:', error);

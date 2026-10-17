@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Check, X, Euro, Clock, Calendar, Trash2, Link2, CreditCard, Pencil, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -138,6 +138,7 @@ export function JobCollaboratoriSection({
     note: '',
     data: new Date().toISOString().split('T')[0],
   });
+  const paymentIdempotencyKeyRef = useRef<string | null>(null);
   const [isEditCompensoModalOpen, setIsEditCompensoModalOpen] = useState(false);
   const [editCompensoData, setEditCompensoData] = useState({
     assignmentId: '',
@@ -207,6 +208,7 @@ export function JobCollaboratoriSection({
       queryClient.invalidateQueries({ queryKey: ['cash-movements'] });
       toast({ title: '✅ Pagamento registrato e movimento cassa creato' });
       setIsPaymentModalOpen(false);
+      paymentIdempotencyKeyRef.current = null;
       setSelectedAssignment(null);
       setPaymentFormData({
         importo: 0,
@@ -288,6 +290,7 @@ export function JobCollaboratoriSection({
   };
 
   const handleOpenPaymentModal = (assignment: JobCollaboratoreAssignment) => {
+    paymentIdempotencyKeyRef.current = crypto.randomUUID();
     setSelectedAssignment(assignment);
     setPaymentFormData({
       importo: assignment.saldoResiduo || assignment.compenso,
@@ -302,9 +305,11 @@ export function JobCollaboratoriSection({
   const handleSubmitPayment = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedAssignment) return;
+    const idempotencyKey = paymentIdempotencyKeyRef.current ?? crypto.randomUUID();
+    paymentIdempotencyKeyRef.current = idempotencyKey;
     addPaymentMutation.mutate({
       assignmentId: selectedAssignment.id,
-      payload: paymentFormData,
+      payload: { ...paymentFormData, idempotencyKey },
     });
   };
 
@@ -743,7 +748,16 @@ export function JobCollaboratoriSection({
           </details>
         )}
 
-        <Dialog open={isPaymentModalOpen} onOpenChange={setIsPaymentModalOpen}>
+        <Dialog
+          open={isPaymentModalOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              paymentIdempotencyKeyRef.current = null;
+              setSelectedAssignment(null);
+            }
+            setIsPaymentModalOpen(open);
+          }}
+        >
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Registra Pagamento Collaboratore</DialogTitle>

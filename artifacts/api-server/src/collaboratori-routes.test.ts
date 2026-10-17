@@ -215,6 +215,7 @@ describe('POST /api/collaboratori/assignments/:id/add-payment', () => {
         tipo: 'acconto',
         metodo: 'bonifico',
         data: '2026-08-31',
+        idempotencyKey: 'payment-attempt-1',
       }),
     });
 
@@ -232,6 +233,66 @@ describe('POST /api/collaboratori/assignments/:id/add-payment', () => {
       tipo: 'uscita', importo: 200, metodoPagamento: 'bonifico',
     });
     expect(hasUndefined(state)).toBe(false);
+  });
+
+  it('reuses the committed payment when the response was lost and the request is retried', async () => {
+    const url = `${baseUrl}/api/collaboratori/assignments/assignment1/add-payment`;
+    const request = () => fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        importo: 200,
+        tipo: 'acconto',
+        metodo: 'bonifico',
+        data: '2026-08-31',
+        idempotencyKey: 'payment-after-timeout',
+      }),
+    });
+
+    // The first request commits, but its response is treated as lost by the client.
+    const ignoredFirstResponse = await request();
+    expect(ignoredFirstResponse.status).toBe(200);
+
+    const retryResponse = await request();
+    const retryBody: any = await retryResponse.json();
+
+    expect(retryResponse.status).toBe(200);
+    expect(retryBody).toMatchObject({
+      success: true,
+      saldoResiduo: 300,
+      isPagato: false,
+    });
+    expect(state.jobCollaboratoreAssignments.assignment1.pagamenti).toHaveLength(1);
+    expect(state.jobCollaboratoreAssignments.assignment1.pagamenti[0].idempotencyKey)
+      .toBe('payment-after-timeout');
+    expect(Object.keys(state.cashMovements)).toHaveLength(1);
+    expect(retryBody.cashMovementId).toBe(
+      state.jobCollaboratoreAssignments.assignment1.pagamenti[0].cashMovementId,
+    );
+    expect(sendGmailEmailMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('records a new payment when it has a new idempotency key', async () => {
+    const url = `${baseUrl}/api/collaboratori/assignments/assignment1/add-payment`;
+    const sendPayment = (idempotencyKey: string) => fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        importo: 100,
+        tipo: 'acconto',
+        metodo: 'bonifico',
+        data: '2026-08-31',
+        idempotencyKey,
+      }),
+    });
+
+    const firstResponse = await sendPayment('new-payment-1');
+    const secondResponse = await sendPayment('new-payment-2');
+
+    expect(firstResponse.status).toBe(200);
+    expect(secondResponse.status).toBe(200);
+    expect(state.jobCollaboratoreAssignments.assignment1.pagamenti).toHaveLength(2);
+    expect(Object.keys(state.cashMovements)).toHaveLength(2);
   });
 });
 
