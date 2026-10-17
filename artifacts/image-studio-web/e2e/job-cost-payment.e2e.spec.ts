@@ -42,6 +42,8 @@ interface LocalCollaboratorApiState {
   assignments: Array<Record<string, any>>;
   assignmentReads: number;
   paymentWrites: Array<{ assignmentId: string; payload: Record<string, any> }>;
+  paymentRequestCount?: number;
+  failNextPaymentRequests?: number;
 }
 
 function requireLoopback(raw: string, label: string): void {
@@ -390,6 +392,17 @@ async function installLocalRoutes(
       /^\/api\/collaboratori\/assignments\/([^/]+)\/add-payment$/,
     );
     if (method === "POST" && addPaymentMatch) {
+      localState.paymentRequestCount = (localState.paymentRequestCount ?? 0) + 1;
+      if ((localState.failNextPaymentRequests ?? 0) > 0) {
+        localState.failNextPaymentRequests = (localState.failNextPaymentRequests ?? 0) - 1;
+        await route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "Errore temporaneo di registrazione." }),
+        });
+        return;
+      }
+
       const assignmentId = decodeURIComponent(addPaymentMatch[1]);
       const assignment = localState.assignments.find((item) => item.id === assignmentId);
       if (!assignment) {
@@ -1566,7 +1579,7 @@ test("a payment claimed by another cost is rejected without a partial job update
   });
 });
 
-test("a new collaborator advance refreshes job costs and margin without reloading", async ({ page }) => {
+test("a failed collaborator advance can be retried without phantom costs or duplicate payments", async ({ page }) => {
   test.setTimeout(120_000);
   const assignmentId = "e2e-collaborator-advance";
   const localState: LocalCollaboratorApiState = {
@@ -1586,6 +1599,7 @@ test("a new collaborator advance refreshes job costs and margin without reloadin
     ],
     assignmentReads: 0,
     paymentWrites: [],
+    failNextPaymentRequests: 1,
   };
   const documentNavigations: string[] = [];
   page.on("request", (request) => {
@@ -1625,12 +1639,36 @@ test("a new collaborator advance refreshes job costs and margin without reloadin
     );
   });
   await page.getByTestId("button-submit-pagamento").click();
-  const paymentResponse = await paymentResponsePromise;
+  const failedPaymentResponse = await paymentResponsePromise;
+  expect(failedPaymentResponse.status()).toBe(500);
+  await expect(page.getByText("❌ Errore registrazione pagamento", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("input-importo-pagamento")).toBeVisible();
+  await expect(page.getByTestId("input-importo-pagamento")).toHaveValue("100");
+  await expect(page.getByTestId("input-data-pagamento")).toHaveValue("2026-10-15");
+  await expect(page.getByTestId("row-automatic-collaborator-payment-e2e-payment-1")).toHaveCount(0);
+  await expect(page.getByTestId("text-job-total-costs")).toHaveText("€145.50");
+  await expect(page.getByTestId("text-job-margin")).toHaveText("€254.50");
+  await expect(page.getByTestId("text-margine")).toContainText("255");
+  expect(localState.paymentWrites).toHaveLength(0);
+  expect(localState.assignments[0].pagamenti).toHaveLength(0);
+
+  const assignmentReadsBeforeRetry = localState.assignmentReads;
+  const retryResponsePromise = page.waitForResponse((response) => {
+    const request = response.request();
+    return (
+      request.method() === "POST" &&
+      new URL(response.url()).pathname ===
+        `/api/collaboratori/assignments/${assignmentId}/add-payment`
+    );
+  });
+  await page.getByTestId("button-submit-pagamento").click();
+  const paymentResponse = await retryResponsePromise;
   expect(paymentResponse.ok()).toBeTruthy();
+  await expect.poll(() => localState.paymentRequestCount).toBe(2);
   await expect.poll(() => localState.paymentWrites.length).toBe(1);
   await expect
     .poll(() => localState.assignmentReads)
-    .toBeGreaterThan(assignmentReadsBeforePayment);
+    .toBeGreaterThan(assignmentReadsBeforeRetry);
 
   const paymentId = "e2e-payment-1";
   await expect(page.getByTestId(`row-automatic-collaborator-payment-${paymentId}`)).toHaveCount(1);
@@ -1640,6 +1678,8 @@ test("a new collaborator advance refreshes job costs and margin without reloadin
   await expect(assignmentRow).toContainText("€500");
   await expect(assignmentRow).toContainText("€400.00");
   expect(localState.assignments[0].compenso).toBe(500);
+  expect(localState.assignments[0].pagamenti).toHaveLength(1);
+  expect(localState.paymentWrites).toHaveLength(1);
   expect(localState.paymentWrites[0]).toMatchObject({
     assignmentId,
     payload: {
