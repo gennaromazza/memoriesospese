@@ -1,12 +1,16 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Euro, TrendingUp, TrendingDown, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import type { CollaboratorCostSummary } from '@/lib/job-collaborator-costs';
 
 interface FinancialSummaryCardProps {
   totalePreventivato: number;
   totalePagato: number;
   saldoResiduo: number;
   totaleCosti: number;
+  collaboratorCosts?: CollaboratorCostSummary;
+  collaboratorCostsLoading?: boolean;
+  collaboratorCostsError?: boolean;
   className?: string;
 }
 
@@ -15,6 +19,9 @@ export default function FinancialSummaryCard({
   totalePagato,
   saldoResiduo,
   totaleCosti,
+  collaboratorCosts,
+  collaboratorCostsLoading = false,
+  collaboratorCostsError = false,
   className
 }: FinancialSummaryCardProps) {
   const margine = totalePreventivato - totaleCosti;
@@ -116,7 +123,24 @@ export default function FinancialSummaryCard({
                 {formatEuro(totaleCosti)}
               </span>
             </div>
+            {collaboratorCosts && collaboratorCosts.count > 0 && (
+              <p className="mt-1 text-xs text-muted-foreground" data-testid="text-collaborator-cost-breakdown">
+                Compensi collaboratori: {formatEuro(collaboratorCosts.total)}
+                {' · '}pagati {formatEuro(collaboratorCosts.paid)}
+                {' · '}residui {formatEuro(collaboratorCosts.remaining)}
+              </p>
+            )}
           </div>
+        )}
+        {collaboratorCostsLoading && (
+          <p className="mt-3 text-xs text-muted-foreground" role="status">
+            Aggiornamento dei compensi collaboratori; il margine potrebbe cambiare.
+          </p>
+        )}
+        {collaboratorCostsError && (
+          <p className="mt-3 text-xs text-destructive" role="alert">
+            Compensi collaboratori non caricati: il margine visualizzato potrebbe essere parziale.
+          </p>
         )}
       </CardContent>
     </Card>

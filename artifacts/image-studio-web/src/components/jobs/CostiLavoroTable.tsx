@@ -15,6 +15,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getAllLabs } from '@/lib/labs';
 import { getDatedCashExpensesForJobCostMatching } from '@/lib/cash';
 import { isSameVerifiedPaymentCandidate } from '@/lib/job-cost-payments';
+import type { CollaboratorCostSummary } from '@/lib/job-collaborator-costs';
 import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -30,6 +31,10 @@ interface CostiLavoroTableProps {
   jobName: string;
   costi: CostoLavoro[];
   totalePreventivato: number;
+  totaleCostiOverride?: number;
+  collaboratorCosts?: CollaboratorCostSummary;
+  collaboratorCostsLoading?: boolean;
+  collaboratorCostsError?: boolean;
   onAddCosto?: (costo: Omit<CostoLavoro, 'id'>) => void;
   onUpdateCosto?: (id: string, costo: Partial<CostoLavoro>) => void;
   onDeleteCosto?: (id: string) => void;
@@ -77,6 +82,10 @@ export default function CostiLavoroTable({
   jobName,
   costi,
   totalePreventivato,
+  totaleCostiOverride,
+  collaboratorCosts,
+  collaboratorCostsLoading = false,
+  collaboratorCostsError = false,
   onAddCosto,
   onUpdateCosto,
   onDeleteCosto,
@@ -110,7 +119,7 @@ export default function CostiLavoroTable({
       refetchOnWindowFocus: true,
     });
 
-  const totaleCosti = costi.reduce((sum, c) => sum + c.importo, 0);
+  const totaleCosti = totaleCostiOverride ?? costi.reduce((sum, c) => sum + c.importo, 0);
   const margine = totalePreventivato - totaleCosti;
   const marginePerc = totalePreventivato > 0 ? (margine / totalePreventivato) * 100 : 0;
   const editingCosto = costi.find((costo) => costo.id === editingCostoId);
@@ -268,6 +277,38 @@ export default function CostiLavoroTable({
         </div>
       </div>
 
+      {collaboratorCosts && collaboratorCosts.count > 0 && (
+        <div className="rounded-lg border bg-muted/20 px-3 py-2.5 text-sm" data-testid="collaborator-cost-summary">
+          <p className="font-medium">
+            Compensi collaboratori accettati: €{collaboratorCosts.total.toFixed(2)}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Pagato (acconti e saldi): €{collaboratorCosts.paid.toFixed(2)}
+            {' · '}Residuo: €{collaboratorCosts.remaining.toFixed(2)}
+          </p>
+          {collaboratorCosts.autoIncluded > 0 && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              €{collaboratorCosts.autoIncluded.toFixed(2)} inclusi automaticamente nei costi.
+            </p>
+          )}
+          {collaboratorCosts.matchedManual > 0 && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              €{collaboratorCosts.matchedManual.toFixed(2)} già presenti come costo collaboratore: non conteggiati una seconda volta.
+            </p>
+          )}
+        </div>
+      )}
+      {collaboratorCostsLoading && (
+        <p className="text-xs text-muted-foreground" role="status">
+          Aggiornamento dei compensi collaboratori: il margine potrebbe aggiornarsi tra poco.
+        </p>
+      )}
+      {collaboratorCostsError && (
+        <p className="text-xs text-destructive" role="alert">
+          Non è stato possibile caricare gli incarichi: il totale potrebbe non includere i compensi collaboratori.
+        </p>
+      )}
+
       {/* ── Inline Add Form (fuori dalla tabella) ── */}
       {(isAdding || editingCostoId) && (
         <div className="rounded-lg border border-dashed border-blue-300 bg-blue-50/40 p-4 space-y-3">
@@ -386,7 +427,7 @@ export default function CostiLavoroTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {costi.length === 0 ? (
+              {costi.length === 0 && !((collaboratorCosts?.autoIncluded ?? 0) > 0) ? (
                 <TableRow>
                   <TableCell
                     colSpan={isAdmin ? 5 : 4}
@@ -395,8 +436,22 @@ export default function CostiLavoroTable({
                     Nessun costo inserito
                   </TableCell>
                 </TableRow>
-              ) : (
-                costi.map(costo => {
+              ) : null}
+              {collaboratorCosts && collaboratorCosts.autoIncluded > 0 && (
+                <TableRow data-testid="row-automatic-collaborator-cost">
+                  <TableCell>
+                    <p className="font-medium text-sm">Compensi collaboratori (incarichi accettati)</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      Importo concordato; acconti e saldi sono mostrati sopra e non sommati di nuovo.
+                    </p>
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell">Collaboratore</TableCell>
+                  <TableCell className="font-mono">€{collaboratorCosts.autoIncluded.toFixed(2)}</TableCell>
+                  <TableCell className="hidden md:table-cell">—</TableCell>
+                  {isAdmin && <TableCell />}
+                </TableRow>
+              )}
+              {costi.map(costo => {
                   const linkedCashMovement = costo.cashMovementId
                     ? cashExpenses.find((movement) => movement.id === costo.cashMovementId)
                     : undefined;
@@ -513,8 +568,7 @@ export default function CostiLavoroTable({
                     )}
                   </TableRow>
                   );
-                })
-              )}
+                })}
             </TableBody>
           </Table>
         </div>

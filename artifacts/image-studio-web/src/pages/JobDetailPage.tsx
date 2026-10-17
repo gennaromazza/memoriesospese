@@ -1292,6 +1292,9 @@ export default function JobDetailPage() {
           totalePagato={jobFinancials.totalePagato}
           saldoResiduo={jobFinancials.saldoResiduo}
           totaleCosti={jobFinancials.totaleCosti}
+          collaboratorCosts={jobFinancials.collaboratorCosts}
+          collaboratorCostsLoading={jobFinancials.collaboratorCostsLoading}
+          collaboratorCostsError={jobFinancials.collaboratorCostsError}
           className="mb-6 shadow-md"
         />
 
@@ -1675,6 +1678,10 @@ export default function JobDetailPage() {
                     jobName={job.nomeEvento}
                     costi={job.costi || []}
                     totalePreventivato={jobFinancials.totalePreventivato}
+                    totaleCostiOverride={jobFinancials.totaleCosti}
+                    collaboratorCosts={jobFinancials.collaboratorCosts}
+                    collaboratorCostsLoading={jobFinancials.collaboratorCostsLoading}
+                    collaboratorCostsError={jobFinancials.collaboratorCostsError}
                     onAddCosto={handleAddCosto}
                     onUpdateCosto={handleUpdateCosto}
                     onDeleteCosto={handleDeleteCosto}

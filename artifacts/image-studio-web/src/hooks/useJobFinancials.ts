@@ -8,6 +8,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { getPaymentSchedulesForJob } from '@/lib/payment-schedules';
 import { getQuotesForJob, calculateQuoteTotalForPayments } from '@/lib/quotes';
+import { getJobAssignments } from '@/lib/collaboratori';
+import { summarizeCollaboratorCosts, type CollaboratorCostSummary } from '@/lib/job-collaborator-costs';
+import type { JobCollaboratoreAssignment } from '@shared/collaboratori-types';
 import type { Job } from '@shared/jobs-types';
 import type { Quote } from '@shared/quotes-types';
 
@@ -18,6 +21,9 @@ interface JobFinancialsData {
   totaleCosti: number;
   margine: number;
   isLoading: boolean;
+  collaboratorCosts: CollaboratorCostSummary;
+  collaboratorCostsLoading: boolean;
+  collaboratorCostsError: boolean;
 }
 
 /**
@@ -43,6 +49,22 @@ export function useJobFinancials(job: Job | null | undefined): JobFinancialsData
     staleTime: 3 * 60 * 1000,
   });
 
+  const {
+    data: collaboratorAssignments = [],
+    isLoading: collaboratorCostsLoading,
+    isError: collaboratorCostsError,
+  } = useQuery<JobCollaboratoreAssignment[]>({
+    queryKey: ['job-assignments', job?.id],
+    queryFn: () => getJobAssignments(job!.id),
+    enabled: !!job?.id,
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const collaboratorCosts = summarizeCollaboratorCosts(collaboratorAssignments, job?.costi || []);
+  const recordedJobCosts = job?.costi?.reduce((sum, cost) =>
+    sum + (Number.isFinite(cost.importo) ? cost.importo : 0), 0) || 0;
+  const totaleCosti = recordedJobCosts + collaboratorCosts.autoIncluded;
+
   if (!job) {
     return {
       totalePreventivato: 0,
@@ -51,18 +73,24 @@ export function useJobFinancials(job: Job | null | undefined): JobFinancialsData
       totaleCosti: 0,
       margine: 0,
       isLoading: false,
+      collaboratorCosts: summarizeCollaboratorCosts(),
+      collaboratorCostsLoading: false,
+      collaboratorCostsError: false,
     };
   }
 
   // Durante caricamento, restituisci valori da job snapshot come fallback
-  if (scheduleLoading || quotesLoading) {
+  if (scheduleLoading || quotesLoading || collaboratorCostsLoading) {
     return {
       totalePreventivato: job.financials?.totalePreventivato || 0,
       totalePagato: job.financials?.totalePagato || 0, // Fallback a snapshot
       saldoResiduo: job.financials?.saldoResiduo || 0,
-      totaleCosti: job.costi?.reduce((sum, c) => sum + c.importo, 0) || 0,
-      margine: (job.financials?.totalePreventivato || 0) - (job.costi?.reduce((sum, c) => sum + c.importo, 0) || 0),
+      totaleCosti,
+      margine: (job.financials?.totalePreventivato || 0) - totaleCosti,
       isLoading: true,
+      collaboratorCosts,
+      collaboratorCostsLoading,
+      collaboratorCostsError,
     };
   }
 
@@ -99,9 +127,6 @@ export function useJobFinancials(job: Job | null | undefined): JobFinancialsData
     ? schedulesTotalePagato
     : (job.financials?.totalePagato || 0);
 
-  // 3. Totale costi REAL-TIME da array costi
-  const totaleCosti = job.costi?.reduce((sum, c) => sum + c.importo, 0) || 0;
-
   // 4. Calcoli derivati - usa dati schedule se disponibili, altrimenti job.financials
   const saldoResiduo = hasPaymentSchedules
     ? Math.max(0, totalePreventivato - totalePagato)
@@ -114,6 +139,9 @@ export function useJobFinancials(job: Job | null | undefined): JobFinancialsData
     saldoResiduo,
     totaleCosti,
     margine,
-    isLoading: false,
+    isLoading: collaboratorCostsLoading,
+    collaboratorCosts,
+    collaboratorCostsLoading,
+    collaboratorCostsError,
   };
 }
