@@ -331,6 +331,7 @@ export function ShopTopBar({ cartCount, showCart, showOrders }: { cartCount: num
         </Link>
         <div className="gcx-shop-bar-actions">
           <Link href="/regala" className="gcx-shop-bar-link gcx-shop-bar-link-optional">Gift card</Link>
+          <Link href="/stampa-foto-aversa" className="gcx-shop-bar-link">Stampa foto</Link>
           {showOrders ? <Link href={MY_ORDERS_PATH} className="gcx-shop-bar-link gcx-shop-bar-link-optional">I miei ordini</Link> : null}
           {showCart ? (
             <Link

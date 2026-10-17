@@ -80,6 +80,7 @@ describe('uscite verso il sito', () => {
     const open = renderToStaticMarkup(<ShopTopBar cartCount={3} showCart showOrders />);
     expect(open).toContain('href="/online-shop/ordine"');
     expect(open).toContain('Vai al carrello: 3 prodotti');
+    expect(open).toMatch(/<a [^>]*href="\/stampa-foto-aversa"[^>]*>Stampa foto<\/a>/);
     expect(open).toContain('I miei ordini');
     const empty = renderToStaticMarkup(<ShopTopBar cartCount={0} showCart showOrders={false} />);
     expect(empty).toContain('Vai al carrello: vuoto');
