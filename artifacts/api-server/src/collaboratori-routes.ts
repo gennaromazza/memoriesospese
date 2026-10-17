@@ -1611,8 +1611,12 @@ router.post('/collaboratori/assignments/:id/add-payment', authenticateFirebase, 
     }
     
     // Validazione input
-    if (!importo || importo <= 0) {
+    if (typeof importo !== 'number' || !Number.isFinite(importo) || importo <= 0) {
       return res.status(400).json({ error: 'Importo non valido' });
+    }
+    const importoCentesimi = Math.round(importo * 100);
+    if (Math.abs(importo * 100 - importoCentesimi) > 1e-7) {
+      return res.status(400).json({ error: 'L’importo può avere al massimo due decimali' });
     }
     if (!tipo || !['acconto', 'saldo'].includes(tipo)) {
       return res.status(400).json({ error: 'Tipo pagamento non valido' });
@@ -1633,17 +1637,35 @@ router.post('/collaboratori/assignments/:id/add-payment', authenticateFirebase, 
       if (!assignmentDoc.exists) return null;
 
       const assignment = assignmentDoc.data() as JobCollaboratoreAssignment;
+      const compenso = Number(assignment.compenso);
+      const compensoCentesimi = Number.isFinite(compenso) && compenso > 0
+        ? Math.round(compenso * 100)
+        : 0;
+      const pagatoCentesimi = (assignment.pagamenti || []).reduce((sum, payment) => {
+        const importoPagato = Number(payment.importo);
+        return sum + (
+          Number.isFinite(importoPagato) && importoPagato > 0
+            ? Math.round(importoPagato * 100)
+            : 0
+        );
+      }, 0);
+      const residuoCentesimi = Math.max(0, compensoCentesimi - pagatoCentesimi);
       const existingPayment = assignment.pagamenti?.find(
         (payment) => payment.idempotencyKey === idempotencyKey,
       );
       if (existingPayment) {
-        const totalePagato = (assignment.pagamenti || []).reduce((sum, payment) => sum + payment.importo, 0);
-        const nuovoSaldoResiduo = assignment.compenso - totalePagato;
         return {
           isDuplicate: true as const,
-          saldoResiduo: nuovoSaldoResiduo,
-          isPagato: nuovoSaldoResiduo <= 0,
+          saldoResiduo: residuoCentesimi / 100,
+          isPagato: residuoCentesimi === 0,
           cashMovementId: existingPayment.cashMovementId,
+        };
+      }
+
+      if (importoCentesimi > residuoCentesimi) {
+        return {
+          isOverCompensation: true as const,
+          maxImporto: residuoCentesimi / 100,
         };
       }
 
@@ -1689,8 +1711,8 @@ router.post('/collaboratori/assignments/:id/add-payment', authenticateFirebase, 
       };
 
       const nuoviPagamenti = [...(assignment.pagamenti || []), pagamento];
-      const totalePagato = nuoviPagamenti.reduce((sum, p) => sum + p.importo, 0);
-      const nuovoSaldoResiduo = assignment.compenso - totalePagato;
+      const totalePagato = (pagatoCentesimi + importoCentesimi) / 100;
+      const nuovoSaldoResiduo = Math.max(0, compensoCentesimi - pagatoCentesimi - importoCentesimi) / 100;
       const isPagato = nuovoSaldoResiduo <= 0;
       const assignmentUpdate = {
         pagamenti: nuoviPagamenti,
@@ -1717,6 +1739,14 @@ router.post('/collaboratori/assignments/:id/add-payment', authenticateFirebase, 
 
     if (!paymentResult) {
       return res.status(404).json({ error: 'Assegnazione non trovata' });
+    }
+    if ('maxImporto' in paymentResult && typeof paymentResult.maxImporto === 'number') {
+      res.status(409).json({
+        error: `L’importo supera il compenso concordato. Il massimo ancora pagabile è €${paymentResult.maxImporto.toFixed(2)}.`,
+        code: 'PAYMENT_EXCEEDS_COMPENSATION',
+        maxImporto: paymentResult.maxImporto,
+      });
+      return;
     }
     
     // Invia email notifica pagamento (fire-and-forget)

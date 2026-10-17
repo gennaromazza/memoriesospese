@@ -121,6 +121,15 @@ export function JobCollaboratoriSection({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState<JobCollaboratoreAssignment | null>(null);
+  const maxPaymentAmount = selectedAssignment
+    ? Math.max(
+        0,
+        Math.min(
+          selectedAssignment.compenso,
+          selectedAssignment.saldoResiduo ?? selectedAssignment.compenso,
+        ),
+      )
+    : 0;
   const [formData, setFormData] = useState<InsertJobCollaboratoreAssignment>({
     jobId,
     collaboratoreId: '',
@@ -218,8 +227,12 @@ export function JobCollaboratoriSection({
         data: new Date().toISOString().split('T')[0],
       });
     },
-    onError: () => {
-      toast({ title: '❌ Errore registrazione pagamento', variant: 'destructive' });
+    onError: (error) => {
+      toast({
+        title: '❌ Errore registrazione pagamento',
+        description: error instanceof Error ? error.message : undefined,
+        variant: 'destructive',
+      });
     },
   });
 
@@ -293,7 +306,10 @@ export function JobCollaboratoriSection({
     paymentIdempotencyKeyRef.current = crypto.randomUUID();
     setSelectedAssignment(assignment);
     setPaymentFormData({
-      importo: assignment.saldoResiduo || assignment.compenso,
+      importo: Math.max(
+        0,
+        Math.min(assignment.compenso, assignment.saldoResiduo ?? assignment.compenso),
+      ),
       tipo: 'acconto',
       metodo: 'bonifico',
       note: '',
@@ -765,8 +781,13 @@ export function JobCollaboratoriSection({
 
             <form onSubmit={handleSubmitPayment} className="space-y-4">
               {selectedAssignment && (
-                <div className="text-sm text-muted-foreground">
-                  Compenso totale: €{selectedAssignment.compenso} • Saldo residuo: €{(selectedAssignment.saldoResiduo ?? selectedAssignment.compenso).toFixed(2)}
+                <div className="space-y-1 text-sm text-muted-foreground">
+                  <p>
+                    Compenso concordato: €{selectedAssignment.compenso} • Saldo residuo: €{(selectedAssignment.saldoResiduo ?? selectedAssignment.compenso).toFixed(2)}
+                  </p>
+                  <p data-testid="text-limite-pagamento">
+                    Importo massimo registrabile ora: €{maxPaymentAmount.toFixed(2)}
+                  </p>
                 </div>
               )}
 
@@ -776,6 +797,7 @@ export function JobCollaboratoriSection({
                   id="importo"
                   type="number"
                   step="0.01"
+                  max={maxPaymentAmount}
                   value={paymentFormData.importo}
                   onChange={(e) =>
                     setPaymentFormData({ ...paymentFormData, importo: parseFloat(e.target.value) || 0 })

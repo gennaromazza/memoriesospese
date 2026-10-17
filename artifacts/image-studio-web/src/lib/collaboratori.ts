@@ -459,7 +459,18 @@ export async function addPaymentToAssignment(
       data,
     );
 
-    if (!response.ok) throw new Error("Errore registrazione pagamento");
+    if (!response.ok) {
+      const responseBody = await response.json().catch(() => null) as {
+        code?: unknown;
+        error?: unknown;
+      } | null;
+      throw new Error(
+        responseBody?.code === "PAYMENT_EXCEEDS_COMPENSATION" &&
+          typeof responseBody.error === "string"
+          ? responseBody.error
+          : "Errore registrazione pagamento",
+      );
+    }
 
     console.log("✅ Pagamento registrato:", assignmentId);
   } catch (error) {

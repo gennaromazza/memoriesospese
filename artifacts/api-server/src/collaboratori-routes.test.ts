@@ -235,6 +235,97 @@ describe('POST /api/collaboratori/assignments/:id/add-payment', () => {
     expect(hasUndefined(state)).toBe(false);
   });
 
+  it('rifiuta un acconto oltre il residuo senza creare pagamenti o movimenti', async () => {
+    const previousPayment = {
+      id: 'previous-payment',
+      idempotencyKey: 'previous-payment-key',
+      tipo: 'acconto',
+      importo: 400,
+      metodo: 'bonifico',
+      cashMovementId: 'previous-cash-movement',
+    };
+    state.jobCollaboratoreAssignments.assignment1.pagamenti = [previousPayment];
+    state.jobCollaboratoreAssignments.assignment1.saldoResiduo = 100;
+    state.cashMovements['previous-cash-movement'] = {
+      tipo: 'uscita',
+      importo: 400,
+      metodoPagamento: 'bonifico',
+    };
+
+    const response = await fetch(`${baseUrl}/api/collaboratori/assignments/assignment1/add-payment`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        importo: 100.01,
+        tipo: 'saldo',
+        metodo: 'bonifico',
+        data: '2026-08-31',
+        idempotencyKey: 'over-limit-payment',
+      }),
+    });
+    const body: any = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body).toMatchObject({
+      code: 'PAYMENT_EXCEEDS_COMPENSATION',
+      maxImporto: 100,
+    });
+    expect(body.error).toContain('€100.00');
+    expect(state.jobCollaboratoreAssignments.assignment1.pagamenti).toEqual([previousPayment]);
+    expect(Object.keys(state.cashMovements)).toEqual(['previous-cash-movement']);
+    expect(sendGmailEmailMock).not.toHaveBeenCalled();
+  });
+
+  it('accetta un pagamento che porta esattamente al compenso concordato', async () => {
+    const previousPayment = {
+      id: 'previous-payment',
+      idempotencyKey: 'previous-payment-key',
+      tipo: 'acconto',
+      importo: 300.25,
+      metodo: 'bonifico',
+      cashMovementId: 'previous-cash-movement',
+    };
+    state.jobCollaboratoreAssignments.assignment1.pagamenti = [previousPayment];
+    state.jobCollaboratoreAssignments.assignment1.saldoResiduo = 199.75;
+    state.cashMovements['previous-cash-movement'] = {
+      tipo: 'uscita',
+      importo: 300.25,
+      metodoPagamento: 'bonifico',
+    };
+
+    const response = await fetch(`${baseUrl}/api/collaboratori/assignments/assignment1/add-payment`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        importo: 199.75,
+        tipo: 'saldo',
+        metodo: 'bonifico',
+        data: '2026-08-31',
+        idempotencyKey: 'exact-balance-payment',
+      }),
+    });
+    const body: any = await response.json();
+    const assignment = state.jobCollaboratoreAssignments.assignment1;
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({ success: true, saldoResiduo: 0, isPagato: true });
+    expect(assignment.pagamenti).toHaveLength(2);
+    expect(assignment.pagamenti[1]).toMatchObject({
+      idempotencyKey: 'exact-balance-payment',
+      importo: 199.75,
+      cashMovementId: body.cashMovementId,
+    });
+    expect(assignment.saldoResiduo).toBe(0);
+    expect(assignment.isPagato).toBe(true);
+    expect(assignment.dataPagamento).toBeDefined();
+    expect(Object.keys(state.cashMovements)).toHaveLength(2);
+    expect(state.cashMovements[body.cashMovementId]).toMatchObject({
+      tipo: 'uscita',
+      importo: 199.75,
+      metodoPagamento: 'bonifico',
+    });
+  });
+
   it('reuses the committed payment when the response was lost and the request is retried', async () => {
     const url = `${baseUrl}/api/collaboratori/assignments/assignment1/add-payment`;
     const request = () => fetch(url, {

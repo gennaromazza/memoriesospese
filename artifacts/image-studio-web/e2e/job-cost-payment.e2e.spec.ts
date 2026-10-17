@@ -1627,6 +1627,10 @@ test("a failed collaborator advance can be retried without phantom costs or dupl
   await page
     .locator(`[data-testid="button-registra-pagamento-${assignmentId}"]:visible`)
     .click();
+  await expect(page.getByTestId("text-limite-pagamento")).toHaveText(
+    "Importo massimo registrabile ora: €500.00",
+  );
+  await expect(page.getByTestId("input-importo-pagamento")).toHaveAttribute("max", "500");
   await page.getByTestId("input-importo-pagamento").fill("100");
   await page.getByTestId("input-data-pagamento").fill("2026-10-15");
 
