@@ -109,7 +109,7 @@ export default function FinancialSummaryCard({
               </p>
             </div>
             <p className="text-xs text-muted-foreground" data-testid="text-margine-percentage">
-              {marginePercentuale.toFixed(1)}% del preventivo
+              {marginePercentuale.toLocaleString('it-IT', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}% del preventivo
             </p>
           </div>
         </div>
@@ -119,7 +119,7 @@ export default function FinancialSummaryCard({
           <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Costi totali:</span>
-              <span className="font-medium text-gray-900 dark:text-white">
+              <span className="font-medium text-gray-900 dark:text-white" data-testid="text-costi-totali">
                 {formatEuro(totaleCosti)}
               </span>
             </div>

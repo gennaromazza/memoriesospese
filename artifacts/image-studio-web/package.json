@@ -10,7 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:public-homepage": "vitest run --config vitest.config.ts src/components/PublicContactCard.test.tsx",
     "test:print-public-contacts": "vitest run --config vitest.config.ts src/pages/public/StampaFotoAversaPage.contacts.test.tsx",
-    "test:job-cost-payment": "firebase emulators:exec --project wedding-gallery-397b6 --config ../../firebase.passkey-e2e.json --only auth,firestore \"pnpm exec playwright test --config playwright.job-cost-payment.config.ts\""
+    "test:job-cost-payment": "firebase emulators:exec --project wedding-gallery-397b6 --config ../../firebase.job-cost-payment-e2e.json --only auth,firestore \"pnpm exec playwright test --config playwright.job-cost-payment.config.ts\""
   },
   "devDependencies": {
     "@dnd-kit/core": "^6.3.1",

@@ -6,6 +6,9 @@ const authEmulator = "http://127.0.0.1:9099";
 const firestoreEmulator = "http://127.0.0.1:8089";
 const adminEmail = "gennaro.mazzacane@gmail.com";
 const jobId = "e2e-job-cost-payment";
+const advancesJobId = "e2e-job-collaborator-advances";
+const advancesAssignmentId = "e2e-job-collaborator-advances-assignment";
+const advancesCostId = "e2e-job-collaborator-existing-cost";
 const costId = "e2e-job-cost";
 const movementId = "e2e-cash-payment";
 const jobName = "E2E - Abbinamento pagamento";
@@ -281,6 +284,70 @@ async function seedFixture(idToken: string): Promise<{
   return { job, movement };
 }
 
+async function seedAdvancesFixture(idToken: string): Promise<{
+  job: Record<string, any>;
+  assignment: Record<string, any>;
+}> {
+  const existingCost = {
+    id: advancesCostId,
+    descrizione: "Costi già registrati",
+    importo: 570,
+    tipo: "materiale",
+    data: paymentDate,
+  };
+  const payments = [
+    {
+      id: "e2e-advance-400",
+      tipo: "acconto",
+      importo: 400,
+      data: paymentDate,
+      metodo: "bonifico",
+      note: "Primo acconto",
+    },
+    {
+      id: "e2e-advance-250",
+      tipo: "acconto",
+      importo: 250,
+      data: new Date("2026-10-02T10:00:00.000Z"),
+      metodo: "bonifico",
+      note: "Secondo acconto",
+    },
+  ];
+  const job = {
+    nomeEvento: "E2E - Acconti collaboratore",
+    jobType: "matrimonio",
+    status: "confermato",
+    clientiIds: [],
+    costi: [existingCost],
+    financials: {
+      totalePreventivato: 3000,
+      totaleOrdini: 0,
+      totalePagato: 0,
+      saldoResiduo: 3000,
+    },
+    eventDate: paymentDate,
+    createdAt: paymentDate,
+    updatedAt: paymentDate,
+  };
+  const assignment = {
+    jobId: advancesJobId,
+    collaboratoreId: "e2e-collaborator-advances",
+    ruoloInJob: "fotografo_secondario",
+    compenso: 900,
+    tipoPagamento: "forfait",
+    status: "accepted",
+    isPagato: false,
+    pagamenti: payments,
+    saldoResiduo: 250,
+    dataRichiesta: paymentDate,
+    createdAt: paymentDate,
+    updatedAt: paymentDate,
+  };
+
+  await writeFirestoreDocument(idToken, `jobs/${advancesJobId}`, job);
+  return { job, assignment: { id: advancesAssignmentId, ...assignment } };
+}
+
 async function installLocalRoutes(
   page: Page,
   idToken: string,
@@ -384,11 +451,19 @@ async function installLocalRoutes(
       await json({ job: { ...job, id: jobId } });
       return;
     }
-    if (url.pathname === `/api/jobs/${jobId}/timeline`) {
+    if (url.pathname === `/api/jobs/${advancesJobId}`) {
+      const job = await readFirestoreDocument(idToken, `jobs/${advancesJobId}`);
+      await json({ job: { ...job, id: advancesJobId } });
+      return;
+    }
+    if (
+      url.pathname === `/api/jobs/${jobId}/timeline`
+      || url.pathname === `/api/jobs/${advancesJobId}/timeline`
+    ) {
       await json({ events: [] });
       return;
     }
-    if (url.pathname === `/api/payment-schedules/job/${jobId}`) {
+    if (url.pathname.startsWith("/api/payment-schedules/job/")) {
       await json([]);
       return;
     }
@@ -440,6 +515,13 @@ async function installLocalRoutes(
         { id: firstLabId, nome: "Laboratorio Aversa", email: "aversa@example.test", attivo: true },
         { id: secondLabId, nome: "Laboratorio Napoli", email: "napoli@example.test", attivo: true },
       ]);
+      return;
+    }
+    if (url.pathname === "/api/gift-cards/shop") {
+      await json({
+        types: [],
+        paypal: { enabled: false, clientId: null, environment: "sandbox", currency: "EUR" },
+      });
       return;
     }
     if (url.pathname === "/api/collaboratori" || url.pathname === "/api/collaboratori/assignments") {
@@ -530,6 +612,91 @@ async function preparePage(
   await expect(page.getByTestId(`row-costo-${costId}`)).toContainText(costDescription);
   return session;
 }
+
+test("saved collaborator advances appear as separate costs without mutating payments or compensation", async ({ page }) => {
+  test.setTimeout(120_000);
+  const { idToken } = await loginAdminSession(page);
+  const { assignment } = await seedAdvancesFixture(idToken);
+  const pristineJob = await readFirestoreDocument(idToken, `jobs/${advancesJobId}`);
+  const pristineAssignment = structuredClone(assignment);
+  const unexpectedMutations: string[] = [];
+
+  const asApiTimestamp = (date: Date) => ({
+    _seconds: Math.floor(date.getTime() / 1000),
+    _nanoseconds: (date.getTime() % 1000) * 1_000_000,
+  });
+  await page.route(`**/api/collaboratori/assignments/job/${advancesJobId}`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([{
+        ...assignment,
+        dataRichiesta: asApiTimestamp(assignment.dataRichiesta),
+        createdAt: asApiTimestamp(assignment.createdAt),
+        updatedAt: asApiTimestamp(assignment.updatedAt),
+        pagamenti: assignment.pagamenti.map((payment) => ({
+          ...payment,
+          data: asApiTimestamp(payment.data),
+        })),
+      }]),
+    });
+  });
+
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    const method = request.method();
+    const isRelevantApiWrite = url.pathname.startsWith("/api/collaboratori/assignments")
+      || url.pathname.startsWith("/api/payment-schedules")
+      || (url.pathname === `/api/jobs/${advancesJobId}` && method !== "GET");
+    const isFirestoreDocumentWrite = url.hostname === "127.0.0.1"
+      && url.port === "8089"
+      && method !== "GET"
+      && (url.pathname.endsWith("documents:commit")
+        || url.pathname.endsWith("documents:batchWrite")
+        || (url.pathname.includes("/documents/")
+          && ["PATCH", "PUT", "DELETE"].includes(method)));
+    const firestoreWriteBody = request.postData() || "";
+    const isPaymentOrCompensationWrite = isFirestoreDocumentWrite
+      && (firestoreWriteBody.includes("/documents/jobCollaboratoreAssignments/")
+        || firestoreWriteBody.includes("/documents/paymentSchedules/"));
+    if ((isRelevantApiWrite && method !== "GET") || isPaymentOrCompensationWrite) {
+      unexpectedMutations.push(`${method} ${url.pathname}`);
+    }
+  });
+
+  await page.goto(`/admin/jobs/${advancesJobId}`);
+  await expect(page.getByTestId("card-financial-summary")).toBeVisible();
+  const costDetails = page.getByTestId("job-cost-details");
+  await costDetails.locator(":scope > summary").click();
+
+  const firstPaymentRow = page.getByTestId("row-automatic-collaborator-payment-e2e-advance-400");
+  const secondPaymentRow = page.getByTestId("row-automatic-collaborator-payment-e2e-advance-250");
+  await expect(firstPaymentRow).toContainText("Acconto collaboratore");
+  await expect(firstPaymentRow).toContainText("€400.00");
+  await expect(secondPaymentRow).toContainText("Acconto collaboratore");
+  await expect(secondPaymentRow).toContainText("€250.00");
+  await expect(page.locator('[data-testid^="row-automatic-collaborator-payment-"]')).toHaveCount(2);
+  await expect(page.getByTestId(`row-costo-${advancesCostId}`)).toContainText("€570.00");
+
+  await expect(page.getByTestId("text-job-total-costs")).toHaveText("€1220.00");
+  await expect(page.getByTestId("text-job-margin")).toHaveText("€1780.00");
+  await expect(page.getByTestId("text-job-margin-percentage")).toHaveText("59,3%");
+  expect((await page.getByTestId("text-costi-totali").innerText()).replace(/\D/g, "")).toBe("1220");
+  expect((await page.getByTestId("text-margine").innerText()).replace(/\D/g, "")).toBe("1780");
+  await expect(page.getByTestId("text-margine-percentage")).toContainText("59,3%");
+  await expect(page.getByTestId("text-collaborator-cost-breakdown"))
+    .toContainText(/650\s*€/);
+  await expect(page.getByTestId("text-collaborator-cost-breakdown"))
+    .toContainText("non incluso");
+
+  expect(unexpectedMutations).toEqual([]);
+  expect(await readFirestoreDocument(idToken, `jobs/${advancesJobId}`)).toEqual(pristineJob);
+  expect(assignment).toEqual(pristineAssignment);
+  expect(pristineAssignment).toMatchObject({
+    compenso: assignment.compenso,
+    pagamenti: assignment.pagamenti,
+  });
+});
 
 test("notification bell opens the linked booking, consultation, ecommerce order, and photobook", async ({ page }) => {
   test.setTimeout(120_000);

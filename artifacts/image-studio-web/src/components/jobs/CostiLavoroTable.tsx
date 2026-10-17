@@ -309,7 +309,7 @@ export default function CostiLavoroTable({
         <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
           <p className="text-xs sm:text-sm text-muted-foreground">Margine %</p>
           <p className="text-base sm:text-2xl font-bold" data-testid="text-job-margin-percentage">
-            {marginePerc.toFixed(1)}%
+            {marginePerc.toLocaleString('it-IT', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
           </p>
         </div>
       </div>
