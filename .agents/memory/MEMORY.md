@@ -24,7 +24,7 @@
 - [Real Wedding cover contract](wedding-cover-contract.md) — Home e articolo usano endpoint distinti: entrambi devono risolvere lato server la stessa cover e lo stesso fallback; i client usano coverImage/photos[0].
 - [Test framework (vitest) setup](testing-setup.md) — `npx vitest run` (niente npm script); config standalone evita i plugin Vite; pattern per mockare Firestore/Gmail in test server.
 - [Job denormalized aggregates](job-denormalized-aggregates.md) — quoteStatus/transactionCount da ricalcolare sui write-path; financials.totalePagato/saldoResiduo STALE → incassi reali da paymentSchedules.importoPagato.
-- [Costi collaboratori nel margine](job-collaborator-costs.md) — compenso accepted è costo intero; acconti sono pagamenti; l’admin può confermare chi lavora senza accettazione in app.
+- [Costi collaboratori nel margine](job-collaborator-costs.md) — contano come costi solo i pagamenti registrati, acconti inclusi; il compenso non pagato resta informativo.
 - [Caricamento dati nei modal](modal-data-load-on-open.md) — modal sempre montati: fetch Firestore gated su isOpen, non al mount (auth non pronta → liste vuote silenziose).
 - [Quote product grouping](quote-product-sezione-grouping.md) — le viste cliente raggruppano i prodotti per `sezione` (algoritmo groupItems di ProductOrderEditor); `categoria` è un tag separato da NON mostrare.
 - [Date all-day da istante UTC](allday-date-utc-shift.md) — data evento all-day da Date/ISO va estratta in Europe/Rome (toRomeDateTime().toISODate()), mai toISOString().split → shift -1 giorno.

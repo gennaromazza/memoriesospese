@@ -17,14 +17,39 @@ export default function OperationalTracksSection({
   jobId,
 }: OperationalTracksSectionProps) {
   return (
-    <div className="space-y-6">
-      <MockupTrack jobId={jobId} />
-      <div className="border-t border-gray-100" />
-      <LabTrack jobId={jobId} />
-      <div className="border-t border-gray-100" />
-      <VideomakerTrack jobId={jobId} />
-      <div className="border-t border-gray-100" />
-      <ConsegnaFileTrack jobId={jobId} />
+    <div className="space-y-2" data-testid="operational-tracks">
+      <details className="rounded-lg border bg-background">
+        <summary className="cursor-pointer px-3 py-2.5 text-sm font-medium">
+          Album, mockup e personalizzazione
+        </summary>
+        <div className="border-t p-3">
+          <MockupTrack jobId={jobId} />
+        </div>
+      </details>
+      <details className="rounded-lg border bg-background">
+        <summary className="cursor-pointer px-3 py-2.5 text-sm font-medium">
+          Invii al laboratorio
+        </summary>
+        <div className="border-t p-3">
+          <LabTrack jobId={jobId} />
+        </div>
+      </details>
+      <details className="rounded-lg border bg-background">
+        <summary className="cursor-pointer px-3 py-2.5 text-sm font-medium">
+          Videomaker e montaggio
+        </summary>
+        <div className="border-t p-3">
+          <VideomakerTrack jobId={jobId} />
+        </div>
+      </details>
+      <details className="rounded-lg border bg-background">
+        <summary className="cursor-pointer px-3 py-2.5 text-sm font-medium">
+          Consegna e archiviazione file
+        </summary>
+        <div className="border-t p-3">
+          <ConsegnaFileTrack jobId={jobId} />
+        </div>
+      </details>
     </div>
   );
 }

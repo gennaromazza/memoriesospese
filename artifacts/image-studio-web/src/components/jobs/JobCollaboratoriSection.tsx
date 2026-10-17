@@ -402,13 +402,15 @@ export function JobCollaboratoriSection({
     return collab ? `${collab.cognome} ${collab.nome}` : 'N/D';
   };
 
-  const totaleCosti = assignments
-    .filter((a) => a.status === 'accepted')
-    .reduce((sum, a) => sum + a.compenso, 0);
-
   const totalePagato = assignments
-    .filter((a) => a.status === 'accepted')
     .reduce((sum, a) => sum + (a.pagamenti?.reduce((pSum, p) => pSum + p.importo, 0) || 0), 0);
+  const residuoCompensiAccettati = assignments
+    .filter((assignment) => assignment.status === 'accepted')
+    .reduce((sum, assignment) => {
+      const pagato = assignment.pagamenti?.reduce((paymentSum, payment) => paymentSum + payment.importo, 0) || 0;
+      const compenso = Number.isFinite(assignment.compenso) ? assignment.compenso : 0;
+      return sum + Math.max(0, compenso - pagato);
+    }, 0);
 
   return (
     <Card className="min-w-0">
@@ -423,6 +425,25 @@ export function JobCollaboratoriSection({
         </div>
       </CardHeader>
       <CardContent>
+        {!isLoading && (
+          <div
+            className="mb-3 grid grid-cols-3 gap-2 rounded-lg bg-muted/50 p-3"
+            data-testid="collaborator-financial-summary"
+          >
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">Incarichi</p>
+              <p className="text-sm font-semibold">{assignments.length}</p>
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">Pagato</p>
+              <p className="truncate text-sm font-semibold text-green-700">€{totalePagato.toFixed(2)}</p>
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">Residuo accettati</p>
+              <p className="truncate text-sm font-semibold text-orange-700">€{residuoCompensiAccettati.toFixed(2)}</p>
+            </div>
+          </div>
+        )}
         {isLoading ? (
           <div>Caricamento...</div>
         ) : assignments.length === 0 ? (
@@ -430,7 +451,11 @@ export function JobCollaboratoriSection({
             Nessun collaboratore assegnato
           </p>
         ) : (
-          <>
+          <details className="group" data-testid="collaborator-assignments-details">
+            <summary className="cursor-pointer rounded-lg border px-3 py-2.5 text-sm font-medium">
+              Gestisci i {assignments.length} incarichi e i relativi pagamenti
+            </summary>
+            <div className="mt-3 space-y-3">
             {/* ── MOBILE: card per ogni collaboratore ── */}
             <div className="space-y-3 lg:hidden">
               {assignments.map((assignment) => {
@@ -707,24 +732,8 @@ export function JobCollaboratoriSection({
                 </TableBody>
               </Table>
             </div>
-
-            <div className="mt-4 min-w-0 rounded-lg bg-muted p-3 sm:p-4 space-y-2">
-              <div className="flex flex-col gap-1 font-semibold sm:flex-row sm:items-center sm:justify-between">
-                <span className="min-w-0 break-words">💰 Totale Costi Collaboratori (Accettati):</span>
-                <span className="break-words sm:shrink-0">€{totaleCosti.toFixed(2)}</span>
-              </div>
-              <div className="flex flex-col gap-1 text-sm sm:flex-row sm:items-center sm:justify-between">
-                <span>✅ Pagato:</span>
-                <span className="break-words text-green-600 sm:shrink-0">€{totalePagato.toFixed(2)}</span>
-              </div>
-              <div className="flex flex-col gap-1 text-sm sm:flex-row sm:items-center sm:justify-between">
-                <span>⏳ Da Pagare:</span>
-                <span className="break-words text-orange-600 sm:shrink-0">
-                  €{(totaleCosti - totalePagato).toFixed(2)}
-                </span>
-              </div>
             </div>
-          </>
+          </details>
         )}
 
         <Dialog open={isPaymentModalOpen} onOpenChange={setIsPaymentModalOpen}>

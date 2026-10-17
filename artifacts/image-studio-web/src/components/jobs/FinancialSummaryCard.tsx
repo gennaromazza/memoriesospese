@@ -123,11 +123,12 @@ export default function FinancialSummaryCard({
                 {formatEuro(totaleCosti)}
               </span>
             </div>
-            {collaboratorCosts && collaboratorCosts.count > 0 && (
+            {collaboratorCosts && (collaboratorCosts.paidTotal > 0 || collaboratorCosts.remaining > 0) && (
               <p className="mt-1 text-xs text-muted-foreground" data-testid="text-collaborator-cost-breakdown">
-                Compensi collaboratori: {formatEuro(collaboratorCosts.total)}
-                {' · '}pagati {formatEuro(collaboratorCosts.paid)}
-                {' · '}residui {formatEuro(collaboratorCosts.remaining)}
+                Pagamenti collaboratori inclusi nei costi: {formatEuro(collaboratorCosts.paidTotal)}
+                {collaboratorCosts.remaining > 0
+                  ? ` · residuo compensi accettati (non incluso): ${formatEuro(collaboratorCosts.remaining)}`
+                  : ''}
               </p>
             )}
           </div>

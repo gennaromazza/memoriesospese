@@ -2,79 +2,163 @@ import { describe, expect, it } from 'vitest';
 import { summarizeCollaboratorCosts } from './job-collaborator-costs';
 
 describe('summarizeCollaboratorCosts', () => {
-  it('counts the full accepted compensation and shows advances separately', () => {
+  it('counts each recorded advance and final payment as a cost', () => {
     expect(summarizeCollaboratorCosts([
       {
+        id: 'assignment-1',
+        collaboratoreId: 'collaborator-1',
         status: 'accepted',
         compenso: 500,
-        pagamenti: [{ importo: 150 }, { importo: 50 }],
+        pagamenti: [
+          { id: 'payment-1', tipo: 'acconto', importo: 150 },
+          { id: 'payment-2', tipo: 'saldo', importo: 50 },
+        ],
       },
     ])).toEqual({
-      total: 500,
-      paid: 200,
+      agreedTotal: 500,
+      paidTotal: 200,
       remaining: 300,
-      count: 1,
-      autoIncluded: 500,
+      assignmentCount: 1,
+      paymentCount: 2,
+      autoIncluded: 200,
       matchedManual: 0,
+      paymentLines: [
+        {
+          id: 'payment-1',
+          tipo: 'acconto',
+          importo: 150,
+          assignmentId: 'assignment-1',
+          collaboratoreId: 'collaborator-1',
+        },
+        {
+          id: 'payment-2',
+          tipo: 'saldo',
+          importo: 50,
+          assignmentId: 'assignment-1',
+          collaboratoreId: 'collaborator-1',
+        },
+      ],
     });
   });
 
-  it('does not count pending or declined assignments as costs', () => {
+  it('includes payments regardless of acceptance status, but not unpaid compensation', () => {
     expect(summarizeCollaboratorCosts([
-      { status: 'pending', compenso: 300 },
-      { status: 'declined', compenso: 200 },
-    ])).toEqual({
-      total: 0,
-      paid: 0,
+      {
+        id: 'pending-assignment',
+        status: 'pending',
+        compenso: 300,
+        pagamenti: [{ id: 'advance', tipo: 'acconto', importo: 50 }],
+      },
+      {
+        id: 'declined-assignment',
+        status: 'declined',
+        compenso: 200,
+        pagamenti: [],
+      },
+    ])).toMatchObject({
+      agreedTotal: 0,
+      paidTotal: 50,
       remaining: 0,
-      count: 0,
-      autoIncluded: 0,
+      assignmentCount: 1,
+      paymentCount: 1,
+      autoIncluded: 50,
       matchedManual: 0,
     });
   });
 
-  it('does not add an equal manual collaborator cost a second time', () => {
-    expect(summarizeCollaboratorCosts(
-      [{ status: 'accepted', compenso: 570 }],
-      [{ tipo: 'collaboratore', importo: 570 }],
-    )).toEqual({
-      total: 570,
-      paid: 0,
-      remaining: 570,
-      count: 1,
-      autoIncluded: 0,
-      matchedManual: 570,
+  it('includes payments when the agreed compensation has not been defined yet', () => {
+    expect(summarizeCollaboratorCosts([
+      {
+        id: 'assignment-without-compensation',
+        collaboratoreId: 'collaborator-1',
+        status: 'accepted',
+        compenso: 0,
+        pagamenti: [
+          { id: 'advance-1', tipo: 'acconto', importo: 400 },
+          { id: 'advance-2', tipo: 'acconto', importo: 250 },
+        ],
+      },
+    ])).toMatchObject({
+      agreedTotal: 0,
+      paidTotal: 650,
+      remaining: 0,
+      assignmentCount: 1,
+      paymentCount: 2,
+      autoIncluded: 650,
+      matchedManual: 0,
     });
   });
 
-  it('does not match laboratory costs or costs with a different amount', () => {
+  it('does not add a payment twice when a manual cost is linked to its cash movement', () => {
     expect(summarizeCollaboratorCosts(
-      [{ status: 'accepted', compenso: 500 }],
+      [{
+        id: 'assignment-1',
+        status: 'accepted',
+        compenso: 570,
+        pagamenti: [{
+          id: 'payment-1',
+          importo: 200,
+          data: '2026-10-15',
+          cashMovementId: 'cash-1',
+        }],
+      }],
+      [{
+        tipo: 'collaboratore',
+        importo: 200,
+        data: '2026-10-15',
+        cashMovementId: 'cash-1',
+      }],
+    )).toMatchObject({
+      agreedTotal: 570,
+      paidTotal: 200,
+      remaining: 370,
+      autoIncluded: 0,
+      matchedManual: 200,
+      paymentLines: [],
+    });
+  });
+
+  it('matches older unlinked costs one-to-one only when amount and date both agree', () => {
+    const result = summarizeCollaboratorCosts(
+      [{
+        status: 'accepted',
+        compenso: 500,
+        pagamenti: [
+          { id: 'payment-1', importo: 100, data: '2026-10-15' },
+          { id: 'payment-2', importo: 100, data: '2026-10-16' },
+        ],
+      }],
+      [{
+        tipo: 'collaboratore',
+        importo: 100,
+        data: '2026-10-15',
+      }],
+    );
+
+    expect(result.paidTotal).toBe(200);
+    expect(result.autoIncluded).toBe(100);
+    expect(result.matchedManual).toBe(100);
+    expect(result.paymentLines.map(line => line.id)).toEqual(['payment-2']);
+  });
+
+  it('does not match a laboratory cost or a collaborator cost on another date', () => {
+    expect(summarizeCollaboratorCosts(
+      [{
+        status: 'accepted',
+        compenso: 500,
+        pagamenti: [{ id: 'payment-1', importo: 100, data: '2026-10-15' }],
+      }],
       [
-        { tipo: 'fornitore', importo: 500, labStatementId: 'lab-statement-1' },
-        { tipo: 'collaboratore', importo: 100 },
+        { tipo: 'fornitore', importo: 100, data: '2026-10-15', labStatementId: 'lab-1' },
+        { tipo: 'collaboratore', importo: 100, data: '2026-10-16' },
       ],
     )).toMatchObject({
-      total: 500,
-      autoIncluded: 500,
+      agreedTotal: 500,
+      paidTotal: 100,
+      remaining: 400,
+      autoIncluded: 100,
       matchedManual: 0,
-    });
-  });
-
-  it('matches repeated amounts one-to-one and keeps payments from being added as costs', () => {
-    expect(summarizeCollaboratorCosts(
-      [
-        { status: 'accepted', compenso: 250, pagamenti: [{ importo: 100 }] },
-        { status: 'accepted', compenso: 250, pagamenti: [{ importo: 50 }] },
-      ],
-      [{ tipo: 'collaboratore', importo: 250 }],
-    )).toEqual({
-      total: 500,
-      paid: 150,
-      remaining: 350,
-      count: 2,
-      autoIncluded: 250,
-      matchedManual: 250,
+      paymentLines: [{ id: 'payment-1', importo: 100 }],
     });
   });
 });
