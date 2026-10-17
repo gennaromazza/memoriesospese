@@ -396,6 +396,10 @@ async function installLocalRoutes(
       await json(securityStatus);
       return;
     }
+    if (url.pathname === "/api/gift-cards/shop") {
+      await json({ types: [] });
+      return;
+    }
     if (url.pathname === "/api/reminders/status") {
       await json({
         success: true,
@@ -1425,7 +1429,7 @@ test("a new collaborator advance refreshes job costs and margin without reloadin
 
   await preparePage(page, localState);
   await expect.poll(() => localState.assignmentReads).toBeGreaterThan(0);
-  await page.getByTestId("job-cost-details").locator("summary").click();
+  await page.getByTestId("job-cost-details").locator("summary").first().click();
   await expect(page.getByTestId("text-job-total-costs")).toHaveText("€145.50");
   await expect(page.getByTestId("text-job-margin")).toHaveText("€254.50");
   await expect(page.getByTestId("text-margine")).toContainText("255");
