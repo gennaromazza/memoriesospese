@@ -274,6 +274,51 @@ describe('GET /api/collaboratori/assignments/job/:jobId', () => {
   });
 });
 
+describe('PATCH /api/collaboratori/assignments/:id/respond', () => {
+  it('lets an admin confirm an assignment and returns the updated status', async () => {
+    state.jobCollaboratoreAssignments.assignment1.status = 'pending';
+    const response = await fetch(`${baseUrl}/api/collaboratori/assignments/assignment1/respond`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ status: 'accepted' }),
+    });
+    const body: any = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({ id: 'assignment1', status: 'accepted' });
+    expect(state.jobCollaboratoreAssignments.assignment1.status).toBe('accepted');
+  });
+
+  it('rejects invalid acceptance states', async () => {
+    const response = await fetch(`${baseUrl}/api/collaboratori/assignments/assignment1/respond`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ status: 'completed' }),
+    });
+    expect(response.status).toBe(400);
+  });
+
+  it('clears the response date and rejection note when an assignment returns to pending', async () => {
+    Object.assign(state.jobCollaboratoreAssignments.assignment1, {
+      status: 'accepted',
+      dataRisposta: { previous: true },
+      noteRifiuto: 'Motivo precedente',
+    });
+    const response = await fetch(`${baseUrl}/api/collaboratori/assignments/assignment1/respond`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ status: 'pending' }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(state.jobCollaboratoreAssignments.assignment1).toMatchObject({
+      status: 'pending',
+      dataRisposta: null,
+      noteRifiuto: null,
+    });
+  });
+});
+
 describe('GET /api/collaboratori/dashboard/:token', () => {
   it('non espone i dati storici ma mantiene i prodotti nella dashboard', async () => {
     const response = await fetch(`${baseUrl}/api/collaboratori/dashboard/dashboard-token`);

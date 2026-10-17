@@ -22,6 +22,7 @@ interface JobFinancialsData {
   margine: number;
   isLoading: boolean;
   collaboratorCosts: CollaboratorCostSummary;
+  collaboratorAssignments: JobCollaboratoreAssignment[];
   collaboratorCostsLoading: boolean;
   collaboratorCostsError: boolean;
 }
@@ -74,6 +75,7 @@ export function useJobFinancials(job: Job | null | undefined): JobFinancialsData
       margine: 0,
       isLoading: false,
       collaboratorCosts: summarizeCollaboratorCosts(),
+      collaboratorAssignments: [],
       collaboratorCostsLoading: false,
       collaboratorCostsError: false,
     };
@@ -89,6 +91,7 @@ export function useJobFinancials(job: Job | null | undefined): JobFinancialsData
       margine: (job.financials?.totalePreventivato || 0) - totaleCosti,
       isLoading: true,
       collaboratorCosts,
+      collaboratorAssignments,
       collaboratorCostsLoading,
       collaboratorCostsError,
     };
@@ -141,6 +144,7 @@ export function useJobFinancials(job: Job | null | undefined): JobFinancialsData
     margine,
     isLoading: collaboratorCostsLoading,
     collaboratorCosts,
+    collaboratorAssignments,
     collaboratorCostsLoading,
     collaboratorCostsError,
   };

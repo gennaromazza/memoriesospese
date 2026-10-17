@@ -1680,6 +1680,7 @@ export default function JobDetailPage() {
                     totalePreventivato={jobFinancials.totalePreventivato}
                     totaleCostiOverride={jobFinancials.totaleCosti}
                     collaboratorCosts={jobFinancials.collaboratorCosts}
+                    collaboratorAssignments={jobFinancials.collaboratorAssignments}
                     collaboratorCostsLoading={jobFinancials.collaboratorCostsLoading}
                     collaboratorCostsError={jobFinancials.collaboratorCostsError}
                     onAddCosto={handleAddCosto}

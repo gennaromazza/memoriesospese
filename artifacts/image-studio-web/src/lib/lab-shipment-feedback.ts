@@ -8,6 +8,11 @@ export function shipmentHasNewFiles(shipment: LabShipment) {
   );
 }
 
+/** Keep a single shipment open for convenience; show multiple shipments compactly by default. */
+export function defaultExpandedShipmentId(shipments: LabShipment[]): string | null {
+  return shipments.length === 1 ? shipments[0].id : null;
+}
+
 /** A repeatable golden-angle hue keeps shipment accents distinct and stable. */
 export function shipmentAccentHue(sequence: number): number {
   return (((Math.max(1, Math.floor(sequence)) - 1) * 137.508) % 360 + 360) % 360;

@@ -20,6 +20,7 @@ import type {
   InsertCollaboratore,
   UpdateCollaboratore,
   JobCollaboratoreAssignment,
+  JobAcceptanceStatus,
   InsertJobCollaboratoreAssignment,
   CollaboratoreStats,
   CollaboratorPaymentType,
@@ -245,6 +246,25 @@ export async function updateAssignmentCompenso(
   } catch (error) {
     console.error("❌ Errore aggiornamento compenso:", error);
     throw error;
+  }
+}
+
+/**
+ * Aggiorna lo stato di accettazione di un incarico tramite endpoint admin.
+ */
+export async function updateAssignmentAcceptanceStatus(
+  assignmentId: string,
+  status: JobAcceptanceStatus,
+): Promise<void> {
+  const response = await apiRequest(
+    "PATCH",
+    `/api/collaboratori/assignments/${assignmentId}/respond`,
+    { status },
+  );
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || "Errore aggiornamento stato incarico");
   }
 }
 

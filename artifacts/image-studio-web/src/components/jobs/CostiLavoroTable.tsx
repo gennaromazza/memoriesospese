@@ -11,11 +11,13 @@ import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getAllLabs } from '@/lib/labs';
+import { getAllCollaboratori, updateAssignmentAcceptanceStatus } from '@/lib/collaboratori';
 import { getDatedCashExpensesForJobCostMatching } from '@/lib/cash';
 import { isSameVerifiedPaymentCandidate } from '@/lib/job-cost-payments';
 import type { CollaboratorCostSummary } from '@/lib/job-collaborator-costs';
+import type { Collaboratore, JobAcceptanceStatus, JobCollaboratoreAssignment } from '@shared/collaboratori-types';
 import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -33,6 +35,7 @@ interface CostiLavoroTableProps {
   totalePreventivato: number;
   totaleCostiOverride?: number;
   collaboratorCosts?: CollaboratorCostSummary;
+  collaboratorAssignments?: JobCollaboratoreAssignment[];
   collaboratorCostsLoading?: boolean;
   collaboratorCostsError?: boolean;
   onAddCosto?: (costo: Omit<CostoLavoro, 'id'>) => void;
@@ -84,6 +87,7 @@ export default function CostiLavoroTable({
   totalePreventivato,
   totaleCostiOverride,
   collaboratorCosts,
+  collaboratorAssignments = [],
   collaboratorCostsLoading = false,
   collaboratorCostsError = false,
   onAddCosto,
@@ -110,6 +114,12 @@ export default function CostiLavoroTable({
     queryFn: () => getAllLabs(),
   });
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { data: collaborators = [] } = useQuery<Collaboratore[]>({
+    queryKey: ['collaboratori', 'attivi'],
+    queryFn: () => getAllCollaboratori(true),
+    enabled: isAdmin,
+  });
   const { data: cashExpenses = [], isLoading: isLoadingCashExpenses, isError: cashExpensesFailed } =
     useQuery<CashMovementFE[]>({
       queryKey: ['cash-movements', 'job-cost-matching'],
@@ -118,11 +128,38 @@ export default function CostiLavoroTable({
       staleTime: 15_000,
       refetchOnWindowFocus: true,
     });
+  const updateAcceptanceMutation = useMutation({
+    mutationFn: ({ assignmentId, status }: { assignmentId: string; status: JobAcceptanceStatus }) =>
+      updateAssignmentAcceptanceStatus(assignmentId, status),
+    onSuccess: async (_data, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['job-assignments', jobId] }),
+        queryClient.invalidateQueries({ queryKey: ['collaboratoriAssignments'] }),
+      ]);
+      toast({
+        title: 'Stato dell’incarico aggiornato',
+        description: variables.status === 'accepted'
+          ? 'Il compenso è incluso nei costi e nel margine del lavoro.'
+          : 'Il compenso non è incluso nel margine finché l’incarico non risulta accettato.',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Errore aggiornamento incarico',
+        description: error instanceof Error ? error.message : 'Riprova tra poco.',
+        variant: 'destructive',
+      });
+    },
+  });
 
   const totaleCosti = totaleCostiOverride ?? costi.reduce((sum, c) => sum + c.importo, 0);
   const margine = totalePreventivato - totaleCosti;
   const marginePerc = totalePreventivato > 0 ? (margine / totalePreventivato) * 100 : 0;
   const editingCosto = costi.find((costo) => costo.id === editingCostoId);
+  const collaboratorsById = new Map(collaborators.map((collaborator) => [collaborator.id, collaborator]));
+  const nonAcceptedAssignmentCount = collaboratorAssignments.filter(
+    (assignment) => assignment.status !== 'accepted',
+  ).length;
   const matchingCashExpenses = linkingCosto
     ? cashExpenses.filter((movement) =>
       !movement.jobCostAssociation &&
@@ -276,6 +313,76 @@ export default function CostiLavoroTable({
           </p>
         </div>
       </div>
+
+      {isAdmin && collaboratorAssignments.length > 0 && (
+        <details
+          className="rounded-lg border bg-background"
+          open={nonAcceptedAssignmentCount > 0}
+          data-testid="collaborator-acceptance-controls"
+        >
+          <summary className="cursor-pointer list-none px-3 py-2.5 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <span className="flex flex-wrap items-center justify-between gap-2">
+              <span>Stato incarichi collaboratori</span>
+              <Badge variant={nonAcceptedAssignmentCount > 0 ? 'outline' : 'secondary'}>
+                {nonAcceptedAssignmentCount > 0
+                  ? `${nonAcceptedAssignmentCount} non accettati`
+                  : `${collaboratorAssignments.length} accettati`}
+              </Badge>
+            </span>
+          </summary>
+          <div className="space-y-2 border-t p-3">
+            <p className="text-xs text-muted-foreground">
+              Se un collaboratore svolgerà il lavoro ma non ha confermato nell’app, imposta qui lo stato su “Accettato”: il compenso sarà incluso nel margine. Gli acconti registrati restano invariati.
+            </p>
+            {collaboratorAssignments.map((assignment) => {
+              const collaborator = collaboratorsById.get(assignment.collaboratoreId);
+              const collaboratorName = collaborator
+                ? `${collaborator.cognome} ${collaborator.nome}`
+                : `Collaboratore · ${assignment.ruoloInJob}`;
+              const isUpdating = updateAcceptanceMutation.isPending
+                && updateAcceptanceMutation.variables?.assignmentId === assignment.id;
+
+              return (
+                <div
+                  key={assignment.id}
+                  className="flex flex-col gap-2 rounded-md border px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+                  data-testid={`collaborator-acceptance-row-${assignment.id}`}
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{collaboratorName}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {assignment.ruoloInJob} · Compenso €{assignment.compenso.toFixed(2)}
+                    </p>
+                  </div>
+                  <Select
+                    value={assignment.status || 'pending'}
+                    onValueChange={(value) =>
+                      updateAcceptanceMutation.mutate({
+                        assignmentId: assignment.id,
+                        status: value as JobAcceptanceStatus,
+                      })
+                    }
+                    disabled={isUpdating}
+                  >
+                    <SelectTrigger
+                      className="w-full sm:w-[170px]"
+                      aria-label={`Stato incarico di ${collaboratorName}`}
+                      data-testid={`select-acceptance-${assignment.id}`}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pending">In attesa</SelectItem>
+                      <SelectItem value="accepted">Accettato</SelectItem>
+                      <SelectItem value="declined">Rifiutato</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              );
+            })}
+          </div>
+        </details>
+      )}
 
       {collaboratorCosts && collaboratorCosts.count > 0 && (
         <div className="rounded-lg border bg-muted/20 px-3 py-2.5 text-sm" data-testid="collaborator-cost-summary">

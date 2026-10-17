@@ -1172,13 +1172,10 @@ router.patch('/collaboratori/assignments/:id/respond', authenticateFirebase, req
     
     const updateData: any = {
       status,
-      dataRisposta: Timestamp.now(),
+      dataRisposta: status === 'pending' ? null : Timestamp.now(),
+      noteRifiuto: status === 'declined' && noteRifiuto ? noteRifiuto : null,
       updatedAt: Timestamp.now()
     };
-    
-    if (noteRifiuto) {
-      updateData.noteRifiuto = noteRifiuto;
-    }
     
     await db.collection('jobCollaboratoreAssignments').doc(id).update(updateData);
     
