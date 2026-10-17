@@ -28,6 +28,20 @@
 .gcx-shop-bar a:focus-visible, .gcx-shop-page .gcx-btn-gold:focus-visible, .gcx-shop-page .gcx-btn-line:focus-visible { outline: 3px solid var(--gk-f1); outline-offset: 2px; }
 @media (max-width: 520px) { .gcx-shop-bar-link-optional { display: none; } .gcx-shop-bar-in { padding-inline: 12px; } }
 
+/* Servizio di stampa: percorso distinto dai prodotti personalizzati dello shop. */
+.gcx-print-service { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 16px 20px; margin: 28px 0 36px; padding: clamp(20px, 4vw, 30px); border: 1px solid rgba(246, 213, 138, 0.58); border-radius: 12px; background: #fbfaf7; color: #2b0a0e; box-shadow: 0 18px 36px -28px rgba(0, 0, 0, 0.65); }
+.gcx-print-service-icon { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; background: #e8eee7; color: #52695d; }
+.gcx-print-service-icon svg { width: 23px; height: 23px; }
+.gcx-print-service-copy { min-width: 0; }
+.gcx-print-service-eyebrow { margin: 0 0 5px; color: #7b6451; font: 700 11px / 1.3 var(--gcx-body); letter-spacing: 0.12em; text-transform: uppercase; }
+.gcx-print-service h2 { margin: 0 0 6px; color: #52695d; font: italic 700 clamp(23px, 3vw, 30px) / 1.15 var(--gcx-display); }
+.gcx-print-service-copy > p:last-child { margin: 0; color: #57494a; font: 400 14px / 1.55 var(--gcx-body); }
+.gcx-print-service-cta { display: inline-flex; min-height: 46px; align-items: center; justify-content: center; padding: 0 20px; border: 1px solid #52695d; border-radius: 4px; background: #52695d; color: #fff0cf; font: 700 14px / 1.2 var(--gcx-body); text-align: center; text-decoration: none; }
+.gcx-print-service-cta:hover { background: #405448; }
+.gcx-print-service-cta:focus-visible { outline: 3px solid #c0212f; outline-offset: 3px; }
+@media (max-width: 720px) { .gcx-print-service { grid-template-columns: auto minmax(0, 1fr); gap: 14px; } .gcx-print-service-cta { grid-column: 1 / -1; justify-self: start; } }
+@media (max-width: 420px) { .gcx-print-service { grid-template-columns: minmax(0, 1fr); } .gcx-print-service-icon { width: 42px; height: 42px; } }
+
 /* Schede prodotto: il prezzo e il pulsante hanno ciascuno la propria riga e non vengono mai tagliati. */
 .gcx-shop-page .gcx-ideas { grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); }
 .gcx-shop-page .gcx-idea { min-width: 0; }

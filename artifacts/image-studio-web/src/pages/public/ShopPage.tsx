@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Check, Gift, ShoppingBag } from 'lucide-react';
+import { ArrowLeft, Check, Gift, Printer, ShoppingBag } from 'lucide-react';
 import { SHOP_FAQS, SHOP_PATH, SHOP_SEO, SHOP_STEPS, shopCategoryPath, shopCategorySeo } from '@shared/shop-landing-content';
 import { SHOP_TERMS_PATH } from '@shared/shop-legal';
 import {
@@ -296,6 +296,18 @@ export default function ShopPage({ categoryValue }: { categoryValue?: string } =
             <li>Con le tue foto</li>
           </ul>
         </header>
+        <section className="gcx-print-service" aria-labelledby="gcx-print-service-title">
+          <div className="gcx-print-service-icon" aria-hidden="true"><Printer /></div>
+          <div className="gcx-print-service-copy">
+            <p className="gcx-print-service-eyebrow">Un servizio diverso dallo shop</p>
+            <h2 id="gcx-print-service-title">Hai foto da stampare?</h2>
+            <p>
+              Qui trovi regali personalizzati. Se invece vuoi stampare i tuoi scatti scegliendo formati e finiture,
+              scopri il nostro servizio dedicato.
+            </p>
+          </div>
+          <Link href="/stampa-foto-aversa" className="gcx-print-service-cta">Scopri il servizio di stampa</Link>
+        </section>
         {body}
         <footer className="gcx-foot gcx-foot-l">
           <p>{studioName}{studioAddress ? ` · ${studioAddress}` : ''}</p>
@@ -331,7 +343,7 @@ export function ShopTopBar({ cartCount, showCart, showOrders }: { cartCount: num
         </Link>
         <div className="gcx-shop-bar-actions">
           <Link href="/regala" className="gcx-shop-bar-link gcx-shop-bar-link-optional">Gift card</Link>
-          <Link href="/stampa-foto-aversa" className="gcx-shop-bar-link">Stampa foto</Link>
+          <Link href="/stampa-foto-aversa" className="gcx-shop-bar-link">Stampe fotografiche</Link>
           {showOrders ? <Link href={MY_ORDERS_PATH} className="gcx-shop-bar-link gcx-shop-bar-link-optional">I miei ordini</Link> : null}
           {showCart ? (
             <Link

@@ -66,6 +66,9 @@ describe('uscite verso il sito', () => {
       const html = renderPage(data);
       expect(html).toContain('Navigazione dello shop');
       expect(html).toMatch(/<a [^>]*href="\/"[^>]*>.*?Torna al sito/s);
+      expect(html).toContain('Hai foto da stampare?');
+      expect(html).toContain('href="/stampa-foto-aversa"');
+      expect(html).toContain('Se invece vuoi stampare i tuoi scatti scegliendo formati e finiture');
     }
   });
 
@@ -80,7 +83,7 @@ describe('uscite verso il sito', () => {
     const open = renderToStaticMarkup(<ShopTopBar cartCount={3} showCart showOrders />);
     expect(open).toContain('href="/online-shop/ordine"');
     expect(open).toContain('Vai al carrello: 3 prodotti');
-    expect(open).toMatch(/<a [^>]*href="\/stampa-foto-aversa"[^>]*>Stampa foto<\/a>/);
+    expect(open).toMatch(/<a [^>]*href="\/stampa-foto-aversa"[^>]*>Stampe fotografiche<\/a>/);
     expect(open).toContain('I miei ordini');
     const empty = renderToStaticMarkup(<ShopTopBar cartCount={0} showCart showOrders={false} />);
     expect(empty).toContain('Vai al carrello: vuoto');
