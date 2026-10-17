@@ -66,9 +66,10 @@ describe('uscite verso il sito', () => {
       const html = renderPage(data);
       expect(html).toContain('Navigazione dello shop');
       expect(html).toMatch(/<a [^>]*href="\/"[^>]*>.*?Torna al sito/s);
-      expect(html).toContain('Hai foto da stampare?');
+      expect(html).toContain('Stampale nel formato che preferisci');
       expect(html).toContain('href="/stampa-foto-aversa"');
-      expect(html).toContain('Se invece vuoi stampare i tuoi scatti scegliendo formati e finiture');
+      expect(html).toContain('Carica i tuoi scatti, scegli formato e finitura e ordinali online.');
+      expect(html).toContain('Vedi formati e prezzi');
     }
   });
 
@@ -197,12 +198,12 @@ describe('altre migliorie della vetrina', () => {
 });
 
 describe('collegamento alle gift card', () => {
-  it('il pulsante che porta a /regala si chiama "Gift card", non "Idee regalo"', () => {
+  it('spiega cosa si può regalare e porta alla pagina delle gift card', () => {
     const html = renderPage(catalog());
-    expect(html).toMatch(/<a [^>]*href="\/regala"[^>]*>Gift card<\/a>/);
-    expect(html).toContain('Vedi le gift card');
-    expect(html).not.toContain('>Idee regalo<');
-    expect(html).not.toContain('Vedi le idee regalo');
+    expect(html).toMatch(/<a [^>]*href="\/regala"[^>]*>Scopri le gift card<\/a>/);
+    expect(html).toContain('Vuoi regalare un servizio o un’esperienza?');
+    expect(html).toContain('servizi fotografici, stampe o altre proposte Image Studio');
+    expect(html).toContain('Scegli quella che preferisci e inviala subito o programma la consegna.');
     const bar = renderToStaticMarkup(<ShopTopBar cartCount={0} showCart showOrders />);
     expect(bar).toMatch(/href="\/regala"[^>]*>Gift card</);
   });

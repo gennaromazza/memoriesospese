@@ -181,7 +181,7 @@ export default function ShopPage({ categoryValue }: { categoryValue?: string } =
         ) : null}
 
         <section id="prodotti" className="gcx-block" aria-labelledby="gcx-shop-products-t">
-          <h2 id="gcx-shop-products-t" className="gcx-h2">I nostri prodotti</h2>
+          <h2 id="gcx-shop-products-t" className="gcx-h2">I nostri regali personalizzati</h2>
           <p className="gcx-sub">{shippingLine(catalog.shipping)}</p>
           <FreeShippingBanner shipping={catalog.shipping} spentCents={summary.subtotalCents} />
           {!categoryValue && sections.length > 1 ? <ShopCategoryNav sections={sections} label="Categorie dello shop" /> : null}
@@ -241,9 +241,9 @@ export default function ShopPage({ categoryValue }: { categoryValue?: string } =
 
         <aside className="gcx-final">
           <p className="gcx-sub gcx-center-text"><Link href={MY_ORDERS_PATH} className="underline">Hai già ordinato? Vedi i tuoi ordini</Link></p>
-          <h2 className="gcx-h2 gcx-h2-center">Vuoi regalare un servizio?</h2>
-          <p className="gcx-sub gcx-center-text">Shooting, stampe e sconti da usare in studio: scegli una gift card e consegnala quando vuoi.</p>
-          <div className="gcx-cta-row"><Link href="/regala" className="gcx-btn-gold">Vedi le gift card</Link></div>
+          <h2 className="gcx-h2 gcx-h2-center">Vuoi regalare un servizio o un’esperienza?</h2>
+          <p className="gcx-sub gcx-center-text">Con le gift card puoi regalare servizi fotografici, stampe o altre proposte Image Studio. Scegli quella che preferisci e inviala subito o programma la consegna.</p>
+          <div className="gcx-cta-row"><Link href="/regala" className="gcx-btn-gold">Scopri le gift card</Link></div>
         </aside>
       </>
     );
@@ -287,8 +287,8 @@ export default function ShopPage({ categoryValue }: { categoryValue?: string } =
               <a className="gcx-btn-gold" href={`${pagePath}#prodotti`} onClick={event => {
                 event.preventDefault();
                 document.getElementById('prodotti')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              }}>Scegli il prodotto</a>
-              <Link href="/regala" className="gcx-btn-line">Gift card</Link>
+              }}>Scopri i regali</a>
+              <Link href="/regala" className="gcx-btn-line">Scopri le gift card</Link>
             </div>
           ) : null}
           <ul className="gcx-proof">
@@ -299,14 +299,13 @@ export default function ShopPage({ categoryValue }: { categoryValue?: string } =
         <section className="gcx-print-service" aria-labelledby="gcx-print-service-title">
           <div className="gcx-print-service-icon" aria-hidden="true"><Printer /></div>
           <div className="gcx-print-service-copy">
-            <p className="gcx-print-service-eyebrow">Un servizio diverso dallo shop</p>
-            <h2 id="gcx-print-service-title">Hai foto da stampare?</h2>
+            <p className="gcx-print-service-eyebrow">Per le foto che hai già</p>
+            <h2 id="gcx-print-service-title">Stampale nel formato che preferisci</h2>
             <p>
-              Qui trovi regali personalizzati. Se invece vuoi stampare i tuoi scatti scegliendo formati e finiture,
-              scopri il nostro servizio dedicato.
+              Carica i tuoi scatti, scegli formato e finitura e ordinali online. Puoi riceverle a casa o ritirarle ad Aversa.
             </p>
           </div>
-          <Link href="/stampa-foto-aversa" className="gcx-print-service-cta">Scopri il servizio di stampa</Link>
+          <Link href="/stampa-foto-aversa" className="gcx-print-service-cta">Vedi formati e prezzi</Link>
         </section>
         {body}
         <footer className="gcx-foot gcx-foot-l">
