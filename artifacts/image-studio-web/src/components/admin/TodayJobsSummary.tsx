@@ -86,6 +86,7 @@ export default function TodayJobsSummary({ selectedDate }: { selectedDate?: Date
   });
 
   const todayJobs = (allJobs || []).filter((job: Job) => {
+    if (job.quoteStatus?.isSigned !== true) return false;
     if (!job.eventDate) return false;
     const eventDate = parseEventDate(job.eventDate);
     if (!eventDate) return false;
