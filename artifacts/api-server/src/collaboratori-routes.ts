@@ -1068,35 +1068,60 @@ router.patch('/collaboratori/assignments/:id/compenso', authenticateFirebase, re
   try {
     const { id } = req.params;
     const { compenso, noteModifica, sendEmail = true } = req.body;
-    
-    if (compenso === undefined || compenso < 0) {
+
+    if (compenso == null || compenso === '' || !Number.isFinite(Number(compenso)) || Number(compenso) < 0) {
       return res.status(400).json({ error: 'Compenso non valido' });
     }
-    
-    // Recupera assegnazione attuale
-    const assignmentDoc = await db.collection('jobCollaboratoreAssignments').doc(id).get();
-    if (!assignmentDoc.exists) {
+
+    const compensoCentesimi = Math.round(Number(compenso) * 100);
+    const nuovoCompenso = compensoCentesimi / 100;
+    const assignmentRef = db.collection('jobCollaboratoreAssignments').doc(id);
+    const updateResult = await db.runTransaction(async (transaction) => {
+      const assignmentDoc = await transaction.get(assignmentRef);
+      if (!assignmentDoc.exists) {
+        return { kind: 'not-found' as const };
+      }
+
+      const assignment = assignmentDoc.data() as JobCollaboratoreAssignment;
+      const totalePagatoCentesimi = (assignment.pagamenti || []).reduce((sum, payment) => {
+        const importo = Number(payment.importo);
+        return sum + (Number.isFinite(importo) ? Math.round(importo * 100) : 0);
+      }, 0);
+
+      if (compensoCentesimi < totalePagatoCentesimi) {
+        return { kind: 'below-paid' as const, totalePagatoCentesimi };
+      }
+
+      const vecchioCompenso = Number(assignment.compenso) || 0;
+      const nuovoSaldoResiduo = (compensoCentesimi - totalePagatoCentesimi) / 100;
+      const isPagato = compensoCentesimi > 0 && nuovoSaldoResiduo <= 0;
+      transaction.update(assignmentRef, {
+        compenso: nuovoCompenso,
+        saldoResiduo: nuovoSaldoResiduo,
+        isPagato,
+        updatedAt: Timestamp.now(),
+      });
+
+      return { kind: 'updated' as const, assignment, vecchioCompenso };
+    });
+
+    if (updateResult.kind === 'not-found') {
       return res.status(404).json({ error: 'Assegnazione non trovata' });
     }
-    
-    const assignment = assignmentDoc.data() as JobCollaboratoreAssignment;
-    const vecchioCompenso = assignment.compenso || 0;
-    
-    // Ricalcola saldo residuo (minimo 0 per evitare valori negativi)
-    const totalePagato = (assignment.pagamenti || []).reduce((sum, p) => sum + p.importo, 0);
-    const nuovoSaldoResiduo = Math.max(0, compenso - totalePagato);
-    const isPagato = compenso > 0 && nuovoSaldoResiduo <= 0;
-    
-    // Aggiorna assegnazione
-    await db.collection('jobCollaboratoreAssignments').doc(id).update({
-      compenso: compenso,
-      saldoResiduo: nuovoSaldoResiduo,
-      isPagato: isPagato,
-      updatedAt: Timestamp.now()
-    });
-    
+
+    if (updateResult.kind === 'below-paid') {
+      const totalePagato = updateResult.totalePagatoCentesimi / 100;
+      return res.status(409).json({
+        error: `Il compenso non può essere inferiore al totale già pagato (€${totalePagato.toFixed(2)}).`,
+        code: 'COMPENSATION_BELOW_PAID',
+        totalePagato,
+      });
+    }
+
+    const { assignment, vecchioCompenso } = updateResult;
+
     // Invia email se richiesto e compenso è cambiato
-    if (sendEmail && compenso !== vecchioCompenso) {
+    if (sendEmail && nuovoCompenso !== vecchioCompenso) {
       const [collaboratoreDoc, jobDoc] = await Promise.all([
         db.collection('collaboratori').doc(assignment.collaboratoreId).get(),
         db.collection('jobs').doc(assignment.jobId).get()
@@ -1115,11 +1140,11 @@ router.patch('/collaboratori/assignments/:id/compenso', authenticateFirebase, re
           })
         : 'Data da confermare';
       
-      sendCompensoModificatoEmail(req, collaboratore, jobNome, dataJob, vecchioCompenso, compenso, noteModifica)
+      sendCompensoModificatoEmail(req, collaboratore, jobNome, dataJob, vecchioCompenso, nuovoCompenso, noteModifica)
         .catch(err => console.error('❌ Email modifica compenso fallita (non bloccante):', err));
     }
     
-    const updated = await db.collection('jobCollaboratoreAssignments').doc(id).get();
+    const updated = await assignmentRef.get();
     res.json(serializeAssignment(updated.id, updated.data()));
   } catch (error: any) {
     console.error('❌ Error updating compenso:', error);

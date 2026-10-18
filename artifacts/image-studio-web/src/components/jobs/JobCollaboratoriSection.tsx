@@ -152,6 +152,7 @@ export function JobCollaboratoriSection({
   const [editCompensoData, setEditCompensoData] = useState({
     assignmentId: '',
     compenso: 0,
+    totalePagato: 0,
     noteModifica: '',
     sendEmail: false,
   });
@@ -256,10 +257,14 @@ export function JobCollaboratoriSection({
       queryClient.invalidateQueries({ queryKey: ['job-assignments', jobId] });
       toast({ title: editCompensoData.sendEmail ? '✅ Compenso aggiornato e collaboratore notificato' : '✅ Compenso aggiornato' });
       setIsEditCompensoModalOpen(false);
-      setEditCompensoData({ assignmentId: '', compenso: 0, noteModifica: '', sendEmail: true });
+      setEditCompensoData({ assignmentId: '', compenso: 0, totalePagato: 0, noteModifica: '', sendEmail: true });
     },
-    onError: () => {
-      toast({ title: '❌ Errore aggiornamento compenso', variant: 'destructive' });
+    onError: (error) => {
+      toast({
+        title: '❌ Errore aggiornamento compenso',
+        description: error instanceof Error ? error.message : undefined,
+        variant: 'destructive',
+      });
     },
   });
 
@@ -371,9 +376,14 @@ export function JobCollaboratoriSection({
   };
 
   const handleOpenEditCompensoModal = (assignment: JobCollaboratoreAssignment) => {
+    const totalePagatoCentesimi = (assignment.pagamenti || []).reduce((sum, payment) => {
+      const importo = Number(payment.importo);
+      return sum + (Number.isFinite(importo) ? Math.round(importo * 100) : 0);
+    }, 0);
     setEditCompensoData({
       assignmentId: assignment.id,
       compenso: assignment.compenso,
+      totalePagato: totalePagatoCentesimi / 100,
       noteModifica: '',
       sendEmail: false,
     });
@@ -898,7 +908,7 @@ export function JobCollaboratoriSection({
                   id="editCompenso"
                   type="number"
                   step="0.01"
-                  min="0"
+                  min={editCompensoData.totalePagato}
                   value={editCompensoData.compenso}
                   onChange={(e) =>
                     setEditCompensoData({ ...editCompensoData, compenso: parseFloat(e.target.value) || 0 })
@@ -906,6 +916,14 @@ export function JobCollaboratoriSection({
                   required
                   data-testid="input-edit-compenso"
                 />
+                <p className="mt-1 text-sm text-muted-foreground" data-testid="edit-compenso-totale-pagato">
+                  Totale già pagato: €{editCompensoData.totalePagato.toFixed(2)}
+                </p>
+                {editCompensoData.compenso < editCompensoData.totalePagato && (
+                  <p className="mt-1 text-sm text-destructive" role="alert" data-testid="edit-compenso-sotto-pagato">
+                    Il compenso non può essere inferiore al totale già pagato.
+                  </p>
+                )}
               </div>
 
               <div>
@@ -942,7 +960,11 @@ export function JobCollaboratoriSection({
                 <Button type="button" variant="outline" onClick={() => setIsEditCompensoModalOpen(false)}>
                   Annulla
                 </Button>
-                <Button type="submit" disabled={updateCompensoMutation.isPending} data-testid="button-submit-edit-compenso">
+                <Button
+                  type="submit"
+                  disabled={updateCompensoMutation.isPending || editCompensoData.compenso < editCompensoData.totalePagato}
+                  data-testid="button-submit-edit-compenso"
+                >
                   {updateCompensoMutation.isPending ? 'Aggiornamento...' : 'Salva Compenso'}
                 </Button>
               </div>

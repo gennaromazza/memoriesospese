@@ -387,6 +387,66 @@ describe('POST /api/collaboratori/assignments/:id/add-payment', () => {
   });
 });
 
+describe('PATCH /api/collaboratori/assignments/:id/compenso', () => {
+  const getUrl = () => `${baseUrl}/api/collaboratori/assignments/assignment1/compenso`;
+
+  it('rifiuta un compenso inferiore agli acconti già pagati senza toccare pagamenti o cassa', async () => {
+    const previousPayments = [
+      { id: 'payment-1', tipo: 'acconto', importo: 200, cashMovementId: 'cash-1' },
+      { id: 'payment-2', tipo: 'acconto', importo: 100.25, cashMovementId: 'cash-2' },
+    ];
+    state.jobCollaboratoreAssignments.assignment1.pagamenti = previousPayments;
+    state.jobCollaboratoreAssignments.assignment1.saldoResiduo = 199.75;
+    state.cashMovements['cash-1'] = { tipo: 'uscita', importo: 200 };
+    state.cashMovements['cash-2'] = { tipo: 'uscita', importo: 100.25 };
+
+    const response = await fetch(getUrl(), {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ compenso: 300.24, sendEmail: false }),
+    });
+    const body: any = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body).toMatchObject({
+      code: 'COMPENSATION_BELOW_PAID',
+      totalePagato: 300.25,
+    });
+    expect(body.error).toContain('€300.25');
+    expect(state.jobCollaboratoreAssignments.assignment1).toMatchObject({
+      compenso: 500,
+      saldoResiduo: 199.75,
+      pagamenti: previousPayments,
+    });
+    expect(Object.keys(state.cashMovements)).toEqual(['cash-1', 'cash-2']);
+    expect(sendGmailEmailMock).not.toHaveBeenCalled();
+  });
+
+  it('consente un compenso pari al totale pagato senza duplicare i movimenti di cassa', async () => {
+    const previousPayments = [
+      { id: 'payment-1', tipo: 'acconto', importo: 200, cashMovementId: 'cash-1' },
+      { id: 'payment-2', tipo: 'acconto', importo: 100.25, cashMovementId: 'cash-2' },
+    ];
+    state.jobCollaboratoreAssignments.assignment1.pagamenti = previousPayments;
+    state.jobCollaboratoreAssignments.assignment1.saldoResiduo = 199.75;
+    state.cashMovements['cash-1'] = { tipo: 'uscita', importo: 200 };
+    state.cashMovements['cash-2'] = { tipo: 'uscita', importo: 100.25 };
+
+    const response = await fetch(getUrl(), {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ compenso: 300.25, sendEmail: false }),
+    });
+    const body: any = await response.json();
+    const assignment = state.jobCollaboratoreAssignments.assignment1;
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({ compenso: 300.25, saldoResiduo: 0, isPagato: true });
+    expect(assignment.pagamenti).toEqual(previousPayments);
+    expect(Object.keys(state.cashMovements)).toEqual(['cash-1', 'cash-2']);
+  });
+});
+
 describe('PATCH /api/collaboratori/assignments/:id/products', () => {
   it('aggiorna i prodotti, conserva i dati storici e non li restituisce', async () => {
     const prodottiAssegnati = [{ orderItemId: 'item-2', label: 'Trailer', qty: 2 }];
