@@ -1275,6 +1275,24 @@ test("admin grouped jobs list keeps filters, selection, paging, and row actions 
     await page.getByTestId("checkbox-select-all").click();
     await expect(page.getByText("10 lavori selezionati")).toBeVisible();
     await page.getByTestId("button-first-page").click();
+    await expect(page.getByText("10 lavori selezionati")).toBeVisible();
+
+    // A search change clears selection for jobs no longer in the results.
+    await page.getByTestId("input-search-jobs").fill("E2E - Evento di oggi");
+    await expect(page.getByTestId(`job-row-${todayJob.id}`)).toBeVisible();
+    await expect(page.getByText("lavori selezionati")).toHaveCount(0);
+    await expect(page.getByTestId("button-delete-selected")).toHaveCount(0);
+    await page.getByTestId("input-search-jobs").fill("");
+
+    // A type-filter change follows the same rule, even when the selection was
+    // made while the selected job was visible in the unfiltered list.
+    await page.getByTestId(`checkbox-job-${printJob.id}`).click();
+    await expect(page.getByText("1 lavori selezionati")).toBeVisible();
+    await page.getByTestId("card-filter-matrimonio").click();
+    await expect(page.getByTestId(`job-row-${printJob.id}`)).toHaveCount(0);
+    await expect(page.getByText("lavori selezionati")).toHaveCount(0);
+    await expect(page.getByTestId("button-delete-selected")).toHaveCount(0);
+    await page.getByTestId("card-filter-all").click();
 
     // The row-level event type, collaborator action, and payment tooltip remain
     // usable even though section headers are inserted between data rows.
@@ -1320,6 +1338,7 @@ test("admin grouped jobs list keeps filters, selection, paging, and row actions 
     await page.getByTestId(`checkbox-job-${bulkJob.id}`).click();
     await page.getByTestId("button-delete-selected").click();
     await expect(page.getByText(/Stai per eliminare/)).toContainText("1 lavori");
+    await expect(page.getByTestId(`delete-target-${bulkJob.id}`)).toHaveText(bulkJob.nomeEvento);
     await page.getByRole("button", { name: "Elimina 1 lavori" }).click();
     await expect(page.getByText("Lavori eliminati", { exact: true })).toBeVisible();
     await expect(page.getByTestId(`job-row-${bulkJob.id}`)).toHaveCount(0);

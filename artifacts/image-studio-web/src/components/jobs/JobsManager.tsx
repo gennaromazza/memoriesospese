@@ -647,6 +647,22 @@ export default function JobsManager() {
     return sortJobsForDisplay(filteredJobs, quotesByJob, timeFilter);
   }, [filteredJobs, quotesByJob, timeFilter]);
 
+  const visibleSelectedJobs = useMemo(
+    () => sortedJobs.filter(job => selectedJobs.has(job.id)),
+    [sortedJobs, selectedJobs]
+  );
+  const visibleSelectedJobIds = useMemo(
+    () => new Set(visibleSelectedJobs.map(job => job.id)),
+    [visibleSelectedJobs]
+  );
+
+  // Keep selection across pages, but drop jobs removed by the active search or filters.
+  useEffect(() => {
+    if (visibleSelectedJobIds.size !== selectedJobs.size) {
+      setSelectedJobs(visibleSelectedJobIds);
+    }
+  }, [selectedJobs.size, visibleSelectedJobIds]);
+
   const listSections = useMemo(() => {
     const referenceDate = new Date();
     const byJobId = new Map<string, JobListSection>();
@@ -712,7 +728,7 @@ export default function JobsManager() {
   );
   
   const toggleSelectJob = (jobId: string) => {
-    const newSelected = new Set(selectedJobs);
+    const newSelected = new Set(visibleSelectedJobIds);
     if (newSelected.has(jobId)) {
       newSelected.delete(jobId);
     } else {
@@ -724,8 +740,8 @@ export default function JobsManager() {
   const toggleSelectAll = () => {
     // Seleziona/deseleziona solo i lavori visibili nella pagina corrente (evita di selezionare lavori non visibili)
     const pageIds = paginatedJobs.map(j => j.id);
-    const allPageSelected = pageIds.length > 0 && pageIds.every(id => selectedJobs.has(id));
-    const newSelected = new Set(selectedJobs);
+    const allPageSelected = pageIds.length > 0 && pageIds.every(id => visibleSelectedJobIds.has(id));
+    const newSelected = new Set(visibleSelectedJobIds);
     if (allPageSelected) {
       pageIds.forEach(id => newSelected.delete(id));
     } else {
@@ -735,13 +751,18 @@ export default function JobsManager() {
   };
   
   const handleDeleteSelected = () => {
-    if (selectedJobs.size === 0) return;
+    if (visibleSelectedJobs.length === 0) return;
     setDeleteDialogOpen(true);
   };
   
   const confirmDelete = () => {
+    const selectedIds = visibleSelectedJobs.map(job => job.id);
+    if (selectedIds.length === 0) {
+      setDeleteDialogOpen(false);
+      return;
+    }
     setDeleteDialogOpen(false);
-    deleteMutation.mutate(Array.from(selectedJobs));
+    deleteMutation.mutate(selectedIds);
   };
   
   return (
@@ -757,9 +778,9 @@ export default function JobsManager() {
               <span>Caricamento lavori in corso...</span>
             ) : jobsLoadFailed ? (
               <span className="text-red-600 font-medium">Caricamento non riuscito</span>
-            ) : selectedJobs.size > 0 ? (
+            ) : visibleSelectedJobs.length > 0 ? (
               <span className="text-red-600 font-medium">
-                {selectedJobs.size} lavori selezionati
+                {visibleSelectedJobs.length} lavori selezionati
               </span>
             ) : (
               `${totalLoadedActiveJobs} lavori caricati${stats.totalJobs !== totalLoadedActiveJobs ? ` · ${stats.totalJobs} visualizzati` : ''}`
@@ -778,7 +799,7 @@ export default function JobsManager() {
             <RefreshCw className={cn("w-4 h-4 sm:mr-2", isJobsFetching && "animate-spin")} />
             <span className="sr-only sm:not-sr-only">Aggiorna</span>
           </Button>
-          {selectedJobs.size > 0 && (
+          {visibleSelectedJobs.length > 0 && (
             <Button
               onClick={handleDeleteSelected}
               variant="destructive"
@@ -794,7 +815,7 @@ export default function JobsManager() {
               ) : (
                 <>
                   <Trash2 className="w-4 h-4 mr-2" />
-                  Elimina ({selectedJobs.size})
+                  Elimina ({visibleSelectedJobs.length})
                 </>
               )}
             </Button>
@@ -803,7 +824,7 @@ export default function JobsManager() {
             onClick={() => setCreateModalOpen(true)}
             className={cn(
               "h-11 w-full bg-sage hover:bg-dark-sage sm:h-10 sm:w-auto",
-              selectedJobs.size > 0 && "col-span-2 sm:col-span-1",
+              visibleSelectedJobs.length > 0 && "col-span-2 sm:col-span-1",
             )}
             data-testid="button-create-job"
           >
@@ -1413,9 +1434,9 @@ export default function JobsManager() {
                 <TableHead className="w-10">
                   <Checkbox
                     checked={
-                      paginatedJobs.length > 0 && paginatedJobs.every(j => selectedJobs.has(j.id))
+                      paginatedJobs.length > 0 && paginatedJobs.every(j => visibleSelectedJobIds.has(j.id))
                         ? true
-                        : paginatedJobs.some(j => selectedJobs.has(j.id))
+                        : paginatedJobs.some(j => visibleSelectedJobIds.has(j.id))
                           ? 'indeterminate'
                           : false
                     }
@@ -1446,7 +1467,7 @@ export default function JobsManager() {
                   const rawEventDate = convertFirestoreTimestamp(job.eventDate);
                   const eventDate = rawEventDate && !isNaN(rawEventDate.getTime()) ? rawEventDate : null;
                   const createdAtDate = getQuickQuoteDisplayDate(job as any);
-                  const isSelected = selectedJobs.has(job.id);
+                  const isSelected = visibleSelectedJobIds.has(job.id);
                   const section = listSections.byJobId.get(job.id) || 'undated';
                   const previousSection = index > 0
                     ? listSections.byJobId.get(paginatedJobs[index - 1].id)
@@ -1926,8 +1947,18 @@ export default function JobsManager() {
             </AlertDialogTitle>
             <AlertDialogDescription className="space-y-2">
               <p>
-                Stai per eliminare <strong>{selectedJobs.size} lavori</strong> e tutti i dati collegati:
+                Stai per eliminare <strong>{visibleSelectedJobs.length} lavori</strong> e tutti i dati collegati:
               </p>
+              <ul
+                className="max-h-32 space-y-1 overflow-y-auto rounded border border-red-100 bg-red-50 p-2 text-sm text-gray-800"
+                data-testid="delete-selected-job-list"
+              >
+                {visibleSelectedJobs.map(job => (
+                  <li key={job.id} data-testid={`delete-target-${job.id}`}>
+                    {job.nomeEvento || 'Lavoro senza nome'}
+                  </li>
+                ))}
+              </ul>
               <ul className="list-disc list-inside text-sm space-y-1 text-red-600">
                 <li>Tutti gli ordini associati</li>
                 <li>Tutte le gallerie fotografiche</li>
@@ -1944,9 +1975,10 @@ export default function JobsManager() {
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDelete}
+              disabled={visibleSelectedJobs.length === 0 || deleteMutation.isPending}
               className="bg-red-600 hover:bg-red-700"
             >
-              Elimina {selectedJobs.size} lavori
+              Elimina {visibleSelectedJobs.length} lavori
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
