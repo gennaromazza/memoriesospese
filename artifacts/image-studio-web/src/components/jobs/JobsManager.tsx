@@ -18,6 +18,11 @@ import { getQuickQuoteDisplayDate } from '@shared/job-display';
 import type { Job, JobStatus } from '@shared/jobs-types';
 import type { JobTypeFE as JobTypeDoc } from '@shared/job-types';
 import type { Cliente } from '@shared/clienti-types';
+import {
+  getJobListSection,
+  sortJobsForDisplay,
+  type JobListSection,
+} from './jobs-list-ordering';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -609,54 +614,25 @@ export default function JobsManager() {
     [jobs]
   );
   
-  // Funzione helper per convertire date Firestore
-  const toDate = (val: any): Date => {
-    if (!val) return new Date(0);
-    
-    const result = convertFirestoreTimestamp(val);
-    if (!result || !Number.isFinite(result.getTime())) {
-      return new Date(0);
-    }
-    
-    return result;
-  };
-  
-  // Sort jobs in base al filtro temporale
+  // Lead e lavori firmati restano in gruppi distinti. All'interno dei lavori
+  // confermati l'ordine è per data evento; i lead usano la data di richiesta.
   const sortedJobs = useMemo(() => {
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    
-    return [...filteredJobs].sort((a, b) => {
-      const dateA = toDate(a.eventDate);
-      const dateB = toDate(b.eventDate);
-      
-      // Se filtro "past": ordina dal più recente (decrescente)
-      if (timeFilter === 'past') {
-        return dateB.getTime() - dateA.getTime();
-      }
-      
-      // Se filtro "upcoming": ordina dal più vicino (crescente)
-      if (timeFilter === 'upcoming') {
-        return dateA.getTime() - dateB.getTime();
-      }
-      
-      // Se filtro "all": logica mista (futuri prima, poi passati)
-      const aIsFuture = dateA >= startOfToday;
-      const bIsFuture = dateB >= startOfToday;
-      
-      // Se uno è futuro e l'altro no, il futuro viene prima
-      if (aIsFuture && !bIsFuture) return -1;
-      if (!aIsFuture && bIsFuture) return 1;
-      
-      // Se entrambi futuri: ordina dal più vicino (crescente)
-      if (aIsFuture && bIsFuture) {
-        return dateA.getTime() - dateB.getTime();
-      }
-      
-      // Se entrambi passati: ordina dal più recente (decrescente)
-      return dateB.getTime() - dateA.getTime();
-    });
-  }, [filteredJobs, timeFilter]);
+    return sortJobsForDisplay(filteredJobs, quotesByJob, timeFilter);
+  }, [filteredJobs, quotesByJob, timeFilter]);
+
+  const listSections = useMemo(() => {
+    const referenceDate = new Date();
+    const byJobId = new Map<string, JobListSection>();
+    const counts = new Map<JobListSection, number>();
+
+    for (const job of sortedJobs) {
+      const section = getJobListSection(job, quotesByJob[job.id], referenceDate);
+      byJobId.set(job.id, section);
+      counts.set(section, (counts.get(section) || 0) + 1);
+    }
+
+    return { byJobId, counts };
+  }, [sortedJobs, quotesByJob]);
   
   // Paginated jobs
   const paginatedJobs = useMemo(() => {
@@ -1305,7 +1281,7 @@ export default function JobsManager() {
           </CardContent>
         </Card>
       ) : (
-        <div className="border rounded-lg overflow-hidden">
+        <div className="overflow-hidden rounded-xl border border-[#e0e3d9] bg-card shadow-sm">
           <Table>
             <TableHeader>
               <TableRow>
@@ -1329,46 +1305,78 @@ export default function JobsManager() {
                 <TableHead className="font-semibold">Data/Orario</TableHead>
                 <TableHead className="font-semibold">Tipo</TableHead>
                 <TableHead className="font-semibold">Status</TableHead>
-                <TableHead className="hidden lg:table-cell font-semibold text-center">👥</TableHead>
-                <TableHead className="hidden md:table-cell font-semibold text-center">💰</TableHead>
+                <TableHead className="hidden lg:table-cell text-center font-semibold">
+                  <span className="sr-only">Collaboratori</span>
+                  <Users className="mx-auto h-4 w-4" aria-hidden="true" />
+                </TableHead>
+                <TableHead className="hidden md:table-cell text-center font-semibold">
+                  <span className="sr-only">Pagamenti</span>
+                  <CreditCard className="mx-auto h-4 w-4" aria-hidden="true" />
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(() => {
-                const now = new Date();
-                const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                // Indice globale (su tutte le pagine) del primo lavoro passato, solo in vista "Tutti i periodi".
-                // Così il separatore appare una sola volta, nella pagina giusta, e solo se ci sono sia lavori futuri che passati.
-                const firstPastIndexGlobal = timeFilter === 'all'
-                  ? sortedJobs.findIndex(j => {
-                      const d = convertFirestoreTimestamp(j.eventDate);
-                      // Solo i lavori con data evento valida e passata contano come "passati":
-                      // i lavori senza data non devono attivare il separatore.
-                      return d != null && !isNaN(d.getTime()) && d < startOfToday;
-                    })
-                  : -1;
-                
-                return paginatedJobs.map((job, index) => {
+              {paginatedJobs.map((job, index) => {
                   const jobTypeInfo = jobTypeMap[job.jobType];
                   const rawEventDate = convertFirestoreTimestamp(job.eventDate);
                   const eventDate = rawEventDate && !isNaN(rawEventDate.getTime()) ? rawEventDate : null;
                   const createdAtDate = getQuickQuoteDisplayDate(job as any);
                   const isSelected = selectedJobs.has(job.id);
-                  
-                  // Mostra il separatore esattamente prima del primo lavoro passato (indice globale),
-                  // solo se esiste almeno un lavoro futuro prima di esso.
-                  const globalIndex = (currentPage - 1) * itemsPerPage + index;
-                  const showPastSeparator = firstPastIndexGlobal > 0 && globalIndex === firstPastIndexGlobal;
-                  
+                  const section = listSections.byJobId.get(job.id) || 'undated';
+                  const previousSection = index > 0
+                    ? listSections.byJobId.get(paginatedJobs[index - 1].id)
+                    : undefined;
+                  const showSectionHeader = index === 0 || section !== previousSection;
+                  const sectionCount = listSections.counts.get(section) || 0;
+                  const sectionTitle =
+                    section === 'leads' ? 'Richieste da seguire' :
+                    section === 'today' ? `Oggi · ${format(new Date(), 'EEEE d MMMM yyyy', { locale: it })}` :
+                    section === 'upcoming' ? 'In arrivo' :
+                    section === 'undated' ? 'Data da definire' :
+                    timeFilter === 'past' ? 'Impegni passati' : 'Eventi passati';
+                  const sectionDescription =
+                    section === 'leads' ? 'Contatti e preventivi non ancora firmati' :
+                    section === 'today' ? 'Eventi confermati per oggi' :
+                    section === 'upcoming' ? 'Eventi confermati in ordine cronologico' :
+                    section === 'undated' ? 'Lavori confermati senza una data evento' :
+                    'Dal più recente al meno recente';
+                  const SectionIcon = section === 'leads' ? FileText : Calendar;
+                  const sectionTone =
+                    section === 'leads'
+                      ? 'border-amber-200 bg-[#f8f4ea] text-[#755f3d]'
+                      : section === 'today'
+                        ? 'border-[#d6e2d5] bg-[#edf3eb] text-[#405a5c]'
+                        : section === 'upcoming'
+                          ? 'border-[#e1e8dc] bg-[#f6f8f2] text-[#52695e]'
+                          : section === 'undated'
+                            ? 'border-[#e1e0d6] bg-[#f8f7f1] text-[#6f776f]'
+                            : 'border-[#e1dfd5] bg-[#f1f0ea] text-[#737a72]';
+
                   return (
                     <Fragment key={job.id}>
-                      {showPastSeparator && (
-                        <TableRow key="past-separator" className="bg-gray-100 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800">
-                          <TableCell colSpan={9} className="py-2 text-center">
-                            <div className="flex items-center justify-center gap-3 text-sm text-muted-foreground">
-                              <div className="flex-1 h-px bg-gray-300 dark:bg-gray-600" />
-                              <span className="font-medium">📅 Lavori Passati</span>
-                              <div className="flex-1 h-px bg-gray-300 dark:bg-gray-600" />
+                      {showSectionHeader && (
+                        <TableRow
+                          key={`section-${section}-${job.id}`}
+                          className="hover:bg-transparent"
+                          data-testid={`jobs-section-${section}`}
+                        >
+                          <TableCell colSpan={9} className="px-0 py-0">
+                            <div className={cn("flex flex-wrap items-center justify-between gap-2 border-y px-4 py-2.5 sm:px-5", sectionTone)}>
+                              <div className="flex min-w-0 items-center gap-2.5">
+                                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white/70">
+                                  <SectionIcon className="h-4 w-4" aria-hidden="true" />
+                                </span>
+                                <div className="min-w-0">
+                                  <div className="text-xs font-bold">{sectionTitle}</div>
+                                  <div className="text-[11px] opacity-75">{sectionDescription}</div>
+                                </div>
+                                <Badge variant="outline" className="rounded-full border-current/20 bg-white/70 text-[10px]">
+                                  {sectionCount}
+                                </Badge>
+                              </div>
+                              {section === 'leads' && (
+                                <span className="text-[11px] opacity-75">Ordinati per data di richiesta</span>
+                              )}
                             </div>
                           </TableCell>
                         </TableRow>
@@ -1683,8 +1691,7 @@ export default function JobsManager() {
                   </TableRow>
                     </Fragment>
                   );
-                });
-              })()}
+                })}
             </TableBody>
           </Table>
         </div>
