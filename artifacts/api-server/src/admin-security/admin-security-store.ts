@@ -17,6 +17,7 @@ export const MAX_FAILED_ATTEMPTS = 5;
 export const LOCKOUT_MS = 15 * 60 * 1000;
 export const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 export const RECOVERY_CODE_COUNT = 8;
+export const DEVICE_ENROLLMENT_RETENTION_MS = 24 * 60 * 60 * 1000;
 
 export type ChallengeKind = 'registration' | 'authentication';
 
@@ -68,6 +69,7 @@ export interface DeviceEnrollmentRequest {
   createdAt: number;
   expiresAt: number;
   status: DeviceEnrollmentStatus;
+  terminalAt?: number | null;
   approvalChallenge: DesktopHandoffChallenge | null;
   registrationChallenge: DesktopHandoffChallenge | null;
   approvedAt: number | null;
@@ -278,6 +280,53 @@ export async function createDeviceEnrollment(
   await deviceEnrollmentDoc(uid, enrollmentId).set({ ...request, uid });
 }
 
+function isTerminalDeviceEnrollmentStatus(status: unknown): status is 'registered' | 'rejected' | 'cancelled' {
+  return status === 'registered' || status === 'rejected' || status === 'cancelled';
+}
+
+/**
+ * Rimuove soltanto enrollment scaduti da almeno un giorno o conclusi da almeno
+ * un giorno. Ogni cancellazione ricontrolla lo stato attuale in transazione;
+ * la sottocollezione degli eventi di audit non viene mai letta o modificata.
+ */
+export async function cleanupDeviceEnrollments(now = Date.now()): Promise<number> {
+  const accounts = await db.collection(COLLECTION).get();
+  let deletedCount = 0;
+
+  for (const account of accounts.docs) {
+    const uid = account.id;
+    const enrollments = await stateDoc(uid).collection('deviceEnrollments').get();
+    for (const enrollment of enrollments.docs) {
+      const ref = deviceEnrollmentDoc(uid, enrollment.id);
+      const deleted = await db.runTransaction(async (tx) => {
+        const current = await tx.get(ref);
+        if (!current.exists) return false;
+
+        const request = current.data() as Partial<DeviceEnrollmentRequest> | undefined;
+        if (!request || !Number.isFinite(request.expiresAt)) return false;
+
+        let inactiveSince: number;
+        if (request.status === 'pending' || request.status === 'approved') {
+          inactiveSince = request.expiresAt!;
+        } else if (isTerminalDeviceEnrollmentStatus(request.status)) {
+          const terminalAt = request.terminalAt ?? request.registeredAt ?? request.createdAt;
+          if (typeof terminalAt !== 'number' || !Number.isFinite(terminalAt)) return false;
+          inactiveSince = terminalAt;
+        } else {
+          return false;
+        }
+
+        if (inactiveSince + DEVICE_ENROLLMENT_RETENTION_MS > now) return false;
+        tx.delete(ref);
+        return true;
+      });
+      if (deleted) deletedCount += 1;
+    }
+  }
+
+  return deletedCount;
+}
+
 export async function getDeviceEnrollment(
   uid: string,
   enrollmentId: string,
@@ -347,7 +396,14 @@ export async function transitionDeviceEnrollment(
     if (!snap.exists) return null;
     const request = { uid, ...(snap.data() as Omit<DeviceEnrollmentRequest, 'uid'>) };
     if (request.status !== expectedStatus || request.expiresAt <= now) return null;
-    tx.set(ref, patch, { merge: true });
+    tx.set(
+      ref,
+      {
+        ...patch,
+        ...(isTerminalDeviceEnrollmentStatus(patch.status) ? { terminalAt: now } : {}),
+      },
+      { merge: true },
+    );
     return request;
   });
 }
@@ -380,6 +436,7 @@ export async function commitDeviceEnrollmentPasskey(
     tx.set(enrollmentRef, {
       status: 'registered',
       registeredAt: now,
+      terminalAt: now,
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
     return true;

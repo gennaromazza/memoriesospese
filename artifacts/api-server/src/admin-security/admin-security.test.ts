@@ -76,6 +76,7 @@ vi.mock('../firebase-admin.js', () => ({
       const tx = {
         get: (ref: any) => ref.get(),
         set: (ref: any, data: any, opts?: any) => { writes.push(() => ref.set(data, opts)); },
+        delete: (ref: any) => { writes.push(() => ref.delete()); },
       };
       const result = await fn(tx);
       for (const w of writes) await w();
@@ -692,6 +693,8 @@ describe('autorizzazione QR per una nuova passkey', () => {
       label: 'Portatile',
       rpId: 'imagestudiofotografico.com',
     });
+    expect(h.docs.get(`adminSecurity/${h.uid}/deviceEnrollments/${request.enrollmentId}`)?.terminalAt)
+      .toEqual(expect.any(Number));
     expect(h.claims.get(h.uid)?.apk).toBeUndefined();
 
     const completedStatus = await call(
@@ -768,6 +771,8 @@ describe('autorizzazione QR per una nuova passkey', () => {
       { method: 'POST' },
     );
     expect(rejected.status).toBe(200);
+    expect(h.docs.get(`adminSecurity/${h.uid}/deviceEnrollments/${started.enrollmentId}`)?.terminalAt)
+      .toEqual(expect.any(Number));
     const rejectedStatus = await call(
       `/api/admin/security/device-enrollment/${started.enrollmentId}/status`,
       { method: 'POST', body: JSON.stringify({ verifier }) },
@@ -780,10 +785,89 @@ describe('autorizzazione QR per una nuova passkey', () => {
       { method: 'POST', body: JSON.stringify({ verifier }) },
     );
     expect(cancelled.status).toBe(200);
+    expect(h.docs.get(`adminSecurity/${h.uid}/deviceEnrollments/${another.enrollmentId}`)?.terminalAt)
+      .toEqual(expect.any(Number));
     const cancelledStatus = await call(
       `/api/admin/security/device-enrollment/${another.enrollmentId}/status`,
       { method: 'POST', body: JSON.stringify({ verifier }) },
     );
     expect((await json(cancelledStatus)).status).toBe('cancelled');
+  });
+});
+
+describe('retention delle richieste QR', () => {
+  it('rimuove solo richieste inattive da almeno 24 ore e conserva gli eventi di audit', async () => {
+    const now = 2_000_000_000_000;
+    const retention = store.DEVICE_ENROLLMENT_RETENTION_MS;
+    await store.updateState(h.uid, { passkeyRequired: true });
+
+    const seed = (
+      id: string,
+      status: string,
+      expiresAt: number,
+      terminalAt: number | null = null,
+    ) => {
+      h.docs.set(`adminSecurity/${h.uid}/deviceEnrollments/${id}`, {
+        uid: h.uid,
+        verifierHash: `verifier-${id}`,
+        requesterAuthTime: h.authTime,
+        deviceLabel: `device-${id}`,
+        rpId: 'imagestudiofotografico.com',
+        origin: ORIGIN,
+        createdAt: now - retention * 3,
+        expiresAt,
+        status,
+        terminalAt,
+        registeredAt: status === 'registered' ? terminalAt : null,
+        approvalChallenge: null,
+        registrationChallenge: null,
+        approvedAt: null,
+        approvedByCredentialId: null,
+      });
+    };
+
+    // Expired requests are retained for one day after expiry.
+    seed('expired-pending', 'pending', now - retention);
+    seed('expired-approved', 'approved', now - retention);
+    seed('recently-expired', 'pending', now - retention + 1);
+
+    // Successful and declined requests use their actual completion time.
+    seed('old-registered', 'registered', now - retention * 3, now - retention);
+    seed('old-rejected', 'rejected', now - retention * 3, now - retention);
+    seed('old-cancelled', 'cancelled', now - retention * 3, now - retention);
+    seed('recently-rejected', 'rejected', now - retention * 3, now - retention + 1);
+
+    // These remain usable and must not be removed, even if another request is cleaned.
+    seed('active-pending', 'pending', now + 60_000);
+    seed('active-approved', 'approved', now + 60_000);
+    h.docs.set(`adminSecurity/${h.uid}/events/audit-entry`, {
+      type: 'device_enrollment_rejected',
+      at: now - retention * 5,
+    });
+
+    const deleted = await store.cleanupDeviceEnrollments(now);
+
+    expect(deleted).toBe(5);
+    for (const id of [
+      'expired-pending',
+      'expired-approved',
+      'old-registered',
+      'old-rejected',
+      'old-cancelled',
+    ]) {
+      expect(h.docs.has(`adminSecurity/${h.uid}/deviceEnrollments/${id}`)).toBe(false);
+    }
+    for (const id of [
+      'recently-expired',
+      'recently-rejected',
+      'active-pending',
+      'active-approved',
+    ]) {
+      expect(h.docs.has(`adminSecurity/${h.uid}/deviceEnrollments/${id}`)).toBe(true);
+    }
+    expect(h.docs.get(`adminSecurity/${h.uid}/events/audit-entry`)).toMatchObject({
+      type: 'device_enrollment_rejected',
+      at: now - retention * 5,
+    });
   });
 });

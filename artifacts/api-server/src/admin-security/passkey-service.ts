@@ -552,6 +552,7 @@ export async function createDeviceEnrollmentRequest(
     createdAt: now,
     expiresAt,
     status: 'pending',
+    terminalAt: null,
     approvalChallenge: null,
     registrationChallenge: null,
     approvedAt: null,
