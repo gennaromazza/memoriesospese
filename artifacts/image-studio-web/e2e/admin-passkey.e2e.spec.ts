@@ -926,7 +926,7 @@ test("admin grouped jobs list keeps filters, selection, paging, and row actions 
   );
   const nextJob = makeJob(
     "e2e-grouped-next",
-    "E2E - Prossimo evento",
+    "E2E - Evento confermato con un titolo molto lungo per controllare la leggibilità sullo schermo stretto",
     "confermato",
     dayAt(1),
   );
@@ -1129,6 +1129,71 @@ test("admin grouped jobs list keeps filters, selection, paging, and row actions 
         level: 2,
       }),
     ).toBeVisible();
+
+    // Controlla la leggibilità della vista raggruppata su uno schermo stretto
+    // prima delle verifiche desktop di filtri, selezione e paginazione.
+    await page.setViewportSize({ width: 402, height: 874 });
+    await page.getByTestId("select-filter-time").click();
+    await page.getByRole("option", { name: "Tutti i periodi" }).click();
+    await page.getByTestId("select-items-per-page").click();
+    await page.getByRole("option", { name: "100", exact: true }).click();
+
+    const jobsTable = page.locator("table").filter({
+      has: page.getByTestId(`job-row-${todayJob.id}`),
+    });
+    const jobsTableScroller = jobsTable.locator("xpath=..");
+    const mobileTableSize = await jobsTableScroller.evaluate((element) => ({
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+    }));
+    expect(mobileTableSize.scrollWidth).toBeGreaterThan(mobileTableSize.clientWidth);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+
+    await expect(page.getByTestId("jobs-section-leads")).toBeVisible();
+    await expect(page.getByTestId("jobs-section-today")).toBeVisible();
+    await expect(page.getByTestId("jobs-section-upcoming")).toBeVisible();
+    await expect(page.getByTestId("jobs-section-undated")).toBeVisible();
+    await expect(page.getByTestId("jobs-section-past")).toBeVisible();
+    await expect(page.getByTestId("jobs-section-leads")).toContainText("Richieste da seguire");
+    await expect(page.getByTestId("jobs-section-today")).toContainText("Eventi confermati per oggi");
+    await expect(page.getByTestId("jobs-section-upcoming")).toContainText("In arrivo");
+    await expect(page.getByTestId("jobs-section-past")).toContainText("Eventi passati");
+    await expect(page.getByTestId(`job-row-${nextJob.id}`).getByText(nextJob.nomeEvento)).toBeVisible();
+
+    const mobileTodayRow = page.getByTestId(`job-row-${todayJob.id}`);
+    const mobileCollaboratorAction = mobileTodayRow.getByRole("button", {
+      name: "Aggiungi o gestisci collaboratori (1 assegnati)",
+    });
+    await expect(mobileCollaboratorAction).toBeVisible();
+    expect(await mobileCollaboratorAction.evaluate((element) => element.getBoundingClientRect().height))
+      .toBeGreaterThanOrEqual(44);
+    await mobileCollaboratorAction.click();
+    await expect(
+      page.getByRole("dialog").getByText(`Collaboratori · ${todayJob.nomeEvento}`),
+    ).toBeVisible();
+    await page.keyboard.press("Escape");
+
+    await jobsTableScroller.evaluate((element) => {
+      element.scrollLeft = element.scrollWidth;
+    });
+    const mobileTypeAction = mobileTodayRow.locator("td").nth(5).getByRole("combobox");
+    await expect(mobileTypeAction).toBeVisible();
+    await mobileTypeAction.click({ timeout: 10_000 });
+    await expect(page.getByRole("option", { name: "Stampa", exact: true })).toBeVisible();
+    await page.keyboard.press("Escape");
+
+    await jobsTableScroller.evaluate((element) => {
+      element.scrollLeft = 0;
+    });
+    await mobileTodayRow.scrollIntoViewIfNeeded();
+    await page.screenshot({
+      path: test.info().outputPath("jobs-list-mobile-402x874.png"),
+    });
+    await page.getByTestId("select-items-per-page").click();
+    await page.getByRole("option", { name: "25", exact: true }).click();
+    await page.setViewportSize({ width: 1440, height: 1000 });
 
     // Search is applied within the current view, and leaves only the matching
     // data row plus its own group heading.
