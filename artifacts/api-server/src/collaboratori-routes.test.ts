@@ -4,10 +4,21 @@ import type { AddressInfo } from 'node:net';
 import { DateTime } from 'luxon';
 
 const state: Record<string, Record<string, any>> = {};
+const documentVersions = new Map<string, number>();
 let nextId = 1;
+let transactionCommitQueue = Promise.resolve();
+let concurrentAssignmentReadBarrier: {
+  remaining: number;
+  promise: Promise<void>;
+  release: () => void;
+} | null = null;
 const { sendGmailEmailMock } = vi.hoisted(() => ({
   sendGmailEmailMock: vi.fn(),
 }));
+
+function documentKey(collectionName: string, id: string): string {
+  return `${collectionName}/${id}`;
+}
 
 function documentRef(collectionName: string, id: string) {
   return {
@@ -20,6 +31,8 @@ function documentRef(collectionName: string, id: string) {
     async update(data: any) {
       state[collectionName] ??= {};
       state[collectionName][id] = { ...(state[collectionName][id] || {}), ...data };
+      const key = documentKey(collectionName, id);
+      documentVersions.set(key, (documentVersions.get(key) || 0) + 1);
     },
   };
 }
@@ -86,6 +99,8 @@ function collection(name: string) {
       const id = `auto-${nextId++}`;
       state[name] ??= {};
       state[name][id] = data;
+      const key = documentKey(name, id);
+      documentVersions.set(key, (documentVersions.get(key) || 0) + 1);
       return { id };
     },
   };
@@ -101,35 +116,73 @@ function hasUndefined(value: unknown): boolean {
 }
 
 async function runTransaction<T>(callback: (transaction: any) => Promise<T>): Promise<T> {
-  const writes: Array<{ type: 'create' | 'update'; ref: ReturnType<typeof documentRef>; data: any }> = [];
-  const result = await callback({
-    get: (ref: ReturnType<typeof documentRef>) => ref.get(),
-    create: (ref: ReturnType<typeof documentRef>, data: any) => {
-      writes.push({ type: 'create', ref, data });
-    },
-    update: (ref: ReturnType<typeof documentRef>, data: any) => {
-      writes.push({ type: 'update', ref, data });
-    },
-  });
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const readVersions = new Map<string, number>();
+    const writes: Array<{ type: 'create' | 'update'; ref: ReturnType<typeof documentRef>; data: any }> = [];
+    const result = await callback({
+      get: async (ref: ReturnType<typeof documentRef>) => {
+        const key = documentKey(ref.collectionName, ref.id);
+        const version = documentVersions.get(key) || 0;
+        const snapshot = await ref.get();
+        readVersions.set(key, version);
+        if (
+          ref.collectionName === 'jobCollaboratoreAssignments'
+          && concurrentAssignmentReadBarrier
+          && concurrentAssignmentReadBarrier.remaining > 0
+        ) {
+          const barrier = concurrentAssignmentReadBarrier;
+          barrier.remaining -= 1;
+          if (barrier.remaining === 0) barrier.release();
+          await barrier.promise;
+        }
+        return snapshot;
+      },
+      create: (ref: ReturnType<typeof documentRef>, data: any) => {
+        writes.push({ type: 'create', ref, data });
+      },
+      update: (ref: ReturnType<typeof documentRef>, data: any) => {
+        writes.push({ type: 'update', ref, data });
+      },
+    });
 
-  for (const write of writes) {
-    if (hasUndefined(write.data)) {
-      throw new Error('Firestore non accetta valori undefined');
-    }
-    state[write.ref.collectionName] ??= {};
-    if (write.type === 'create' && state[write.ref.collectionName][write.ref.id]) {
-      throw new Error('Documento già esistente');
+    let releaseCommitQueue: (() => void) | undefined;
+    const previousCommit = transactionCommitQueue;
+    transactionCommitQueue = new Promise<void>((resolve) => {
+      releaseCommitQueue = resolve;
+    });
+    await previousCommit;
+
+    try {
+      const hasConflict = [...readVersions].some(([key, version]) =>
+        (documentVersions.get(key) || 0) !== version);
+      if (hasConflict) continue;
+
+      for (const write of writes) {
+        if (hasUndefined(write.data)) {
+          throw new Error('Firestore non accetta valori undefined');
+        }
+        state[write.ref.collectionName] ??= {};
+        if (write.type === 'create' && state[write.ref.collectionName][write.ref.id]) {
+          throw new Error('Documento già esistente');
+        }
+      }
+
+      for (const write of writes) {
+        const current = state[write.ref.collectionName][write.ref.id] || {};
+        state[write.ref.collectionName][write.ref.id] = write.type === 'update'
+          ? { ...current, ...write.data }
+          : write.data;
+        const key = documentKey(write.ref.collectionName, write.ref.id);
+        documentVersions.set(key, (documentVersions.get(key) || 0) + 1);
+      }
+
+      return result;
+    } finally {
+      releaseCommitQueue?.();
     }
   }
 
-  for (const write of writes) {
-    const current = state[write.ref.collectionName][write.ref.id] || {};
-    state[write.ref.collectionName][write.ref.id] = write.type === 'update'
-      ? { ...current, ...write.data }
-      : write.data;
-  }
-
-  return result;
+  throw new Error('Firestore transaction retry limit exceeded');
 }
 
 vi.mock('./firebase-admin.js', () => ({
@@ -163,6 +216,9 @@ let baseUrl = '';
 beforeEach(async () => {
   sendGmailEmailMock.mockReset();
   for (const collectionName of Object.keys(state)) delete state[collectionName];
+  documentVersions.clear();
+  transactionCommitQueue = Promise.resolve();
+  concurrentAssignmentReadBarrier = null;
   nextId = 1;
   Object.assign(state, {
     jobCollaboratoreAssignments: {
@@ -384,6 +440,63 @@ describe('POST /api/collaboratori/assignments/:id/add-payment', () => {
     expect(secondResponse.status).toBe(200);
     expect(state.jobCollaboratoreAssignments.assignment1.pagamenti).toHaveLength(2);
     expect(Object.keys(state.cashMovements)).toHaveLength(2);
+  });
+
+  it('accepts at most one simultaneous payment when their total exceeds the remaining compensation', async () => {
+    const url = `${baseUrl}/api/collaboratori/assignments/assignment1/add-payment`;
+    let releaseAssignmentReads: (() => void) | undefined;
+    const assignmentReadsReady = new Promise<void>((resolve) => {
+      releaseAssignmentReads = resolve;
+    });
+    concurrentAssignmentReadBarrier = {
+      remaining: 2,
+      promise: assignmentReadsReady,
+      release: () => releaseAssignmentReads?.(),
+    };
+    const sendPayment = (idempotencyKey: string) => fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        importo: 300,
+        tipo: 'acconto',
+        metodo: 'bonifico',
+        data: '2026-08-31',
+        idempotencyKey,
+      }),
+    });
+
+    const responses = await Promise.all([
+      sendPayment('simultaneous-payment-1'),
+      sendPayment('simultaneous-payment-2'),
+    ]);
+    const results = await Promise.all(responses.map(async (response) => ({
+      status: response.status,
+      body: await response.json() as Record<string, any>,
+    })));
+    const accepted = results.filter(({ status }) => status === 200);
+    const rejected = results.filter(({ status }) => status === 409);
+    const assignment = state.jobCollaboratoreAssignments.assignment1;
+    const payments = assignment.pagamenti;
+    const cashMovements = Object.entries(state.cashMovements);
+
+    expect(accepted).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0].body).toMatchObject({
+      code: 'PAYMENT_EXCEEDS_COMPENSATION',
+      maxImporto: 200,
+    });
+    expect(assignment.compenso).toBe(500);
+    expect(payments).toHaveLength(1);
+    expect(payments[0]).toMatchObject({
+      importo: 300,
+      cashMovementId: accepted[0].body.cashMovementId,
+    });
+    expect(assignment.saldoResiduo).toBe(200);
+    expect(assignment.isPagato).toBe(false);
+    expect(cashMovements).toHaveLength(1);
+    expect(cashMovements[0][0]).toBe(payments[0].cashMovementId);
+    expect(cashMovements[0][1]).toMatchObject({ tipo: 'uscita', importo: 300 });
+    expect(sendGmailEmailMock).toHaveBeenCalledTimes(1);
   });
 });
 
