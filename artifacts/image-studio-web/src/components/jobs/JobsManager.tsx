@@ -3,7 +3,7 @@
  * Componente principale gestione lavori
  */
 
-import { useState, useMemo, Fragment, useEffect, forwardRef, type ComponentPropsWithoutRef } from 'react';
+import { useState, useMemo, Fragment, useEffect, useRef, forwardRef, type ComponentPropsWithoutRef } from 'react';
 import { useLocation } from 'wouter';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getAllJobs, deleteMultipleJobs, updateJob } from '@/lib/jobs';
@@ -646,6 +646,38 @@ export default function JobsManager() {
   const sortedJobs = useMemo(() => {
     return sortJobsForDisplay(filteredJobs, quotesByJob, timeFilter);
   }, [filteredJobs, quotesByJob, timeFilter]);
+
+  const jobsTableScrollAreaRef = useRef<HTMLDivElement>(null);
+  const jobsTableHasBeenScrolledRef = useRef(false);
+  const [showJobsTableScrollHint, setShowJobsTableScrollHint] = useState(false);
+
+  useEffect(() => {
+    const scrollArea = jobsTableScrollAreaRef.current;
+    if (!scrollArea || sortedJobs.length === 0) {
+      setShowJobsTableScrollHint(false);
+      return;
+    }
+
+    const updateScrollHint = () => {
+      if (!jobsTableHasBeenScrolledRef.current) {
+        setShowJobsTableScrollHint(scrollArea.scrollWidth > scrollArea.clientWidth + 1);
+      }
+    };
+
+    updateScrollHint();
+    const resizeObserver = typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(updateScrollHint)
+      : null;
+    resizeObserver?.observe(scrollArea);
+    const table = scrollArea.querySelector('table');
+    if (table) resizeObserver?.observe(table);
+    window.addEventListener('resize', updateScrollHint);
+
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', updateScrollHint);
+    };
+  }, [sortedJobs.length]);
 
   const visibleSelectedJobs = useMemo(
     () => sortedJobs.filter(job => selectedJobs.has(job.id)),
@@ -1432,7 +1464,24 @@ export default function JobsManager() {
         </Card>
       ) : (
         <div className="overflow-hidden rounded-xl border border-[#e0e3d9] bg-card shadow-sm">
-          <Table>
+          {showJobsTableScrollHint && (
+            <div
+              className="flex items-center justify-end gap-1 border-b border-[#e0e3d9] px-3 py-1.5 text-xs text-muted-foreground md:hidden"
+              data-testid="status-jobs-table-scroll-hint"
+            >
+              <span>Scorri per vedere altre colonne</span>
+              <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+            </div>
+          )}
+          <Table
+            scrollAreaRef={jobsTableScrollAreaRef}
+            onScrollArea={(event) => {
+              if (event.currentTarget.scrollLeft > 0) {
+                jobsTableHasBeenScrolledRef.current = true;
+                setShowJobsTableScrollHint(false);
+              }
+            }}
+          >
             <TableHeader>
               <TableRow>
                 <TableHead className="w-10">
