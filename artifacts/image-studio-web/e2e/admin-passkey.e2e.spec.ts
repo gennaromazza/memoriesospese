@@ -870,3 +870,403 @@ test("admin dashboard React smoke: load the default calendar and navigate core s
     await browser.close();
   }
 });
+
+test("admin grouped jobs list keeps filters, selection, paging, and row actions working", async () => {
+  test.setTimeout(150_000);
+  requireLoopbackEndpoint(baseURL, "ADMIN_PASSKEY_E2E_BASE_URL");
+  requireLoopbackEndpoint(authEmulator, "ADMIN_PASSKEY_E2E_AUTH_EMULATOR");
+  requireLoopbackEndpoint(firestoreEmulator, "ADMIN_PASSKEY_E2E_FIRESTORE_EMULATOR");
+  await resetDisposableEmulators();
+
+  const password = `Test-${randomBytes(18).toString("hex")}!`;
+  const idToken = await seedDisposableAdmin(password);
+  const clientId = "e2e-grouped-jobs-client";
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+  const dayAt = (offset: number) => {
+    const date = new Date();
+    date.setDate(date.getDate() + offset);
+    date.setHours(12, 0, 0, 0);
+    return date;
+  };
+
+  const makeJob = (
+    id: string,
+    nomeEvento: string,
+    status: string,
+    eventDate?: Date,
+    jobType = "matrimonio",
+  ) => ({
+    id,
+    nomeEvento,
+    clientiIds: [clientId],
+    jobType,
+    dataNonDefinita: !eventDate,
+    allDay: false,
+    ...(eventDate ? { eventDate: eventDate.toISOString() } : {}),
+    startTime: "12:00",
+    endTime: "13:00",
+    eventLocation: "Luogo sintetico",
+    status,
+    financials: {
+      totalePreventivato: 200,
+      totaleOrdini: 200,
+      totalePagato: 50,
+      saldoResiduo: 150,
+    },
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+
+  const todayJob = makeJob(
+    "e2e-grouped-today",
+    "E2E - Evento di oggi",
+    "confermato",
+    today,
+  );
+  const nextJob = makeJob(
+    "e2e-grouped-next",
+    "E2E - Prossimo evento",
+    "confermato",
+    dayAt(1),
+  );
+  const undatedJob = makeJob(
+    "e2e-grouped-undated",
+    "E2E - Data da definire",
+    "confermato",
+  );
+  const pastJob = makeJob(
+    "e2e-grouped-past",
+    "E2E - Evento passato",
+    "consegnato",
+    dayAt(-1),
+  );
+  const leadJob = makeJob(
+    "e2e-grouped-lead",
+    "E2E - Richiesta in arrivo",
+    "lead",
+  );
+  const printJob = makeJob(
+    "e2e-grouped-print",
+    "E2E - Lavoro stampa",
+    "confermato",
+    dayAt(2),
+    "stampa",
+  );
+  const bulkJob = makeJob(
+    "e2e-grouped-bulk-delete",
+    "E2E - Eliminazione sicura",
+    "preventivo_inviato",
+  );
+  const fillerJobs = Array.from({ length: 27 }, (_, index) =>
+    makeJob(
+      `e2e-grouped-filler-${index + 1}`,
+      `E2E - Futuro ${String(index + 1).padStart(2, "0")}`,
+      "confermato",
+      dayAt(index + 3),
+    ),
+  );
+  const fixtureJobs = [
+    todayJob,
+    nextJob,
+    undatedJob,
+    pastJob,
+    leadJob,
+    printJob,
+    ...fillerJobs,
+    bulkJob,
+  ];
+  const deletedJobIds = new Set<string>();
+  const collaboratorAssignment = {
+    id: "e2e-grouped-assignment",
+    jobId: todayJob.id,
+    collaboratoreId: "e2e-grouped-collaborator",
+    status: "accepted",
+  };
+
+  await Promise.all([
+    seedFirestoreDocument(idToken, `clienti/${clientId}`, {
+      nome: "Cliente",
+      cognome: "Test Raggruppamento",
+      email: "grouped-jobs@example.invalid",
+      lifecycle: { lastInteractionAt: new Date(), status: "lead" },
+      sourceRefs: { jobIds: [todayJob.id, bulkJob.id] },
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }),
+    seedFirestoreDocument(idToken, `jobTypes/matrimonio`, {
+      slug: "matrimonio",
+      nome: "Matrimonio",
+      colore: "#53745f",
+      attivo: true,
+      ordine: 1,
+    }),
+    seedFirestoreDocument(idToken, `jobTypes/stampa`, {
+      slug: "stampa",
+      nome: "Stampa",
+      colore: "#5278a5",
+      attivo: true,
+      ordine: 2,
+    }),
+    seedFirestoreDocument(idToken, `jobs/${todayJob.id}`, todayJob),
+    seedFirestoreDocument(idToken, `jobs/${bulkJob.id}`, bulkJob),
+  ]);
+
+  const systemChromiumPath =
+    process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ??
+    "/repl/tools/bin/chromium";
+  const browser = await chromium.launch({
+    headless: true,
+    ...(existsSync(systemChromiumPath)
+      ? { executablePath: systemChromiumPath }
+      : {}),
+    args: ["--no-sandbox"],
+  });
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+  });
+  const page = await context.newPage();
+  const pageErrors: string[] = [];
+
+  await context.route("**/*", async (route) => {
+    const url = new URL(route.request().url());
+    if (!["127.0.0.1", "localhost", "::1"].includes(url.hostname)) {
+      await route.abort("blockedbyclient");
+      return;
+    }
+
+    const json = (body: unknown, status = 200) =>
+      route.fulfill({
+        status,
+        contentType: "application/json",
+        body: JSON.stringify(body),
+      });
+
+    if (url.pathname === "/api/admin/security/status") {
+      await json({
+        passkeyRequired: false,
+        passkeys: [],
+        recoveryCodesRemaining: 0,
+        recoveryCodesGeneratedAt: null,
+        lockedUntil: null,
+        verified: false,
+        activationReady: false,
+        verifiedUntil: null,
+        expectedClaim: null,
+      });
+      return;
+    }
+    if (url.pathname === "/api/jobs/list-aggregates") {
+      await json({
+        transactionCounts: { [todayJob.id]: 2 },
+        quotesStatus: {
+          [leadJob.id]: {
+            hasQuote: true,
+            isSigned: false,
+            isEmailSent: true,
+          },
+        },
+        financialsByJob: {
+          [todayJob.id]: { totalePagato: 50, saldoResiduo: 150 },
+        },
+      });
+      return;
+    }
+    if (url.pathname === "/api/jobs" && route.request().method() === "GET") {
+      await json({
+        jobs: fixtureJobs.filter((job) => !deletedJobIds.has(job.id)),
+      });
+      return;
+    }
+    if (
+      url.pathname.startsWith("/api/jobs/") &&
+      url.pathname.endsWith("/calendar-event") &&
+      route.request().method() === "DELETE"
+    ) {
+      const jobId = url.pathname.split("/")[3];
+      deletedJobIds.add(jobId);
+      await json({ ok: true });
+      return;
+    }
+    const jobDetailMatch = url.pathname.match(/^\/api\/jobs\/([^/]+)$/);
+    if (jobDetailMatch && route.request().method() === "GET") {
+      const job = fixtureJobs.find((entry) => entry.id === jobDetailMatch[1]);
+      await json(job ? { job } : { error: "not found" }, job ? 200 : 404);
+      return;
+    }
+    if (url.pathname === "/api/collaboratori") {
+      await json([
+        {
+          id: collaboratorAssignment.collaboratoreId,
+          nome: "Collaboratore",
+          cognome: "Sintetico",
+          attivo: true,
+        },
+      ]);
+      return;
+    }
+    if (url.pathname === "/api/collaboratori/assignments") {
+      await json([collaboratorAssignment]);
+      return;
+    }
+    if (url.pathname.startsWith("/api/collaboratori/assignments/job/")) {
+      await json([]);
+      return;
+    }
+
+    await route.continue();
+  });
+  page.on("pageerror", (error) => pageErrors.push(error.stack ?? error.message));
+
+  try {
+    await page.goto(localUrl("/admin"));
+    await signIn(page, password);
+    await page.goto(localUrl("/admin/jobs"));
+    await expect(
+      page.getByRole("heading", {
+        name: "Gestione Lavori",
+        exact: true,
+        level: 2,
+      }),
+    ).toBeVisible();
+
+    // Search is applied within the current view, and leaves only the matching
+    // data row plus its own group heading.
+    await page.getByTestId("input-search-jobs").fill("E2E - Evento di oggi");
+    await expect(page.getByTestId(`job-row-${todayJob.id}`)).toBeVisible();
+    await expect(page.locator('[data-testid^="job-row-"]')).toHaveCount(1);
+    await expect(page.getByTestId("jobs-section-today")).toBeVisible();
+    await page.getByTestId("input-search-jobs").fill("");
+
+    // Type and period filters include the grouped section logic.
+    await page.getByTestId("card-filter-stampa").click();
+    await expect(page.getByTestId(`job-row-${printJob.id}`)).toBeVisible();
+    await expect(page.locator('[data-testid^="job-row-"]')).toHaveCount(1);
+    await page.getByTestId("card-filter-all").click();
+    await page.getByTestId("select-filter-time").click();
+    await page.getByRole("option", { name: "Impegni Passati" }).click();
+    await expect(page.getByTestId(`job-row-${pastJob.id}`)).toBeVisible();
+    await expect(page.getByTestId(`job-row-${leadJob.id}`)).toBeVisible();
+    await expect(page.getByTestId("jobs-section-past")).toBeVisible();
+    await page.getByTestId("select-filter-time").click();
+    await page.getByRole("option", { name: "Tutti i periodi" }).click();
+    await expect(page.locator('[data-testid^="job-row-"]')).toHaveCount(25);
+
+    await page.getByTestId("select-filter-quote").click();
+    await page.getByRole("option", { name: "Non firmato" }).click();
+    await expect(page.getByTestId(`job-row-${leadJob.id}`)).toBeVisible();
+    await expect(page.locator('[data-testid^="job-row-"]')).toHaveCount(1);
+    await page.getByTestId("select-filter-quote").click();
+    await page.getByRole("option", { name: "Tutti i preventivi" }).click();
+
+    await page.getByTestId("select-filter-collaboratore").click();
+    await page.getByRole("option", { name: "Collaboratore Sintetico" }).click();
+    await expect(page.getByTestId(`job-row-${todayJob.id}`)).toBeVisible();
+    await expect(page.locator('[data-testid^="job-row-"]')).toHaveCount(1);
+    await page.getByTestId("select-filter-collaboratore").click();
+    await page.getByRole("option", { name: "Tutti i collaboratori" }).click();
+
+    const currentYear = String(today.getFullYear());
+    const currentMonth = [
+      "Gennaio",
+      "Febbraio",
+      "Marzo",
+      "Aprile",
+      "Maggio",
+      "Giugno",
+      "Luglio",
+      "Agosto",
+      "Settembre",
+      "Ottobre",
+      "Novembre",
+      "Dicembre",
+    ][today.getMonth()];
+    await page.getByTestId("select-filter-year").click();
+    await page.getByRole("option", { name: currentYear, exact: true }).click();
+    await page.getByTestId("select-filter-month").click();
+    await page.getByRole("option", { name: currentMonth, exact: true }).click();
+    await expect(page.getByTestId(`job-row-${todayJob.id}`)).toBeVisible();
+    await page.getByTestId("select-filter-year").click();
+    await page.getByRole("option", { name: "Tutti gli anni" }).click();
+
+    // Single and page-wide selection count only actual job rows, never group
+    // headings. Selection stays attached to the chosen page when paging.
+    await page.getByTestId(`checkbox-job-${todayJob.id}`).click();
+    await expect(page.getByText("1 lavori selezionati")).toBeVisible();
+    await page.getByTestId(`checkbox-job-${todayJob.id}`).click();
+    await page.getByTestId("checkbox-select-all").click();
+    await expect(page.getByText("25 lavori selezionati")).toBeVisible();
+    await expect(
+      page.locator('[data-testid^="jobs-section-"] [role="checkbox"]'),
+    ).toHaveCount(0);
+    await page.getByTestId("checkbox-select-all").click();
+    await expect(page.getByText("lavori selezionati")).toHaveCount(0);
+
+    await page.getByTestId("select-items-per-page").click();
+    await page.getByRole("option", { name: "10", exact: true }).click();
+    await expect(page.locator('[data-testid^="job-row-"]')).toHaveCount(10);
+    await page.getByTestId("button-next-page").click();
+    await expect(page.getByTestId("select-page-number")).toContainText("Pagina 2/4");
+    await page.getByTestId("checkbox-select-all").click();
+    await expect(page.getByText("10 lavori selezionati")).toBeVisible();
+    await page.getByTestId("button-first-page").click();
+
+    // The row-level event type, collaborator action, and payment tooltip remain
+    // usable even though section headers are inserted between data rows.
+    const todayRow = page.getByTestId(`job-row-${todayJob.id}`);
+    await todayRow.locator("td").nth(5).getByRole("combobox").click();
+    await page.getByRole("option", { name: "Stampa", exact: true }).click();
+    await expect(page.getByText("Tipo aggiornato")).toBeVisible();
+    const changedJobResponse = await fetch(
+      `${firestoreEmulator}/v1/projects/${projectId}/databases/(default)/documents/jobs/${todayJob.id}`,
+      { headers: { Authorization: `Bearer ${idToken}` } },
+    );
+    expect(changedJobResponse.ok).toBe(true);
+    const changedJobDocument = (await changedJobResponse.json()) as {
+      fields?: { jobType?: { stringValue?: string } };
+    };
+    expect(changedJobDocument.fields?.jobType?.stringValue).toBe("stampa");
+
+    await todayRow.getByRole("button", {
+      name: "Aggiungi o gestisci collaboratori (1 assegnati)",
+    }).click();
+    await expect(
+      page.getByRole("dialog").getByText(`Collaboratori · ${todayJob.nomeEvento}`),
+    ).toBeVisible();
+    await page.keyboard.press("Escape");
+
+    const paymentCell = todayRow.locator("td").nth(8);
+    await expect(paymentCell.getByText("2", { exact: true })).toBeVisible();
+    await paymentCell.hover();
+    await expect(page.getByText(/Preventivato:/)).toBeVisible();
+    await expect(page.getByText(/Pagato:/)).toBeVisible();
+    await expect(page.getByText(/Residuo:/)).toBeVisible();
+
+    await todayRow.getByText(todayJob.nomeEvento, { exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`/admin/jobs/${todayJob.id}$`));
+    await expect(
+      page.getByRole("heading", { name: todayJob.nomeEvento, exact: true }),
+    ).toBeVisible();
+
+    // Confirm the destructive action only against an isolated emulator fixture.
+    await page.goto(localUrl("/admin/jobs"));
+    await page.getByTestId("input-search-jobs").fill("E2E - Eliminazione sicura");
+    await expect(page.locator('[data-testid^="job-row-"]')).toHaveCount(1);
+    await page.getByTestId(`checkbox-job-${bulkJob.id}`).click();
+    await page.getByTestId("button-delete-selected").click();
+    await expect(page.getByText(/Stai per eliminare/)).toContainText("1 lavori");
+    await page.getByRole("button", { name: "Elimina 1 lavori" }).click();
+    await expect(page.getByText("Lavori eliminati", { exact: true })).toBeVisible();
+    await expect(page.getByTestId(`job-row-${bulkJob.id}`)).toHaveCount(0);
+
+    const deletedJobResponse = await fetch(
+      `${firestoreEmulator}/v1/projects/${projectId}/databases/(default)/documents/jobs/${bulkJob.id}`,
+      { headers: { Authorization: `Bearer ${idToken}` } },
+    );
+    expect(deletedJobResponse.status).toBe(404);
+    expect(pageErrors, "errori non gestiti della pagina").toEqual([]);
+  } finally {
+    await context.close();
+    await browser.close();
+  }
+});
