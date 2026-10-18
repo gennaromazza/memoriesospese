@@ -197,7 +197,8 @@ export default function JobsManager() {
   const [filterQuoteStatus, setFilterQuoteStatus] = useState<string>('all'); // Stato preventivo (default: tutti per mostrare anche lavori nuovi)
   const [timeFilter, setTimeFilter] = useState<'all' | 'upcoming' | 'past'>('upcoming'); // Filtro temporale (default: prossimi impegni)
   const [filterCollaboratore, setFilterCollaboratore] = useState<string>('all'); // Filtro collaboratore
-  const [showQuickQuotesOnly, setShowQuickQuotesOnly] = useState(false); // Vista rapida: lead da Preventivo Rapido
+  const [showLeadsOnly, setShowLeadsOnly] = useState(false);
+  const [showQuickQuotesOnly, setShowQuickQuotesOnly] = useState(false); // Sottovista dei lead da Preventivo Rapido
   const [customDateRange, setCustomDateRange] = useState<{
     from: Date | undefined;
     to: Date | undefined;
@@ -437,17 +438,31 @@ export default function JobsManager() {
     return Array.from(years).sort((a, b) => b - a);
   }, [jobs]);
   
-  // Conteggio lavori per tipo (esclude archiviati)
+  // I lead hanno una coda dedicata e non devono gonfiare i conteggi dei lavori.
+  // Manteniamo gli ID anche degli archiviati per non mostrarli nella lista lavori
+  // quando una ricerca testuale include gli archiviati.
+  const leadJobIds = useMemo(() =>
+    new Set(jobs
+      .filter(job => getJobListSection(job, quotesByJob[job.id]) === 'leads')
+      .map(job => job.id)),
+    [jobs, quotesByJob]
+  );
+  const leadJobs = useMemo(() =>
+    jobs.filter(job => job.status !== 'archiviato' && leadJobIds.has(job.id)),
+    [jobs, leadJobIds]
+  );
+
+  // Conteggio lavori per tipo (esclude archiviati e lead)
   const jobCountsByType = useMemo(() => {
     const counts: Record<string, number> = { all: 0 };
     jobs.forEach(job => {
-      if (job.status !== 'archiviato') {
+      if (job.status !== 'archiviato' && !leadJobIds.has(job.id)) {
         counts.all = (counts.all || 0) + 1;
         counts[job.jobType] = (counts[job.jobType] || 0) + 1;
       }
     });
     return counts;
-  }, [jobs]);
+  }, [jobs, leadJobIds]);
   
   // Mesi disponibili per l'anno selezionato
   const availableMonths = useMemo(() => {
@@ -488,13 +503,39 @@ export default function JobsManager() {
              note.includes(query) ||
              clientiNames.includes(query);
     };
+
+    const matchesQuoteStatus = (job: typeof jobs[0]): boolean => {
+      if (filterQuoteStatus === 'all') return true;
+      const quoteStatus = quotesByJob[job.id];
+      const hasQuote = quoteStatus?.hasQuote || false;
+      const confirmedJobStatuses = ['confermato', 'shooting_fatto', 'selezione_pending', 'produzione', 'consegnato'];
+      const jobIsConfirmed = confirmedJobStatuses.includes(job.status);
+      const isSigned = quoteStatus?.isSigned || jobIsConfirmed;
+      const isEmailSent = quoteStatus?.isEmailSent || false;
+
+      if (filterQuoteStatus === 'firmato') return isSigned;
+      if (filterQuoteStatus === 'non_firmato') return hasQuote && !isSigned && isEmailSent;
+      if (filterQuoteStatus === 'non_inviato') return !hasQuote || !isEmailSent;
+      return true;
+    };
     
     // Vista rapida "Preventivi Rapidi": mostra tutti i lavori arrivati dal form online,
     // ignorando i filtri tipo/tempo (i lead spesso non hanno data o tipo "matrimonio")
     if (showQuickQuotesOnly) {
       return jobs.filter(job =>
-        job.provenance === 'preventivo-rapido' &&
+        leadJobIds.has(job.id) &&
         job.status !== 'archiviato' &&
+        job.provenance === 'preventivo-rapido' &&
+        matchesQuoteStatus(job) &&
+        (!searchQuery || matchesSearch(job, searchQuery.toLowerCase()))
+      );
+    }
+
+    if (showLeadsOnly) {
+      return jobs.filter(job =>
+        leadJobIds.has(job.id) &&
+        job.status !== 'archiviato' &&
+        matchesQuoteStatus(job) &&
         (!searchQuery || matchesSearch(job, searchQuery.toLowerCase()))
       );
     }
@@ -503,6 +544,8 @@ export default function JobsManager() {
     return jobs.filter(job => {
       // Escludi archiviati dalla vista principale (a meno che non siano cercati)
       if (job.status === 'archiviato' && !searchQuery) return false;
+      // Le richieste non firmate sono gestite nella scheda Lead dedicata.
+      if (leadJobIds.has(job.id)) return false;
       
       // Se c'è una ricerca attiva, controlla solo quella
       if (searchQuery) {
@@ -526,20 +569,7 @@ export default function JobsManager() {
       }
       
       // Filtro stato preventivo - usa dati reali dai preventivi + status job come fallback
-      if (filterQuoteStatus !== 'all') {
-        const quoteStatus = quotesByJob[job.id];
-        const hasQuote = quoteStatus?.hasQuote || false;
-        
-        const confirmedJobStatuses = ['confermato', 'shooting_fatto', 'selezione_pending', 'produzione', 'consegnato'];
-        const jobIsConfirmed = confirmedJobStatuses.includes(job.status);
-        const isSigned = quoteStatus?.isSigned || jobIsConfirmed;
-        
-        const isEmailSent = quoteStatus?.isEmailSent || false;
-        
-        if (filterQuoteStatus === 'firmato' && !isSigned) return false;
-        if (filterQuoteStatus === 'non_firmato' && (!hasQuote || isSigned || !isEmailSent)) return false;
-        if (filterQuoteStatus === 'non_inviato' && (hasQuote && isEmailSent)) return false;
-      }
+      if (!matchesQuoteStatus(job)) return false;
       
       // Filtro collaboratore
       if (filterCollaboratore !== 'all') {
@@ -602,17 +632,14 @@ export default function JobsManager() {
       
       return true;
     });
-  }, [jobs, filterType, filterYear, filterSemester, filterMonth, filterQuoteStatus, filterCollaboratore, timeFilter, customDateRange, searchQuery, clienteNamesMap, quotesByJob, collaboratoriByJob, jobsByCollaboratore, showQuickQuotesOnly]);
+  }, [jobs, filterType, filterYear, filterSemester, filterMonth, filterQuoteStatus, filterCollaboratore, timeFilter, customDateRange, searchQuery, clienteNamesMap, quotesByJob, collaboratoriByJob, jobsByCollaboratore, leadJobIds, showLeadsOnly, showQuickQuotesOnly]);
 
-  // Lead arrivati dal form Preventivo Rapido non ancora confermati (nuove richieste da gestire)
+  // Lead arrivati dal form Preventivo Rapido: filtro rapido nella coda Lead.
   const quickQuoteLeads = useMemo(() =>
-    jobs.filter(j => j.provenance === 'preventivo-rapido' && (j.status === 'lead' || j.status === 'preventivo_inviato')),
-    [jobs]
+    leadJobs.filter(j => j.provenance === 'preventivo-rapido'),
+    [leadJobs]
   );
-  const quickQuoteTotal = useMemo(() =>
-    jobs.filter(j => j.provenance === 'preventivo-rapido' && j.status !== 'archiviato').length,
-    [jobs]
-  );
+  const quickQuoteTotal = quickQuoteLeads.length;
   
   // Lead e lavori firmati restano in gruppi distinti. All'interno dei lavori
   // confermati l'ordine è per data evento; i lead usano la data di richiesta.
@@ -646,7 +673,7 @@ export default function JobsManager() {
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterType, filterYear, filterSemester, filterMonth, filterQuoteStatus, filterCollaboratore, timeFilter, customDateRange, searchQuery]);
+  }, [filterType, filterYear, filterSemester, filterMonth, filterQuoteStatus, filterCollaboratore, timeFilter, customDateRange, searchQuery, showLeadsOnly, showQuickQuotesOnly]);
   
   // Clamp currentPage when totalPages decreases (e.g., after deletion or filtering)
   useEffect(() => {
@@ -787,7 +814,7 @@ export default function JobsManager() {
       </div>
       
       {/* Banner Preventivi Rapidi: nuove richieste dal form online */}
-      {(quickQuoteLeads.length > 0 || showQuickQuotesOnly) && (
+      {showLeadsOnly && (quickQuoteLeads.length > 0 || showQuickQuotesOnly) && (
         <div
           className={cn(
             "rounded-xl border p-3 sm:p-4 flex items-center gap-3 sm:justify-between sm:rounded-lg",
@@ -823,7 +850,7 @@ export default function JobsManager() {
                 </span>
                 <span className="hidden sm:inline">
                   {showQuickQuotesOnly
-                    ? `Stai vedendo solo i lavori arrivati dal form online (${quickQuoteTotal} totali).`
+                    ? `Stai vedendo solo i lead arrivati dal form online (${quickQuoteTotal} totali).`
                     : 'Clienti che hanno compilato il form online e attendono una risposta.'}
                 </span>
               </p>
@@ -834,7 +861,7 @@ export default function JobsManager() {
             variant={showQuickQuotesOnly ? "default" : "outline"}
             aria-label={
               showQuickQuotesOnly
-                ? "Torna a tutti i lavori"
+                ? "Mostra tutti i lead"
                 : "Mostra Preventivi Rapidi"
             }
             className={cn(
@@ -844,8 +871,10 @@ export default function JobsManager() {
                 : "border-amber-400 text-amber-800 hover:bg-amber-100"
             )}
             onClick={() => {
+              setShowLeadsOnly(true);
               setShowQuickQuotesOnly(v => !v);
               setCurrentPage(1);
+              setSelectedJobs(new Set());
             }}
             data-testid="button-toggle-quick-quotes"
           >
@@ -853,7 +882,7 @@ export default function JobsManager() {
               <>
                 <X className="w-4 h-4 sm:mr-2" />
                 <span className="sr-only sm:not-sr-only">
-                  Torna a tutti i lavori
+                  Mostra tutti i lead
                 </span>
               </>
             ) : (
@@ -869,7 +898,7 @@ export default function JobsManager() {
       )}
 
       {/* Stats cards - con toggle privacy */}
-      <div className="relative">
+      {!showLeadsOnly && <div className="relative">
         <div className="flex items-center justify-start mb-2 sm:justify-end">
           <Button
             variant="ghost"
@@ -930,25 +959,32 @@ export default function JobsManager() {
             </CardContent>
           </Card>
         )}
-      </div>
+      </div>}
       
       {/* Card Navigazione Tipi Lavoro */}
       <div className="overflow-x-auto pb-2">
         <div className="flex gap-2 min-w-max">
           {/* Card "Tutti" */}
           <button
-            onClick={() => setFilterType('all')}
+            onClick={() => {
+              setShowLeadsOnly(false);
+              setShowQuickQuotesOnly(false);
+              setSelectedJobs(new Set());
+              setFilterQuoteStatus('all');
+              setFilterType('all');
+            }}
             className={cn(
               "flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-all min-w-[100px]",
-              filterType === 'all'
+              !showLeadsOnly && filterType === 'all'
                 ? "bg-slate-100 border-slate-400 text-slate-800 shadow-sm"
                 : "bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"
             )}
+            aria-pressed={!showLeadsOnly && filterType === 'all'}
             data-testid="card-filter-all"
           >
             <FileText className="w-5 h-5" />
             <div className="text-left">
-              <div className="font-medium text-sm">Tutti</div>
+              <div className="font-medium text-sm">Tutti i lavori</div>
               <div className="text-xs text-muted-foreground">{jobCountsByType.all || 0}</div>
             </div>
           </button>
@@ -960,48 +996,113 @@ export default function JobsManager() {
             .map(jobType => (
               <button
                 key={jobType.id}
-                onClick={() => setFilterType(jobType.slug)}
+                onClick={() => {
+                  setShowLeadsOnly(false);
+                  setShowQuickQuotesOnly(false);
+                  setSelectedJobs(new Set());
+                  setFilterQuoteStatus('all');
+                  setFilterType(jobType.slug);
+                }}
                 className={cn(
                   "flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-all min-w-[120px]",
-                  filterType === jobType.slug
+                  !showLeadsOnly && filterType === jobType.slug
                     ? "shadow-sm"
                     : "bg-white hover:bg-opacity-10"
                 )}
                 style={{
-                  borderColor: filterType === jobType.slug ? jobType.colore : '#e2e8f0',
-                  backgroundColor: filterType === jobType.slug ? `${jobType.colore}15` : 'white',
-                  color: filterType === jobType.slug ? jobType.colore : '#64748b'
+                  borderColor: !showLeadsOnly && filterType === jobType.slug ? jobType.colore : '#e2e8f0',
+                  backgroundColor: !showLeadsOnly && filterType === jobType.slug ? `${jobType.colore}15` : 'white',
+                  color: !showLeadsOnly && filterType === jobType.slug ? jobType.colore : '#64748b'
                 }}
+                aria-pressed={!showLeadsOnly && filterType === jobType.slug}
                 data-testid={`card-filter-${jobType.slug}`}
               >
                 <JobTypeIcon slug={jobType.slug} size="lg" />
                 <div className="text-left">
-                  <div className="font-medium text-sm" style={{ color: filterType === jobType.slug ? jobType.colore : '#334155' }}>
+                  <div className="font-medium text-sm" style={{ color: !showLeadsOnly && filterType === jobType.slug ? jobType.colore : '#334155' }}>
                     {jobType.nome}
                   </div>
                   <div className="text-xs opacity-70">{jobCountsByType[jobType.slug] || 0}</div>
                 </div>
               </button>
             ))}
+          <button
+            onClick={() => {
+              setShowLeadsOnly(true);
+              setShowQuickQuotesOnly(false);
+              setSelectedJobs(new Set());
+              setFilterQuoteStatus('all');
+            }}
+            className={cn(
+              "flex items-center gap-2 rounded-lg border-2 px-4 py-2 transition-all min-w-[110px]",
+              showLeadsOnly
+                ? "border-amber-400 bg-amber-50 text-amber-900 shadow-sm"
+                : "border-amber-200 bg-white text-amber-800 hover:border-amber-300 hover:bg-amber-50"
+            )}
+            aria-pressed={showLeadsOnly}
+            data-testid="card-filter-leads"
+          >
+            <Users className="h-5 w-5" aria-hidden="true" />
+            <div className="text-left">
+              <div className="font-medium text-sm">Lead</div>
+              <div className="text-xs opacity-70">{leadJobs.length}</div>
+            </div>
+          </button>
         </div>
       </div>
+
+      {showLeadsOnly && (
+        <div
+          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-[#fbf7ed] px-4 py-3"
+          data-testid="lead-queue-heading"
+        >
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-amber-800">
+              <FileText className="h-4 w-4" aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-amber-950">Richieste da seguire</h2>
+              <p className="text-xs text-amber-900/70">
+                Contatti e preventivi non ancora firmati · ordinati per data di richiesta
+              </p>
+            </div>
+          </div>
+          <Badge variant="outline" className="rounded-full border-amber-300 bg-white text-amber-900">
+            {filteredJobs.length} lead
+          </Badge>
+        </div>
+      )}
       
       {/* Filters - Responsive Grid Layout */}
       <div className="space-y-3">
         {/* Prima riga: Ricerca + Periodo + Stato Preventivo */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className={cn("grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3", showLeadsOnly && "max-w-3xl")}>
           {/* Search - occupa più spazio */}
           <div className="sm:col-span-2 lg:col-span-2 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
             <Input
-              placeholder="Cerca per evento, location, clienti, note..."
+              placeholder={showLeadsOnly ? "Cerca tra i lead per evento, cliente o note..." : "Cerca per evento, location, clienti, note..."}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
               data-testid="input-search-jobs"
             />
           </div>
-          
+
+          {showLeadsOnly && searchQuery && (
+            <Button
+              variant="outline"
+              onClick={() => setSearchQuery('')}
+              className="w-full sm:w-auto"
+              data-testid="button-clear-lead-search"
+            >
+              <X className="mr-2 h-4 w-4" />
+              Pulisci ricerca
+            </Button>
+          )}
+
+          {!showLeadsOnly && (
+            <>
           {/* Filtro Periodo (Prossimi/Passati) */}
           <Select value={timeFilter} onValueChange={(val: 'all' | 'upcoming' | 'past') => setTimeFilter(val)}>
             <SelectTrigger className="w-full" data-testid="select-filter-time">
@@ -1013,9 +1114,25 @@ export default function JobsManager() {
               <SelectItem value="all">Tutti i periodi</SelectItem>
             </SelectContent>
           </Select>
-          
-          {/* Filtro Stato Preventivo */}
-          <Select value={filterQuoteStatus} onValueChange={setFilterQuoteStatus}>
+            </>
+          )}
+
+          {/* Filtro Stato Preventivo: i non firmati aprono la coda Lead */}
+          <Select
+            value={filterQuoteStatus}
+            onValueChange={(val) => {
+              setFilterQuoteStatus(val);
+              if (val === 'non_firmato' || val === 'non_inviato') {
+                setShowLeadsOnly(true);
+                setShowQuickQuotesOnly(false);
+                setSelectedJobs(new Set());
+              } else if (val === 'firmato') {
+                setShowLeadsOnly(false);
+                setShowQuickQuotesOnly(false);
+                setSelectedJobs(new Set());
+              }
+            }}
+          >
             <SelectTrigger className="w-full" data-testid="select-filter-quote">
               <SelectValue placeholder="Stato Preventivo" />
             </SelectTrigger>
@@ -1029,7 +1146,7 @@ export default function JobsManager() {
         </div>
         
         {/* Seconda riga: Collaboratore + Anno + Mese + Semestre */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        {!showLeadsOnly && <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {/* Filtro Collaboratore */}
           <Select value={filterCollaboratore} onValueChange={setFilterCollaboratore}>
             <SelectTrigger className="w-full" data-testid="select-filter-collaboratore">
@@ -1120,10 +1237,10 @@ export default function JobsManager() {
             </SelectContent>
           </Select>
           
-        </div>
+        </div>}
         
         {/* Terza riga: Range personalizzato + Reset Filtri */}
-        <div className="flex flex-wrap items-center gap-3">
+        {!showLeadsOnly && <div className="flex flex-wrap items-center gap-3">
           {/* Custom Date Range */}
           <Popover>
             <PopoverTrigger asChild>
@@ -1196,10 +1313,10 @@ export default function JobsManager() {
               Reset Filtri
             </Button>
           )}
-        </div>
+        </div>}
         
         {/* Active Filters Summary */}
-        {(filterType !== 'matrimonio' || filterYear !== 'all' || filterMonth !== 'all' || filterQuoteStatus !== 'all' || filterCollaboratore !== 'all' || customDateRange.from || timeFilter !== 'upcoming') && (
+        {!showLeadsOnly && (filterType !== 'matrimonio' || filterYear !== 'all' || filterMonth !== 'all' || filterQuoteStatus !== 'all' || filterCollaboratore !== 'all' || customDateRange.from || timeFilter !== 'upcoming') && (
           <div className="flex flex-wrap gap-2 items-center text-sm text-muted-foreground">
             <Filter className="w-4 h-4" />
             <span>Filtri attivi:</span>
@@ -1271,11 +1388,19 @@ export default function JobsManager() {
           <CardContent className="py-12 text-center">
             <FileText className="w-12 h-12 mx-auto text-gray-300 mb-4" />
             <p className="font-medium text-gray-600">
-              {jobs.length === 0 ? 'Non ci sono ancora lavori' : 'Nessun lavoro corrisponde ai filtri selezionati'}
+              {jobs.length === 0
+                ? 'Non ci sono ancora lavori'
+                : showLeadsOnly
+                  ? 'Non ci sono richieste da seguire'
+                  : 'Nessun lavoro corrisponde ai filtri selezionati'}
             </p>
             {jobs.length > 0 && (
               <p className="mt-1 text-sm text-gray-500">
-                I tuoi {totalLoadedActiveJobs} lavori sono caricati correttamente: modifica o azzera i filtri per visualizzarli.
+                {showLeadsOnly
+                  ? searchQuery
+                    ? 'Prova a modificare o pulire la ricerca.'
+                    : 'I nuovi contatti e i preventivi non firmati compariranno qui.'
+                  : `I tuoi ${totalLoadedActiveJobs} lavori sono caricati correttamente: modifica o azzera i filtri per visualizzarli.`}
               </p>
             )}
           </CardContent>
@@ -1326,7 +1451,7 @@ export default function JobsManager() {
                   const previousSection = index > 0
                     ? listSections.byJobId.get(paginatedJobs[index - 1].id)
                     : undefined;
-                  const showSectionHeader = index === 0 || section !== previousSection;
+                  const showSectionHeader = !showLeadsOnly && (index === 0 || section !== previousSection);
                   const sectionCount = listSections.counts.get(section) || 0;
                   const sectionTitle =
                     section === 'leads' ? 'Richieste da seguire' :

@@ -24,16 +24,25 @@ import { readAdminPasskeyClaim, readAuthTime } from './admin-identity.js';
 import {
   PasskeyError,
   describeSecurity,
+  cancelDeviceEnrollment,
+  createDeviceEnrollmentRequest,
   finishAuthentication,
+  finishDeviceEnrollmentApproval,
+  finishDeviceEnrollmentRegistration,
   finishDesktopHandoffAuthentication,
   finishRegistration,
   finalizeDesktopHandoff,
   getCurrentPasskeyClaim,
+  getDeviceEnrollmentApprovalInfo,
+  getDeviceEnrollmentStatus,
   redeemRecoveryCode,
   regenerateRecoveryCodes,
+  rejectDeviceEnrollment,
   revokePasskey,
   setEnforcement,
   startAuthentication,
+  startDeviceEnrollmentApproval,
+  startDeviceEnrollmentRegistration,
   startDesktopHandoffAuthentication,
   startRegistration,
   DESKTOP_HANDOFF_TTL_MS,
@@ -48,6 +57,7 @@ import {
 
 const router = express.Router();
 const handoffIdSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
+const deviceEnrollmentIdSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
 const verifierSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
 const verifierHashSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
 // Queste route servono a ottenere la verifica: il gate centrale di
@@ -110,6 +120,26 @@ function desktopHandoffClaim(req: Request): { id: string; nonce: string } | null
   }
   return { id: value.id, nonce: value.nonce };
 }
+
+function deviceEnrollmentIdOf(req: Request, res: Response): string | null {
+  const enrollmentId = deviceEnrollmentIdSchema.safeParse(req.params.enrollmentId);
+  if (enrollmentId.success) return enrollmentId.data;
+  res.status(404).json({ error: 'Richiesta non valida o scaduta', code: 'device_enrollment_not_found' });
+  return null;
+}
+
+const deviceEnrollmentStartSchema = z.object({
+  verifierHash: verifierHashSchema,
+  deviceLabel: z.string().trim().min(1).max(60),
+});
+const deviceEnrollmentSecretSchema = z.object({ verifier: verifierSchema });
+const deviceEnrollmentAuthenticationVerifySchema = z.object({
+  response: z.object({ id: z.string().min(1) }).passthrough(),
+});
+const deviceEnrollmentRegistrationVerifySchema = z.object({
+  verifier: verifierSchema,
+  response: z.object({ id: z.string().min(1) }).passthrough(),
+});
 
 /**
  * Quando l'obbligo è attivo le modifiche richiedono una verifica corrente.
@@ -174,6 +204,208 @@ router.get('/status', async (req, res) => {
       verifiedUntil: evaluation.verifiedUntil,
       expectedClaim,
     });
+  } catch (error) {
+    handleError(error, req, res);
+  }
+});
+
+/**
+ * QR pairing adds exactly one passkey to the requesting device. It never mints
+ * a general admin-verification claim or transfers the trusted device session.
+ */
+router.post('/device-enrollment/start', async (req, res) => {
+  const parsed = deviceEnrollmentStartSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Dati per la richiesta dispositivo non validi', code: 'invalid_body' });
+    return;
+  }
+  const rp = relyingPartyOf(req, res);
+  if (!rp) return;
+  const identity = identityOf(req, res);
+  if (!identity) return;
+  const enrollmentId = randomBytes(32).toString('base64url');
+  try {
+    const { expiresAt } = await createDeviceEnrollmentRequest(
+      identity,
+      rp,
+      enrollmentId,
+      parsed.data.verifierHash,
+      parsed.data.deviceLabel,
+    );
+    const approvalUrl = new URL('/admin/authorize-device', 'https://imagestudiofotografico.com');
+    approvalUrl.searchParams.set('deviceEnrollment', enrollmentId);
+    res.json({ enrollmentId, approvalUrl: approvalUrl.toString(), expiresAt });
+  } catch (error) {
+    handleError(error, req, res);
+  }
+});
+
+router.post('/device-enrollment/:enrollmentId/approval-info', async (req, res) => {
+  const enrollmentId = deviceEnrollmentIdOf(req, res);
+  if (!enrollmentId) return;
+  const rp = relyingPartyOf(req, res);
+  if (!rp) {
+    return;
+  }
+  if (!isProductionPasskeyOrigin(rp.origin)) {
+    res.status(400).json({ error: 'Apri la richiesta dal sito ufficiale', code: 'origin_not_allowed' });
+    return;
+  }
+  const identity = identityOf(req, res);
+  if (!identity) return;
+  try {
+    const info = await getDeviceEnrollmentApprovalInfo(identity.uid, enrollmentId);
+    if (!info) {
+      res.status(404).json({ error: 'Richiesta non valida o scaduta', code: 'device_enrollment_not_found' });
+      return;
+    }
+    res.json(info);
+  } catch (error) {
+    handleError(error, req, res);
+  }
+});
+
+router.post('/device-enrollment/:enrollmentId/status', async (req, res) => {
+  const enrollmentId = deviceEnrollmentIdOf(req, res);
+  if (!enrollmentId) return;
+  const parsed = deviceEnrollmentSecretSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Verifica della richiesta non valida', code: 'invalid_body' });
+    return;
+  }
+  const rp = relyingPartyOf(req, res);
+  if (!rp) return;
+  const identity = identityOf(req, res);
+  if (!identity) return;
+  try {
+    res.json(await getDeviceEnrollmentStatus(identity, rp, enrollmentId, parsed.data.verifier));
+  } catch (error) {
+    handleError(error, req, res);
+  }
+});
+
+router.post('/device-enrollment/:enrollmentId/cancel', async (req, res) => {
+  const enrollmentId = deviceEnrollmentIdOf(req, res);
+  if (!enrollmentId) return;
+  const parsed = deviceEnrollmentSecretSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Verifica della richiesta non valida', code: 'invalid_body' });
+    return;
+  }
+  const rp = relyingPartyOf(req, res);
+  if (!rp) return;
+  const identity = identityOf(req, res);
+  if (!identity) return;
+  try {
+    await cancelDeviceEnrollment(identity, rp, enrollmentId, parsed.data.verifier);
+    res.json({ cancelled: true });
+  } catch (error) {
+    handleError(error, req, res);
+  }
+});
+
+router.post('/device-enrollment/:enrollmentId/reject', async (req, res) => {
+  const enrollmentId = deviceEnrollmentIdOf(req, res);
+  if (!enrollmentId) return;
+  const rp = relyingPartyOf(req, res);
+  if (!rp) return;
+  if (!isProductionPasskeyOrigin(rp.origin)) {
+    res.status(400).json({ error: 'Apri la richiesta dal sito ufficiale', code: 'origin_not_allowed' });
+    return;
+  }
+  const identity = identityOf(req, res);
+  if (!identity) return;
+  try {
+    await rejectDeviceEnrollment(identity, enrollmentId);
+    res.json({ rejected: true });
+  } catch (error) {
+    handleError(error, req, res);
+  }
+});
+
+router.post('/device-enrollment/:enrollmentId/authentication/options', async (req, res) => {
+  const enrollmentId = deviceEnrollmentIdOf(req, res);
+  if (!enrollmentId) return;
+  const rp = relyingPartyOf(req, res);
+  if (!rp) return;
+  const identity = identityOf(req, res);
+  if (!identity) return;
+  try {
+    res.json(await startDeviceEnrollmentApproval(identity, rp, enrollmentId));
+  } catch (error) {
+    handleError(error, req, res);
+  }
+});
+
+const deviceEnrollmentAuthenticationResponseSchema = deviceEnrollmentAuthenticationVerifySchema;
+router.post('/device-enrollment/:enrollmentId/authentication/verify', async (req, res) => {
+  const enrollmentId = deviceEnrollmentIdOf(req, res);
+  if (!enrollmentId) return;
+  const rp = relyingPartyOf(req, res);
+  if (!rp) return;
+  const parsed = deviceEnrollmentAuthenticationResponseSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Risposta di autenticazione non valida', code: 'invalid_body' });
+    return;
+  }
+  const identity = identityOf(req, res);
+  if (!identity) return;
+  try {
+    res.json(await finishDeviceEnrollmentApproval(
+      identity,
+      rp,
+      enrollmentId,
+      parsed.data.response as any,
+    ));
+  } catch (error) {
+    handleError(error, req, res);
+  }
+});
+
+router.post('/device-enrollment/:enrollmentId/registration/options', async (req, res) => {
+  const enrollmentId = deviceEnrollmentIdOf(req, res);
+  if (!enrollmentId) return;
+  const parsed = deviceEnrollmentSecretSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Verifica della richiesta non valida', code: 'invalid_body' });
+    return;
+  }
+  const rp = relyingPartyOf(req, res);
+  if (!rp) return;
+  const identity = identityOf(req, res);
+  if (!identity) return;
+  try {
+    res.json(await startDeviceEnrollmentRegistration(
+      identity,
+      rp,
+      enrollmentId,
+      parsed.data.verifier,
+    ));
+  } catch (error) {
+    handleError(error, req, res);
+  }
+});
+
+router.post('/device-enrollment/:enrollmentId/registration/verify', async (req, res) => {
+  const enrollmentId = deviceEnrollmentIdOf(req, res);
+  if (!enrollmentId) return;
+  const parsed = deviceEnrollmentRegistrationVerifySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Risposta di registrazione non valida', code: 'invalid_body' });
+    return;
+  }
+  const rp = relyingPartyOf(req, res);
+  if (!rp) return;
+  const identity = identityOf(req, res);
+  if (!identity) return;
+  try {
+    res.json(await finishDeviceEnrollmentRegistration(
+      identity,
+      rp,
+      enrollmentId,
+      parsed.data.verifier,
+      parsed.data.response as any,
+    ));
   } catch (error) {
     handleError(error, req, res);
   }

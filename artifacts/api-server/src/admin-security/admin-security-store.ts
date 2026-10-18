@@ -55,6 +55,26 @@ export interface DesktopHandoff {
   finalizedAuthTime: number | null;
 }
 
+export type DeviceEnrollmentStatus = 'pending' | 'approved' | 'registered' | 'rejected' | 'cancelled';
+export type DeviceEnrollmentChallengeKind = 'approval' | 'registration';
+
+export interface DeviceEnrollmentRequest {
+  uid: string;
+  verifierHash: string;
+  requesterAuthTime: number;
+  deviceLabel: string;
+  rpId: string;
+  origin: string;
+  createdAt: number;
+  expiresAt: number;
+  status: DeviceEnrollmentStatus;
+  approvalChallenge: DesktopHandoffChallenge | null;
+  registrationChallenge: DesktopHandoffChallenge | null;
+  approvedAt: number | null;
+  approvedByCredentialId: string | null;
+  registeredAt: number | null;
+}
+
 export interface ActivationProof {
   authTime: number;
   origin: string;
@@ -101,7 +121,12 @@ export type SecurityEventType =
   | 'recovery_code_failed'
   | 'enforcement_enabled'
   | 'enforcement_disabled'
-  | 'lockout';
+  | 'lockout'
+  | 'device_enrollment_created'
+  | 'device_enrollment_approved'
+  | 'device_enrollment_rejected'
+  | 'device_enrollment_cancelled'
+  | 'device_enrollment_registered';
 
 const COLLECTION = 'adminSecurity';
 
@@ -122,6 +147,10 @@ function stateDoc(uid: string) {
 
 function desktopHandoffDoc(uid: string, handoffId: string) {
   return stateDoc(uid).collection('desktopHandoffs').doc(handoffId);
+}
+
+function deviceEnrollmentDoc(uid: string, enrollmentId: string) {
+  return stateDoc(uid).collection('deviceEnrollments').doc(enrollmentId);
 }
 
 function normalizeState(data: FirebaseFirestore.DocumentData | undefined): AdminSecurityState {
@@ -239,6 +268,122 @@ export async function getDesktopHandoff(uid: string, handoffId: string): Promise
   const snap = await desktopHandoffDoc(uid, handoffId).get();
   if (!snap.exists) return null;
   return { uid, ...(snap.data() as Omit<DesktopHandoff, 'uid'>) };
+}
+
+export async function createDeviceEnrollment(
+  uid: string,
+  enrollmentId: string,
+  request: Omit<DeviceEnrollmentRequest, 'uid'>,
+): Promise<void> {
+  await deviceEnrollmentDoc(uid, enrollmentId).set({ ...request, uid });
+}
+
+export async function getDeviceEnrollment(
+  uid: string,
+  enrollmentId: string,
+): Promise<DeviceEnrollmentRequest | null> {
+  const snap = await deviceEnrollmentDoc(uid, enrollmentId).get();
+  if (!snap.exists) return null;
+  return { uid, ...(snap.data() as Omit<DeviceEnrollmentRequest, 'uid'>) };
+}
+
+export async function saveDeviceEnrollmentChallenge(
+  uid: string,
+  enrollmentId: string,
+  kind: DeviceEnrollmentChallengeKind,
+  challenge: DesktopHandoffChallenge,
+  now: number,
+): Promise<boolean> {
+  return db.runTransaction(async (tx) => {
+    const ref = deviceEnrollmentDoc(uid, enrollmentId);
+    const snap = await tx.get(ref);
+    const request = snap.data() as DeviceEnrollmentRequest | undefined;
+    const expectedStatus = kind === 'approval' ? 'pending' : 'approved';
+    if (!request || request.status !== expectedStatus || request.expiresAt <= now) return false;
+    const field = kind === 'approval' ? 'approvalChallenge' : 'registrationChallenge';
+    tx.set(ref, { [field]: challenge }, { merge: true });
+    return true;
+  });
+}
+
+export async function consumeDeviceEnrollmentChallenge(
+  uid: string,
+  enrollmentId: string,
+  kind: DeviceEnrollmentChallengeKind,
+  authTime: number,
+  now: number,
+): Promise<DesktopHandoffChallenge | null> {
+  return db.runTransaction(async (tx) => {
+    const ref = deviceEnrollmentDoc(uid, enrollmentId);
+    const snap = await tx.get(ref);
+    const request = snap.data() as DeviceEnrollmentRequest | undefined;
+    const expectedStatus = kind === 'approval' ? 'pending' : 'approved';
+    const field = kind === 'approval' ? 'approvalChallenge' : 'registrationChallenge';
+    const challenge = request?.[field];
+    if (
+      !request ||
+      request.status !== expectedStatus ||
+      request.expiresAt <= now ||
+      !challenge
+    ) {
+      return null;
+    }
+    tx.set(ref, { [field]: null }, { merge: true });
+    if (challenge.expiresAt <= now || challenge.authTime !== authTime) return null;
+    return challenge;
+  });
+}
+
+export async function transitionDeviceEnrollment(
+  uid: string,
+  enrollmentId: string,
+  expectedStatus: DeviceEnrollmentStatus,
+  patch: Partial<DeviceEnrollmentRequest>,
+  now: number,
+): Promise<DeviceEnrollmentRequest | null> {
+  return db.runTransaction(async (tx) => {
+    const ref = deviceEnrollmentDoc(uid, enrollmentId);
+    const snap = await tx.get(ref);
+    if (!snap.exists) return null;
+    const request = { uid, ...(snap.data() as Omit<DeviceEnrollmentRequest, 'uid'>) };
+    if (request.status !== expectedStatus || request.expiresAt <= now) return null;
+    tx.set(ref, patch, { merge: true });
+    return request;
+  });
+}
+
+export async function commitDeviceEnrollmentPasskey(
+  uid: string,
+  enrollmentId: string,
+  passkey: StoredPasskey,
+  now: number,
+): Promise<boolean> {
+  return db.runTransaction(async (tx) => {
+    const enrollmentRef = deviceEnrollmentDoc(uid, enrollmentId);
+    const passkeyRef = stateDoc(uid).collection('passkeys').doc(passkey.id);
+    const [enrollmentSnap, passkeySnap] = await Promise.all([
+      tx.get(enrollmentRef),
+      tx.get(passkeyRef),
+    ]);
+    const request = enrollmentSnap.data() as DeviceEnrollmentRequest | undefined;
+    if (
+      !request ||
+      request.status !== 'approved' ||
+      request.expiresAt <= now ||
+      request.registrationChallenge !== null ||
+      passkeySnap.exists
+    ) {
+      return false;
+    }
+    const { id, ...passkeyData } = passkey;
+    tx.set(passkeyRef, passkeyData);
+    tx.set(enrollmentRef, {
+      status: 'registered',
+      registeredAt: now,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return true;
+  });
 }
 
 export async function saveDesktopHandoffChallenge(

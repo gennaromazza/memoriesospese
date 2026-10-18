@@ -592,3 +592,198 @@ describe('PasskeyError e claim', () => {
     expect(stored[0].hash).toBe(store.hashRecoveryCode(codes[0].toLowerCase()));
   });
 });
+
+describe('autorizzazione QR per una nuova passkey', () => {
+  const verifier = 'A'.repeat(43);
+  const verifierHash = createHash('sha256').update(verifier).digest('base64url');
+
+  async function seedTrustedPasskey() {
+    await store.savePasskey(h.uid, {
+      id: 'old-device-credential',
+      publicKey: 'AQID',
+      counter: 0,
+      transports: ['internal'],
+      rpId: 'imagestudiofotografico.com',
+      label: 'PC fisso',
+      deviceType: 'multiDevice',
+      backedUp: true,
+      createdAt: Date.now(),
+      lastUsedAt: null,
+    });
+    await store.updateState(h.uid, { passkeyRequired: true });
+  }
+
+  async function startRequest() {
+    return call('/api/admin/security/device-enrollment/start', {
+      method: 'POST',
+      body: JSON.stringify({ verifierHash, deviceLabel: 'Portatile' }),
+    });
+  }
+
+  it('richiede l’approvazione WebAuthn sul dispositivo fidato e autorizza solo la registrazione', async () => {
+    await seedTrustedPasskey();
+    const started = await startRequest();
+    expect(started.status).toBe(200);
+    const request = await json(started);
+    expect(request.enrollmentId).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(new URL(request.approvalUrl).origin).toBe(ORIGIN);
+    expect(new URL(request.approvalUrl).searchParams.get('deviceEnrollment')).toBe(request.enrollmentId);
+
+    const info = await call(
+      `/api/admin/security/device-enrollment/${request.enrollmentId}/approval-info`,
+      { method: 'POST', headers: { Authorization: 'Bearer other-account' } },
+    );
+    expect(info.status).toBe(200);
+    expect(await json(info)).toMatchObject({ status: 'pending', deviceLabel: 'Portatile' });
+
+    h.tokenUids.set('wrong-admin', 'another-admin');
+    // The route lookup is scoped to the authenticated UID, not just the QR id.
+    const wrongAccountRetry = await call(
+      `/api/admin/security/device-enrollment/${request.enrollmentId}/approval-info`,
+      { method: 'POST', headers: { Authorization: 'Bearer wrong-admin' } },
+    );
+    expect(wrongAccountRetry.status).toBe(404);
+
+    h.tokenAuthTimes.set('trusted-device', h.authTime + 60);
+    h.webauthn = true;
+    const optionsResponse = await call(
+      `/api/admin/security/device-enrollment/${request.enrollmentId}/authentication/options`,
+      { method: 'POST', headers: { Authorization: 'Bearer trusted-device' } },
+    );
+    expect(optionsResponse.status).toBe(200);
+    const options = await json(optionsResponse);
+    expect(options.allowCredentials.map((credential: any) => credential.id)).toContain('old-device-credential');
+
+    const approval = await call(
+      `/api/admin/security/device-enrollment/${request.enrollmentId}/authentication/verify`,
+      {
+        method: 'POST',
+        headers: { Authorization: 'Bearer trusted-device' },
+        body: JSON.stringify({ response: { id: 'old-device-credential' } }),
+      },
+    );
+    expect(approval.status).toBe(200);
+    expect((await json(approval)).approvedAt).toEqual(expect.any(Number));
+    expect(h.claims.get(h.uid)?.apk).toBeUndefined();
+
+    const requesterStatus = await call(
+      `/api/admin/security/device-enrollment/${request.enrollmentId}/status`,
+      { method: 'POST', body: JSON.stringify({ verifier }) },
+    );
+    expect(await json(requesterStatus)).toMatchObject({ status: 'approved', deviceLabel: 'Portatile' });
+
+    const optionsForRegistration = await call(
+      `/api/admin/security/device-enrollment/${request.enrollmentId}/registration/options`,
+      { method: 'POST', body: JSON.stringify({ verifier }) },
+    );
+    expect(optionsForRegistration.status).toBe(200);
+    expect((await json(optionsForRegistration)).rp.id).toBe('imagestudiofotografico.com');
+
+    const registration = await call(
+      `/api/admin/security/device-enrollment/${request.enrollmentId}/registration/verify`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ verifier, response: { id: 'new-device-credential' } }),
+      },
+    );
+    expect(registration.status).toBe(200);
+    expect((await json(registration)).passkey.label).toBe('Portatile');
+    expect(await store.getPasskey(h.uid, 'cred-1')).toMatchObject({
+      label: 'Portatile',
+      rpId: 'imagestudiofotografico.com',
+    });
+    expect(h.claims.get(h.uid)?.apk).toBeUndefined();
+
+    const completedStatus = await call(
+      `/api/admin/security/device-enrollment/${request.enrollmentId}/status`,
+      { method: 'POST', body: JSON.stringify({ verifier }) },
+    );
+    expect((await json(completedStatus)).status).toBe('registered');
+    const replay = await call(
+      `/api/admin/security/device-enrollment/${request.enrollmentId}/registration/options`,
+      { method: 'POST', body: JSON.stringify({ verifier }) },
+    );
+    expect(replay.status).toBe(409);
+  });
+
+  it('non accetta segreti diversi, richieste non approvate o origini Preview', async () => {
+    await seedTrustedPasskey();
+    const started = await json(await startRequest());
+    const wrongVerifier = await call(
+      `/api/admin/security/device-enrollment/${started.enrollmentId}/status`,
+      { method: 'POST', body: JSON.stringify({ verifier: 'B'.repeat(43) }) },
+    );
+    expect(wrongVerifier.status).toBe(404);
+
+    h.tokenAuthTimes.set('different-login', h.authTime + 1);
+    const wrongAuthTime = await call(
+      `/api/admin/security/device-enrollment/${started.enrollmentId}/status`,
+      {
+        method: 'POST',
+        headers: { Authorization: 'Bearer different-login' },
+        body: JSON.stringify({ verifier }),
+      },
+    );
+    expect(wrongAuthTime.status).toBe(404);
+
+    const earlyRegistration = await call(
+      `/api/admin/security/device-enrollment/${started.enrollmentId}/registration/options`,
+      { method: 'POST', body: JSON.stringify({ verifier }) },
+    );
+    expect(earlyRegistration.status).toBe(409);
+
+    const previewStart = await call('/api/admin/security/device-enrollment/start', {
+      method: 'POST',
+      headers: { Origin: 'https://preview.replit.dev' },
+      body: JSON.stringify({ verifierHash, deviceLabel: 'Preview' }),
+    });
+    expect(previewStart.status).toBe(400);
+    expect((await json(previewStart)).code).toBe('origin_not_allowed');
+  });
+
+  it('scade lato server e non permette di registrare dopo la scadenza', async () => {
+    await seedTrustedPasskey();
+    const started = await json(await startRequest());
+    const requestPath = `adminSecurity/${h.uid}/deviceEnrollments/${started.enrollmentId}`;
+    const saved = h.docs.get(requestPath)!;
+    h.docs.set(requestPath, { ...saved, expiresAt: Date.now() - 1 });
+
+    const status = await call(
+      `/api/admin/security/device-enrollment/${started.enrollmentId}/status`,
+      { method: 'POST', body: JSON.stringify({ verifier }) },
+    );
+    expect((await json(status)).status).toBe('expired');
+    const registration = await call(
+      `/api/admin/security/device-enrollment/${started.enrollmentId}/registration/options`,
+      { method: 'POST', body: JSON.stringify({ verifier }) },
+    );
+    expect(registration.status).toBe(410);
+  });
+
+  it('consente al proprietario di annullare e al dispositivo fidato di rifiutare una richiesta', async () => {
+    await seedTrustedPasskey();
+    const started = await json(await startRequest());
+    const rejected = await call(
+      `/api/admin/security/device-enrollment/${started.enrollmentId}/reject`,
+      { method: 'POST' },
+    );
+    expect(rejected.status).toBe(200);
+    const rejectedStatus = await call(
+      `/api/admin/security/device-enrollment/${started.enrollmentId}/status`,
+      { method: 'POST', body: JSON.stringify({ verifier }) },
+    );
+    expect((await json(rejectedStatus)).status).toBe('rejected');
+
+    const another = await json(await startRequest());
+    const cancelled = await call(
+      `/api/admin/security/device-enrollment/${another.enrollmentId}/cancel`,
+      { method: 'POST', body: JSON.stringify({ verifier }) },
+    );
+    expect(cancelled.status).toBe(200);
+    const cancelledStatus = await call(
+      `/api/admin/security/device-enrollment/${another.enrollmentId}/status`,
+      { method: 'POST', body: JSON.stringify({ verifier }) },
+    );
+    expect((await json(cancelledStatus)).status).toBe('cancelled');
+  });
+});

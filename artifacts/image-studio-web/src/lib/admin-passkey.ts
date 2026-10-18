@@ -63,8 +63,31 @@ export interface PreviewPasskeyHandoff {
   uid: string;
 }
 
+export type DeviceEnrollmentStatus =
+  | 'pending'
+  | 'approved'
+  | 'registered'
+  | 'rejected'
+  | 'cancelled'
+  | 'expired';
+
+export interface DeviceEnrollmentHandoff {
+  enrollmentId: string;
+  verifier: string;
+  approvalUrl: string;
+  expiresAt: number;
+  uid: string;
+}
+
+export interface DeviceEnrollmentApprovalInfo {
+  status: DeviceEnrollmentStatus;
+  deviceLabel: string;
+  expiresAt: number;
+}
+
 /** Matches DESKTOP_HANDOFF_TTL_MS on the server; this is only a local polling limit. */
 export const PREVIEW_HANDOFF_TIMEOUT_MS = 10 * 60 * 1000;
+export const DEVICE_ENROLLMENT_TIMEOUT_MS = 10 * 60 * 1000;
 
 type PasskeyHandoffStatus = 'pending' | 'verified' | 'expired';
 
@@ -237,6 +260,102 @@ export const AdminPasskeyClient = {
     await securityRequest<{ verifiedAt: number }>(
       `/desktop-handoff/${encodedId}/authentication/verify`,
       { method: 'POST', body: JSON.stringify({ response }) },
+    );
+  },
+
+  async startDeviceEnrollment(deviceLabel: string): Promise<DeviceEnrollmentHandoff> {
+    const user = auth.currentUser;
+    if (!user) throw new AdminSecurityError(401, 'unauthenticated', 'Sessione scaduta: accedi di nuovo');
+    const { verifier, verifierHash } = await createHandoffVerifier();
+    const started = await securityRequest<{
+      enrollmentId: string;
+      approvalUrl: string;
+      expiresAt: number;
+    }>('/device-enrollment/start', {
+      method: 'POST',
+      body: JSON.stringify({ verifierHash, deviceLabel }),
+    });
+    const approvalUrl = new URL(started.approvalUrl);
+    if (
+      approvalUrl.origin !== 'https://imagestudiofotografico.com' ||
+      approvalUrl.pathname !== '/admin/authorize-device' ||
+      approvalUrl.searchParams.get('deviceEnrollment') !== started.enrollmentId ||
+      [...approvalUrl.searchParams.keys()].some((key) => key !== 'deviceEnrollment')
+    ) {
+      throw new Error('Il server ha restituito un indirizzo di autorizzazione non attendibile.');
+    }
+    return { ...started, verifier, uid: user.uid };
+  },
+
+  async getDeviceEnrollmentStatus(
+    handoff: DeviceEnrollmentHandoff,
+  ): Promise<{ status: DeviceEnrollmentStatus; deviceLabel: string; expiresAt: number }> {
+    const user = auth.currentUser;
+    if (!user || user.uid !== handoff.uid) {
+      throw new Error('L’account amministratore è cambiato. Avvia una nuova richiesta.');
+    }
+    return securityRequest<{ status: DeviceEnrollmentStatus; deviceLabel: string; expiresAt: number }>(
+      `/device-enrollment/${encodeURIComponent(handoff.enrollmentId)}/status`,
+      { method: 'POST', body: JSON.stringify({ verifier: handoff.verifier }) },
+    );
+  },
+
+  async cancelDeviceEnrollment(handoff: DeviceEnrollmentHandoff): Promise<void> {
+    const user = auth.currentUser;
+    if (!user || user.uid !== handoff.uid) {
+      throw new Error('L’account amministratore è cambiato. Avvia una nuova richiesta.');
+    }
+    await securityRequest<{ cancelled: boolean }>(
+      `/device-enrollment/${encodeURIComponent(handoff.enrollmentId)}/cancel`,
+      { method: 'POST', body: JSON.stringify({ verifier: handoff.verifier }) },
+    );
+  },
+
+  async registerDeviceEnrollmentPasskey(
+    handoff: DeviceEnrollmentHandoff,
+  ): Promise<AdminPasskeySummary> {
+    const user = auth.currentUser;
+    if (!user || user.uid !== handoff.uid) {
+      throw new Error('L’account amministratore è cambiato. Avvia una nuova richiesta.');
+    }
+    const encodedId = encodeURIComponent(handoff.enrollmentId);
+    const body = JSON.stringify({ verifier: handoff.verifier });
+    const optionsJSON = await securityRequest<Parameters<typeof startRegistration>[0]['optionsJSON']>(
+      `/device-enrollment/${encodedId}/registration/options`,
+      { method: 'POST', body },
+    );
+    const response = await startRegistration({ optionsJSON });
+    const result = await securityRequest<{ passkey: AdminPasskeySummary }>(
+      `/device-enrollment/${encodedId}/registration/verify`,
+      { method: 'POST', body: JSON.stringify({ verifier: handoff.verifier, response }) },
+    );
+    return result.passkey;
+  },
+
+  async getDeviceEnrollmentApprovalInfo(enrollmentId: string): Promise<DeviceEnrollmentApprovalInfo> {
+    return securityRequest<DeviceEnrollmentApprovalInfo>(
+      `/device-enrollment/${encodeURIComponent(enrollmentId)}/approval-info`,
+      { method: 'POST' },
+    );
+  },
+
+  async approveDeviceEnrollment(enrollmentId: string): Promise<void> {
+    const encodedId = encodeURIComponent(enrollmentId);
+    const optionsJSON = await securityRequest<Parameters<typeof startAuthentication>[0]['optionsJSON']>(
+      `/device-enrollment/${encodedId}/authentication/options`,
+      { method: 'POST' },
+    );
+    const response = await startAuthentication({ optionsJSON });
+    await securityRequest<{ approvedAt: number }>(
+      `/device-enrollment/${encodedId}/authentication/verify`,
+      { method: 'POST', body: JSON.stringify({ response }) },
+    );
+  },
+
+  async rejectDeviceEnrollment(enrollmentId: string): Promise<void> {
+    await securityRequest<{ rejected: boolean }>(
+      `/device-enrollment/${encodeURIComponent(enrollmentId)}/reject`,
+      { method: 'POST' },
     );
   },
 

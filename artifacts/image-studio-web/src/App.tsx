@@ -82,6 +82,7 @@ const PasswordResult = lazyWithRetry(() => import("./pages/PasswordResult"));
 const AdminLogin = lazyWithRetry(() => import("./pages/AdminLogin"));
 const AdminDashboard = lazyWithRetry(() => import("./pages/AdminDashboard"));
 const AdminSecurityPage = lazyWithRetry(() => import("./pages/admin/AdminSecurityPage"));
+const AdminDeviceEnrollmentApprovalPage = lazyWithRetry(() => import("./pages/admin/AdminDeviceEnrollmentApprovalPage"));
 const AdminGalleryAccess = lazyWithRetry(() => import("./pages/AdminGalleryAccess"));
 const Faq = lazyWithRetry(() => import("./pages/admin/Faq"));
 const QuestionnaireManager = lazyWithRetry(() => import("./pages/admin/QuestionnaireManager"));
@@ -253,6 +254,7 @@ function AppRoutes() {
         <Route path="/admin" component={AdminLogin} />
         <Route path="/admin/dashboard" component={adminRoute(AdminDashboard)} />
         <Route path="/admin/sicurezza" component={adminRoute(AdminSecurityPage)} />
+        <Route path="/admin/authorize-device" component={adminRoute(AdminDeviceEnrollmentApprovalPage)} />
         <Route path="/admin/bulk-email" component={adminRoute(BulkEmailSender)} />
         <Route path="/admin/faq" component={adminRoute(Faq)} />
         <Route path="/admin/galleries/:galleryId" component={adminRoute(AdminGalleryAccess)} />

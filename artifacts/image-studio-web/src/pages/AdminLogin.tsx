@@ -36,11 +36,14 @@ export default function AdminLogin() {
   const loginParams = new URLSearchParams(window.location.search);
   const handoffId = loginParams.get('desktopHandoff');
   const handoffTarget = loginParams.get('handoffTarget');
+  const deviceEnrollmentId = loginParams.get('deviceEnrollment');
   const printOrderId = loginParams.get('printOrderId');
   const destination = handoffId && /^[A-Za-z0-9_-]{43}$/.test(handoffId)
     ? `/admin/sicurezza?desktopHandoff=${encodeURIComponent(handoffId)}${
         handoffTarget === 'preview' ? '&handoffTarget=preview' : ''
       }`
+    : deviceEnrollmentId && /^[A-Za-z0-9_-]{43}$/.test(deviceEnrollmentId)
+      ? `/admin/authorize-device?deviceEnrollment=${encodeURIComponent(deviceEnrollmentId)}`
     : printOrderId ? `/admin/dashboard?printOrderId=${encodeURIComponent(printOrderId)}`
     : '/admin/dashboard';
 
