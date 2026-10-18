@@ -1171,9 +1171,9 @@ test("admin grouped jobs list keeps filters, selection, paging, and row actions 
       }),
     ).toBeVisible();
 
-    // Controlla la leggibilità della vista raggruppata su uno schermo stretto
-    // prima delle verifiche desktop di filtri, selezione e paginazione.
-    await page.setViewportSize({ width: 402, height: 874 });
+    // Controlla la vista raggruppata sul display più stretto richiesto prima
+    // delle verifiche desktop di filtri, selezione e paginazione.
+    await page.setViewportSize({ width: 320, height: 874 });
     await page.getByTestId("select-filter-time").click();
     await page.getByRole("option", { name: "Tutti i periodi" }).click();
     await page.getByTestId("select-items-per-page").click();
@@ -1204,6 +1204,9 @@ test("admin grouped jobs list keeps filters, selection, paging, and row actions 
     await expect(page.getByTestId("jobs-section-upcoming")).toContainText("In arrivo");
     await expect(page.getByTestId("jobs-section-past")).toContainText("Eventi passati");
     await expect(page.getByTestId(`job-row-${nextJob.id}`).getByText(nextJob.nomeEvento)).toBeVisible();
+    await expect(page.getByTestId(`job-row-${nextJob.id}`)).toContainText(
+      "E2E - Evento confermato con un titolo molto lungo per controllare la leggibilità sullo schermo stretto",
+    );
 
     const mobileTodayRow = page.getByTestId(`job-row-${todayJob.id}`);
     const mobileCollaboratorAction = mobileTodayRow.getByRole("button", {
@@ -1221,6 +1224,10 @@ test("admin grouped jobs list keeps filters, selection, paging, and row actions 
     await jobsTableScroller.evaluate((element) => {
       element.scrollLeft = element.scrollWidth;
     });
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      "lo scorrimento laterale della tabella non deve allargare la pagina",
+    ).toBe(true);
     const mobileTypeAction = mobileTodayRow.locator("td").nth(5).getByRole("combobox");
     await expect(mobileTypeAction).toBeVisible();
     await mobileTypeAction.click({ timeout: 10_000 });
@@ -1232,7 +1239,7 @@ test("admin grouped jobs list keeps filters, selection, paging, and row actions 
     });
     await mobileTodayRow.scrollIntoViewIfNeeded();
     await page.screenshot({
-      path: test.info().outputPath("jobs-list-mobile-402x874.png"),
+      path: test.info().outputPath("jobs-list-mobile-320x874.png"),
     });
     await page.getByTestId("select-items-per-page").click();
     await page.getByRole("option", { name: "25", exact: true }).click();
