@@ -95,7 +95,7 @@ import {
   AlertCircle,
   RefreshCw
 } from 'lucide-react';
-import { format, isWithinInterval, differenceInDays } from 'date-fns';
+import { endOfDay, format, isWithinInterval, differenceInDays } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -591,7 +591,7 @@ export default function JobsManager() {
           if (customDateRange.from && customDateRange.to) {
             const inRange = isWithinInterval(eventDate, {
               start: customDateRange.from,
-              end: customDateRange.to
+              end: endOfDay(customDateRange.to)
             });
             if (!inRange) return false;
           }
@@ -1287,7 +1287,7 @@ export default function JobsManager() {
                 )}
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
+            <PopoverContent className="w-auto p-0" align="start" side="top">
               <CalendarUI
                 mode="range"
                 defaultMonth={customDateRange.from}
@@ -1308,6 +1308,10 @@ export default function JobsManager() {
                 }}
                 numberOfMonths={2}
                 locale={it}
+                classNames={{
+                  months: "flex flex-col gap-4 sm:flex-row",
+                  month: "w-[280px] space-y-4",
+                }}
               />
             </PopoverContent>
           </Popover>

@@ -20,6 +20,7 @@
 - [Gallery render window](gallery-render-window.md) — finestra di rendering masonry: l'observer della sentinella va ri-armato (deps su visiblePhotoLimit) o si blocca dopo il 1° incremento (~100 foto); attiva solo vista standard fotografo.
 - [Gallery public access gate](gallery-public-access-gate.md) — gate di /view/:id redirige a /gallery/:id (pagina password); per test senza password impostare localStorage gallery_auth_<id>.
 - [Job REST API timestamp serialization](job-rest-timestamp-serialization.md) — getJob/GET /api/jobs/:id ritorna i Timestamp come {_seconds,_nanoseconds}: convertire con convertFirestoreTimestamp, mai .toDate() diretto.
+- [Job custom date-range picker](job-filter-custom-date-range.md) — fine intervallo inclusiva con endOfDay; calendari popover a due mesi richiedono larghezza mese vincolata.
 - [Auto-send email scheduler idempotency](auto-send-scheduler-idempotency.md) — marker in transazione PRIMA dell'invio; rollback SOLO se l'invio email fallisce; timeline post-invio best-effort (mai rollback) → evita doppi invii.
 - [Real Wedding cover contract](wedding-cover-contract.md) — Home e articolo usano endpoint distinti: entrambi devono risolvere lato server la stessa cover e lo stesso fallback; i client usano coverImage/photos[0].
 - [Test framework (vitest) setup](testing-setup.md) — `npx vitest run` (niente npm script); config standalone evita i plugin Vite; pattern per mockare Firestore/Gmail in test server.

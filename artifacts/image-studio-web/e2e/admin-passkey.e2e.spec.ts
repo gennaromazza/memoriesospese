@@ -889,6 +889,10 @@ test("admin grouped jobs list keeps filters, selection, paging, and row actions 
     date.setHours(12, 0, 0, 0);
     return date;
   };
+  const dateAt = (year: number, month: number, day: number, hour = 12, minute = 0) =>
+    new Date(year, month, day, hour, minute, 0, 0);
+  const dateKey = (date: Date) =>
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 
   const makeJob = (
     id: string,
@@ -953,10 +957,45 @@ test("admin grouped jobs list keeps filters, selection, paging, and row actions 
     dayAt(2),
     "stampa",
   );
+  const rangeEndDate = dayAt(2);
+  rangeEndDate.setHours(18, 45, 0, 0);
+  const rangeEndJob = makeJob(
+    "e2e-grouped-range-end",
+    "E2E - Fine intervallo",
+    "confermato",
+    rangeEndDate,
+  );
+  const semesterYear = today.getFullYear() + 3;
+  const semesterJobs = [
+    makeJob(
+      "e2e-grouped-semester-jan",
+      "E2E - Primo semestre gennaio",
+      "confermato",
+      dateAt(semesterYear, 0, 15),
+    ),
+    makeJob(
+      "e2e-grouped-semester-jun",
+      "E2E - Primo semestre giugno",
+      "confermato",
+      dateAt(semesterYear, 5, 30),
+    ),
+    makeJob(
+      "e2e-grouped-semester-jul",
+      "E2E - Secondo semestre luglio",
+      "confermato",
+      dateAt(semesterYear, 6, 1),
+    ),
+    makeJob(
+      "e2e-grouped-semester-dec",
+      "E2E - Secondo semestre dicembre",
+      "confermato",
+      dateAt(semesterYear, 11, 15),
+    ),
+  ];
   const bulkJob = makeJob(
     "e2e-grouped-bulk-delete",
     "E2E - Eliminazione sicura",
-    "preventivo_inviato",
+    "confermato",
   );
   const fillerJobs = Array.from({ length: 27 }, (_, index) =>
     makeJob(
@@ -973,6 +1012,8 @@ test("admin grouped jobs list keeps filters, selection, paging, and row actions 
     pastJob,
     leadJob,
     printJob,
+    rangeEndJob,
+    ...semesterJobs,
     ...fillerJobs,
     bulkJob,
   ];
@@ -1151,12 +1192,14 @@ test("admin grouped jobs list keeps filters, selection, paging, and row actions 
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);
 
-    await expect(page.getByTestId("jobs-section-leads")).toBeVisible();
+    // Leads remain in their dedicated queue instead of being rendered among
+    // grouped, signed jobs.
+    await expect(page.getByTestId("card-filter-leads")).toBeVisible();
+    await expect(page.getByTestId(`job-row-${leadJob.id}`)).toHaveCount(0);
     await expect(page.getByTestId("jobs-section-today")).toBeVisible();
     await expect(page.getByTestId("jobs-section-upcoming")).toBeVisible();
     await expect(page.getByTestId("jobs-section-undated")).toBeVisible();
     await expect(page.getByTestId("jobs-section-past")).toBeVisible();
-    await expect(page.getByTestId("jobs-section-leads")).toContainText("Richieste da seguire");
     await expect(page.getByTestId("jobs-section-today")).toContainText("Eventi confermati per oggi");
     await expect(page.getByTestId("jobs-section-upcoming")).toContainText("In arrivo");
     await expect(page.getByTestId("jobs-section-past")).toContainText("Eventi passati");
@@ -1211,7 +1254,7 @@ test("admin grouped jobs list keeps filters, selection, paging, and row actions 
     await page.getByTestId("select-filter-time").click();
     await page.getByRole("option", { name: "Impegni Passati" }).click();
     await expect(page.getByTestId(`job-row-${pastJob.id}`)).toBeVisible();
-    await expect(page.getByTestId(`job-row-${leadJob.id}`)).toBeVisible();
+    await expect(page.getByTestId(`job-row-${leadJob.id}`)).toHaveCount(0);
     await expect(page.getByTestId("jobs-section-past")).toBeVisible();
     await page.getByTestId("select-filter-time").click();
     await page.getByRole("option", { name: "Tutti i periodi" }).click();
@@ -1223,6 +1266,7 @@ test("admin grouped jobs list keeps filters, selection, paging, and row actions 
     await expect(page.locator('[data-testid^="job-row-"]')).toHaveCount(1);
     await page.getByTestId("select-filter-quote").click();
     await page.getByRole("option", { name: "Tutti i preventivi" }).click();
+    await page.getByTestId("card-filter-all").click();
 
     await page.getByTestId("select-filter-collaboratore").click();
     await page.getByRole("option", { name: "Collaboratore Sintetico" }).click();
@@ -1253,6 +1297,61 @@ test("admin grouped jobs list keeps filters, selection, paging, and row actions 
     await expect(page.getByTestId(`job-row-${todayJob.id}`)).toBeVisible();
     await page.getByTestId("select-filter-year").click();
     await page.getByRole("option", { name: "Tutti gli anni" }).click();
+
+    // The custom range includes both calendar dates in full, including events
+    // later than midnight on the selected end date. The section badge must
+    // reflect only the two rows in the range.
+    await page.getByTestId("card-filter-matrimonio").click();
+    const rangeStartDate = dayAt(1);
+    const rangeJobIds = [nextJob.id, rangeEndJob.id];
+    await page.getByTestId("button-custom-date-range").click();
+    await page
+      .locator(`[data-day="${dateKey(rangeStartDate)}"]:not([data-outside]) button`)
+      .click();
+    await page
+      .locator(`[data-day="${dateKey(rangeEndDate)}"]:not([data-outside]) button`)
+      .click({ timeout: 10_000 });
+    await expect(page.locator('[data-testid^="job-row-"]')).toHaveCount(2);
+    for (const jobId of rangeJobIds) {
+      await expect(page.getByTestId(`job-row-${jobId}`)).toBeVisible();
+    }
+    await expect(page.getByTestId(`job-row-${todayJob.id}`)).toHaveCount(0);
+    await expect(page.getByTestId(`job-row-${fillerJobs[0].id}`)).toHaveCount(0);
+    await expect(
+      page.getByTestId("jobs-section-upcoming").getByText("2", { exact: true }),
+    ).toBeVisible();
+
+    // The semester controls use synthetic dates in all four boundary months,
+    // proving both halves include their start/end months and show matching
+    // grouped rows and section totals.
+    await page.getByTestId("button-clear-filters").click();
+    await page.getByTestId("select-filter-time").click();
+    await page.getByRole("option", { name: "Tutti i periodi" }).click();
+    await page.getByTestId("select-filter-year").click();
+    await page.getByRole("option", { name: String(semesterYear), exact: true }).click();
+    await page.getByTestId("select-filter-semester").click();
+    await page.getByRole("option", { name: "1° Sem", exact: true }).click();
+    const firstSemesterJobIds = semesterJobs.slice(0, 2).map((job) => job.id);
+    await expect(page.locator('[data-testid^="job-row-"]')).toHaveCount(2);
+    for (const jobId of firstSemesterJobIds) {
+      await expect(page.getByTestId(`job-row-${jobId}`)).toBeVisible();
+    }
+    await expect(
+      page.getByTestId("jobs-section-upcoming").getByText("2", { exact: true }),
+    ).toBeVisible();
+
+    await page.getByTestId("select-filter-semester").click();
+    await page.getByRole("option", { name: "2° Sem", exact: true }).click();
+    const secondSemesterJobIds = semesterJobs.slice(2).map((job) => job.id);
+    await expect(page.locator('[data-testid^="job-row-"]')).toHaveCount(2);
+    for (const jobId of secondSemesterJobIds) {
+      await expect(page.getByTestId(`job-row-${jobId}`)).toBeVisible();
+    }
+    await expect(
+      page.getByTestId("jobs-section-upcoming").getByText("2", { exact: true }),
+    ).toBeVisible();
+    await page.getByTestId("button-clear-filters").click();
+    await page.getByTestId("card-filter-all").click();
 
     // Single and page-wide selection count only actual job rows, never group
     // headings. Selection stays attached to the chosen page when paging.
