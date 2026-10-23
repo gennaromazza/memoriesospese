@@ -171,6 +171,7 @@ import {
   resolveHomepageContent,
   type HomepageContent,
 } from "@shared/homepage-content";
+import { INITIAL_STUDIO_QUOTE_THEME } from "@shared/studio-quote-theme";
 import {
   filterAdminGalleries,
   type GalleryTypeFilter,
@@ -251,6 +252,10 @@ interface StudioSettings {
   whatsapp?: string;
   googleReviewUrl?: string;
   homepageContent: HomepageContent;
+  quoteTheme: {
+    primaryColor: string;
+    secondaryColor: string;
+  };
 }
 
 type AdminTab =
@@ -399,6 +404,7 @@ export default function AdminDashboard() {
     whatsapp: "",
     googleReviewUrl: "",
     homepageContent: DEFAULT_HOMEPAGE_CONTENT,
+    quoteTheme: { ...INITIAL_STUDIO_QUOTE_THEME },
     fiscalVia: "",
     fiscalCap: "",
     fiscalComune: "",
@@ -655,6 +661,7 @@ export default function AdminDashboard() {
             ...prev,
             ...settingsData,
             socialLinks: { ...prev.socialLinks, ...(settingsData.socialLinks || {}) },
+            quoteTheme: { ...prev.quoteTheme, ...(settingsData.quoteTheme || {}) },
             homepageContent: resolveHomepageContent(settingsData.homepageContent),
           }));
         }
@@ -843,6 +850,19 @@ export default function AdminDashboard() {
   // Funzione per salvare le impostazioni dello studio
   const saveStudioSettings = async () => {
     try {
+      const quoteColorPattern = /^#[\da-f]{6}$/i;
+      if (
+        !quoteColorPattern.test(studioSettings.quoteTheme.primaryColor) ||
+        !quoteColorPattern.test(studioSettings.quoteTheme.secondaryColor)
+      ) {
+        toast({
+          title: "Colori preventivi non validi",
+          description: "Scegli un colore valido per entrambi i campi.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const settingsRef = doc(db, "settings", "studio");
       await setDoc(settingsRef, {
         ...studioSettings,
@@ -2553,6 +2573,53 @@ export default function AdminDashboard() {
                               </div>
                             </div>
                           </div>
+                        </div>
+                      </div>
+
+                      {/* ── TEMA GLOBALE DEI PREVENTIVI ── */}
+                      <div className="rounded-xl border border-stone-200 bg-white shadow-sm overflow-hidden">
+                        <div className="flex items-center gap-3 px-5 py-3.5 bg-stone-50 border-b border-stone-200">
+                          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-[#6b7f6b]/15">
+                            <span
+                              className="h-3.5 w-3.5 rounded-full border border-[#6b7f6b]"
+                              style={{ backgroundColor: studioSettings.quoteTheme.primaryColor }}
+                            />
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-semibold text-stone-700">Tema dei preventivi</h3>
+                            <p className="text-xs text-stone-400">Aspetto unico per tutti i template e i nuovi preventivi</p>
+                          </div>
+                        </div>
+                        <div className="p-5">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                            <div className="space-y-1.5">
+                              <Label htmlFor="quote-primary-color" className="text-xs font-medium text-stone-600 uppercase tracking-wide">
+                                Colore principale
+                              </Label>
+                              <Input
+                                id="quote-primary-color"
+                                type="color"
+                                value={studioSettings.quoteTheme.primaryColor}
+                                onChange={(e) => handleSettingsChange("quoteTheme", e.target.value, "primaryColor")}
+                                className="h-11 cursor-pointer border-stone-200 p-1"
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label htmlFor="quote-secondary-color" className="text-xs font-medium text-stone-600 uppercase tracking-wide">
+                                Colore secondario
+                              </Label>
+                              <Input
+                                id="quote-secondary-color"
+                                type="color"
+                                value={studioSettings.quoteTheme.secondaryColor}
+                                onChange={(e) => handleSettingsChange("quoteTheme", e.target.value, "secondaryColor")}
+                                className="h-11 cursor-pointer border-stone-200 p-1"
+                              />
+                            </div>
+                          </div>
+                          <p className="mt-4 text-xs leading-relaxed text-stone-500">
+                            Il footer usa il nome dello studio configurato sopra. Dopo aver scelto i colori, salva le impostazioni: i nuovi preventivi e tutti i template useranno questi valori. Quelli già inviati conservano il tema salvato al momento della creazione.
+                          </p>
                         </div>
                       </div>
 

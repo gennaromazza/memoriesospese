@@ -46,3 +46,4 @@
 - [Passkey in Preview](passkey-preview-handoff.md) — non indebolire MFA in produzione: autorizzare la Preview con una verifica temporanea sul dominio WebAuthn ufficiale.
 - [QR passkey enrollment](device-passkey-enrollment.md) — il QR approva solo una nuova registrazione WebAuthn; niente trasferimento sessione o claim admin.
 - [Lead separati dai lavori](jobs-list-leads-separation.md) — lead non firmati nella scheda Lead; conteggi e lista lavori restano dedicati ai lavori firmati.
+- [Studio settings as the source](studio-settings-source.md) — quote colors and studio footer come from saved Admin Studio settings, not template overrides or code fallbacks.

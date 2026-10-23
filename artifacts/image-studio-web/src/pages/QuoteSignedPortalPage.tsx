@@ -17,6 +17,7 @@ import type { Quote, QuoteSignature } from '@shared/quotes-types';
 import type { PaymentSchedule } from '@shared/payment-schedule-types';
 import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import DOMPurify from 'dompurify';
 import html2pdf from 'html2pdf.js';
 import { formatPhoneForWhatsApp } from '@shared/phone-utils';
 import { formatQuotePortalDate as formatDate } from '@/lib/quote-portal-date';
@@ -56,7 +57,10 @@ interface QuoteSignedPortalData {
 export default function QuoteSignedPortalPage() {
   const params = useParams();
   const token = params.token;
-  const [studioSettings, setStudioSettings] = useState<{ phone?: string } | null>(null);
+  const [studioSettings, setStudioSettings] = useState<{
+    phone?: string;
+    quoteTheme?: { primaryColor?: string; secondaryColor?: string };
+  } | null>(null);
   const [studioLogo, setStudioLogo] = useState<string | null>(null);
 
   // Fetch quote signed data
@@ -102,15 +106,23 @@ export default function QuoteSignedPortalPage() {
 
   // Set theme colors
   useEffect(() => {
-    if (quote?.theme) {
-      document.documentElement.style.setProperty('--theme-primary', quote.theme.primaryColor);
-      document.documentElement.style.setProperty('--theme-secondary', quote.theme.secondaryColor);
+    const primaryColor = quote?.theme?.primaryColor || studioSettings?.quoteTheme?.primaryColor;
+    const secondaryColor = quote?.theme?.secondaryColor || studioSettings?.quoteTheme?.secondaryColor;
+    if (primaryColor) {
+      document.documentElement.style.setProperty('--theme-primary', primaryColor);
+    }
+    if (secondaryColor) {
+      document.documentElement.style.setProperty('--theme-secondary', secondaryColor);
     }
     return () => {
       document.documentElement.style.removeProperty('--theme-primary');
       document.documentElement.style.removeProperty('--theme-secondary');
     };
-  }, [quote?.theme]);
+  }, [
+    quote?.theme,
+    studioSettings?.quoteTheme?.primaryColor,
+    studioSettings?.quoteTheme?.secondaryColor,
+  ]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('it-IT', {
@@ -823,7 +835,7 @@ export default function QuoteSignedPortalPage() {
         {quote.theme?.footerText && (
           <Card className="bg-cream border-beige shadow-sm">
             <CardContent className="pt-4 sm:pt-6 px-4 sm:px-6 text-center">
-              <p className="text-xs sm:text-sm text-dark-sage leading-relaxed" dangerouslySetInnerHTML={{ __html: quote.theme.footerText }} />
+              <p className="text-xs sm:text-sm text-dark-sage leading-relaxed" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(quote.theme.footerText) }} />
             </CardContent>
           </Card>
         )}

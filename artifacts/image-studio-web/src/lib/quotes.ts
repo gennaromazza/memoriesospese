@@ -27,17 +27,24 @@ import type {
   InsertQuoteTemplate,
   AcceptQuoteData,
   QuoteStatus,
-  PaymentScheduleConfig
+  PaymentScheduleConfig,
+  QuoteTheme
 } from '@shared/quotes-types';
 import { nanoid } from 'nanoid';
 import { addTimelineEvent, updateJobStatus, recomputeJobAggregates } from './jobs';
 import { calculateQuoteTotals, validateDiscount } from '@shared/quote-utils';
 import { migrateRequirementRules, findInvalidSelections } from '@shared/quote-requirements';
 import type { QuoteProduct } from '@shared/quotes-types';
+import { resolveStudioQuoteTheme } from '@shared/studio-quote-theme';
 import { removeUndefinedFields } from '@shared/firestore-utils';
 
 const QUOTES_COLLECTION = 'quotes';
 const TEMPLATES_COLLECTION = 'quoteTemplates';
+
+async function getStudioQuoteThemeFromSettings(): Promise<QuoteTheme> {
+  const settingsSnapshot = await getDoc(doc(db, 'settings', 'studio'));
+  return resolveStudioQuoteTheme(settingsSnapshot.exists() ? settingsSnapshot.data() : {});
+}
 
 /**
  * Genera token sicuro per URL pubblico
@@ -131,19 +138,8 @@ export async function createQuote(
       id: nanoid()
     }));
     
-    // Merge theme preservando tutti i campi, filtrando undefined
-    const defaultTheme = getDefaultTheme();
-    const cleanDataTheme = Object.entries(data.theme || {}).reduce((acc, [key, value]) => {
-      if (value !== undefined) {
-        acc[key] = value;
-      }
-      return acc;
-    }, {} as any);
-    
-    const theme = {
-      ...defaultTheme,
-      ...cleanDataTheme // Sovrascrive solo campi definiti
-    };
+    // La configurazione salvata in Impostazioni Studio è la sola fonte del tema.
+    const theme = await getStudioQuoteThemeFromSettings();
 
     // Prepara paymentScheduleConfig solo se autoGenerate attivo E type === 'fisso'
     // BLOCCA per moduli variabili (il totale non è ancora noto)
@@ -165,7 +161,7 @@ export async function createQuote(
       };
     }
 
-    const requirementRules = data.type === 'variabile' ? data.requirementRules : undefined;
+    const requirementRules = data.type === 'variabile' ? (data.requirementRules ?? []) : [];
 
     const quoteData: Omit<Quote, 'id'> = {
       jobId: data.jobId,
@@ -187,9 +183,7 @@ export async function createQuote(
       ...(data.expiresAt && { expiresAt: Timestamp.fromDate(data.expiresAt) }), // Solo se definito
       ...(data.noteInterne && { noteInterne: data.noteInterne }), // Solo se definito
       ...(paymentScheduleConfig && { paymentScheduleConfig }), // Solo se definito
-      ...(requirementRules && requirementRules.length > 0 && {
-        requirementRules,
-      }),
+      ...(requirementRules.length > 0 ? { requirementRules } : {}),
       ...(data.jobInfo && { 
         jobInfo: {
           nomeEvento: data.jobInfo.nomeEvento,
@@ -647,8 +641,10 @@ export async function createQuoteTemplate(
   userId: string
 ): Promise<string> {
   try {
+    const theme = await getStudioQuoteThemeFromSettings();
     const templateData: Omit<QuoteTemplate, 'id'> = {
       ...data,
+      theme,
       attivo: data.attivo !== undefined ? data.attivo : true,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
@@ -704,8 +700,10 @@ export async function updateQuoteTemplate(
   data: Partial<InsertQuoteTemplate>
 ): Promise<void> {
   try {
+    const theme = await getStudioQuoteThemeFromSettings();
     const updateData = {
       ...data,
+      theme,
       updatedAt: Timestamp.now()
     };
     
@@ -867,12 +865,4 @@ export async function sendQuoteEmailManually(quoteId: string): Promise<{ success
     console.error('❌ Errore invio email preventivo:', error);
     throw error;
   }
-}
-
-function getDefaultTheme() {
-  return {
-    primaryColor: '#8B9A8B',
-    secondaryColor: '#C8B8A8',
-    footerText: 'Image Studio - Fotografia professionale'
-  };
 }

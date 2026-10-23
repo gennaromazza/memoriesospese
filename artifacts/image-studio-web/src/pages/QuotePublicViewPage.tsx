@@ -71,6 +71,7 @@ import type { PaymentSchedulePreview } from "@shared/payment-schedule-utils";
 import { useCountdown } from "@/hooks/useCountdown";
 import { db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
+import { useStudio } from "@/context/StudioContext";
 
 interface QuotePublicData {
   quote: Quote;
@@ -111,6 +112,7 @@ export default function QuotePublicViewPage() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const token = params.token;
+  const { studioSettings } = useStudio();
 
   // State
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
@@ -279,21 +281,21 @@ export default function QuotePublicViewPage() {
 
   // Set theme colors
   useEffect(() => {
-    if (quote?.theme) {
-      document.documentElement.style.setProperty(
-        "--theme-primary",
-        quote.theme.primaryColor || "#8B9A8B",
-      );
-      document.documentElement.style.setProperty(
-        "--theme-secondary",
-        quote.theme.secondaryColor || "#C8D4C8",
-      );
+    if (quote) {
+      const primaryColor = quote.theme?.primaryColor || studioSettings.quoteTheme.primaryColor;
+      const secondaryColor = quote.theme?.secondaryColor || studioSettings.quoteTheme.secondaryColor;
+      if (primaryColor) document.documentElement.style.setProperty("--theme-primary", primaryColor);
+      if (secondaryColor) document.documentElement.style.setProperty("--theme-secondary", secondaryColor);
     }
     return () => {
       document.documentElement.style.removeProperty("--theme-primary");
       document.documentElement.style.removeProperty("--theme-secondary");
     };
-  }, [quote?.theme]);
+  }, [
+    quote?.theme,
+    studioSettings.quoteTheme.primaryColor,
+    studioSettings.quoteTheme.secondaryColor,
+  ]);
 
   // Accept quote mutation
   const acceptMutation = useMutation({
@@ -816,9 +818,9 @@ export default function QuotePublicViewPage() {
     }
   }, [quote, totale, jobInfo?.eventDate]);
 
-  // Theme colors with fallback
-  const primaryColor = quote?.theme?.primaryColor ?? "#8B9A8B";
-  const secondaryColor = quote?.theme?.secondaryColor ?? "#C8D4C8";
+  // Legacy quotes without saved colors use the current Admin Studio settings.
+  const primaryColor = quote?.theme?.primaryColor || studioSettings.quoteTheme.primaryColor || "currentColor";
+  const secondaryColor = quote?.theme?.secondaryColor || studioSettings.quoteTheme.secondaryColor || "currentColor";
 
   // Format currency
   const formatCurrency = (amount: number) => {

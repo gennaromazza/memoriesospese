@@ -14,6 +14,7 @@ import { getAllProducts } from '@/lib/products';
 import { getAllClauseTemplates } from '@/lib/contract-clauses';
 import { mergeQuoteProducts } from '@/lib/quote-mappers';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
+import { useStudio } from '@/context/StudioContext';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import CatalogProductSelector from './CatalogProductSelector';
@@ -376,6 +377,7 @@ export default function QuoteBuilder({
   editQuoteId
 }: QuoteBuilderProps) {
   const { user } = useFirebaseAuth();
+  const { studioSettings } = useStudio();
   const { toast } = useToast();
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [selectedClauseTemplateId, setSelectedClauseTemplateId] = useState<string>('');
@@ -460,11 +462,7 @@ export default function QuoteBuilder({
         categoria: '',
         immagini: []
       }],
-      theme: {
-        primaryColor: '#8B9A8B',
-        secondaryColor: '#C8B8A8',
-        footerText: 'Image Studio - Fotografia professionale'
-      },
+      theme: { ...studioSettings.quoteTheme },
       noteInterne: '',
       paymentScheduleConfig: {
         autoGenerate: false,
@@ -478,6 +476,16 @@ export default function QuoteBuilder({
       }
     }
   });
+
+  useEffect(() => {
+    if (editQuoteId) return;
+    form.setValue('theme', { ...studioSettings.quoteTheme });
+  }, [
+    editQuoteId,
+    form,
+    studioSettings.quoteTheme.primaryColor,
+    studioSettings.quoteTheme.secondaryColor,
+  ]);
 
   // Reset state quando dialog si chiude
   useEffect(() => {
@@ -1120,7 +1128,7 @@ export default function QuoteBuilder({
     form.setValue('products', customProds.length > 0 ? customProds : [{
       nome: '', descrizione: '', prezzo: 0, selectable: false, numeroFoto: 0, categoria: '', immagini: [], isOmaggio: false
     }]);
-    form.setValue('theme', template.theme);
+    form.setValue('theme', { ...studioSettings.quoteTheme });
 
     // Ripristina le sezioni dei prodotti catalogo dal template
     const templateCatalogSections: Record<string, string> = {};
@@ -1502,11 +1510,7 @@ export default function QuoteBuilder({
           categoria: '',
           immagini: []
         }],
-        theme: {
-          primaryColor: '#8B9A8B',
-          secondaryColor: '#C8B8A8',
-          footerText: 'Image Studio - Fotografia professionale'
-        },
+        theme: { ...studioSettings.quoteTheme },
         noteInterne: '',
         paymentScheduleConfig: {
           autoGenerate: false,
