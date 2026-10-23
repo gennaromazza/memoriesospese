@@ -17,6 +17,7 @@ import type { AddressInfo } from "node:net";
 const h = vi.hoisted(() => ({
   state: {} as Record<string, Record<string, any>>,
   nextId: 1,
+  adminToken: false,
   // serverTimestamp() monotono: ogni chiamata produce un valore distinto,
   // così possiamo verificare che compilazioni ripetute AGGIORNINO il campo.
   tsCounter: 0,
@@ -111,7 +112,15 @@ vi.mock("./firebase-admin.js", () => ({
 }));
 
 vi.mock("firebase-admin/auth", () => ({
-  getAuth: () => ({ verifyIdToken: async () => ({ email: "admin@test" }) }),
+  getAuth: () => ({
+    verifyIdToken: async () => ({
+      email: h.adminToken ? "gennaro.mazzacane@gmail.com" : "admin@test",
+    }),
+  }),
+}));
+
+vi.mock("./admin-security/admin-guard.js", () => ({
+  adminPasskeyGate: vi.fn(async () => null),
 }));
 
 vi.mock("./email-routes.js", () => ({
@@ -161,8 +170,15 @@ function seed() {
         nome: "Matrimonio Base",
         type: "fisso",
         jobType: "matrimonio",
+        theme: { primaryColor: "#AA0000", secondaryColor: "#BB0000", footerText: "Tema vecchio" },
         defaultProducts: [{ nome: "Servizio", prezzo: 1000 }],
         defaultClauses: [],
+      },
+    },
+    settings: {
+      studio: {
+        name: "Studio corrente",
+        quoteTheme: { primaryColor: "#123456", secondaryColor: "#ABCDEF" },
       },
     },
     clienti: {},
@@ -171,6 +187,7 @@ function seed() {
   };
   h.nextId = 1;
   h.tsCounter = 0;
+  h.adminToken = false;
 }
 
 async function postSaveDraft(overrides: Record<string, any> = {}) {
@@ -271,6 +288,148 @@ describe("POST /api/quotes/quick/:token/save-draft — quickQuoteCompiledAt", ()
   it('does not let an authenticated non-admin fetch a private quote share token', async () => {
     const { status } = await postGenerateToken();
     expect(status).toBe(403);
+  });
+
+  it("crea la bozza pubblica con il tema salvato, ignorando i colori obsoleti del template", async () => {
+    const { status, json } = await postSaveDraft();
+
+    expect(status).toBe(200);
+    const quote = Object.values(h.state.quotes)[0] as any;
+    expect(quote.theme).toEqual({
+      primaryColor: "#123456",
+      secondaryColor: "#ABCDEF",
+      footerText: "Studio corrente",
+    });
+    expect(json.success).toBe(true);
+  });
+
+  it("non crea cliente, lavoro o preventivo pubblico quando il tema globale manca", async () => {
+    delete h.state.settings.studio;
+
+    const { status, json } = await postSaveDraft();
+
+    expect(status).toBe(500);
+    expect((json as any).message).toMatch(/Impostazioni Studio/);
+    expect(h.state.clienti).toEqual({});
+    expect(h.state.jobs).toEqual({});
+    expect(h.state.quotes).toEqual({});
+  });
+
+  it("attiva il preventivo pubblico con il tema globale anche dopo la verifica email", async () => {
+    vi.mocked(sendGmailEmail).mockClear();
+    const email = "ada@example.test";
+    const sendOtp = await fetch(`${baseUrl}/api/quotes/quick/${TOKEN}/send-otp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, nome: "Ada" }),
+    });
+    expect(sendOtp.status).toBe(200);
+    const otpEmail = vi.mocked(sendGmailEmail).mock.calls[0]?.[2] as string;
+    const code = otpEmail.match(/>(\d{6})</)?.[1];
+    expect(code).toBeDefined();
+
+    const verified = await fetch(`${baseUrl}/api/quotes/quick/${TOKEN}/verify-otp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, code }),
+    });
+    expect(verified.status).toBe(200);
+
+    const activated = await fetch(`${baseUrl}/api/quotes/quick/${TOKEN}/activate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        nome: "Ada",
+        cognome: "Bianchi",
+        email,
+        nomeEvento: "Matrimonio",
+        dataNonDefinita: true,
+      }),
+    });
+
+    expect(activated.status).toBe(200);
+    const quote = Object.values(h.state.quotes)[0] as any;
+    expect(quote.theme).toEqual({
+      primaryColor: "#123456",
+      secondaryColor: "#ABCDEF",
+      footerText: "Studio corrente",
+    });
+  });
+
+  it("non crea dati parziali nell'attivazione pubblica se il tema globale manca", async () => {
+    delete h.state.settings.studio;
+
+    const activated = await fetch(`${baseUrl}/api/quotes/quick/${TOKEN}/activate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        nome: "Ada",
+        cognome: "Bianchi",
+        email: "ada@example.test",
+        nomeEvento: "Matrimonio",
+        dataNonDefinita: true,
+      }),
+    });
+    const result = await activated.json();
+
+    expect(activated.status).toBe(500);
+    expect((result as any).message).toMatch(/Impostazioni Studio/);
+    expect(h.state.quickQuoteSubmissions).toBeUndefined();
+    expect(h.state.clienti).toEqual({});
+    expect(h.state.jobs).toEqual({});
+    expect(h.state.quotes).toEqual({});
+  });
+
+  it("crea il preventivo rapido admin con il tema globale e non con quello del template", async () => {
+    h.adminToken = true;
+    const response = await fetch(`${baseUrl}/api/quotes/quick/${TOKEN}/activate-admin`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer admin-token",
+      },
+      body: JSON.stringify({
+        nome: "Ada",
+        cognome: "Bianchi",
+        email: "ada@example.test",
+        nomeEvento: "Matrimonio",
+        dataNonDefinita: true,
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    const quote = Object.values(h.state.quotes)[0] as any;
+    expect(quote.theme).toEqual({
+      primaryColor: "#123456",
+      secondaryColor: "#ABCDEF",
+      footerText: "Studio corrente",
+    });
+  });
+
+  it("non crea dati parziali nella creazione rapida admin se il tema globale manca", async () => {
+    h.adminToken = true;
+    delete h.state.settings.studio;
+    const response = await fetch(`${baseUrl}/api/quotes/quick/${TOKEN}/activate-admin`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer admin-token",
+      },
+      body: JSON.stringify({
+        nome: "Ada",
+        cognome: "Bianchi",
+        email: "ada@example.test",
+        nomeEvento: "Matrimonio",
+        dataNonDefinita: true,
+      }),
+    });
+    const json = await response.json();
+
+    expect(response.status).toBe(500);
+    expect((json as any).message).toMatch(/Impostazioni Studio/);
+    expect(h.state.clienti).toEqual({});
+    expect(h.state.jobs).toEqual({});
+    expect(h.state.quotes).toEqual({});
   });
 });
 
