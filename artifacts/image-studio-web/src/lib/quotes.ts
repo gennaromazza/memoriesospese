@@ -165,6 +165,8 @@ export async function createQuote(
       };
     }
 
+    const requirementRules = data.type === 'variabile' ? data.requirementRules : undefined;
+
     const quoteData: Omit<Quote, 'id'> = {
       jobId: data.jobId,
       clienteId: data.clienteId,
@@ -185,6 +187,9 @@ export async function createQuote(
       ...(data.expiresAt && { expiresAt: Timestamp.fromDate(data.expiresAt) }), // Solo se definito
       ...(data.noteInterne && { noteInterne: data.noteInterne }), // Solo se definito
       ...(paymentScheduleConfig && { paymentScheduleConfig }), // Solo se definito
+      ...(requirementRules && requirementRules.length > 0 && {
+        requirementRules,
+      }),
       ...(data.jobInfo && { 
         jobInfo: {
           nomeEvento: data.jobInfo.nomeEvento,

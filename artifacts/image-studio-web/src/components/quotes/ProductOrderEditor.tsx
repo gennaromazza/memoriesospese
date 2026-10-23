@@ -26,7 +26,7 @@ import {
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, ArrowUpDown, Tag, RotateCcw, Gift } from 'lucide-react';
+import { GripVertical, ArrowUpDown, Tag, RotateCcw, Gift, Ban } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 export interface OrderableProduct {
@@ -40,6 +40,10 @@ export interface OrderableProduct {
   selectable?: boolean;
   /** Prezzo originale del catalogo (listino). Se differisce da `prezzo` significa override attivo. */
   originalPrice?: number;
+  /** Numero di incompatibilità reciproche attive nel preventivo corrente. */
+  compatibilityCount?: number;
+  /** I nomi duplicati non sono distinguibili dal motore attuale delle regole. */
+  compatibilityDisabled?: boolean;
 }
 
 interface SortableRowProps {
@@ -55,9 +59,11 @@ interface SortableRowProps {
   onResetPrice?: (key: string) => void;
   /** Callback per marcare/smarcare il prodotto come Omaggio (forza prezzo=0 e sempre incluso) */
   onOmaggioChange?: (key: string, isOmaggio: boolean) => void;
+  /** Se fornito, mostra l'azione per configurare i prodotti incompatibili con questa riga. */
+  onCompatibilityClick?: (key: string) => void;
 }
 
-function SortableRow({ product, index, onSectionChange, sectionSuggestions, onPriceChange, onSelectableChange, showSelectableToggle, onResetPrice, onOmaggioChange }: SortableRowProps) {
+function SortableRow({ product, index, onSectionChange, sectionSuggestions, onPriceChange, onSelectableChange, showSelectableToggle, onResetPrice, onOmaggioChange, onCompatibilityClick }: SortableRowProps) {
   const {
     attributes,
     listeners,
@@ -227,6 +233,29 @@ function SortableRow({ product, index, onSectionChange, sectionSuggestions, onPr
         </button>
       )}
 
+      {onCompatibilityClick && (
+        <button
+          type="button"
+          onClick={() => onCompatibilityClick(product.key)}
+          disabled={product.compatibilityDisabled}
+          title={product.compatibilityDisabled
+            ? 'Rinomina i prodotti con lo stesso nome per distinguere le regole'
+            : `Configura i prodotti incompatibili con ${product.nome}`}
+          aria-label={`Regole di compatibilità per ${product.nome}`}
+          aria-pressed={(product.compatibilityCount ?? 0) > 0}
+          className="flex items-center gap-1 rounded border border-rose-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50 flex-shrink-0"
+          data-testid={`button-compatibility-${product.key}`}
+        >
+          <Ban className="h-3 w-3" />
+          Regole
+          {(product.compatibilityCount ?? 0) > 0 && (
+            <span className="rounded-full bg-rose-100 px-1.5 text-rose-800">
+              {product.compatibilityCount}
+            </span>
+          )}
+        </button>
+      )}
+
       {/* Prezzo: input inline se onPriceChange è fornito e non è un omaggio, altrimenti label */}
       {onPriceChange && !product.isOmaggio ? (
         editingPrice ? (
@@ -341,9 +370,11 @@ interface ProductOrderEditorProps {
   onResetPrice?: (key: string) => void;
   /** Se fornito, mostra il toggle Omaggio per ogni prodotto */
   onOmaggioChange?: (key: string, isOmaggio: boolean) => void;
+  /** Se fornito, mostra il comando per configurare incompatibilità sul singolo prodotto. */
+  onCompatibilityClick?: (key: string) => void;
 }
 
-export default function ProductOrderEditor({ products, orderKeys, onOrderChange, onSectionChange, sectionSuggestions, onPriceChange, onSelectableChange, showSelectableToggle, onResetPrice, onOmaggioChange }: ProductOrderEditorProps) {
+export default function ProductOrderEditor({ products, orderKeys, onOrderChange, onSectionChange, sectionSuggestions, onPriceChange, onSelectableChange, showSelectableToggle, onResetPrice, onOmaggioChange, onCompatibilityClick }: ProductOrderEditorProps) {
   const buildItems = (prods: OrderableProduct[], keys?: string[]): OrderableProduct[] => {
     if (!keys || keys.length === 0) return prods;
     const map = new Map(prods.map(p => [p.key, p]));
@@ -451,6 +482,7 @@ export default function ProductOrderEditor({ products, orderKeys, onOrderChange,
                     showSelectableToggle={showSelectableToggle}
                     onResetPrice={onResetPrice}
                     onOmaggioChange={onOmaggioChange}
+                    onCompatibilityClick={onCompatibilityClick}
                   />
                 </div>
               );

@@ -96,6 +96,13 @@ import { CSS } from '@dnd-kit/utilities';
 import type { QuoteType, QuoteProduct } from '@shared/quotes-types';
 import type { BenefitRule } from '@shared/quote-benefits';
 import { computeBenefitStates, migrateBenefitRules } from '@shared/quote-benefits';
+import type { RequirementRule } from '@shared/quote-requirements';
+import {
+  getMutuallyExcludedProductNames,
+  migrateRequirementRules,
+  pruneRequirementRules,
+  setMutualExclusionPair,
+} from '@shared/quote-requirements';
 import ProductOrderEditor, { type OrderableProduct } from './ProductOrderEditor';
 import type { JobType as JobTypeSlug, Job } from '@shared/jobs-types';
 import type { JobType, JobTypeFE } from '@shared/job-types';
@@ -378,6 +385,8 @@ export default function QuoteBuilder({
   const prevFieldsCountRef = useRef<number>(0);
   const [benefitRules, setBenefitRules] = useState<BenefitRule[]>([]);
   const [expandedBenefitRules, setExpandedBenefitRules] = useState<Set<string>>(new Set());
+  const [requirementRules, setRequirementRules] = useState<RequirementRule[]>([]);
+  const [compatibilityProductName, setCompatibilityProductName] = useState<string | null>(null);
   const [productOrderKeys, setProductOrderKeys] = useState<string[]>([]);
   // Sezioni per i prodotti da catalogo (non hanno form field proprio)
   const [catalogProductSections, setCatalogProductSections] = useState<Record<string, string>>({});
@@ -609,6 +618,8 @@ export default function QuoteBuilder({
     setUploadingImages({});
     setBenefitRules(migrateBenefitRules(existingQuote.benefitRules ?? []));
     setExpandedBenefitRules(new Set());
+    setRequirementRules(migrateRequirementRules(existingQuote.requirementRules ?? []));
+    setCompatibilityProductName(null);
 
     // Inizializza l'ordine prodotti dall'ordine salvato nel preventivo
     if (Array.isArray(existingQuote.products)) {
@@ -651,6 +662,21 @@ export default function QuoteBuilder({
         if (prev.length > 0) return prev;
         return migrateBenefitRules(templateBenefits);
       });
+    }
+  }, [existingQuote, editQuoteId, templates]);
+
+  // Fallback per i preventivi legacy: se il preventivo non ha regole proprie ma
+  // conserva il templateId, recupera le regole attuali del template associato.
+  useEffect(() => {
+    if (!existingQuote || !editQuoteId || !existingQuote.templateId) return;
+    if (existingQuote.type !== 'variabile') return;
+    if ((existingQuote.requirementRules ?? []).length > 0) return;
+    if (templates.length === 0) return;
+
+    const matchingTemplate = templates.find((template: any) => template.id === existingQuote.templateId);
+    const templateRules = (matchingTemplate as any)?.requirementRules ?? [];
+    if (templateRules.length > 0) {
+      setRequirementRules(prev => prev.length > 0 ? prev : migrateRequirementRules(templateRules));
     }
   }, [existingQuote, editQuoteId, templates]);
 
@@ -773,8 +799,55 @@ export default function QuoteBuilder({
         selectable: f.isOmaggio ? false : (f.selectable !== undefined ? !!f.selectable : defaultSelectable),
         isOmaggio: f.isOmaggio === true,
       }));
-    return [...cat, ...cust];
-  }, [catalogProductIds, watchedProducts, catalogProducts, catalogProductSections, catalogOverrides, quoteTypeForEditor]);
+    const products = [...cat, ...cust];
+    const nameCounts = new Map<string, number>();
+    products.forEach(product => {
+      nameCounts.set(product.nome, (nameCounts.get(product.nome) ?? 0) + 1);
+    });
+
+    return products.map(product => ({
+      ...product,
+      compatibilityCount: getMutuallyExcludedProductNames(requirementRules, product.nome)
+        .filter(name => nameCounts.has(name))
+        .length,
+      compatibilityDisabled: (nameCounts.get(product.nome) ?? 0) > 1,
+    }));
+  }, [catalogProductIds, watchedProducts, catalogProducts, catalogProductSections, catalogOverrides, quoteTypeForEditor, requirementRules]);
+
+  const compatibilityProductNames = useMemo(
+    () => [...new Set(mergedForOrderEditor.map(product => product.nome).filter(Boolean))],
+    [mergedForOrderEditor]
+  );
+  const duplicateCompatibilityProductNames = useMemo(
+    () => new Set(mergedForOrderEditor.filter(product => product.compatibilityDisabled).map(product => product.nome)),
+    [mergedForOrderEditor]
+  );
+
+  useEffect(() => {
+    if (
+      compatibilityProductName &&
+      (
+        !compatibilityProductNames.includes(compatibilityProductName) ||
+        duplicateCompatibilityProductNames.has(compatibilityProductName)
+      )
+    ) {
+      setCompatibilityProductName(null);
+    }
+  }, [compatibilityProductName, compatibilityProductNames, duplicateCompatibilityProductNames]);
+
+  const handleCompatibilityClick = useCallback((key: string) => {
+    const product = mergedForOrderEditor.find(item => item.key === key);
+    if (!product) return;
+    if (product.compatibilityDisabled) {
+      toast({
+        title: 'Nomi prodotto duplicati',
+        description: 'Rinomina i prodotti con lo stesso nome per poter distinguere le incompatibilità.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setCompatibilityProductName(current => current === product.nome ? null : product.nome);
+  }, [mergedForOrderEditor, toast]);
 
   // Handler modifica prezzo inline (override solo per questo preventivo)
   const handleEditorPriceChange = useCallback((key: string, prezzo: number) => {
@@ -1078,6 +1151,10 @@ export default function QuoteBuilder({
     // Carica i benefit rules dal template (solo per template variabili)
     setBenefitRules(migrateBenefitRules((template as any).benefitRules ?? []));
     setExpandedBenefitRules(new Set());
+    setRequirementRules(template.type === 'variabile'
+      ? migrateRequirementRules((template as any).requirementRules ?? [])
+      : []);
+    setCompatibilityProductName(null);
   };
 
   // Upload immagine prodotto custom
@@ -1225,6 +1302,9 @@ export default function QuoteBuilder({
           discountValue: data.discountValue || 0,
           paymentScheduleConfig: data.paymentScheduleConfig,
           benefitRules: benefitRules.length > 0 ? benefitRules : [],
+          requirementRules: data.type === 'variabile'
+            ? pruneRequirementRules(requirementRules, mergedProducts.map((product: QuoteProduct) => product.nome))
+            : [],
         };
         
         // Aggiorna clausole se selezionato un template
@@ -1385,6 +1465,9 @@ export default function QuoteBuilder({
         ...(jobInfo && { jobInfo }),
         ...(clientiInfo.length > 0 && { clientiInfo }),
         ...(benefitRules.length > 0 && { benefitRules }),
+        ...(data.type === 'variabile' && requirementRules.length > 0 && {
+          requirementRules: pruneRequirementRules(requirementRules, mergedProducts.map(product => product.nome)),
+        }),
       };
 
       return createQuote(quoteData, user!.uid);
@@ -1438,6 +1521,8 @@ export default function QuoteBuilder({
       });
       setCatalogProductSections({});
       setProductOrderKeys([]);
+      setRequirementRules([]);
+      setCompatibilityProductName(null);
       // Reset anche gli override per evitare leak su sessioni successive
       setCatalogOverrides({});
       skipNextSelectableResetRef.current = false;
@@ -2202,9 +2287,83 @@ export default function QuoteBuilder({
                     onSelectableChange={handleEditorSelectableChange}
                     showSelectableToggle={quoteType === 'variabile'}
                     onOmaggioChange={handleEditorOmaggioChange}
+                    onCompatibilityClick={quoteType === 'variabile' ? handleCompatibilityClick : undefined}
                   />
                 </div>
               </>
+            )}
+
+            {quoteType === 'variabile' && compatibilityProductName && (
+              <Card className="border-rose-200 bg-rose-50/40" data-testid="panel-product-compatibility">
+                <CardHeader className="flex flex-row items-center justify-between gap-3 py-3 px-4">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Lock className="h-4 w-4 text-rose-600" />
+                    Compatibilità: {compatibilityProductName}
+                  </CardTitle>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setCompatibilityProductName(null)}
+                    aria-label="Chiudi compatibilità prodotto"
+                    data-testid="button-close-product-compatibility"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </CardHeader>
+                <CardContent className="space-y-3 px-4 pb-4">
+                  <p className="text-xs text-muted-foreground">
+                    Se il cliente sceglie <strong>{compatibilityProductName}</strong>, gli altri prodotti selezionati qui
+                    saranno disattivati. L’esclusione vale anche al contrario.
+                  </p>
+                  {duplicateCompatibilityProductNames.size > 0 && (
+                    <p className="text-xs text-amber-800">
+                      I prodotti con nome duplicato non sono selezionabili qui: rinominali nell’offerta per distinguerli.
+                    </p>
+                  )}
+                  {compatibilityProductNames.filter(name => name !== compatibilityProductName).length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {compatibilityProductNames
+                        .filter(name => name !== compatibilityProductName)
+                        .map(name => {
+                          const isDuplicate = duplicateCompatibilityProductNames.has(name);
+                          const isIncompatible = getMutuallyExcludedProductNames(
+                            requirementRules,
+                            compatibilityProductName
+                          ).includes(name);
+                          return (
+                            <button
+                              key={name}
+                              type="button"
+                              disabled={isDuplicate}
+                              aria-pressed={isIncompatible}
+                              title={isDuplicate ? 'Rinomina i prodotti con lo stesso nome per distinguerli' : undefined}
+                              onClick={() => setRequirementRules(prev => setMutualExclusionPair(
+                                prev,
+                                compatibilityProductName,
+                                name,
+                                !isIncompatible,
+                                () => nanoid()
+                              ))}
+                              className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                                isIncompatible
+                                  ? 'border-rose-600 bg-rose-600 text-white'
+                                  : 'border-gray-300 bg-white text-gray-700 hover:border-rose-400 hover:bg-rose-50'
+                              }`}
+                              data-testid={`button-toggle-incompatible-${encodeURIComponent(name)}`}
+                            >
+                              {isIncompatible ? '✓ ' : ''}{name}
+                            </button>
+                          );
+                        })}
+                    </div>
+                  ) : (
+                    <p className="text-xs italic text-muted-foreground">
+                      Aggiungi almeno un altro prodotto al preventivo per configurare un’esclusione.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
             )}
 
             <Separator />

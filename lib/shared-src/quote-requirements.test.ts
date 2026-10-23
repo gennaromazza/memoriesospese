@@ -11,6 +11,9 @@ import {
   sanitizeSelection,
   findInvalidSelections,
   formatRequiredNames,
+  getMutuallyExcludedProductNames,
+  setMutualExclusionPair,
+  pruneRequirementRules,
 } from './quote-requirements';
 import { computeBenefitStates, BenefitRule } from './quote-benefits';
 import { calculateQuoteTotals } from './quote-utils';
@@ -108,6 +111,52 @@ describe('regole di mutua esclusione (excludes)', () => {
     expect(migrated[0].type).toBe('requires');
     expect(migrated[1].type).toBe('excludes');
     expect(migrated[1].requiredProductNames).toEqual([]);
+  });
+});
+
+describe('modifica delle incompatibilità dal preventivo', () => {
+  const createId = (() => {
+    let next = 0;
+    return () => `generated-${++next}`;
+  })();
+
+  it('aggiunge una coppia reciproca e la mostra su entrambi i prodotti', () => {
+    const rules = setMutualExclusionPair([], 'Album A', 'Album B', true, createId);
+
+    expect(getMutuallyExcludedProductNames(rules, 'Album A')).toEqual(['Album B']);
+    expect(getMutuallyExcludedProductNames(rules, 'Album B')).toEqual(['Album A']);
+    expect(computeBlockedProducts(rules, ['Album A']).has('Album B')).toBe(true);
+  });
+
+  it('rimuove una sola relazione da un gruppo esistente mantenendo le altre coppie', () => {
+    const group = exclusion({ blockedProductNames: ['Album A', 'Album B', 'Album C'] });
+    const rules = setMutualExclusionPair([group], 'Album A', 'Album B', false, createId);
+
+    expect(getMutuallyExcludedProductNames(rules, 'Album A')).toEqual(['Album C']);
+    expect(getMutuallyExcludedProductNames(rules, 'Album B')).toEqual(['Album C']);
+    expect(getMutuallyExcludedProductNames(rules, 'Album C')).toEqual(['Album A', 'Album B']);
+    const blocked = computeBlockedProducts(rules, ['Album A', 'Album B']);
+    expect(blocked.has('Album A')).toBe(false);
+    expect(blocked.has('Album B')).toBe(false);
+    expect(blocked.has('Album C')).toBe(true);
+  });
+
+  it('pruning rimuove riferimenti a prodotti eliminati senza lasciare regole dormienti', () => {
+    const rules = pruneRequirementRules(
+      [
+        exclusion({ blockedProductNames: ['Album A', 'Album B', 'Rimosso'] }),
+        exclusion({ id: 'stale', blockedProductNames: ['Album A', 'Rimosso'] }),
+        rule({
+          id: 'missing-trigger',
+          blockedProductNames: ['Album A'],
+          requiredProductNames: ['Trigger eliminato'],
+        }),
+      ],
+      ['Album A', 'Album B']
+    );
+
+    expect(rules).toHaveLength(1);
+    expect(rules[0].blockedProductNames).toEqual(['Album A', 'Album B']);
   });
 });
 
