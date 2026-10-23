@@ -2617,6 +2617,88 @@ export default function AdminDashboard() {
                               />
                             </div>
                           </div>
+                          <div className="mt-6 rounded-lg border border-stone-200 bg-stone-50/80 p-4 sm:p-5">
+                            <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
+                              <div>
+                                <p className="text-sm font-semibold text-stone-700">Anteprima del preventivo</p>
+                                <p className="mt-0.5 text-xs text-stone-500">
+                                  Si aggiorna mentre scegli i colori; non salva le modifiche.
+                                </p>
+                              </div>
+                              <span className="rounded-full border border-stone-200 bg-white px-2.5 py-1 text-[10px] font-medium text-stone-500">
+                                Esempio
+                              </span>
+                            </div>
+
+                            <div
+                              aria-label="Anteprima del portale preventivo con i colori selezionati"
+                              className="mx-auto max-w-xl overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm"
+                            >
+                              <div
+                                aria-hidden="true"
+                                className="h-1.5"
+                                style={{ backgroundColor: studioSettings.quoteTheme.primaryColor }}
+                              />
+                              <div
+                                className="flex items-center justify-between gap-3 border-b px-4 py-3 sm:px-5"
+                                style={{ borderColor: `${studioSettings.quoteTheme.secondaryColor}70` }}
+                              >
+                                <div className="min-w-0">
+                                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-400">
+                                    Il tuo preventivo
+                                  </p>
+                                  <p className="mt-0.5 truncate text-sm font-semibold text-stone-800">
+                                    Fotografia e video di matrimonio
+                                  </p>
+                                </div>
+                                <span
+                                  className="shrink-0 rounded-full px-2.5 py-1 text-[10px] font-medium text-stone-700"
+                                  style={{ backgroundColor: `${studioSettings.quoteTheme.secondaryColor}30` }}
+                                >
+                                  Proposta
+                                </span>
+                              </div>
+
+                              <div className="space-y-3 p-4 sm:p-5">
+                                <div className="flex items-start justify-between gap-4">
+                                  <div>
+                                    <p className="text-xs text-stone-500">Servizio selezionato</p>
+                                    <p className="mt-1 text-sm font-medium text-stone-800">Servizio fotografico</p>
+                                  </div>
+                                  <span
+                                    className="shrink-0 text-sm font-semibold"
+                                    style={{ color: studioSettings.quoteTheme.primaryColor }}
+                                  >
+                                    € 2.450
+                                  </span>
+                                </div>
+                                <div
+                                  className="flex items-center gap-2 rounded-lg border p-3"
+                                  style={{
+                                    backgroundColor: `${studioSettings.quoteTheme.secondaryColor}18`,
+                                    borderColor: `${studioSettings.quoteTheme.secondaryColor}55`,
+                                  }}
+                                >
+                                  <span
+                                    aria-hidden="true"
+                                    className="h-2 w-2 shrink-0 rounded-full"
+                                    style={{ backgroundColor: studioSettings.quoteTheme.primaryColor }}
+                                  />
+                                  <p className="text-xs leading-relaxed text-stone-600">
+                                    Una proposta pensata per il vostro giorno speciale.
+                                  </p>
+                                </div>
+                                <div className="flex justify-end">
+                                  <span
+                                    className="rounded-md px-3 py-2 text-xs font-semibold text-white"
+                                    style={{ backgroundColor: studioSettings.quoteTheme.primaryColor }}
+                                  >
+                                    Approva preventivo
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
                           <p className="mt-4 text-xs leading-relaxed text-stone-500">
                             Il footer usa il nome dello studio configurato sopra. Dopo aver scelto i colori, salva le impostazioni: i nuovi preventivi e tutti i template useranno questi valori. Quelli già inviati conservano il tema salvato al momento della creazione.
                           </p>

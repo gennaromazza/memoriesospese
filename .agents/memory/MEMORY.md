@@ -47,3 +47,4 @@
 - [QR passkey enrollment](device-passkey-enrollment.md) — il QR approva solo una nuova registrazione WebAuthn; niente trasferimento sessione o claim admin.
 - [Lead separati dai lavori](jobs-list-leads-separation.md) — lead non firmati nella scheda Lead; conteggi e lista lavori restano dedicati ai lavori firmati.
 - [Studio settings as the source](studio-settings-source.md) — quote colors and studio footer come from saved Admin Studio settings, not template overrides or code fallbacks.
+- [Stale TypeScript LSP diagnostics](typescript-lsp-diagnostics-cache.md) — compare the reported expression with saved source and typecheck before repeating edits; reload the editor if only LSP disagrees.
