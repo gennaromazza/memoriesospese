@@ -18,6 +18,7 @@ import { getQuickQuoteDisplayDate } from '@shared/job-display';
 import type { Job, JobStatus } from '@shared/jobs-types';
 import type { JobTypeFE as JobTypeDoc } from '@shared/job-types';
 import type { Cliente } from '@shared/clienti-types';
+import { buildClientSearchIndex, searchJobs } from './jobs-list-search';
 import {
   getJobListSection,
   sortJobsForDisplay,
@@ -415,14 +416,7 @@ export default function JobsManager() {
     return map;
   }, [jobTypes]);
   
-  // Crea mappa clienteId -> nome completo per ricerca
-  const clienteNamesMap = useMemo(() => {
-    const map: Record<string, string> = {};
-    clienti.forEach(c => {
-      map[c.id] = `${c.nome} ${c.cognome}`.trim();
-    });
-    return map;
-  }, [clienti]);
+  const clientSearchIndex = useMemo(() => buildClientSearchIndex(clienti), [clienti]);
   
   // Anni disponibili (per dropdown)
   const availableYears = useMemo(() => {
@@ -482,28 +476,12 @@ export default function JobsManager() {
 
   // Filtra jobs
   const filteredJobs = useMemo(() => {
+    // Una ricerca esplicita attraversa categorie e code, inclusi i lead.
+    if (searchQuery.trim()) return searchJobs(jobs, searchQuery, clientSearchIndex);
+
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     
-    // Helper per ricerca testuale
-    const matchesSearch = (job: typeof jobs[0], query: string): boolean => {
-      const nomeEvento = job.nomeEvento?.toLowerCase() || '';
-      const eventLocation = (job.eventLocation || job.rituLocation || job.locationCerimonia || '').toLowerCase();
-      const note = job.noteInterne?.toLowerCase() || '';
-      
-      const clientIds = job.clientiIds?.length 
-        ? job.clientiIds 
-        : (job.clienteId ? [job.clienteId] : []);
-      const clientiNames = clientIds
-        .map((id: string) => clienteNamesMap[id]?.toLowerCase() || '')
-        .join(' ');
-      
-      return nomeEvento.includes(query) || 
-             eventLocation.includes(query) || 
-             note.includes(query) ||
-             clientiNames.includes(query);
-    };
-
     const matchesQuoteStatus = (job: typeof jobs[0]): boolean => {
       if (filterQuoteStatus === 'all') return true;
       const quoteStatus = quotesByJob[job.id];
@@ -526,8 +504,7 @@ export default function JobsManager() {
         leadJobIds.has(job.id) &&
         job.status !== 'archiviato' &&
         job.provenance === 'preventivo-rapido' &&
-        matchesQuoteStatus(job) &&
-        (!searchQuery || matchesSearch(job, searchQuery.toLowerCase()))
+        matchesQuoteStatus(job)
       );
     }
 
@@ -535,22 +512,16 @@ export default function JobsManager() {
       return jobs.filter(job =>
         leadJobIds.has(job.id) &&
         job.status !== 'archiviato' &&
-        matchesQuoteStatus(job) &&
-        (!searchQuery || matchesSearch(job, searchQuery.toLowerCase()))
+        matchesQuoteStatus(job)
       );
     }
 
     // Senza ricerca, applica normalmente i filtri
     return jobs.filter(job => {
       // Escludi archiviati dalla vista principale (a meno che non siano cercati)
-      if (job.status === 'archiviato' && !searchQuery) return false;
+      if (job.status === 'archiviato') return false;
       // Le richieste non firmate sono gestite nella scheda Lead dedicata.
       if (leadJobIds.has(job.id)) return false;
-      
-      // Se c'è una ricerca attiva, controlla solo quella
-      if (searchQuery) {
-        return matchesSearch(job, searchQuery.toLowerCase());
-      }
       
       // Filtro tipo
       if (filterType !== 'all' && job.jobType !== filterType) return false;
@@ -632,7 +603,7 @@ export default function JobsManager() {
       
       return true;
     });
-  }, [jobs, filterType, filterYear, filterSemester, filterMonth, filterQuoteStatus, filterCollaboratore, timeFilter, customDateRange, searchQuery, clienteNamesMap, quotesByJob, collaboratoriByJob, jobsByCollaboratore, leadJobIds, showLeadsOnly, showQuickQuotesOnly]);
+  }, [jobs, filterType, filterYear, filterSemester, filterMonth, filterQuoteStatus, filterCollaboratore, timeFilter, customDateRange, searchQuery, clientSearchIndex, quotesByJob, collaboratoriByJob, jobsByCollaboratore, leadJobIds, showLeadsOnly, showQuickQuotesOnly]);
 
   // Lead arrivati dal form Preventivo Rapido: filtro rapido nella coda Lead.
   const quickQuoteLeads = useMemo(() =>
@@ -1104,7 +1075,7 @@ export default function JobsManager() {
         </div>
       </div>
 
-      {showLeadsOnly && (
+      {showLeadsOnly && !searchQuery.trim() && (
         <div
           className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-[#fbf7ed] px-4 py-3"
           data-testid="lead-queue-heading"
@@ -1134,12 +1105,18 @@ export default function JobsManager() {
           <div className="sm:col-span-2 lg:col-span-2 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
             <Input
-              placeholder={showLeadsOnly ? "Cerca tra i lead per evento, cliente o note..." : "Cerca per evento, location, clienti, note..."}
+              placeholder="Cerca lavori e lead: nome, email, telefono, evento..."
+              aria-label="Cerca lavori e lead per cliente, email, telefono, evento, luogo o note"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
               data-testid="input-search-jobs"
             />
+            {searchQuery.trim() && (
+              <p className="mt-1 text-xs text-muted-foreground" role="status">
+                Ricerca su tutti i lavori e lead, senza filtri di categoria o periodo.
+              </p>
+            )}
           </div>
 
           {showLeadsOnly && searchQuery && (
@@ -1447,16 +1424,18 @@ export default function JobsManager() {
             <p className="font-medium text-gray-600">
               {jobs.length === 0
                 ? 'Non ci sono ancora lavori'
+                : searchQuery.trim()
+                  ? 'Nessun lavoro o lead corrisponde alla ricerca'
                 : showLeadsOnly
                   ? 'Non ci sono richieste da seguire'
                   : 'Nessun lavoro corrisponde ai filtri selezionati'}
             </p>
             {jobs.length > 0 && (
               <p className="mt-1 text-sm text-gray-500">
-                {showLeadsOnly
-                  ? searchQuery
-                    ? 'Prova a modificare o pulire la ricerca.'
-                    : 'I nuovi contatti e i preventivi non firmati compariranno qui.'
+                {searchQuery.trim()
+                  ? 'Prova con nome, email o numero di telefono, oppure pulisci la ricerca.'
+                  : showLeadsOnly
+                    ? 'I nuovi contatti e i preventivi non firmati compariranno qui.'
                   : `I tuoi ${totalLoadedActiveJobs} lavori sono caricati correttamente: modifica o azzera i filtri per visualizzarli.`}
               </p>
             )}
@@ -1525,7 +1504,7 @@ export default function JobsManager() {
                   const previousSection = index > 0
                     ? listSections.byJobId.get(paginatedJobs[index - 1].id)
                     : undefined;
-                  const showSectionHeader = !showLeadsOnly && (index === 0 || section !== previousSection);
+                  const showSectionHeader = (!showLeadsOnly || Boolean(searchQuery.trim())) && (index === 0 || section !== previousSection);
                   const sectionCount = listSections.counts.get(section) || 0;
                   const sectionTitle =
                     section === 'leads' ? 'Richieste da seguire' :
