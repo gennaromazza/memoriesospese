@@ -14,6 +14,7 @@ import { Loader2 } from "lucide-react";
 import { isAdminPath, manifestForPath } from "./lib/pwa-manifest";
 
 import PublicHomepage from "./pages/public/PublicHomepage";
+import StudioSettingsPreviewE2EHarness from "./pages/StudioSettingsPreviewE2EHarness";
 import NotFound from "./pages/NotFound";
 import CookieBanner from "./components/CookieBanner";
 import ProfileImageWelcomeProvider from "./components/ProfileImageWelcomeProvider";
@@ -309,6 +310,12 @@ function AppRoutes() {
           <Route
             path="/admin/__e2e/date-selectors/job/:jobId"
             component={DateSelectorE2EHarness}
+          />
+        )}
+        {import.meta.env.DEV && import.meta.env.VITE_STUDIO_SETTINGS_E2E_HARNESS === "true" && (
+          <Route
+            path="/admin/__e2e/studio-settings-preview"
+            component={StudioSettingsPreviewE2EHarness}
           />
         )}
         {import.meta.env.DEV && import.meta.env.VITE_WEDDING_E2E_HARNESS === "true" && (

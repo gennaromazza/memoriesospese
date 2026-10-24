@@ -8,6 +8,7 @@
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
     "test:date-selectors": "playwright test --config artifacts/image-studio-web/playwright.date-selectors.config.ts",
+    "test:studio-settings-preview": "playwright test --config artifacts/image-studio-web/playwright.studio-settings-preview.config.ts",
     "test:photobook-client": "playwright test --config artifacts/image-studio-web/playwright.photobook-client.config.ts",
     "test:collaborator-products": "playwright test --config artifacts/image-studio-web/playwright.collaborator-products.config.ts",
     "test:quick-quote-preview": "playwright test --config artifacts/image-studio-web/playwright.quick-quote-preview.config.ts",

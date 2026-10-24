@@ -18,6 +18,7 @@ import { db, storage, auth } from "@/lib/firebase";
 import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 import { createUrl } from "@/lib/basePath";
 import { getQuoteColorContrastIssues } from "@/lib/quote-color-contrast";
+import StudioQuoteIdentityPreview from "@/components/StudioQuoteIdentityPreview";
 import { GalleryService, type Gallery } from "@/lib/galleries";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -2645,31 +2646,10 @@ export default function AdminDashboard() {
                                 className="h-1.5"
                                 style={{ backgroundColor: studioSettings.quoteTheme.primaryColor }}
                               />
-                              <div className="flex min-w-0 items-center gap-3 border-b border-stone-100 px-4 py-3 sm:px-5">
-                                <div className="flex h-12 w-28 shrink-0 items-center justify-center overflow-hidden rounded-md border border-stone-100 bg-stone-50 p-1.5">
-                                  {studioSettings.logo ? (
-                                    <img
-                                      src={studioSettings.logo}
-                                      alt={`Logo ${studioSettings.name.trim() || "dello studio"}`}
-                                      data-testid="img-studio-preview-logo"
-                                      className="h-full max-h-9 w-full max-w-24 object-contain"
-                                    />
-                                  ) : (
-                                    <span
-                                      data-testid="placeholder-studio-preview-logo"
-                                      className="text-center text-[10px] leading-tight text-stone-400"
-                                    >
-                                      Logo dello studio
-                                    </span>
-                                  )}
-                                </div>
-                                <p
-                                  data-testid="text-studio-preview-name"
-                                  className="min-w-0 max-w-full break-words text-sm font-semibold text-stone-700"
-                                >
-                                  {studioSettings.name.trim() || "Nome dello studio"}
-                                </p>
-                              </div>
+                              <StudioQuoteIdentityPreview
+                                name={studioSettings.name}
+                                logo={studioSettings.logo}
+                              />
                               <div
                                 className="flex items-center justify-between gap-3 border-b px-4 py-3 sm:px-5"
                                 style={{ borderColor: `${studioSettings.quoteTheme.secondaryColor}70` }}
