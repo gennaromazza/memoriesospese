@@ -328,6 +328,9 @@ export default function AdminDashboard() {
   const [passwordRequests, setPasswordRequests] = useState<any[]>([]);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
   const [isStoryImageUploading, setIsStoryImageUploading] = useState(false);
+  const [failedLogoPreviewUrl, setFailedLogoPreviewUrl] = useState<string | null>(
+    null,
+  );
   const [activeTab, setActiveTab] = useSessionStorageState<AdminTab>(
     "activeTab",
     "calendario",
@@ -2508,13 +2511,18 @@ export default function AdminDashboard() {
                             <div className="space-y-1.5">
                               <Label className="text-xs font-medium text-stone-600 uppercase tracking-wide">Logo dello Studio</Label>
                               <div className="mt-1 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-stone-200 bg-stone-50 p-6 text-center gap-3 hover:border-[#6b7f6b]/40 transition-colors">
-                                {studioSettings.logo ? (
+                                {studioSettings.logo &&
+                                failedLogoPreviewUrl !== studioSettings.logo ? (
                                   <>
                                     <img
                                       src={studioSettings.logo}
                                       alt="Logo dello studio"
                                       className="h-24 w-auto object-contain rounded-lg shadow-sm"
-                                      onError={(e) => { e.currentTarget.style.display = "none"; }}
+                                      onError={() =>
+                                        setFailedLogoPreviewUrl(
+                                          studioSettings.logo ?? "",
+                                        )
+                                      }
                                     />
                                     <p className="text-xs text-stone-400">Logo attuale</p>
                                   </>
@@ -2523,8 +2531,16 @@ export default function AdminDashboard() {
                                     <div className="flex h-14 w-14 items-center justify-center rounded-full bg-stone-200">
                                       <Camera className="h-6 w-6 text-stone-400" />
                                     </div>
-                                    <p className="text-sm text-stone-500">Nessun logo caricato</p>
-                                    <p className="text-xs text-stone-400">PNG, JPG o SVG consigliati</p>
+                                    <p className="text-sm text-stone-500">
+                                      {studioSettings.logo
+                                        ? "Logo non disponibile"
+                                        : "Nessun logo caricato"}
+                                    </p>
+                                    <p className="text-xs text-stone-400">
+                                      {studioSettings.logo
+                                        ? "Carica un nuovo logo per sostituirlo"
+                                        : "PNG, JPG o SVG consigliati"}
+                                    </p>
                                   </>
                                 )}
                                 <Label
