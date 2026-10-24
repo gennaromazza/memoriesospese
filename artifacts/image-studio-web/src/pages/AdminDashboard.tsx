@@ -17,6 +17,7 @@ import { getAuth, signOut } from "firebase/auth";
 import { db, storage, auth } from "@/lib/firebase";
 import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 import { createUrl } from "@/lib/basePath";
+import { getQuoteColorContrastIssues } from "@/lib/quote-color-contrast";
 import { GalleryService, type Gallery } from "@/lib/galleries";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -1303,6 +1304,11 @@ export default function AdminDashboard() {
       navigateToTarget(activeAdminNavGroup.target);
     }
   };
+
+  const quoteColorContrastIssues = getQuoteColorContrastIssues(
+    studioSettings.quoteTheme.primaryColor,
+    studioSettings.quoteTheme.secondaryColor,
+  );
 
   // Verifica se l'utente è autenticato
   if (authLoading || !user || !isFirebaseAdmin) {
@@ -2721,6 +2727,40 @@ export default function AdminDashboard() {
                                     Approva preventivo
                                   </span>
                                 </div>
+                              </div>
+                            </div>
+                            <div
+                              role="status"
+                              aria-live="polite"
+                              className={`mx-auto mt-3 flex max-w-xl items-start gap-2 rounded-lg border p-3 text-xs ${
+                                quoteColorContrastIssues.length > 0
+                                  ? "border-amber-300 bg-amber-50 text-amber-950"
+                                  : "border-emerald-200 bg-emerald-50 text-emerald-900"
+                              }`}
+                            >
+                              {quoteColorContrastIssues.length > 0 ? (
+                                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                              ) : (
+                                <CheckCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                              )}
+                              <div>
+                                <p className="font-semibold">
+                                  {quoteColorContrastIssues.length > 0
+                                    ? "Attenzione: alcuni testi potrebbero essere difficili da leggere."
+                                    : "Contrasto adeguato per i testi dell’anteprima."}
+                                </p>
+                                {quoteColorContrastIssues.length > 0 && (
+                                  <ul className="mt-1 list-inside list-disc space-y-0.5">
+                                    {quoteColorContrastIssues.map((issue) => (
+                                      <li key={issue.label}>
+                                        {issue.label}: {issue.ratio.toFixed(1)}:1 (consigliato almeno 4,5:1)
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                                <p className="mt-1">
+                                  Il controllo è solo informativo: non cambia i colori e non blocca il salvataggio.
+                                </p>
                               </div>
                             </div>
                           </div>
