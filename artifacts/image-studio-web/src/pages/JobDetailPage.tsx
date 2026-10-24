@@ -1402,12 +1402,8 @@ export default function JobDetailPage() {
               <InvoiceSection
                 jobId={job.id}
                 jobName={job.nomeEvento}
-                clienti={clienti.map((cliente) => ({
-                  id: cliente.id,
-                  nome: cliente.nome,
-                  cognome: cliente.cognome,
-                  email: cliente.email,
-                }))}
+                clienti={clienti}
+                onEditCliente={setEditingCliente}
               />
 
               {/* Note Interne / Nota del Cliente */}

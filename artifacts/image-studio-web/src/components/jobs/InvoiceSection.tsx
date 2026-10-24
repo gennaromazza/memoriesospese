@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, FileText, Loader2, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { Download, FileText, Loader2, Plus, RefreshCw, Trash2, UserRoundPen } from 'lucide-react';
 import { nanoid } from 'nanoid';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { useStudio } from '@/context/StudioContext';
+import type { Cliente } from '@shared/clienti-types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -18,17 +19,11 @@ import {
 } from '@/components/ui/select';
 import type { InvoiceHistoryItem, InvoiceTaxTreatment } from '@shared/fatture-types';
 
-interface InvoiceClient {
-  id: string;
-  nome: string;
-  cognome: string;
-  email?: string;
-}
-
 interface InvoiceSectionProps {
   jobId: string;
   jobName: string;
-  clienti: InvoiceClient[];
+  clienti: Cliente[];
+  onEditCliente: (cliente: Cliente) => void;
 }
 
 const taxOptions: Array<{ value: InvoiceTaxTreatment; label: string }> = [
@@ -102,7 +97,7 @@ function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-export default function InvoiceSection({ jobId, jobName, clienti }: InvoiceSectionProps) {
+export default function InvoiceSection({ jobId, jobName, clienti, onEditCliente }: InvoiceSectionProps) {
   const { toast } = useToast();
   const { studioSettings } = useStudio();
   const queryClient = useQueryClient();
@@ -119,6 +114,7 @@ export default function InvoiceSection({ jobId, jobName, clienti }: InvoiceSecti
     recipient: { name: string };
   } | null>(null);
   const [formError, setFormError] = useState<InvoiceFormError | null>(null);
+  const selectedCliente = clienti.find((cliente) => cliente.id === clienteId);
   const isForfettario = studioSettings.regimeFiscale?.toUpperCase() === 'RF19';
 
   const historyQuery = useQuery<{ invoices: InvoiceHistoryItem[] }>({
@@ -282,8 +278,26 @@ export default function InvoiceSection({ jobId, jobName, clienti }: InvoiceSecti
               <p className="mt-1"><strong>Cliente:</strong> usa i dati di fatturazione dell’intestatario. Per un privato con codice fiscale e indirizzo completi, senza SDI o PEC, l’XML usa automaticamente <code>0000000</code>; l’email normale non è una PEC.</p>
             </div>
             <div className="space-y-1.5">
-              <Label>Intestatario</Label>
-              <Select value={clienteId} onValueChange={(value) => { setClienteId(value); setPreview(null); }}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Label>Intestatario</Label>
+                {selectedCliente && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setPreview(null);
+                      setFormError(null);
+                      onEditCliente(selectedCliente);
+                    }}
+                    data-testid="button-edit-invoice-client"
+                  >
+                    <UserRoundPen className="mr-2 h-4 w-4" />
+                    Modifica anagrafica
+                  </Button>
+                )}
+              </div>
+              <Select value={clienteId} onValueChange={(value) => { setClienteId(value); setPreview(null); setFormError(null); }}>
                 <SelectTrigger><SelectValue placeholder="Seleziona cliente" /></SelectTrigger>
                 <SelectContent>
                   {clienti.map((cliente) => <SelectItem key={cliente.id} value={cliente.id}>{cliente.nome} {cliente.cognome}</SelectItem>)}
@@ -324,6 +338,22 @@ export default function InvoiceSection({ jobId, jobName, clienti }: InvoiceSecti
                 {formError.missing.length > 0 && <><p className="mt-2 font-medium">Dati mancanti:</p><ul className="list-disc ml-5">{formError.missing.map((item) => <li key={item}>{item}</li>)}</ul></>}
                 {formError.errors.length > 0 && <ul className="list-disc ml-5 mt-1">{formError.errors.map((item) => <li key={item}>{item}</li>)}</ul>}
                 {formError.guidance.length > 0 && <><p className="mt-2 font-medium">Come correggere:</p><ul className="list-disc ml-5">{formError.guidance.map((item) => <li key={item}>{item}</li>)}</ul></>}
+                {(formError.missing.length > 0 || formError.errors.length > 0) && selectedCliente && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-3 border-red-300 bg-white text-red-900 hover:bg-red-100"
+                    onClick={() => {
+                      setPreview(null);
+                      onEditCliente(selectedCliente);
+                    }}
+                    data-testid="button-fix-invoice-client"
+                  >
+                    <UserRoundPen className="mr-2 h-4 w-4" />
+                    Correggi i dati del cliente
+                  </Button>
+                )}
               </div>
             )}
             {preview && (

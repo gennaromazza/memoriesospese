@@ -51,3 +51,4 @@
 - [Stale TypeScript LSP diagnostics](typescript-lsp-diagnostics-cache.md) — compare the reported expression with saved source and typecheck before repeating edits; reload the editor if only LSP disagrees.
 - [Condividere i preventivi firmati](quote-pdf-sharing.md) — gli URL blob del PDF sono temporanei; condividere il portale tokenizzato `/quote/:token`.
 - [Condivisione mockup fotolibri](photobook-mockup-sharing.md) — anteprima cliente condivisibile manualmente, anche dopo approvazione manuale, senza dipendere dall’email o avviare la stampa.
+- [Modifica dati cliente da fattura](invoice-client-editing.md) — correggere i dati fattura aggiorna l’anagrafica condivisa del cliente usando il form canonico.
