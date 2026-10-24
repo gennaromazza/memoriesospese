@@ -32,3 +32,11 @@ account) → in test va sempre mockato. Pattern usato in `server/reminder-routes
   (`./consultations/calendar-adapter.js`, `./calendar-engine/index.js`).
 - Per testare la race query→lock: il fake fornisce uno `staleQuery` (snapshot della
   query) diverso dallo stato "live" letto dentro la transazione.
+
+## Contesti browser Playwright separati
+
+**Regola:** ogni nuovo `BrowserContext` parte con storage e consenso cookie indipendenti. Sulle pagine pubbliche, chiudere il banner dei cookie prima di interagire con elementi sottostanti.
+
+**Why:** il banner può coprire un pulsante visibile e attivo; Playwright ritenta il click fino al timeout invece di attivare il controllo.
+
+**How to apply:** nei test che separano la sessione cliente da quella admin, gestire il consenso in ciascun contesto, non solo nella pagina admin già autenticata.

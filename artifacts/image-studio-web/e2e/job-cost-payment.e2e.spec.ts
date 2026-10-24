@@ -952,6 +952,188 @@ test("auth regression: passkey-required Firebase admin remains blocked before da
   expect(pageErrors).toEqual([]);
 });
 
+test("customer signature creates one readable admin notification and retries preserve its read state", async ({ page }) => {
+  test.setTimeout(60_000);
+  const { idToken } = await loginAdminSession(page);
+  const quoteId = "e2e-quote-signed-notification";
+  const publicToken = "e2e-quote-signed-notification-token";
+  const notificationDocId = `quote-signed-${quoteId}`;
+  const clientName = "Cliente Firma E2E";
+  const eventName = jobName;
+  const quote = {
+    id: quoteId,
+    jobId,
+    publicToken,
+    type: "fisso",
+    status: "inviato",
+    templateName: "Preventivo di prova",
+    products: [],
+    contractClauses: [],
+    totalAfterDiscount: 450,
+    totaleBase: 450,
+    totalBeforeDiscount: 450,
+  };
+  const jobInfo = { nomeEvento: eventName, eventDate: null, location: "Aversa" };
+  let quoteStatus = "inviato";
+  let postSignatureAttempts = 0;
+  let notificationCreateCount = 0;
+  let signedNotification: Record<string, unknown> | null = null;
+
+  await writeFirestoreDocument(idToken, `quotes/${quoteId}`, quote);
+
+  const browser = page.context().browser();
+  if (!browser) throw new Error("Playwright browser context is unavailable.");
+  const customerContext = await browser.newContext();
+  const customerPage = await customerContext.newPage();
+  const publicQuoteResponse = () => ({
+    success: true,
+    data: {
+      quote: {
+        ...quote,
+        status: quoteStatus,
+        ...(quoteStatus === "firmato"
+          ? { signedAt: new Date().toISOString(), signature: { clientName } }
+          : {}),
+      },
+      jobInfo,
+      clientiInfo: [],
+      appuntamentiClienti: [],
+      jobTypeInfo: null,
+    },
+  });
+
+  await customerPage.route(`**/api/quotes/public/${publicToken}`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(publicQuoteResponse()),
+    });
+  });
+  await customerPage.route(`**/api/quotes/signed/${publicToken}`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          quote: publicQuoteResponse().data.quote,
+          paymentSchedule: null,
+          legacyOrderData: null,
+          jobInfo,
+          clientiInfo: [],
+          appuntamentiClienti: [],
+        },
+      }),
+    });
+  });
+  await customerPage.route(`**/api/quotes/${quoteId}/post-signature`, async (route) => {
+    postSignatureAttempts += 1;
+    quoteStatus = "firmato";
+    if (!signedNotification) {
+      notificationCreateCount += 1;
+      signedNotification = {
+        id: `admin-notification-${notificationDocId}`,
+        adminNotificationId: notificationDocId,
+        type: "quote_signed",
+        title: "Preventivo firmato",
+        description: `${clientName} · ${eventName} (€450.00)`,
+        createdAt: null,
+        isRead: false,
+        resourceId: jobId,
+        deepLink: `/admin/dashboard?tab=lavori&job=${jobId}`,
+      };
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, completedSteps: { adminNotificationSaved: true } }),
+    });
+  });
+  await customerPage.route("https://api.ipify.org/**", async (route) => route.abort());
+
+  try {
+    await customerPage.goto(new URL(`/quote/${publicToken}`, page.url()).toString());
+    const cookieConsentButton = customerPage.getByRole("button", { name: "Solo Necessari" });
+    if (await cookieConsentButton.isVisible().catch(() => false)) {
+      await cookieConsentButton.click();
+    }
+    await expect(customerPage.getByTestId("input-signer-name")).toBeVisible();
+    await customerPage.getByTestId("input-signer-name").fill(clientName);
+    await expect(customerPage.getByTestId("button-submit-signature")).toBeEnabled();
+    await customerPage.getByTestId("button-submit-signature").click();
+    await expect.poll(() => postSignatureAttempts).toBe(1);
+
+    // Reload the signed portal, then explicitly replay the public post-signature
+    // request to cover the same retry path the server must handle idempotently.
+    await customerPage.reload();
+    await expect(customerPage.getByRole("heading", { name: "Contratto Firmato con Successo" })).toBeVisible();
+    expect(postSignatureAttempts).toBe(1);
+
+    await page.goto(new URL("/admin/dashboard", page.url()).toString());
+    await page.route("**/api/jobs/notifications", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          notifications: signedNotification ? [signedNotification] : [],
+        }),
+      });
+    });
+    await page.route(`**/api/jobs/notifications/${notificationDocId}/dismiss`, async (route) => {
+      if (signedNotification) signedNotification.isRead = true;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ success: true }),
+      });
+    });
+    await page.reload();
+    await expect(page.getByTestId("button-notifications")).toBeVisible();
+    await page.getByTestId("button-notifications").click();
+
+    const notificationTestId = `notification-quote_signed-${jobId}`;
+    await expect(page.getByTestId(notificationTestId)).toHaveCount(1);
+    await expect(page.getByTestId(notificationTestId)).toContainText(clientName);
+    await expect(page.getByTestId(notificationTestId)).toContainText(eventName);
+    await expect(page.getByTestId("badge-unread-count")).toHaveText("1");
+
+    await page.getByTestId(notificationTestId).click();
+    await expect(page).toHaveURL(new RegExp(`tab=lavori&job=${jobId}`));
+    await page.goto(new URL("/admin/dashboard", page.url()).toString());
+    await page.reload();
+    await page.getByTestId("button-notifications").click();
+    await expect(page.getByTestId(notificationTestId)).toHaveCount(1);
+    const notificationRow = page.getByTestId(notificationTestId).locator("xpath=..");
+    await notificationRow.getByRole("button").last().click();
+    await expect.poll(() => signedNotification?.isRead).toBe(true);
+    await expect(page.getByTestId("badge-unread-count")).toHaveCount(0);
+
+    const retryStatus = await customerPage.evaluate(async ({ quoteId, publicToken, clientName }) => {
+      const response = await fetch(`/api/quotes/${quoteId}/post-signature`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ publicToken, clientName, totaleSelezionato: 450 }),
+      });
+      return response.status;
+    }, { quoteId, publicToken, clientName });
+
+    expect(retryStatus).toBe(200);
+    expect(postSignatureAttempts).toBe(2);
+    expect(notificationCreateCount).toBe(1);
+    expect(signedNotification?.isRead).toBe(true);
+
+    await page.goto(new URL("/admin/dashboard", page.url()).toString());
+    await page.reload();
+    await page.getByTestId("button-notifications").click();
+    await expect(page.getByTestId(notificationTestId)).toHaveCount(1);
+    await expect(page.getByTestId(notificationTestId)).toContainText(clientName);
+    await expect(page.getByTestId("badge-unread-count")).toHaveCount(0);
+  } finally {
+    await customerContext.close().catch(() => {});
+  }
+});
+
 test("lab drag/drop: resilient multi-file upload, shipment feedback and responsive layout", async ({ page }, testInfo) => {
   test.setTimeout(120_000);
   const targetShipmentId = "e2e-lab-shipment-target";
