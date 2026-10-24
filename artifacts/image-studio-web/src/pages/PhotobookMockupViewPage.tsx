@@ -33,7 +33,7 @@ export default function PhotobookMockupViewPage() {
       <div className="mx-auto max-w-3xl space-y-5">
         <header>
           <h1 className="text-2xl font-semibold text-stone-900">Il tuo mockup{state.data ? ` · ${state.data.photobook.name}` : ''}</h1>
-          <p className="mt-2 text-sm text-stone-600">Scopri l’anteprima dell’album preparata dallo studio. Questa visualizzazione non modifica le tue scelte e non avvia la stampa.</p>
+          <p className="mt-2 text-sm text-stone-600">Controlla l’anteprima dell’album preparata dallo studio e approva il mockup. Non puoi modificarne le scelte e l’approvazione non avvia automaticamente la stampa.</p>
         </header>
         {!validVersion || state.isError
           ? <PhotobookErrorState title="Link mockup non disponibile" message="Il link non è valido, è scaduto o la versione non è disponibile. Contatta lo studio." onRetry={validVersion ? () => void state.refetch() : undefined} />

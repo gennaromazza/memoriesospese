@@ -60,7 +60,13 @@ function Step({ n, title, done, children }: { n: number; title: string; done?: b
 
 /** Gestione dell'album in 4 passi: pagine, modello, chi prepara la bozza, stato e invio. */
 export default function MockupAdminFlow({ photobookId, version, currentVersion, pagesApproved, mockupPath, pathBusy, onPathChange, emailStatus, emailNote, emailActions, readOnly, clientLink, onSelectVersion }: Props) {
-  const state = useQuery<MockupPayload>({ queryKey: ['photobook-mockup-flow', photobookId, version], queryFn: () => fetchMockupState(photobookId, version), refetchOnWindowFocus: false });
+  const state = useQuery<MockupPayload>({
+    queryKey: ['photobook-mockup-flow', photobookId, version],
+    queryFn: () => fetchMockupState(photobookId, version),
+    refetchOnWindowFocus: true,
+    refetchInterval: query => query.state.data?.saved?.status === 'confirmed'
+      && query.state.data.saved.clientApproval?.revision !== query.state.data.saved.revision ? 30_000 : false,
+  });
   const offer = state.data?.offer;
   const saved = state.data?.saved;
   const assigned = !!offer?.options.length;
@@ -103,6 +109,7 @@ export default function MockupAdminFlow({ photobookId, version, currentVersion, 
         </Step>
         <Step n={4} title="Stato e invio al cliente" done={saved?.status === 'confirmed'}>
           <p className="text-sm">{saved ? `Bozza: ${MOCKUP_STATUS_LABELS[saved.status || 'draft']} · revisione ${saved.revision}` : 'Nessuna bozza ancora.'}</p>
+          {saved?.status === 'confirmed' && <p className="text-sm" data-testid="mockup-client-approval-status">{saved.clientApproval?.revision === saved.revision ? `Approvato dal cliente il ${new Date(saved.clientApproval.approvedAt).toLocaleString('it-IT')}` : 'In attesa dell’approvazione del cliente. La tua conferma prepara il mockup da inviare.'}</p>}
           <p className="text-sm">Email: {emailStatus}</p>
           {emailNote && <p className="text-sm text-amber-700">{emailNote}</p>}
           <div className="flex flex-wrap gap-2">
@@ -112,7 +119,7 @@ export default function MockupAdminFlow({ photobookId, version, currentVersion, 
               <CopyFeedbackButton text={`${clientLink}/mockup?version=${version}`} label="Copia link mockup" testId="button-copy-mockup-link" />
             )}
           </div>
-          {clientLink && <p className="text-xs text-muted-foreground">Dopo la conferma del mockup e l’approvazione delle pagine puoi copiare il link e inviarlo su WhatsApp o via email. Il cliente apre direttamente l’anteprima in sola lettura, senza avviare la stampa.</p>}
+          {clientLink && <p className="text-xs text-muted-foreground">Dopo aver salvato e confermato il mockup puoi copiare il link e inviarlo su WhatsApp o via email. Il cliente visualizza l’anteprima senza modificarla e può approvarla. La stampa non parte automaticamente.</p>}
         </Step>
       </ol>
     </CardContent></Card>

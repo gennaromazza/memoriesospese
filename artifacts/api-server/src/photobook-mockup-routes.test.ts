@@ -10,6 +10,7 @@ import type { MockupOffer } from '@shared/mockup-workflow';
 type MockupTestResponse = MockupPayload & SavedMockup & MockupPhoto & {
   saved: SavedMockup;
   offer: MockupOffer;
+  options: MockupOffer['options'];
   error: string;
   reportPath: string;
 };
@@ -79,6 +80,58 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
   });
   afterEach(async () => { await new Promise<void>(resolve => server.close(() => resolve())); });
   const save = (base: string, body: unknown, scope = 'admin', version = 1) => fetch(`${base}/${scope}?version=${version}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+
+  it('registra solo l’approvazione cliente della revisione confermata, senza modificare mockup, pagine o stampa', async () => {
+    h.docs.set('photobooks/book', { ...h.docs.get('photobooks/book'), mockupPath: 'studio' });
+    const confirmed = { version: 1, revision: 3, status: 'confirmed', configuration, updatedAt: '2026-10-24T10:00:00Z', reportPath: 'private-report.html' };
+    h.docs.set('photobooks/book/mockups/v1', confirmed);
+    const approve = () => fetch(`${base}/client/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: 3 }) });
+    expect((await fetch(`${base}/client`).then(r => r.json())).clientApprovalAllowed).toBe(true);
+    const first = await approve();
+    expect(first.status).toBe(200);
+    const body = await first.json();
+    expect(body.clientApproval).toEqual({ revision: 3, approvedAt: expect.any(String) });
+    expect(body.reportPath).toBeUndefined();
+    expect(body.revision).toBe(3);
+    expect(body.configuration).toEqual(configuration);
+    expect((await approve()).status).toBe(200);
+    expect(h.docs.get('photobooks/book/mockups/v1').clientApproval).toEqual(body.clientApproval);
+    expect(h.docs.get('photobooks/book').locked).toBe(false);
+    expect(h.docs.get('photobooks/book').approval).toEqual({ version: 1 });
+    expect(notifyClient).not.toHaveBeenCalled();
+    expect((await save(base, { revision: 3, configuration }, 'client')).status).toBe(409);
+    expect((await save(base, { revision: 3, configuration: { ...configuration, topText: 'Correzione' } })).status).toBe(200);
+    expect(h.docs.get('photobooks/book/mockups/v1').clientApproval).toBeUndefined();
+  });
+
+  it('non accetta approvazioni di bozze, revisioni superate, admin o token non validi', async () => {
+    h.docs.set('photobooks/book', { ...h.docs.get('photobooks/book'), mockupPath: 'studio' });
+    const post = (scope: string, revision = 3) => fetch(`${base}/${scope}/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision }) });
+    h.docs.set('photobooks/book/mockups/v1', { version: 1, revision: 3, status: 'draft', configuration });
+    expect((await post('client')).status).toBe(409);
+    h.docs.set('photobooks/book/mockups/v1', { version: 1, revision: 3, status: 'confirmed', configuration });
+    expect((await post('client', 2)).status).toBe(409);
+    expect((await post('admin')).status).toBe(403);
+    expect((await post('invalid')).status).toBe(404);
+    h.docs.set('photobooks/book', { ...h.docs.get('photobooks/book'), approval: null });
+    expect((await post('client')).status).toBe(409);
+    expect(h.docs.get('photobooks/book/mockups/v1').clientApproval).toBeUndefined();
+  });
+
+  it('ricontrolla i permessi in transazione e consente di ritentare dopo una risposta persa', async () => {
+    h.docs.set('photobooks/book', { ...h.docs.get('photobooks/book'), mockupPath: 'studio' });
+    h.docs.set('photobooks/book/mockups/v1', { version: 1, revision: 3, status: 'confirmed', configuration });
+    const approve = () => fetch(`${base}/client/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: 3 }) });
+    h.beforeTransaction = () => h.docs.set('photobooks/book', { ...h.docs.get('photobooks/book'), locked: true });
+    expect((await approve()).status).toBe(409);
+    expect(h.docs.get('photobooks/book/mockups/v1').clientApproval).toBeUndefined();
+    h.docs.set('photobooks/book', { ...h.docs.get('photobooks/book'), locked: false });
+    h.failAfterCommit = true;
+    expect((await approve()).status).toBe(500);
+    const approvedAt = h.docs.get('photobooks/book/mockups/v1').clientApproval.approvedAt;
+    expect((await approve()).status).toBe(200);
+    expect(h.docs.get('photobooks/book/mockups/v1').clientApproval.approvedAt).toBe(approvedAt);
+  });
 
   it('salva, rilegge e consente la personalizzazione cliente solo dopo attivazione', async () => {
     expect((await fetch(`${base}/client`).then(r => r.json())).enabled).toBe(false);

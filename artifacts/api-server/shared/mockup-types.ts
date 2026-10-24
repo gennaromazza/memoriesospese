@@ -108,6 +108,7 @@ export interface SavedMockup {
   revision: number; version: number; configuration: MockupConfiguration; updatedAt: string;
   status?: MockupStatus; updatedBy?: 'studio' | 'client'; selection?: MockupSelection;
   option?: MockupOption; note?: string; confirmedAt?: string; reportPath?: string;
+  clientApproval?: { revision: number; approvedAt: string };
 }
 export interface MockupPayload {
   version: number;
@@ -116,6 +117,7 @@ export interface MockupPayload {
   editable: boolean;
   enabled: boolean;
   approvalRequired?: boolean;
+  clientApprovalAllowed?: boolean;
   saved: SavedMockup | null;
   offer?: MockupOffer | null;
   modelMode?: MockupOfferMode;

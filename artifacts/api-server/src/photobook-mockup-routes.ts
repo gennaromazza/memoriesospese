@@ -140,6 +140,9 @@ export function createPhotobookMockupRouter(
     !isAdmin && version === data.currentVersion && data.approval?.version !== version;
   const canEditBook = (data: FirebaseFirestore.DocumentData, version: number) =>
     mockupEditable(data as Parameters<typeof mockupEditable>[0], version) && !needsPageApproval(data, version) && (isAdmin || data.mockupPath !== 'studio');
+  const canApproveBook = (data: FirebaseFirestore.DocumentData, version: number) =>
+    version === data.currentVersion && !data.locked && data.approval?.version === version
+    && (data.versions || []).some((v: { version: number; status?: string }) => v.version === version && v.status !== 'draft');
   const writeLimit = uidRateLimiter(60, 10 * 60_000);
   router.use((req, res, next) => req.method === 'GET' ? next() : writeLimit(req, res, next));
   router.use(async (req, res, next) => {
@@ -156,7 +159,8 @@ export function createPhotobookMockupRouter(
       res.locals.version = version;
       if (req.method !== 'GET') {
         const deliveryOnly = isAdmin && version === data.currentVersion && ['/attach', '/reconcile-attachment'].includes(req.path);
-        if (!canEditBook(data, version) && !deliveryOnly) throw new MockupError(409,
+        const approvalOnly = !isAdmin && req.method === 'POST' && req.path === '/approve' && canApproveBook(data, version);
+        if (!canEditBook(data, version) && !deliveryOnly && !approvalOnly) throw new MockupError(409,
           !data.locked && needsPageApproval(data, version)
             ? 'Approva prima le pagine della versione attuale per personalizzare album e box.'
             : 'Versione in sola lettura. Contatta lo studio.');
@@ -192,7 +196,34 @@ export function createPhotobookMockupRouter(
       const notificationState = data?.status === 'confirmed'
         ? root.mockupNotifications?.[`confirmed_v${version}_r${data.revision}`]?.state
         : undefined;
-      res.json({ version, mockupPath: root.mockupPath, notificationState, editable: canEditBook(root, version) && !(modelMode === 'fixed' && !offer), enabled: isAdmin || saved.exists || !!offer, approvalRequired: needsPageApproval(root, version), saved: data || null, offer, modelMode, modelSelection, offerError: modelMode === 'fixed' && !offer ? 'Il modello fisso non è più disponibile. Lo studio deve ripubblicare la proposta.' : null, offerInherited: modelMode === 'fixed' && !offerDoc.exists });
+      res.json({ version, mockupPath: root.mockupPath, notificationState, clientApprovalAllowed: !isAdmin && canApproveBook(root, version) && data?.status === 'confirmed', editable: canEditBook(root, version) && !(modelMode === 'fixed' && !offer), enabled: isAdmin || saved.exists || !!offer, approvalRequired: needsPageApproval(root, version), saved: data || null, offer, modelMode, modelSelection, offerError: modelMode === 'fixed' && !offer ? 'Il modello fisso non è più disponibile. Lo studio deve ripubblicare la proposta.' : null, offerInherited: modelMode === 'fixed' && !offerDoc.exists });
+    } catch (error) { next(error); }
+  });
+
+  router.post('/approve', express.json({ limit: '2kb' }), async (req, res, next): Promise<HttpHandlerResult> => {
+    try {
+      if (isAdmin) throw new MockupError(403, 'L’approvazione deve essere data dal cliente tramite il suo link.');
+      const input = z.object({ revision: z.number().int().min(1) }).strict().parse(req.body);
+      const book = res.locals.book as DocumentSnapshot;
+      const version = res.locals.version as number;
+      const ref = book.ref.collection('mockups').doc(`v${version}`);
+      const approved = await db.runTransaction(async tx => {
+        const freshBook = await tx.get(book.ref);
+        const snapshot = await tx.get(ref);
+        if (!freshBook.exists || !canApproveBook(freshBook.data()!, version) || freshBook.data()!.token !== book.data()!.token) {
+          throw new MockupError(409, 'Il fotolibro è cambiato o non è più approvabile. Riapri il link aggiornato.');
+        }
+        const current = snapshot.data() as SavedMockup | undefined;
+        if (!current || current.version !== version || current.status !== 'confirmed' || current.revision !== input.revision) {
+          throw new MockupError(409, 'Il mockup è cambiato: ricarica e controlla la nuova revisione prima di approvarla.');
+        }
+        if (current.clientApproval?.revision === current.revision) return current;
+        const result: SavedMockup = { ...current, clientApproval: { revision: current.revision, approvedAt: new Date().toISOString() } };
+        tx.set(ref, result);
+        return result;
+      });
+      const { reportPath: _reportPath, ...clientResult } = approved;
+      return res.json(clientResult);
     } catch (error) { next(error); }
   });
 
@@ -310,7 +341,7 @@ export function createPhotobookMockupRouter(
         if (!previous || previous.revision !== input.revision) throw new MockupError(409, 'Ricarica la proposta aggiornata');
         if (action === 'submit' && (!option || !optionAllowsMaterials(option, previous.configuration) || !optionAllowsBoxSetup(option, previous.configuration))) throw new MockupError(409, 'Salva prima una scelta inclusa nella proposta dello studio');
         if (action === 'submit' && ['submitted', 'confirmed'].includes(previous.status || '')) throw new MockupError(409, 'Proposta già inviata. Salva una modifica prima di inviarla di nuovo.');
-        const { confirmedAt, reportPath, ...draft } = previous;
+        const { confirmedAt, reportPath, clientApproval, ...draft } = previous;
         const result: SavedMockup = { ...draft, revision: previous.revision + 1, status: action === 'submit' ? 'submitted' : 'changes_requested', updatedBy: isAdmin ? 'studio' : 'client', updatedAt: new Date().toISOString(), note: input.note };
         tx.set(book.ref.collection('mockupHistory').doc(`v${version}-r${previous.revision}`), previous);
         tx.set(ref, result);

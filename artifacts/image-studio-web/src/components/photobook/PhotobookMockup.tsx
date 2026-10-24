@@ -15,6 +15,8 @@ import { MOCKUP_STATUS_LABELS, optionFor, type MockupSelection } from '@shared/m
 import MockupOfferEditor from './MockupOfferEditor';
 import { OPEN_MOCKUP_EVENT, type MockupAdminTab } from './MockupAdminFlow';
 import { BOX_MOCKUP_MODEL, MOCKUP_RENDERERS } from '@shared/mockup-catalog';
+import { hasUnsavedMockupChanges, stableSerialize } from './mockup-dirty-state';
+import MockupClientApproval from './MockupClientApproval';
 import type { MockupOption } from '@shared/mockup-workflow';
 import MockupModelChooser from './MockupModelChooser';
 import { initialMockupSelection, mockupPresentation, needsClientModelChoice } from './mockup-presentation';
@@ -24,14 +26,6 @@ import { ArrowLeft, ArrowRight, HelpCircle, LogOut, Rotate3D, RotateCcw, Save, X
 
 interface Props { photobookId: string; version: number; token?: string; readOnly?: boolean; autoOpen?: boolean; confirmedOnly?: boolean; summary?: boolean; compact?: boolean; /** Admin: solo la finestra, aperta dai passi della card Mockup. */ headless?: boolean; onOpenChange?: (open: boolean) => void }
 type RuntimePhoto = { id: string; name: string; source: string; blob: Blob };
-
-function stableSerialize(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(stableSerialize).join(',')}]`;
-  if (value && typeof value === 'object') {
-    return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stableSerialize((value as Record<string, unknown>)[key])}`).join(',')}}`;
-  }
-  return JSON.stringify(value) ?? 'undefined';
-}
 
 function exposeReadonlyDownload(doc: Document) {
   const button = doc.getElementById('downloadClient');
@@ -109,6 +103,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   const dialog = useRef<HTMLDivElement>(null);
   const upload = useRef<HTMLInputElement>(null);
   const initializing = useRef(true);
+  const dirtyContext = useRef<{ saved: SavedMockup | null; selection?: MockupSelection; editable: boolean }>({ saved: null, editable: false });
   const revision = useRef(0);
   const [selection, setSelection] = useState<MockupSelection>();
   const [note, setNote] = useState('');
@@ -153,6 +148,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   const editable = !readOnly && state.data?.editable === true;
   const selectedOption = optionFor(state.data?.offer || null, selection);
   const saved = state.data?.saved;
+  dirtyContext.current = { saved: saved ?? null, selection, editable };
   const fixedModel = state.data?.modelMode === 'fixed';
   const shouldPromptForModel = !!token && editable && needsClientModelChoice(state.data) && !selectedOption;
   const presentation = mockupPresentation(state.data, selection, rendererOverride);
@@ -193,6 +189,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   };
   const recordSaved = (value: SavedMockup) => {
     revision.current = value.revision;
+    dirtyContext.current.saved = value;
     queryClient.setQueryData<MockupPayload>(stateKey, previous => previous ? { ...previous, saved: value } : previous);
   };
   function closeConfigurator() {
@@ -436,10 +433,13 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
         setBackPhotoPresent(!!event.data.configuration?.backPhotoAssetId);
         const parsed = mockupConfigurationSchema.safeParse(event.data.configuration);
         setConfiguration(parsed.success ? parsed.data : null);
+        const context = dirtyContext.current;
+        setDirty(context.editable && (parsed.success
+          ? hasUnsavedMockupChanges(parsed.data, context.saved, context.selection, initializing.current)
+          : !initializing.current));
         const draft = event.data.configuration;
         if (draft?.modelId === BOX_MOCKUP_MODEL.id) {
           setConfigurationIssue(parsed.success ? '' : !draft.photoAssetId ? 'Scegli la foto del quadro da parete.' : !draft.lidPhotoAssetId ? 'Scegli la foto della cornice da tavolo.' : draft.coverLayout === 'photo' && !draft.coverPhotoAssetId ? 'Scegli la foto della copertina.' : 'Controlla le scelte: tessuto non disponibile per questo modello.');
-          if (!initializing.current) setDirty(true);
           initializing.current = false;
           return;
         }
@@ -448,7 +448,6 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
           : draft?.backCover === 'photo' && !draft?.backPhotoAssetId
             ? 'Manca la foto sul plexiglass. Sceglila dalla galleria oppure seleziona Senza stampa.'
             : 'Controlla i testi (massimo 50 caratteri ciascuno) e scegli un rivestimento disponibile per questo modello.');
-        if (!initializing.current) setDirty(true);
         initializing.current = false;
       }
     };
@@ -771,7 +770,23 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     const nativeRotation = frame.current?.contentDocument?.getElementById('rotate');
     setViewMessage({ front: 'Vista frontale', back: 'Vista posteriore', reset: 'Vista ripristinata', plus: 'Zoom avanti', minus: 'Zoom indietro', extract: 'Estrazione album', rotate: nativeRotation?.hasAttribute('disabled') ? 'Reinserisci l’album per ruotare lo scrigno' : nativeRotation?.getAttribute('aria-pressed') === 'true' ? 'Scrigno in rotazione' : 'Rotazione ferma' }[action]);
   };
+  const clientApprovalAction = token && confirmedOnly && saved?.status === 'confirmed' ? (
+    <MockupClientApproval
+      key={`${version}-${saved.revision}`}
+      approvedAt={saved.clientApproval?.revision === saved.revision ? saved.clientApproval.approvedAt : undefined}
+      disabled={!state.data?.clientApprovalAllowed}
+      loading={open && (!ready || renderBusy || !!rendererError)}
+      onApprove={async () => {
+        setBusy(true);
+        try {
+          const approved: SavedMockup = await (await request('/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: saved.revision }) })).json();
+          recordSaved(approved);
+        } finally { setBusy(false); }
+      }}
+    />
+  ) : null;
   return <section className={compact ? 'inline-flex shrink-0' : headless ? 'contents' : 'rounded-lg border bg-white p-4 space-y-3'} data-testid="photobook-mockup">
+    {!open && saved?.clientApproval?.revision === saved?.revision && clientApprovalAction}
     {headless ? null : compact ? <Button variant="outline" className="h-10 px-3 text-xs" onClick={openConfigurator} disabled={!!token && !!state.data?.offerError}>{!token ? 'Mockup album' : (saved ? 'Apri il tuo album' : 'Personalizza album')}</Button> : <div className="flex flex-wrap items-center justify-between gap-2">
       <div><h2 className="font-semibold">{noModelAssigned ? 'Anteprima album 3D' : `${title} · Anteprima album 3D`}</h2><p className="text-sm text-muted-foreground">{noModelAssigned ? 'Nessun modello assegnato: scegli prima i modelli nel passo 2.' : `Foto, rivestimento e scritte · versione ${version}`}</p></div>
       <Button variant="outline" className="min-h-11" onClick={openConfigurator} disabled={!!token && !!state.data?.offerError}>{token ? readOnly ? 'Apri mockup' : 'Personalizza il tuo album' : noModelAssigned ? 'Apri anteprima' : `Apri anteprima ${title}`}</Button>
@@ -1071,7 +1086,8 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       }} />
     </>}
       </div>
-      {token && isBox && !choosing && !phoneBox && <div className="mockup-actions shrink-0 border-t bg-background p-3 sm:px-4 space-y-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]" data-testid="quadrobook-actions">
+      {clientApprovalAction && <div className="shrink-0 border-t bg-background p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">{clientApprovalAction}</div>}
+      {token && isBox && !choosing && !phoneBox && !confirmedOnly && <div className="mockup-actions shrink-0 border-t bg-background p-3 sm:px-4 space-y-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]" data-testid="quadrobook-actions">
         {!editable && <p className="text-sm" role="status">Sola lettura: stai vedendo la configurazione salvata.</p>}
         {editable && configurationIssue && <p className="text-sm text-amber-800" role="status">{configurationIssue}</p>}
         {message && <p className="text-sm" role="status">{message}</p>}
