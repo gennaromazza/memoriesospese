@@ -50,3 +50,4 @@
 - [Quote color contrast warnings](quote-color-contrast-warning.md) — calculate actual text/background contrast, but only inform; never alter or block the owner's chosen palette.
 - [Stale TypeScript LSP diagnostics](typescript-lsp-diagnostics-cache.md) — compare the reported expression with saved source and typecheck before repeating edits; reload the editor if only LSP disagrees.
 - [Condividere i preventivi firmati](quote-pdf-sharing.md) — gli URL blob del PDF sono temporanei; condividere il portale tokenizzato `/quote/:token`.
+- [Condivisione mockup fotolibri](photobook-mockup-sharing.md) — anteprima cliente condivisibile manualmente, anche dopo approvazione manuale, senza dipendere dall’email o avviare la stampa.

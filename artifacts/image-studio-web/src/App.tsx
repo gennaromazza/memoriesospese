@@ -117,6 +117,7 @@ const QuickQuotePage = lazyWithRetry(() => import("./pages/QuickQuotePage"));
 const InfoFormPublic = lazyWithRetry(() => import("./pages/InfoFormPublic"));
 const InfoFormTemplateManager = lazyWithRetry(() => import("./pages/admin/InfoFormTemplateManager"));
 const PhotobookViewPage = lazyWithRetry(() => import("./pages/PhotobookViewPage"));
+const PhotobookMockupViewPage = lazyWithRetry(() => import("./pages/PhotobookMockupViewPage"));
 const PhotobookEditorPage = lazyWithRetry(() => import("./pages/admin/PhotobookEditorPage"));
 
 import './scripts/seed-job-types';
@@ -242,6 +243,7 @@ function AppRoutes() {
         <Route path="/modulo/:token" component={InfoFormPublic} />
 
         {/* Fotolibro - Revisione cliente tramite link a token */}
+        <Route path="/fotolibro/:token/mockup" component={PhotobookMockupViewPage} />
         <Route path="/fotolibro/:token" component={PhotobookViewPage} />
 
         {/* Moduli Informativi - Template manager standalone */}

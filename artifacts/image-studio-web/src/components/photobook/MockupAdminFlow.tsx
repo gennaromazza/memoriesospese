@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import type { MockupPayload } from '@shared/mockup-types';
 import { MOCKUP_STATUS_LABELS, type MockupOption } from '@shared/mockup-workflow';
+import { CopyFeedbackButton } from './PhotobookUiStates';
 
 export type MockupPathChoice = 'client' | 'studio';
 export type MockupAdminTab = 'review' | 'edit' | 'offer';
@@ -26,6 +27,7 @@ interface Props {
   emailNote?: string;
   emailActions?: React.ReactNode;
   readOnly: boolean;
+  clientLink?: string;
   onSelectVersion?: (version: number) => void;
 }
 
@@ -57,7 +59,7 @@ function Step({ n, title, done, children }: { n: number; title: string; done?: b
 }
 
 /** Gestione dell'album in 4 passi: pagine, modello, chi prepara la bozza, stato e invio. */
-export default function MockupAdminFlow({ photobookId, version, currentVersion, pagesApproved, mockupPath, pathBusy, onPathChange, emailStatus, emailNote, emailActions, readOnly, onSelectVersion }: Props) {
+export default function MockupAdminFlow({ photobookId, version, currentVersion, pagesApproved, mockupPath, pathBusy, onPathChange, emailStatus, emailNote, emailActions, readOnly, clientLink, onSelectVersion }: Props) {
   const state = useQuery<MockupPayload>({ queryKey: ['photobook-mockup-flow', photobookId, version], queryFn: () => fetchMockupState(photobookId, version), refetchOnWindowFocus: false });
   const offer = state.data?.offer;
   const saved = state.data?.saved;
@@ -106,7 +108,11 @@ export default function MockupAdminFlow({ photobookId, version, currentVersion, 
           <div className="flex flex-wrap gap-2">
             {saved && <Button variant="outline" className="min-h-11" onClick={() => openMockupTab(photobookId, 'review')}>Rivedi e conferma</Button>}
             {emailActions}
+            {clientLink && saved?.status === 'confirmed' && pagesApproved && version === currentVersion && (
+              <CopyFeedbackButton text={`${clientLink}/mockup?version=${version}`} label="Copia link mockup" testId="button-copy-mockup-link" />
+            )}
           </div>
+          {clientLink && <p className="text-xs text-muted-foreground">Dopo la conferma del mockup e l’approvazione delle pagine puoi copiare il link e inviarlo su WhatsApp o via email. Il cliente apre direttamente l’anteprima in sola lettura, senza avviare la stampa.</p>}
         </Step>
       </ol>
     </CardContent></Card>

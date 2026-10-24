@@ -22,7 +22,7 @@ import { useToast } from '@/hooks/use-toast';
 import PhotobookInlineGallery from './PhotobookInlineGallery';
 import { ArrowLeft, ArrowRight, HelpCircle, LogOut, Rotate3D, RotateCcw, Save, X, ZoomIn, ZoomOut } from 'lucide-react';
 
-interface Props { photobookId: string; version: number; token?: string; readOnly?: boolean; summary?: boolean; compact?: boolean; /** Admin: solo la finestra, aperta dai passi della card Mockup. */ headless?: boolean; onOpenChange?: (open: boolean) => void }
+interface Props { photobookId: string; version: number; token?: string; readOnly?: boolean; autoOpen?: boolean; confirmedOnly?: boolean; summary?: boolean; compact?: boolean; /** Admin: solo la finestra, aperta dai passi della card Mockup. */ headless?: boolean; onOpenChange?: (open: boolean) => void }
 type RuntimePhoto = { id: string; name: string; source: string; blob: Blob };
 
 function stableSerialize(value: unknown): string {
@@ -47,10 +47,11 @@ function exposeReadonlyDownload(doc: Document) {
   return true;
 }
 
-export default function PhotobookMockup({ photobookId, version, token, readOnly = false, summary = false, compact = false, headless = false, onOpenChange }: Props) {
+export default function PhotobookMockup({ photobookId, version, token, readOnly = false, autoOpen = false, confirmedOnly = false, summary = false, compact = false, headless = false, onOpenChange }: Props) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
+  const autoOpened = useRef(false);
   const [adminTab, setAdminTab] = useState<'review' | 'edit' | 'offer'>('review');
   const [adminSlot, setAdminSlot] = useState<HTMLDivElement | null>(null);
   const [askingChanges, setAskingChanges] = useState(false);
@@ -140,6 +141,10 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     enabled: !!token || open || summary || !compact,
     refetchOnWindowFocus: false,
   });
+  // Keep the sharing action in step 4 current after saving or confirming in the modal.
+  useEffect(() => {
+    if (!token && state.data) queryClient.setQueryData(['photobook-mockup-flow', photobookId, version], state.data);
+  }, [state.data, token, photobookId, version, queryClient]);
   const gallery = useQuery({
     queryKey: ['mockup-gallery', photobookId, token ? 'client' : 'admin'],
     enabled: picker || phoneBox || (!!token && mobile),
@@ -212,6 +217,12 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     setGuideOpen(mobile && !guideSeen);
     void state.refetch();
   }
+
+  useEffect(() => {
+    if (!autoOpen || autoOpened.current || !state.data || saved?.status !== 'confirmed' || state.data.approvalRequired || state.data.offerError) return;
+    autoOpened.current = true;
+    openConfigurator();
+  }, [autoOpen, state.data, saved?.status]);
 
   // Dai passi della scheda admin: apre il configuratore direttamente sulla scheda richiesta.
   useEffect(() => {
@@ -741,6 +752,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       </Button>
     </section>
   );
+  if (confirmedOnly && state.data && saved?.status !== 'confirmed') return <p role="status" className="rounded-lg border bg-white p-4 text-sm">Il mockup non è ancora confermato o è stato aggiornato. Contatta lo studio per l’anteprima definitiva.</p>;
   if (token && state.data?.offerError) return compact
     ? <span role="alert" className="text-xs text-destructive">{state.data.offerError}</span>
     : <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{state.data.offerError}</p>;
@@ -762,7 +774,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   return <section className={compact ? 'inline-flex shrink-0' : headless ? 'contents' : 'rounded-lg border bg-white p-4 space-y-3'} data-testid="photobook-mockup">
     {headless ? null : compact ? <Button variant="outline" className="h-10 px-3 text-xs" onClick={openConfigurator} disabled={!!token && !!state.data?.offerError}>{!token ? 'Mockup album' : (saved ? 'Apri il tuo album' : 'Personalizza album')}</Button> : <div className="flex flex-wrap items-center justify-between gap-2">
       <div><h2 className="font-semibold">{noModelAssigned ? 'Anteprima album 3D' : `${title} · Anteprima album 3D`}</h2><p className="text-sm text-muted-foreground">{noModelAssigned ? 'Nessun modello assegnato: scegli prima i modelli nel passo 2.' : `Foto, rivestimento e scritte · versione ${version}`}</p></div>
-      <Button variant="outline" className="min-h-11" onClick={openConfigurator} disabled={!!token && !!state.data?.offerError}>{token ? 'Personalizza il tuo album' : noModelAssigned ? 'Apri anteprima' : `Apri anteprima ${title}`}</Button>
+      <Button variant="outline" className="min-h-11" onClick={openConfigurator} disabled={!!token && !!state.data?.offerError}>{token ? readOnly ? 'Apri mockup' : 'Personalizza il tuo album' : noModelAssigned ? 'Apri anteprima' : `Apri anteprima ${title}`}</Button>
      </div>}
      {saved && !compact && !token && !headless && <p className="text-sm text-muted-foreground">{MOCKUP_STATUS_LABELS[saved.status || 'draft']} · revisione {saved.revision} · versione fotolibro {version}</p>}
      {!compact && token && <div className="mockup-status-card" role="status" data-status={saved?.status || 'draft'}>

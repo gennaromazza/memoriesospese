@@ -390,6 +390,7 @@ export default function PhotobookEditorPage() {
         <PhotobookMockup key={`${id}-${version}`} photobookId={id} version={version} readOnly={book.currentVersion !== version} headless />
          <MockupAdminFlow
            photobookId={id}
+           clientLink={photobookClientLink(book)}
            version={version}
            currentVersion={book.currentVersion}
            pagesApproved={book.approval?.version === book.currentVersion}
