@@ -274,6 +274,10 @@ export async function ensureJobCalendarEvent(jobId: string): Promise<{
 let notificationsCache: { data: any[]; timestamp: number } | null = null;
 const NOTIFICATIONS_CACHE_TTL = 60 * 1000; // 1 minuto
 
+export function invalidateAdminNotificationsCache() {
+  notificationsCache = null;
+}
+
 router.get('/notifications', authenticateFirebase, requireAdmin, async (req: any, res): Promise<HttpHandlerResult> => {
   try {
     // Serve da cache se ancora valida
@@ -342,7 +346,9 @@ router.get('/notifications', authenticateFirebase, requireAdmin, async (req: any
       const createdDate = data.createdAt?.toDate ? data.createdAt.toDate() : null;
       if (!createdDate || createdDate < sevenDaysAgo) return;
 
-      const type = data.type === 'photobook_approved' || data.type === 'photobook_changes'
+      const type = data.type === 'quote_signed'
+        ? 'quote_signed'
+        : data.type === 'photobook_approved' || data.type === 'photobook_changes'
         ? 'photobook'
         : data.type === 'print_shop_order'
           ? 'print_shop_order'

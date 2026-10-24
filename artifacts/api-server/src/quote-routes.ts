@@ -27,6 +27,7 @@ import { normalizeEmail } from "./utils/normalize.js";
 import { recomputeJobQuoteStatus } from "./job-aggregates.js";
 import { recordFollowUpEvent } from "./follow-up-routes.js";
 import { safeErrorMessage } from "./utils/safe-logging.js";
+import { ensureQuoteSignedAdminNotification } from "./quote-signed-admin-notification.js";
 
 const router = Router();
 
@@ -2380,6 +2381,7 @@ router.post(
       const completedSteps = {
         jobStatusUpdated: false,
         timelineEventAdded: false,
+        adminNotificationSaved: false,
         clientEmailSent: false,
         adminEmailSent: false,
       };
@@ -2431,7 +2433,24 @@ router.post(
         console.log(`⏭️ Timeline event già esiste per quote ${id}, skip`);
       }
 
-      // 8. Invia email conferma al cliente
+      // 8. Salva una notifica persistente per il campanello del pannello admin.
+      // La chiave deterministica evita duplicati quando il client ritenta la richiesta.
+      try {
+        await ensureQuoteSignedAdminNotification(db, FieldValue.serverTimestamp(), {
+          quoteId: id,
+          jobId: quote.jobId,
+          clientName: quote.signature?.clientName || clientName || "Cliente",
+          eventName: job?.nomeEvento || "Evento",
+          total: correctTotale,
+        });
+        completedSteps.adminNotificationSaved = true;
+        const { invalidateAdminNotificationsCache } = await import("./job-routes.js");
+        invalidateAdminNotificationsCache();
+      } catch (notificationError) {
+        console.warn("⚠️ Notifica firma non salvata nel pannello admin:", notificationError);
+      }
+
+      // 9. Invia email conferma al cliente
       try {
         const studioInfo = await getStudioContactInfo();
         const baseUrl =
@@ -2489,7 +2508,7 @@ router.post(
         // Non blocchiamo per errore email
       }
 
-      // 9. Invia email notifica all'admin
+      // 10. Invia email notifica all'admin
       try {
         const studioInfo = await getStudioContactInfo();
         const adminEmail = studioInfo?.email || "gennaro.mazzacane@gmail.com";

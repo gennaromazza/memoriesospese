@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { Loader2, CheckCircle2, FileText, Calendar, CreditCard, User, Mail, Phone, MapPin, Download, ExternalLink } from 'lucide-react';
+import { Loader2, CheckCircle2, FileText, Calendar, CreditCard, User, Mail, Phone, MapPin, Download, ExternalLink, Copy } from 'lucide-react';
 import placeholderUrl from '@/assets/generated_images/Custom_product_placeholder_image_f076e89e.png';
 import type { Quote, QuoteSignature } from '@shared/quotes-types';
 import type { PaymentSchedule } from '@shared/payment-schedule-types';
@@ -57,6 +57,7 @@ interface QuoteSignedPortalData {
 export default function QuoteSignedPortalPage() {
   const params = useParams();
   const token = params.token;
+  const [portalLinkCopied, setPortalLinkCopied] = useState(false);
   const [studioSettings, setStudioSettings] = useState<{
     phone?: string;
     quoteTheme?: { primaryColor?: string; secondaryColor?: string };
@@ -218,11 +219,32 @@ export default function QuoteSignedPortalPage() {
     }
   };
 
+  const handleCopyPortalLink = async () => {
+    const shareUrl = new URL(`/quote/${encodeURIComponent(token || '')}`, window.location.origin).toString();
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setPortalLinkCopied(true);
+      window.setTimeout(() => setPortalLinkCopied(false), 2500);
+    } catch (error) {
+      console.error('Unable to copy signed quote link:', error);
+      window.prompt('Copia il link al contratto firmato:', shareUrl);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 p-4 py-8">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Download PDF Button */}
-        <div className="flex justify-end">
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button
+            variant="outline"
+            onClick={handleCopyPortalLink}
+            className="border-blue-gray/30 text-blue-gray"
+            data-testid="copy-signed-quote-link-button"
+          >
+            <Copy className="w-4 h-4 mr-2" />
+            {portalLinkCopied ? 'Link copiato' : 'Copia link al contratto'}
+          </Button>
           <Button
             onClick={handleDownloadPDF}
             className="bg-blue-gray hover:bg-blue-gray/90 text-white shadow-lg"

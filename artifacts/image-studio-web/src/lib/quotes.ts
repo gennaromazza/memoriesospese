@@ -185,7 +185,7 @@ export async function createQuote(
       ...(data.expiresAt && { expiresAt: Timestamp.fromDate(data.expiresAt) }), // Solo se definito
       ...(data.noteInterne && { noteInterne: data.noteInterne }), // Solo se definito
       ...(paymentScheduleConfig && { paymentScheduleConfig }), // Solo se definito
-      ...(data.type === 'variabile' && data.requirementRules?.length > 0 && {
+      ...(data.type === 'variabile' && (data.requirementRules?.length ?? 0) > 0 && {
         requirementRules: data.requirementRules,
       }),
       ...(data.jobInfo && { 

@@ -32,6 +32,7 @@ export const NotificationBell = React.memo(function NotificationBell({ enabled =
       case 'comment': return <MessageSquare className="h-4 w-4" />;
       case 'selection': return <CheckSquare className="h-4 w-4" />;
       case 'quick_quote': return <FileText className="h-4 w-4" />;
+      case 'quote_signed': return <FileText className="h-4 w-4" />;
       case 'info_form': return <ClipboardList className="h-4 w-4" />;
       case 'photobook': return <BookOpen className="h-4 w-4" />;
       case 'print_shop_order':

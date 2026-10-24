@@ -12,6 +12,7 @@ export interface Notification {
     | 'comment'
     | 'selection'
     | 'quick_quote'
+    | 'quote_signed'
     | 'info_form'
     | 'photobook'
     | 'print_shop_order'
