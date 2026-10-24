@@ -2622,7 +2622,7 @@ export default function AdminDashboard() {
                               <div>
                                 <p className="text-sm font-semibold text-stone-700">Anteprima del preventivo</p>
                                 <p className="mt-0.5 text-xs text-stone-500">
-                                  Si aggiorna mentre scegli i colori; non salva le modifiche.
+                                  Si aggiorna mentre modifichi colori e identità dello studio; non salva le modifiche.
                                 </p>
                               </div>
                               <span className="rounded-full border border-stone-200 bg-white px-2.5 py-1 text-[10px] font-medium text-stone-500">
@@ -2639,6 +2639,31 @@ export default function AdminDashboard() {
                                 className="h-1.5"
                                 style={{ backgroundColor: studioSettings.quoteTheme.primaryColor }}
                               />
+                              <div className="flex min-w-0 items-center gap-3 border-b border-stone-100 px-4 py-3 sm:px-5">
+                                <div className="flex h-12 w-28 shrink-0 items-center justify-center overflow-hidden rounded-md border border-stone-100 bg-stone-50 p-1.5">
+                                  {studioSettings.logo ? (
+                                    <img
+                                      src={studioSettings.logo}
+                                      alt={`Logo ${studioSettings.name.trim() || "dello studio"}`}
+                                      data-testid="img-studio-preview-logo"
+                                      className="h-full max-h-9 w-full max-w-24 object-contain"
+                                    />
+                                  ) : (
+                                    <span
+                                      data-testid="placeholder-studio-preview-logo"
+                                      className="text-center text-[10px] leading-tight text-stone-400"
+                                    >
+                                      Logo dello studio
+                                    </span>
+                                  )}
+                                </div>
+                                <p
+                                  data-testid="text-studio-preview-name"
+                                  className="min-w-0 max-w-full break-words text-sm font-semibold text-stone-700"
+                                >
+                                  {studioSettings.name.trim() || "Nome dello studio"}
+                                </p>
+                              </div>
                               <div
                                 className="flex items-center justify-between gap-3 border-b px-4 py-3 sm:px-5"
                                 style={{ borderColor: `${studioSettings.quoteTheme.secondaryColor}70` }}
