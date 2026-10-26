@@ -94,3 +94,90 @@ test("filtri e selezione multipla preservano i prodotti nascosti e il salvataggi
   await expect(reopenedDialog.getByTestId("product-option-print-30")).toHaveAttribute("aria-pressed", "true");
   await expect(reopenedDialog.getByTestId("product-option-print-40")).toHaveAttribute("aria-pressed", "false");
 });
+
+test("controlli, nomi lunghi e scorrimento restano utilizzabili su mobile e desktop", async ({ page }) => {
+  await blockExternalTraffic(page);
+
+  for (const viewport of [
+    { width: 390, height: 844 },
+    { width: 1280, height: 900 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto("/");
+
+    await page.getByTestId(`button-edit-${campaignId}`).click();
+    const dialog = page.getByRole("dialog");
+    const search = dialog.getByTestId("input-campaign-product-search");
+    const categorySelect = dialog.getByTestId("select-campaign-product-category");
+    const selectedToggle = dialog.getByTestId("toggle-campaign-selected-products");
+    const list = dialog.getByTestId("campaign-product-list");
+
+    await expect(search).toBeVisible();
+    await expect(categorySelect).toBeVisible();
+    await expect(selectedToggle).toBeVisible();
+    await expect(dialog.getByTestId("button-toggle-visible-campaign-products")).toBeVisible();
+    await expect(list).toBeVisible();
+
+    const dialogBounds = await dialog.boundingBox();
+    expect(dialogBounds).not.toBeNull();
+    expect(dialogBounds!.x).toBeGreaterThanOrEqual(0);
+    expect(dialogBounds!.x + dialogBounds!.width).toBeLessThanOrEqual(viewport.width);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+
+    const listMetrics = await list.evaluate(element => ({
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+    }));
+    expect(listMetrics.scrollHeight).toBeGreaterThan(listMetrics.clientHeight);
+    await list.evaluate(element => {
+      element.scrollTop = element.scrollHeight;
+    });
+    expect(await list.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+    await list.evaluate(element => {
+      element.scrollTop = 0;
+    });
+
+    await categorySelect.click();
+    const lastCategory = page.getByRole("option", {
+      name: "Categoria fotografica con nome molto lungo 12 (1)",
+    });
+    await expect(lastCategory).toBeVisible();
+    await lastCategory.click();
+
+    const longProduct = dialog.getByTestId("product-option-product-extra-12");
+    await expect(longProduct).toBeVisible();
+    const productName = longProduct.locator("span.block.break-words").first();
+    const wrapping = await productName.evaluate(element => {
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      return {
+        clientWidth: element.clientWidth,
+        scrollWidth: element.scrollWidth,
+        renderedTextLines: range.getClientRects().length,
+      };
+    });
+    expect(wrapping.scrollWidth).toBeLessThanOrEqual(wrapping.clientWidth);
+    expect(wrapping.renderedTextLines).toBeGreaterThan(1);
+
+    await longProduct.click();
+    await expect(longProduct).toHaveAttribute("aria-pressed", "true");
+    await selectedToggle.click();
+    await expect(longProduct).toBeVisible();
+    await dialog.getByTestId("button-toggle-visible-campaign-products").click();
+    await expect(longProduct).toBeHidden();
+    await expect(dialog.getByText("1 selezionati")).toBeVisible();
+    await selectedToggle.click();
+
+    await categorySelect.click();
+    await page.getByRole("option", { name: "Tutte le categorie (13)" }).click();
+    await search.fill("Album ricordo con copertina fotografica");
+    await expect(longProduct).toBeVisible();
+    await selectedToggle.click();
+    await expect(selectedToggle).toHaveAttribute("aria-pressed", "true");
+    await expect(longProduct).toBeHidden();
+    await selectedToggle.click();
+
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+  }
+});

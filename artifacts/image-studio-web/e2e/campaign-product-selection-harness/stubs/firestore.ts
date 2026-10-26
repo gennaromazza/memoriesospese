@@ -78,6 +78,21 @@ export async function deleteDoc(ref: DocumentRef) {
   writes.push({ operation: "delete", collection: ref.collection, id: ref.id });
 }
 
+export async function runTransaction<T>(
+  _db: unknown,
+  callback: (transaction: {
+    get: (ref: DocumentRef) => Promise<Awaited<ReturnType<typeof getDoc>>>;
+    set: typeof setDoc;
+    update: typeof updateDoc;
+  }) => Promise<T>,
+): Promise<T> {
+  return callback({
+    get: getDoc,
+    set: setDoc,
+    update: updateDoc,
+  });
+}
+
 export function writeBatch() {
   return {
     update: () => undefined,
@@ -110,12 +125,32 @@ export function resetMockFirestore() {
     attivo: true,
     displayOrder: 3,
   });
+  for (let order = 4; order <= 12; order += 1) {
+    getCollection("productCategories").set(`category-extra-${order}`, {
+      nome: `Categoria fotografica con nome molto lungo ${order}`,
+      value: `extra-${order}`,
+      attivo: true,
+      displayOrder: order,
+    });
+  }
 
   const products = [
     { id: "album-classic", nome: "Album Classico", categoria: "album", prezzoFinale: 120, numeroFoto: 30 },
     { id: "print-30", nome: "Stampa 30 x 45 cm", categoria: "stampe", prezzoFinale: 12, numeroFoto: 1 },
     { id: "print-40", nome: "Stampa 40 x 60 cm", categoria: "stampe", prezzoFinale: 18, numeroFoto: 1 },
     { id: "box-wood", nome: "Box in legno", categoria: "accessori", prezzoFinale: 35, numeroFoto: 0 },
+    ...Array.from({ length: 9 }, (_, index) => {
+      const order = index + 4;
+      return {
+        id: `product-extra-${order}`,
+        nome: order === 12
+          ? "Album ricordo con copertina fotografica personalizzata, confezione regalo e incisione del nome della famiglia"
+          : `Prodotto fotografico categoria ${order}`,
+        categoria: `extra-${order}`,
+        prezzoFinale: 25 + order,
+        numeroFoto: 10,
+      };
+    }),
   ];
   for (const product of products) {
     const { id, ...data } = product;

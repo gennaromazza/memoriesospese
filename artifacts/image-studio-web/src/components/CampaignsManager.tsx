@@ -1085,7 +1085,10 @@ export default function CampaignsManager() {
                       </span>
                     </div>
 
-                    <div className="max-h-72 overflow-y-auto rounded-lg border bg-muted/20 p-2">
+                    <div
+                      className="max-h-72 overflow-y-auto rounded-lg border bg-muted/20 p-2"
+                      data-testid="campaign-product-list"
+                    >
                       {filteredProductGroups.length === 0 ? (
                         <div className="flex min-h-28 flex-col items-center justify-center gap-1 px-4 text-center">
                           <Package className="h-5 w-5 text-muted-foreground" />
