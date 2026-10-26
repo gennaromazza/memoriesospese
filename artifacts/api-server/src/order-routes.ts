@@ -9,6 +9,10 @@ import { db, FieldValue } from './firebase-admin.js';
 import { nowRomeDate, toRomeDateTime } from './utils/timezone.js';
 import { normalizeEmail } from './utils/normalize.js';
 import { recomputeJobTransactionCount } from './job-aggregates.js';
+import {
+  expandOrderProductsToRequirements as expandOrderSnapshotToRequirements,
+  getRequiredGalleryPhotoCount,
+} from '@shared/gallery-requirements';
 
 const ADMIN_EMAILS = ["gennaro.mazzacane@gmail.com"];
 
@@ -181,8 +185,6 @@ function createOrderUpdatedEmailHTML(orderData: any, studioInfo: any): string {
  * Replica la stessa logica di espansione bundle usata nella creazione galleria (BookingsManager)
  */
 async function expandOrderProductsToRequirements(prodotti: any[]): Promise<any[]> {
-  const expandedProducts: any[] = [];
-
   // Pre-fetch catalogo prodotti per fallback bundle (come BookingsManager)
   let catalogProducts: Map<string, any> = new Map();
   const productIds = prodotti.filter(p => p.prodottoId && !p.prodottoId.startsWith('custom_')).map(p => p.prodottoId);
@@ -201,9 +203,7 @@ async function expandOrderProductsToRequirements(prodotti: any[]): Promise<any[]
     }
   }
 
-  for (const orderItem of prodotti) {
-    const orderItemQuantity = orderItem.quantita || 1;
-
+  const resolvedProducts = prodotti.map((orderItem) => {
     // PRIORITY: orderItem.bundleItems → fallback a catalogo (come BookingsManager)
     const hasOrderItemBundle = orderItem.isBundle && orderItem.bundleItems && orderItem.bundleItems.length > 0;
     const catalogProduct = catalogProducts.get(orderItem.prodottoId);
@@ -216,58 +216,33 @@ async function expandOrderProductsToRequirements(prodotti: any[]): Promise<any[]
         : null;
     const catalogBundleItems = hasCatalogBundle ? catalogProduct!.bundleItems : null;
     const bundleParentName = orderItem.prodottoNome || catalogProduct?.nome || 'Bundle';
+    const sharedPhotoSourceId = orderItem.prodottoSorgenteFotoId || catalogProduct?.prodottoSorgenteFotoId;
+    const hasSharedPhotos = orderItem.fotoCondivise ?? catalogProduct?.fotoCondivise;
 
-    if (bundleItems && bundleItems.length > 0) {
-      let bundleExpandedCount = 0;
-      for (let orderQty = 0; orderQty < orderItemQuantity; orderQty++) {
-        for (const bundleItem of bundleItems) {
-          if (!bundleItem.quantita || bundleItem.quantita <= 0) continue;
-          if (bundleItem.numeroFoto === undefined || bundleItem.numeroFoto < 0) continue;
+    if (!bundleItems || bundleItems.length === 0) return orderItem;
 
-          let finalNumeroFoto = bundleItem.numeroFoto;
-          if (bundleItem.prodottoId && catalogBundleItems) {
-            const catalogBundleItem = catalogBundleItems.find((cbi: any) => cbi.prodottoId === bundleItem.prodottoId);
-            if (catalogBundleItem && catalogBundleItem.numeroFoto !== undefined) {
-              finalNumeroFoto = catalogBundleItem.numeroFoto;
-            }
-          }
+    const snapshotItems = bundleItems.map((bundleItem: any) => {
+      const catalogBundleItem = bundleItem.prodottoId && catalogBundleItems
+        ? catalogBundleItems.find((item: any) => item.prodottoId === bundleItem.prodottoId)
+        : undefined;
+      return {
+        ...bundleItem,
+        numeroFoto: catalogBundleItem?.numeroFoto ?? bundleItem.numeroFoto,
+      };
+    });
+    return {
+      ...orderItem,
+      prodottoNome: bundleParentName,
+      isBundle: true,
+      bundleItems: snapshotItems,
+      ...(hasSharedPhotos ? {
+        fotoCondivise: true,
+        prodottoSorgenteFotoId: sharedPhotoSourceId,
+      } : {}),
+    };
+  });
 
-          for (let i = 0; i < bundleItem.quantita; i++) {
-            const bundlePrefix = orderItemQuantity > 1
-              ? `[${orderQty + 1}/${orderItemQuantity}] `
-              : '';
-            const req: any = {
-              prodottoNome: bundleItem.quantita > 1
-                ? `${bundlePrefix}${bundleItem.prodottoNome} (${i + 1}/${bundleItem.quantita}) - ${bundleParentName}`
-                : `${bundlePrefix}${bundleItem.prodottoNome} - ${bundleParentName}`,
-              prodottoNumeroFoto: finalNumeroFoto,
-            };
-            if (bundleItem.prodottoId) {
-              req.prodottoId = bundleItem.prodottoId;
-            }
-            expandedProducts.push(req);
-            bundleExpandedCount++;
-          }
-        }
-      }
-      console.log(`📦 Bundle "${bundleParentName}" x${orderItemQuantity} espanso in ${bundleExpandedCount} requirements`);
-    } else {
-      for (let i = 0; i < orderItemQuantity; i++) {
-        const req: any = {
-          prodottoNome: orderItemQuantity > 1
-            ? `${orderItem.prodottoNome} (${i + 1}/${orderItemQuantity})`
-            : orderItem.prodottoNome,
-          prodottoNumeroFoto: orderItem.prodottoNumeroFoto ?? 0,
-        };
-        if (orderItem.prodottoId && !orderItem.prodottoId.startsWith('custom_')) {
-          req.prodottoId = orderItem.prodottoId;
-        }
-        expandedProducts.push(req);
-      }
-    }
-  }
-
-  return expandedProducts;
+  return expandOrderSnapshotToRequirements(resolvedProducts);
 }
 
 /**
@@ -427,9 +402,7 @@ router.patch('/:id', authenticateFirebase, async (req: any, res: Response): Prom
             }
             
             // Aggiorna sempre requiredPhotoCount con il totale
-            galleryUpdate.requiredPhotoCount = newProductRequirements.reduce(
-              (sum: number, r: any) => sum + (r.prodottoNumeroFoto || 0), 0
-            );
+            galleryUpdate.requiredPhotoCount = getRequiredGalleryPhotoCount(newProductRequirements);
             // Multi-product: inizializza photoAssignments se non esiste
             if (newProductRequirements.length > 1 && !galleryData.photoAssignments) {
               galleryUpdate.photoAssignments = {};
@@ -1611,9 +1584,7 @@ router.post('/repair-bundle-galleries', authenticateFirebase, async (req: any, r
           selectionsReset++;
         }
 
-        const totalFoto = newProductRequirements.reduce(
-          (sum: number, r: any) => sum + (r.prodottoNumeroFoto || 0), 0
-        );
+        const totalFoto = getRequiredGalleryPhotoCount(newProductRequirements);
         galleryUpdate.requiredPhotoCount = totalFoto;
 
         await galleryDoc.ref.update(galleryUpdate);

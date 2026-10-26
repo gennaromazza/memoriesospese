@@ -14,6 +14,7 @@ import { Readable } from "node:stream";
 import { db, FieldValue, storage } from "./firebase-admin.js";
 import { authenticateFirebase, sendGmailEmail } from "./email-routes.js";
 import { getClientWhatsAppPhone, getWhatsAppLink } from "../../../lib/shared-src/phone-utils";
+import { getRequiredGalleryPhotoCount } from "@shared/gallery-requirements";
 
 const router = express.Router();
 const ADMIN_EMAILS = new Set(["gennaro.mazzacane@gmail.com"]);
@@ -735,12 +736,21 @@ router.put("/galleries/:galleryId/customer-selection", async (req, res) => {
           (id && !catalogProduct) ||
           (catalogProduct && name !== String(catalogProduct.nome || "").trim()))
         return res.status(400).json({ error: "Product requirement does not match catalog" });
-      normalized.push({ prodottoId: id || null, prodottoNome: name, prodottoNumeroFoto: count });
+      const sharedGalleryId = typeof p?.galleriaCondivisaId === "string" &&
+        p.galleriaCondivisaId.length <= 500
+        ? p.galleriaCondivisaId
+        : undefined;
+      normalized.push({
+        prodottoId: id || null,
+        prodottoNome: name,
+        prodottoNumeroFoto: count,
+        ...(sharedGalleryId ? { galleriaCondivisaId: sharedGalleryId } : {}),
+      });
     }
     updates.productRequirements = normalized;
     // Product requirements are the source of truth for the selection quota.
     if (normalized.length) {
-      updates.requiredPhotoCount = normalized.reduce((sum, p) => sum + p.prodottoNumeroFoto, 0);
+      updates.requiredPhotoCount = getRequiredGalleryPhotoCount(normalized);
       updates.unlimitedSelection = false;
     }
   }

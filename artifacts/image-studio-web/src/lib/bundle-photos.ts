@@ -1,4 +1,8 @@
 import type { BundleItem, Product } from '@shared/booking-types';
+export {
+  expandOrderProductsToRequirements,
+  getRequiredGalleryPhotoCount,
+} from '@shared/gallery-requirements';
 
 /** Catalog bundles use current component counts; quote/order snapshots stay untouched. */
 export function resolveBundleItems(items: BundleItem[] = [], catalog: Product[] = []): BundleItem[] {
@@ -25,3 +29,6 @@ export function getBundleGalleryPhotoCount(
   if (!sourceProductId) return countBundlePhotos(items);
   return items.find((item) => item.prodottoId === sourceProductId)?.numeroFoto ?? 0;
 }
+
+
+/** Counts unique photo pools while preserving separate per-product requirements. */

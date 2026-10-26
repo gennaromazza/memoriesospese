@@ -5,6 +5,7 @@
 
 import type { Product } from '@shared/booking-types';
 import type { QuoteProduct } from '@shared/quotes-types';
+import { getBundleGalleryPhotoCount } from './bundle-photos';
 
 /**
  * Override per-template / per-quote di un prodotto catalogo.
@@ -45,7 +46,9 @@ export function catalogProductToQuoteProduct(
     descrizione: product.descrizione,
     prezzo,
     selectable,
-    numeroFoto: product.numeroFoto,
+    numeroFoto: product.isBundle && product.fotoCondivise
+      ? getBundleGalleryPhotoCount(product.bundleItems, product.prodottoSorgenteFotoId)
+      : product.numeroFoto,
     categoria: product.categoria,
     immagini: product.immagini || []
   };
@@ -59,6 +62,10 @@ export function catalogProductToQuoteProduct(
   // Include bundle information if product is a bundle
   if (product.isBundle && product.bundleItems && product.bundleItems.length > 0) {
     quoteProduct.isBundle = true;
+    if (product.fotoCondivise) {
+      quoteProduct.fotoCondivise = true;
+      quoteProduct.prodottoSorgenteFotoId = product.prodottoSorgenteFotoId;
+    }
     quoteProduct.bundleItems = product.bundleItems.map(item => ({
       prodottoId: item.prodottoId,
       prodottoNome: item.prodottoNome,

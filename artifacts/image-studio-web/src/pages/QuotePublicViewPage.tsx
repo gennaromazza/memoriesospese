@@ -1670,7 +1670,9 @@ export default function QuotePublicViewPage() {
                                     variant="outline"
                                     className="text-xs bg-mint/20 border-mint text-blue-gray"
                                   >
-                                    📸 {product.numeroFoto} foto
+                                    📸 {product.numeroFoto} foto{product.fotoCondivise
+                                      ? ` nella galleria di ${product.bundleItems?.find((item) => item.prodottoId === product.prodottoSorgenteFotoId)?.prodottoNome || 'un prodotto incluso'}`
+                                      : ''}
                                   </Badge>
                                 )}
                                 {product.categoria && (
@@ -1706,10 +1708,15 @@ export default function QuotePublicViewPage() {
                                         >
                                           <span>└</span>
                                           <span>{item.prodottoNome}</span>
+                                          {item.quantita > 1 && <span className="text-gray-500">x{item.quantita}</span>}
                                           {item.numeroFoto &&
                                             item.numeroFoto > 0 && (
                                               <span className="text-blue-600">
-                                                ({item.numeroFoto} foto)
+                                                ({item.numeroFoto} foto{product.fotoCondivise
+                                                  ? item.prodottoId === product.prodottoSorgenteFotoId
+                                                    ? ' · galleria sorgente'
+                                                    : ' per prodotto · stessa galleria'
+                                                  : ''})
                                               </span>
                                             )}
                                         </div>
@@ -1743,7 +1750,9 @@ export default function QuotePublicViewPage() {
                                   variant="outline"
                                   className="text-xs bg-mint/20 border-mint text-blue-gray"
                                 >
-                                  📸 {product.numeroFoto} foto
+                                    📸 {product.numeroFoto} foto{product.fotoCondivise
+                                      ? ` nella galleria di ${product.bundleItems?.find((item) => item.prodottoId === product.prodottoSorgenteFotoId)?.prodottoNome || 'un prodotto incluso'}`
+                                      : ''}
                                 </Badge>
                               )}
                               {product.categoria && (
@@ -1786,7 +1795,11 @@ export default function QuotePublicViewPage() {
                                       {item.numeroFoto &&
                                         item.numeroFoto > 0 && (
                                           <span className="text-blue-600">
-                                            ({item.numeroFoto} foto)
+                                              ({item.numeroFoto} foto{product.fotoCondivise
+                                                ? item.prodottoId === product.prodottoSorgenteFotoId
+                                                  ? ' · galleria sorgente'
+                                                  : ' per prodotto · stessa galleria'
+                                                : ''})
                                           </span>
                                         )}
                                     </div>

@@ -46,6 +46,7 @@ import GalleryFooter from "@/components/gallery/GalleryFooter";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import GalleryService from "@/lib/galleries";
 import PhotoService, { Photo } from "@/lib/photos"; // 🔧 Import Photo type per allineamento tipi
+import { getRequiredGalleryPhotoCount } from "@/lib/bundle-photos";
 import { queryClient } from "@/lib/queryClient";
 import GalleryFilter, {
   FilterCriteria,
@@ -763,8 +764,8 @@ export default function Gallery() {
       return productRequirements![0].prodottoNumeroFoto || 0;
     }
     if (isMultiProductMode) {
-      // 2+ prodotti: somma tutti
-      return productRequirements!.reduce((sum, p) => sum + (p.prodottoNumeroFoto || 0), 0);
+      // Quota per prodotto resta indipendente; il conteggio galleria non somma i pool condivisi.
+      return getRequiredGalleryPhotoCount(productRequirements!);
     }
     // Legacy: usa requiredPhotoCount diretto dal galleryData
     return galleryData?.requiredPhotoCount || 0;

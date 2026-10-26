@@ -525,7 +525,11 @@ export default function QuoteSignedPortalPage() {
                         {product.numeroFoto && (
                           <div className="flex items-center gap-2 text-xs sm:text-sm text-blue-gray bg-mint/30 px-2 sm:px-3 py-1 rounded-full w-fit">
                             <Calendar className="w-3 h-3 sm:w-4 sm:h-4" />
-                            <span className="font-medium">{product.numeroFoto} foto incluse</span>
+                            <span className="font-medium">
+                              {product.numeroFoto} foto{product.fotoCondivise
+                                ? ` nella galleria di ${product.bundleItems?.find((item) => item.prodottoId === product.prodottoSorgenteFotoId)?.prodottoNome || 'un prodotto incluso'}`
+                                : ' incluse'}
+                            </span>
                           </div>
                         )}
                         {/* Omaggio indicator */}
@@ -551,7 +555,13 @@ export default function QuoteSignedPortalPage() {
                                 <span>{item.prodottoNome}</span>
                                 {item.quantita > 1 && <span className="text-gray-500">x{item.quantita}</span>}
                                 {item.numeroFoto && item.numeroFoto > 0 && (
-                                  <span className="text-blue-600">({item.numeroFoto} foto)</span>
+                                  <span className="text-blue-600">
+                                    ({item.numeroFoto} foto{product.fotoCondivise
+                                      ? item.prodottoId === product.prodottoSorgenteFotoId
+                                        ? ' · galleria sorgente'
+                                        : ' per prodotto · stessa galleria'
+                                      : ''})
+                                  </span>
                                 )}
                               </div>
                             ))}

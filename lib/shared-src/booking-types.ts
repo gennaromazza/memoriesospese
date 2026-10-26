@@ -278,6 +278,8 @@ export interface OrderItem {
   isCustom?: boolean; // true se prodotto personalizzato (non da catalogo)
   isBundle?: boolean; // true se è un bundle (pacchetto di più prodotti)
   bundleItems?: BundleItemSnapshot[]; // Prodotti inclusi nel bundle con snapshot
+  fotoCondivise?: boolean;
+  prodottoSorgenteFotoId?: string;
 }
 
 /**
