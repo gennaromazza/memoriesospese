@@ -876,9 +876,18 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       {state.data?.offerError && <p role="alert" className="text-destructive">{state.data.offerError}</p>}
       {staleFixedSave && <p role="alert" className="text-amber-700">La bozza precedente usa un modello non più proposto. Scegli il modello aggiornato e salva una nuova revisione.</p>}
       {state.data && <>
-        {!token && adminPanel(<div hidden={adminTab !== 'offer'}><p className="text-sm mb-3">Scegli il modello dell’album, oppure più modelli tra cui sceglierà il cliente. Qui non confermi il mockup.</p><MockupOfferEditor alwaysOpen offer={state.data.offer} modelMode={state.data.modelMode} modelSelection={state.data.modelSelection} disabled={readOnly || busy || dirty} uploadGraphic={async file => (await (await request(`/upload?name=${encodeURIComponent(file.name)}`, { method: 'POST', headers: { 'Content-Type': file.type }, body: file })).json() as { id: string }).id} publish={async (mode, selections) => {
+        {!token && adminPanel(<div hidden={adminTab !== 'offer'}><p className="text-sm mb-3">Scegli il modello dell’album, oppure più modelli tra cui sceglierà il cliente. Qui non prepari la bozza: le foto necessarie si associano nel passaggio successivo.</p><MockupOfferEditor alwaysOpen offer={state.data.offer} modelMode={state.data.modelMode} modelSelection={state.data.modelSelection} hasSavedMockup={!!saved} disabled={readOnly || busy || dirty} uploadGraphic={async file => (await (await request(`/upload?name=${encodeURIComponent(file.name)}`, { method: 'POST', headers: { 'Content-Type': file.type }, body: file })).json() as { id: string }).id} publish={async (mode, selections) => {
           setBusy(true);
-          try { await request('/offer', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: state.data?.offer?.revision || 0, savedRevision: saved?.revision || 0, mode, selections }) }); await state.refetch({ throwOnError: true }); setReady(false); setGeneration(g => g + 1); setMessage('Proposta pubblicata nel link cliente.'); return true; }
+          try {
+            await request('/offer', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: state.data?.offer?.revision || 0, savedRevision: saved?.revision || 0, mode, selections }) });
+            const fresh = await state.refetch({ throwOnError: true });
+            setReady(false); setGeneration(g => g + 1);
+            setMessage(fresh.data?.mockupPath === 'studio'
+              ? 'Modello assegnato. Ora prepara la bozza e associa le foto necessarie.'
+              : 'Modello assegnato nel link cliente.');
+            if (fresh.data?.mockupPath === 'studio') setAdminTab('edit');
+            return true;
+          }
           catch (error) { setMessage((error as Error).message); return false; }
           finally { setBusy(false); }
         }} /></div>)}

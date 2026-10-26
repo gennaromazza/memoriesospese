@@ -20,6 +20,8 @@ interface MockupOfferEditorProps {
   alwaysOpen?: boolean;
   /** Carica la grafica di copertina e restituisce l'id dell'asset (solo per il Quadrobook). */
   uploadGraphic?: (file: File) => Promise<string>;
+  /** Una nuova offerta può riportare la bozza salvata allo stato da verificare. */
+  hasSavedMockup?: boolean;
   publish: (
     mode: MockupOfferMode,
     selections: MockupSelection[],
@@ -58,6 +60,7 @@ export default function MockupOfferEditor({
   disabled,
   alwaysOpen = false,
   uploadGraphic,
+  hasSavedMockup = false,
   publish,
 }: MockupOfferEditorProps) {
   const [boxDrafts, setBoxDrafts] = useState<Record<string, BoxDraft>>({});
@@ -179,6 +182,17 @@ export default function MockupOfferEditor({
     if (selections.length === 0) return;
     const invalid = keys.map((key) => setupFor(key).error).find(Boolean);
     if (invalid) { setPublishError(invalid); return; }
+    const previousMode = offer?.mode ?? ((offer?.options.length ?? 0) > 1 ? "choice" : "fixed");
+    const previousOptions = (offer?.options ?? [])
+      .map(({ labId, id, setup }) => ({ labId, modelId: id, ...(setup ? { setup } : {}) }))
+      .sort((a, b) => `${a.labId}/${a.modelId}`.localeCompare(`${b.labId}/${b.modelId}`));
+    const nextOptions = selections
+      .map(({ labId, modelId, setup }) => ({ labId, modelId, ...(setup ? { setup } : {}) }))
+      .sort((a, b) => `${a.labId}/${a.modelId}`.localeCompare(`${b.labId}/${b.modelId}`));
+    const offerChanged = !!offer && (previousMode !== mode || JSON.stringify(previousOptions) !== JSON.stringify(nextOptions));
+    if (offerChanged && hasSavedMockup && !window.confirm(
+      "Questa bozza salvata resterà conservata, ma tornerà da verificare e potrebbe richiedere un aggiornamento per il nuovo modello. La revisione precedente resterà nello storico. Vuoi continuare?",
+    )) return;
 
     setPublishing(true);
     setPublishError(null);
@@ -271,8 +285,7 @@ export default function MockupOfferEditor({
 
           {!!offer?.options.length && (
             <p className="text-xs text-muted-foreground">
-              Se cambi modello, il mockup già preparato va verificato di nuovo.
-              Le conferme precedenti restano nello storico.
+              Cambiare un’offerta con una bozza salvata la riporta allo stato da verificare: configurazione e revisione precedente restano conservate. Prima della pubblicazione ti chiederemo conferma.
             </p>
           )}
 
@@ -374,7 +387,7 @@ export default function MockupOfferEditor({
                         </fieldset>
                         {d.mode !== "photo" && (
                           <label className="block text-sm">
-                            La tua grafica di copertina (JPG, PNG o WebP)
+                            Grafica richiesta dall’offerta Quadrobook (non è una foto della bozza; JPG, PNG o WebP)
                             <input type="file" accept="image/jpeg,image/png,image/webp" className="block mt-1 w-full min-h-11" disabled={disabled || uploading === key || !uploadGraphic} onChange={(e) => { void onGraphic(key, e.target.files?.[0]); e.target.value = ""; }} />
                             <span className="block text-xs text-muted-foreground mt-1">{uploading === key ? "Caricamento…" : d.graphicName || "Nessuna grafica caricata"}</span>
                           </label>
