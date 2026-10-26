@@ -33,11 +33,15 @@ describe('bundle photos', () => {
     expect(getBundleGalleryPhotoCount(items)).toBe(70);
     const sharedBundle: BundleItem[] = [
       { ...items[0], prodottoId: 'shooting', prodottoNome: 'Shooting', numeroFoto: 40 },
-      { ...items[0], prodottoId: 'album', numeroFoto: 15 },
-      { ...items[1], prodottoId: 'keychain', quantita: 2, numeroFoto: 1 },
+      { ...items[0], prodottoId: 'album', prodottoNome: 'Album', numeroFoto: 15 },
+      { ...items[1], prodottoId: 'accessory', prodottoNome: 'Accessorio', quantita: 2, numeroFoto: 1 },
     ];
-    expect(countBundlePhotos(sharedBundle)).toBe(57);
+
+    // The customer sees one 40-photo source gallery; included product quotas remain separate.
     expect(getBundleGalleryPhotoCount(sharedBundle, 'shooting')).toBe(40);
+    expect(sharedBundle[1].numeroFoto).toBe(15);
+    expect(sharedBundle[2]).toMatchObject({ quantita: 2, numeroFoto: 1 });
+    expect(countBundlePhotos(sharedBundle)).toBe(57);
     expect(getBundleGalleryPhotoCount(sharedBundle, 'missing-source')).toBe(0);
     expect(getBundleGalleryPhotoCount([])).toBe(0);
   });

@@ -1214,7 +1214,7 @@ export default function BookingPage() {
                                                         ? `${item.numeroFoto} foto · galleria sorgente`
                                                         : item.numeroFoto > 0
                                                           ? product.fotoCondivise
-                                                            ? `${item.numeroFoto} foto da questa galleria`
+                                                            ? `${item.numeroFoto} foto per ${item.quantita > 1 ? 'unità' : 'questo prodotto'} · dalla stessa galleria`
                                                             : `${item.numeroFoto} foto per il prodotto`
                                                           : 'Selezione libera'}
                                                     </span>
