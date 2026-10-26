@@ -13,3 +13,11 @@ export function resolveBundleItems(items: BundleItem[] = [], catalog: Product[] 
 export function countBundlePhotos(items: BundleItem[] = []): number {
   return items.reduce((sum, item) => sum + (item.numeroFoto ?? 0) * (item.quantita ?? 1), 0);
 }
+
+/**
+ * Customer-facing unique gallery size for a bundle whose products use the
+ * same photos. Per-product photo requirements remain separate elsewhere.
+ */
+export function getBundleGalleryPhotoCount(items: BundleItem[] = []): number {
+  return items.reduce((largest, item) => Math.max(largest, item.numeroFoto ?? 0), 0);
+}

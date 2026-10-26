@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BundleItem, Product } from '@shared/booking-types';
-import { countBundlePhotos, resolveBundleItems } from './bundle-photos';
+import { countBundlePhotos, getBundleGalleryPhotoCount, resolveBundleItems } from './bundle-photos';
 
 const items: BundleItem[] = [
   { prodottoId: 'album', prodottoNome: 'Album', prodottoCategoria: 'album', quantita: 1, numeroFoto: 50 },
@@ -27,5 +27,14 @@ describe('bundle photos', () => {
     expect(countBundlePhotos([{ ...items[0], numeroFoto: 0 }])).toBe(0);
     expect(countBundlePhotos(resolveBundleItems(items, []))).toBe(70);
     expect(resolveBundleItems()).toEqual([]);
+  });
+
+  it('shows the largest included photo count as the shared customer gallery size', () => {
+    expect(getBundleGalleryPhotoCount(items)).toBe(50);
+    expect(getBundleGalleryPhotoCount([
+      { ...items[0], numeroFoto: 40 },
+      { ...items[1], numeroFoto: 10 },
+    ])).toBe(40);
+    expect(getBundleGalleryPhotoCount([])).toBe(0);
   });
 });
