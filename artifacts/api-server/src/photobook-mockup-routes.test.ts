@@ -100,7 +100,18 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     expect(h.docs.get('photobooks/book').approval).toEqual({ version: 1 });
     expect(notifyClient).not.toHaveBeenCalled();
     expect((await save(base, { revision: 3, configuration }, 'client')).status).toBe(409);
-    expect((await save(base, { revision: 3, configuration: { ...configuration, topText: 'Correzione' } })).status).toBe(200);
+    const corrected = await save(base, { revision: 3, configuration: { ...configuration, topText: 'Correzione' } });
+    expect(corrected.status).toBe(200);
+    expect(await corrected.json()).toMatchObject({
+      revision: 4,
+      status: 'submitted',
+      updatedBy: 'studio',
+      configuration: { ...configuration, topText: 'Correzione' },
+    });
+    expect(h.docs.get('photobooks/book/mockupHistory/v1-r3')).toMatchObject({
+      ...confirmed,
+      clientApproval: body.clientApproval,
+    });
     expect(h.docs.get('photobooks/book/mockups/v1').clientApproval).toBeUndefined();
   });
 

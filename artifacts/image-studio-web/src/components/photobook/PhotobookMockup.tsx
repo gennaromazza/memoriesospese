@@ -23,7 +23,7 @@ import { initialMockupSelection, mockupPresentation, needsClientModelChoice } fr
 import MockupRendererError from './MockupRendererError';
 import SavedMockupPhotoRecoveryError from './SavedMockupPhotoRecoveryError';
 import { beginMockupRendererRetry, configurationForRendererRestore, shouldSkipSavedMockupRestore } from './mockup-renderer-recovery';
-import { hasSavedMockupPhotos, loadSavedMockupPhotos, mockupRequestErrorFromResponse, savedMockupPhotoFailure, type RuntimeMockupPhoto, type SavedMockupPhotoFailure, type SavedMockupPhotoLabels } from './mockup-photo-recovery';
+import { hasSavedMockupPhotos, loadSavedMockupPhotos, loadSavedMockupPhotosPartial, mockupRequestErrorFromResponse, replaceMockupPhotoReference, savedMockupPhotoFailure, type RuntimeMockupPhoto, type SavedMockupPhotoFailure, type SavedMockupPhotoLabels, type SavedMockupPhotoSlot } from './mockup-photo-recovery';
 import { useToast } from '@/hooks/use-toast';
 import PhotobookInlineGallery from './PhotobookInlineGallery';
 import { ArrowLeft, ArrowRight, HelpCircle, LogOut, Rotate3D, RotateCcw, Save, X, ZoomIn, ZoomOut } from 'lucide-react';
@@ -97,6 +97,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   const [readyTick, setReadyTick] = useState(0);
   const [rendererError, setRendererError] = useState('');
   const [savedPhotoError, setSavedPhotoError] = useState<SavedMockupPhotoFailure | null>(null);
+  const [savedPhotoSlot, setSavedPhotoSlot] = useState<SavedMockupPhotoSlot | null>(null);
   const [savedPhotoRetryBusy, setSavedPhotoRetryBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [message, setMessage] = useState('');
@@ -195,6 +196,13 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     async id => (await request(`/photos/${id}`)).blob(),
     labels,
   );
+  const loadSavedPhotosPartial = (cfg: MockupConfiguration, labels?: SavedMockupPhotoLabels, skipSlot?: SavedMockupPhotoSlot) =>
+    loadSavedMockupPhotosPartial(
+      cfg,
+      async id => (await request(`/photos/${id}`)).blob(),
+      labels,
+      skipSlot,
+    );
   const savedBoxPhotos = async (cfg: MockupConfiguration, label = 'Foto salvata') =>
     cfg.modelId === BOX_MOCKUP_MODEL.id ? (await loadSavedPhotos(cfg, { boxPhoto: label })).boxPhotos : undefined;
   const recordSaved = (value: SavedMockup) => {
@@ -206,7 +214,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     if (busy) return;
     if (dirty && !window.confirm('Chiudere il configuratore e abbandonare le modifiche non salvate?')) return;
     setOpen(false); setPicker(false); setReady(false); setRenderBusy(true); setRendererError('');
-    setSavedPhotoError(null); setSavedPhotoRetryBusy(false); savedPhotoRecovery.current = null;
+    setSavedPhotoError(null); setSavedPhotoSlot(null); setSavedPhotoRetryBusy(false); savedPhotoRecovery.current = null;
     setDirty(false); setConfiguration(null); setRendererOverride(null); setSelection(undefined);
     setDraftCoverLayout(''); setDraftBackCover(''); setFrontPhotoPresent(false); setBackPhotoPresent(false);
     pendingOption.current = null; pendingPreview.current = null; currentPhoto.current = undefined; initializing.current = true;
@@ -506,12 +514,24 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
           const recoveryContext = { configuration: restoredConfiguration, option: restoredOption, readOnly: !editable };
           savedPhotoRecovery.current = recoveryContext;
           setSavedPhotoError(null);
-          let assets;
-          try {
-            assets = await loadSavedPhotos(saved.configuration);
-          } catch (error) {
-            if (!cancelled) setSavedPhotoError(savedMockupPhotoFailure(error));
-            return;
+          setSavedPhotoSlot(null);
+          let assets: Awaited<ReturnType<typeof loadSavedPhotos>>;
+          if (!token) {
+            const partial = await loadSavedPhotosPartial(saved.configuration);
+            if (cancelled) return;
+            assets = partial.assets;
+            const failedPhoto = partial.failures[0];
+            if (failedPhoto) {
+              setSavedPhotoError(savedMockupPhotoFailure(failedPhoto.error));
+              setSavedPhotoSlot(failedPhoto.slot);
+            }
+          } else {
+            try {
+              assets = await loadSavedPhotos(saved.configuration);
+            } catch (error) {
+              if (!cancelled) setSavedPhotoError(savedMockupPhotoFailure(error));
+              return;
+            }
           }
           photo = assets.photo;
           backPhoto = assets.backPhoto;
@@ -546,6 +566,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     let cancelled = false;
     savedPhotoRecovery.current = null;
     setSavedPhotoError(null);
+    setSavedPhotoSlot(null);
     apply({ readOnly: true });
     const freezeSaved = async () => {
       try {
@@ -612,6 +633,76 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       setMessage('Foto pronta. Salva per conservarla nel fotolibro.');
     } catch (error) { setMessage((error as Error).message); }
     finally { setBusy(false); }
+  }
+  function missingPhotoSlotLabel(slot: SavedMockupPhotoSlot) {
+    return ({
+      front: 'di copertina',
+      back: 'del plexiglass posteriore',
+      base: 'del fondo del quadro',
+      lid: 'del tappo del quadro',
+      cover: 'della copertina del quadro',
+    } as const)[slot];
+  }
+  function openMissingPhotoPicker() {
+    if (!savedPhotoSlot) return;
+    if (savedPhotoSlot === 'base' || savedPhotoSlot === 'lid' || savedPhotoSlot === 'cover') {
+      setBoxSlot(savedPhotoSlot);
+    } else {
+      setPhotoSide(savedPhotoSlot);
+    }
+    setPicker(true);
+  }
+  async function replaceUnavailablePhoto(operation: () => Promise<Response>) {
+    const context = savedPhotoRecovery.current;
+    const slot = savedPhotoSlot;
+    if (!context || !slot || !editable || context.readOnly || busy) return;
+    setBusy(true);
+    setMessage('Preparazione della foto sostitutiva…');
+    try {
+      const photo = mockupPhotoSchema.parse(await (await operation()).json());
+      const blob = await (await request(`/photos/${photo.id}`)).blob();
+      const configuration = replaceMockupPhotoReference(context.configuration, slot, photo.id);
+      const partial = await loadSavedPhotosPartial(context.configuration, undefined, slot);
+      const replacement: RuntimeMockupPhoto = { id: photo.id, name: photo.name, source: 'saved', blob };
+      let boxPhotos = partial.assets.boxPhotos;
+      let frontPhoto = partial.assets.photo;
+      let backPhoto = partial.assets.backPhoto;
+      if (slot === 'base' || slot === 'lid' || slot === 'cover') {
+        boxPhotos = { ...boxPhotos, [slot]: replacement };
+      } else if (slot === 'front') {
+        frontPhoto = replacement;
+      } else {
+        backPhoto = replacement;
+      }
+
+      if (slot === 'front') currentPhoto.current = frontPhoto;
+      else if (frontPhoto) currentPhoto.current = frontPhoto;
+      initializing.current = false;
+      setConfiguration(configuration);
+      setDirty(true);
+      setFrontPhotoPresent(!!configuration.photoAssetId);
+      setBackPhotoPresent(!!('backPhotoAssetId' in configuration && configuration.backPhotoAssetId));
+      apply({
+        configuration,
+        photo: frontPhoto,
+        backPhoto: backPhoto,
+        ...(boxPhotos ? { photos: boxPhotos } : {}),
+        option: context.option,
+        readOnly: false,
+      });
+
+      const nextFailure = partial.failures[0];
+      setSavedPhotoError(nextFailure ? savedMockupPhotoFailure(nextFailure.error) : null);
+      setSavedPhotoSlot(nextFailure?.slot || null);
+      savedPhotoRecovery.current = { ...context, configuration };
+      setMessage(nextFailure
+        ? 'Foto sostituita. È presente un’altra foto non disponibile: puoi sostituirla oppure riprovare a caricarla.'
+        : 'Foto sostituita. Le altre scelte sono state conservate: salva la bozza per creare una nuova revisione.');
+    } catch (error) {
+      setMessage(`Sostituzione non completata: ${(error as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
   }
   async function save(quiet = false): Promise<SavedMockup | undefined> {
     if (!configuration || !editable) return;
@@ -770,6 +861,25 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     if (!context || busy || renderBusy || !ready || savedPhotoRetryBusy || rendererError) return;
     setSavedPhotoRetryBusy(true);
     try {
+      if (!token && !context.readOnly) {
+        const partial = await loadSavedPhotosPartial(context.configuration);
+        const assets = partial.assets;
+        initializing.current = false;
+        currentPhoto.current = assets.photo;
+        apply({
+          configuration: context.configuration,
+          photo: assets.photo,
+          backPhoto: assets.backPhoto,
+          ...(assets.boxPhotos ? { photos: assets.boxPhotos } : {}),
+          option: context.option,
+          readOnly: false,
+        });
+        const nextFailure = partial.failures[0];
+        setSavedPhotoError(nextFailure ? savedMockupPhotoFailure(nextFailure.error) : null);
+        setSavedPhotoSlot(nextFailure?.slot || null);
+        setMessage(nextFailure ? 'Alcune foto non sono ancora disponibili.' : 'Tutte le foto salvate sono state caricate.');
+        return;
+      }
       const assets = await loadSavedPhotos(context.configuration);
       if (context.readOnly) initializing.current = true;
       currentPhoto.current = assets.photo;
@@ -782,8 +892,13 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
         readOnly: context.readOnly,
       });
       setSavedPhotoError(null);
+      setSavedPhotoSlot(null);
     } catch (error) {
       setSavedPhotoError(savedMockupPhotoFailure(error));
+      const slot = error && typeof error === 'object' && 'photoSlot' in error
+        ? (error as { photoSlot?: SavedMockupPhotoSlot }).photoSlot
+        : undefined;
+      setSavedPhotoSlot(slot || null);
     } finally {
       setSavedPhotoRetryBusy(false);
     }
@@ -1010,21 +1125,29 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
           <Button variant="outline" disabled={!editable || busy || !ready || renderBusy} onClick={() => upload.current?.click()}>Carica una foto</Button>
           <Button variant="outline" disabled={!editable || busy || !ready || renderBusy} onClick={() => setPicker(true)}>Scegli dalla galleria</Button>
         </div></div>)}
-        {(!mobile || isBox) && <input ref={upload} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={event => {
+        {(!mobile || isBox || !token) && <input ref={upload} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={event => {
           const file = event.target.files?.[0]; event.target.value = '';
           if (!file) return;
           if (file.size > 20 * 1024 * 1024) { setMessage('Scegli una foto entro 20 MB.'); return; }
-          void selectPhoto(() => request(`/upload?name=${encodeURIComponent(file.name)}`, { method: 'POST', headers: { 'Content-Type': file.type }, body: file }));
+          const operation = () => request(`/upload?name=${encodeURIComponent(file.name)}`, { method: 'POST', headers: { 'Content-Type': file.type }, body: file });
+          if (!token && savedPhotoError?.kind === 'unavailable' && savedPhotoSlot) void replaceUnavailablePhoto(operation);
+          else void selectPhoto(operation);
         }} />}
         {!token && message && adminPanel(<p role="status" className="rounded border p-3 text-sm">{message}</p>)}
           {savedPhotoError && <SavedMockupPhotoRecoveryError
             failure={savedPhotoError}
             retryBusy={savedPhotoRetryBusy || !ready || renderBusy || !!rendererError}
             onRetry={() => void retrySavedPhotoLoad()}
+            studioRepair={!token && editable && savedPhotoError.kind === 'unavailable' && savedPhotoSlot ? {
+              slotLabel: missingPhotoSlotLabel(savedPhotoSlot),
+              disabled: busy || !ready || renderBusy,
+              onChooseFromGallery: openMissingPhotoPicker,
+              onUpload: () => upload.current?.click(),
+            } : undefined}
           />}
           {token && rendererError && !choosing && <MockupRendererError message={rendererError} onRetry={retryRenderer} />}
          {token && !rendererError && (!ready || (!wizard && !isBox)) && !choosing && <p role="status" className="p-4 text-sm">Preparazione del tuo configuratore…</p>}
-         {(!mobile || viewerStarted) && !!state.data && <iframe key={`${renderer.id}-${generation}`} ref={frame} title={`Configuratore 3D ${renderer.name}`} src={`${import.meta.env.BASE_URL}mockups/${renderer.path}`} sandbox="allow-scripts allow-same-origin allow-downloads" style={{ visibility: (token && (!ready || (!wizard && !isBox) || !!rendererError || !!savedPhotoError)) || !!savedPhotoError ? 'hidden' : undefined }} aria-hidden={(token && (!ready || (!wizard && !isBox) || !!rendererError || !!savedPhotoError)) || !!savedPhotoError ? true : undefined} className={`${token ? 'w-full min-h-0 flex-1 border-0' : 'mockup-admin-viewer'} ${busy ? 'pointer-events-none' : ''}`} />}
+          {(!mobile || viewerStarted) && !!state.data && <iframe key={`${renderer.id}-${generation}`} ref={frame} title={`Configuratore 3D ${renderer.name}`} src={`${import.meta.env.BASE_URL}mockups/${renderer.path}`} sandbox="allow-scripts allow-same-origin allow-downloads" style={{ visibility: token && (!ready || (!wizard && !isBox) || !!rendererError || !!savedPhotoError) ? 'hidden' : undefined }} aria-hidden={token && (!ready || (!wizard && !isBox) || !!rendererError || !!savedPhotoError) ? true : undefined} className={`${token ? 'w-full min-h-0 flex-1 border-0' : 'mockup-admin-viewer'} ${busy ? 'pointer-events-none' : ''}`} />}
         {phoneWizard && wizard.topSlot && createPortal(<>
           <div className="mq-top">
             <p className="mq-step-count">Passo {steps.indexOf(step) + 1} di {steps.length}</p>
@@ -1201,7 +1324,9 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       </div>}
       <PhotobookPhotoPicker open={picker && !!gallery.data} onOpenChange={setPicker} photos={gallery.data?.photos || []} chapters={gallery.data?.chapters || []} title={isBox ? ({ base: 'Scegli la foto del quadro da parete', lid: 'Scegli la foto della cornice da tavolo', cover: 'Scegli la foto della copertina' }[boxSlot]) : photoSide === 'back' ? 'Scegli la foto del retro' : 'Scegli la foto di copertina'} onSelect={photo => {
         setPicker(false);
-        void selectPhoto(() => request('/gallery-photo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ photoId: photo.id }) }));
+        const operation = () => request('/gallery-photo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ photoId: photo.id }) });
+        if (!token && savedPhotoError?.kind === 'unavailable' && savedPhotoSlot) void replaceUnavailablePhoto(operation);
+        else void selectPhoto(operation);
       }} />
     </>}
       </div>

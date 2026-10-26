@@ -24,6 +24,19 @@ export interface SavedMockupPhotoLabels {
   boxPhoto?: string;
 }
 
+export type SavedMockupPhotoSlot = 'front' | 'back' | 'base' | 'lid' | 'cover';
+
+export interface SavedMockupPhotoLoadFailure {
+  slot: SavedMockupPhotoSlot;
+  id: string;
+  error: unknown;
+}
+
+export interface PartialSavedMockupPhotoAssets {
+  assets: SavedMockupPhotoAssets;
+  failures: SavedMockupPhotoLoadFailure[];
+}
+
 export type SavedMockupPhotoFailure = {
   kind: 'temporary' | 'unavailable';
   message: string;
@@ -75,25 +88,76 @@ export async function loadSavedMockupPhotos(
   loadPhoto: (id: string) => Promise<Blob>,
   labels: SavedMockupPhotoLabels = {},
 ): Promise<SavedMockupPhotoAssets> {
+  const result = await loadSavedMockupPhotosPartial(configuration, loadPhoto, labels);
+  if (result.failures.length) {
+    const failure = result.failures[0];
+    throw Object.assign(
+      failure.error instanceof Error ? failure.error : new Error('Foto salvata non disponibile'),
+      { photoSlot: failure.slot, photoAssetId: failure.id },
+    );
+  }
+  return result.assets;
+}
+
+export async function loadSavedMockupPhotosPartial(
+  configuration: MockupConfiguration,
+  loadPhoto: (id: string) => Promise<Blob>,
+  labels: SavedMockupPhotoLabels = {},
+  skipSlot?: SavedMockupPhotoSlot,
+): Promise<PartialSavedMockupPhotoAssets> {
   const photoName = labels.photo || 'Foto salvata';
   const backPhotoName = labels.backPhoto || 'Foto retro salvata';
   const boxPhotoName = labels.boxPhoto || 'Foto salvata';
-  const get = async (id: string | null | undefined, name: string): Promise<RuntimeMockupPhoto | undefined> =>
-    id ? { id, name, source: 'saved', blob: await loadPhoto(id) } : undefined;
+  const failures: SavedMockupPhotoLoadFailure[] = [];
+  const get = async (
+    id: string | null | undefined,
+    name: string,
+    slot: SavedMockupPhotoSlot,
+  ): Promise<RuntimeMockupPhoto | undefined> => {
+    if (!id || slot === skipSlot) return undefined;
+    try {
+      return { id, name, source: 'saved', blob: await loadPhoto(id) };
+    } catch (error) {
+      failures.push({ slot, id, error });
+      return undefined;
+    }
+  };
 
   if (configuration.modelId === BOX_MOCKUP_MODEL.id) {
     const [base, lid, cover] = await Promise.all([
-      get(configuration.photoAssetId, boxPhotoName),
-      get(configuration.lidPhotoAssetId, boxPhotoName),
-      get(configuration.coverPhotoAssetId, boxPhotoName),
+      get(configuration.photoAssetId, boxPhotoName, 'base'),
+      get(configuration.lidPhotoAssetId, boxPhotoName, 'lid'),
+      get(configuration.coverPhotoAssetId, boxPhotoName, 'cover'),
     ]);
-    return { boxPhotos: { base, lid, cover } };
+    return { assets: { boxPhotos: { base, lid, cover } }, failures };
   }
 
   const backPhotoAssetId = 'backPhotoAssetId' in configuration ? configuration.backPhotoAssetId : null;
   const [photo, backPhoto] = await Promise.all([
-    get(configuration.photoAssetId, photoName),
-    get(backPhotoAssetId, backPhotoName),
+    get(configuration.photoAssetId, photoName, 'front'),
+    get(backPhotoAssetId, backPhotoName, 'back'),
   ]);
-  return { photo, backPhoto };
+  return { assets: { photo, backPhoto }, failures };
+}
+
+/** Replaces exactly one saved asset reference while preserving all other mockup choices. */
+export function replaceMockupPhotoReference(
+  configuration: MockupConfiguration,
+  slot: SavedMockupPhotoSlot,
+  photoId: string,
+): MockupConfiguration {
+  if (configuration.modelId === BOX_MOCKUP_MODEL.id) {
+    const field = slot === 'base' ? 'photoAssetId'
+      : slot === 'lid' ? 'lidPhotoAssetId'
+        : slot === 'cover' ? 'coverPhotoAssetId'
+          : null;
+    if (!field) throw new Error(`Lo slot ${slot} non appartiene a questo modello`);
+    return { ...configuration, [field]: photoId };
+  }
+
+  const field = slot === 'front' ? 'photoAssetId'
+    : slot === 'back' && 'backPhotoAssetId' in configuration ? 'backPhotoAssetId'
+      : null;
+  if (!field) throw new Error(`Lo slot ${slot} non appartiene a questo modello`);
+  return { ...configuration, [field]: photoId };
 }
