@@ -131,8 +131,14 @@ function rendererTestPage() {
         window.addEventListener("message", event => {
           if (event.source !== parent || event.data?.channel !== channel || event.data.type !== "apply") return;
           const rendererId = event.data.option?.rendererId || "${custodiaId}";
-          send("change", { configuration: event.data.configuration || configurations[rendererId] || configurations["${custodiaId}"] });
+          const configuration = event.data.configuration || configurations[rendererId] || configurations["${custodiaId}"];
+          document.body.dataset.appliedModel = configuration.modelId;
+          document.body.dataset.appliedBottomText = configuration.bottomText || "";
+          send("change", { configuration });
           send("busy", { busy: false });
+        });
+        window.testChangeConfiguration = () => send("change", {
+          configuration: { ...configurations["album-girevole"], bottomText: "Scelta mobile salvata" }
         });
         send("ready");
         send("busy", { busy: false });
@@ -284,9 +290,11 @@ async function exerciseClientModelChoice(page: Page) {
   };
   let payload = multiModelClientPayload(studioDraft);
   let saveRequest: { revision: number; configuration: typeof girevoleConfiguration; selection: typeof oldModelSelection; offerRevision: number } | undefined;
+  let saveRequests = 0;
 
   await mockPhotobookApi(page, async route => {
     if (route.request().method() === "PUT") {
+      saveRequests += 1;
       saveRequest = route.request().postDataJSON() as typeof saveRequest;
       const selection = saveRequest?.selection;
       const chosenOption = [custodiaOption, girevoleOption].find(option =>
@@ -343,7 +351,39 @@ async function exerciseClientModelChoice(page: Page) {
   await expect(page.getByTestId("mockup-model-chooser")).toHaveCount(0);
   await expect(rendererFrame.locator('body[data-wizard="true"]')).toBeVisible();
   await expect(rendererFrame.locator(".wizard-primary")).toHaveCount(1);
-  if ((page.viewportSize()?.width ?? 0) < 768) return;
+  if ((page.viewportSize()?.width ?? 0) < 768) {
+    await rendererFrame.locator("body").evaluate(body => {
+      (body.ownerDocument.defaultView as (Window & { testChangeConfiguration: () => void }) | null)?.testChangeConfiguration();
+    });
+    const saveResponse = page.waitForResponse(response =>
+      response.request().method() === "PUT" &&
+      response.url().includes(`/photobooks/by-token/${token}/mockup`),
+    );
+    const nextStep = rendererFrame.locator(".mq-nav .mq-primary");
+    await expect(nextStep).toBeEnabled();
+    await nextStep.click();
+    await saveResponse;
+    expect(saveRequests).toBe(1);
+    expect(saveRequest?.configuration.bottomText).toBe("Scelta mobile salvata");
+    expect(saveRequest?.selection).toEqual({ labId: "studio", modelId: girevoleId });
+    await expect.poll(() => (payload.saved as { updatedBy: string } | undefined)?.updatedBy).toBe("client");
+
+    await page.reload();
+    const reopenedMockup = page.getByTestId("photobook-mockup");
+    await expect(reopenedMockup).toBeVisible();
+    await reopenedMockup.getByRole("button").click();
+    const restoredFrame = page.frameLocator('iframe[title="Configuratore 3D Album girevole"]');
+    await expect(restoredFrame.locator(".mq-title")).toHaveText("Ecco il tuo album");
+    await expect(restoredFrame.locator("body")).toHaveAttribute("data-applied-model", "album-girevole");
+    await expect(restoredFrame.locator("body")).toHaveAttribute("data-applied-bottom-text", "Scelta mobile salvata");
+    const changeModel = restoredFrame.getByRole("button", { name: "Cambia modello", exact: true });
+    await expect(changeModel).toBeEnabled();
+    await changeModel.click();
+    await expect(page.getByTestId(`mockup-model-${custodiaId}`)).toHaveAttribute("aria-pressed", "false");
+    await expect(page.getByTestId(`mockup-model-${girevoleId}`)).toHaveAttribute("aria-pressed", "true");
+    expect(saveRequests).toBe(1);
+    return;
+  }
 
   const saveDraft = rendererFrame.getByRole("button", { name: /Salva bozza/ });
   await expect(saveDraft).toBeEnabled();
