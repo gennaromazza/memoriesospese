@@ -79,6 +79,7 @@ export function isPrivateClientPath(pathname: string): boolean {
     || hasOneSegmentAfter('/quote', path)
     || hasOneSegmentAfter('/preventivo-rapido', path)
     || hasOneSegmentAfter('/fotolibro', path)
+    || /^\/fotolibro\/[^/]+\/mockup$/.test(path)
     || hasOneSegmentAfter('/q', path)
     || hasOneSegmentAfter('/modulo', path)
     || hasOneSegmentAfter('/regalo', path)

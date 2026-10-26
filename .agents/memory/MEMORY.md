@@ -54,3 +54,4 @@
 - [Condivisione mockup fotolibri](photobook-mockup-sharing.md) — anteprima cliente condivisibile manualmente, anche dopo approvazione manuale, senza dipendere dall’email o avviare la stampa.
 - [Ripristino dopo errore renderer mockup](mockup-renderer-retry-restore.md) — resettare il marker di revisione quando si ricrea l’iframe, altrimenti il viewer nuovo non riapplica le scelte salvate.
 - [Modifica dati cliente da fattura](invoice-client-editing.md) — correggere i dati fattura aggiorna l’anagrafica condivisa del cliente usando il form canonico.
+- [Deep link e server produzione](production-spa-deep-links.md) — Vite nasconde le route mancanti nel server produzione: verificare l’apertura diretta con il server reale, non solo la Preview.

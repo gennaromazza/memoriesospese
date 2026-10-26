@@ -181,6 +181,19 @@ describe('production web runtime', () => {
     expect(validTokenRoute.status).toBe(200);
     expect(validTokenRoute.headers.get('x-robots-tag')).toBe('noindex, nofollow, noarchive');
 
+    // Il link condiviso deve funzionare anche aperto direttamente, non solo
+    // dopo una navigazione interna alla SPA.
+    for (const pathname of ['/fotolibro/customer-token/mockup?version=1', '/fotolibro/customer-token/mockup/']) {
+      const mockup = await fetch(`${baseUrl}${pathname}`);
+      expect(mockup.status).toBe(200);
+      expect(mockup.headers.get('content-type')).toContain('text/html');
+      expect(mockup.headers.get('cache-control')).toBe('no-cache, no-store, must-revalidate');
+      expect(mockup.headers.get('x-robots-tag')).toBe('noindex, nofollow, noarchive');
+      expect(await mockup.text()).toContain('production-spa');
+    }
+    expect((await fetch(`${baseUrl}/fotolibro/customer-token/unknown`)).status).toBe(404);
+    expect((await fetch(`${baseUrl}/fotolibro/customer-token/mockup/extra`)).status).toBe(404);
+
     const unknownRoute = await fetch(`${baseUrl}/route-that-does-not-exist`);
     expect(unknownRoute.status).toBe(404);
     expect(await unknownRoute.text()).not.toContain('production-spa');
