@@ -320,12 +320,98 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
 
   const entryId = '33333333-3333-4333-8333-333333333333';
   const selection = { labId: 'lab', modelId: entryId };
-  async function publish(base: string, selections = [selection]) {
+  const secondSelection = { labId: 'lab', modelId: '66666666-6666-4666-8666-666666666666' };
+  async function publish(base: string, selections = [selection], mode: 'fixed' | 'choice' = 'choice') {
     h.docs.get('photobooks/book').jobId = 'job';
-    h.docs.set('labs/lab', { nome: 'Laboratorio scelto', attivo: true, mockupCatalog: { revision: 1, materials: [{ id: material.id, label: 'Tessuto scelto', supplierCode: 'LAB-01' }], models: [{ id: entryId, name: 'Custodia personalizzata', supplierCode: 'C-01', rendererId: MOCKUP_MODEL.id, active: true, materialIds: [material.id] }] } });
-    return fetch(`${base}/admin/offer`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: 0, savedRevision: 0, selections }) });
+    const models = selections.map((item, index) => ({
+      id: item.modelId,
+      name: index === 0 ? 'Custodia personalizzata' : `Modello alternativo ${index}`,
+      supplierCode: `C-0${index + 1}`,
+      rendererId: MOCKUP_MODEL.id,
+      active: true,
+      materialIds: [material.id],
+    }));
+    h.docs.set('labs/lab', { nome: 'Laboratorio scelto', attivo: true, mockupCatalog: { revision: 1, materials: [{ id: material.id, label: 'Tessuto scelto', supplierCode: 'LAB-01' }], models } });
+    return fetch(`${base}/admin/offer`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: 0, savedRevision: 0, mode, selections }) });
   }
   const action = (base: string, scope: string, path: string, revision: number) => fetch(`${base}/${scope}/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision, note: 'Controlla il ritaglio' }) });
+
+  it('percorso studio completo: assegna, prepara dopo, salva, conferma e lascia un link cliente verificabile', async () => {
+    const assigned = await publish(base, [selection], 'fixed');
+    expect(assigned.status).toBe(200);
+    h.docs.get('photobooks/book').mockupPath = 'studio';
+    h.docs.get('photobooks/book').approval = null;
+
+    const initial = await fetch(`${base}/admin`).then(r => r.json());
+    expect(initial).toMatchObject({ offer: { options: [{ id: entryId }] }, saved: null, approvalRequired: false });
+    expect(h.files.size).toBe(0);
+    expect([...h.docs.keys()].filter(path => path.includes('/mockupAssets/'))).toEqual([`photobooks/book/mockupAssets/${photoId}`]);
+
+    const image = await sharp({ create: { width: 80, height: 60, channels: 3, background: '#87958a' } }).jpeg().toBuffer();
+    const uploaded = await fetch(`${base}/admin/upload?name=bozza-copertina.jpg`, { method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: image });
+    expect(uploaded.status).toBe(200);
+    const photo = await uploaded.json();
+    const studioConfiguration = { ...configuration, photoAssetId: photo.id };
+
+    // Un conflitto recuperabile non perde la foto: si rilegge la revisione e si salva.
+    expect((await save(base, { revision: 0, configuration: studioConfiguration, selection, offerRevision: 99 })).status).toBe(409);
+    const saved = await save(base, { revision: 0, configuration: studioConfiguration, selection, offerRevision: 1 });
+    expect(saved.status).toBe(200);
+    expect(await saved.json()).toMatchObject({ revision: 1, status: 'draft', configuration: studioConfiguration });
+
+    const preview = await sharp({ create: { width: 24, height: 24, channels: 3, background: '#708090' } }).jpeg().toBuffer();
+    const confirmation = await fetch(`${base}/admin/confirm`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: JSON.stringify({ revision: 1, configuration: studioConfiguration, previews: Array.from({ length: 8 }, () => ({ label: 'Vista', image: `data:image/jpeg;base64,${preview.toString('base64')}` })) }),
+    });
+    expect(confirmation.status).toBe(200);
+    expect(await confirmation.json()).toMatchObject({ revision: 2, status: 'confirmed' });
+
+    const clientView = await fetch(`${base}/client?version=1`).then(r => r.json());
+    expect(clientView).toMatchObject({ mockupPath: 'studio', editable: false, clientApprovalAllowed: true, saved: { status: 'confirmed', revision: 2, configuration: studioConfiguration } });
+    expect(clientView.saved.reportPath).toBeUndefined();
+    expect((await fetch(`${base}/client/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: 2 }) })).status).toBe(200);
+    expect(h.docs.get('photobooks/book/mockups/v1').clientApproval).toMatchObject({ revision: 2, approvedAt: expect.any(String) });
+    expect(h.docs.get('photobooks/book').approval).toBeNull();
+    expect(h.docs.get('photobooks/book').locked).toBe(false);
+    expect(notifyClient).toHaveBeenCalledTimes(1); // callback mockato, nessuna email reale
+  });
+
+  it('percorso cliente completo: sceglie un modello, collega una foto e invia senza avviare la stampa', async () => {
+    expect((await publish(base, [selection, secondSelection], 'choice')).status).toBe(200);
+    h.docs.get('photobooks/book').mockupPath = 'client';
+    h.photos = [{ id: 'gallery-choice', name: 'Foto dalla galleria', url: 'https://firebasestorage.googleapis.com/v0/b/test-bucket/o/galleries%2Fchoice.jpg?alt=media' }];
+    const galleryImage = await sharp({ create: { width: 90, height: 70, channels: 3, background: '#98765a' } }).jpeg().toBuffer();
+    h.files.set('galleries/choice.jpg', galleryImage);
+
+    const available = await fetch(`${base}/client`).then(r => r.json());
+    expect(available).toMatchObject({ modelMode: 'choice', editable: true, offer: { mode: 'choice', options: [{ id: entryId }, { id: secondSelection.modelId }] }, saved: null });
+
+    const selectedPhotoResponse = await fetch(`${base}/client/gallery-photo`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ photoId: 'gallery-choice' }),
+    });
+    expect(selectedPhotoResponse.status).toBe(200);
+    const selectedPhoto = await selectedPhotoResponse.json();
+    const clientConfiguration = { ...configuration, photoAssetId: selectedPhoto.id };
+    const saved = await save(base, {
+      revision: 0,
+      configuration: clientConfiguration,
+      selection: secondSelection,
+      offerRevision: 1,
+    }, 'client');
+    expect(saved.status).toBe(200);
+    expect(await saved.json()).toMatchObject({ revision: 1, status: 'draft', updatedBy: 'client', selection: secondSelection, configuration: clientConfiguration });
+
+    expect((await action(base, 'client', 'submit', 1)).status).toBe(200);
+    expect((await fetch(`${base}/client`).then(r => r.json())).saved).toMatchObject({ revision: 2, status: 'submitted', selection: secondSelection });
+    expect((await action(base, 'client', 'submit', 2)).status).toBe(409);
+    expect(h.docs.get('photobooks/book').locked).toBe(false);
+    expect(h.docs.get('photobooks/book').approval).toEqual({ version: 1 });
+    expect(notifySubmission).toHaveBeenCalledTimes(1); // callback mockato, nessuna email reale
+  });
 
   it.each(['plaque', 'full', 'photo-plaque'].flatMap(coverLayout => ['fabric', 'photo'].flatMap(backCover => ['wood', 'white', 'fabric'].map(frameFinish => ({ coverLayout, backCover, frameFinish })))))('Plaza v4: salva e invia dal cliente con %j', async variant => {
     await publish(base);

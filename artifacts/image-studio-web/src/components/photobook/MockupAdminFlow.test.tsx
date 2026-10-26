@@ -41,6 +41,21 @@ describe('MockupAdminFlow', () => {
     expect(html.match(/>Prepara la bozza<\/button>/g)).toHaveLength(1);
     expect(html).not.toContain('Vedi in 3D');
   });
+  it('mantiene assegnazione e preparazione in ordine, senza chiedere foto nell’assegnazione', () => {
+    const state = {
+      offer: { revision: 1, mode: 'fixed', updatedAt: '', options: [{ labId: 'lab', id: 'model', name: 'Album', labName: 'Studio' }] },
+      saved: null,
+    } as unknown as Partial<MockupPayload>;
+    const html = render({}, undefined, state);
+    const steps = html.match(/<li class="flex gap-3"[\s\S]*?(?=<li class="flex gap-3"|<\/ol>)/g) || [];
+
+    expect(steps).toHaveLength(3);
+    expect(steps[0]).toContain('Cambia modello');
+    expect(steps[0]).not.toMatch(/Carica una foto|Scegli dalla galleria/);
+    expect(steps[1]).toContain('Prepara la bozza');
+    expect(steps[1]).toContain('Le foto della bozza si scelgono dalla galleria o si caricano nel passaggio successivo');
+    expect(steps[0]!.indexOf('Cambia modello')).toBeLessThan(steps[1]!.indexOf('Prepara la bozza'));
+  });
   it('indica la verifica dopo aver salvato una bozza', () => {
     const state = {
       offer: { revision: 1, mode: 'fixed', updatedAt: '', options: [{ labId: 'lab', id: 'model', name: 'Album', labName: 'Studio' }] },
@@ -69,5 +84,21 @@ describe('MockupAdminFlow', () => {
     expect(render(props, 'draft')).not.toContain('button-copy-mockup-link');
     expect(render({ ...props, version: 2, currentVersion: 3 }, 'confirmed')).not.toContain('button-copy-mockup-link');
     expect(render({ ...props, readOnly: true }, 'confirmed')).toContain('button-copy-mockup-link');
+  });
+  it('colloca link e verifica nel passo conclusivo e mantiene azioni usabili su schermi stretti', () => {
+    const state = {
+      offer: { revision: 1, mode: 'fixed', updatedAt: '', options: [{ labId: 'lab', id: 'model', name: 'Album', labName: 'Studio' }] },
+      saved: { status: 'confirmed', revision: 2 },
+    } as unknown as Partial<MockupPayload>;
+    const html = render({ clientLink: 'https://example.test/fotolibro/private-token' }, undefined, state);
+    const finalStep = (html.match(/<li class="flex gap-3"[\s\S]*?(?=<li class="flex gap-3"|<\/ol>)/g) || []).at(-1) || '';
+
+    expect(finalStep).toContain('button-copy-mockup-link');
+    expect(finalStep).toContain('Email:');
+    expect(html.match(/button-copy-mockup-link/g)).toHaveLength(1);
+    expect(html).toContain('class="flex flex-wrap gap-2"');
+    expect(html).toContain('min-h-11');
+    expect(finalStep).toContain('min-h-10');
+    expect(finalStep).not.toContain('Vedi in 3D');
   });
 });

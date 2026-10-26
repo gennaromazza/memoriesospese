@@ -7,6 +7,9 @@ describe('Approvazione cliente del mockup', () => {
     const html = renderToStaticMarkup(<MockupClientApproval disabled={false} onApprove={async () => undefined} />);
     expect(html).toContain('type="checkbox"');
     expect(html).toContain('button-approve-mockup');
+    expect(html.match(/button-approve-mockup/g)).toHaveLength(1);
+    expect(html).toContain('min-h-12 w-full');
+    expect(html).toContain('sm:w-auto');
     expect(html).toMatch(/<button[^>]*disabled=""/);
     expect(html).toContain('Non avvia automaticamente la stampa');
     expect(html).not.toContain('Personalizza');
