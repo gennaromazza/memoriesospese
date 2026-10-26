@@ -390,6 +390,73 @@ test.describe("flusso mockup su desktop", () => {
   test("lo studio copia una sola volta il link del mockup confermato", async ({ page }) => {
     await exerciseStudioSharing(page);
   });
+
+  test("il link condiviso apre la revisione confermata in sola lettura", async ({ page }) => {
+    const mutationRequests: string[] = [];
+    page.on("request", request => {
+      if (new URL(request.url()).pathname.startsWith("/api/") && !["GET", "HEAD"].includes(request.method())) {
+        mutationRequests.push(`${request.method()} ${new URL(request.url()).pathname}`);
+      }
+    });
+
+    await mockPhotobookApi(page, route =>
+      fulfillMockup(route, {
+        version: 1,
+        mockupPath: "studio",
+        editable: false,
+        enabled: true,
+        approvalRequired: false,
+        clientApprovalAllowed: true,
+        saved: {
+          revision: 7,
+          status: "confirmed",
+          updatedAt: "2026-10-01T10:00:00.000Z",
+          updatedBy: "studio",
+          selection: { labId: "studio", modelId: custodiaId },
+          configuration: {
+            modelId: custodiaId,
+            assetRevision: 2,
+            materialId,
+            appearanceRevision: 4,
+            coverLayout: "oblique",
+            topText: "",
+            bottomText: "",
+            photoAssetId: null,
+            crop,
+          },
+          option: custodiaOption,
+        },
+        offer: null,
+        modelMode: "fixed",
+        modelSelection: { labId: "studio", modelId: custodiaId },
+        offerError: null,
+      }),
+    );
+
+    const versionRequest = page.waitForRequest(request => {
+      const url = new URL(request.url());
+      return url.pathname === `/api/photobooks/by-token/${token}` && url.searchParams.get("version") === "1";
+    });
+    await page.goto(`/fotolibro/${token}/mockup?version=1`);
+    await versionRequest;
+
+    const dialog = page.getByRole("dialog", { name: "Custodia" });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText("Questa versione è in sola lettura")).toBeVisible();
+    const renderer = page.frameLocator('iframe[title^="Configuratore 3D"]');
+    await expect(renderer.locator('body[data-wizard-readonly="true"]')).toBeVisible();
+    await expect(page.getByRole("button", {
+      name: /Personalizza|Salva bozza|Invia allo studio per verifica|Richiedi modifiche|Stampa/i,
+    })).toHaveCount(0);
+    await dialog.getByRole("button", { name: "Chiudi mockup" }).click();
+
+    await expect(page.getByRole("heading", { name: /La vostra anteprima.*Fotolibro di prova/ })).toBeVisible();
+    await expect(page.getByTestId("status-photobook-approval")).toContainText("versione 1");
+    const mockup = page.getByTestId("photobook-mockup");
+    await expect(mockup.locator(".mockup-status-card")).toContainText("confermato");
+    await expect(mockup.locator(".mockup-status-card")).toContainText("revisione 7");
+    expect(mutationRequests).toEqual([]);
+  });
 });
 
 async function exerciseStudioSharing(page: Page) {
