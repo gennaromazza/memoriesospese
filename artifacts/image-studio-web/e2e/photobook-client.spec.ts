@@ -233,6 +233,62 @@ async function fulfillMockup(route: Route, body: object) {
   });
 }
 
+function confirmedMockupPayload() {
+  return {
+    version: 1,
+    mockupPath: "studio",
+    editable: false,
+    enabled: true,
+    approvalRequired: false,
+    clientApprovalAllowed: true,
+    saved: {
+      revision: 7,
+      status: "confirmed",
+      updatedAt: "2026-10-01T10:00:00.000Z",
+      updatedBy: "studio",
+      selection: { labId: "studio", modelId: custodiaId },
+      configuration: {
+        modelId: custodiaId,
+        assetRevision: 2,
+        materialId,
+        appearanceRevision: 4,
+        coverLayout: "oblique",
+        topText: "",
+        bottomText: "",
+        photoAssetId: null,
+        crop,
+      },
+      option: custodiaOption,
+    },
+    offer: null,
+    modelMode: "fixed",
+    modelSelection: { labId: "studio", modelId: custodiaId },
+    offerError: null,
+  };
+}
+
+async function openConfirmedSharedMockup(page: Page) {
+  const versionRequest = page.waitForRequest(request => {
+    const url = new URL(request.url());
+    return url.pathname === `/api/photobooks/by-token/${token}` && url.searchParams.get("version") === "1";
+  });
+  await page.goto(`/fotolibro/${token}/mockup?version=1`);
+  await versionRequest;
+
+  const dialog = page.getByRole("dialog", { name: "Custodia" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText("Questa versione è in sola lettura")).toBeVisible();
+  const renderer = page.frameLocator('iframe[title^="Configuratore 3D"]');
+  await expect(renderer.locator('body[data-wizard-readonly="true"]')).toBeVisible();
+  await expect(renderer.getByRole("button", {
+    name: /Personalizza|Modifica|Salva|Invia|Richiedi|Stampa|Cambia modello/i,
+  })).toHaveCount(0);
+  await expect(page.getByRole("button", {
+    name: /Personalizza|Salva bozza|Invia allo studio per verifica|Richiedi modifiche|Stampa/i,
+  })).toHaveCount(0);
+  return dialog;
+}
+
 test("su mobile il mockup ha un solo accesso e un errore di caricamento recuperabile", async ({ page }) => {
   let allowMockupRetry = false;
   const getMockupRequests = await mockPhotobookApi(page, async route => {
@@ -439,55 +495,8 @@ test.describe("flusso mockup su desktop", () => {
       }
     });
 
-    await mockPhotobookApi(page, route =>
-      fulfillMockup(route, {
-        version: 1,
-        mockupPath: "studio",
-        editable: false,
-        enabled: true,
-        approvalRequired: false,
-        clientApprovalAllowed: true,
-        saved: {
-          revision: 7,
-          status: "confirmed",
-          updatedAt: "2026-10-01T10:00:00.000Z",
-          updatedBy: "studio",
-          selection: { labId: "studio", modelId: custodiaId },
-          configuration: {
-            modelId: custodiaId,
-            assetRevision: 2,
-            materialId,
-            appearanceRevision: 4,
-            coverLayout: "oblique",
-            topText: "",
-            bottomText: "",
-            photoAssetId: null,
-            crop,
-          },
-          option: custodiaOption,
-        },
-        offer: null,
-        modelMode: "fixed",
-        modelSelection: { labId: "studio", modelId: custodiaId },
-        offerError: null,
-      }),
-    );
-
-    const versionRequest = page.waitForRequest(request => {
-      const url = new URL(request.url());
-      return url.pathname === `/api/photobooks/by-token/${token}` && url.searchParams.get("version") === "1";
-    });
-    await page.goto(`/fotolibro/${token}/mockup?version=1`);
-    await versionRequest;
-
-    const dialog = page.getByRole("dialog", { name: "Custodia" });
-    await expect(dialog).toBeVisible();
-    await expect(dialog.getByText("Questa versione è in sola lettura")).toBeVisible();
-    const renderer = page.frameLocator('iframe[title^="Configuratore 3D"]');
-    await expect(renderer.locator('body[data-wizard-readonly="true"]')).toBeVisible();
-    await expect(page.getByRole("button", {
-      name: /Personalizza|Salva bozza|Invia allo studio per verifica|Richiedi modifiche|Stampa/i,
-    })).toHaveCount(0);
+    await mockPhotobookApi(page, route => fulfillMockup(route, confirmedMockupPayload()));
+    const dialog = await openConfirmedSharedMockup(page);
     await dialog.getByRole("button", { name: "Chiudi mockup" }).click();
 
     await expect(page.getByRole("heading", { name: /La vostra anteprima.*Fotolibro di prova/ })).toBeVisible();
@@ -497,6 +506,41 @@ test.describe("flusso mockup su desktop", () => {
     await expect(mockup.locator(".mockup-status-card")).toContainText("revisione 7");
     expect(mutationRequests).toEqual([]);
   });
+});
+
+test("su telefono il link condiviso mostra la revisione confermata in sola lettura senza invii", async ({ page }) => {
+  const viewportWidth = page.viewportSize()?.width;
+  expect(viewportWidth).toBeDefined();
+  expect(viewportWidth).toBeLessThan(768);
+
+  const mutationRequests: string[] = [];
+  const emailRequests: string[] = [];
+  page.on("request", request => {
+    const url = new URL(request.url());
+    if (url.pathname.startsWith("/api/") && !["GET", "HEAD"].includes(request.method())) {
+      mutationRequests.push(`${request.method()} ${url.pathname}`);
+    }
+    if (url.pathname.startsWith("/api/email/")) emailRequests.push(`${request.method()} ${url.pathname}`);
+  });
+
+  await mockPhotobookApi(page, route => fulfillMockup(route, confirmedMockupPayload()));
+  const dialog = await openConfirmedSharedMockup(page);
+  const dialogBox = await dialog.boundingBox();
+  expect(dialogBox).not.toBeNull();
+  expect(dialogBox!.x).toBeGreaterThanOrEqual(0);
+  expect(dialogBox!.x + dialogBox!.width).toBeLessThanOrEqual(viewportWidth!);
+  await expect(dialog).toHaveText(/versione fotolibro 1/i);
+  await expect(dialog.locator("iframe[title^='Configuratore 3D']")).toBeVisible();
+  await expect.poll(() => dialog.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await expect(page.getByRole("button", {
+    name: /Personalizza|Modifica|Salva|Invia|Richiedi|Stampa/i,
+  })).toHaveCount(0);
+  await page.frameLocator('iframe[title^="Configuratore 3D"]').getByRole("button", { name: "Chiudi mockup" }).click();
+  await expect(page.getByTestId("photobook-mockup").locator(".mockup-status-card")).toContainText("confermato");
+  await expect(page.getByTestId("photobook-mockup").locator(".mockup-status-card")).toContainText("revisione 7");
+
+  expect(mutationRequests).toEqual([]);
+  expect(emailRequests).toEqual([]);
 });
 
 async function exerciseStudioSharing(page: Page) {
