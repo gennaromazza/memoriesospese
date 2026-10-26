@@ -1390,7 +1390,9 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
                     Prodotti nel Bundle
                   </Label>
                   <Badge variant="secondary">
-                    {formData.bundleItems?.length || 0} prodotti - galleria di {bundleGalleryPhotoCount} foto
+                    {formData.bundleItems?.length || 0} prodotti - {formData.fotoCondivise
+                      ? `galleria di ${bundleGalleryPhotoCount} foto`
+                      : `${totalBundlePhotos} foto totali`}
                   </Badge>
                 </div>
 
