@@ -183,6 +183,34 @@
   line-height: 1.5;
 }
 
+.mockup-photo-recovery-error {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 12px 16px;
+  padding: 12px 14px;
+  border: 1px solid #d8a6a0;
+  border-radius: 10px;
+  background: #fffaf8;
+  color: #3e3030;
+}
+
+.mockup-photo-recovery-error p {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 520px) {
+  .mockup-photo-recovery-error {
+    align-items: stretch;
+    flex-direction: column;
+    margin: 10px;
+  }
+}
+
 /* ============================================================
    MOBILE
    ============================================================ */
