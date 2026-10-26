@@ -1,3 +1,4 @@
+- [Form con valori iniziali asincroni](async-form-initial-values.md) — completare il lookup dei default prima di aprire il form e usare update funzionali per non sovrascrivere input recenti.
 - [Linea corretta = multi-artifact](lineage-restore-multi-artifact.md) — la struttura client/ server/ alla radice è una base vecchia: ripartire dal ramo restore/completo-20261010 (artifacts/, lib/, pnpm).
 - [Calendar SA fallback & fail-closed](calendar-sa-fallback-failclosed.md) — auth Calendar con fallback FIREBASE_ADMIN_CREDENTIALS; disponibilità mai fail-open: CALENDAR_UNAVAILABLE → 503, sync guard salta.
 - [GitHub sync senza riscrivere main](github-push-connector-token.md) — confronta gli alberi prima della cronologia; per backup divergenti crea uno snapshot via API e non fare force push senza consenso esplicito.

@@ -36,7 +36,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter,
 } from '@/components/ui/dialog';
 import {
@@ -471,7 +470,7 @@ export default function CampaignsManager() {
       isUnique = await isCampaignCodeUnique(code);
     }
     
-    setFormData({ ...formData, code });
+    setFormData(current => ({ ...current, code }));
   };
 
   // Apri dialog per nuova campagna
@@ -607,12 +606,10 @@ export default function CampaignsManager() {
           </p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={handleNewCampaign} data-testid="button-new-campaign">
-              <Plus className="h-4 w-4 mr-2" />
-              Nuova Campagna
-            </Button>
-          </DialogTrigger>
+          <Button onClick={handleNewCampaign} data-testid="button-new-campaign">
+            <Plus className="h-4 w-4 mr-2" />
+            Nuova Campagna
+          </Button>
           <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
