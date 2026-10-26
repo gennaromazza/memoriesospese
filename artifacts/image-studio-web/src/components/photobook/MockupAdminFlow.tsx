@@ -58,7 +58,7 @@ function Step({ n, title, done, active, children }: { n: number; title: string; 
   );
 }
 
-/** Gestione dell'album in 4 passi: pagine, modello, chi prepara la bozza, stato e invio. */
+/** Stato delle pagine e gestione indipendente del mockup dell'album. */
 export default function MockupAdminFlow({ photobookId, version, currentVersion, pagesApproved, mockupPath, pathBusy, onPathChange, emailStatus, emailNote, emailActions, readOnly, clientLink, onSelectVersion }: Props) {
   const state = useQuery<MockupPayload>({
     queryKey: ['photobook-mockup-flow', photobookId, version],
@@ -74,12 +74,12 @@ export default function MockupAdminFlow({ photobookId, version, currentVersion, 
   const currentStep = !state.data
     ? 0
     : !assigned
-      ? 2
+      ? 1
       : studio
         ? !saved || saved.status !== 'confirmed'
-          ? saved ? 4 : 3
-          : !pagesApproved ? 1 : 4
-        : !pagesApproved ? 1 : 4;
+          ? saved ? 3 : 2
+          : 3
+        : !pagesApproved ? 2 : 3;
   const nextAction = state.isError
     ? 'Stato non disponibile: riprova a caricare la scheda.'
     : state.isLoading && !state.data
@@ -90,25 +90,26 @@ export default function MockupAdminFlow({ photobookId, version, currentVersion, 
           ? 'Prepara la bozza: seleziona le foto della galleria o carica quelle necessarie.'
           : studio && saved?.status !== 'confirmed'
             ? 'Verifica la bozza salvata e conferma il mockup.'
-            : studio && !pagesApproved
-              ? 'Mockup confermato: il cliente riceverà il link dopo l’approvazione delle pagine.'
-              : studio && saved?.status === 'confirmed'
-                ? 'Mockup confermato: controlla l’email o copia il link di anteprima.'
-                : !pagesApproved
-                  ? 'Dopo l’approvazione delle pagine, il cliente potrà scegliere e personalizzare il modello.'
-                  : !saved
-                    ? 'Il cliente può scegliere dal link del fotolibro; controlla lo stato dell’email.'
-                    : saved.status === 'submitted'
-                      ? 'Verifica la proposta inviata dal cliente.'
-                      : saved.status === 'changes_requested'
-                        ? 'Il cliente deve aggiornare la proposta e inviarla di nuovo.'
-                        : 'Mockup confermato. Controlla l’email o copia il link di anteprima.';
+          : studio && saved?.status === 'confirmed'
+            ? 'Mockup confermato: controlla l’email o copia il link per condividerlo.'
+            : !pagesApproved
+              ? 'Il cliente potrà scegliere e personalizzare il modello dopo l’approvazione delle pagine.'
+              : !saved
+                ? 'Il cliente può scegliere dal link del fotolibro; controlla lo stato dell’email.'
+                : saved.status === 'submitted'
+                  ? 'Verifica la proposta inviata dal cliente.'
+                  : saved.status === 'changes_requested'
+                    ? 'Il cliente deve aggiornare la proposta e inviarla di nuovo.'
+                    : 'Mockup confermato. Controlla l’email o copia il link di anteprima.';
   return (
     <Card data-testid="mockup-admin-flow"><CardContent className="pt-4 space-y-4">
       <div>
         <h2 className="font-semibold">Mockup dell’album</h2>
         <p className="text-sm text-muted-foreground">Prima assegna il modello; poi prepara la bozza scegliendo o caricando le immagini necessarie. Gli asset richiesti dal prodotto sono indicati nell’assegnazione.</p>
         <p className="mt-2 rounded-md bg-muted/60 px-3 py-2 text-sm" role="status" data-testid="mockup-next-action"><strong>Prossima azione:</strong> {nextAction}</p>
+      </div>
+      <div className="rounded-md border px-3 py-2 text-sm" role="status" data-testid="photobook-page-approval-status">
+        <strong>Impaginato:</strong> {pagesApproved ? `versione ${currentVersion} approvata dal cliente` : `versione ${currentVersion} non ancora approvata`}. Questo stato è separato dal mockup.
       </div>
       {readOnly && (
         <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900" data-testid="mockup-flow-readonly">
@@ -118,10 +119,7 @@ export default function MockupAdminFlow({ photobookId, version, currentVersion, 
         </p>
       )}
       <ol className="space-y-5">
-        <Step n={1} title="Pagine approvate dal cliente" done={pagesApproved} active={currentStep === 1}>
-          <p className="text-sm">{pagesApproved ? `Il cliente ha approvato la versione ${currentVersion}.` : `In attesa che il cliente approvi la versione ${currentVersion}. Il mockup si apre al cliente solo dopo.`}</p>
-        </Step>
-        <Step n={2} title="Modello assegnato" done={assigned} active={currentStep === 2}>
+        <Step n={1} title="Modello assegnato" done={assigned} active={currentStep === 1}>
           {state.isLoading && <p className="text-sm text-muted-foreground">Caricamento…</p>}
           {state.isError && <p role="alert" className="text-sm text-destructive">Stato del mockup non leggibile.</p>}
           {state.data && (assigned
@@ -131,29 +129,29 @@ export default function MockupAdminFlow({ photobookId, version, currentVersion, 
             <Button variant={assigned ? 'outline' : 'default'} className="min-h-11" disabled={readOnly} onClick={() => openMockupTab(photobookId, 'offer')}>{assigned ? 'Cambia modello' : 'Assegna modello'}</Button>
           </div>
         </Step>
-        <Step n={3} title="Percorso del mockup" done active={currentStep === 3}>
+        <Step n={2} title="Percorso del mockup" done active={currentStep === 2}>
           <fieldset className="space-y-2" disabled={pathBusy || readOnly}>
             <legend className="sr-only">Chi prepara la bozza</legend>
-            <label className="flex items-start gap-2 text-sm"><input type="radio" name="mockup-path" className="mt-1" checked={studio} onChange={() => onPathChange('studio')} /><span><strong>Io preparo e confermo</strong><small className="block text-muted-foreground">Il cliente riceve l’email solo quando la bozza è confermata.</small></span></label>
-            <label className="flex items-start gap-2 text-sm"><input type="radio" name="mockup-path" className="mt-1" checked={!studio} onChange={() => onPathChange('client')} /><span><strong>Il cliente sceglie tra i modelli assegnati</strong><small className="block text-muted-foreground">Appena approva le pagine riceve il link e personalizza da solo.</small></span></label>
+            <label className="flex items-start gap-2 text-sm"><input type="radio" name="mockup-path" className="mt-1" checked={studio} onChange={() => onPathChange('studio')} /><span><strong>Io preparo e confermo</strong><small className="block text-muted-foreground">Puoi preparare e condividere il mockup indipendentemente dall’approvazione delle pagine.</small></span></label>
+            <label className="flex items-start gap-2 text-sm"><input type="radio" name="mockup-path" className="mt-1" checked={!studio} onChange={() => onPathChange('client')} /><span><strong>Il cliente sceglie tra i modelli assegnati</strong><small className="block text-muted-foreground">Il cliente riceve il link e personalizza dopo aver approvato le pagine.</small></span></label>
           </fieldset>
           {studio
             ? <><p className="text-sm text-muted-foreground">Le foto della bozza si scelgono dalla galleria o si caricano nel passaggio successivo, non qui.</p><Button className="min-h-11" disabled={readOnly || !assigned} onClick={() => openMockupTab(photobookId, 'edit')}>{saved ? 'Modifica la bozza' : 'Prepara la bozza'}</Button></>
             : <p className="text-sm text-muted-foreground">In questo percorso la bozza viene composta dal cliente dopo l’approvazione delle pagine.</p>}
         </Step>
-        <Step n={4} title={studio ? 'Verifica e invio al cliente' : 'Stato della scelta cliente'} done={saved?.status === 'confirmed'} active={currentStep === 4}>
+        <Step n={3} title={studio ? 'Verifica e condivisione' : 'Stato della scelta cliente'} done={saved?.status === 'confirmed'} active={currentStep === 3}>
           <p className="text-sm">{saved ? `Bozza: ${MOCKUP_STATUS_LABELS[saved.status || 'draft']} · revisione ${saved.revision}` : 'Nessuna bozza ancora.'}</p>
-          {saved?.status === 'confirmed' && <p className="text-sm" data-testid="mockup-client-approval-status">{saved.clientApproval?.revision === saved.revision ? `Approvato dal cliente il ${new Date(saved.clientApproval.approvedAt).toLocaleString('it-IT')}` : 'In attesa dell’approvazione del cliente. La tua conferma prepara il mockup da inviare.'}</p>}
+          {saved?.status === 'confirmed' && <p className="text-sm" data-testid="mockup-client-approval-status">{saved.clientApproval?.revision === saved.revision ? `Mockup approvato dal cliente il ${new Date(saved.clientApproval.approvedAt).toLocaleString('it-IT')}` : 'Il riscontro del cliente sul mockup è facoltativo e distinto dall’approvazione delle pagine.'}</p>}
           <p className="text-sm">Email: {emailStatus}</p>
           {emailNote && <p className="text-sm text-amber-700">{emailNote}</p>}
           <div className="flex flex-wrap gap-2">
             {studio && saved && saved.status !== 'confirmed' && <Button variant="outline" className="min-h-11" disabled={readOnly} onClick={() => openMockupTab(photobookId, 'review')}>Verifica e conferma</Button>}
             {emailActions}
-            {clientLink && saved?.status === 'confirmed' && pagesApproved && version === currentVersion && (
+            {clientLink && saved?.status === 'confirmed' && version === currentVersion && (
               <CopyFeedbackButton text={`${clientLink}/mockup?version=${version}`} label="Copia link mockup" testId="button-copy-mockup-link" />
             )}
           </div>
-          {clientLink && <p className="text-xs text-muted-foreground">Dopo aver salvato e confermato il mockup puoi copiare il link e inviarlo su WhatsApp o via email. Il cliente visualizza l’anteprima senza modificarla e può approvarla. La stampa non parte automaticamente.</p>}
+          {clientLink && <p className="text-xs text-muted-foreground">Dopo aver salvato e confermato il mockup puoi copiare il link e inviarlo su WhatsApp o via email. Il cliente visualizza la revisione indicata nell’anteprima senza modificarla; il riscontro è facoltativo. La stampa non parte automaticamente.</p>}
         </Step>
       </ol>
     </CardContent></Card>

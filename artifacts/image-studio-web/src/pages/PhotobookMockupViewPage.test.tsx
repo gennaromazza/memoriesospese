@@ -41,12 +41,11 @@ describe('Link diretto al mockup cliente', () => {
     expect(html).toContain('data-auto-open="true"');
     expect(html).toContain('data-confirmed-only="true"');
   });
-  it('non apre il mockup quando le pagine non sono approvate', () => {
+  it('apre il mockup confermato e mostra separatamente lo stato delle pagine non approvate', () => {
     const html = render(false);
-    expect(html).toContain('approvate prima le pagine');
-    expect(html).toContain('button-open-photobook-pages');
-    expect(html).toContain('href="/fotolibro/private-token"');
-    expect(html).not.toContain('mockup-viewer');
+    expect(html).toContain('versione 2 non è ancora approvato');
+    expect(html).toContain('mockup-viewer');
+    expect(html).toContain('data-version="2"');
   });
   it('rifiuta versioni non valide senza ripiegare su un altro fotolibro o versione', () => {
     const html = render(true, '?version=abc');

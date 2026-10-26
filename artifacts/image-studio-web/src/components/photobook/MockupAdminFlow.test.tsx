@@ -19,15 +19,15 @@ const render = (props: Partial<Parameters<typeof MockupAdminFlow>[0]> = {}, save
 };
 
 describe('MockupAdminFlow', () => {
-  it('mostra i quattro passi in ordine', () => {
+  it('mostra lo stato delle pagine separato dai tre passi del mockup', () => {
     const html = render();
-    const order = ['Pagine approvate dal cliente', 'Modello assegnato', 'Percorso del mockup', 'Verifica e invio al cliente'].map(t => html.indexOf(t));
+    const order = ['Impaginato:', 'Modello assegnato', 'Percorso del mockup', 'Verifica e condivisione'].map(t => html.indexOf(t));
     expect(order.every(i => i >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
   });
   it('segnala l’attesa di approvazione e il percorso scelto', () => {
-    expect(render()).toContain('In attesa che il cliente approvi la versione 1');
-    expect(render({ pagesApproved: true })).toContain('Il cliente ha approvato la versione 1');
+    expect(render()).toContain('versione 1 non ancora approvata');
+    expect(render({ pagesApproved: true })).toContain('versione 1 approvata dal cliente');
     expect(render({ mockupPath: 'client' })).not.toContain('Prepara la bozza');
   });
   it('mostra la preparazione come prossima azione e non duplica il comando 3D', () => {
@@ -50,22 +50,23 @@ describe('MockupAdminFlow', () => {
     expect(html).toContain('Prossima azione:</strong> Verifica la bozza salvata e conferma il mockup.');
     expect(html).toContain('Verifica e conferma</button>');
   });
-  it('indica l’attesa di approvazione pagine dopo la conferma dello studio', () => {
+  it('rende disponibile il mockup confermato prima dell’approvazione delle pagine', () => {
     const state = {
       offer: { revision: 1, mode: 'fixed', updatedAt: '', options: [{ labId: 'lab', id: 'model', name: 'Album', labName: 'Studio' }] },
       saved: { status: 'confirmed', revision: 2 },
     } as unknown as Partial<MockupPayload>;
-    const html = render({}, undefined, state);
-    expect(html).toContain('Prossima azione:</strong> Mockup confermato: il cliente riceverà il link dopo l’approvazione delle pagine.');
+    const html = render({ clientLink: 'https://example.test/fotolibro/private-token' }, undefined, state);
+    expect(html).toContain('Prossima azione:</strong> Mockup confermato: controlla l’email o copia il link per condividerlo.');
+    expect(html).toContain('button-copy-mockup-link');
+    expect(html).toContain('Il riscontro del cliente sul mockup è facoltativo');
     expect(html).toContain('aria-current="step"');
   });
-  it('condivide il link diretto solo per il mockup confermato della versione approvata corrente', () => {
-    const props = { clientLink: 'https://example.test/fotolibro/private-token', pagesApproved: true };
+  it('condivide il link diretto per la versione corrente confermata anche senza approvazione pagine', () => {
+    const props = { clientLink: 'https://example.test/fotolibro/private-token', pagesApproved: false };
     const html = render(props, 'confirmed');
     expect(html).toContain('button-copy-mockup-link');
     expect(html).toContain('https://example.test/fotolibro/private-token/mockup?version=1');
     expect(render(props, 'draft')).not.toContain('button-copy-mockup-link');
-    expect(render({ ...props, pagesApproved: false }, 'confirmed')).not.toContain('button-copy-mockup-link');
     expect(render({ ...props, version: 2, currentVersion: 3 }, 'confirmed')).not.toContain('button-copy-mockup-link');
     expect(render({ ...props, readOnly: true }, 'confirmed')).toContain('button-copy-mockup-link');
   });

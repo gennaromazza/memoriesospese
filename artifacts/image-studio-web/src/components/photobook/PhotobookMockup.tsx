@@ -216,7 +216,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   }
 
   useEffect(() => {
-    if (!autoOpen || autoOpened.current || !state.data || saved?.status !== 'confirmed' || state.data.approvalRequired || state.data.offerError) return;
+    if (!autoOpen || autoOpened.current || !state.data || saved?.status !== 'confirmed' || state.data.offerError) return;
     autoOpened.current = true;
     openConfigurator();
   }, [autoOpen, state.data, saved?.status]);
@@ -614,9 +614,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       recordSaved(confirmed);
       await queryClient.invalidateQueries({ queryKey: ['/api/photobooks', photobookId] });
       const fresh = await state.refetch({ throwOnError: true }); revision.current = fresh.data?.saved?.revision || revision.current;
-      setMessage(confirmed.notificationState === 'waiting-approval'
-        ? 'Mockup confermato. Il cliente riceverà il link dopo aver approvato le pagine.'
-        : confirmed.notificationWarning || 'Mockup confermato. Le viste e la configurazione sono conservate in questa revisione.');
+      setMessage(confirmed.notificationWarning || 'Mockup confermato. Le viste e la configurazione sono conservate in questa revisione e puoi condividere il link anche prima dell’approvazione delle pagine.');
     } catch (error) { setMessage((error as Error).message); }
     finally { setBusy(false); }
   }

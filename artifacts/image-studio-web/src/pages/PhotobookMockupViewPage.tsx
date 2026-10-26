@@ -1,12 +1,10 @@
 import { useEffect } from 'react';
 import { useParams } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'wouter';
 import { getPhotobookByToken } from '@/lib/photobooks';
 import PhotobookMockup from '@/components/photobook/PhotobookMockup';
 import { PhotobookLoadingState, PhotobookErrorState } from '@/components/photobook/PhotobookUiStates';
-import { BookOpenCheck, LockKeyhole, MessageCircleMore } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { BookOpenCheck, LockKeyhole } from 'lucide-react';
 
 /** Uses the existing private client token, without exposing admin tools or changing approval. */
 export default function PhotobookMockupViewPage() {
@@ -43,7 +41,7 @@ export default function PhotobookMockupViewPage() {
                 <LockKeyhole className="h-3.5 w-3.5" aria-hidden="true" />
                 Link riservato dello studio
               </span>
-              {state.data && <span className="rounded-full border border-[#e5ded1] bg-[#f7f3eb] px-3 py-1.5 text-[11px] font-medium tracking-wide text-[#806c51]">Revisione {state.data.version}</span>}
+              {state.data && <span className="rounded-full border border-[#e5ded1] bg-[#f7f3eb] px-3 py-1.5 text-[11px] font-medium tracking-wide text-[#806c51]">Versione fotolibro v{state.data.version}</span>}
             </div>
             <h1 className="font-playfair text-[2rem] font-medium leading-[1.12] tracking-[-0.025em] text-[#294541] sm:text-[2.8rem]">
               La vostra anteprima{state.data ? <><span className="hidden sm:inline"> · </span><span className="block text-[#668174] sm:inline">{state.data.photobook.name}</span></> : ''}
@@ -65,24 +63,16 @@ export default function PhotobookMockupViewPage() {
             ? <div className="rounded-[1.4rem] border border-[#dce5dc] bg-[#fbfcf8] p-2 shadow-[0_16px_45px_-38px_rgba(39,68,61,0.45)]">
                 <PhotobookLoadingState label="Stiamo aprendo la vostra anteprima…" />
               </div>
-            : state.data && (state.data.photobook.approval?.version !== state.data.version
-              ? <section role="status" data-testid="status-mockup-not-ready" className="rounded-[1.4rem] border border-[#e6ddc9] bg-[#fbf8f0] px-5 py-7 shadow-[0_16px_45px_-38px_rgba(88,70,43,0.35)] sm:px-8 sm:py-9">
-                  <div className="mx-auto max-w-xl text-center">
-                    <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-full bg-[#eee6d5] text-[#8c744f]"><BookOpenCheck className="h-5 w-5" aria-hidden="true" /></div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8c744f]">Anteprima in preparazione</p>
-                    <h2 className="mt-2 font-playfair text-2xl text-[#354d47] sm:text-[1.8rem]">Stiamo aspettando la revisione definitiva</h2>
-                    <p className="mt-3 text-sm leading-6 text-[#68756c]">Per aprire l’anteprima, approvate prima le pagine di questa versione dalla pagina del fotolibro. Dopo l’approvazione, questo link continuerà ad aprire la stessa anteprima.</p>
-                    <Button asChild className="mt-5 min-h-11 rounded-xl bg-[#45675b] px-5 text-[#fbfcf8] hover:bg-[#36584c]" data-testid="button-open-photobook-pages">
-                      <Link href={`/fotolibro/${encodeURIComponent(token)}`}>
-                        <MessageCircleMore className="mr-2 h-4 w-4" aria-hidden="true" />
-                        Apri le pagine del fotolibro
-                      </Link>
-                    </Button>
-                  </div>
-                </section>
-              : <div className="animate-in fade-in duration-500">
+            : state.data
+              ? <div className="space-y-4 animate-in fade-in duration-500">
+                  <p className="rounded-xl border border-[#dce5dc] bg-[#fbfcf8] px-4 py-3 text-sm leading-6 text-[#65756f]" role="status" data-testid="status-photobook-approval">
+                    {state.data.photobook.approval?.version === state.data.version
+                      ? `L’impaginato della versione ${state.data.version} è approvato. Questo link mostra separatamente il mockup preparato dallo studio.`
+                      : `L’impaginato della versione ${state.data.version} non è ancora approvato. Potete comunque consultare il mockup confermato dello studio; il riscontro sul mockup è facoltativo.`}
+                  </p>
                   <PhotobookMockup key={`${state.data.photobook.id}-${state.data.version}`} photobookId={state.data.photobook.id} version={state.data.version} token={token} readOnly autoOpen confirmedOnly />
-                </div>)}
+                </div>
+              : null}
         <footer className="flex flex-col gap-2 border-t border-[#dce4dc] px-1 pt-4 text-xs leading-5 text-[#728079] sm:flex-row sm:items-center sm:justify-between">
           <span>Un link privato, da condividere solo con chi desiderate.</span>
           <span>Visualizzare o confermare il mockup non avvia la stampa.</span>

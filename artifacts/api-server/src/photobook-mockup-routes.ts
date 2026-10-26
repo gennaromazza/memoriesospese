@@ -141,7 +141,7 @@ export function createPhotobookMockupRouter(
   const canEditBook = (data: FirebaseFirestore.DocumentData, version: number) =>
     mockupEditable(data as Parameters<typeof mockupEditable>[0], version) && !needsPageApproval(data, version) && (isAdmin || data.mockupPath !== 'studio');
   const canApproveBook = (data: FirebaseFirestore.DocumentData, version: number) =>
-    version === data.currentVersion && !data.locked && data.approval?.version === version
+    version === data.currentVersion && !data.locked
     && (data.versions || []).some((v: { version: number; status?: string }) => v.version === version && v.status !== 'draft');
   const writeLimit = uidRateLimiter(60, 10 * 60_000);
   router.use((req, res, next) => req.method === 'GET' ? next() : writeLimit(req, res, next));
@@ -399,9 +399,6 @@ export function createPhotobookMockupRouter(
           if (fresh.data()?.revision !== input.revision || freshOffer?.revision !== offer?.revision) throw new MockupError(409, 'Proposta cambiata durante la conferma: ricarica e riprova');
           tx.set(book.ref.collection('mockupHistory').doc(`v${version}-r${initial.revision}`), initial);
           tx.set(ref, confirmed);
-          if (freshBook.data()?.mockupPath !== 'client' && freshBook.data()?.approval?.version !== version) {
-            tx.update(book.ref, { [`mockupNotifications.confirmed_v${version}_r${confirmed.revision}`]: { state: 'waiting-approval' } });
-          }
         });
       } catch (error) {
         // Un errore di rete può arrivare dopo il commit: in quel caso la copia
@@ -409,21 +406,21 @@ export function createPhotobookMockupRouter(
         if (error instanceof MockupError) await file.delete().catch(() => undefined);
         throw error;
       }
-       const freshBook = await book.ref.get();
-       const freshBookData = freshBook.data() || {};
-       const awaitingPageApproval = freshBookData.approval?.version !== version;
-       if (notifyClient && freshBookData.mockupPath !== 'client' && !awaitingPageApproval) {
+      const freshBook = await book.ref.get();
+      const freshBookData = freshBook.data() || {};
+      if (notifyClient && freshBookData.mockupPath !== 'client') {
         try { await notifyClient(book, confirmed, 'confirmed'); }
         catch {
           console.warn('[photobook-mockup] Esito email conferma al cliente non confermato');
           return res.json({ ...confirmed, notificationWarning: 'Il mockup è confermato, ma l’esito dell’email al cliente non è confermato. Avvisalo manualmente senza ripetere la conferma.' });
         }
       }
-      const notificationState = freshBookData.mockupPath === 'client'
+      const notificationBook = notifyClient && freshBookData.mockupPath !== 'client'
+        ? await book.ref.get()
+        : freshBook;
+      const notificationState = notificationBook.data()?.mockupPath === 'client'
         ? undefined
-        : awaitingPageApproval
-          ? 'waiting-approval'
-          : freshBookData.mockupNotifications?.[`confirmed_v${version}_r${confirmed.revision}`]?.state;
+        : notificationBook.data()?.mockupNotifications?.[`confirmed_v${version}_r${confirmed.revision}`]?.state;
       res.json({ ...confirmed, ...(notificationState ? { notificationState } : {}) });
     } catch (error) { next(error); }
   });

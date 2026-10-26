@@ -121,21 +121,22 @@ describe('API reali: link cliente, autorizzazione e notifica pubblicazione', () 
     expect(await (await post(base, 'notify-approved-mockup', {})).json()).toMatchObject({ state: 'sent' });
     expect(sendGmailEmail).toHaveBeenCalledTimes(3);
   });
-  it('percorso studio: conferma prima delle pagine aspetta l’approvazione e poi invia un link visibile', async () => {
+  it('percorso studio: invia il link del mockup confermato anche prima dell’approvazione pagine', async () => {
     Object.assign(book(), { mockupPath: 'studio', name: 'Album', clientName: 'Anna' });
+    book().approval = null;
     book().mockupNotifications = { confirmed_v1_r4: { state: 'waiting-approval' } };
     h.docs.set('photobooks/book/mockups/v1', { version: 1, revision: 4, status: 'confirmed' });
-    expect((await post(base, 'notify-confirmed-mockup', {})).status).toBe(409);
-    expect(sendGmailEmail).not.toHaveBeenCalled();
+    expect(await (await post(base, 'notify-confirmed-mockup', {})).json()).toMatchObject({ state: 'sent' });
+    expect(book().mockupNotifications.confirmed_v1_r4.state).toBe('sent');
+    expect(vi.mocked(sendGmailEmail).mock.calls.filter(call => call[0] === 'client@example.test')).toHaveLength(1);
     const response = await fetch(`${base}/by-token/same-token-long/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ approved: true, mockupNotification: 'sent' });
+    expect(await response.json()).toMatchObject({ approved: true });
     const email = vi.mocked(sendGmailEmail).mock.calls.find(call => call[0] === 'client@example.test');
     expect(email).toBeDefined();
     expect(email![2]).toContain('https://example.test/fotolibro/same-token-long');
     expect(email![2]).toContain('contatta lo studio');
     expect(email![2]).not.toContain('inviare una nuova revisione');
-    expect(book().mockupNotifications.confirmed_v1_r4.state).toBe('sent');
     expect(vi.mocked(sendGmailEmail).mock.calls.filter(call => call[0] === 'client@example.test')).toHaveLength(1);
     await fetch(`${base}/by-token/same-token-long/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
     expect(vi.mocked(sendGmailEmail).mock.calls.filter(call => call[0] === 'client@example.test')).toHaveLength(1);

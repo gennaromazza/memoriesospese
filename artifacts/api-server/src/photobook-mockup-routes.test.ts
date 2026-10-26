@@ -114,8 +114,14 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     expect((await post('admin')).status).toBe(403);
     expect((await post('invalid')).status).toBe(404);
     h.docs.set('photobooks/book', { ...h.docs.get('photobooks/book'), approval: null });
-    expect((await post('client')).status).toBe(409);
-    expect(h.docs.get('photobooks/book/mockups/v1').clientApproval).toBeUndefined();
+    expect(await fetch(`${base}/client`).then(r => r.json())).toMatchObject({
+      editable: false,
+      approvalRequired: true,
+      clientApprovalAllowed: true,
+    });
+    expect((await post('client')).status).toBe(200);
+    expect(h.docs.get('photobooks/book/mockups/v1').clientApproval).toMatchObject({ revision: 3 });
+    expect(h.docs.get('photobooks/book').approval).toBeNull();
   });
 
   it('ricontrolla i permessi in transazione e consente di ritentare dopo una risposta persa', async () => {
@@ -631,7 +637,7 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     expect(h.docs.get('photobooks/book/mockups/v1').reportPath).toBeUndefined();
     expect(h.docs.get('photobooks/book/mockups/v1').status).toBe('draft');
   });
-  it('rinvia l’email del mockup confermato fino all’approvazione delle pagine', async () => {
+  it('conferma e notifica il mockup senza attendere l’approvazione delle pagine', async () => {
     await publish(base);
     const book = h.docs.get('photobooks/book');
     book.mockupPath = 'studio';
@@ -641,10 +647,12 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     const body = { revision: 1, configuration, previews: Array.from({ length: 8 }, () => ({ label: 'vista', image: `data:image/jpeg;base64,${image.toString('base64')}` })) };
     const response = await fetch(`${base}/admin/confirm`, { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: JSON.stringify(body) });
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ status: 'confirmed', notificationState: 'waiting-approval' });
-    expect(h.docs.get('photobooks/book').mockupNotifications.confirmed_v1_r2).toMatchObject({ state: 'waiting-approval' });
-    expect(notifyClient).not.toHaveBeenCalled();
-    expect((await fetch(`${base}/admin`).then(r => r.json())).notificationState).toBe('waiting-approval');
+    const result = await response.json();
+    expect(result).toMatchObject({ status: 'confirmed' });
+    expect(result.notificationState).not.toBe('waiting-approval');
+    expect(h.docs.get('photobooks/book').mockupNotifications).toBeUndefined();
+    expect(notifyClient).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ revision: 2, status: 'confirmed' }), 'confirmed');
+    expect((await fetch(`${base}/admin`).then(r => r.json())).notificationState).toBeUndefined();
   });
   it('rifiuta la conferma se cambia la proposta durante la generazione', async () => {
     await publish(base);

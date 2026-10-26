@@ -242,7 +242,6 @@ export default function PhotobookEditorPage() {
     ? `approved_v${book.currentVersion}`
     : Object.keys(book?.mockupNotifications || {}).filter(key => key.startsWith(`confirmed_v${book?.currentVersion}_r`)).sort((a, b) => Number(b.split('_r')[1]) - Number(a.split('_r')[1]))[0];
   const notification = notificationKey ? book?.mockupNotifications?.[notificationKey] : undefined;
-  const waitingForPageApproval = notification?.state === 'waiting-approval' && book?.approval?.version !== book?.currentVersion;
   async function handleNotification(action: 'send' | 'delivered' | 'not-delivered') {
     if (!book || !notificationKey) return;
     setNotificationBusy(true);
@@ -405,11 +404,11 @@ export default function PhotobookEditorPage() {
                toast({ title: 'Percorso aggiornato', description: 'Nessuna email retroattiva inviata.' });
              } catch (error) { toast({ title: 'Percorso non aggiornato', description: (error as Error).message, variant: 'destructive' }); }
            }}
-           emailStatus={waitingForPageApproval ? 'in attesa dell’approvazione delle pagine' : notification?.state === 'waiting-approval' ? 'approvazione completata: invio da verificare' : notification?.state === 'sent' || (notification && !notification.state) ? 'inviata' : notification?.state === 'missing-email' ? 'non inviata: manca l’indirizzo cliente' : notification?.state === 'not-delivered' ? 'non consegnata (verificata)' : notification?.state === 'pending' || notification?.state === 'uncertain' ? 'esito incerto: verifica la posta inviata' : 'non ancora prevista o inviata'}
+            emailStatus={notification?.state === 'sent' || (notification && !notification.state) ? 'inviata' : notification?.state === 'missing-email' ? 'non inviata: manca l’indirizzo cliente' : notification?.state === 'not-delivered' ? 'non consegnata (verificata)' : notification?.state === 'pending' || notification?.state === 'uncertain' ? 'esito incerto: verifica la posta inviata' : notification?.state === 'waiting-approval' ? 'da inviare' : 'non ancora prevista o inviata'}
            emailNote={notification?.state === 'missing-email' ? 'Completa l’email nella galleria o nel cliente del lavoro, poi usa “Verifica e invia”.' : notification?.state === 'uncertain' || notification?.state === 'pending' ? 'Controlla la posta inviata prima di indicare se è stata consegnata. Non viene ritentata automaticamente.' : undefined}
            emailActions={<>
              {(notification?.state === 'uncertain' || notification?.state === 'pending') && <><Button variant="outline" disabled={notificationBusy} onClick={() => void handleNotification('delivered')}>Verificata: consegnata</Button><Button variant="outline" disabled={notificationBusy} onClick={() => void handleNotification('not-delivered')}>Verificata: non consegnata</Button></>}
-             {(['missing-email', 'not-delivered'].includes(notification?.state || '') || !notification || (notification?.state === 'waiting-approval' && !waitingForPageApproval && book.mockupPath !== 'client')) && (book.mockupPath === 'client' ? book.approval?.version === book.currentVersion : !!notificationKey && !waitingForPageApproval) && <Button variant="outline" disabled={notificationBusy} onClick={() => void handleNotification('send')}>Invia email: mockup pronto</Button>}
+              {(['missing-email', 'not-delivered', 'waiting-approval'].includes(notification?.state || '') || !notification) && (book.mockupPath === 'client' ? book.approval?.version === book.currentVersion : !!notificationKey) && <Button variant="outline" disabled={notificationBusy} onClick={() => void handleNotification('send')}>Invia email: mockup pronto</Button>}
            </>}
          />
 

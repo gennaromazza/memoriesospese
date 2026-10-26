@@ -811,17 +811,6 @@ router.post('/by-token/:token/approve', async (req: Request, res: Response) => {
     if (book.mockupPath === 'client') {
       try { mockupNotification = await notifyApprovedMockup(bookDoc, book.currentVersion); }
       catch { mockupNotification = 'uncertain'; }
-    } else {
-      try {
-        const freshBook = await ref.get();
-        const currentMockup = await ref.collection('mockups').doc(`v${book.currentVersion}`).get();
-        if (freshBook.data()?.approval?.version === book.currentVersion && currentMockup.data()?.status === 'confirmed') {
-          const confirmed = currentMockup.data() as { version: number; revision: number; status: string };
-          await notifyMockupClientStatus(freshBook, confirmed, 'confirmed');
-          const latest = await ref.get();
-          mockupNotification = latest.data()?.mockupNotifications?.[`confirmed_v${confirmed.version}_r${confirmed.revision}`]?.state || 'sent';
-        }
-      } catch { mockupNotification = 'uncertain'; }
     }
     return res.json({ ok: true, approved: true, mockupNotification });
   } catch (error) {
@@ -1194,7 +1183,6 @@ router.post('/:id/notify-confirmed-mockup', async (req: Request, res: Response) 
     const version = doc.data()!.currentVersion;
     const saved = await doc.ref.collection('mockups').doc(`v${version}`).get();
     if (doc.data()!.mockupPath !== 'studio' || saved.data()?.status !== 'confirmed') return res.status(409).json({ error: 'Nessun mockup confermato nel percorso studio' });
-    if (doc.data()!.approval?.version !== version) return res.status(409).json({ error: 'L’email sarà inviata quando il cliente approverà le pagine.' });
     await notifyMockupClientStatus(doc, saved.data() as { version: number; revision: number }, 'confirmed');
     const fresh = await doc.ref.get();
     return res.json({ state: fresh.data()?.mockupNotifications?.[`confirmed_v${version}_r${saved.data()!.revision}`]?.state || 'sent' });
@@ -1248,7 +1236,7 @@ async function notifyMockupClientStatus(
   const acquired = await db.runTransaction(async (tx) => {
     const fresh = await tx.get(bookDoc.ref);
     if (!fresh.exists || fresh.data()!.locked || fresh.data()!.currentVersion !== saved.version ||
-        (event === 'confirmed' && (fresh.data()!.mockupPath === 'client' || fresh.data()!.approval?.version !== saved.version))) return 'stale';
+        (event === 'confirmed' && fresh.data()!.mockupPath === 'client')) return 'stale';
     const existing = fresh.data()?.mockupNotifications?.[key];
     if (existing && !['waiting-approval', 'missing-email', 'not-delivered'].includes(existing.state)) return existing.state === 'pending' || existing.state === 'uncertain' ? 'uncertain' : 'sent';
     tx.update(bookDoc.ref, { [`mockupNotifications.${key}`]: { attemptId, state: 'pending' } });
