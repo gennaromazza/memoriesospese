@@ -16,6 +16,7 @@ import {
   uploadCampaignImage
 } from '@/lib/booking-campaigns';
 import { getAllProducts } from '@/lib/products';
+import CampaignUnavailableProducts, { removeCampaignProduct } from './CampaignUnavailableProducts';
 import { getProductCategories } from '@/lib/product-categories';
 import type { BookingCampaignFE, Product, ProductCategory } from '@shared/booking-types';
 import { Button } from '@/components/ui/button';
@@ -145,10 +146,13 @@ export default function CampaignsManager() {
   });
 
   // Query products
-  const { data: products = [] } = useQuery<Product[]>({
+  const { data: products = [], isSuccess: productsLoaded, isError: productsError, refetch: refetchProducts } = useQuery<Product[]>({
     queryKey: ['products'],
     queryFn: getAllProducts,
   });
+  useEffect(() => {
+    if (dialogOpen) void refetchProducts();
+  }, [dialogOpen, refetchProducts]);
 
   // Usa la stessa tassonomia centralizzata usata nel catalogo prodotti.
   const { data: productCategories = [] } = useQuery<ProductCategory[]>({
@@ -989,7 +993,20 @@ export default function CampaignsManager() {
                   </Badge>
                 </div>
 
-                {productGroups.length === 0 ? (
+                {productsLoaded && (
+                  <CampaignUnavailableProducts
+                    products={products}
+                    selectedIds={selectedProducts}
+                    onRemove={id => setSelectedProducts(current => removeCampaignProduct(current, id))}
+                  />
+                )}
+                {productsError && (
+                  <p role="alert" className="text-sm text-destructive">
+                    Non è stato possibile verificare il catalogo prodotti. Le selezioni salvate sono mantenute: riapri il pannello per riprovare.
+                  </p>
+                )}
+                {!productsLoaded && !productsError && <p role="status" className="text-sm text-muted-foreground">Caricamento catalogo prodotti…</p>}
+                {productsLoaded && (productGroups.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
                     Nessun prodotto attivo. Crea dei prodotti prima di configurare la campagna.
                   </p>
@@ -1152,7 +1169,7 @@ export default function CampaignsManager() {
                       )}
                     </div>
                   </>
-                )}
+                ))}
               </div>
 
               {/* Stato Attiva */}
