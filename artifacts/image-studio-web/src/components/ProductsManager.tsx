@@ -58,18 +58,21 @@ import {
 import { apiRequest } from '@/lib/queryClient';
 import type { Product, InsertProduct, ProductCategory, BundleItem } from '@shared/booking-types';
 import { isPrintShopManagedProduct } from '@/features/print-shop/product-channel-guard';
+import { countBundlePhotos, resolveBundleItems } from '@/lib/bundle-photos';
 
 const isPrintShopProduct = (product: Product): boolean =>
   isPrintShopManagedProduct(product as Product & { salesChannels?: unknown });
 
 interface SortableProductCardProps {
   product: Product;
+  catalog: Product[];
   categories: ProductCategory[];
   onEdit: () => void;
   onDelete: () => void;
 }
 
-function SortableProductCard({ product, categories, onEdit, onDelete }: SortableProductCardProps) {
+function SortableProductCard({ product, catalog, categories, onEdit, onDelete }: SortableProductCardProps) {
+  const bundleItems = resolveBundleItems(product.bundleItems, catalog);
   const {
     attributes,
     listeners,
@@ -146,6 +149,25 @@ function SortableProductCard({ product, categories, onEdit, onDelete }: Sortable
         <p className="text-sm text-muted-foreground line-clamp-2">
           {product.descrizione || 'Nessuna descrizione'}
         </p>
+        {product.isBundle && (
+          <div className="rounded-lg border bg-muted/40 p-3 space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cosa include il bundle</p>
+            {bundleItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nessun prodotto incluso</p>
+            ) : (
+              <ul className="space-y-2">
+                {bundleItems.map(item => (
+                  <li key={item.prodottoId} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
+                    <span className="min-w-0 break-words"><strong>{item.quantita} ×</strong> {item.prodottoNome}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {item.numeroFoto} foto × {item.quantita} = {item.numeroFoto * item.quantita} foto
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
         
         <div className="space-y-2 pt-2 border-t">
           <div className="flex justify-between items-center">
@@ -172,7 +194,7 @@ function SortableProductCard({ product, categories, onEdit, onDelete }: Sortable
               <Image className="h-4 w-4" />
               Foto incluse:
             </span>
-            <span className="font-semibold">{product.numeroFoto}</span>
+            <span className="font-semibold">{product.isBundle ? countBundlePhotos(bundleItems) : product.numeroFoto}</span>
           </div>
         </div>
 
@@ -602,7 +624,8 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
   });
   
   // Calculate total photos in bundle
-  const totalBundlePhotos = formData.bundleItems?.reduce((sum, item) => sum + (item.numeroFoto * item.quantita), 0) || 0;
+  const resolvedBundleItems = resolveBundleItems(formData.bundleItems, products);
+  const totalBundlePhotos = countBundlePhotos(resolvedBundleItems);
 
   async function handleSave() {
     // Validazione
@@ -685,17 +708,20 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
 
     try {
       setIsSaving(true);
+      const productData = formData.isBundle
+        ? { ...formData, bundleItems: resolvedBundleItems, numeroFoto: totalBundlePhotos }
+        : formData;
 
       if (editingProduct) {
         // Modifica
-        await updateProduct(editingProduct.id, formData);
+        await updateProduct(editingProduct.id, productData);
         toast({
           title: 'Prodotto aggiornato',
           description: `Il prodotto "${formData.nome}" è stato modificato con successo`,
         });
       } else {
         // Creazione
-        await createProduct(formData);
+        await createProduct(productData);
         toast({
           title: 'Prodotto creato',
           description: `Il prodotto "${formData.nome}" è stato creato con successo`,
@@ -948,6 +974,7 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredProducts.map(product => (
                 <SortableProductCard
+                  catalog={products}
                   key={product.id}
                   product={product}
                   categories={allCategories}
@@ -1079,13 +1106,18 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
                 id="numeroFoto"
                 type="number"
                 min="0"
-                value={formData.numeroFoto}
+                value={formData.isBundle ? totalBundlePhotos : formData.numeroFoto}
+                readOnly={formData.isBundle}
+                aria-describedby="product-photos-help"
+                className={formData.isBundle ? 'bg-muted' : undefined}
                 onChange={e => setFormData({ ...formData, numeroFoto: parseInt(e.target.value) || 0 })}
                 placeholder="es. 20"
                 data-testid="input-product-photos"
               />
-              <p className="text-xs text-muted-foreground">
-                Numero di foto che il cliente può selezionare per questo prodotto
+              <p id="product-photos-help" className="text-xs text-muted-foreground">
+                {formData.isBundle
+                  ? 'Calcolato automaticamente: foto di ciascun prodotto × quantità. Per cambiarlo, modifica i prodotti inclusi o le quantità.'
+                  : 'Numero di foto che il cliente può selezionare per questo prodotto'}
               </p>
             </div>
 
@@ -1232,10 +1264,10 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
                 {/* Current bundle items */}
                 {formData.bundleItems && formData.bundleItems.length > 0 && (
                   <div className="space-y-2">
-                    {formData.bundleItems.map((item) => (
+                    {resolvedBundleItems.map((item) => (
                       <div 
                         key={item.prodottoId} 
-                        className="flex items-center gap-3 p-3 bg-muted rounded-lg"
+                        className="flex flex-wrap items-center gap-3 p-3 bg-muted rounded-lg"
                       >
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-sm truncate">{item.prodottoNome}</p>
@@ -1262,9 +1294,9 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
                               type="number"
                               min="0"
                               value={item.numeroFoto}
-                              onChange={(e) => updateBundleItem(item.prodottoId, { 
-                                numeroFoto: parseInt(e.target.value) || 0 
-                              })}
+                              readOnly
+                              aria-label={`Foto per ${item.prodottoNome}, dal catalogo`}
+                              title="Numero di foto del prodotto nel catalogo"
                               className="w-16 h-8 text-center"
                             />
                           </div>
