@@ -38,6 +38,8 @@ export interface Product {
   // Bundle fields
   isBundle?: boolean; // true = questo prodotto è un bundle contenente altri prodotti
   bundleItems?: BundleItem[]; // Prodotti contenuti nel bundle (solo se isBundle = true)
+  fotoCondivise?: boolean; // true = gli altri prodotti usano la galleria di un prodotto sorgente
+  prodottoSorgenteFotoId?: string; // ID del prodotto incluso che definisce la galleria condivisa
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -55,6 +57,8 @@ export interface InsertProduct {
   // Bundle fields
   isBundle?: boolean;
   bundleItems?: BundleItem[];
+  fotoCondivise?: boolean;
+  prodottoSorgenteFotoId?: string;
 }
 
 /**

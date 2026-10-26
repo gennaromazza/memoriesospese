@@ -15,9 +15,13 @@ export function countBundlePhotos(items: BundleItem[] = []): number {
 }
 
 /**
- * Customer-facing unique gallery size for a bundle whose products use the
- * same photos. Per-product photo requirements remain separate elsewhere.
+ * Returns the shared gallery size when its source product is configured;
+ * otherwise retains the existing sum for bundles without shared photos.
  */
-export function getBundleGalleryPhotoCount(items: BundleItem[] = []): number {
-  return items.reduce((largest, item) => Math.max(largest, item.numeroFoto ?? 0), 0);
+export function getBundleGalleryPhotoCount(
+  items: BundleItem[] = [],
+  sourceProductId?: string,
+): number {
+  if (!sourceProductId) return countBundlePhotos(items);
+  return items.find((item) => item.prodottoId === sourceProductId)?.numeroFoto ?? 0;
 }

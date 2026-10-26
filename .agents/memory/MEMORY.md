@@ -29,7 +29,7 @@
 - [Pagamenti e compensi collaboratori](job-collaborator-costs.md) — i costi seguono i pagamenti registrati; le modifiche al compenso devono essere atomiche e non scendere sotto il già pagato.
 - [Caricamento dati nei modal](modal-data-load-on-open.md) — modal sempre montati: fetch Firestore gated su isOpen, non al mount (auth non pronta → liste vuote silenziose).
 - [Quote product grouping](quote-product-sezione-grouping.md) — le viste cliente raggruppano i prodotti per `sezione` (algoritmo groupItems di ProductOrderEditor); `categoria` è un tag separato da NON mostrare.
-- [Bundle photo pools](bundle-photo-pools.md) — le quote dei componenti sono selezioni dalla stessa galleria shooting, non scatti unici aggiuntivi; il cliente continua ad assegnare foto per prodotto.
+- [Bundle photo pools](bundle-photo-pools.md) — la galleria condivisa deriva dal prodotto sorgente scelto dall’admin; le quote degli altri componenti non sono scatti aggiuntivi.
 - [Date all-day da istante UTC](allday-date-utc-shift.md) — data evento all-day da Date/ISO va estratta in Europe/Rome (toRomeDateTime().toISODate()), mai toISOString().split → shift -1 giorno.
 - [Google all-day events are transparent](google-allday-transparency.md) — gli all-day Google nascono transparency:'transparent'; un filtro "Libero" deve esentare gli all-day o i blocchi giornata spariscono dalla disponibilità.
 - [Dev Workflow: no server hot-reload](dev-workflow-no-server-watch.md) — `tsx server/index.ts` senza watch: le modifiche server NON si ricaricano, serve restart_workflow; solo il client (Vite) fa hot-reload.

@@ -1145,13 +1145,22 @@ export default function BookingPage() {
                                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                       <Package className="h-4 w-4" />
                                       <span>
-                                        {/* Nei bundle le foto dei prodotti abbinati usano la stessa galleria: mostra la quota maggiore come raccolta unica. */}
+                                        {/* Mostra una raccolta unica solo quando l'admin ha configurato la sorgente condivisa. */}
                                         {product.isBundle && product.bundleItems && product.bundleItems.length > 0
                                           ? (() => {
-                                              const galleryPhotos = getBundleGalleryPhotoCount(product.bundleItems);
+                                              const galleryPhotos = product.fotoCondivise
+                                                ? product.prodottoSorgenteFotoId
+                                                  ? getBundleGalleryPhotoCount(product.bundleItems, product.prodottoSorgenteFotoId)
+                                                  : 0
+                                                : getBundleGalleryPhotoCount(product.bundleItems);
+                                              const sourceIsIncluded = product.bundleItems.some(
+                                                (item) => item.prodottoId === product.prodottoSorgenteFotoId && item.numeroFoto > 0,
+                                              );
                                               return galleryPhotos > 0
                                                 ? `${galleryPhotos} foto nella galleria digitale`
-                                                : '∞ Selezione libera';
+                                                : product.fotoCondivise && !sourceIsIncluded
+                                                  ? 'Galleria condivisa da configurare'
+                                                  : '∞ Selezione libera';
                                             })()
                                           : product.numeroFoto > 0 
                                             ? `${product.numeroFoto} foto incluse`
@@ -1163,9 +1172,11 @@ export default function BookingPage() {
                                     {/* Mostra prodotti inclusi nel bundle */}
                                     {product.isBundle && product.bundleItems && product.bundleItems.length > 0 && (
                                       <>
-                                        <p className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
-                                          Il bundle comprende una sola galleria digitale. I numeri dei prodotti abbinati indicano quante foto destinare a ciascun prodotto: non sono scatti aggiuntivi.
-                                        </p>
+                                        {product.fotoCondivise && product.prodottoSorgenteFotoId && (
+                                          <p className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+                                            Il bundle usa la galleria di {product.bundleItems.find((item) => item.prodottoId === product.prodottoSorgenteFotoId)?.prodottoNome || 'un prodotto incluso'}. Le foto degli altri prodotti si scelgono da questa stessa raccolta e non sono scatti aggiuntivi.
+                                          </p>
+                                        )}
                                         <details
                                           className="group rounded-lg border bg-muted/40"
                                           onClick={(event) => event.stopPropagation()}
@@ -1199,7 +1210,13 @@ export default function BookingPage() {
                                                       {item.quantita > 1 ? `${item.quantita} × ` : ''}{item.prodottoNome}
                                                     </span>
                                                     <span className="text-xs text-muted-foreground">
-                                                      {item.numeroFoto > 0 ? `${item.numeroFoto} foto per il prodotto` : 'Selezione libera'}
+                                                      {product.fotoCondivise && item.prodottoId === product.prodottoSorgenteFotoId
+                                                        ? `${item.numeroFoto} foto · galleria sorgente`
+                                                        : item.numeroFoto > 0
+                                                          ? product.fotoCondivise
+                                                            ? `${item.numeroFoto} foto da questa galleria`
+                                                            : `${item.numeroFoto} foto per il prodotto`
+                                                          : 'Selezione libera'}
                                                     </span>
                                                   </div>
                                                   <p className="text-xs leading-relaxed text-muted-foreground">

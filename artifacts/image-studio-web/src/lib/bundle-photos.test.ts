@@ -29,12 +29,16 @@ describe('bundle photos', () => {
     expect(resolveBundleItems()).toEqual([]);
   });
 
-  it('shows the largest included photo count as the shared customer gallery size', () => {
-    expect(getBundleGalleryPhotoCount(items)).toBe(50);
-    expect(getBundleGalleryPhotoCount([
-      { ...items[0], numeroFoto: 40 },
-      { ...items[1], numeroFoto: 10 },
-    ])).toBe(40);
+  it('uses the selected source product as the shared gallery size', () => {
+    expect(getBundleGalleryPhotoCount(items)).toBe(70);
+    const sharedBundle: BundleItem[] = [
+      { ...items[0], prodottoId: 'shooting', prodottoNome: 'Shooting', numeroFoto: 40 },
+      { ...items[0], prodottoId: 'album', numeroFoto: 15 },
+      { ...items[1], prodottoId: 'keychain', quantita: 2, numeroFoto: 1 },
+    ];
+    expect(countBundlePhotos(sharedBundle)).toBe(57);
+    expect(getBundleGalleryPhotoCount(sharedBundle, 'shooting')).toBe(40);
+    expect(getBundleGalleryPhotoCount(sharedBundle, 'missing-source')).toBe(0);
     expect(getBundleGalleryPhotoCount([])).toBe(0);
   });
 });
