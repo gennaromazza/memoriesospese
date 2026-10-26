@@ -13,7 +13,8 @@ import {
   deleteCampaign,
   generateCampaignCode,
   isCampaignCodeUnique,
-  uploadCampaignImage
+  uploadCampaignImage,
+  getDuplicateCampaignCodeReport,
 } from '@/lib/booking-campaigns';
 import { getAllProducts } from '@/lib/products';
 import { getProductCategories } from '@/lib/product-categories';
@@ -143,6 +144,12 @@ export default function CampaignsManager() {
     queryFn: getAllCampaigns,
   });
 
+  const duplicateCampaignCodes = useQuery({
+    queryKey: ['booking-campaign-duplicate-codes'],
+    queryFn: getDuplicateCampaignCodeReport,
+    staleTime: 60_000,
+  });
+
   // Query products
   const { data: products = [] } = useQuery<Product[]>({
     queryKey: ['products'],
@@ -267,6 +274,7 @@ export default function CampaignsManager() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['booking-campaigns'] });
+      queryClient.invalidateQueries({ queryKey: ['booking-campaign-duplicate-codes'] });
       toast({
         title: 'Successo',
         description: 'Campagna creata con successo',
@@ -324,6 +332,7 @@ export default function CampaignsManager() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['booking-campaigns'] });
+      queryClient.invalidateQueries({ queryKey: ['booking-campaign-duplicate-codes'] });
       toast({
         title: 'Successo',
         description: 'Campagna aggiornata con successo',
@@ -344,6 +353,7 @@ export default function CampaignsManager() {
     mutationFn: deleteCampaign,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['booking-campaigns'] });
+      queryClient.invalidateQueries({ queryKey: ['booking-campaign-duplicate-codes'] });
       toast({
         title: 'Successo',
         description: 'Campagna eliminata',
@@ -1187,6 +1197,76 @@ export default function CampaignsManager() {
           </DialogContent>
         </Dialog>
       </div>
+
+      {duplicateCampaignCodes.isLoading && (
+        <p role="status" className="text-xs text-muted-foreground">Controllo codici campagna storici…</p>
+      )}
+      {duplicateCampaignCodes.isError && (
+        <section role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+          <span>Non è stato possibile verificare i codici campagna. Nessuna campagna è stata modificata.</span>
+          <Button type="button" size="sm" variant="outline" onClick={() => void duplicateCampaignCodes.refetch()}>
+            Riprova controllo
+          </Button>
+        </section>
+      )}
+      {duplicateCampaignCodes.data && duplicateCampaignCodes.data.duplicateCodes.length === 0 && (
+        <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900" data-testid="campaign-duplicate-codes-clear">
+          Controllo completato: nessun codice duplicato tra {duplicateCampaignCodes.data.checkedCampaigns} campagne.
+        </p>
+      )}
+      {!!duplicateCampaignCodes.data?.duplicateCodes.length && (
+        <section className="space-y-4 rounded-xl border border-amber-400 bg-amber-50 p-4 text-amber-950" role="alert" data-testid="campaign-duplicate-codes-warning">
+          <div>
+            <h3 className="font-semibold">
+              Codici URL duplicati: {duplicateCampaignCodes.data.duplicateCodeCount}
+            </h3>
+            <p className="mt-1 text-sm leading-6">
+              Più campagne condividono lo stesso link. Nessun dato è stato cambiato.
+              Prima di intervenire, confronta ID e prenotazioni: queste ultime restano collegate alla campagna indicata.
+            </p>
+          </div>
+          {duplicateCampaignCodes.data.duplicateCodes.map(group => (
+            <div key={group.code} className="space-y-2 rounded-lg border border-amber-300 bg-background p-3">
+              <p className="text-sm font-semibold">
+                Codice <code className="rounded bg-amber-100 px-1.5 py-0.5">{group.code}</code>
+                <span className="ml-2 font-normal">· link /prenota/{group.code}</span>
+              </p>
+              <ul className="space-y-2">
+                {group.campaigns.map(candidate => {
+                  const campaign = campaigns.find(item => item.id === candidate.id);
+                  return (
+                    <li key={candidate.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="break-words font-medium">
+                          {candidate.nome}
+                          <Badge variant={candidate.attiva ? 'default' : 'secondary'} className="ml-2">
+                            {candidate.attiva ? 'Attiva' : 'Disattiva'}
+                          </Badge>
+                        </p>
+                        <p className="mt-1 break-all text-xs text-muted-foreground">
+                          ID campagna: <code>{candidate.id}</code>
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {candidate.dataInizio ? format(new Date(candidate.dataInizio), 'dd MMM yyyy', { locale: it }) : 'Inizio non disponibile'}
+                          {' – '}
+                          {candidate.dataFine ? format(new Date(candidate.dataFine), 'dd MMM yyyy', { locale: it }) : 'fine non disponibile'}
+                          {' · '}
+                          {candidate.prenotazioni} {candidate.prenotazioni === 1 ? 'prenotazione' : 'prenotazioni'} collegate
+                        </p>
+                      </div>
+                      {campaign && (
+                        <Button type="button" size="sm" variant="outline" onClick={() => handleEditCampaign(campaign)}>
+                          Apri campagna
+                        </Button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </section>
+      )}
 
       {/* Lista Campagne */}
       {loadingCampaigns ? (

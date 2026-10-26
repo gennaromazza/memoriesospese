@@ -22,7 +22,53 @@ import type { BookingCampaignFE } from '@shared/booking-types';
 
 const COLLECTION = 'booking_campaigns';
 
+export interface DuplicateCampaignCodeEntry {
+  id: string;
+  code: string;
+  nome: string;
+  attiva: boolean;
+  dataInizio: string | null;
+  dataFine: string | null;
+  prenotazioni: number;
+}
+
+export interface DuplicateCampaignCodeGroup {
+  code: string;
+  campaigns: DuplicateCampaignCodeEntry[];
+}
+
+export interface DuplicateCampaignCodeReport {
+  checkedCampaigns: number;
+  duplicateCodeCount: number;
+  duplicateCampaignCount: number;
+  duplicateCodes: DuplicateCampaignCodeGroup[];
+}
+
 export type BookingCampaignImageKind = 'slider' | 'booking';
+
+export async function getDuplicateCampaignCodeReport(): Promise<DuplicateCampaignCodeReport> {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('Sessione amministratore non disponibile. Ricarica la pagina e accedi di nuovo.');
+  }
+  const response = await fetch(createUrl('/api/admin/campaigns/duplicate-codes'), {
+    headers: { Authorization: `Bearer ${await user.getIdToken()}` },
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message = typeof payload?.error === 'string' ? payload.error : 'Non è stato possibile verificare i codici delle campagne.';
+    throw new Error(message);
+  }
+  if (
+    !Number.isInteger(payload?.checkedCampaigns)
+    || !Number.isInteger(payload?.duplicateCodeCount)
+    || !Number.isInteger(payload?.duplicateCampaignCount)
+    || !Array.isArray(payload?.duplicateCodes)
+  ) {
+    throw new Error('Il server ha restituito un controllo codici non valido.');
+  }
+  return payload as DuplicateCampaignCodeReport;
+}
 
 export async function uploadCampaignImage(
   campaignId: string,

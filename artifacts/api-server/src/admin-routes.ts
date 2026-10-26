@@ -14,6 +14,7 @@ import { generateGalleryThumbnails } from './thumbnails.js';
 import { safeErrorMessage } from './utils/safe-logging.js';
 import { CampaignImageUploadError, storeCampaignImage } from './campaign-image-upload.js';
 import { CampaignCodeConflictError, createBookingCampaign } from './booking-campaign-service.js';
+import { campaignLookupCode, findDuplicateCampaignCodes } from './booking-campaign-duplicates.js';
 
 const router = express.Router();
 
@@ -42,6 +43,39 @@ router.post('/campaigns', authenticateFirebase, requireAdmin, async (req: any, r
     }
     req.log?.error({ err: error }, 'Impossibile creare la campagna');
     return res.status(500).json({ error: 'Errore durante la creazione della campagna.' });
+  }
+});
+
+router.get('/campaigns/duplicate-codes', authenticateFirebase, requireAdmin, async (req: any, res): Promise<HttpHandlerResult> => {
+  try {
+    const snapshot = await db.collection('booking_campaigns').get();
+    const documents = snapshot.docs.map(document => ({ id: document.id, data: document.data() }));
+    const candidates = documents.filter(document => campaignLookupCode(document) !== null);
+
+    const idsByCode = new Map<string, string[]>();
+    for (const document of candidates) {
+      const code = campaignLookupCode(document)!;
+      const ids = idsByCode.get(code) ?? [];
+      ids.push(document.id);
+      idsByCode.set(code, ids);
+    }
+    const duplicateIds = [...idsByCode.values()].filter(ids => ids.length > 1).flat();
+    const bookingCounts = new Map<string, number>();
+    await Promise.all(duplicateIds.map(async campaignId => {
+      const count = await db.collection('bookings').where('campaignId', '==', campaignId).count().get();
+      bookingCounts.set(campaignId, count.data().count);
+    }));
+
+    const duplicateCodes = findDuplicateCampaignCodes(documents, bookingCounts);
+    return res.json({
+      checkedCampaigns: documents.length,
+      duplicateCodeCount: duplicateCodes.length,
+      duplicateCampaignCount: duplicateCodes.reduce((sum, group) => sum + group.campaigns.length, 0),
+      duplicateCodes,
+    });
+  } catch (error) {
+    req.log?.error({ err: error }, 'Impossibile controllare i codici duplicati delle campagne');
+    return res.status(500).json({ error: 'Non è stato possibile verificare i codici delle campagne.' });
   }
 });
 
