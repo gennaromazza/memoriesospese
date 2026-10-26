@@ -45,4 +45,56 @@ export function isValidBundlePhotoSource(
   );
 }
 
-/** Counts unique photo pools while preserving separate per-product requirements. */
+export type PhotoProductAssignments = Record<string, string[]>;
+
+export type PhotoProductAssignmentAction = 'added' | 'removed' | 'limit-reached';
+
+export interface PhotoProductAssignmentResult {
+  assignments: PhotoProductAssignments;
+  action: PhotoProductAssignmentAction;
+  productCount: number;
+}
+
+/**
+ * Toggles a photo for one product while enforcing that product's own quota.
+ * A photo can still be assigned to other products from the same shared gallery.
+ */
+export function togglePhotoProductAssignment(
+  assignments: PhotoProductAssignments,
+  photoId: string,
+  productIndex: string | number,
+  productLimit: number,
+): PhotoProductAssignmentResult {
+  const productKey = String(productIndex);
+  const currentPhotoAssignments = assignments[photoId] || [];
+
+  if (currentPhotoAssignments.includes(productKey)) {
+    const nextPhotoAssignments = currentPhotoAssignments.filter((index) => index !== productKey);
+    const nextAssignments = { ...assignments };
+    if (nextPhotoAssignments.length === 0) {
+      delete nextAssignments[photoId];
+    } else {
+      nextAssignments[photoId] = nextPhotoAssignments;
+    }
+
+    return {
+      assignments: nextAssignments,
+      action: 'removed',
+      productCount: Object.values(nextAssignments).filter((products) => products.includes(productKey)).length,
+    };
+  }
+
+  const currentProductCount = Object.values(assignments).filter((products) => products.includes(productKey)).length;
+  if (productLimit > 0 && currentProductCount >= productLimit) {
+    return { assignments, action: 'limit-reached', productCount: currentProductCount };
+  }
+
+  return {
+    assignments: {
+      ...assignments,
+      [photoId]: [...currentPhotoAssignments, productKey],
+    },
+    action: 'added',
+    productCount: currentProductCount + 1,
+  };
+}

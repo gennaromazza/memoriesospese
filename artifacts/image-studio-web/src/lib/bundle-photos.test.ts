@@ -7,6 +7,7 @@ import {
   getRequiredGalleryPhotoCount,
   isValidBundlePhotoSource,
   resolveBundleItems,
+  togglePhotoProductAssignment,
 } from './bundle-photos';
 import { catalogProductToQuoteProduct } from './quote-mappers';
 
@@ -143,6 +144,79 @@ describe('bundle photos', () => {
       { prodottoId: 'accessory', prodottoNome: 'Accessorio (2/2) - Shooting + album', prodottoNumeroFoto: 1, galleriaCondivisaId: 'bundle:0:shooting' },
     ]);
     expect(getRequiredGalleryPhotoCount(requirements)).toBe(40);
+  });
+
+  it('keeps 40, 15, and two 1-photo product quotas independent in the shared customer picker', () => {
+    const selectedBundle = {
+      id: 'bundle',
+      nome: 'Shooting + album + accessorio',
+      descrizione: '',
+      prezzo: 100,
+      prezzoFinale: 100,
+      sconto: 0,
+      numeroFoto: 57,
+      categoria: 'pacchetto',
+      attivo: true,
+      immagini: [],
+      isBundle: true,
+      fotoCondivise: true,
+      prodottoSorgenteFotoId: 'shooting',
+      bundleItems: [
+        { prodottoId: 'shooting', prodottoNome: 'Shooting', prodottoCategoria: 'shooting', quantita: 1, numeroFoto: 40 },
+        { prodottoId: 'album', prodottoNome: 'Album', prodottoCategoria: 'album', quantita: 1, numeroFoto: 15 },
+        { prodottoId: 'accessory', prodottoNome: 'Accessorio', prodottoCategoria: 'accessorio', quantita: 2, numeroFoto: 1 },
+      ],
+    } as Product;
+    const selectedQuoteProduct = catalogProductToQuoteProduct(selectedBundle, 'variabile');
+    const requirements = expandOrderProductsToRequirements([{
+      prodottoId: selectedQuoteProduct.productId,
+      prodottoNome: selectedQuoteProduct.nome,
+      prodottoNumeroFoto: selectedQuoteProduct.numeroFoto,
+      quantita: 1,
+      isBundle: selectedQuoteProduct.isBundle,
+      fotoCondivise: selectedQuoteProduct.fotoCondivise,
+      prodottoSorgenteFotoId: selectedQuoteProduct.prodottoSorgenteFotoId,
+      bundleItems: selectedQuoteProduct.bundleItems,
+    }]);
+
+    expect(requirements.map((product) => product.prodottoNumeroFoto)).toEqual([40, 15, 1, 1]);
+    expect(getRequiredGalleryPhotoCount(requirements)).toBe(40);
+
+    let assignments: Record<string, string[]> = {};
+    for (let photo = 1; photo <= 40; photo++) {
+      const result = togglePhotoProductAssignment(assignments, `photo-${photo}`, 0, requirements[0].prodottoNumeroFoto!);
+      expect(result.action).toBe('added');
+      assignments = result.assignments;
+    }
+    expect(Object.values(assignments).filter((products) => products.includes('0'))).toHaveLength(40);
+
+    for (let photo = 1; photo <= 15; photo++) {
+      const result = togglePhotoProductAssignment(assignments, `photo-${photo}`, 1, requirements[1].prodottoNumeroFoto!);
+      expect(result.action).toBe('added');
+      assignments = result.assignments;
+    }
+    const albumOverflow = togglePhotoProductAssignment(assignments, 'photo-16', 1, requirements[1].prodottoNumeroFoto!);
+    expect(albumOverflow.action).toBe('limit-reached');
+    expect(albumOverflow.assignments).toBe(assignments);
+
+    for (const [productIndex, photoId] of [[2, 'photo-1'], [3, 'photo-1']] as const) {
+      const result = togglePhotoProductAssignment(assignments, photoId, productIndex, requirements[productIndex].prodottoNumeroFoto!);
+      expect(result.action).toBe('added');
+      assignments = result.assignments;
+    }
+
+    const firstAccessoryOverflow = togglePhotoProductAssignment(assignments, 'photo-2', 2, 1);
+    const secondAccessoryOverflow = togglePhotoProductAssignment(assignments, 'photo-2', 3, 1);
+    expect(firstAccessoryOverflow.action).toBe('limit-reached');
+    expect(secondAccessoryOverflow.action).toBe('limit-reached');
+    expect(firstAccessoryOverflow.assignments).toBe(assignments);
+    expect(secondAccessoryOverflow.assignments).toBe(assignments);
+
+    expect(Object.values(assignments).filter((products) => products.includes('1'))).toHaveLength(15);
+    expect(Object.values(assignments).filter((products) => products.includes('2'))).toHaveLength(1);
+    expect(Object.values(assignments).filter((products) => products.includes('3'))).toHaveLength(1);
+    expect(Object.keys(assignments)).toHaveLength(40);
+    expect(assignments['photo-1']).toEqual(['0', '1', '2', '3']);
   });
 
   it('preserves the existing total and per-unit order behavior when photos are not shared', () => {

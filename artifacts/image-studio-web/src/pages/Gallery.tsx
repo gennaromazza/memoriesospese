@@ -46,7 +46,10 @@ import GalleryFooter from "@/components/gallery/GalleryFooter";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import GalleryService from "@/lib/galleries";
 import PhotoService, { Photo } from "@/lib/photos"; // 🔧 Import Photo type per allineamento tipi
-import { getRequiredGalleryPhotoCount } from "@/lib/bundle-photos";
+import {
+  getRequiredGalleryPhotoCount,
+  togglePhotoProductAssignment,
+} from "@/lib/bundle-photos";
 import { queryClient } from "@/lib/queryClient";
 import GalleryFilter, {
   FilterCriteria,
@@ -1081,66 +1084,37 @@ export default function Gallery() {
       const productLimit = galleryData?.productRequirements?.[prodIndex]?.prodottoNumeroFoto || 0;
 
       setPhotoAssignments((prev) => {
-        const currentAssignments = prev[photoId] || [];
-        const isAssigned = currentAssignments.includes(productIndex);
+        const result = togglePhotoProductAssignment(prev, photoId, productIndex, productLimit);
 
-        let newAssignments: string[];
-        if (isAssigned) {
-          // Remove product from this photo
-          newAssignments = currentAssignments.filter((idx) => idx !== productIndex);
-
-          // Toast feedback for removal
+        if (result.action === 'removed') {
           toast({
             title: `📤 Foto rimossa`,
             description: `Rimossa da ${productName}`,
             duration: 2000,
           });
+        } else if (result.action === 'limit-reached') {
+          toast({
+            title: `⚠️ Limite raggiunto`,
+            description: `${productName} può avere massimo ${productLimit} foto. Ne hai già ${result.productCount} assegnate.`,
+            variant: 'destructive',
+          });
         } else {
-          // VALIDATION: Check if product limit is reached before adding
-          const currentProductCount = Object.values(prev).filter(
-            assignments => assignments.includes(productIndex)
-          ).length;
-
           const isProductUnlimited = productLimit <= 0;
-
-          if (!isProductUnlimited && currentProductCount >= productLimit) {
-            toast({
-              title: `⚠️ Limite raggiunto`,
-              description: `${productName} può avere massimo ${productLimit} foto. Ne hai già ${currentProductCount} assegnate.`,
-              variant: 'destructive',
-            });
-            return prev; // Don't add, return unchanged state
-          }
-
-          // Add product to this photo
-          newAssignments = [...currentAssignments, productIndex];
-
-          // Toast feedback for assignment
           toast({
             title: `✨ Foto aggiunta`,
-            description: `Assegnata a ${productName} (${currentProductCount + 1}/${isProductUnlimited ? '∞' : productLimit})`,
+            description: `Assegnata a ${productName} (${result.productCount}/${isProductUnlimited ? '∞' : productLimit})`,
             duration: 2000,
           });
         }
 
-        const updatedPhotoAssignments = { ...prev };
-        if (newAssignments.length === 0) {
-          // Remove photo entirely if no products assigned
-          delete updatedPhotoAssignments[photoId];
-          // 🔥 FIX: selectedPhotoIds è derivato automaticamente da photoAssignments via useMemo
-        } else {
-          updatedPhotoAssignments[photoId] = newAssignments;
-          // 🔥 FIX: selectedPhotoIds è derivato automaticamente da photoAssignments via useMemo
-        }
-
         console.log(
           `🏷️ Toggle product ${productIndex} for photo ${photoId}:`,
-          isAssigned ? 'removed' : 'added',
+          result.action,
           'New assignments:',
-          updatedPhotoAssignments[photoId] || []
+          result.assignments[photoId] || []
         );
 
-        return updatedPhotoAssignments;
+        return result.assignments;
       });
     },
     [isDeadlinePassed, selectionStatus, toast, galleryData?.productRequirements, photos, isPhotoExcludedFromSelection],
