@@ -15,6 +15,7 @@ import { isAdminPath, manifestForPath } from "./lib/pwa-manifest";
 
 import PublicHomepage from "./pages/public/PublicHomepage";
 import StudioSettingsPreviewE2EHarness from "./pages/StudioSettingsPreviewE2EHarness";
+import PhotobookMockupSharingE2EHarness from "./pages/PhotobookMockupSharingE2EHarness";
 import NotFound from "./pages/NotFound";
 import CookieBanner from "./components/CookieBanner";
 import ProfileImageWelcomeProvider from "./components/ProfileImageWelcomeProvider";
@@ -292,6 +293,9 @@ function AppRoutes() {
         )}
         {import.meta.env.DEV && (
           <Route path="/admin/__e2e/mockup-offer" component={MockupOfferE2EHarness} />
+        )}
+        {import.meta.env.DEV && (
+          <Route path="/admin/__e2e/photobook-mockup-sharing" component={PhotobookMockupSharingE2EHarness} />
         )}
         {import.meta.env.DEV && (
           <Route

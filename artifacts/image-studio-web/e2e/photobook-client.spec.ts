@@ -253,8 +253,8 @@ test("su mobile il mockup ha un solo accesso e un errore di caricamento recupera
   allowMockupRetry = true;
   await card.getByRole("button", { name: "Riprova" }).click();
 
-  await expect(card.getByText("Personalizzazione in preparazione")).toBeVisible();
-  await expect(page.getByText("Personalizzazione in preparazione")).toHaveCount(1);
+  await expect(card.getByTestId("mockup-not-enabled")).toContainText("La proposta non è ancora pronta");
+  await expect(page.getByTestId("mockup-not-enabled")).toHaveCount(1);
   expect(getMockupRequests()).toBeGreaterThan(1);
 });
 
@@ -272,7 +272,7 @@ test("su mobile il cliente vede un solo pulsante per aprire un mockup pronto", a
   expect(getMockupRequests()).toBe(1);
 });
 
-test("il cliente confronta tutti i modelli e recupera la scelta salvata anche con una vecchia assegnazione fissa", async ({ page }) => {
+async function exerciseClientModelChoice(page: Page) {
   const studioDraft = {
     revision: 1,
     status: "draft",
@@ -329,10 +329,22 @@ test("il cliente confronta tutti i modelli e recupera la scelta salvata anche co
 
   await girevoleCard.click();
   await expect(chooser).toHaveAttribute("data-chooser-stage", "styles");
+  const chooserBox = await chooser.boundingBox();
+  expect(chooserBox).not.toBeNull();
+  expect(chooserBox!.x).toBeGreaterThanOrEqual(0);
+  expect(chooserBox!.x + chooserBox!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
   await page.getByTestId("choose-mockup-example-plaque").click();
-  await chooser.getByRole("button", { name: /Continua/ }).click();
+  const continueButton = chooser.getByRole("button", { name: /Continua/ });
+  await expect(continueButton).toHaveCount(1);
+  page.once("dialog", dialog => dialog.accept());
+  await continueButton.click();
 
   const rendererFrame = page.frameLocator('iframe[title="Configuratore 3D Album girevole"]');
+  await expect(page.getByTestId("mockup-model-chooser")).toHaveCount(0);
+  await expect(rendererFrame.locator('body[data-wizard="true"]')).toBeVisible();
+  await expect(rendererFrame.locator(".wizard-primary")).toHaveCount(1);
+  if ((page.viewportSize()?.width ?? 0) < 768) return;
+
   const saveDraft = rendererFrame.getByRole("button", { name: /Salva bozza/ });
   await expect(saveDraft).toBeEnabled();
   const savedStateRefresh = page.waitForResponse(response =>
@@ -349,10 +361,74 @@ test("il cliente confronta tutti i modelli e recupera la scelta salvata anche co
   await expect(reopenedMockup).toBeVisible();
   await reopenedMockup.getByRole("button").click();
   await expect(page.getByTestId("mockup-model-chooser")).toHaveCount(0);
-  const changeModel = page.getByRole("button", { name: "Cambia", exact: true });
+  const changeModelLabel = (page.viewportSize()?.width ?? 0) < 768 ? "Cambia" : "Cambia modello";
+  const changeModel = page.getByRole("button", { name: changeModelLabel, exact: true });
+  await expect(changeModel).toHaveCount(1);
   await expect(changeModel).toBeEnabled();
   await changeModel.click();
 
   await expect(page.getByTestId(`mockup-model-${custodiaId}`)).toHaveAttribute("aria-pressed", "false");
   await expect(page.getByTestId(`mockup-model-${girevoleId}`)).toHaveAttribute("aria-pressed", "true");
+}
+
+test("su telefono il cliente sceglie il modello e apre il configuratore", async ({ page }) => {
+  await exerciseClientModelChoice(page);
+});
+
+test.describe("flusso mockup su desktop", () => {
+  test.use({
+    viewport: { width: 1280, height: 900 },
+    isMobile: false,
+    hasTouch: false,
+    deviceScaleFactor: 1,
+  });
+
+  test("su desktop il cliente salva e recupera la scelta dopo una ricarica", async ({ page }) => {
+    await exerciseClientModelChoice(page);
+  });
+
+  test("lo studio copia una sola volta il link del mockup confermato", async ({ page }) => {
+    await exerciseStudioSharing(page);
+  });
+});
+
+async function exerciseStudioSharing(page: Page) {
+  let apiRequests = 0;
+  await page.route("**/api/**", async route => {
+    apiRequests += 1;
+    await route.abort();
+  });
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto("/admin/__e2e/photobook-mockup-sharing");
+  const cookieDismiss = page.getByTestId("cookie-reject-btn");
+  if (await cookieDismiss.isVisible().catch(() => false)) await cookieDismiss.click();
+
+  const flow = page.getByTestId("mockup-admin-flow");
+  await expect(flow).toBeVisible();
+  await flow.getByRole("radio", { name: /Io preparo e confermo/ }).check();
+
+  const shareButton = flow.getByTestId("button-copy-mockup-link");
+  await expect(shareButton).toHaveCount(1);
+  await expect(shareButton).toHaveAccessibleName(
+    `Copia link mockup: ${localOrigin}/fotolibro/e2e-share-token/mockup?version=1`,
+  );
+  await expect(flow.getByText("Copia link mockup", { exact: true })).toHaveCount(1);
+  await expect(flow.getByRole("button", { name: /Invia email|Invia allo studio/ })).toHaveCount(0);
+  await expect(flow.getByText(/La stampa non parte automaticamente/)).toBeVisible();
+  await expect.poll(() => flow.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+
+  const buttonBox = await shareButton.boundingBox();
+  expect(buttonBox).not.toBeNull();
+  expect(buttonBox!.x + buttonBox!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+
+  await shareButton.click();
+  await expect(shareButton).toContainText("Copiato");
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(
+    `${localOrigin}/fotolibro/e2e-share-token/mockup?version=1`,
+  );
+  expect(apiRequests).toBe(0);
+}
+
+test("lo studio copia una sola volta il link del mockup confermato su telefono", async ({ page }) => {
+  await exerciseStudioSharing(page);
 });

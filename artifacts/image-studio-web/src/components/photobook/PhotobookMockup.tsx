@@ -248,7 +248,9 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
 
   function chooseExample(option: MockupOption, layout: string) {
     if (!editable) return;
-    if (viewerStarted && (!ready || renderBusy || busy)) return;
+    // When the chooser is open, selecting its model is what starts/restarts the renderer.
+    // Do not require an already-ready renderer in that state.
+    if (viewerStarted && !choosing && (!ready || renderBusy || busy)) return;
     if (viewerStarted && option.rendererId !== renderer.id && dirty && !window.confirm('Cambiando tipo di album, alcune personalizzazioni non sono compatibili. Vuoi proseguire? La revisione già salvata resta conservata.')) return;
     pendingPreview.current = null;
     pendingLayout.current = layout;
