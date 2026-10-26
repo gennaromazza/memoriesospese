@@ -51,6 +51,7 @@ import {
   ZoomIn,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   X,
 } from "lucide-react";
 import { format, addDays, isBefore, isAfter, startOfDay } from "date-fns";
@@ -1161,22 +1162,50 @@ export default function BookingPage() {
                                     
                                     {/* Mostra prodotti inclusi nel bundle */}
                                     {product.isBundle && product.bundleItems && product.bundleItems.length > 0 && (
-                                      <div className="bg-muted/50 rounded-lg p-3 space-y-1">
-                                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                                          📦 Include:
-                                        </p>
-                                        <ul className="text-xs text-muted-foreground space-y-0.5">
-                                          {product.bundleItems.map((item, idx) => (
-                                            <li key={idx} className="flex items-center gap-1">
-                                              <span>•</span>
-                                              <span>
-                                                {item.quantita > 1 ? `${item.quantita}x ` : ''}{item.prodottoNome}
-                                                {item.numeroFoto > 0 ? ` (${item.numeroFoto} foto)` : ' (∞)'}
-                                              </span>
-                                            </li>
-                                          ))}
+                                      <details
+                                        className="group rounded-lg border bg-muted/40"
+                                        onClick={(event) => event.stopPropagation()}
+                                        data-testid={`bundle-details-${product.id}`}
+                                      >
+                                        <summary
+                                          className="flex cursor-pointer list-none items-center justify-between gap-3 p-3 text-sm font-medium marker:hidden"
+                                          data-testid={`bundle-details-toggle-${product.id}`}
+                                        >
+                                          <span>
+                                            Cosa include: {product.bundleItems.length}{' '}
+                                            {product.bundleItems.length === 1 ? 'prodotto' : 'prodotti'}
+                                          </span>
+                                          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden="true" />
+                                        </summary>
+                                        <ul className="space-y-3 border-t px-3 py-3">
+                                          {product.bundleItems.map((item) => {
+                                            const includedProduct = products.find(
+                                              (catalogProduct) => catalogProduct.id === item.prodottoId,
+                                            );
+                                            const description = includedProduct?.descrizione?.trim();
+
+                                            return (
+                                              <li
+                                                key={item.prodottoId}
+                                                className="space-y-1"
+                                                data-testid={`bundle-item-${product.id}-${item.prodottoId}`}
+                                              >
+                                                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
+                                                  <span className="font-medium">
+                                                    {item.quantita > 1 ? `${item.quantita} × ` : ''}{item.prodottoNome}
+                                                  </span>
+                                                  <span className="text-xs text-muted-foreground">
+                                                    {item.numeroFoto > 0 ? `${item.numeroFoto} foto` : 'Selezione libera'}
+                                                  </span>
+                                                </div>
+                                                <p className="text-xs leading-relaxed text-muted-foreground">
+                                                  {description || 'Descrizione non disponibile.'}
+                                                </p>
+                                              </li>
+                                            );
+                                          })}
                                         </ul>
-                                      </div>
+                                      </details>
                                     )}
                                   </div>
                                 </div>
