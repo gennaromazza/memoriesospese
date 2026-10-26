@@ -16,3 +16,16 @@ all-day transparency fix — the sync log still showed old filtering.
 **How to apply:** After any server-side change, call `restart_workflow("Dev Workflow")`
 before testing endpoints or reading logs to confirm new behavior. Don't edit
 package.json scripts (forbidden) to add watch — just restart.
+
+## Vite can remain healthy after a failed artifact restart
+
+An artifact workflow may report a port-in-use failure while its previous Vite
+process is still serving the configured port and applying HMR updates. Check the
+actual listener, HTTP response, and browser HMR log before attempting another
+restart; do not launch a parallel dev server.
+
+**Why:** A restart attempt failed because port `23767` was already occupied, even
+though the web preview was returning HTTP 200 and receiving client updates.
+
+**How to apply:** For artifact Vite workflows, compare the workflow log with the
+artifact's configured port and verify the existing process before restarting.
