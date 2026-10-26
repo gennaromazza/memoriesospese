@@ -16,7 +16,6 @@ import {
   uploadCampaignImage
 } from '@/lib/booking-campaigns';
 import { getAllProducts } from '@/lib/products';
-import CampaignUnavailableProducts, { removeCampaignProduct } from './CampaignUnavailableProducts';
 import { getProductCategories } from '@/lib/product-categories';
 import type { BookingCampaignFE, Product, ProductCategory } from '@shared/booking-types';
 import { Button } from '@/components/ui/button';
@@ -146,13 +145,10 @@ export default function CampaignsManager() {
   });
 
   // Query products
-  const { data: products = [], isSuccess: productsLoaded, isError: productsError, refetch: refetchProducts } = useQuery<Product[]>({
+  const { data: products = [] } = useQuery<Product[]>({
     queryKey: ['products'],
     queryFn: getAllProducts,
   });
-  useEffect(() => {
-    if (dialogOpen) void refetchProducts();
-  }, [dialogOpen, refetchProducts]);
 
   // Usa la stessa tassonomia centralizzata usata nel catalogo prodotti.
   const { data: productCategories = [] } = useQuery<ProductCategory[]>({
@@ -649,23 +645,19 @@ export default function CampaignsManager() {
                       onChange={e => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
                       placeholder="ABC123XY"
                       maxLength={8}
-                      disabled={Boolean(editingCampaign)}
                       data-testid="input-campaign-code"
                     />
                     <Button
                       type="button"
                       variant="outline"
                       onClick={handleGenerateCode}
-                      disabled={Boolean(editingCampaign)}
                       data-testid="button-generate-code"
                     >
                       Genera
                     </Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {editingCampaign
-                      ? 'Il codice non si può modificare: il link pubblico esistente resta valido.'
-                      : `URL pubblico: /prenota/${formData.code}`}
+                    URL pubblico: /prenota/{formData.code}
                   </p>
                 </div>
               </div>
@@ -997,20 +989,7 @@ export default function CampaignsManager() {
                   </Badge>
                 </div>
 
-                {productsLoaded && (
-                  <CampaignUnavailableProducts
-                    products={products}
-                    selectedIds={selectedProducts}
-                    onRemove={id => setSelectedProducts(current => removeCampaignProduct(current, id))}
-                  />
-                )}
-                {productsError && (
-                  <p role="alert" className="text-sm text-destructive">
-                    Non è stato possibile verificare il catalogo prodotti. Le selezioni salvate sono mantenute: riapri il pannello per riprovare.
-                  </p>
-                )}
-                {!productsLoaded && !productsError && <p role="status" className="text-sm text-muted-foreground">Caricamento catalogo prodotti…</p>}
-                {productsLoaded && (productGroups.length === 0 ? (
+                {productGroups.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
                     Nessun prodotto attivo. Crea dei prodotti prima di configurare la campagna.
                   </p>
@@ -1106,10 +1085,7 @@ export default function CampaignsManager() {
                       </span>
                     </div>
 
-                    <div
-                      className="max-h-72 overflow-y-auto rounded-lg border bg-muted/20 p-2"
-                      data-testid="campaign-product-list"
-                    >
+                    <div className="max-h-72 overflow-y-auto rounded-lg border bg-muted/20 p-2">
                       {filteredProductGroups.length === 0 ? (
                         <div className="flex min-h-28 flex-col items-center justify-center gap-1 px-4 text-center">
                           <Package className="h-5 w-5 text-muted-foreground" />
@@ -1173,7 +1149,7 @@ export default function CampaignsManager() {
                       )}
                     </div>
                   </>
-                ))}
+                )}
               </div>
 
               {/* Stato Attiva */}

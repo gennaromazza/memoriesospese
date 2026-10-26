@@ -2,7 +2,7 @@
  * ProductsManager - Gestione Catalogo Prodotti Fotografici
  */
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Plus, Edit, Trash2, Package, Euro, Image, Upload, X, FolderOpen, GripVertical, Layers, Search, RefreshCw, LockKeyhole, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -58,30 +58,10 @@ import {
 import { apiRequest } from '@/lib/queryClient';
 import type { Product, InsertProduct, ProductCategory, BundleItem } from '@shared/booking-types';
 import { isPrintShopManagedProduct } from '@/features/print-shop/product-channel-guard';
-import {
-  countBundlePhotos,
-  getBundleGalleryPhotoCount,
-  isValidBundlePhotoSource,
-  resolveBundleItems,
-} from '@/lib/bundle-photos';
+import { countBundlePhotos, getBundleGalleryPhotoCount, resolveBundleItems } from '@/lib/bundle-photos';
 
 const isPrintShopProduct = (product: Product): boolean =>
   isPrintShopManagedProduct(product as Product & { salesChannels?: unknown });
-
-/**
- * Elimina in modo difensivo un insieme di URL da Firebase Storage.
- * Ignora errori (file già rimossi, URL malformati, permessi, ecc.)
- * così la UI non si blocca per un cleanup fallito.
- */
-async function deleteStorageUrls(urls: string[]): Promise<void> {
-  for (const url of urls) {
-    try {
-      await deleteObject(ref(storage, url));
-    } catch (err) {
-      console.warn('Impossibile eliminare immagine dallo storage:', url, err);
-    }
-  }
-}
 
 interface SortableProductCardProps {
   product: Product;
@@ -93,9 +73,7 @@ interface SortableProductCardProps {
 
 function SortableProductCard({ product, catalog, categories, onEdit, onDelete }: SortableProductCardProps) {
   const bundleItems = resolveBundleItems(product.bundleItems, catalog);
-  const catalogProductIds = new Set(catalog.map((item) => item.id));
   const sharedPhotoSource = product.fotoCondivise
-    && isValidBundlePhotoSource(bundleItems, product.prodottoSorgenteFotoId, catalogProductIds)
     ? bundleItems.find((item) => item.prodottoId === product.prodottoSorgenteFotoId)
     : undefined;
   const bundleGalleryPhotoCount = product.fotoCondivise
@@ -227,13 +205,7 @@ function SortableProductCard({ product, catalog, categories, onEdit, onDelete }:
               <Image className="h-4 w-4" />
               {product.isBundle && product.fotoCondivise ? 'Foto nella galleria condivisa:' : 'Foto incluse:'}
             </span>
-            <span className="font-semibold">
-              {product.isBundle && product.fotoCondivise && !sharedPhotoSource
-                ? 'Sorgente da configurare'
-                : product.isBundle
-                  ? bundleGalleryPhotoCount
-                  : product.numeroFoto}
-            </span>
+            <span className="font-semibold">{product.isBundle ? bundleGalleryPhotoCount : product.numeroFoto}</span>
           </div>
         </div>
 
@@ -280,10 +252,7 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
   const { data: allCategories = [], isLoading: categoriesLoading } = useProductCategories();
   
   // Filtra solo categorie attive per il dropdown
-  const activeCategories = useMemo(
-    () => allCategories.filter(cat => cat.attivo),
-    [allCategories],
-  );
+  const activeCategories = allCategories.filter(cat => cat.attivo);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -316,8 +285,6 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
   const [uploadingImages, setUploadingImages] = useState(false);
   const [productImages, setProductImages] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  // URL caricati in questa sessione del dialog (per cleanup su annulla/errore)
-  const uploadedThisSessionRef = useRef<string[]>([]);
 
   const { toast } = useToast();
   
@@ -416,20 +383,13 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
       autoOpened.current = true;
       openCreateDialog();
     } else if (autoEditId) {
-      autoOpened.current = true;
       const target = products.find(p => p.id === autoEditId);
       if (target) {
+        autoOpened.current = true;
         openEditDialog(target);
-      } else {
-        toast({
-          title: 'Prodotto non trovato',
-          description: 'Il prodotto richiesto non esiste o è stato eliminato',
-          variant: 'destructive',
-        });
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading, categoriesLoading, autoCreate, autoEditId, products]);
+  });
 
   async function loadProducts() {
     try {
@@ -449,7 +409,6 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
   }
 
   function openCreateDialog() {
-    uploadedThisSessionRef.current = [];
     setEditingProduct(null);
     setFormData({
       nome: '',
@@ -473,7 +432,6 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
   }
 
   function openEditDialog(product: Product) {
-    uploadedThisSessionRef.current = [];
     setEditingProduct(product);
 
     let syncedBundleItems = product.bundleItems || [];
@@ -495,13 +453,6 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
       }
     }
 
-    const resolvedItems = resolveBundleItems(syncedBundleItems, products);
-    const catalogProductIds = new Set(products.map((item) => item.id));
-    const sourceProductId = product.fotoCondivise
-      && isValidBundlePhotoSource(resolvedItems, product.prodottoSorgenteFotoId, catalogProductIds)
-      ? product.prodottoSorgenteFotoId || ''
-      : '';
-
     setFormData({
       nome: product.nome,
       descrizione: product.descrizione,
@@ -515,7 +466,7 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
       isBundle: product.isBundle || false,
       bundleItems: syncedBundleItems,
       fotoCondivise: product.fotoCondivise || false,
-      prodottoSorgenteFotoId: sourceProductId,
+      prodottoSorgenteFotoId: product.prodottoSorgenteFotoId || '',
     });
     setProductImages(product.immagini || []);
     setBundleSearchTerm('');
@@ -539,9 +490,8 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
 
     setUploadingImages(true);
 
-    const uploadedUrls: string[] = [];
-
     try {
+      const uploadedUrls: string[] = [];
 
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
@@ -578,23 +528,17 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
         uploadedUrls.push(downloadURL);
       }
 
-      // Aggiorna lo stato con functional update per non sovrascrivere
-      // le modifiche (nome, prezzo, ecc.) fatte durante l'upload async.
-      if (uploadedUrls.length > 0) {
-        uploadedThisSessionRef.current.push(...uploadedUrls);
-        setProductImages(prev => [...prev, ...uploadedUrls]);
-        setFormData(prev => ({ ...prev, immagini: [...(prev.immagini || []), ...uploadedUrls] }));
-        toast({
-          title: 'Immagini caricate',
-          description: `${uploadedUrls.length} ${uploadedUrls.length === 1 ? 'immagine caricata' : 'immagini caricate'} con successo`,
-        });
-      }
+      // Aggiorna stato immagini
+      const newImages = [...productImages, ...uploadedUrls];
+      setProductImages(newImages);
+      setFormData({ ...formData, immagini: newImages });
+
+      toast({
+        title: 'Immagini caricate',
+        description: `${uploadedUrls.length} ${uploadedUrls.length === 1 ? 'immagine caricata' : 'immagini caricate'} con successo`,
+      });
     } catch (error) {
       console.error('Errore upload immagini:', error);
-      // Se l'upload fallisce a metà, cancella dallo storage le immagini già caricate
-      if (uploadedUrls.length > 0) {
-        await deleteStorageUrls(uploadedUrls);
-      }
       toast({
         title: 'Errore upload',
         description: 'Impossibile caricare le immagini',
@@ -612,15 +556,7 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
   function handleRemoveImage(imageUrl: string) {
     const newImages = productImages.filter(url => url !== imageUrl);
     setProductImages(newImages);
-    setFormData(prev => ({ ...prev, immagini: newImages }));
-
-    // Se l'immagine è stata caricata in questa sessione, eliminala dallo storage.
-    // Le immagini già salvate nel prodotto restano referenziate finché non si salva.
-    const sessionIdx = uploadedThisSessionRef.current.indexOf(imageUrl);
-    if (sessionIdx !== -1) {
-      uploadedThisSessionRef.current.splice(sessionIdx, 1);
-      void deleteStorageUrls([imageUrl]);
-    }
+    setFormData({ ...formData, immagini: newImages });
   }
 
   // Bundle management functions
@@ -710,15 +646,6 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
   // Calculate total photos in bundle
   const resolvedBundleItems = resolveBundleItems(formData.bundleItems, products);
   const totalBundlePhotos = countBundlePhotos(resolvedBundleItems);
-  const catalogProductIds = new Set(products.map((item) => item.id));
-  const validBundlePhotoSources = resolvedBundleItems.filter((item) =>
-    isValidBundlePhotoSource([item], item.prodottoId, catalogProductIds),
-  );
-  const hasValidSharedPhotoSource = isValidBundlePhotoSource(
-    resolvedBundleItems,
-    formData.prodottoSorgenteFotoId,
-    catalogProductIds,
-  );
   const bundleGalleryPhotoCount = formData.prodottoSorgenteFotoId
     ? getBundleGalleryPhotoCount(resolvedBundleItems, formData.prodottoSorgenteFotoId)
     : 0;
@@ -730,15 +657,6 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
       toast({
         title: 'Errore',
         description: 'Il nome del prodotto è obbligatorio',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    if (!formData.categoria) {
-      toast({
-        title: 'Errore',
-        description: 'Seleziona una categoria per il prodotto',
         variant: 'destructive',
       });
       return;
@@ -812,10 +730,13 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
       }
 
       if (formData.fotoCondivise) {
-        if (!hasValidSharedPhotoSource) {
+        const sourceProduct = resolvedBundleItems.find(
+          (item) => item.prodottoId === formData.prodottoSorgenteFotoId && item.numeroFoto > 0,
+        );
+        if (!sourceProduct) {
           toast({
             title: 'Seleziona la galleria sorgente',
-            description: 'Scegli un prodotto incluso nel bundle, ancora presente nel catalogo e con almeno una foto.',
+            description: 'Scegli un prodotto incluso nel bundle che definisca la galleria condivisa.',
             variant: 'destructive',
           });
           return;
@@ -851,8 +772,6 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
         });
       }
 
-      // Le immagini caricate in questa sessione sono ora referenziate dal prodotto.
-      uploadedThisSessionRef.current = [];
       setIsDialogOpen(false);
       await loadProducts();
       onChanged?.();
@@ -866,15 +785,6 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
     } finally {
       setIsSaving(false);
     }
-  }
-
-  function handleProductDialogOpenChange(open: boolean) {
-    if (!open && uploadedThisSessionRef.current.length > 0) {
-      const pendingUploads = [...uploadedThisSessionRef.current];
-      uploadedThisSessionRef.current = [];
-      void deleteStorageUrls(pendingUploads);
-    }
-    setIsDialogOpen(open);
   }
 
   async function handleDelete(id: string) {
@@ -899,14 +809,6 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
 
   const prezzoFinale = formData.prezzo - (formData.prezzo * formData.sconto / 100);
 
-  // Include la categoria corrente anche se è stata disattivata.
-  const categoryOptionsForSelect = useMemo(() => {
-    if (!formData.categoria) return activeCategories;
-    if (activeCategories.some(c => c.value === formData.categoria)) return activeCategories;
-    const current = allCategories.find(c => c.value === formData.categoria);
-    return current ? [current, ...activeCategories] : activeCategories;
-  }, [activeCategories, allCategories, formData.categoria]);
-
   // Sincronizza dati bundle negli ordini esistenti
   async function handleSyncBundles() {
     // Verifica che l'utente sia loggato
@@ -922,14 +824,13 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
     setIsSyncingBundles(true);
     try {
       const response = await apiRequest('POST', '/api/orders/sync-bundle-data');
-
-      if (!response.ok) {
-        const errBody = await response.json().catch(() => ({}));
-        throw new Error(errBody.error || 'Errore sincronizzazione');
-      }
-
+      
       const data = await response.json();
-
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Errore sincronizzazione');
+      }
+      
       toast({
         title: 'Sincronizzazione completata',
         description: `${data.ordersUpdated} ordini aggiornati, ${data.productsUpdated} prodotti sincronizzati`,
@@ -1131,7 +1032,7 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
       )}
 
       {/* Dialog Crea/Modifica Prodotto */}
-      <Dialog open={isDialogOpen} onOpenChange={handleProductDialogOpenChange}>
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
@@ -1175,7 +1076,7 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
                   } />
                 </SelectTrigger>
                 <SelectContent>
-                  {categoryOptionsForSelect.map((cat) => (
+                  {activeCategories.map((cat) => (
                     <SelectItem key={cat.id} value={cat.value}>
                       {cat.nome}
                     </SelectItem>
@@ -1410,9 +1311,7 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
                     Prodotti nel Bundle
                   </Label>
                   <Badge variant="secondary">
-                    {formData.bundleItems?.length || 0} prodotti - {formData.fotoCondivise
-                      ? `galleria di ${bundleGalleryPhotoCount} foto`
-                      : `${totalBundlePhotos} foto totali`}
+                    {formData.bundleItems?.length || 0} prodotti - galleria di {bundleGalleryPhotoCount} foto
                   </Badge>
                 </div>
 
@@ -1461,7 +1360,6 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
                             size="sm"
                             onClick={() => removeProductFromBundle(item.prodottoId)}
                             className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                            data-testid={`button-remove-bundle-product-${item.prodottoId}`}
                           >
                             <X className="h-4 w-4" />
                           </Button>
@@ -1494,14 +1392,15 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
                     <div className="space-y-2">
                       <Label htmlFor="bundle-photo-source">Prodotto che definisce la galleria *</Label>
                       <Select
-                        value={hasValidSharedPhotoSource ? formData.prodottoSorgenteFotoId || '' : ''}
+                        value={formData.prodottoSorgenteFotoId || ''}
                         onValueChange={(value) => setFormData({ ...formData, prodottoSorgenteFotoId: value })}
                       >
                         <SelectTrigger id="bundle-photo-source" data-testid="select-bundle-photo-source">
                           <SelectValue placeholder="Seleziona il prodotto sorgente" />
                         </SelectTrigger>
                         <SelectContent>
-                          {validBundlePhotoSources
+                          {resolvedBundleItems
+                            .filter((item) => item.numeroFoto > 0)
                             .map((item) => (
                               <SelectItem key={item.prodottoId} value={item.prodottoId}>
                                 {item.prodottoNome} · {item.numeroFoto} foto
@@ -1509,11 +1408,9 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
                             ))}
                         </SelectContent>
                       </Select>
-                      {!hasValidSharedPhotoSource && (
-                        <p className="text-xs text-destructive" role="alert" data-testid="bundle-photo-source-error">
-                          {validBundlePhotoSources.length === 0
-                            ? 'La galleria condivisa non è valida. Aggiungi un prodotto incluso, presente nel catalogo e con foto, oppure disattiva Foto condivise.'
-                            : 'La sorgente della galleria condivisa non è più valida. Scegli un altro prodotto con foto oppure disattiva Foto condivise.'}
+                      {resolvedBundleItems.filter((item) => item.numeroFoto > 0).length === 0 && (
+                        <p className="text-xs text-destructive">
+                          Aggiungi prima un prodotto con foto incluse per usarlo come sorgente.
                         </p>
                       )}
                     </div>
@@ -1589,7 +1486,7 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => handleProductDialogOpenChange(false)} data-testid="button-cancel-product">
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)} data-testid="button-cancel-product">
               Annulla
             </Button>
             <Button onClick={handleSave} disabled={isSaving} data-testid="button-save-product">
