@@ -40,3 +40,11 @@ account) → in test va sempre mockato. Pattern usato in `server/reminder-routes
 **Why:** il banner può coprire un pulsante visibile e attivo; Playwright ritenta il click fino al timeout invece di attivare il controllo.
 
 **How to apply:** nei test che separano la sessione cliente da quella admin, gestire il consenso in ciascun contesto, non solo nella pagina admin già autenticata.
+
+## Mock Firebase nei test browser isolati
+
+**Regola:** un harness Vite che monta componenti con moduli Firebase sostituiti deve coprire tutte le forme d'import usate dal grafo importato, incluse quelle relative (per esempio `./firebase`), oltre agli alias `@/...`.
+
+**Why:** gli alias Vite non intercettano un import relativo solo perché punta allo stesso file; un modulo Firebase reale può quindi inizializzarsi anche quando il componente principale è mockato.
+
+**How to apply:** prima di eseguire un browser test isolato, cerca le varianti degli import Firebase nelle dipendenze del componente e reindirizzale tutte allo stesso fake in-memory.
