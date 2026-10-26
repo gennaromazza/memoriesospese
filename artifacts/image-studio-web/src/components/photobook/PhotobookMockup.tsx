@@ -20,6 +20,8 @@ import MockupClientApproval from './MockupClientApproval';
 import type { MockupOption } from '@shared/mockup-workflow';
 import MockupModelChooser from './MockupModelChooser';
 import { initialMockupSelection, mockupPresentation, needsClientModelChoice } from './mockup-presentation';
+import MockupRendererError from './MockupRendererError';
+import { beginMockupRendererRetry, configurationForRendererRestore, shouldSkipSavedMockupRestore } from './mockup-renderer-recovery';
 import { useToast } from '@/hooks/use-toast';
 import PhotobookInlineGallery from './PhotobookInlineGallery';
 import { ArrowLeft, ArrowRight, HelpCircle, LogOut, Rotate3D, RotateCcw, Save, X, ZoomIn, ZoomOut } from 'lucide-react';
@@ -459,8 +461,13 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
 
   useEffect(() => {
     if (!ready || !state.data) return;
-    if (state.data.saved && state.data.saved.revision === skipRestoreRevision.current && !pendingOption.current && !pendingPreview.current) {
-      revision.current = state.data.saved.revision;
+    const savedRevision = state.data.saved?.revision;
+    if (shouldSkipSavedMockupRestore(
+      savedRevision,
+      skipRestoreRevision.current,
+      !!pendingOption.current || !!pendingPreview.current,
+    )) {
+      revision.current = savedRevision ?? 0;
       return;
     }
     let cancelled = false;
@@ -488,7 +495,12 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
         if (!cancelled) {
           currentPhoto.current = photo;
           apply({
-            configuration: pending?.configuration || (nextOption || staleFixedSave ? undefined : saved?.configuration),
+            configuration: configurationForRendererRestore(
+              saved?.configuration,
+              pending?.configuration,
+              !!nextOption,
+              staleFixedSave,
+            ),
             photo,
             backPhoto,
             ...(boxPhotos ? { photos: boxPhotos } : {}),
@@ -692,11 +704,13 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   }
   function retryRenderer() {
     if (busy) return;
+    const retry = beginMockupRendererRetry(generation);
+    skipRestoreRevision.current = retry.skipRestoreRevision;
     setRendererError('');
     setReady(false);
     setRenderBusy(true);
     setWizard(null);
-    setGeneration(g => g + 1);
+    setGeneration(retry.generation);
     setHomeOpen(false);
     setGuideOpen(false);
     setMessage('');
@@ -932,12 +946,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
           void selectPhoto(() => request(`/upload?name=${encodeURIComponent(file.name)}`, { method: 'POST', headers: { 'Content-Type': file.type }, body: file }));
         }} />}
         {!token && message && adminPanel(<p role="status" className="rounded border p-3 text-sm">{message}</p>)}
-         {token && rendererError && !choosing && <section className="mockup-renderer-error" data-testid="mockup-renderer-error" role="alert">
-           <span className="mockup-card-kicker">ANTEPRIMA TEMPORANEAMENTE OFFLINE</span>
-           <h2>Anteprima non disponibile</h2>
-           <p>{rendererError} Le tue scelte salvate sono al sicuro.</p>
-           <Button variant="outline" onClick={retryRenderer}>Riprova a caricare l’anteprima</Button>
-         </section>}
+         {token && rendererError && !choosing && <MockupRendererError message={rendererError} onRetry={retryRenderer} />}
          {token && !rendererError && (!ready || (!wizard && !isBox)) && !choosing && <p role="status" className="p-4 text-sm">Preparazione del tuo configuratore…</p>}
          {(!mobile || viewerStarted) && !!state.data && <iframe key={`${renderer.id}-${generation}`} ref={frame} title={`Configuratore 3D ${renderer.name}`} src={`${import.meta.env.BASE_URL}mockups/${renderer.path}`} sandbox="allow-scripts allow-same-origin allow-downloads" style={{ visibility: token && (!ready || (!wizard && !isBox) || !!rendererError) ? 'hidden' : undefined }} aria-hidden={token && (!ready || (!wizard && !isBox) || !!rendererError) ? true : undefined} className={`${token ? 'w-full min-h-0 flex-1 border-0' : 'mockup-admin-viewer'} ${busy ? 'pointer-events-none' : ''}`} />}
         {phoneWizard && wizard.topSlot && createPortal(<>

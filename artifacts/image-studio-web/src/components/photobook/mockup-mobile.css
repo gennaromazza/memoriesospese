@@ -162,6 +162,27 @@
   display: none !important;
 }
 
+.mockup-renderer-error {
+  flex: 0 0 auto;
+  margin: 16px;
+  padding: 18px;
+  border: 1px solid #d8a6a0;
+  border-radius: 12px;
+  background: #fffaf8;
+  color: #3e3030;
+}
+
+.mockup-renderer-error h2 {
+  margin: 6px 0;
+  font-size: 1.125rem;
+  font-weight: 650;
+}
+
+.mockup-renderer-error p {
+  margin: 0 0 14px;
+  line-height: 1.5;
+}
+
 /* ============================================================
    MOBILE
    ============================================================ */
