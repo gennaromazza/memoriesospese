@@ -146,7 +146,11 @@ function rendererTestPage() {
     </body></html>`;
 }
 
-async function mockPhotobookApi(page: Page, mockupResponse: (route: Route) => Promise<void>) {
+async function mockPhotobookApi(
+  page: Page,
+  mockupResponse: (route: Route) => Promise<void>,
+  photobookResponse?: (route: Route) => Promise<void>,
+) {
   let mockupRequests = 0;
 
   await page.route("**/*", async route => {
@@ -179,6 +183,10 @@ async function mockPhotobookApi(page: Page, mockupResponse: (route: Route) => Pr
     }
 
     if (url.pathname === `/api/photobooks/by-token/${token}`) {
+      if (photobookResponse) {
+        await photobookResponse(route);
+        return;
+      }
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -318,6 +326,91 @@ test("su mobile il mockup ha un solo accesso e un errore di caricamento recupera
   await expect(card.getByTestId("mockup-not-enabled")).toContainText("La proposta non è ancora pronta");
   await expect(page.getByTestId("mockup-not-enabled")).toHaveCount(1);
   expect(getMockupRequests()).toBeGreaterThan(1);
+});
+
+test("un link a una revisione non disponibile mostra l’errore e riprova solo quella revisione", async ({ page }) => {
+  const versionRequests: string[] = [];
+  const fallbackVersionRequests: string[] = [];
+  const mutationRequests: string[] = [];
+  const emailRequests: string[] = [];
+
+  page.on("request", request => {
+    const url = new URL(request.url());
+    if (url.pathname === `/api/photobooks/by-token/${token}`) {
+      versionRequests.push(url.search);
+      if (url.searchParams.get("version") !== "7") fallbackVersionRequests.push(url.search);
+    }
+    if (url.pathname.startsWith("/api/") && !["GET", "HEAD"].includes(request.method())) {
+      mutationRequests.push(`${request.method()} ${url.pathname}`);
+    }
+    if (url.pathname.startsWith("/api/email/")) emailRequests.push(`${request.method()} ${url.pathname}`);
+  });
+
+  await mockPhotobookApi(
+    page,
+    route => fulfillMockup(route, confirmedMockupPayload()),
+    async route => {
+      const url = new URL(route.request().url());
+      if (url.searchParams.get("version") === "7") {
+        await route.fulfill({
+          status: 404,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "Questa revisione non è disponibile" }),
+        });
+        return;
+      }
+
+      // A fallback to the current version would succeed, making the test catch
+      // any behavior that silently opens a different version.
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          photobook: {
+            id: "e2e-photobook",
+            name: "Fotolibro di prova",
+            galleryId: "e2e-gallery",
+            token,
+            currentVersion: 1,
+            versions: [{ version: 1, pageCount: 0 }],
+            approval: { version: 1 },
+            mockupPath: "client",
+          },
+          version: 1,
+          pages: [],
+          requests: [],
+        }),
+      });
+    },
+  );
+
+  await page.goto(`/fotolibro/${token}/mockup?version=7`);
+
+  const unavailable = page.getByRole("alert");
+  await expect(unavailable.getByRole("heading", { name: "Link mockup non disponibile" })).toBeVisible();
+  await expect(unavailable).toContainText("questa revisione non è disponibile");
+  const retry = unavailable.getByRole("button", { name: "Ricarica anteprima" });
+  await expect(retry).toBeVisible();
+  await expect(page.getByTestId("photobook-mockup")).toHaveCount(0);
+  await expect(page.getByTestId("status-photobook-approval")).toHaveCount(0);
+  await expect(page.getByText("Versione fotolibro v1")).toHaveCount(0);
+  expect(fallbackVersionRequests).toEqual([]);
+
+  const retryResponse = page.waitForResponse(response => {
+    const url = new URL(response.url());
+    return response.request().method() === "GET" &&
+      url.pathname === `/api/photobooks/by-token/${token}` &&
+      url.searchParams.get("version") === "7";
+  });
+  await retry.click();
+  await retryResponse;
+
+  await expect(unavailable).toBeVisible();
+  await expect(page.getByTestId("photobook-mockup")).toHaveCount(0);
+  await expect.poll(() => versionRequests).toEqual(["?version=7", "?version=7"]);
+  expect(fallbackVersionRequests).toEqual([]);
+  expect(mutationRequests).toEqual([]);
+  expect(emailRequests).toEqual([]);
 });
 
 test("su mobile il cliente vede un solo pulsante per aprire un mockup pronto", async ({ page }) => {
