@@ -751,13 +751,33 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       </Button>
     </section>
   );
-  if (confirmedOnly && state.data && saved?.status !== 'confirmed') return <p role="status" className="rounded-lg border bg-white p-4 text-sm">Il mockup non è ancora confermato o è stato aggiornato. Contatta lo studio per l’anteprima definitiva.</p>;
-  if (token && state.data?.offerError) return compact
-    ? <span role="alert" className="text-xs text-destructive">{state.data.offerError}</span>
-    : <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{state.data.offerError}</p>;
-  if (token && state.data && !state.data.enabled) return compact
-    ? <span role="status" className="text-xs text-muted-foreground">Personalizzazione in preparazione</span>
-    : <p role="status" className="rounded-lg border bg-white p-3 text-sm text-muted-foreground">Personalizzazione in preparazione</p>;
+  if (token && state.data?.offerError && !confirmedOnly) return (
+    <section className={compact ? 'inline-flex items-center gap-2' : 'rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-2'} data-testid="mockup-model-unavailable">
+      <p role="alert" className="text-sm text-amber-900">{state.data.offerError}</p>
+      <Button type="button" variant="outline" size="sm" onClick={() => void state.refetch()} disabled={state.isFetching}>
+        {state.isFetching ? 'Aggiornamento…' : 'Aggiorna proposta'}
+      </Button>
+    </section>
+  );
+  if (confirmedOnly && state.data && saved?.status !== 'confirmed') return (
+    <section role="status" className="rounded-lg border border-[#e6ddc9] bg-[#fbf8f0] p-4 space-y-3" data-testid="mockup-preview-not-ready">
+      <div>
+        <p className="font-medium text-[#354d47]">Il mockup non è ancora pronto</p>
+        <p className="mt-1 text-sm text-[#68756c]">Lo studio deve completare e confermare questa anteprima. Non dovete ripetere i passaggi già completati.</p>
+      </div>
+      <Button type="button" variant="outline" size="sm" onClick={() => void state.refetch()} disabled={state.isFetching} data-testid="button-retry-mockup-preview">
+        {state.isFetching ? 'Controllo in corso…' : 'Controlla di nuovo'}
+      </Button>
+    </section>
+  );
+  if (token && state.data && !state.data.enabled) return (
+    <section className={compact ? 'inline-flex items-center gap-2' : 'rounded-lg border bg-white p-3 space-y-2'} data-testid="mockup-not-enabled">
+      <p role="status" className="text-sm text-muted-foreground">La proposta non è ancora pronta. La scelta assegnata sarà disponibile qui quando lo studio l’avrà attivata.</p>
+      <Button type="button" variant="outline" size="sm" onClick={() => void state.refetch()} disabled={state.isFetching}>
+        {state.isFetching ? 'Aggiornamento…' : 'Aggiorna stato'}
+      </Button>
+    </section>
+  );
   if (token && !editable && !saved) return <span className="text-xs text-muted-foreground">Nessun mockup salvato da consultare</span>;
   const previousStep = () => {
     if (homeOpen) { setHomeOpen(false); return; }
@@ -857,7 +877,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
         </div>
       </div>
       {token && !mobile && !choosing && !isBox && <div className="mockup-progress shrink-0 border-b px-3 py-2" aria-live="polite"><p className="text-sm font-medium">Passaggio {steps.indexOf(step) + 1} di {steps.length} · {stepNames[step]}</p><div className="mt-2 flex gap-1" aria-hidden="true">{steps.map(value => <span key={value} className={`h-1 flex-1 rounded ${value <= step ? 'bg-primary' : 'bg-muted'}`} />)}</div></div>}
-      {choosing && state.data?.offer && <MockupModelChooser options={state.data.offer.options} initialOption={selectedOption} fixed={fixedModel} onChoose={chooseExample} onCancel={!token || selectedOption || !needsClientModelChoice(state.data) ? () => setChoosing(false) : undefined} />}
+      {choosing && state.data?.offer && <MockupModelChooser options={state.data.offer.options} initialOption={selectedOption} fixed={fixedModel} onChoose={chooseExample} onRetry={() => void state.refetch()} onCancel={!token || selectedOption || !needsClientModelChoice(state.data) ? () => setChoosing(false) : undefined} />}
       <div style={choosing ? { display: 'none' } : undefined} className={token ? 'min-h-0 flex-1 flex flex-col overflow-hidden' : 'mockup-admin-body'} data-testid="mockup-dialog-body">
       {!token && <div className="mockup-admin-panel" ref={setAdminSlot}>
         <nav className="sticky top-0 z-10 bg-background flex flex-wrap gap-1 border-b pb-3" aria-label="Gestione proposta album">
@@ -1088,7 +1108,12 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
         </div>)}
       </>}
       {gallery.isLoading && picker && <p role="status">Caricamento foto della galleria…</p>}
-      {gallery.isError && <p role="alert">Impossibile caricare la galleria. Riprova.</p>}
+      {gallery.isError && picker && <div className="flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+        <p role="alert" className="text-sm text-destructive">Foto non caricate. Le tue scelte restano salvate; puoi riprovare.</p>
+        <Button type="button" variant="outline" size="sm" onClick={() => void gallery.refetch()} disabled={gallery.isFetching} data-testid="button-retry-mockup-gallery">
+          {gallery.isFetching ? 'Caricamento…' : 'Riprova'}
+        </Button>
+      </div>}
       <PhotobookPhotoPicker open={picker && !!gallery.data} onOpenChange={setPicker} photos={gallery.data?.photos || []} chapters={gallery.data?.chapters || []} title={isBox ? ({ base: 'Scegli la foto del quadro da parete', lid: 'Scegli la foto della cornice da tavolo', cover: 'Scegli la foto della copertina' }[boxSlot]) : photoSide === 'back' ? 'Scegli la foto del retro' : 'Scegli la foto di copertina'} onSelect={photo => {
         setPicker(false);
         void selectPhoto(() => request('/gallery-photo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ photoId: photo.id }) }));

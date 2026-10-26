@@ -1,8 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
 
-vi.mock('wouter', () => ({ useParams: () => ({ token: 'private-token' }) }));
+vi.mock('wouter', () => ({
+  useParams: () => ({ token: 'private-token' }),
+  Link: ({ href, children, className, 'data-testid': testId }: {
+    href: string;
+    children: ReactNode;
+    className?: string;
+    'data-testid'?: string;
+  }) => <a href={href} className={className} data-testid={testId}>{children}</a>,
+}));
 vi.mock('@/lib/photobooks', () => ({ getPhotobookByToken: vi.fn() }));
 vi.mock('@/components/photobook/PhotobookMockup', () => ({
   default: (props: { token: string; version: number; readOnly: boolean; autoOpen: boolean; confirmedOnly: boolean }) =>
@@ -34,7 +43,9 @@ describe('Link diretto al mockup cliente', () => {
   });
   it('non apre il mockup quando le pagine non sono approvate', () => {
     const html = render(false);
-    expect(html).toContain('non sono ancora approvate');
+    expect(html).toContain('approvate prima le pagine');
+    expect(html).toContain('button-open-photobook-pages');
+    expect(html).toContain('href="/fotolibro/private-token"');
     expect(html).not.toContain('mockup-viewer');
   });
   it('rifiuta versioni non valide senza ripiegare su un altro fotolibro o versione', () => {

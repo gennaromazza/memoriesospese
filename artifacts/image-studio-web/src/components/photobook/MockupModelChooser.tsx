@@ -43,6 +43,7 @@ export interface MockupModelChooserProps {
   fixed?: boolean;
   onChoose: (option: MockupOption, coverLayout: string) => void;
   onCancel?: () => void;
+  onRetry?: () => void;
 }
 
 const optionKey = (option: MockupOption) => `${option.labId}/${option.id}`;
@@ -58,6 +59,7 @@ export default function MockupModelChooser({
   fixed = false,
   onChoose,
   onCancel,
+  onRetry,
 }: MockupModelChooserProps) {
   // ---- Derivazioni memoizzate --------------------------------------------
   const available = useMemo(
@@ -290,6 +292,11 @@ export default function MockupModelChooser({
       >
         <h2>Nessun modello disponibile</h2>
         <p>Chiedi allo studio di aggiornare la proposta.</p>
+        {onRetry && (
+          <button type="button" onClick={onRetry} data-testid="button-retry-model-offer">
+            Aggiorna proposta
+          </button>
+        )}
         {onCancel && (
           <button type="button" onClick={onCancel}>
             Torna al tuo album
