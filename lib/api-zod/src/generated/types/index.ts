@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './campaignImageUploadResult';
 export * from './customerNotificationKind';
 export * from './customerOrderNotificationResendInput';
 export * from './customerOrderNotificationResendResult';

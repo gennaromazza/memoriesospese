@@ -5,6 +5,11 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface CampaignImageUploadResult {
+  downloadUrl: string;
+  storagePath: string;
+}
+
 export type RecentLabShipmentSourceType = typeof RecentLabShipmentSourceType[keyof typeof RecentLabShipmentSourceType];
 
 

@@ -12,7 +12,69 @@ tags:
     description: Health operations
   - name: print-shop
     description: Print-shop order administration
+  - name: booking-campaigns
+    description: Booking campaign administration
 paths:
+  /admin/campaigns/{campaignId}/images/{imageKind}:
+    post:
+      operationId: uploadBookingCampaignImage
+      tags: [booking-campaigns]
+      summary: Upload a booking campaign cover image
+      description: Admin-only binary image upload for the homepage slider or booking page. Accepts JPEG, PNG, or WebP images up to 5 MB.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: campaignId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 128
+            pattern: '^[A-Za-z0-9_-]+$'
+          description: Existing campaign ID, or temp while creating a campaign.
+        - name: imageKind
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [slider, booking]
+      requestBody:
+        required: true
+        content:
+          image/jpeg:
+            schema:
+              type: string
+              format: binary
+          image/png:
+            schema:
+              type: string
+              format: binary
+          image/webp:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "201":
+          description: Image stored in Firebase Storage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CampaignImageUploadResult"
+        "400":
+          description: Invalid campaign, image, or image kind
+        "401":
+          description: Authentication required
+        "403":
+          description: Admin access required
+        "404":
+          description: Campaign not found
+        "413":
+          description: Image exceeds the 5 MB limit
+        "415":
+          description: Unsupported or mismatched image format
+        "500":
+          description: Image could not be stored
   /lab-shipments/recent:
     get:
       operationId: getRecentLabShipments
@@ -110,6 +172,16 @@ components:
       scheme: bearer
       bearerFormat: Firebase ID token
   schemas:
+    CampaignImageUploadResult:
+      type: object
+      required: [downloadUrl, storagePath]
+      properties:
+        downloadUrl:
+          type: string
+          format: uri
+        storagePath:
+          type: string
+      additionalProperties: false
     RecentLabShipment:
       type: object
       required: [id, labId, sentAt, sourceType, descrizione]

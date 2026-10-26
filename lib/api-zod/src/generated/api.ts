@@ -9,6 +9,27 @@ import * as zod from 'zod';
 
 
 /**
+ * Admin-only binary image upload for the homepage slider or booking page. Accepts JPEG, PNG, or WebP images up to 5 MB.
+ * @summary Upload a booking campaign cover image
+ */
+export const uploadBookingCampaignImagePathCampaignIdMax = 128;
+
+
+export const uploadBookingCampaignImagePathCampaignIdRegExp = new RegExp('^[A-Za-z0-9_-]+$');
+
+
+export const UploadBookingCampaignImageParams = zod.object({
+  "campaignId": zod.coerce.string().min(1).max(uploadBookingCampaignImagePathCampaignIdMax).regex(uploadBookingCampaignImagePathCampaignIdRegExp).describe('Existing campaign ID, or temp while creating a campaign.'),
+  "imageKind": zod.enum(['slider', 'booking'])
+})
+
+export const UploadBookingCampaignImageResponse = zod.object({
+  "downloadUrl": zod.string().url(),
+  "storagePath": zod.string()
+})
+
+
+/**
  * Admin-only. Returns up to 100 actual sends, newest first; never assigns costs or jobs.
  * @summary Recent confirmed sends to a laboratory
  */

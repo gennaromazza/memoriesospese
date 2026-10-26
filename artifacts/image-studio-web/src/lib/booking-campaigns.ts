@@ -16,10 +16,52 @@ import {
   Timestamp,
   serverTimestamp
 } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
+import { createUrl } from './config';
 import type { BookingCampaign, BookingCampaignFE } from '@shared/booking-types';
 
 const COLLECTION = 'booking_campaigns';
+
+export type BookingCampaignImageKind = 'slider' | 'booking';
+
+export async function uploadCampaignImage(
+  campaignId: string,
+  imageKind: BookingCampaignImageKind,
+  file: File,
+): Promise<{ downloadUrl: string; storagePath: string }> {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('Sessione amministratore non disponibile. Ricarica la pagina e accedi di nuovo.');
+  }
+
+  const idToken = await user.getIdToken();
+  const response = await fetch(
+    createUrl(`/api/admin/campaigns/${encodeURIComponent(campaignId)}/images/${imageKind}`),
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${idToken}`,
+        'Content-Type': file.type,
+      },
+      body: file,
+    },
+  );
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const errorMessage = typeof payload?.error === 'string'
+      ? payload.error
+      : typeof payload?.error?.message === 'string'
+        ? payload.error.message
+        : null;
+    throw new Error(errorMessage || 'Errore durante il caricamento dell’immagine');
+  }
+  if (typeof payload?.downloadUrl !== 'string' || typeof payload?.storagePath !== 'string') {
+    throw new Error('Il server non ha restituito il collegamento all’immagine');
+  }
+
+  return { downloadUrl: payload.downloadUrl, storagePath: payload.storagePath };
+}
 
 // Helper per convertire Firestore doc in BookingCampaignFE
 function toBookingCampaignFE(id: string, data: any): BookingCampaignFE {

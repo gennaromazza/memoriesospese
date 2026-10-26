@@ -5,13 +5,14 @@ import type { HttpHandlerResult } from "./http-types.js";
  */
 
 import express from 'express';
-import { db } from './firebase-admin.js';
+import { db, storage } from './firebase-admin.js';
 import { triggerManualRetry } from './workers/cancellation-retry.js';
 import { ensureJobCalendarEvent } from './job-routes.js';
 import { formatPhoneForWhatsApp } from '../shared/phone-utils.js';
 import { authenticateFirebase } from './email-routes.js';
 import { generateGalleryThumbnails } from './thumbnails.js';
 import { safeErrorMessage } from './utils/safe-logging.js';
+import { CampaignImageUploadError, storeCampaignImage } from './campaign-image-upload.js';
 
 const router = express.Router();
 
@@ -56,6 +57,58 @@ router.post('/galleries/:galleryId/generate-thumbnails', authenticateFirebase, r
     res.status(500).json({ error: 'Errore durante la generazione delle miniature', details: error.message });
   }
 });
+
+router.post(
+  '/campaigns/:campaignId/images/:imageKind',
+  authenticateFirebase,
+  requireAdmin,
+  express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: '5mb' }),
+  async (req: any, res): Promise<void> => {
+    const campaignId = Array.isArray(req.params.campaignId) ? req.params.campaignId[0] : req.params.campaignId;
+    const imageKind = Array.isArray(req.params.imageKind) ? req.params.imageKind[0] : req.params.imageKind;
+    const contentType = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(campaignId || '')) {
+      res.status(400).json({ error: 'Identificativo campagna non valido' });
+      return;
+    }
+    if (imageKind !== 'slider' && imageKind !== 'booking') {
+      res.status(400).json({ error: 'Tipo immagine non valido' });
+      return;
+    }
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(contentType)) {
+      res.status(415).json({ error: 'Formato immagine non supportato. Usa JPEG, PNG o WebP.' });
+      return;
+    }
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      res.status(400).json({ error: 'Immagine vuota o non valida' });
+      return;
+    }
+
+    if (campaignId !== 'temp') {
+      const campaign = await db.collection('booking_campaigns').doc(campaignId).get();
+      if (!campaign.exists) {
+        res.status(404).json({ error: 'Campagna non trovata' });
+        return;
+      }
+    }
+
+    try {
+      const result = await storeCampaignImage(
+        { campaignId, imageKind, contentType, image: req.body },
+        storage.bucket(),
+      );
+      res.status(201).json(result);
+    } catch (error) {
+      if (error instanceof CampaignImageUploadError) {
+        res.status(error.status).json({ error: error.message });
+        return;
+      }
+      req.log?.error({ err: error, campaignId, imageKind }, 'Impossibile salvare l’immagine della campagna');
+      res.status(500).json({ error: 'Errore durante il caricamento dell’immagine' });
+    }
+  },
+);
 
 /**
  * GET /api/admin/pending-cancellations

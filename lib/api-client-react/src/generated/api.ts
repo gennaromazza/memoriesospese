@@ -20,6 +20,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  CampaignImageUploadResult,
   CustomerNotificationKind,
   CustomerOrderNotificationResendInput,
   CustomerOrderNotificationResendResult,
@@ -54,6 +55,98 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getUploadBookingCampaignImageUrl = (campaignId: string,
+    imageKind: 'slider' | 'booking',) => {
+
+
+
+
+  return `/api/admin/campaigns/${campaignId}/images/${imageKind}`
+}
+
+/**
+ * Admin-only binary image upload for the homepage slider or booking page. Accepts JPEG, PNG, or WebP images up to 5 MB.
+ * @summary Upload a booking campaign cover image
+ */
+export const uploadBookingCampaignImage = async (campaignId: string,
+    imageKind: 'slider' | 'booking',
+    uploadBookingCampaignImageBody: Blob, options?: Parameters<typeof customFetch>[1]): Promise<CampaignImageUploadResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<CampaignImageUploadResult>(getUploadBookingCampaignImageUrl(campaignId,imageKind),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'image/jpeg', ...getHeaders(options?.headers) },
+    body: uploadBookingCampaignImageBody
+  }
+);}
+
+
+
+
+
+export const getUploadBookingCampaignImageMutationKey = () => ['uploadBookingCampaignImage'] as const;
+
+export const getUploadBookingCampaignImageMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadBookingCampaignImage>>, TError,UploadBookingCampaignImageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof uploadBookingCampaignImage>>, TError,UploadBookingCampaignImageMutationVariables, TContext> => {
+
+const mutationKey = getUploadBookingCampaignImageMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uploadBookingCampaignImage>>, UploadBookingCampaignImageMutationVariables> = (props) => {
+          const {campaignId,imageKind,data} = props ?? {};
+
+          return  uploadBookingCampaignImage(campaignId,imageKind,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UploadBookingCampaignImageMutationResult = NonNullable<Awaited<ReturnType<typeof uploadBookingCampaignImage>>>
+    export type UploadBookingCampaignImageMutationBody = BodyType<Blob>
+    export type UploadBookingCampaignImageMutationError = ErrorType<void>
+    export type UploadBookingCampaignImageMutationVariables = {campaignId: string;imageKind: 'slider' | 'booking';data: BodyType<Blob>}
+
+    /**
+ * @summary Upload a booking campaign cover image
+ */
+export const useUploadBookingCampaignImage = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadBookingCampaignImage>>, TError,UploadBookingCampaignImageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof uploadBookingCampaignImage>>,
+        TError,
+        UploadBookingCampaignImageMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUploadBookingCampaignImageMutationOptions(options));
+    }
 
 export const getGetRecentLabShipmentsUrl = (params: GetRecentLabShipmentsParams,) => {
   const normalizedParams = new URLSearchParams();

@@ -12,7 +12,8 @@ import {
   updateCampaign,
   deleteCampaign,
   generateCampaignCode,
-  isCampaignCodeUnique
+  isCampaignCodeUnique,
+  uploadCampaignImage
 } from '@/lib/booking-campaigns';
 import { getAllProducts } from '@/lib/products';
 import { getProductCategories } from '@/lib/product-categories';
@@ -65,8 +66,6 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { storage } from '@/lib/firebase';
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import imageCompression from 'browser-image-compression';
 
 // Temi stagionali disponibili
@@ -385,17 +384,10 @@ export default function CampaignsManager() {
         useWebWorker: true,
       });
 
-      // Upload a Firebase Storage
-      const timestamp = Date.now();
       const campaignId = editingCampaign?.id || 'temp';
-      const fileName = `slider_${timestamp}.jpg`;
-      const storagePath = `campaigns/${campaignId}/${fileName}`;
-      const storageRef = ref(storage, storagePath);
+      const { downloadUrl } = await uploadCampaignImage(campaignId, 'slider', compressedFile);
 
-      await uploadBytes(storageRef, compressedFile);
-      const downloadURL = await getDownloadURL(storageRef);
-
-      setFormData({ ...formData, immagineSlider: downloadURL });
+      setFormData(current => ({ ...current, immagineSlider: downloadUrl }));
 
       toast({
         title: 'Successo',
@@ -405,7 +397,7 @@ export default function CampaignsManager() {
       console.error('Errore upload immagine slider:', error);
       toast({
         title: 'Errore',
-        description: 'Errore durante l\'upload dell\'immagine',
+        description: error instanceof Error ? error.message : 'Errore durante l\'upload dell\'immagine',
         variant: 'destructive',
       });
     } finally {
@@ -438,17 +430,10 @@ export default function CampaignsManager() {
         useWebWorker: true,
       });
 
-      // Upload a Firebase Storage
-      const timestamp = Date.now();
       const campaignId = editingCampaign?.id || 'temp';
-      const fileName = `booking_${timestamp}.jpg`;
-      const storagePath = `campaigns/${campaignId}/${fileName}`;
-      const storageRef = ref(storage, storagePath);
+      const { downloadUrl } = await uploadCampaignImage(campaignId, 'booking', compressedFile);
 
-      await uploadBytes(storageRef, compressedFile);
-      const downloadURL = await getDownloadURL(storageRef);
-
-      setFormData({ ...formData, immaginePaginaBooking: downloadURL });
+      setFormData(current => ({ ...current, immaginePaginaBooking: downloadUrl }));
 
       toast({
         title: 'Successo',
@@ -458,7 +443,7 @@ export default function CampaignsManager() {
       console.error('Errore upload immagine booking:', error);
       toast({
         title: 'Errore',
-        description: 'Errore durante l\'upload dell\'immagine',
+        description: error instanceof Error ? error.message : 'Errore durante l\'upload dell\'immagine',
         variant: 'destructive',
       });
     } finally {
