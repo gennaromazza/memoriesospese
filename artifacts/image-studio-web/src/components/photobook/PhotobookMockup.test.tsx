@@ -3,8 +3,9 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { BOX_MOCKUP_MODEL } from '@shared/mockup-catalog';
 import type { MockupConfiguration } from '@shared/mockup-types';
 import MockupRendererError from './MockupRendererError';
+import SavedMockupPhotoRecoveryError from './SavedMockupPhotoRecoveryError';
 import { beginMockupRendererRetry, configurationForRendererRestore, shouldSkipSavedMockupRestore } from './mockup-renderer-recovery';
-import { hasSavedMockupPhotos, loadSavedMockupPhotos } from './mockup-photo-recovery';
+import { hasSavedMockupPhotos, loadSavedMockupPhotos, mockupRequestErrorFromResponse, savedMockupPhotoFailure } from './mockup-photo-recovery';
 
 describe('recupero del mockup fotolibro', () => {
   it('spiega l’errore temporaneo e offre un comando per riprovare', () => {
@@ -85,6 +86,35 @@ describe('recupero del mockup fotolibro', () => {
     expect(configuration).toEqual(originalConfiguration);
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
+  });
+
+  it('consente il retry per errori HTTP temporanei', async () => {
+    const response = new Response(JSON.stringify({ error: 'Servizio temporaneamente non disponibile' }), { status: 503 });
+    const error = await mockupRequestErrorFromResponse(response);
+    const failure = savedMockupPhotoFailure(error);
+    const html = renderToStaticMarkup(
+      <SavedMockupPhotoRecoveryError failure={failure} retryBusy={false} onRetry={() => undefined} />,
+    );
+
+    expect(failure.kind).toBe('temporary');
+    expect(failure.message).toContain('puoi riprovare');
+    expect(html).toContain('button-retry-mockup-saved-photo');
+    expect(html).toContain('Riprova a caricare la foto');
+  });
+
+  it.each([401, 403, 404])('indica di contattare lo studio per una foto HTTP %s non accessibile', async status => {
+    const response = new Response(JSON.stringify({ error: 'Foto non trovata' }), { status });
+    const error = await mockupRequestErrorFromResponse(response);
+    const failure = savedMockupPhotoFailure(error);
+    const html = renderToStaticMarkup(
+      <SavedMockupPhotoRecoveryError failure={failure} retryBusy={false} onRetry={() => undefined} />,
+    );
+
+    expect(failure.kind).toBe('unavailable');
+    expect(failure.message).toContain('Contatta lo studio');
+    expect(failure.message).not.toContain('riprovare');
+    expect(html).toContain('Contatta lo studio');
+    expect(html).not.toContain('button-retry-mockup-saved-photo');
   });
 
   it('recupera tutte le foto salvate del Quadrobook con richieste simulate', async () => {

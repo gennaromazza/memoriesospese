@@ -21,8 +21,9 @@ import type { MockupOption } from '@shared/mockup-workflow';
 import MockupModelChooser from './MockupModelChooser';
 import { initialMockupSelection, mockupPresentation, needsClientModelChoice } from './mockup-presentation';
 import MockupRendererError from './MockupRendererError';
+import SavedMockupPhotoRecoveryError from './SavedMockupPhotoRecoveryError';
 import { beginMockupRendererRetry, configurationForRendererRestore, shouldSkipSavedMockupRestore } from './mockup-renderer-recovery';
-import { hasSavedMockupPhotos, loadSavedMockupPhotos, type RuntimeMockupPhoto, type SavedMockupPhotoLabels } from './mockup-photo-recovery';
+import { hasSavedMockupPhotos, loadSavedMockupPhotos, mockupRequestErrorFromResponse, savedMockupPhotoFailure, type RuntimeMockupPhoto, type SavedMockupPhotoFailure, type SavedMockupPhotoLabels } from './mockup-photo-recovery';
 import { useToast } from '@/hooks/use-toast';
 import PhotobookInlineGallery from './PhotobookInlineGallery';
 import { ArrowLeft, ArrowRight, HelpCircle, LogOut, Rotate3D, RotateCcw, Save, X, ZoomIn, ZoomOut } from 'lucide-react';
@@ -95,7 +96,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   // Ogni avvio del visualizzatore (anche un ricaricamento) richiede di rimandargli le scelte.
   const [readyTick, setReadyTick] = useState(0);
   const [rendererError, setRendererError] = useState('');
-  const [savedPhotoError, setSavedPhotoError] = useState('');
+  const [savedPhotoError, setSavedPhotoError] = useState<SavedMockupPhotoFailure | null>(null);
   const [savedPhotoRetryBusy, setSavedPhotoRetryBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [message, setMessage] = useState('');
@@ -134,10 +135,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       headers.set('Authorization', `Bearer ${await auth.currentUser.getIdToken()}`);
     }
     const response = await fetch(createUrl(`${base}${path}${path.includes('?') ? '&' : '?'}version=${version}`), { ...init, headers });
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new Error(typeof data.error === 'string' ? data.error : data.error?.message || 'Operazione non riuscita');
-    }
+    if (!response.ok) throw await mockupRequestErrorFromResponse(response);
     return response;
   }
   const stateKey = ['photobook-mockup', photobookId, version, token ? 'client' : 'admin'];
@@ -208,7 +206,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     if (busy) return;
     if (dirty && !window.confirm('Chiudere il configuratore e abbandonare le modifiche non salvate?')) return;
     setOpen(false); setPicker(false); setReady(false); setRenderBusy(true); setRendererError('');
-    setSavedPhotoError(''); setSavedPhotoRetryBusy(false); savedPhotoRecovery.current = null;
+    setSavedPhotoError(null); setSavedPhotoRetryBusy(false); savedPhotoRecovery.current = null;
     setDirty(false); setConfiguration(null); setRendererOverride(null); setSelection(undefined);
     setDraftCoverLayout(''); setDraftBackCover(''); setFrontPhotoPresent(false); setBackPhotoPresent(false);
     pendingOption.current = null; pendingPreview.current = null; currentPhoto.current = undefined; initializing.current = true;
@@ -507,12 +505,12 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
         if (shouldLoadSavedPhotos && saved && restoredConfiguration) {
           const recoveryContext = { configuration: restoredConfiguration, option: restoredOption, readOnly: !editable };
           savedPhotoRecovery.current = recoveryContext;
-          setSavedPhotoError('');
+          setSavedPhotoError(null);
           let assets;
           try {
             assets = await loadSavedPhotos(saved.configuration);
-          } catch {
-            if (!cancelled) setSavedPhotoError('Non è stato possibile caricare una foto salvata. La configurazione è conservata: puoi riprovare.');
+          } catch (error) {
+            if (!cancelled) setSavedPhotoError(savedMockupPhotoFailure(error));
             return;
           }
           photo = assets.photo;
@@ -520,7 +518,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
           boxPhotos = assets.boxPhotos;
         } else {
           savedPhotoRecovery.current = null;
-          setSavedPhotoError('');
+          setSavedPhotoError(null);
         }
         if (!cancelled) {
           currentPhoto.current = photo;
@@ -547,7 +545,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     if (!ready || !readOnly || !state.data) return;
     let cancelled = false;
     savedPhotoRecovery.current = null;
-    setSavedPhotoError('');
+    setSavedPhotoError(null);
     apply({ readOnly: true });
     const freezeSaved = async () => {
       try {
@@ -561,16 +559,16 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
         let assets: Awaited<ReturnType<typeof loadSavedPhotos>> = {};
         if (hasSavedMockupPhotos(saved.configuration)) {
           savedPhotoRecovery.current = { configuration: saved.configuration, option, readOnly: true };
-          setSavedPhotoError('');
+          setSavedPhotoError(null);
           try {
             assets = await loadSavedPhotos(saved.configuration);
-          } catch {
-            if (!cancelled) setSavedPhotoError('Non è stato possibile caricare una foto salvata. La configurazione è conservata: puoi riprovare.');
+          } catch (error) {
+            if (!cancelled) setSavedPhotoError(savedMockupPhotoFailure(error));
             return;
           }
         } else {
           savedPhotoRecovery.current = null;
-          setSavedPhotoError('');
+          setSavedPhotoError(null);
         }
         if (cancelled) return;
         initializing.current = true;
@@ -756,7 +754,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     const retry = beginMockupRendererRetry(generation);
     skipRestoreRevision.current = retry.skipRestoreRevision;
     setRendererError('');
-    setSavedPhotoError('');
+    setSavedPhotoError(null);
     setReady(false);
     setRenderBusy(true);
     setWizard(null);
@@ -783,9 +781,9 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
         option: context.option,
         readOnly: context.readOnly,
       });
-      setSavedPhotoError('');
-    } catch {
-      setSavedPhotoError('Non è stato possibile caricare una foto salvata. La configurazione è conservata: puoi riprovare.');
+      setSavedPhotoError(null);
+    } catch (error) {
+      setSavedPhotoError(savedMockupPhotoFailure(error));
     } finally {
       setSavedPhotoRetryBusy(false);
     }
@@ -1019,19 +1017,11 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
           void selectPhoto(() => request(`/upload?name=${encodeURIComponent(file.name)}`, { method: 'POST', headers: { 'Content-Type': file.type }, body: file }));
         }} />}
         {!token && message && adminPanel(<p role="status" className="rounded border p-3 text-sm">{message}</p>)}
-          {savedPhotoError && <section className="mockup-photo-recovery-error" role="alert" data-testid="mockup-saved-photo-error">
-            <p>{savedPhotoError}</p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              data-testid="button-retry-mockup-saved-photo"
-              disabled={savedPhotoRetryBusy || !ready || renderBusy || !!rendererError}
-              onClick={() => void retrySavedPhotoLoad()}
-            >
-              {savedPhotoRetryBusy ? 'Caricamento…' : 'Riprova a caricare la foto'}
-            </Button>
-          </section>}
+          {savedPhotoError && <SavedMockupPhotoRecoveryError
+            failure={savedPhotoError}
+            retryBusy={savedPhotoRetryBusy || !ready || renderBusy || !!rendererError}
+            onRetry={() => void retrySavedPhotoLoad()}
+          />}
           {token && rendererError && !choosing && <MockupRendererError message={rendererError} onRetry={retryRenderer} />}
          {token && !rendererError && (!ready || (!wizard && !isBox)) && !choosing && <p role="status" className="p-4 text-sm">Preparazione del tuo configuratore…</p>}
          {(!mobile || viewerStarted) && !!state.data && <iframe key={`${renderer.id}-${generation}`} ref={frame} title={`Configuratore 3D ${renderer.name}`} src={`${import.meta.env.BASE_URL}mockups/${renderer.path}`} sandbox="allow-scripts allow-same-origin allow-downloads" style={{ visibility: (token && (!ready || (!wizard && !isBox) || !!rendererError || !!savedPhotoError)) || !!savedPhotoError ? 'hidden' : undefined }} aria-hidden={(token && (!ready || (!wizard && !isBox) || !!rendererError || !!savedPhotoError)) || !!savedPhotoError ? true : undefined} className={`${token ? 'w-full min-h-0 flex-1 border-0' : 'mockup-admin-viewer'} ${busy ? 'pointer-events-none' : ''}`} />}
