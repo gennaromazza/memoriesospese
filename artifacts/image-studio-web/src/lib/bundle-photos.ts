@@ -30,5 +30,19 @@ export function getBundleGalleryPhotoCount(
   return items.find((item) => item.prodottoId === sourceProductId)?.numeroFoto ?? 0;
 }
 
+/** A shared gallery source must still be an included, catalog-backed component with photos. */
+export function isValidBundlePhotoSource(
+  items: BundleItem[] = [],
+  sourceProductId?: string,
+  catalogProductIds?: ReadonlySet<string>,
+): boolean {
+  if (!sourceProductId) return false;
+  const source = items.find((item) => item.prodottoId === sourceProductId);
+  return Boolean(
+    source
+    && (source.numeroFoto ?? 0) > 0
+    && (!catalogProductIds || catalogProductIds.has(sourceProductId)),
+  );
+}
 
 /** Counts unique photo pools while preserving separate per-product requirements. */

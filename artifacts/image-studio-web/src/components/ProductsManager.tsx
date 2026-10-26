@@ -58,7 +58,12 @@ import {
 import { apiRequest } from '@/lib/queryClient';
 import type { Product, InsertProduct, ProductCategory, BundleItem } from '@shared/booking-types';
 import { isPrintShopManagedProduct } from '@/features/print-shop/product-channel-guard';
-import { countBundlePhotos, getBundleGalleryPhotoCount, resolveBundleItems } from '@/lib/bundle-photos';
+import {
+  countBundlePhotos,
+  getBundleGalleryPhotoCount,
+  isValidBundlePhotoSource,
+  resolveBundleItems,
+} from '@/lib/bundle-photos';
 
 const isPrintShopProduct = (product: Product): boolean =>
   isPrintShopManagedProduct(product as Product & { salesChannels?: unknown });
@@ -88,7 +93,9 @@ interface SortableProductCardProps {
 
 function SortableProductCard({ product, catalog, categories, onEdit, onDelete }: SortableProductCardProps) {
   const bundleItems = resolveBundleItems(product.bundleItems, catalog);
+  const catalogProductIds = new Set(catalog.map((item) => item.id));
   const sharedPhotoSource = product.fotoCondivise
+    && isValidBundlePhotoSource(bundleItems, product.prodottoSorgenteFotoId, catalogProductIds)
     ? bundleItems.find((item) => item.prodottoId === product.prodottoSorgenteFotoId)
     : undefined;
   const bundleGalleryPhotoCount = product.fotoCondivise
@@ -488,6 +495,13 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
       }
     }
 
+    const resolvedItems = resolveBundleItems(syncedBundleItems, products);
+    const catalogProductIds = new Set(products.map((item) => item.id));
+    const sourceProductId = product.fotoCondivise
+      && isValidBundlePhotoSource(resolvedItems, product.prodottoSorgenteFotoId, catalogProductIds)
+      ? product.prodottoSorgenteFotoId || ''
+      : '';
+
     setFormData({
       nome: product.nome,
       descrizione: product.descrizione,
@@ -501,7 +515,7 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
       isBundle: product.isBundle || false,
       bundleItems: syncedBundleItems,
       fotoCondivise: product.fotoCondivise || false,
-      prodottoSorgenteFotoId: product.prodottoSorgenteFotoId || '',
+      prodottoSorgenteFotoId: sourceProductId,
     });
     setProductImages(product.immagini || []);
     setBundleSearchTerm('');
@@ -696,6 +710,15 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
   // Calculate total photos in bundle
   const resolvedBundleItems = resolveBundleItems(formData.bundleItems, products);
   const totalBundlePhotos = countBundlePhotos(resolvedBundleItems);
+  const catalogProductIds = new Set(products.map((item) => item.id));
+  const validBundlePhotoSources = resolvedBundleItems.filter((item) =>
+    isValidBundlePhotoSource([item], item.prodottoId, catalogProductIds),
+  );
+  const hasValidSharedPhotoSource = isValidBundlePhotoSource(
+    resolvedBundleItems,
+    formData.prodottoSorgenteFotoId,
+    catalogProductIds,
+  );
   const bundleGalleryPhotoCount = formData.prodottoSorgenteFotoId
     ? getBundleGalleryPhotoCount(resolvedBundleItems, formData.prodottoSorgenteFotoId)
     : 0;
@@ -789,13 +812,10 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
       }
 
       if (formData.fotoCondivise) {
-        const sourceProduct = resolvedBundleItems.find(
-          (item) => item.prodottoId === formData.prodottoSorgenteFotoId && item.numeroFoto > 0,
-        );
-        if (!sourceProduct) {
+        if (!hasValidSharedPhotoSource) {
           toast({
             title: 'Seleziona la galleria sorgente',
-            description: 'Scegli un prodotto incluso nel bundle che definisca la galleria condivisa.',
+            description: 'Scegli un prodotto incluso nel bundle, ancora presente nel catalogo e con almeno una foto.',
             variant: 'destructive',
           });
           return;
@@ -1441,6 +1461,7 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
                             size="sm"
                             onClick={() => removeProductFromBundle(item.prodottoId)}
                             className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                            data-testid={`button-remove-bundle-product-${item.prodottoId}`}
                           >
                             <X className="h-4 w-4" />
                           </Button>
@@ -1473,15 +1494,14 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
                     <div className="space-y-2">
                       <Label htmlFor="bundle-photo-source">Prodotto che definisce la galleria *</Label>
                       <Select
-                        value={formData.prodottoSorgenteFotoId || ''}
+                        value={hasValidSharedPhotoSource ? formData.prodottoSorgenteFotoId || '' : ''}
                         onValueChange={(value) => setFormData({ ...formData, prodottoSorgenteFotoId: value })}
                       >
                         <SelectTrigger id="bundle-photo-source" data-testid="select-bundle-photo-source">
                           <SelectValue placeholder="Seleziona il prodotto sorgente" />
                         </SelectTrigger>
                         <SelectContent>
-                          {resolvedBundleItems
-                            .filter((item) => item.numeroFoto > 0)
+                          {validBundlePhotoSources
                             .map((item) => (
                               <SelectItem key={item.prodottoId} value={item.prodottoId}>
                                 {item.prodottoNome} · {item.numeroFoto} foto
@@ -1489,9 +1509,11 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
                             ))}
                         </SelectContent>
                       </Select>
-                      {resolvedBundleItems.filter((item) => item.numeroFoto > 0).length === 0 && (
-                        <p className="text-xs text-destructive">
-                          Aggiungi prima un prodotto con foto incluse per usarlo come sorgente.
+                      {!hasValidSharedPhotoSource && (
+                        <p className="text-xs text-destructive" role="alert" data-testid="bundle-photo-source-error">
+                          {validBundlePhotoSources.length === 0
+                            ? 'La galleria condivisa non è valida. Aggiungi un prodotto incluso, presente nel catalogo e con foto, oppure disattiva Foto condivise.'
+                            : 'La sorgente della galleria condivisa non è più valida. Scegli un altro prodotto con foto oppure disattiva Foto condivise.'}
                         </p>
                       )}
                     </div>

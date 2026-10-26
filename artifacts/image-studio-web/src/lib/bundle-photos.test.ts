@@ -5,6 +5,7 @@ import {
   expandOrderProductsToRequirements,
   getBundleGalleryPhotoCount,
   getRequiredGalleryPhotoCount,
+  isValidBundlePhotoSource,
   resolveBundleItems,
 } from './bundle-photos';
 import { catalogProductToQuoteProduct } from './quote-mappers';
@@ -51,6 +52,15 @@ describe('bundle photos', () => {
     expect(countBundlePhotos(sharedBundle)).toBe(57);
     expect(getBundleGalleryPhotoCount(sharedBundle, 'missing-source')).toBe(0);
     expect(getBundleGalleryPhotoCount([])).toBe(0);
+  });
+
+  it('rejects a shared gallery source that is removed, empty, or no longer in the catalog', () => {
+    expect(isValidBundlePhotoSource(items, 'album')).toBe(true);
+    expect(isValidBundlePhotoSource(items.filter((item) => item.prodottoId !== 'album'), 'album')).toBe(false);
+    expect(isValidBundlePhotoSource([{ ...items[0], numeroFoto: 0 }], 'album')).toBe(false);
+    expect(isValidBundlePhotoSource(items, 'album', new Set(['prints']))).toBe(false);
+    expect(isValidBundlePhotoSource(items, 'album', new Set(['album', 'prints']))).toBe(true);
+    expect(isValidBundlePhotoSource(items, 'missing-source')).toBe(false);
   });
 
   it('keeps one source gallery and the component photo quotas in a customer quote', () => {
