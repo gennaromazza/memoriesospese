@@ -177,11 +177,23 @@ test("crea, apre e modifica campagne nuove e mantiene i link legacy; mostra erro
   await page.getByTestId("button-new-campaign").click();
   const dialog = page.getByRole("dialog");
   await dialog.getByTestId("input-campaign-name").fill("Campagna nuova E2E");
-  await dialog.getByTestId("input-campaign-code").fill(newCampaignCode);
   await dialog.getByTestId("input-campaign-start-date").fill(dateForInput(startDate));
   await dialog.getByTestId("input-campaign-end-date").fill(dateForInput(endDate));
-  await dialog.getByTestId("button-save-campaign").click();
 
+  // Un codice usato da una campagna legacy con ID casuale deve essere rifiutato
+  // dall'endpoint admin e l'utente deve poter correggere il form senza perderlo.
+  await dialog.getByTestId("input-campaign-code").fill(legacyCampaignCode);
+  await dialog.getByTestId("button-save-campaign").click();
+  await expect(
+    page.getByText("Il codice campagna è già in uso. Generane uno nuovo.", { exact: true }),
+  ).toBeVisible();
+  await expect(dialog).toBeVisible();
+  expect(await readCampaign(newCampaignCode).catch(() => null)).toBeNull();
+
+  await dialog.getByTestId("input-campaign-code").fill(newCampaignCode);
+  await dialog.getByTestId("button-save-campaign").click();
+  await expect(page.getByText("Campagna creata con successo", { exact: true })).toBeVisible();
+  await expect(dialog).toBeHidden();
   const editButton = page.getByTestId(`button-edit-${newCampaignCode}`);
   await expect(editButton).toBeVisible();
   const createdCampaign = await readCampaign(newCampaignCode);

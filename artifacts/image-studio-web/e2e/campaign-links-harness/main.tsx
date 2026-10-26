@@ -5,6 +5,7 @@ import { Route, Router, Switch } from "wouter";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import BookingPage from "../../src/pages/BookingPage";
 import CampaignsManager from "../../src/components/CampaignsManager";
+import { Toaster } from "../../src/components/ui/toaster";
 import { auth } from "../../src/lib/firebase";
 import { queryClient } from "../../src/lib/queryClient";
 import "../../src/index.css";
@@ -43,6 +44,7 @@ function App() {
           <Route>Pagina test non trovata</Route>
         </Switch>
       </Router>
+      <Toaster />
     </QueryClientProvider>
   );
 }
