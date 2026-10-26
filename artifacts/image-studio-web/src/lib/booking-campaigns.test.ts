@@ -19,9 +19,13 @@ const firestoreMock = vi.hoisted(() => ({
   runTransaction: vi.fn(),
   deleteField: vi.fn(() => ({ deleteField: true })),
 }));
+const clientMock = vi.hoisted(() => ({
+  currentUser: { getIdToken: vi.fn().mockResolvedValue('test-id-token') },
+}));
+const fetchMock = vi.hoisted(() => vi.fn());
 
 vi.mock('firebase/firestore', () => firestoreMock);
-vi.mock('@/lib/firebase', () => ({ auth: { currentUser: null }, db: {} }));
+vi.mock('@/lib/firebase', () => ({ auth: clientMock, db: {} }));
 
 import {
   createCampaign,
@@ -66,6 +70,7 @@ function configureTransaction(
 describe('booking-campaigns Firestore service', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal('fetch', fetchMock);
   });
 
   it('scarta le campagne con date non valide e normalizza i campi legacy', async () => {
@@ -114,37 +119,39 @@ describe('booking-campaigns Firestore service', () => {
     expect(firestoreMock.where).toHaveBeenCalledWith('code', '==', 'OLD12345');
   });
 
-  it('rifiuta un codice già presente in un documento legacy', async () => {
-    firestoreMock.getDocs.mockResolvedValue({
-      empty: false,
-      size: 1,
-      docs: [{ id: 'legacy-random-id' }],
+  it('propaga il conflitto del server per un codice presente in un documento legacy', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: async () => ({ error: 'Il codice campagna è già in uso. Generane uno nuovo.' }),
     });
 
     await expect(createCampaign(campaignInput('OLD12345')))
       .rejects.toThrow('Il codice campagna è già in uso');
-    expect(firestoreMock.runTransaction).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/api/admin/campaigns');
   });
 
-  it('crea i nuovi documenti con il codice come ID', async () => {
-    firestoreMock.getDocs.mockResolvedValue({ empty: true, size: 0, docs: [] });
-    const transaction = configureTransaction({ exists: () => false });
+  it('richiede al server la creazione e invia le date in formato ISO', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 201,
+      json: async () => ({ id: 'NEW12345' }),
+    });
 
     const id = await createCampaign(campaignInput('NEW12345'));
 
     expect(id).toBe('NEW12345');
-    expect(firestoreMock.doc).toHaveBeenLastCalledWith({}, 'booking_campaigns', 'NEW12345');
-    expect(transaction.set).toHaveBeenCalledOnce();
-  });
-
-  it('rifiuta una creazione concorrente quando il documento con quel codice esiste già', async () => {
-    firestoreMock.getDocs.mockResolvedValue({ empty: true, size: 0, docs: [] });
-    const transaction = configureTransaction({ exists: () => true });
-
-    await expect(createCampaign(campaignInput('NEW12345')))
-      .rejects.toThrow('Il codice campagna è già in uso');
-
-    expect(transaction.set).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/api/admin/campaigns'),
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ Authorization: 'Bearer test-id-token' }),
+      }),
+    );
+    const payload = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(payload.dataInizio).toBe('2026-10-01T00:00:00.000Z');
+    expect(payload.dataFine).toBe('2026-10-31T00:00:00.000Z');
   });
 
   it('valida le date unite a quelle salvate anche quando l’aggiornamento è parziale', async () => {

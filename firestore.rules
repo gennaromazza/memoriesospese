@@ -358,12 +358,14 @@ service cloud.firestore {
         !isPrintShopProduct(resource.data);
     }
     
-    // Booking Campaigns - Admin-only management, public read for active campaigns
+    // Campaign creation is centralized in the authenticated Admin API so a
+    // transaction can reserve codes even when matching legacy documents use random IDs.
     match /booking_campaigns/{campaignId} {
-      allow read: if true; // Public read access for active booking campaigns
-      allow create: if isAdmin(); // Only admin can create campaigns
-      allow update: if isAdmin(); // Only admin can update campaigns
-      allow delete: if isAdmin(); // Only admin can delete campaigns
+      allow read: if true; // Keep existing campaign pages and public booking links accessible.
+      allow create: if false; // Admin SDK in the Admin API is the only create path.
+      allow update: if isAdmin() &&
+        request.resource.data.get('code', null) == resource.data.get('code', null);
+      allow delete: if isAdmin();
     }
     
     // Bookings - Public can create, admin manages

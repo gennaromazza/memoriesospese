@@ -649,19 +649,23 @@ export default function CampaignsManager() {
                       onChange={e => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
                       placeholder="ABC123XY"
                       maxLength={8}
+                      disabled={Boolean(editingCampaign)}
                       data-testid="input-campaign-code"
                     />
                     <Button
                       type="button"
                       variant="outline"
                       onClick={handleGenerateCode}
+                      disabled={Boolean(editingCampaign)}
                       data-testid="button-generate-code"
                     >
                       Genera
                     </Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    URL pubblico: /prenota/{formData.code}
+                    {editingCampaign
+                      ? 'Il codice non si può modificare: il link pubblico esistente resta valido.'
+                      : `URL pubblico: /prenota/${formData.code}`}
                   </p>
                 </div>
               </div>

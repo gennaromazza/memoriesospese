@@ -13,6 +13,7 @@ import { authenticateFirebase } from './email-routes.js';
 import { generateGalleryThumbnails } from './thumbnails.js';
 import { safeErrorMessage } from './utils/safe-logging.js';
 import { CampaignImageUploadError, storeCampaignImage } from './campaign-image-upload.js';
+import { CampaignCodeConflictError, createBookingCampaign } from './booking-campaign-service.js';
 
 const router = express.Router();
 
@@ -24,6 +25,25 @@ function requireAdmin(req: any, res: express.Response, next: express.NextFunctio
   }
   next();
 }
+
+router.post('/campaigns', authenticateFirebase, requireAdmin, async (req: any, res): Promise<HttpHandlerResult> => {
+  try {
+    const id = await createBookingCampaign(req.body);
+    return res.status(201).json({ id });
+  } catch (error) {
+    if (error instanceof CampaignCodeConflictError) {
+      return res.status(409).json({ error: error.message });
+    }
+    if (error instanceof Error && (
+      error.message === 'I dati della campagna non sono validi.' ||
+      error.message === 'La data di fine deve essere successiva alla data di inizio.'
+    )) {
+      return res.status(400).json({ error: error.message });
+    }
+    req.log?.error({ err: error }, 'Impossibile creare la campagna');
+    return res.status(500).json({ error: 'Errore durante la creazione della campagna.' });
+  }
+});
 
 /**
  * POST /api/admin/galleries/:galleryId/generate-thumbnails

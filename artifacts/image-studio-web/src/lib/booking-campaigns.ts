@@ -13,7 +13,6 @@ import {
   where,
   orderBy,
   Timestamp,
-  serverTimestamp,
   runTransaction,
   deleteField,
 } from 'firebase/firestore';
@@ -255,34 +254,41 @@ export async function createCampaign(
     throw new Error('La data di fine deve essere successiva alla data di inizio.');
   }
 
-  // Questa query intercetta anche i documenti legacy con ID casuale.
-  // Il controllo transazionale sul docId sotto gestisce le creazioni concorrenti
-  // tra client aggiornati; le vecchie versioni dell'app non usano quel docId.
-  const existingByCode = await getDocs(
-    query(collection(db, COLLECTION), where('code', '==', code)),
-  );
-  if (!existingByCode.empty) {
-    throw new Error('Il codice campagna è già in uso. Generane uno nuovo.');
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('Sessione amministratore non disponibile. Ricarica la pagina e accedi di nuovo.');
   }
 
-  const cleanData = removeUndefinedFields({
-    ...data,
-    code,
-    dataInizio: Timestamp.fromDate(dataInizio),
-    dataFine: Timestamp.fromDate(dataFine),
-    createdAt: serverTimestamp(),
+  const idToken = await user.getIdToken();
+  const response = await fetch(createUrl('/api/admin/campaigns'), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${idToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      ...removeUndefinedFields(data),
+      code,
+      dataInizio: dataInizio.toISOString(),
+      dataFine: dataFine.toISOString(),
+    }),
   });
+  const payload = await response.json().catch(() => null);
 
-  const docRef = doc(db, COLLECTION, code);
-  await runTransaction(db, async transaction => {
-    const existing = await transaction.get(docRef);
-    if (existing.exists()) {
-      throw new Error('Il codice campagna è già in uso. Generane uno nuovo.');
-    }
-    transaction.set(docRef, cleanData);
-  });
+  if (!response.ok) {
+    const message = typeof payload?.error === 'string'
+      ? payload.error
+      : typeof payload?.error?.message === 'string'
+        ? payload.error.message
+        : 'Errore durante la creazione della campagna.';
+    throw new Error(message);
+  }
 
-  return code;
+  if (typeof payload?.id !== 'string' || payload.id !== code) {
+    throw new Error('Il server non ha restituito l’identificativo della campagna.');
+  }
+
+  return payload.id;
 }
 
 /**
