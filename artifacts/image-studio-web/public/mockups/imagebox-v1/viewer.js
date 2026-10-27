@@ -14,6 +14,7 @@ const $ = id => document.getElementById(id);
 // Dentro la piattaforma il visualizzatore è in un iframe: foto, scelte dello studio e salvataggio li gestisce l'host.
 const embedded = window.parent !== window;
 let phone = false;   // telefono nella piattaforma: lo decide l'host
+let startIn3d = false;
 if (embedded) document.body.classList.add('embedded');
 const notify = (type, payload = {}) => { if (embedded) window.parent.postMessage({channel: 'memorie-mockup-v1', type, ...payload}, location.origin); };
 const SRC = new URL('../custodia-v1/', import.meta.url);
@@ -777,6 +778,7 @@ if (embedded) {
     locked = value === true;
     for (const el of document.querySelectorAll('.panel-content button, .panel-content textarea')) el.disabled = locked;
     document.body.classList.toggle('locked', locked);
+    if (phone && locked && startIn3d) document.body.classList.add('mq-3d');
   }
   function restoreEngraving(target, saved) {
     target.graphic = null; target.assetId = null;
@@ -877,12 +879,14 @@ if (embedded) {
     if (!galleryData.photos.length) { const p = document.createElement('p'); p.textContent = 'Caricamento della galleria…'; grid.append(p); }
     box.append(grid);
   }
-  function setPhone(value) {
+  function setPhone(value, openIn3d) {
     phone = value === true;
+    startIn3d = openIn3d === true;
     document.body.classList.toggle('phone', phone); document.body.classList.toggle('mq-phone', phone);
     if (phone) for (const d of document.querySelectorAll('.material-category')) d.open = true;
     updateSummary();
     goStep(step, {focus: false});
+    if (phone && locked && startIn3d) document.body.classList.add('mq-3d');
   }
   $('pipOpen').onclick = () => document.body.classList.add('mq-3d');
   $('pipClose').onclick = () => document.body.classList.remove('mq-3d');
@@ -903,7 +907,7 @@ if (embedded) {
         emitChange(true);
         notify('applied');
       } else if (data.type === 'lock') applyLock(data.readOnly);
-      else if (data.type === 'layout') setPhone(data.phone);
+      else if (data.type === 'layout') setPhone(data.phone, data.startIn3d);
       else if (data.type === 'gallery') { galleryData = {photos: data.photos || [], chapters: data.chapters || []}; for (const slot of ['base', 'album']) renderGallery(slot); }
       else if (data.type === 'status') { $('hostStatus').textContent = data.text || ''; $('submitHost').disabled = !data.canSubmit; $('submitHost').textContent = data.submitLabel || 'Invia allo studio'; }
       else if (data.type === 'export') {

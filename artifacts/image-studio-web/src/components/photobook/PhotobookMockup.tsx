@@ -486,12 +486,8 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     if (!mobile && token && ready && !renderBusy && !busy && editable && !selection && !initializing.current && state.data?.offer?.options.length === 1) chooseOption(state.data.offer.options[0]);
   }, [token, ready, renderBusy, busy, editable, selection, configuration, state.data?.offer]);
 
-  // Telefono + Quadrobook: si sceglie a schermo pieno dentro il visualizzatore, il 3D è una miniatura.
+  // Telefono + box: il viewer apre il 3D dopo aver applicato la revisione in sola lettura.
   useEffect(() => { setPhoneBox(!!token && mobile && isBox); }, [token, mobile, isBox]);
-  useEffect(() => {
-    if (!shouldStartClientMockupIn3d({ confirmedOnly, mobile, choosing }) || !isBox || !ready) return;
-    frame.current?.contentDocument?.body.classList.add('mq-3d');
-  }, [confirmedOnly, mobile, choosing, isBox, ready, readyTick]);
   // Telefono, Custodia / Album girevole / Plaza: stesso standard del Quadrobook (public/mockups/phone-ui.css).
   const phoneWizard = !!token && mobile && !isBox && !!wizard;
   useEffect(() => {
@@ -501,7 +497,15 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     setPhone3d(shouldStartClientMockupIn3d({ confirmedOnly, mobile, choosing }));
   }, [step, wizard, choosing, confirmedOnly, mobile]);
   const postToViewer = (payload: Record<string, unknown>) => frame.current?.contentWindow?.postMessage({ channel: 'memorie-mockup-v1', ...payload }, window.location.origin);
-  useEffect(() => { if (ready && isBox) postToViewer({ type: 'layout', phone: phoneBox }); }, [ready, readyTick, isBox, phoneBox]);
+  useEffect(() => {
+    if (ready && isBox) {
+      postToViewer({
+        type: 'layout',
+        phone: phoneBox,
+        startIn3d: shouldStartClientMockupIn3d({ confirmedOnly, mobile, choosing }),
+      });
+    }
+  }, [ready, readyTick, isBox, phoneBox, confirmedOnly, mobile, choosing]);
   useEffect(() => {
     if (ready && phoneBox && gallery.data) postToViewer({ type: 'gallery', photos: gallery.data.photos.map(p => ({ id: p.id, name: p.name, url: p.url, thumbnailUrl: p.thumbnailUrl, chapterId: p.chapterId })), chapters: gallery.data.chapters || [] });
   }, [ready, readyTick, phoneBox, gallery.data]);

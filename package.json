@@ -12,6 +12,7 @@
     "test:quote-builder-lifecycle": "pnpm --filter @workspace/image-studio-web run test:quote-builder-lifecycle",
     "test:studio-settings-preview": "playwright test --config artifacts/image-studio-web/playwright.studio-settings-preview.config.ts",
     "test:photobook-client": "playwright test --config artifacts/image-studio-web/playwright.photobook-client.config.ts",
+    "test:mockup-phone": "playwright test --config artifacts/image-studio-web/playwright.mockup-phone.config.ts",
     "test:collaborator-products": "playwright test --config artifacts/image-studio-web/playwright.collaborator-products.config.ts",
     "test:quick-quote-preview": "playwright test --config artifacts/image-studio-web/playwright.quick-quote-preview.config.ts",
     "test:admin-passkey": "playwright test --config artifacts/image-studio-web/playwright.admin-passkey.config.ts",

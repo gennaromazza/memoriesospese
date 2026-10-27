@@ -12,6 +12,67 @@ const models = [
   { key: "girevole", rendererId: "album-girevole", name: "Album girevole" },
   { key: "plaza", rendererId: "plaza-led", name: "Plaza LED" },
 ];
+const savedPhotoIds = {
+  front: "10000000-0000-4000-8000-000000000101",
+  back: "10000000-0000-4000-8000-000000000102",
+  base: "10000000-0000-4000-8000-000000000103",
+  lid: "10000000-0000-4000-8000-000000000104",
+  cover: "10000000-0000-4000-8000-000000000105",
+};
+const crop = { zoom: 1, x: 0.5, y: 0.5 };
+const directModels = [
+  {
+    key: "custodia",
+    rendererId: models[0].rendererId,
+    name: "Custodia",
+    configuration: {
+      modelId: models[0].rendererId, assetRevision: 2, materialId, appearanceRevision: 4,
+      coverLayout: "full", topText: "", bottomText: "", photoAssetId: savedPhotoIds.front, crop,
+    },
+  },
+  {
+    key: "girevole",
+    rendererId: models[1].rendererId,
+    name: "Album girevole",
+    configuration: {
+      modelId: models[1].rendererId, assetRevision: 4, materialId, appearanceRevision: 4,
+      coverLayout: "full", frameFinish: "fabric", topText: "", bottomText: "",
+      photoAssetId: savedPhotoIds.front, crop, backCover: "photo", backPhotoAssetId: savedPhotoIds.back, backCrop: crop,
+    },
+  },
+  {
+    key: "plaza",
+    rendererId: models[2].rendererId,
+    name: "Plaza LED",
+    configuration: {
+      modelId: models[2].rendererId, assetRevision: 2, materialId, appearanceRevision: 4,
+      coverLayout: "full", frameFinish: "fabric", topText: "", bottomText: "",
+      photoAssetId: savedPhotoIds.front, crop, backCover: "photo", backPhotoAssetId: savedPhotoIds.back, backCrop: crop, ledEnabled: true,
+    },
+  },
+  {
+    key: "quadrobook",
+    rendererId: "scatola-cornice",
+    name: "Quadrobook",
+    setup: { format: { w: 30, h: 20 }, cover: { mode: "choice", graphicAssetId: ids.graphic } },
+    configuration: {
+      modelId: "scatola-cornice", assetRevision: 1, materialId, appearanceRevision: 4,
+      albumMaterialId: materialId, albumAppearanceRevision: 4, coverLayout: "photo", format: { w: 30, h: 20 },
+      photoAssetId: savedPhotoIds.base, lidPhotoAssetId: savedPhotoIds.lid, coverPhotoAssetId: savedPhotoIds.cover,
+    },
+  },
+  {
+    key: "imagebox",
+    rendererId: "imagebox",
+    name: "ImageBox",
+    setup: { format: { w: 40, h: 30 } },
+    configuration: {
+      modelId: "imagebox", assetRevision: 1, materialId, appearanceRevision: 4,
+      albumMaterialId: materialId, albumAppearanceRevision: 4, coverLayout: "full", format: { w: 40, h: 30 },
+      photoAssetId: savedPhotoIds.base, coverPhotoAssetId: savedPhotoIds.cover, coverEngraving: null, glassEngraving: null,
+    },
+  },
+];
 
 async function jpeg(page: Page, color: string) {
   const data = await page.evaluate(async c => {
@@ -95,5 +156,132 @@ for (const model of models) {
     await expect.poll(() => saves, { timeout: 30_000 }).toBeGreaterThan(0);
     await viewer.locator(".mq-nav .mq-primary", { hasText: "Invia allo studio" }).click();
     await expect.poll(() => submitted, { timeout: 30_000 }).toBe(true);
+  });
+}
+
+for (const model of directModels) {
+  test(`link cliente su telefono: 3D iniziale in sola lettura per ${model.name}`, async ({ page }) => {
+    test.setTimeout(300_000);
+    // Keep the fixture off the app shell so unrelated Firebase-backed home data
+    // cannot slow down or destabilize this isolated client-link check.
+    await page.goto("about:blank");
+    const photo = await jpeg(page, "#36c");
+    const option = {
+      id: `40000000-0000-4000-8000-00000000000${directModels.indexOf(model) + 1}`,
+      name: model.name,
+      supplierCode: "M-01",
+      rendererId: model.rendererId,
+      active: true,
+      materialIds: [materialId],
+      materials: [{ id: materialId, label: "Tessuto di prova", supplierCode: "M-01" }],
+      labId: "studio",
+      labName: "Studio",
+      ...(model.setup ? { setup: model.setup } : {}),
+    };
+    const saved = {
+      revision: 7,
+      version: 1,
+      status: "confirmed",
+      updatedAt: "2026-10-27T10:00:00.000Z",
+      updatedBy: "studio",
+      selection: { labId: "studio", modelId: option.id },
+      configuration: model.configuration,
+      option,
+    };
+    let writes = 0;
+    await page.route("**/*", async route => {
+      const request = route.request(), url = new URL(request.url());
+      if (url.origin !== localOrigin) { await route.abort(); return; }
+      const json = (body: unknown) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+      const base = `/api/photobooks/by-token/${token}`;
+      if (url.pathname === `${base}/gallery-photos`) return json({ photos: [], chapters: [] });
+      if (url.pathname.startsWith(`${base}/mockup/photos/`)) return route.fulfill({ status: 200, contentType: "image/jpeg", body: photo });
+      if (url.pathname === `${base}/mockup/cover-graphic`) return route.fulfill({ status: 200, contentType: "image/jpeg", body: photo });
+      if (url.pathname === `${base}/mockup` && request.method() === "GET") {
+        return json({
+          version: 1, mockupPath: "studio", editable: false, enabled: true, approvalRequired: false,
+          clientApprovalAllowed: true,
+          saved, offer: { revision: 3, mode: "fixed", options: [option] }, modelMode: "fixed",
+          modelSelection: { labId: "studio", modelId: option.id }, offerError: null,
+        });
+      }
+      if (url.pathname === base && request.method() === "GET") {
+        return json({
+          photobook: {
+            id: `direct-${model.key}`, name: `Fotolibro ${model.name}`, galleryId: "g", token,
+            currentVersion: 1, versions: [{ version: 1, pageCount: 0 }],
+            approval: { version: 1 }, mockupPath: "studio",
+          },
+          version: 1, pages: [], requests: [],
+        });
+      }
+      if (url.pathname.startsWith(base) && !["GET", "HEAD"].includes(request.method())) writes++;
+      if (request.method() === "GET" || request.method() === "HEAD") return route.continue();
+      return route.abort();
+    });
+
+    // This is the shareable, read-only link, not the editable photobook flow.
+    await page.goto(`/fotolibro/${token}/mockup`);
+    const boxModel = model.key === "quadrobook" || model.key === "imagebox";
+    // Poll the same-origin viewer DOM in one browser-side check. Repeated
+    // cross-frame assertions are unreliable while the WebGL renderer is busy.
+    await page.waitForFunction(() => {
+      const frame = Array.from(document.querySelectorAll("iframe"))
+        .find(candidate => candidate.src.includes("/mockups/")) as HTMLIFrameElement | undefined;
+      const body = frame?.contentDocument?.body;
+      return body?.dataset.ready === "true"
+        && body.classList.contains("mq-phone")
+        && body.classList.contains("mq-3d");
+    }, null, { timeout: 240_000 });
+    const viewerState = await page.evaluate((isBox) => {
+      const frame = Array.from(document.querySelectorAll("iframe"))
+        .find(candidate => candidate.src.includes("/mockups/")) as HTMLIFrameElement | undefined;
+      const doc = frame?.contentDocument;
+      const body = doc?.body;
+      const canvas = doc?.querySelector<HTMLCanvasElement>("#viewport");
+      const stage = doc?.querySelector<HTMLElement>(".mq-stage, .stage");
+      const canvasRect = canvas?.getBoundingClientRect();
+      const stageRect = stage?.getBoundingClientRect();
+      const enabledChoices = doc?.querySelectorAll(isBox
+        ? ".panel-content button:not(:disabled)"
+        : "#materials button:not(:disabled), #detailPanel input:not(:disabled), #detailPanel select:not(:disabled)").length ?? -1;
+      const viewControl = doc?.querySelector<HTMLButtonElement>(isBox
+        ? 'button[data-mode="uses"], button[data-mode="open"]'
+        : "#rotate");
+      const pipClose = doc?.querySelector<HTMLButtonElement>("#pipClose");
+      const pipCloseStyle = pipClose ? doc?.defaultView?.getComputedStyle(pipClose) : null;
+      const title = doc?.querySelector(".mq-title, #stepTitle")?.textContent?.trim() || "";
+      const initial = {
+        title,
+        bodyClasses: body ? Array.from(body.classList) : [],
+        ready: body?.dataset.ready === "true",
+        wizardReadonly: body?.dataset.wizardReadonly === "true",
+        locked: body?.classList.contains("locked") ?? false,
+        enabledChoices,
+        canvasVisible: !!canvas && !!canvasRect && canvasRect.width > 0 && canvasRect.height > 0,
+        stageVisible: !!stage && !!stageRect && stageRect.width > 0 && stageRect.height > 0,
+        pipCloseVisible: !!pipClose && !!pipCloseStyle && pipCloseStyle.display !== "none" && pipCloseStyle.visibility !== "hidden",
+        viewControlEnabled: !!viewControl && !viewControl.disabled,
+      };
+      viewControl?.click();
+      return { ...initial, viewControlPressedAfterClick: viewControl?.getAttribute("aria-pressed") === "true" };
+    }, boxModel);
+
+    expect(viewerState.title).toBeTruthy();
+    expect(viewerState.bodyClasses).toContain("mq-phone");
+    expect(viewerState.bodyClasses).toContain("mq-3d");
+    expect(viewerState.ready).toBe(true);
+    expect(viewerState.canvasVisible).toBe(true);
+    expect(viewerState.stageVisible).toBe(true);
+    expect(viewerState.enabledChoices).toBe(0);
+    expect(viewerState.viewControlEnabled).toBe(true);
+    expect(viewerState.viewControlPressedAfterClick).toBe(true);
+    if (boxModel) {
+      expect(viewerState.locked).toBe(true);
+      expect(viewerState.pipCloseVisible).toBe(true);
+    } else {
+      expect(viewerState.wizardReadonly).toBe(true);
+    }
+    expect(writes, "Il link di sola lettura non deve salvare o inviare scelte.").toBe(0);
   });
 }
