@@ -345,6 +345,60 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     h.docs.set('labs/lab', { nome: 'Laboratorio scelto', attivo: true, mockupCatalog: { revision: 1, materials: [{ id: material.id, label: 'Tessuto scelto', supplierCode: 'LAB-01' }], models } });
     return fetch(`${base}/admin/offer`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: 0, savedRevision: 0, mode, selections }) });
   }
+  it('isola due sessioni admin: rifiuta la proposta obsoleta e accetta la revisione ricaricata', async () => {
+    h.docs.get('photobooks/book').jobId = 'job';
+    const secondModelId = '66666666-6666-4666-8666-666666666666';
+    const second = { labId: 'lab', modelId: secondModelId };
+    h.docs.set('labs/lab', { nome: 'Laboratorio scelto', attivo: true, mockupCatalog: { revision: 1, materials: [{ id: material.id, label: 'Tessuto scelto', supplierCode: 'LAB-01' }], models: [
+      { id: entryId, name: 'Modello sessione A', supplierCode: 'A-01', rendererId: MOCKUP_MODEL.id, active: true, materialIds: [material.id] },
+      { id: secondModelId, name: 'Modello sessione B', supplierCode: 'B-01', rendererId: MOCKUP_MODEL.id, active: true, materialIds: [material.id] },
+    ] } });
+    const savedBefore = {
+      version: 1,
+      revision: 4,
+      status: 'draft',
+      configuration,
+      updatedAt: '2026-10-27T10:00:00.000Z',
+      selection,
+      option: { id: entryId, name: 'Modello precedente', rendererId: MOCKUP_MODEL.id, active: true, materialIds: [material.id], materials: [{ id: material.id, label: 'Tessuto scelto', supplierCode: 'LAB-01' }], labId: 'lab', labName: 'Laboratorio scelto' },
+    };
+    h.docs.set('photobooks/book/mockups/v1', savedBefore);
+
+    // Entrambe le sessioni hanno letto revision=0 e savedRevision=4.
+    const assign = (model: typeof selection, revision: number, savedRevision: number) =>
+      fetch(`${base}/admin/offer`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision, savedRevision, mode: 'fixed', selections: [model] }) });
+    const sessionA = await assign(selection, 0, 4);
+    expect(sessionA.status).toBe(200);
+    const winningOffer = await sessionA.json() as MockupOffer;
+    expect(winningOffer).toMatchObject({ revision: 1, options: [{ id: entryId, name: 'Modello sessione A' }] });
+
+    const staleSessionB = await assign(second, 0, 4);
+    expect(staleSessionB.status).toBe(409);
+    expect(await staleSessionB.json()).toMatchObject({ error: 'Proposta modificata: ricarica prima di proseguire' });
+    expect(h.docs.get('photobooks/book/mockupOffers/v1')).toMatchObject({
+      revision: 1,
+      mode: 'fixed',
+      options: [{ id: entryId, name: 'Modello sessione A' }],
+    });
+    expect(h.docs.get('photobooks/book/mockups/v1')).toMatchObject({
+      revision: 5,
+      configuration,
+      option: savedBefore.option,
+    });
+
+    // Un aggiornamento esplicito legge revision=1/savedRevision=5 e può assegnare B.
+    const refreshed = await fetch(`${base}/admin`).then(response => response.json());
+    expect(refreshed).toMatchObject({ offer: { revision: 1, options: [{ id: entryId }] }, saved: { revision: 5 } });
+    const refreshedSessionB = await assign(second, refreshed.offer.revision, refreshed.saved.revision);
+    expect(refreshedSessionB.status).toBe(200);
+    expect(await refreshedSessionB.json()).toMatchObject({
+      revision: 2,
+      mode: 'fixed',
+      options: [{ id: secondModelId, name: 'Modello sessione B' }],
+    });
+    expect(h.docs.get('photobooks/book/mockups/v1')).toMatchObject({ revision: 6, configuration });
+  });
+
   const action = (base: string, scope: string, path: string, revision: number) => fetch(`${base}/${scope}/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision, note: 'Controlla il ritaglio' }) });
 
   it('assegna e salva un mockup per un fotolibro autonomo senza lavoro associato', async () => {

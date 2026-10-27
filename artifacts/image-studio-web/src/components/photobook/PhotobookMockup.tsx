@@ -1176,7 +1176,11 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       {state.data?.offerError && <p role="alert" className="text-destructive">{state.data.offerError}</p>}
       {staleFixedSave && <p role="alert" className="text-amber-700">La bozza precedente usa un modello non più proposto. Scegli il modello aggiornato e salva una nuova revisione.</p>}
       {state.data && <>
-        {!token && adminPanel(<div hidden={adminTab !== 'offer'}><p className="text-sm mb-3">Scegli il modello dell’album, oppure più modelli tra cui sceglierà il cliente. Qui non prepari la bozza: le foto necessarie si associano nel passaggio successivo.</p><MockupOfferEditor alwaysOpen offer={state.data.offer} modelMode={state.data.modelMode} modelSelection={state.data.modelSelection} hasSavedMockup={!!saved} disabled={isMockupOfferEditorDisabled({ readOnly, busy, dirty, dirtyChangeConfirmed: offerChangeConfirmed, assignmentRefreshError: !!assignmentRefreshError })} uploadGraphic={async file => (await (await request(`/upload?name=${encodeURIComponent(file.name)}`, { method: 'POST', headers: { 'Content-Type': file.type }, body: file })).json() as { id: string }).id} publish={async (mode, selections) => {
+        {!token && adminPanel(<div hidden={adminTab !== 'offer'}><p className="text-sm mb-3">Scegli il modello dell’album, oppure più modelli tra cui sceglierà il cliente. Qui non prepari la bozza: le foto necessarie si associano nel passaggio successivo.</p><MockupOfferEditor alwaysOpen offer={state.data.offer} modelMode={state.data.modelMode} modelSelection={state.data.modelSelection} hasSavedMockup={!!saved} disabled={isMockupOfferEditorDisabled({ readOnly, busy, dirty, dirtyChangeConfirmed: offerChangeConfirmed, assignmentRefreshError: !!assignmentRefreshError })} uploadGraphic={async file => (await (await request(`/upload?name=${encodeURIComponent(file.name)}`, { method: 'POST', headers: { 'Content-Type': file.type }, body: file })).json() as { id: string }).id} reloadOffer={async () => {
+          setBusy(true);
+          try { showAssignedOffer(await reloadAssignedOffer()); }
+          finally { setBusy(false); }
+        }} publish={async (mode, selections) => {
           setBusy(true);
           try {
             const result = await assignMockupOffer(

@@ -23,10 +23,35 @@ interface MockupOfferEditorProps {
   uploadGraphic?: (file: File) => Promise<string>;
   /** Una nuova offerta può riportare la bozza salvata allo stato da verificare. */
   hasSavedMockup?: boolean;
+  /** Ricarica dal server dopo che una proposta è stata modificata in un’altra sessione. */
+  reloadOffer: () => Promise<void>;
   publish: (
     mode: MockupOfferMode,
     selections: MockupSelection[],
   ) => Promise<boolean>;
+}
+
+export function MockupOfferPublishError({
+  message,
+  conflict,
+  refreshing,
+  onReload,
+}: {
+  message: string;
+  conflict: boolean;
+  refreshing: boolean;
+  onReload: () => void;
+}) {
+  return (
+    <div role="alert" className="rounded border border-amber-300 bg-amber-50 p-3 text-sm space-y-2">
+      <p>{message}</p>
+      {conflict && (
+        <Button type="button" variant="outline" disabled={refreshing} onClick={onReload}>
+          {refreshing ? "Caricamento…" : "Ricarica il modello aggiornato"}
+        </Button>
+      )}
+    </div>
+  );
 }
 
 /** Ritorna il mode di default derivato dalla prop o dall'offerta. */
@@ -69,6 +94,7 @@ export default function MockupOfferEditor({
   alwaysOpen = false,
   uploadGraphic,
   hasSavedMockup = false,
+  reloadOffer,
   publish,
 }: MockupOfferEditorProps) {
   const [boxDrafts, setBoxDrafts] = useState<Record<string, BoxDraft>>({});
@@ -81,11 +107,16 @@ export default function MockupOfferEditor({
   );
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
+  const [publishConflict, setPublishConflict] = useState(false);
+  const [refreshingOffer, setRefreshingOffer] = useState(false);
 
   // FIX: se la prop / l'offerta cambiano dall'esterno, `mode` si risincronizza.
   // Prima rimaneva congelato al valore di mount.
   useEffect(() => {
     setMode(computeDefaultMode(modelMode, offer));
+    setSelected(null);
+    setPublishError(null);
+    setPublishConflict(false);
   }, [modelMode, offer]);
 
   const labs = useQuery({
@@ -217,6 +248,7 @@ export default function MockupOfferEditor({
 
     setPublishing(true);
     setPublishError(null);
+    setPublishConflict(false);
     try {
       // FIX: `publish` può rejectare; prima la Promise veniva silenziosamente ignorata.
       const ok = await publish(mode, selections);
@@ -226,13 +258,32 @@ export default function MockupOfferEditor({
         setPublishError("Salvataggio del modello non riuscito. Riprova.");
       }
     } catch (err) {
+      const status = err && typeof err === "object" && "status" in err
+        ? Number((err as { status?: unknown }).status)
+        : undefined;
       setPublishError(
         err instanceof Error
           ? err.message
             : "Errore imprevisto durante il salvataggio del modello.",
       );
+      setPublishConflict(status === 409);
     } finally {
       setPublishing(false);
+    }
+  }
+
+  async function reloadAfterConflict() {
+    setRefreshingOffer(true);
+    try {
+      await reloadOffer();
+      setPublishError(null);
+      setPublishConflict(false);
+      setSelected(null);
+    } catch (err) {
+      setPublishError(err instanceof Error ? err.message : "Impossibile ricaricare il modello aggiornato.");
+      setPublishConflict(false);
+    } finally {
+      setRefreshingOffer(false);
     }
   }
 
@@ -267,6 +318,14 @@ export default function MockupOfferEditor({
             ? `${offer.options.length} modelli disponibili nel link cliente.`
             : "Lascia scegliere il modello al cliente pubblicando più opzioni."}
       </p>
+      {publishError && (
+        <MockupOfferPublishError
+          message={publishError}
+          conflict={publishConflict}
+          refreshing={refreshingOffer}
+          onReload={() => void reloadAfterConflict()}
+        />
+      )}
 
       {expanded && (
         <>
@@ -435,12 +494,6 @@ export default function MockupOfferEditor({
               })}
             </fieldset>
           ))}
-
-          {publishError && (
-            <p role="alert" className="text-sm text-destructive">
-              {publishError}
-            </p>
-          )}
 
           <Button disabled={publishDisabled} onClick={publishCurrent}>
             {mode === "fixed"

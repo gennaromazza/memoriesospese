@@ -1,16 +1,44 @@
 import { describe, expect, it, vi } from 'vitest';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { createElement } from 'react';
 import { assignMockupOffer } from './mockup-offer-assignment';
+import { MockupOfferPublishError } from './MockupOfferEditor';
 import { initialMockupSelection, mockupPresentation } from './mockup-presentation';
 import type { MockupPayload } from '@shared/mockup-types';
 
 describe('assegnazione modello e aggiornamento anteprima', () => {
   it('propaga l’errore di salvataggio del server senza tentare il refetch', async () => {
-    const serverError = new Error('Scegli il formato dell’ImageBox prima di pubblicare');
+    const serverError = Object.assign(new Error('Proposta modificata: ricarica prima di proseguire'), { status: 409 });
     const save = vi.fn().mockRejectedValue(serverError);
     const reload = vi.fn();
     await expect(assignMockupOffer(save, reload)).rejects.toBe(serverError);
     expect(save).toHaveBeenCalledTimes(1);
     expect(reload).not.toHaveBeenCalled();
+  });
+
+  it('mostra il messaggio server di conflitto e offre un aggiornamento esplicito', () => {
+    const reload = vi.fn();
+    const html = renderToStaticMarkup(
+      createElement(MockupOfferPublishError, {
+        message: 'Proposta modificata: ricarica prima di proseguire',
+        conflict: true,
+        refreshing: false,
+        onReload: reload,
+      }),
+    );
+
+    expect(html).toContain('role="alert"');
+    expect(html).toContain('Proposta modificata: ricarica prima di proseguire');
+    expect(html).toContain('Ricarica il modello aggiornato');
+    const errorElement = MockupOfferPublishError({
+      message: 'Proposta modificata: ricarica prima di proseguire',
+      conflict: true,
+      refreshing: false,
+      onReload: reload,
+    });
+    const children = errorElement.props.children as Array<{ props?: { onClick?: () => void } }>;
+    children[1]?.props?.onClick?.();
+    expect(reload).toHaveBeenCalledTimes(1);
   });
 
   it('distingue il refetch fallito dopo un salvataggio completato, senza ripetere la scrittura', async () => {
