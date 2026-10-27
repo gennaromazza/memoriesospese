@@ -104,7 +104,7 @@ async function readSavedProducts() {
   return decodeFirestoreValue({ mapValue: { fields: savedQuote.fields } }).products;
 }
 
-test("prodotti omonimi mantengono identità, prezzi, sezioni e ordine dopo il salvataggio", async ({ page }) => {
+test("prodotti omonimi mantengono identità, prezzi, sezioni, ordine e omaggi dopo la riapertura", async ({ page }) => {
   const blockedWrites = await isolateBrowser(page);
 
   await page.goto(harnessPath);
@@ -196,7 +196,34 @@ test("prodotti omonimi mantengono identità, prezzi, sezioni e ordine dopo il sa
   await expect(reopenedRowB.getByTestId("button-edit-price-cust:custom-quote-product-b")).toContainText("255,00");
   await expect(reopenedRowB.getByTestId("button-toggle-selectable-cust:custom-quote-product-b")).toContainText("FISSO");
   await expect(reopenedRowB.getByTitle("Modifica sezione")).toContainText("Esperienze");
-  await expect(reopenedRowB.getByTestId("button-toggle-omaggio-cust:custom-quote-product-b")).not.toContainText("OMAGGIO");
+  await expect(reopenedRowB.getByTestId("button-toggle-omaggio-cust:custom-quote-product-b")).toHaveText("Omaggio");
+
+  // Also persist an active gift, keeping the same-name paid product untouched.
+  await reopenedRowA.getByTestId("button-toggle-omaggio-cust:custom-quote-product-a").click();
+  await expect(reopenedRowA).toContainText("✓ Incluso");
+  await save.click();
+  await expect(page.getByTestId("quote-builder-saved")).toBeVisible();
+  const savedWithGift = await readSavedProducts();
+  expect(savedWithGift.map((product: any) => ({
+    id: product.customProductId,
+    prezzo: product.prezzo,
+    selectable: product.selectable,
+    isOmaggio: product.isOmaggio,
+    sezione: product.sezione,
+  }))).toEqual([
+    { id: "custom-quote-product-b", prezzo: 255, selectable: false, isOmaggio: false, sezione: "Esperienze" },
+    { id: "custom-quote-product-a", prezzo: 0, selectable: false, isOmaggio: true, sezione: "Album" },
+  ]);
+
+  await page.getByTestId("button-reopen-saved-quote").click();
+  await expect(dialog).toBeVisible();
+  await expect(reopenedRowA.getByTestId("button-toggle-omaggio-cust:custom-quote-product-a")).toHaveText("OMAGGIO");
+  await expect(reopenedRowA).toContainText("✓ Incluso");
+  await expect(reopenedRowA.getByTestId("button-toggle-selectable-cust:custom-quote-product-a")).toHaveCount(0);
+  await expect(reopenedRowB.getByTestId("button-edit-price-cust:custom-quote-product-b")).toContainText("255,00");
+  await expect(reopenedRowB.getByTestId("button-toggle-selectable-cust:custom-quote-product-b")).toContainText("FISSO");
+  await expect(reopenedRowB.getByTestId("button-toggle-omaggio-cust:custom-quote-product-b")).toHaveText("Omaggio");
+  expect(blockedWrites).toEqual([]);
 });
 
 test("un upload completato dopo la rimozione della riga non viene assegnato al prodotto successivo", async ({ page }) => {

@@ -48,3 +48,11 @@ account) → in test va sempre mockato. Pattern usato in `server/reminder-routes
 **Why:** gli alias Vite non intercettano un import relativo solo perché punta allo stesso file; un modulo Firebase reale può quindi inizializzarsi anche quando il componente principale è mockato.
 
 **How to apply:** prima di eseguire un browser test isolato, cerca le varianti degli import Firebase nelle dipendenze del componente e reindirizzale tutte allo stesso fake in-memory.
+
+## Verificare l’idratazione dei dati persistiti
+
+**Regola:** una verifica browser della riapertura deve partire da una pagina nuova senza reinserire la fixture nella cache delle query.
+
+**Why:** una fixture iniziale o il precedente stato del form possono far sembrare corretto il caricamento senza dimostrare che il documento persistito venga davvero letto; rimuovere soltanto una query con osservatori ancora montati non equivale a una nuova sessione dell’editor.
+
+**How to apply:** mantieni le dipendenze ausiliarie isolate, ma al secondo caricamento lascia che il componente legga il documento dall’emulatore. Verifica valori modificati che differiscono dalla fixture originale.
