@@ -5,9 +5,9 @@ export const modules: ModuleMap = {
   "./components/mockups/admin-mobile-navigation/Current.tsx": () => import("../components/mockups/admin-mobile-navigation/Current.tsx"),
   "./components/mockups/aversa-image-vision/Current.tsx": () => import("../components/mockups/aversa-image-vision/Current.tsx"),
   "./components/mockups/aversa-image-vision/Proposal.tsx": () => import("../components/mockups/aversa-image-vision/Proposal.tsx"),
+  "./components/mockups/image-vision-browse/Browse.tsx": () => import("../components/mockups/image-vision-browse/Browse.tsx"),
   "./components/mockups/image-vision-style/BlueRefined.tsx": () => import("../components/mockups/image-vision-style/BlueRefined.tsx"),
   "./components/mockups/image-vision-style/Current.tsx": () => import("../components/mockups/image-vision-style/Current.tsx"),
-  "./components/mockups/image-vision-browse/Browse.tsx": () => import("../components/mockups/image-vision-browse/Browse.tsx"),
   "./components/mockups/jobs-manager-list/Current.tsx": () => import("../components/mockups/jobs-manager-list/Current.tsx"),
   "./components/mockups/jobs-manager-list/Proposal.tsx": () => import("../components/mockups/jobs-manager-list/Proposal.tsx")
 };

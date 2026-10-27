@@ -171,6 +171,32 @@ test("prodotti omonimi mantengono identità, prezzi, sezioni e ordine dopo il sa
   expect(savedProducts.map((product: any) => product.sezione)).toEqual(["Esperienze", "Album"]);
   expect(savedProducts.every((product: any) => product.isOmaggio !== true)).toBe(true);
   expect(blockedWrites).toEqual([]);
+
+  // Reload with a fresh QueryClient. QuoteBuilder must hydrate the saved Firestore
+  // emulator document, not the original fixture or the previous form state.
+  await page.getByTestId("button-reopen-saved-quote").click();
+  await page.waitForURL(/loadSavedQuote=1/);
+  await expect(dialog).toBeVisible();
+
+  const reopenedRowA = page.getByTestId("order-row-cust:custom-quote-product-a");
+  const reopenedRowB = page.getByTestId("order-row-cust:custom-quote-product-b");
+  await expect.poll(async () =>
+    page.locator('[data-testid^="order-row-cust:"]').evaluateAll((rows) =>
+      rows.map((row) => row.getAttribute("data-testid")),
+    ),
+  ).toEqual([
+    "order-row-cust:custom-quote-product-b",
+    "order-row-cust:custom-quote-product-a",
+  ]);
+  await expect(reopenedRowA).toContainText("Album aggiuntivo");
+  await expect(reopenedRowA.getByTestId("button-edit-price-cust:custom-quote-product-a")).toContainText("120,00");
+  await expect(reopenedRowA.getByTestId("button-toggle-selectable-cust:custom-quote-product-a")).toContainText("EXTRA");
+  await expect(reopenedRowA.getByTitle("Modifica sezione")).toContainText("Album");
+  await expect(reopenedRowB).toContainText("Album aggiuntivo");
+  await expect(reopenedRowB.getByTestId("button-edit-price-cust:custom-quote-product-b")).toContainText("255,00");
+  await expect(reopenedRowB.getByTestId("button-toggle-selectable-cust:custom-quote-product-b")).toContainText("FISSO");
+  await expect(reopenedRowB.getByTitle("Modifica sezione")).toContainText("Esperienze");
+  await expect(reopenedRowB.getByTestId("button-toggle-omaggio-cust:custom-quote-product-b")).not.toContainText("OMAGGIO");
 });
 
 test("un upload completato dopo la rimozione della riga non viene assegnato al prodotto successivo", async ({ page }) => {

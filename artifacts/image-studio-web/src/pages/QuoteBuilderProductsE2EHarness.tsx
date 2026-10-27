@@ -53,6 +53,7 @@ const fixtureQuote = {
 
 export default function QuoteBuilderProductsE2EHarness() {
   const [open, setOpen] = useState(true);
+  const loadSavedQuote = new URLSearchParams(window.location.search).get("loadSavedQuote") === "1";
   const queryClient = useMemo(() => {
     const client = new QueryClient({
       defaultOptions: {
@@ -64,7 +65,9 @@ export default function QuoteBuilderProductsE2EHarness() {
       },
     });
 
-    client.setQueryData(["quotes", quoteId], fixtureQuote);
+    if (!loadSavedQuote) {
+      client.setQueryData(["quotes", quoteId], fixtureQuote);
+    }
     client.setQueryData(["jobs", jobId], {
       id: jobId,
       nomeEvento: "Lavoro preventivo di prova",
@@ -79,7 +82,7 @@ export default function QuoteBuilderProductsE2EHarness() {
     client.setQueryData(["quotes", "job", jobId], []);
 
     return client;
-  }, []);
+  }, [loadSavedQuote]);
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -98,7 +101,20 @@ export default function QuoteBuilderProductsE2EHarness() {
           onClose={() => setOpen(false)}
           editQuoteId={quoteId}
         />
-        {!open && <p data-testid="quote-builder-saved">Preventivo di prova salvato</p>}
+        {!open && (
+          <div className="flex items-center gap-3">
+            <p data-testid="quote-builder-saved">Preventivo di prova salvato</p>
+            <button
+              type="button"
+              data-testid="button-reopen-saved-quote"
+              onClick={() =>
+                window.location.assign(`${window.location.pathname}?loadSavedQuote=1`)
+              }
+            >
+              Riapri preventivo salvato
+            </button>
+          </div>
+        )}
       </main>
     </QueryClientProvider>
   );
