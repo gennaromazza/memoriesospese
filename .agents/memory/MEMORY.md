@@ -57,5 +57,6 @@
 - [Condivisione mockup fotolibri](photobook-mockup-sharing.md) — anteprima cliente condivisibile manualmente, anche dopo approvazione manuale, senza dipendere dall’email o avviare la stampa.
 - [Nomi originali pagine fotolibro](photobook-page-filenames.md) — mantenere visibile il nome del file caricato; il numero pagina resta un dato distinto per l’ordine.
 - [Ripristino dopo errore renderer mockup](mockup-renderer-retry-restore.md) — resettare il marker di revisione quando si ricrea l’iframe, altrimenti il viewer nuovo non riapplica le scelte salvate.
+- [Recupero scelte tra renderer mockup](mockup-renderer-choice-recovery.md) — partire dai default del renderer nuovo e trasferire solo scelte con semantica e ruolo realmente condivisi.
 - [Modifica dati cliente da fattura](invoice-client-editing.md) — correggere i dati fattura aggiorna l’anagrafica condivisa del cliente usando il form canonico.
 - [Deep link e server produzione](production-spa-deep-links.md) — Vite nasconde le route mancanti nel server produzione: verificare l’apertura diretta con il server reale, non solo la Preview.

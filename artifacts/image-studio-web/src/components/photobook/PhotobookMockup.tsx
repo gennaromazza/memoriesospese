@@ -24,7 +24,7 @@ import { initialMockupSelection, mockupPresentation, needsClientModelChoice } fr
 import { assignMockupOffer } from './mockup-offer-assignment';
 import MockupRendererError from './MockupRendererError';
 import SavedMockupPhotoRecoveryError from './SavedMockupPhotoRecoveryError';
-import { beginMockupRendererRetry, configurationForRendererRestore, shouldSkipSavedMockupRestore } from './mockup-renderer-recovery';
+import { beginMockupRendererRetry, configurationForRendererRestore, planMockupRendererRecovery, reuseCompatibleMockupChoices, shouldSkipSavedMockupRestore, type RendererRecoveryPlan } from './mockup-renderer-recovery';
 import { hasSavedMockupPhotos, isGraphicSlot, loadSavedMockupPhotos, loadSavedMockupPhotosPartial, mockupRequestErrorFromResponse, replaceMockupPhotoReference, savedMockupPhotoFailure, type RuntimeMockupPhoto, type SavedMockupPhotoFailure, type SavedMockupPhotoLabels, type SavedMockupPhotoSlot } from './mockup-photo-recovery';
 import { useToast } from '@/hooks/use-toast';
 import PhotobookInlineGallery from './PhotobookInlineGallery';
@@ -36,6 +36,13 @@ type SavedPhotoRecoveryContext = {
   configuration: MockupConfiguration;
   option?: MockupOption;
   readOnly: boolean;
+};
+type ActiveRendererRecovery = {
+  key: string;
+  source: MockupConfiguration;
+  option: MockupOption;
+  plan: RendererRecoveryPlan;
+  applied: boolean;
 };
 
 function exposeReadonlyDownload(doc: Document) {
@@ -123,6 +130,8 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   const dirtyContext = useRef<{ saved: SavedMockup | null; selection?: MockupSelection; editable: boolean }>({ saved: null, editable: false });
   const revision = useRef(0);
   const [selection, setSelection] = useState<MockupSelection>();
+  const [recoveryAcknowledgement, setRecoveryAcknowledgement] = useState<{ key: string; ids: string[] }>({ key: '', ids: [] });
+  const rendererRecoveryContext = useRef<ActiveRendererRecovery | null>(null);
   const [note, setNote] = useState('');
   const [history, setHistory] = useState<SavedMockup[] | null>(null);
   const [generation, setGeneration] = useState(0);
@@ -170,6 +179,35 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   const staleFixedSave = presentation.staleFixedSave;
   const savedRendererUnavailable = presentation.savedRendererUnavailable;
   const renderer = MOCKUP_RENDERERS.find(r => r.id === presentation.rendererId);
+  const recoveryOption = selectedOption || (fixedModel ? state.data?.offer?.options[0] : undefined);
+  const staleRendererSave = !!saved && !!recoveryOption && saved.configuration.modelId !== recoveryOption.rendererId;
+  const rendererRecoveryPlan = !token && saved && recoveryOption
+    && (staleFixedSave
+      || staleRendererSave
+      || saved.option?.id !== recoveryOption.id
+      || saved.option?.labId !== recoveryOption.labId)
+    ? planMockupRendererRecovery(saved.configuration, recoveryOption)
+    : null;
+  const rendererRecoveryKey = rendererRecoveryPlan && saved && recoveryOption
+    ? `${saved.revision}:${state.data?.offer?.revision || 0}:${recoveryOption.labId}/${recoveryOption.id}`
+    : '';
+  const acknowledgedRecoveryChoices = recoveryAcknowledgement.key === rendererRecoveryKey
+    ? recoveryAcknowledgement.ids
+    : [];
+  const rendererRecoveryComplete = !rendererRecoveryPlan
+    || rendererRecoveryPlan.incompatible.every(choice => acknowledgedRecoveryChoices.includes(choice.id));
+  if (rendererRecoveryPlan && saved && recoveryOption) {
+    const existing = rendererRecoveryContext.current;
+    rendererRecoveryContext.current = {
+      key: rendererRecoveryKey,
+      source: saved.configuration,
+      option: recoveryOption,
+      plan: rendererRecoveryPlan,
+      applied: existing?.key === rendererRecoveryKey ? existing.applied : false,
+    };
+  } else {
+    rendererRecoveryContext.current = null;
+  }
   const clientStatusMessage = state.data?.mockupPath === 'studio'
     ? saved?.status === 'confirmed' ? 'Lo studio ha confermato il mockup. Puoi consultarlo qui; per modifiche contatta lo studio.' : 'Lo studio prepara il mockup. Potrai consultarlo quando sarà confermato.'
     : !saved
@@ -457,7 +495,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     : configurationIssue ? configurationIssue
     : submittedNow ? (saved?.status === 'confirmed' ? 'Confermato dallo studio ✓' : 'Inviato allo studio ✓')
     : !dirty && saved ? 'Salvato automaticamente ✓' : '';
-  const phoneCanSubmit = editable && !busy && !renderBusy && !!configuration && !!selectedOption && !submittedNow;
+  const phoneCanSubmit = editable && rendererRecoveryComplete && !busy && !renderBusy && !!configuration && !!selectedOption && !submittedNow;
   useEffect(() => {
     if (ready && phoneBox) postToViewer({ type: 'status', text: phoneStatus, canSubmit: phoneCanSubmit, submitLabel: submittedNow ? 'Inviato' : 'Invia allo studio' });
   }, [ready, readyTick, phoneBox, phoneStatus, phoneCanSubmit, submittedNow]);
@@ -511,6 +549,53 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
         setDraftBackCover(String(event.data.configuration?.backCover || ''));
         setFrontPhotoPresent(!!event.data.configuration?.photoAssetId);
         setBackPhotoPresent(!!event.data.configuration?.backPhotoAssetId);
+        const recovery = rendererRecoveryContext.current;
+        const incoming = event.data.configuration as Record<string, unknown> | undefined;
+        if (recovery && !recovery.applied && incoming?.modelId === recovery.option.rendererId) {
+          recovery.applied = true;
+          const migratedConfiguration = reuseCompatibleMockupChoices(incoming, recovery.source, recovery.option);
+          void (async () => {
+            let photoPayload: Record<string, unknown> = {};
+            if (recovery.plan.reusablePhotoFields.length) {
+              try {
+                const assets = await loadSavedPhotosPartial(recovery.source);
+                const slotForField: Record<string, SavedMockupPhotoSlot> = {
+                  photoAssetId: recovery.source.modelId === BOX_MOCKUP_MODEL.id || recovery.source.modelId === IMAGEBOX_MOCKUP_MODEL.id ? 'base' : 'front',
+                  backPhotoAssetId: 'back',
+                  lidPhotoAssetId: 'lid',
+                  coverPhotoAssetId: 'cover',
+                };
+                const unavailableTransfer = assets.failures.some(failure =>
+                  recovery.plan.reusablePhotoFields.some(field => slotForField[field] === failure.slot),
+                );
+                if (unavailableTransfer) {
+                  for (const field of recovery.plan.reusablePhotoFields) {
+                    migratedConfiguration[field] = incoming[field];
+                  }
+                  setMessage('Una foto precedente non è disponibile: scegli una nuova foto nel visualizzatore.');
+                } else if (recovery.option.rendererId === BOX_MOCKUP_MODEL.id || recovery.option.rendererId === IMAGEBOX_MOCKUP_MODEL.id) {
+                  const photos: NonNullable<typeof assets.assets.boxPhotos> = {};
+                  for (const field of recovery.plan.reusablePhotoFields) {
+                    if (field === 'photoAssetId' && assets.assets.boxPhotos?.base) photos.base = assets.assets.boxPhotos.base;
+                    if (field === 'lidPhotoAssetId' && assets.assets.boxPhotos?.lid) photos.lid = assets.assets.boxPhotos.lid;
+                    if (field === 'coverPhotoAssetId' && assets.assets.boxPhotos?.cover) photos.cover = assets.assets.boxPhotos.cover;
+                  }
+                  photoPayload = { photos };
+                } else {
+                  if (recovery.plan.reusablePhotoFields.includes('photoAssetId') && assets.assets.photo) photoPayload.photo = assets.assets.photo;
+                  if (recovery.plan.reusablePhotoFields.includes('backPhotoAssetId') && assets.assets.backPhoto) photoPayload.backPhoto = assets.assets.backPhoto;
+                }
+              } catch {
+                for (const field of recovery.plan.reusablePhotoFields) {
+                  migratedConfiguration[field] = incoming[field];
+                }
+                setMessage('Non è stato possibile riutilizzare le foto precedenti: scegli le foto nel visualizzatore.');
+              }
+            }
+            apply({ configuration: migratedConfiguration, ...photoPayload, option: recovery.option, readOnly: false });
+          })();
+          return;
+        }
         const parsed = mockupConfigurationSchema.safeParse(event.data.configuration);
         setConfiguration(parsed.success ? parsed.data : null);
         const context = dirtyContext.current;
@@ -573,10 +658,10 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
           saved?.configuration,
           pending?.configuration,
           !!nextOption,
-          staleFixedSave,
+          staleFixedSave || staleRendererSave,
         );
-        const restoredOption = pending?.option || nextOption || (fixedModel ? state.data?.offer?.options[0] : saved?.option);
-        const shouldLoadSavedPhotos = !nextOption && !pending && !staleFixedSave
+        const restoredOption = pending?.option || nextOption || selectedOption || (fixedModel ? state.data?.offer?.options[0] : saved?.option);
+        const shouldLoadSavedPhotos = !nextOption && !pending && !staleFixedSave && !staleRendererSave
           && !!saved && !!restoredConfiguration && hasSavedMockupPhotos(saved.configuration);
         if (shouldLoadSavedPhotos && saved && restoredConfiguration) {
           const recoveryContext = { configuration: restoredConfiguration, option: restoredOption, readOnly: !editable };
@@ -623,7 +708,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     };
     void restore();
     return () => { cancelled = true; };
-  }, [ready, readyTick, state.data?.saved?.revision, state.data?.offer?.revision, editable, staleFixedSave, fixedModel]);
+  }, [ready, readyTick, state.data?.saved?.revision, state.data?.offer?.revision, editable, staleFixedSave, staleRendererSave, fixedModel, selectedOption]);
 
   useEffect(() => {
     if (ready) frame.current?.contentWindow?.postMessage({ channel: 'memorie-mockup-v1', type: 'lock', readOnly: busy || !editable }, window.location.origin);
@@ -782,6 +867,10 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   }
   async function save(quiet = false): Promise<SavedMockup | undefined> {
     if (!configuration || !editable) return;
+    if (!rendererRecoveryComplete) {
+      setMessage('Scegli o conferma le impostazioni incompatibili prima di salvare la nuova revisione.');
+      return;
+    }
     setBusy(true); setMessage(quiet ? '' : 'Salvataggio…');
     try {
       const saved: SavedMockup = await (await request('', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: revision.current, configuration, ...(state.data?.offer ? { selection, offerRevision: state.data.offer.revision } : {}) }) })).json();
@@ -903,6 +992,10 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     setMessage(`Revisione r${item.revision} caricata come bozza attiva. Premi Salva bozza per tenerla.`);
   }
   async function submitWizard() {
+    if (!rendererRecoveryComplete) {
+      setMessage('Scegli o conferma le impostazioni incompatibili prima di inviare la bozza.');
+      return;
+    }
     if (busy || renderBusy || !editable || !configuration || !selectedOption) return;
     const persisted = dirty ? await save() : saved;
     if (persisted) await action('/submit', undefined, persisted);
@@ -1001,6 +1094,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
         : true;
   const nextAllowed = ready && !renderBusy && !busy && (step === 1 ? (!state.data?.offer || !!selectedOption || !editable) : photoStepValid || !editable);
   const confirmBlock = !editable ? 'Versione in sola lettura: la conferma non è disponibile.'
+    : !rendererRecoveryComplete ? 'Completa il recupero della bozza e conferma le nuove scelte prima di proseguire.'
     : !saved ? 'Non c’è ancora una proposta salvata. Attendi il cliente oppure preparala dalla scheda Bozza.'
     : dirty ? 'Ci sono modifiche non salvate: salva la revisione prima di confermarla.'
     : !saved.selection ? 'Associa un modello dalla scheda Bozza e salva prima di confermare.'
@@ -1166,6 +1260,37 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
         if (!fresh.isError && fresh.data) { showAssignedOffer(fresh.data); setDirty(false); }
       }}>Ricarica proposta</Button>)}
     {saved && !token && adminPanel(<div className="rounded-lg bg-muted/50 p-3 text-sm space-y-2"><p className="font-semibold">{MOCKUP_STATUS_LABELS[saved.status || 'draft']} · revisione {saved.revision}</p><p>{saved.option?.labName} {saved.option && '·'} {saved.option?.name} {saved.option && '·'} {saved.option?.materials.find(m => m.id === saved.configuration.materialId)?.label}</p><p>Ultima modifica: {saved.updatedBy === 'client' ? 'Cliente tramite link' : saved.updatedBy === 'studio' ? 'Studio' : 'Non registrato'} · {new Date(saved.updatedAt).toLocaleString('it-IT')}</p>{saved.note && <p>Note: {saved.note}</p>}</div>)}
+      {!token && rendererRecoveryPlan && adminPanel(<section hidden={adminTab !== 'edit'} className="rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-3" data-testid="mockup-renderer-recovery">
+        <div>
+          <h3 className="font-semibold text-sm">Recupera le scelte della bozza precedente</h3>
+          <p className="mt-1 text-xs leading-5 text-amber-950">Il renderer aggiornato riutilizza le impostazioni compatibili. La bozza originale resta consultabile nello storico revisioni.</p>
+        </div>
+        {rendererRecoveryPlan.reusable.length > 0 && <div>
+          <p className="text-xs font-medium">Scelte riprese</p>
+          <ul className="mt-1 list-disc pl-5 text-xs space-y-1">{rendererRecoveryPlan.reusable.map(choice => <li key={choice}>{choice}</li>)}</ul>
+        </div>}
+        {rendererRecoveryPlan.incompatible.length > 0 && <fieldset className="space-y-2">
+          <legend className="text-xs font-medium">Da scegliere di nuovo nel visualizzatore</legend>
+          {rendererRecoveryPlan.incompatible.map(choice => <label key={choice.id} className="flex items-start gap-2 text-xs">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={acknowledgedRecoveryChoices.includes(choice.id)}
+              onChange={event => setRecoveryAcknowledgement(current => {
+                const ids = current.key === rendererRecoveryKey ? current.ids : [];
+                return {
+                  key: rendererRecoveryKey,
+                  ids: event.target.checked
+                    ? [...new Set([...ids, choice.id])]
+                    : ids.filter(id => id !== choice.id),
+                };
+              })}
+            />
+            <span><strong>{choice.label}:</strong> {choice.reason} {choice.id === 'format' ? 'Confermo il formato definito per il nuovo modello.' : 'Ho scelto la nuova impostazione.'}</span>
+          </label>)}
+        </fieldset>}
+        {!rendererRecoveryComplete && <p role="status" className="text-xs font-medium text-amber-950">Conferma ogni nuova scelta per poter salvare la bozza aggiornata.</p>}
+      </section>)}
     {open && <>
       {state.isLoading && <p role="status">Caricamento configurazione…</p>}
       {state.isError && !assignmentRefreshError && <p role="alert">{(state.error as Error).message}</p>}
@@ -1438,7 +1563,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
         {editable && configurationIssue && <p className="text-sm text-amber-800" role="status">{configurationIssue}</p>}
         {message && <p className="text-sm" role="status">{message}</p>}
         {editable && <div className="flex gap-2">
-          <Button variant="outline" className="min-h-11 flex-1" disabled={busy || renderBusy || !ready || !configuration || !dirty || !selectedOption} onClick={() => void save()}>Salva bozza</Button>
+          <Button variant="outline" className="min-h-11 flex-1" disabled={busy || renderBusy || !ready || !configuration || !dirty || !selectedOption || !rendererRecoveryComplete} onClick={() => void save()}>Salva bozza</Button>
           <Button className="min-h-11 flex-1" disabled={busy || renderBusy || !ready || !configuration || !selectedOption || (!dirty && ['submitted', 'confirmed'].includes(saved?.status || ''))} onClick={() => void submitWizard()}>Invia allo studio</Button>
         </div>}
         <p className="hidden sm:block text-xs text-muted-foreground">L’invio chiede la verifica allo studio: non manda l’album in stampa. Puoi creare altre revisioni finché lo studio non avvia la stampa.</p>
@@ -1446,7 +1571,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       {!mobile && !token && (adminTab === 'edit' || dirty) && <div className="mockup-actions shrink-0 border-t bg-background p-3 sm:px-4 space-y-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         {dirty && <p className="text-sm text-amber-800" role="status">Modifiche da salvare</p>}
          <div className="flex flex-wrap gap-2">
-          <Button className="min-h-11 flex-1 sm:flex-none" disabled={!editable || busy || renderBusy || !configuration || !dirty || (!!state.data?.offer && !selectedOption)} onClick={() => void save()}>Salva bozza</Button>
+           <Button className="min-h-11 flex-1 sm:flex-none" disabled={!editable || busy || renderBusy || !configuration || !dirty || (!!state.data?.offer && !selectedOption) || !rendererRecoveryComplete} onClick={() => void save()}>Salva bozza</Button>
            <p className="text-sm text-muted-foreground self-center">{dirty ? 'Salva le modifiche, poi passa a “Verifica e conferma”.' : 'Nessuna modifica da salvare. Per approvare usa “Conferma mockup” nella scheda Verifica e conferma.'}</p>
          </div>
       </div>}

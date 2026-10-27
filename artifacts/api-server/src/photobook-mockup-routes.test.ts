@@ -371,6 +371,7 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     expect(sessionA.status).toBe(200);
     const winningOffer = await sessionA.json() as MockupOffer;
     expect(winningOffer).toMatchObject({ revision: 1, options: [{ id: entryId, name: 'Modello sessione A' }] });
+    expect(h.docs.get('photobooks/book/mockupHistory/v1-r4')).toEqual(savedBefore);
 
     const staleSessionB = await assign(second, 0, 4);
     expect(staleSessionB.status).toBe(409);
@@ -389,6 +390,7 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     // Un aggiornamento esplicito legge revision=1/savedRevision=5 e può assegnare B.
     const refreshed = await fetch(`${base}/admin`).then(response => response.json());
     expect(refreshed).toMatchObject({ offer: { revision: 1, options: [{ id: entryId }] }, saved: { revision: 5 } });
+    const savedBeforeSecondAssignment = structuredClone(h.docs.get('photobooks/book/mockups/v1'));
     const refreshedSessionB = await assign(second, refreshed.offer.revision, refreshed.saved.revision);
     expect(refreshedSessionB.status).toBe(200);
     expect(await refreshedSessionB.json()).toMatchObject({
@@ -397,6 +399,8 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
       options: [{ id: secondModelId, name: 'Modello sessione B' }],
     });
     expect(h.docs.get('photobooks/book/mockups/v1')).toMatchObject({ revision: 6, configuration });
+    expect(h.docs.get('photobooks/book/mockupHistory/v1-r5')).toEqual(savedBeforeSecondAssignment);
+    expect(h.docs.get('photobooks/book/mockupHistory/v1-r4')).toEqual(savedBefore);
   });
 
   const action = (base: string, scope: string, path: string, revision: number) => fetch(`${base}/${scope}/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision, note: 'Controlla il ritaglio' }) });

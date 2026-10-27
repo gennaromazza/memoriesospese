@@ -1,13 +1,110 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { BOX_MOCKUP_MODEL } from '@shared/mockup-catalog';
+import { BOX_MOCKUP_MODEL, MOCKUP_MODEL, ROTATING_MOCKUP_MODEL } from '@shared/mockup-catalog';
 import type { MockupConfiguration } from '@shared/mockup-types';
 import MockupRendererError from './MockupRendererError';
 import SavedMockupPhotoRecoveryError from './SavedMockupPhotoRecoveryError';
-import { beginMockupRendererRetry, configurationForRendererRestore, shouldSkipSavedMockupRestore } from './mockup-renderer-recovery';
+import { beginMockupRendererRetry, configurationForRendererRestore, planMockupRendererRecovery, reuseCompatibleMockupChoices, shouldSkipSavedMockupRestore } from './mockup-renderer-recovery';
 import { hasSavedMockupPhotos, loadSavedMockupPhotos, loadSavedMockupPhotosPartial, mockupRequestErrorFromResponse, replaceMockupPhotoReference, savedMockupPhotoFailure } from './mockup-photo-recovery';
 
 describe('recupero del mockup fotolibro', () => {
+  it('riusa foto, layout e scritte compatibili e richiede una nuova scelta per il rivestimento non condiviso', () => {
+    const source = {
+      modelId: MOCKUP_MODEL.id,
+      assetRevision: MOCKUP_MODEL.assetRevision,
+      materialId: MOCKUP_MODEL.variants[0].id,
+      appearanceRevision: MOCKUP_MODEL.variants[0].appearanceRevision,
+      coverLayout: 'full',
+      topText: 'Anna',
+      bottomText: 'Luca',
+      photoAssetId: '11111111-1111-4111-8111-111111111111',
+      crop: { zoom: 1.4, x: 0.3, y: 0.6 },
+    } as unknown as MockupConfiguration;
+    const targetOption = {
+      id: 'target-model',
+      name: 'Album girevole',
+      rendererId: ROTATING_MOCKUP_MODEL.id,
+      active: true,
+      materialIds: [MOCKUP_MODEL.variants[0].id],
+      materials: [{ id: MOCKUP_MODEL.variants[0].id, label: 'Tessuto condiviso', supplierCode: 'T-01' }],
+      labId: 'lab',
+      labName: 'Laboratorio',
+    } as unknown as import('@shared/mockup-workflow').MockupOption;
+    const targetDefaults = {
+      modelId: ROTATING_MOCKUP_MODEL.id,
+      assetRevision: ROTATING_MOCKUP_MODEL.assetRevision,
+      materialId: ROTATING_MOCKUP_MODEL.variants[1].id,
+      appearanceRevision: ROTATING_MOCKUP_MODEL.variants[1].appearanceRevision,
+      coverLayout: 'plaque',
+      frameFinish: 'fabric',
+      topText: '',
+      bottomText: '',
+      photoAssetId: null,
+      crop: { zoom: 1, x: 0.5, y: 0.5 },
+      backCover: 'fabric',
+      backPhotoAssetId: null,
+      backCrop: { zoom: 1, x: 0.5, y: 0.5 },
+    };
+
+    const plan = planMockupRendererRecovery(source, targetOption);
+    const migrated = reuseCompatibleMockupChoices(targetDefaults, source, targetOption);
+
+    expect(plan.reusable).toEqual(expect.arrayContaining([
+      'Copertina: Foto grande',
+      'Foto principale: già associata',
+      'Scritte e incisioni',
+    ]));
+    expect(plan.incompatible).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'material', label: 'Rivestimento' }),
+    ]));
+    expect(plan.reusablePhotoFields).toContain('photoAssetId');
+    expect(migrated).toMatchObject({
+      modelId: ROTATING_MOCKUP_MODEL.id,
+      assetRevision: ROTATING_MOCKUP_MODEL.assetRevision,
+      materialId: targetDefaults.materialId,
+      coverLayout: 'full',
+      topText: 'Anna',
+      bottomText: 'Luca',
+      photoAssetId: source.photoAssetId,
+      crop: { zoom: 1.4, x: 0.3, y: 0.6 },
+    });
+  });
+
+  it('spiega quando il nuovo renderer usa le foto in ruoli diversi', () => {
+    const source = {
+      modelId: BOX_MOCKUP_MODEL.id,
+      assetRevision: 1,
+      materialId: MOCKUP_MODEL.variants[0].id,
+      appearanceRevision: MOCKUP_MODEL.variants[0].appearanceRevision,
+      albumMaterialId: MOCKUP_MODEL.variants[0].id,
+      albumAppearanceRevision: MOCKUP_MODEL.variants[0].appearanceRevision,
+      format: { w: 30, h: 20 },
+      coverLayout: 'photo',
+      photoAssetId: '11111111-1111-4111-8111-111111111111',
+      lidPhotoAssetId: '22222222-2222-4222-8222-222222222222',
+      coverPhotoAssetId: null,
+    } as unknown as MockupConfiguration;
+    const targetOption = {
+      id: 'target-model',
+      name: 'Custodia',
+      rendererId: MOCKUP_MODEL.id,
+      active: true,
+      materialIds: [MOCKUP_MODEL.variants[0].id],
+      materials: [{ id: MOCKUP_MODEL.variants[0].id, label: 'Tessuto', supplierCode: 'T-01' }],
+      labId: 'lab',
+      labName: 'Laboratorio',
+    } as unknown as import('@shared/mockup-workflow').MockupOption;
+
+    const plan = planMockupRendererRecovery(source, targetOption);
+
+    expect(plan.incompatible).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'cover-layout', reason: expect.stringContaining('non supporta') }),
+      expect.objectContaining({ id: 'photos', reason: expect.stringContaining('spazi diversi') }),
+      expect.objectContaining({ id: 'format', reason: expect.stringContaining('non è applicabile') }),
+    ]));
+    expect(plan.reusablePhotoFields).toEqual([]);
+  });
+
   it('spiega l’errore temporaneo e offre un comando per riprovare', () => {
     const html = renderToStaticMarkup(
       <MockupRendererError
