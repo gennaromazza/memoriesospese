@@ -769,8 +769,23 @@ export function installMockupWizard(doc: Document, mobile = false) {
         width: var(--mq-pip) !important;
         height: var(--mq-pip) !important;
       }
-      body[data-wizard-mobile].mq-3d .stage.mq-stage { width: auto !important; height: auto !important; }
+      body[data-wizard-mobile].mq-3d .stage.mq-stage {
+        position: fixed !important;
+        inset: 0 !important;
+        width: auto !important;
+        height: auto !important;
+        max-width: none !important;
+        max-height: none !important;
+      }
       body[data-wizard-mobile].mq-final .stage.mq-stage { width: auto !important; height: var(--mq-final-stage) !important; }
+      body[data-wizard-mobile].mq-final.mq-3d .stage.mq-stage {
+        position: fixed !important;
+        inset: 0 !important;
+        width: auto !important;
+        height: auto !important;
+        max-width: none !important;
+        max-height: none !important;
+      }
       body[data-wizard-mobile] aside.mq-panel {
         padding: 12px 16px 0 !important;
         border: 0 !important;

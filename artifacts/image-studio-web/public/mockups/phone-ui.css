@@ -179,7 +179,7 @@ body.mq-phone .mq-pip-close { display: none; }
 body.mq-phone:not(.mq-3d):not(.mq-final) .mq-only-3d { display: none !important; }
 
 /* ---------- 3D a schermo pieno ---------- */
-body.mq-phone.mq-3d .mq-stage { inset: 0; width: auto; height: auto; border-radius: 0; z-index: 20; box-shadow: none; }
+body.mq-phone.mq-3d .mq-stage { position: fixed !important; inset: 0; width: auto; height: auto; border-radius: 0; z-index: 20; box-shadow: none; }
 body.mq-phone.mq-3d .mq-nav { display: none; }
 body.mq-phone.mq-3d .mq-pip-open { display: none !important; }
 body.mq-phone.mq-3d .mq-pip-close {
@@ -189,7 +189,7 @@ body.mq-phone.mq-3d .mq-pip-close {
 }
 
 /* ---------- Ultima schermata: 3D grande in alto, riepilogo sotto ---------- */
-body.mq-phone.mq-final .mq-stage { inset: 0 0 auto 0; width: auto; height: var(--mq-final-stage); border-radius: 0; z-index: 2; box-shadow: none; }
+body.mq-phone.mq-final .mq-stage { position: fixed !important; inset: 0 0 auto 0; width: auto; height: var(--mq-final-stage); border-radius: 0; z-index: 2; box-shadow: none; }
 body.mq-phone.mq-final .mq-pip-open { display: none !important; }
 body.mq-phone.mq-final .mq-panel { top: var(--mq-final-stage); padding-top: 8px; }
 body.mq-phone.mq-final .mq-progress { display: none; }
@@ -203,3 +203,6 @@ body.mq-phone .mq-final-actions .mq-primary {
   flex: 1; background: var(--mq-accent); color: #fff; border-color: var(--mq-accent); box-shadow: 0 2px 8px rgba(51, 94, 86, .28);
 }
 body.mq-phone .mq-final-actions .mq-primary:disabled { opacity: 1; background: var(--mq-accent-off); border-color: var(--mq-accent-off); box-shadow: none; }
+
+/* Anche dalla schermata finale, "Vedi in 3D" deve aprire lo stage a schermo intero. */
+body.mq-phone.mq-final.mq-3d .mq-stage { inset: 0; height: auto; z-index: 20; }

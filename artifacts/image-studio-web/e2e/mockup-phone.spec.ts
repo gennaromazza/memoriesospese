@@ -223,6 +223,8 @@ for (const model of directModels) {
     // This is the shareable, read-only link, not the editable photobook flow.
     await page.goto(`/fotolibro/${token}/mockup`);
     const boxModel = model.key === "quadrobook" || model.key === "imagebox";
+    const landscapeViewport = { width: 844, height: 390 };
+    const portraitViewport = { width: 390, height: 780 };
     // Poll the same-origin viewer DOM in one browser-side check. Repeated
     // cross-frame assertions are unreliable while the WebGL renderer is busy.
     await page.waitForFunction(() => {
@@ -233,7 +235,7 @@ for (const model of directModels) {
         && body.classList.contains("mq-phone")
         && body.classList.contains("mq-3d");
     }, null, { timeout: 240_000 });
-    const viewerState = await page.evaluate((isBox) => {
+    const inspectViewer = async () => page.evaluate((isBox) => {
       const frame = Array.from(document.querySelectorAll("iframe"))
         .find(candidate => candidate.src.includes("/mockups/")) as HTMLIFrameElement | undefined;
       const doc = frame?.contentDocument;
@@ -242,17 +244,33 @@ for (const model of directModels) {
       const stage = doc?.querySelector<HTMLElement>(".mq-stage, .stage");
       const canvasRect = canvas?.getBoundingClientRect();
       const stageRect = stage?.getBoundingClientRect();
-      const enabledChoices = doc?.querySelectorAll(isBox
-        ? ".panel-content button:not(:disabled)"
-        : "#materials button:not(:disabled), #detailPanel input:not(:disabled), #detailPanel select:not(:disabled)").length ?? -1;
+      const choicesSelector = isBox
+        ? ".panel-content [data-step]:not([hidden]) button, .panel-content [data-step]:not([hidden]) input:not([type=file]), .panel-content [data-step]:not([hidden]) select, .panel-content [data-step]:not([hidden]) textarea"
+        : "#materials button, #detailPanel input, #detailPanel select";
+      const enabledChoices = Array.from(doc?.querySelectorAll<HTMLElement>(choicesSelector) ?? []).filter(control => {
+        const style = doc?.defaultView?.getComputedStyle(control);
+        return !control.matches(":disabled") && !!style && style.display !== "none"
+          && style.visibility !== "hidden" && control.getClientRects().length > 0;
+      }).length;
       const viewControl = doc?.querySelector<HTMLButtonElement>(isBox
-        ? 'button[data-mode="uses"], button[data-mode="open"]'
-        : "#rotate");
+        ? '.view-tools button[data-mode="uses"], .view-tools button[data-mode="open"]'
+        : '.wizard-iconbar button[aria-label="Ingrandisci album"]');
+      const controlRect = viewControl?.getBoundingClientRect();
+      const controlStyle = viewControl ? doc?.defaultView?.getComputedStyle(viewControl) : null;
+      const controlHit = controlRect && doc?.elementFromPoint(
+        controlRect.left + controlRect.width / 2,
+        controlRect.top + controlRect.height / 2,
+      );
       const pipClose = doc?.querySelector<HTMLButtonElement>("#pipClose");
       const pipCloseStyle = pipClose ? doc?.defaultView?.getComputedStyle(pipClose) : null;
       const title = doc?.querySelector(".mq-title, #stepTitle")?.textContent?.trim() || "";
+      const viewportWidth = doc?.defaultView?.innerWidth ?? 0;
+      const viewportHeight = doc?.defaultView?.innerHeight ?? 0;
+      const iframeRect = frame?.getBoundingClientRect();
       const initial = {
         title,
+        framePath: frame?.contentWindow?.location.pathname ?? "",
+        iframeBox: iframeRect ? { width: iframeRect.width, height: iframeRect.height, top: iframeRect.top, bottom: iframeRect.bottom } : null,
         bodyClasses: body ? Array.from(body.classList) : [],
         ready: body?.dataset.ready === "true",
         wizardReadonly: body?.dataset.wizardReadonly === "true",
@@ -260,28 +278,105 @@ for (const model of directModels) {
         enabledChoices,
         canvasVisible: !!canvas && !!canvasRect && canvasRect.width > 0 && canvasRect.height > 0,
         stageVisible: !!stage && !!stageRect && stageRect.width > 0 && stageRect.height > 0,
+        stageFillsViewer: !!stageRect && Math.abs(stageRect.width - viewportWidth) <= 2
+          && Math.abs(stageRect.height - viewportHeight) <= 2,
+        stageWithinViewport: !!stageRect && stageRect.left >= -1 && stageRect.top >= -1
+          && stageRect.right <= viewportWidth + 1 && stageRect.bottom <= viewportHeight + 1,
+        stageWithinPhoneViewport: !!stageRect && !!iframeRect
+          && iframeRect.left + stageRect.left >= -1 && iframeRect.top + stageRect.top >= -1
+          && iframeRect.left + stageRect.right <= window.innerWidth + 1
+          && iframeRect.top + stageRect.bottom <= window.innerHeight + 1,
+        canvasWithinStage: !!canvasRect && !!stageRect && canvasRect.left >= stageRect.left - 1
+          && canvasRect.top >= stageRect.top - 1 && canvasRect.right <= stageRect.right + 1
+          && canvasRect.bottom <= stageRect.bottom + 1,
+        viewControlVisible: !!viewControl && !!controlRect && !!controlStyle
+          && controlRect.width > 0 && controlRect.height > 0
+          && controlStyle.display !== "none" && controlStyle.visibility !== "hidden",
+        controlWithinViewport: !!controlRect && controlRect.left >= -1 && controlRect.top >= -1
+          && controlRect.right <= viewportWidth + 1 && controlRect.bottom <= viewportHeight + 1,
+        controlWithinPhoneViewport: !!controlRect && !!iframeRect
+          && iframeRect.left + controlRect.left >= -1 && iframeRect.top + controlRect.top >= -1
+          && iframeRect.left + controlRect.right <= window.innerWidth + 1
+          && iframeRect.top + controlRect.bottom <= window.innerHeight + 1,
+        controlReceivesPointer: !!viewControl && !!controlHit
+          && (controlHit === viewControl || viewControl.contains(controlHit)),
+        controlHitTarget: controlHit
+          ? `${controlHit.tagName.toLowerCase()}#${(controlHit as HTMLElement).id}.${(controlHit as HTMLElement).className}`
+          : null,
         pipCloseVisible: !!pipClose && !!pipCloseStyle && pipCloseStyle.display !== "none" && pipCloseStyle.visibility !== "hidden",
         viewControlEnabled: !!viewControl && !viewControl.disabled,
       };
       viewControl?.click();
-      return { ...initial, viewControlPressedAfterClick: viewControl?.getAttribute("aria-pressed") === "true" };
+      return {
+        ...initial,
+        viewControlPressedAfterClick: viewControl?.getAttribute("aria-pressed") === "true",
+        phoneWidth: viewportWidth,
+        phoneHeight: viewportHeight,
+      };
     }, boxModel);
 
+    const viewerState = await inspectViewer();
     expect(viewerState.title).toBeTruthy();
+    expect(viewerState.framePath).toContain("/mockups/");
     expect(viewerState.bodyClasses).toContain("mq-phone");
     expect(viewerState.bodyClasses).toContain("mq-3d");
     expect(viewerState.ready).toBe(true);
     expect(viewerState.canvasVisible).toBe(true);
     expect(viewerState.stageVisible).toBe(true);
+    expect(viewerState.stageWithinViewport).toBe(true);
+    expect(viewerState.canvasWithinStage).toBe(true);
     expect(viewerState.enabledChoices).toBe(0);
+    expect(viewerState.viewControlVisible).toBe(true);
+    expect(viewerState.controlWithinViewport).toBe(true);
+    expect(viewerState.stageWithinPhoneViewport).toBe(true);
+    expect(viewerState.controlWithinPhoneViewport).toBe(true);
+    expect(viewerState.controlReceivesPointer).toBe(true);
     expect(viewerState.viewControlEnabled).toBe(true);
-    expect(viewerState.viewControlPressedAfterClick).toBe(true);
     if (boxModel) {
       expect(viewerState.locked).toBe(true);
       expect(viewerState.pipCloseVisible).toBe(true);
+      expect(viewerState.viewControlPressedAfterClick).toBe(true);
     } else {
       expect(viewerState.wizardReadonly).toBe(true);
     }
+
+    const assertOrientation = async (viewport: { width: number; height: number }, label: string) => {
+      await page.setViewportSize(viewport);
+      await page.waitForFunction(({ width, height }) => {
+        const frame = Array.from(document.querySelectorAll("iframe"))
+          .find(candidate => candidate.src.includes("/mockups/")) as HTMLIFrameElement | undefined;
+        return window.innerWidth === width && window.innerHeight === height
+          && frame?.contentDocument?.body?.classList.contains("mq-3d");
+      }, viewport);
+      // Let the 3D ResizeObserver update its renderer and camera after rotation.
+      await page.waitForTimeout(300);
+      const state = await inspectViewer();
+      expect(Math.abs(state.phoneWidth - viewport.width), `${label}: larghezza del viewer`).toBeLessThanOrEqual(4);
+      expect(Math.abs(state.phoneHeight - (state.iframeBox?.height ?? 0)), `${label}: altezza del frame`).toBeLessThanOrEqual(2);
+      expect(state.phoneWidth > state.phoneHeight, `${label}: il viewer deve passare in orizzontale`).toBe(viewport.width > viewport.height);
+      expect(state.title, `${label}: il link non deve tornare al wizard`).toBe(viewerState.title);
+      expect(state.framePath, `${label}: l'iframe del mockup deve restare aperto`).toBe(viewerState.framePath);
+      expect(state.bodyClasses, `${label}: lo stato del viewer deve restare invariato`).toEqual(viewerState.bodyClasses);
+      expect(state.ready, `${label}: renderer pronto`).toBe(true);
+      expect(state.canvasVisible, `${label}: canvas visibile`).toBe(true);
+      expect(state.stageVisible, `${label}: scena visibile`).toBe(true);
+      expect(state.stageFillsViewer, `${label}: scena 3D a schermo intero`).toBe(true);
+      expect(state.stageWithinViewport, `${label}: scena interamente nel viewport`).toBe(true);
+      expect(state.stageWithinPhoneViewport, `${label}: scena non tagliata dal viewport del telefono`).toBe(true);
+      expect(state.canvasWithinStage, `${label}: canvas contenuto nella scena`).toBe(true);
+      expect(state.enabledChoices, `${label}: le scelte devono restare bloccate`).toBe(0);
+      expect(state.viewControlVisible, `${label}: comandi 3D visibili`).toBe(true);
+      expect(state.controlWithinViewport, `${label}: comandi 3D raggiungibili nel viewport`).toBe(true);
+      expect(state.controlWithinPhoneViewport, `${label}: comandi 3D non tagliati dal viewport del telefono`).toBe(true);
+      expect(state.controlReceivesPointer, `${label}: il comando 3D non è coperto (bersaglio: ${state.controlHitTarget})`).toBe(true);
+      expect(state.viewControlEnabled, `${label}: comando 3D utilizzabile`).toBe(true);
+      expect(state.wizardReadonly).toBe(viewerState.wizardReadonly);
+      expect(state.locked).toBe(viewerState.locked);
+      if (boxModel) expect(state.viewControlPressedAfterClick, `${label}: il comando vista risponde`).toBe(true);
+    };
+
+    await assertOrientation(landscapeViewport, "Orizzontale");
+    await assertOrientation(portraitViewport, "Verticale dopo la rotazione");
     expect(writes, "Il link di sola lettura non deve salvare o inviare scelte.").toBe(0);
   });
 }
