@@ -22,7 +22,7 @@ export function mockupPresentation(payload: MockupPayload | undefined, selection
   const displayOption = option || (staleFixedSave || awaitingClientChoice ? payload?.offer?.options[0] : undefined);
   return {
     staleFixedSave,
-    title: payload?.offerError ? 'Modello non disponibile' : displayOption?.name || payload?.offer?.options[0]?.name || saved?.option?.name || 'Custodia',
+    title: payload?.offerError ? 'Modello non disponibile' : displayOption?.name || payload?.offer?.options[0]?.name || saved?.option?.name || 'Scegli un modello',
     rendererId: override || (staleFixedSave || awaitingClientChoice ? displayOption?.rendererId : undefined) || option?.rendererId || (fixed && !saved ? payload?.offer?.options[0]?.rendererId : undefined) || saved?.configuration?.modelId || displayOption?.rendererId,
   };
 }

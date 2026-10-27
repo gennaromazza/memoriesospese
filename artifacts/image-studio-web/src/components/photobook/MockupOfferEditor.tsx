@@ -223,13 +223,13 @@ export default function MockupOfferEditor({
       if (ok) {
         setSelected(null);
       } else {
-        setPublishError("Pubblicazione non riuscita. Riprova.");
+        setPublishError("Salvataggio del modello non riuscito. Riprova.");
       }
     } catch (err) {
       setPublishError(
         err instanceof Error
           ? err.message
-          : "Errore imprevisto durante la pubblicazione.",
+            : "Errore imprevisto durante il salvataggio del modello.",
       );
     } finally {
       setPublishing(false);

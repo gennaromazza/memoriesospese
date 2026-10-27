@@ -20,6 +20,7 @@ import MockupClientApproval from './MockupClientApproval';
 import type { MockupOption } from '@shared/mockup-workflow';
 import MockupModelChooser from './MockupModelChooser';
 import { initialMockupSelection, mockupPresentation, needsClientModelChoice } from './mockup-presentation';
+import { assignMockupOffer } from './mockup-offer-assignment';
 import MockupRendererError from './MockupRendererError';
 import SavedMockupPhotoRecoveryError from './SavedMockupPhotoRecoveryError';
 import { beginMockupRendererRetry, configurationForRendererRestore, shouldSkipSavedMockupRestore } from './mockup-renderer-recovery';
@@ -102,6 +103,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   const [savedPhotoRetryBusy, setSavedPhotoRetryBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [message, setMessage] = useState('');
+  const [assignmentRefreshError, setAssignmentRefreshError] = useState('');
   const [configuration, setConfiguration] = useState<MockupConfiguration | null>(null);
   const [draftCoverLayout, setDraftCoverLayout] = useState('');
   const [draftBackCover, setDraftBackCover] = useState('');
@@ -156,7 +158,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     enabled: picker || phoneBox || (!!token && mobile),
     queryFn: async () => token ? getPhotobookGalleryPhotosByToken(token) : { photos: await listPhotobookGalleryPhotos(photobookId), chapters: [] },
   });
-  const editable = !readOnly && state.data?.editable === true;
+  const editable = !readOnly && !assignmentRefreshError && state.data?.editable === true;
   const selectedOption = optionFor(state.data?.offer || null, selection);
   const saved = state.data?.saved;
   dirtyContext.current = { saved: saved ?? null, selection, editable };
@@ -164,7 +166,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   const shouldPromptForModel = !!token && editable && needsClientModelChoice(state.data) && !selectedOption;
   const presentation = mockupPresentation(state.data, selection, rendererOverride);
   const staleFixedSave = presentation.staleFixedSave;
-  const renderer = MOCKUP_RENDERERS.find(r => r.id === presentation.rendererId) || MOCKUP_RENDERERS[0];
+  const renderer = MOCKUP_RENDERERS.find(r => r.id === presentation.rendererId);
   const clientStatusMessage = state.data?.mockupPath === 'studio'
     ? saved?.status === 'confirmed' ? 'Lo studio ha confermato il mockup. Puoi consultarlo qui; per modifiche contatta lo studio.' : 'Lo studio prepara il mockup. Potrai consultarlo quando sarà confermato.'
     : !saved
@@ -178,8 +180,8 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
           : 'Bozza salvata: puoi riprenderla quando vuoi oppure inviarla allo studio per la verifica.';
   const title = presentation.title;
   // Quadrobook e ImageBox hanno un visualizzatore autonomo, con i propri passi e le proprie foto.
-  const isImageBox = renderer.id === IMAGEBOX_MOCKUP_MODEL.id;
-  const isBox = renderer.id === BOX_MOCKUP_MODEL.id || isImageBox;
+  const isImageBox = renderer?.id === IMAGEBOX_MOCKUP_MODEL.id;
+  const isBox = renderer?.id === BOX_MOCKUP_MODEL.id || isImageBox;
   // Le grafiche da incidere le carica lo studio, e solo quando prepara lui il mockup.
   const allowGraphics = !token && state.data?.mockupPath === 'studio';
   const noModelAssigned = !token && !!state.data && !state.data.offer?.options.length && !state.data.saved;
@@ -216,6 +218,32 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     dirtyContext.current.saved = value;
     queryClient.setQueryData<MockupPayload>(stateKey, previous => previous ? { ...previous, saved: value } : previous);
   };
+  async function reloadAssignedOffer() {
+    const fresh = await state.refetch({ throwOnError: true });
+    if (!fresh.data) throw new Error('Configurazione non ricevuta dal server.');
+    return fresh.data;
+  }
+  function showAssignedOffer(payload: MockupPayload) {
+    pendingOption.current = null; pendingPreview.current = null;
+    skipRestoreRevision.current = null; initializing.current = true;
+    setSelection(initialMockupSelection(payload)); setRendererOverride(null);
+    setConfiguration(null); setWizard(null); setReady(false); setRenderBusy(true);
+    setRendererError(''); setGeneration(g => g + 1); setAssignmentRefreshError('');
+    setMessage(payload.mockupPath === 'studio'
+      ? 'Modello assegnato. Ora prepara la bozza e associa le foto necessarie.'
+      : 'Modello assegnato nel link cliente.');
+    if (payload.mockupPath === 'studio') setAdminTab('edit');
+  }
+  function showAssignmentRefreshError(error: unknown) {
+    const detail = error instanceof Error ? error.message : 'Connessione non disponibile.';
+    setAssignmentRefreshError(`Modello salvato, ma non è stato possibile aggiornare l’anteprima. Non ripetere il salvataggio. ${detail}`);
+  }
+  async function retryAssignmentRefresh() {
+    setBusy(true);
+    try { showAssignedOffer(await reloadAssignedOffer()); }
+    catch (error) { showAssignmentRefreshError(error); }
+    finally { setBusy(false); }
+  }
   function closeConfigurator() {
     if (busy) return;
     if (dirty && !window.confirm('Chiudere il configuratore e abbandonare le modifiche non salvate?')) return;
@@ -276,7 +304,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     // When the chooser is open, selecting its model is what starts/restarts the renderer.
     // Do not require an already-ready renderer in that state.
     if (viewerStarted && !choosing && (!ready || renderBusy || busy)) return;
-    if (viewerStarted && option.rendererId !== renderer.id && dirty && !window.confirm('Cambiando tipo di album, alcune personalizzazioni non sono compatibili. Vuoi proseguire? La revisione già salvata resta conservata.')) return;
+    if (viewerStarted && option.rendererId !== renderer?.id && dirty && !window.confirm('Cambiando tipo di album, alcune personalizzazioni non sono compatibili. Vuoi proseguire? La revisione già salvata resta conservata.')) return;
     pendingPreview.current = null;
     pendingLayout.current = layout;
     // La scelta dei caroselli non contiene fotografie o nomi dimostrativi.
@@ -291,7 +319,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   function chooseOption(option: MockupOption) {
     pendingPreview.current = null;
     setSelection({ labId: option.labId, modelId: option.id }); setDirty(true); setPhotoSide('front');
-    if (option.rendererId !== renderer.id) {
+    if (option.rendererId !== renderer?.id) {
       pendingOption.current = option; setRendererOverride(option.rendererId); setWizard(null);
       setConfiguration(null); setReady(false); setRenderBusy(true); setGeneration(g => g + 1);
       setDraftCoverLayout(''); setDraftBackCover('');
@@ -387,7 +415,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   }, [viewMessage]);
   useEffect(() => { wizard?.refresh(); setFamilyCount(wizard?.familyCount() ?? 0); }, [wizard, configuration, busy, renderBusy, editable]);
   // Con una sola collezione di tessuto non c'è niente da scegliere: si passa direttamente ai colori.
-  const skipFamilyStep = familyCount === 1 && renderer.id !== 'plaza-led';
+  const skipFamilyStep = familyCount === 1 && renderer?.id !== 'plaza-led';
   useEffect(() => { if (skipFamilyStep && step === 2) setStep(3); }, [skipFamilyStep, step]);
   useEffect(() => {
     if (!mobile && token && ready && !renderBusy && !busy && editable && !selection && !initializing.current && state.data?.offer?.options.length === 1) chooseOption(state.data.offer.options[0]);
@@ -639,7 +667,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   }, [dirty]);
 
   async function selectPhoto(operation: () => Promise<Response>, slotOverride?: typeof boxSlot) {
-    const target = mobile ? (step === 7 ? 'back' : 'front') : renderer.id === 'album-girevole' || renderer.id === 'plaza-led' ? photoSide : 'front';
+    const target = mobile ? (step === 7 ? 'back' : 'front') : renderer?.id === 'album-girevole' || renderer?.id === 'plaza-led' ? photoSide : 'front';
     setBusy(true); setMessage('Preparazione foto…');
     try {
       const photo: MockupPhoto = mockupPhotoSchema.parse(await (await operation()).json());
@@ -827,7 +855,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
         } catch {}
       }
       if (item.selection) setSelection(item.selection);
-      if (item.option && item.option.rendererId !== renderer.id) {
+      if (item.option && item.option.rendererId !== renderer?.id) {
         pendingPreview.current = { configuration: cfg, photo, backPhoto, option: item.option || saved?.option };
         setRendererOverride(item.option.rendererId);
         setWizard(null);
@@ -932,7 +960,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       setSavedPhotoRetryBusy(false);
     }
   }
-  const allSteps = renderer.id === 'album-girevole' || renderer.id === 'plaza-led' ? [2, 3, 4, 5, 6, 7, 9] : [2, 3, 5, 6, 9];
+  const allSteps = renderer?.id === 'album-girevole' || renderer?.id === 'plaza-led' ? [2, 3, 4, 5, 6, 7, 9] : [2, 3, 5, 6, 9];
   const steps = skipFamilyStep ? allSteps.filter(value => value !== 2) : allSteps;
   const stepNames: Record<number, string> = {
     1: 'Modello',
@@ -1116,28 +1144,30 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       {open && !token && adminPanel(<Button hidden={adminTab !== 'edit'} variant="ghost" size="sm" className="self-start" disabled={busy} onClick={async () => {
         if (dirty && !window.confirm('Ricaricare la proposta e abbandonare le modifiche non salvate?')) return;
         const fresh = await state.refetch();
-        if (!fresh.isError) { pendingOption.current = null; pendingPreview.current = null; setRendererOverride(null); setDirty(false); setReady(false); setRenderBusy(true); setGeneration(g => g + 1); }
+        if (!fresh.isError && fresh.data) { showAssignedOffer(fresh.data); setDirty(false); }
       }}>Ricarica proposta</Button>)}
     {saved && !token && adminPanel(<div className="rounded-lg bg-muted/50 p-3 text-sm space-y-2"><p className="font-semibold">{MOCKUP_STATUS_LABELS[saved.status || 'draft']} · revisione {saved.revision}</p><p>{saved.option?.labName} {saved.option && '·'} {saved.option?.name} {saved.option && '·'} {saved.option?.materials.find(m => m.id === saved.configuration.materialId)?.label}</p><p>Ultima modifica: {saved.updatedBy === 'client' ? 'Cliente tramite link' : saved.updatedBy === 'studio' ? 'Studio' : 'Non registrato'} · {new Date(saved.updatedAt).toLocaleString('it-IT')}</p>{saved.note && <p>Note: {saved.note}</p>}</div>)}
     {open && <>
       {state.isLoading && <p role="status">Caricamento configurazione…</p>}
-      {state.isError && <p role="alert">{(state.error as Error).message}</p>}
+      {state.isError && !assignmentRefreshError && <p role="alert">{(state.error as Error).message}</p>}
+      {assignmentRefreshError && <div role="alert" className="rounded border border-amber-300 bg-amber-50 p-3 text-sm space-y-2">
+        <p>{assignmentRefreshError}</p>
+        <Button variant="outline" disabled={busy} onClick={() => void retryAssignmentRefresh()}>Riprova ad aggiornare l’anteprima</Button>
+      </div>}
       {state.data?.offerError && <p role="alert" className="text-destructive">{state.data.offerError}</p>}
       {staleFixedSave && <p role="alert" className="text-amber-700">La bozza precedente usa un modello non più proposto. Scegli il modello aggiornato e salva una nuova revisione.</p>}
       {state.data && <>
-        {!token && adminPanel(<div hidden={adminTab !== 'offer'}><p className="text-sm mb-3">Scegli il modello dell’album, oppure più modelli tra cui sceglierà il cliente. Qui non prepari la bozza: le foto necessarie si associano nel passaggio successivo.</p><MockupOfferEditor alwaysOpen offer={state.data.offer} modelMode={state.data.modelMode} modelSelection={state.data.modelSelection} hasSavedMockup={!!saved} disabled={readOnly || busy || dirty} uploadGraphic={async file => (await (await request(`/upload?name=${encodeURIComponent(file.name)}`, { method: 'POST', headers: { 'Content-Type': file.type }, body: file })).json() as { id: string }).id} publish={async (mode, selections) => {
+        {!token && adminPanel(<div hidden={adminTab !== 'offer'}><p className="text-sm mb-3">Scegli il modello dell’album, oppure più modelli tra cui sceglierà il cliente. Qui non prepari la bozza: le foto necessarie si associano nel passaggio successivo.</p><MockupOfferEditor alwaysOpen offer={state.data.offer} modelMode={state.data.modelMode} modelSelection={state.data.modelSelection} hasSavedMockup={!!saved} disabled={readOnly || busy || dirty || !!assignmentRefreshError} uploadGraphic={async file => (await (await request(`/upload?name=${encodeURIComponent(file.name)}`, { method: 'POST', headers: { 'Content-Type': file.type }, body: file })).json() as { id: string }).id} publish={async (mode, selections) => {
           setBusy(true);
           try {
-            await request('/offer', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: state.data?.offer?.revision || 0, savedRevision: saved?.revision || 0, mode, selections }) });
-            const fresh = await state.refetch({ throwOnError: true });
-            setReady(false); setGeneration(g => g + 1);
-            setMessage(fresh.data?.mockupPath === 'studio'
-              ? 'Modello assegnato. Ora prepara la bozza e associa le foto necessarie.'
-              : 'Modello assegnato nel link cliente.');
-            if (fresh.data?.mockupPath === 'studio') setAdminTab('edit');
+            const result = await assignMockupOffer(
+              () => request('/offer', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: state.data?.offer?.revision || 0, savedRevision: saved?.revision || 0, mode, selections }) }),
+              reloadAssignedOffer,
+            );
+            if (result.status === 'updated') showAssignedOffer(result.data);
+            else showAssignmentRefreshError(result.error);
             return true;
           }
-          catch (error) { setMessage((error as Error).message); return false; }
           finally { setBusy(false); }
         }} /></div>)}
         {!token && !!state.data.offer && adminPanel(<div hidden={adminTab !== 'edit'}><label className="block text-sm">Laboratorio e modello scelto<select aria-label="Laboratorio e modello scelto" className="block border rounded p-2 w-full mt-1" disabled={!editable || busy || !ready || renderBusy} value={selection ? `${selection.labId}/${selection.modelId}` : ''} onChange={event => {
@@ -1148,7 +1178,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
         {!token && adminPanel(<p className="text-xs text-muted-foreground">Qui verifichi copertina e box, non le pagine interne. La conferma non avvia la stampa.</p>)}
          {!editable && token && <p role="status">Questa versione è in sola lettura: puoi esplorare l’album e scaricare le viste.</p>}
          {!editable && !token && !mobile && adminPanel(<p role="status" className="text-sm">Versione in sola lettura: puoi esplorare l’album e consultare le conferme.</p>)}
-        {!token && (renderer.id === 'album-girevole' || renderer.id === 'plaza-led') && adminPanel(<div hidden={adminTab !== 'edit'}><label className="block text-sm">Foto da personalizzare<select aria-label="Foto da personalizzare" className="block border rounded p-2 mt-1" value={photoSide} disabled={!editable || busy || picker || renderBusy} onChange={e => setPhotoSide(e.target.value === 'back' ? 'back' : 'front')}><option value="front">Copertina album</option><option value="back">Plexiglass posteriore dello scrigno</option></select></label></div>)}
+        {!token && (renderer?.id === 'album-girevole' || renderer?.id === 'plaza-led') && adminPanel(<div hidden={adminTab !== 'edit'}><label className="block text-sm">Foto da personalizzare<select aria-label="Foto da personalizzare" className="block border rounded p-2 mt-1" value={photoSide} disabled={!editable || busy || picker || renderBusy} onChange={e => setPhotoSide(e.target.value === 'back' ? 'back' : 'front')}><option value="front">Copertina album</option><option value="back">Plexiglass posteriore dello scrigno</option></select></label></div>)}
         {!token && isBox && adminPanel(<div hidden={adminTab !== 'edit'}><p className="text-sm">Scegli tessuti e foto direttamente nell’anteprima, uno slide alla volta: le foto arrivano dalla galleria del fotolibro. Poi salva e passa a “Verifica e conferma”.</p></div>)}
         {!token && !isBox && adminPanel(<div hidden={adminTab !== 'edit'}><p className="text-sm mb-3">Modifica i dettagli nell’anteprima, poi salva la nuova revisione e passa a “Verifica e conferma”.</p><div className="flex flex-wrap gap-2">
           <Button variant="outline" disabled={!editable || busy || !ready || renderBusy} onClick={() => upload.current?.click()}>Carica una foto</Button>
@@ -1177,8 +1207,13 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
             } : undefined}
           />}
           {token && rendererError && !choosing && <MockupRendererError message={rendererError} onRetry={retryRenderer} />}
-         {token && !rendererError && (!ready || (!wizard && !isBox)) && !choosing && <p role="status" className="p-4 text-sm">Preparazione del tuo configuratore…</p>}
-          {(!mobile || viewerStarted) && !!state.data && <iframe key={`${renderer.id}-${generation}`} ref={frame} title={`Configuratore 3D ${renderer.name}`} src={`${import.meta.env.BASE_URL}mockups/${renderer.path}`} sandbox="allow-scripts allow-same-origin allow-downloads" style={{ visibility: token && (!ready || (!wizard && !isBox) || !!rendererError || !!savedPhotoError) ? 'hidden' : undefined }} aria-hidden={token && (!ready || (!wizard && !isBox) || !!rendererError || !!savedPhotoError) ? true : undefined} className={`${token ? 'w-full min-h-0 flex-1 border-0' : 'mockup-admin-viewer'} ${busy ? 'pointer-events-none' : ''}`} />}
+         {token && renderer && !rendererError && (!ready || (!wizard && !isBox)) && !choosing && <p role="status" className="p-4 text-sm">Preparazione del tuo configuratore…</p>}
+          {!renderer && !!state.data && <div role="status" className="flex min-h-48 flex-1 flex-col items-center justify-center gap-2 p-6 text-center" data-testid="mockup-no-model">
+            <p className="font-medium">{presentation.title}</p>
+            <p className="text-sm text-muted-foreground">{token ? 'Lo studio deve assegnare un modello prima di avviare l’anteprima.' : 'Assegna un modello nel passaggio “1 · Modello” per avviare l’anteprima.'}</p>
+            {!token && <Button variant="outline" onClick={() => setAdminTab('offer')}>Scegli modello</Button>}
+          </div>}
+          {renderer && (!mobile || viewerStarted) && !!state.data && <iframe key={`${renderer.id}-${generation}`} ref={frame} title={`Configuratore 3D ${renderer.name}`} src={`${import.meta.env.BASE_URL}mockups/${renderer.path}`} sandbox="allow-scripts allow-same-origin allow-downloads" style={{ visibility: token && (!ready || (!wizard && !isBox) || !!rendererError || !!savedPhotoError) ? 'hidden' : undefined }} aria-hidden={token && (!ready || (!wizard && !isBox) || !!rendererError || !!savedPhotoError) ? true : undefined} className={`${token ? 'w-full min-h-0 flex-1 border-0' : 'mockup-admin-viewer'} ${busy ? 'pointer-events-none' : ''}`} />}
         {phoneWizard && wizard.topSlot && createPortal(<>
           <div className="mq-top">
             <p className="mq-step-count">Passo {steps.indexOf(step) + 1} di {steps.length}</p>
@@ -1194,7 +1229,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
           {editable && ready && !renderBusy && configurationIssue && ((mobile && (step === 7 || (step === 6 && !(draftCoverLayout !== 'plaque' && !frontPhotoPresent)))) || (!mobile && step >= 5)) && <p role="status" className="wizard-validation">{configurationIssue}</p>}
           <div className="wizard-step-heading" aria-live="polite"><span>Passo {steps.indexOf(step) + 1} di {steps.length}</span><strong>{stepNames[step] || 'Configurazione'}</strong></div>
          {step === 1 && <><h3>Scegli il tuo modello</h3><p>Trovi qui i modelli proposti dallo studio.</p>{state.data?.offer?.options.map(option => <button type="button" className="wizard-model" key={`${option.labId}/${option.id}`} aria-pressed={selectedOption?.id === option.id && selectedOption?.labId === option.labId} disabled={!editable || busy || !ready || renderBusy} onClick={() => chooseOption(option)}>{option.name}<small>{option.labName} · {MOCKUP_RENDERERS.find(r => r.id === option.rendererId)?.name}</small></button>)}{!state.data?.offer && <p>{title}</p>}</>}
-          {step === 2 && <><h3>Il tessuto</h3><p>{renderer.id === 'plaza-led' ? 'Scegli telaio esterno e album oppure telaio interno, poi la collezione. Il colore lo scegli subito dopo.' : 'Scegli la collezione di tessuti per il tuo album. Il colore lo scegli subito dopo.'}</p></>}
+          {step === 2 && <><h3>Il tessuto</h3><p>{renderer?.id === 'plaza-led' ? 'Scegli telaio esterno e album oppure telaio interno, poi la collezione. Il colore lo scegli subito dopo.' : 'Scegli la collezione di tessuti per il tuo album. Il colore lo scegli subito dopo.'}</p></>}
           {step === 3 && <><h3>Il colore</h3><p>Tocca un colore: lo vedi subito sull’album nell’anteprima 3D.</p></>}
           {step === 4 && <><h3>Struttura dello scrigno</h3><p>Scegli la finitura della cornice che racchiude l'album.</p></>}
           {step === 5 && <><h3>Disposizione della copertina</h3><p>Scegli lo stile e la disposizione della copertina: placchetta con incisione, foto grande a tutta copertina oppure foto formato placchetta.</p></>}
@@ -1285,7 +1320,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
             <button aria-label="Fronte" onClick={() => viewAction('front')}><b aria-hidden="true">F</b></button>
             <button aria-label="Retro" onClick={() => viewAction('back')}><b aria-hidden="true">R</b></button>
             <button aria-label="Estrai o reinserisci album" onClick={() => viewAction('extract')}><LogOut size={17} /><span>Estrai</span></button>
-            {(renderer.id === 'album-girevole' || renderer.id === 'plaza-led') && <button aria-label="Avvia o ferma rotazione scrigno" onClick={() => viewAction('rotate')}><Rotate3D size={17} /></button>}
+            {(renderer?.id === 'album-girevole' || renderer?.id === 'plaza-led') && <button aria-label="Avvia o ferma rotazione scrigno" onClick={() => viewAction('rotate')}><Rotate3D size={17} /></button>}
             <button aria-label="Ingrandisci album" onClick={() => viewAction('plus')}><ZoomIn size={17} /><span>Zoom +</span></button>
             <button aria-label="Riduci album" onClick={() => viewAction('minus')}><ZoomOut size={17} /><span>Zoom −</span></button>
             <button aria-label="Reimposta vista" onClick={() => viewAction('reset')}><RotateCcw size={17} /><span>Reimposta</span></button>
