@@ -115,6 +115,25 @@ describe('API reali: link cliente, autorizzazione e notifica pubblicazione', () 
     });
     expect(photobooks[0].galleryId).toBeUndefined();
   });
+  it('rifiuta l’approvazione se una nuova versione viene pubblicata durante la conferma', async () => {
+    Object.assign(book().versions[1], { status: 'published', pageCount: 3 });
+    h.beforeTransaction = () => {
+      book().currentVersion = 2;
+    };
+
+    const response = await fetch(`${base}/by-token/same-token-long/approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note: 'Approvato' }),
+    });
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ error: 'Il fotolibro è stato aggiornato nel frattempo: ricarica la pagina.' });
+    expect(book().currentVersion).toBe(2);
+    expect(book().approval).toBeUndefined();
+    expect(h.docs.has('adminNotifications/photobook-approved-book-v1')).toBe(false);
+    expect(sendGmailEmail).not.toHaveBeenCalled();
+  });
   it('percorso cliente: approvazione invia una volta il link diretto, con destinatario del lavoro e recupero email mancante', async () => {
     Object.assign(book(), { mockupPath: 'client', name: 'Album', clientName: 'Anna', jobId: 'job' });
     h.docs.delete('galleries/gallery');
