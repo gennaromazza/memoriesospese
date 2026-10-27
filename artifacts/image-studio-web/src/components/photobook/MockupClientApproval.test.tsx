@@ -21,4 +21,11 @@ describe('Approvazione cliente del mockup', () => {
     expect(html).toContain('mockup-client-approved');
     expect(html).not.toContain('button-approve-mockup');
   });
+  it('mantiene la conferma compatta e accessibile per il mockup mobile', () => {
+    const html = renderToStaticMarkup(<MockupClientApproval compact disabled={false} onApprove={async () => undefined} />);
+    expect(html).toContain('Approvo questa revisione');
+    expect(html).toContain('min-h-9 px-2.5 text-xs');
+    expect(html).toContain('Non avvia la stampa');
+    expect(html).toContain('button-approve-mockup');
+  });
 });

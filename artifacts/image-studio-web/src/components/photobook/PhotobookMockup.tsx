@@ -487,9 +487,15 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
 
   // Telefono + Quadrobook: si sceglie a schermo pieno dentro il visualizzatore, il 3D è una miniatura.
   useEffect(() => { setPhoneBox(!!token && mobile && isBox); }, [token, mobile, isBox]);
+  useEffect(() => {
+    if (!confirmedOnly || !mobile || !isBox || !ready) return;
+    frame.current?.contentDocument?.getElementById('pipOpen')?.click();
+  }, [confirmedOnly, mobile, isBox, ready, readyTick]);
   // Telefono, Custodia / Album girevole / Plaza: stesso standard del Quadrobook (public/mockups/phone-ui.css).
   const phoneWizard = !!token && mobile && !isBox && !!wizard;
-  useEffect(() => { wizard?.phone3d(phone3d); }, [wizard, phone3d]);
+  useEffect(() => {
+    wizard?.phone3d(confirmedOnly && mobile ? !choosing : phone3d);
+  }, [wizard, phone3d, confirmedOnly, mobile, choosing, step]);
   useEffect(() => { setPhone3d(false); }, [step, wizard, choosing]);
   const postToViewer = (payload: Record<string, unknown>) => frame.current?.contentWindow?.postMessage({ channel: 'memorie-mockup-v1', ...payload }, window.location.origin);
   useEffect(() => { if (ready && isBox) postToViewer({ type: 'layout', phone: phoneBox }); }, [ready, readyTick, isBox, phoneBox]);
@@ -1173,6 +1179,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       approvedAt={saved.clientApproval?.revision === saved.revision ? saved.clientApproval.approvedAt : undefined}
       disabled={!state.data?.clientApprovalAllowed}
       loading={open && (!ready || renderBusy || !!rendererError)}
+      compact={mobile}
       onApprove={async () => {
         setBusy(true);
         try {
@@ -1483,7 +1490,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
         </div>, wizard.actionsSlot)}
         {mobile && wizard && createPortal(<>
           {phoneWizard && !phone3d && step !== lastStep && <button type="button" className="mq-pip-open" onClick={() => setPhone3d(true)}>Vedi in 3D ›</button>}
-          {phoneWizard && <button type="button" className="mq-pip-close" onClick={() => setPhone3d(false)}>‹ Torna alle scelte</button>}
+          {phoneWizard && !confirmedOnly && <button type="button" className="mq-pip-close" onClick={() => setPhone3d(false)}>‹ Torna alle scelte</button>}
           <div className="wizard-iconbar mq-only-3d" aria-label="Comandi vista album">
             <button aria-label="Fronte" onClick={() => viewAction('front')}><b aria-hidden="true">F</b></button>
             <button aria-label="Retro" onClick={() => viewAction('back')}><b aria-hidden="true">R</b></button>
@@ -1564,7 +1571,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       }} />
     </>}
       </div>
-      {clientApprovalAction && <div className="shrink-0 border-t bg-background p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">{clientApprovalAction}</div>}
+      {clientApprovalAction && <div className="shrink-0 border-t bg-background p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:p-3" data-testid="mockup-client-approval-dock">{clientApprovalAction}</div>}
       {token && isBox && !choosing && !phoneBox && !confirmedOnly && <div className="mockup-actions shrink-0 border-t bg-background p-3 sm:px-4 space-y-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]" data-testid="quadrobook-actions">
         {!editable && <p className="text-sm" role="status">Sola lettura: stai vedendo la configurazione salvata.</p>}
         {editable && configurationIssue && <p className="text-sm text-amber-800" role="status">{configurationIssue}</p>}
