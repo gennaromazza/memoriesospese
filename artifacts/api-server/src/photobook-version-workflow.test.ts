@@ -82,6 +82,39 @@ describe('API reali: link cliente, autorizzazione e notifica pubblicazione', () 
     expect(result.version).toBe(1); expect(result.photobook.versions.map((v: { version: number }) => v.version)).toEqual([1]);
     expect(result.photobook.versions[0].status).toBeUndefined(); // Gli upload legacy restano possibili, non marcarli come immutabili.
   });
+  it('salva l’approvazione di un fotolibro autonomo e la restituisce nella lista admin', async () => {
+    Object.assign(book(), { name: 'Fotolibro autonomo', mockupPath: 'studio' });
+    delete book().galleryId;
+    delete book().jobId;
+
+    const approvalResponse = await fetch(`${base}/by-token/same-token-long/approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note: 'Impaginato approvato' }),
+    });
+    expect(approvalResponse.status).toBe(200);
+    expect(await approvalResponse.json()).toMatchObject({ ok: true, approved: true });
+
+    const listResponse = await fetch(base);
+    expect(listResponse.status).toBe(200);
+    const { photobooks } = await listResponse.json() as unknown as {
+      photobooks: Array<{
+        id: string;
+        currentVersion: number;
+        approval: { version: number; note: string | null } | null;
+        jobId: string | null;
+        galleryId?: string;
+      }>;
+    };
+    expect(photobooks).toHaveLength(1);
+    expect(photobooks[0]).toMatchObject({
+      id: 'book',
+      currentVersion: 1,
+      approval: { version: 1, note: 'Impaginato approvato' },
+      jobId: null,
+    });
+    expect(photobooks[0].galleryId).toBeUndefined();
+  });
   it('percorso cliente: approvazione invia una volta il link diretto, con destinatario del lavoro e recupero email mancante', async () => {
     Object.assign(book(), { mockupPath: 'client', name: 'Album', clientName: 'Anna', jobId: 'job' });
     h.docs.delete('galleries/gallery');
