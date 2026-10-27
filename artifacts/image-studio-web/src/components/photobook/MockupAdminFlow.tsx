@@ -3,8 +3,10 @@ import { auth } from '@/lib/firebase';
 import { createUrl } from '@/lib/config';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { AlertTriangle } from 'lucide-react';
 import type { MockupPayload } from '@shared/mockup-types';
 import { MOCKUP_STATUS_LABELS, type MockupOption } from '@shared/mockup-workflow';
+import { mockupPresentation } from './mockup-presentation';
 import { CopyFeedbackButton } from './PhotobookUiStates';
 
 export type MockupPathChoice = 'client' | 'studio';
@@ -161,10 +163,73 @@ export default function MockupAdminFlow({ photobookId, version, currentVersion, 
 }
 
 /** Riga di stato per la lista fotolibri: dice a che punto è il mockup senza aprirlo. */
-export function MockupStatusLine({ photobookId, version }: { photobookId: string; version: number }) {
+export function MockupStatusLine({
+  photobookId,
+  version,
+  onAssign,
+  readOnly = false,
+}: {
+  photobookId: string;
+  version: number;
+  onAssign?: () => void;
+  readOnly?: boolean;
+}) {
   const state = useQuery<MockupPayload>({ queryKey: ['photobook-mockup-flow', photobookId, version], queryFn: () => fetchMockupState(photobookId, version), refetchOnWindowFocus: false, staleTime: 60_000 });
   if (!state.data) return null;
   const saved = state.data.saved;
+  const unsupportedRenderer = mockupPresentation(state.data).savedRendererUnsupported;
+  if (unsupportedRenderer) {
+    return (
+      <div
+        className="flex flex-wrap items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-950"
+        role="status"
+        data-testid={`mockup-status-${photobookId}`}
+      >
+        <span className="flex items-center gap-1.5 font-medium">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          Anteprima non disponibile · modello salvato non supportato
+        </span>
+        {onAssign && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8 border-amber-400 bg-white"
+            disabled={readOnly}
+            onClick={onAssign}
+            data-testid={`button-recover-mockup-${photobookId}`}
+          >
+            Recupera assegnazione
+          </Button>
+        )}
+      </div>
+    );
+  }
+  const hasNoAssignment = !saved && !state.data.offer?.options.length;
+  if (hasNoAssignment) {
+    return (
+      <div
+        className="flex flex-wrap items-center gap-2 rounded-md border border-muted bg-muted/40 px-3 py-2 text-xs text-muted-foreground"
+        role="status"
+        data-testid={`mockup-status-${photobookId}`}
+      >
+        <span>Modello non ancora assegnato</span>
+        {onAssign && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8"
+            disabled={readOnly}
+            onClick={onAssign}
+            data-testid={`button-assign-mockup-${photobookId}`}
+          >
+            Assegna modello
+          </Button>
+        )}
+      </div>
+    );
+  }
   const text = !state.data.offer?.options.length ? 'nessun modello assegnato'
     : !saved ? `${state.data.offer.options.length === 1 ? state.data.offer.options[0].name : `${state.data.offer.options.length} modelli`} · bozza da preparare`
     : MOCKUP_STATUS_LABELS[saved.status || 'draft'].toLowerCase();

@@ -5,7 +5,7 @@ import type { MockupPayload } from '@shared/mockup-types';
 
 vi.mock('@/lib/firebase', () => ({ auth: { authStateReady: async () => undefined, currentUser: null } }));
 vi.mock('@/lib/config', () => ({ createUrl: (p: string) => p }));
-import MockupAdminFlow from './MockupAdminFlow';
+import MockupAdminFlow, { MockupStatusLine } from './MockupAdminFlow';
 
 const render = (props: Partial<Parameters<typeof MockupAdminFlow>[0]> = {}, savedStatus?: string, stateData?: Partial<MockupPayload>) => {
   const client = new QueryClient();
@@ -15,6 +15,16 @@ const render = (props: Partial<Parameters<typeof MockupAdminFlow>[0]> = {}, save
   <QueryClientProvider client={client}>
     <MockupAdminFlow photobookId="b1" version={1} currentVersion={1} pagesApproved={false} mockupPath="studio" pathBusy={false} onPathChange={() => undefined} emailStatus="non ancora prevista o inviata" readOnly={false} {...props} />
   </QueryClientProvider>,
+  );
+};
+
+const renderStatus = (stateData: Partial<MockupPayload>, readOnly = false) => {
+  const client = new QueryClient();
+  client.setQueryData(['photobook-mockup-flow', 'b1', 1], stateData);
+  return renderToStaticMarkup(
+    <QueryClientProvider client={client}>
+      <MockupStatusLine photobookId="b1" version={1} readOnly={readOnly} onAssign={() => undefined} />
+    </QueryClientProvider>,
   );
 };
 
@@ -107,5 +117,40 @@ describe('MockupAdminFlow', () => {
     expect(html).toContain('min-h-11');
     expect(finalStep).toContain('min-h-10');
     expect(finalStep).not.toContain('Vedi in 3D');
+  });
+});
+
+describe('MockupStatusLine', () => {
+  it('segnala una configurazione salvata senza renderer supportato e offre il recupero diretto', () => {
+    const html = renderStatus({
+      offer: null,
+      saved: { configuration: { modelId: 'renderer-ritirato' } },
+    } as unknown as Partial<MockupPayload>);
+
+    expect(html).toContain('Anteprima non disponibile');
+    expect(html).toContain('modello salvato non supportato');
+    expect(html).toContain('Recupera assegnazione');
+    expect(html).toContain('button-recover-mockup-b1');
+  });
+
+  it('distingue un fotolibro senza modello assegnato dal renderer non disponibile', () => {
+    const html = renderStatus({
+      offer: null,
+      saved: null,
+    } as unknown as Partial<MockupPayload>);
+
+    expect(html).toContain('Modello non ancora assegnato');
+    expect(html).toContain('Assegna modello');
+    expect(html).not.toContain('Anteprima non disponibile');
+  });
+
+  it('mantiene l’avviso ma disabilita il recupero per un fotolibro in stampa', () => {
+    const html = renderStatus({
+      offer: null,
+      saved: { configuration: { modelId: 'renderer-ritirato' } },
+    } as unknown as Partial<MockupPayload>, true);
+
+    expect(html).toContain('Anteprima non disponibile');
+    expect(html).toContain('disabled=""');
   });
 });

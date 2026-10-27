@@ -30,11 +30,13 @@ export function mockupPresentation(payload: MockupPayload | undefined, selection
   const savedRendererIsUnknown = typeof savedRendererId === 'string'
     && !!savedRendererId
     && !MOCKUP_RENDERERS.some(renderer => renderer.id === savedRendererId);
+  const savedRendererUnsupported = savedRendererIsUnknown;
   const replacementRendererIsKnown = !!rendererId
     && MOCKUP_RENDERERS.some(renderer => renderer.id === rendererId);
   const savedRendererUnavailable = savedRendererIsUnknown && !replacementRendererIsKnown;
   return {
     staleFixedSave,
+    savedRendererUnsupported,
     savedRendererUnavailable,
     title: savedRendererUnavailable
       ? 'Visualizzatore non disponibile'

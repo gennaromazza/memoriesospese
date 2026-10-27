@@ -37,6 +37,23 @@ describe('modello mostrato nel link cliente', () => {
     expect(payload.saved?.configuration).toEqual(configuration);
     expect(payload.saved?.revision).toBe(4);
   });
+  it('segnala il renderer salvato non supportato anche se è già disponibile una nuova proposta', () => {
+    const payload = {
+      modelMode: 'fixed',
+      offer: { revision: 2, mode: 'fixed', options: [plaza] },
+      saved: {
+        configuration: { modelId: 'renderer-ritirato' },
+        selection: { labId: 'archivio', modelId: 'old-model' },
+        option: { name: 'Modello storico' },
+      },
+    } as unknown as MockupPayload;
+
+    expect(mockupPresentation(payload)).toMatchObject({
+      savedRendererUnsupported: true,
+      savedRendererUnavailable: false,
+      rendererId: 'plaza-led',
+    });
+  });
   it('usa un modello valido assegnato esplicitamente anche se la bozza precedente ha un renderer sconosciuto', () => {
     const payload = {
       modelMode: 'fixed',

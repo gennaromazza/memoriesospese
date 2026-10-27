@@ -5,7 +5,7 @@
  * quindi non c'è più riconoscimento slot o matching automatico.
  */
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { assignPageNumbers } from '@/lib/photobook-page-numbers';
 import { photobookPageName } from '@/lib/photobook-page-name';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -63,6 +63,9 @@ export default function PhotobookEditorPage() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [assignmentRequested] = useState(() =>
+    typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('mockupTab') === 'offer',
+  );
 
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
@@ -81,6 +84,13 @@ export default function PhotobookEditorPage() {
     queryFn: () => getPhotobook(id),
     enabled: !!id,
   });
+
+  useEffect(() => {
+    if (!assignmentRequested) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete('mockupTab');
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  }, [assignmentRequested]);
 
   const version = selectedVersion ?? book?.versions.filter(v => v.status === 'draft').at(-1)?.version ?? book?.currentVersion ?? 1;
 
@@ -392,7 +402,14 @@ export default function PhotobookEditorPage() {
         </Card>
 
         {/* Mockup dell'album: dopo le versioni, prima della griglia delle pagine */}
-        <PhotobookMockup key={`${id}-${version}`} photobookId={id} version={version} readOnly={book.currentVersion !== version} headless />
+        <PhotobookMockup
+          key={`${id}-${version}`}
+          photobookId={id}
+          version={version}
+          readOnly={book.currentVersion !== version}
+          initialAdminTab={assignmentRequested ? 'offer' : undefined}
+          headless
+        />
          <MockupAdminFlow
            photobookId={id}
            clientLink={photobookClientLink(book)}

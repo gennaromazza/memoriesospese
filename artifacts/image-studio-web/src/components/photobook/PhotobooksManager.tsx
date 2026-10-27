@@ -470,7 +470,12 @@ export default function PhotobooksManager({
                     {currentVer?.pageCount ?? 0} pagine · {book.versions.length}{' '}
                     {book.versions.length === 1 ? 'versione' : 'versioni'}
                   </p>
-                  <MockupStatusLine photobookId={book.id} version={book.currentVersion} />
+                  <MockupStatusLine
+                    photobookId={book.id}
+                    version={book.currentVersion}
+                    readOnly={!!book.locked}
+                    onAssign={() => navigate(`/admin/photobooks/${book.id}?mockupTab=offer`)}
+                  />
                   <div className="flex flex-wrap items-center gap-2">
                     <Button
                       size="sm"

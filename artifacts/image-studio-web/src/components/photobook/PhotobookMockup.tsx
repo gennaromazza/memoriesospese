@@ -30,7 +30,7 @@ import { useToast } from '@/hooks/use-toast';
 import PhotobookInlineGallery from './PhotobookInlineGallery';
 import { ArrowLeft, ArrowRight, HelpCircle, LogOut, Rotate3D, RotateCcw, Save, X, ZoomIn, ZoomOut } from 'lucide-react';
 
-interface Props { photobookId: string; version: number; token?: string; readOnly?: boolean; autoOpen?: boolean; confirmedOnly?: boolean; summary?: boolean; compact?: boolean; /** Admin: solo la finestra, aperta dai passi della card Mockup. */ headless?: boolean; onOpenChange?: (open: boolean) => void }
+interface Props { photobookId: string; version: number; token?: string; readOnly?: boolean; autoOpen?: boolean; initialAdminTab?: MockupAdminTab; confirmedOnly?: boolean; summary?: boolean; compact?: boolean; /** Admin: solo la finestra, aperta dai passi della card Mockup. */ headless?: boolean; onOpenChange?: (open: boolean) => void }
 type RuntimePhoto = RuntimeMockupPhoto | { id: string; name: string; source: string; blob: Blob };
 type SavedPhotoRecoveryContext = {
   configuration: MockupConfiguration;
@@ -59,7 +59,7 @@ function exposeReadonlyDownload(doc: Document) {
   return true;
 }
 
-export default function PhotobookMockup({ photobookId, version, token, readOnly = false, autoOpen = false, confirmedOnly = false, summary = false, compact = false, headless = false, onOpenChange }: Props) {
+export default function PhotobookMockup({ photobookId, version, token, readOnly = false, autoOpen = false, initialAdminTab, confirmedOnly = false, summary = false, compact = false, headless = false, onOpenChange }: Props) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -328,6 +328,13 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     autoOpened.current = true;
     openConfigurator();
   }, [autoOpen, state.data, saved?.status]);
+
+  useEffect(() => {
+    if (!initialAdminTab || autoOpened.current || !state.data) return;
+    autoOpened.current = true;
+    openConfigurator();
+    setAdminTab(initialAdminTab);
+  }, [initialAdminTab, state.data]);
 
   // Dai passi della scheda admin: apre il configuratore direttamente sulla scheda richiesta.
   useEffect(() => {
