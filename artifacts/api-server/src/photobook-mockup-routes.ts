@@ -241,7 +241,6 @@ export function createPhotobookMockupRouter(
       const input = mockupOfferInputSchema.parse(req.body);
       const book = res.locals.book as DocumentSnapshot;
       const version = res.locals.version as number;
-      if (!book.data()!.jobId) throw new MockupError(400, 'Associa prima il fotolibro a un lavoro');
       const result = await db.runTransaction(async tx => {
         await guardCurrent(tx, book, version);
         const ref = book.ref.collection('mockupOffers').doc(`v${version}`);

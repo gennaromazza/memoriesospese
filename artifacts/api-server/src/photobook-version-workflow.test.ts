@@ -11,6 +11,7 @@ const fetch = jsonFetch<{
     currentVersion: number;
     versions: Array<{ version: number; status?: string }>;
   };
+  page?: { pageNumber: number; fileName: string | null };
 }>;
 // Database isolato: transazioni serializzate e scritture atomiche, nessun accesso Firebase.
 const h = vi.hoisted(() => ({ docs: new Map<string, Record<string, any>>(), queue: Promise.resolve(), beforeTransaction: null as (() => void) | null }));
@@ -252,7 +253,9 @@ describe('API reali: link cliente, autorizzazione e notifica pubblicazione', () 
   it('upload bozza registra pagina e contatore insieme senza email', async () => {
     const image = await sharp({create:{width:600,height:400,channels:3,background:'#997744'}}).jpeg().toBuffer();
     const response=await fetch(`${base}/book/versions/2/pages?pageNumber=1&fileName=pagina.jpg`,{method:'POST',headers:{'Content-Type':'image/jpeg'},body:image});
-    expect(response.status).toBe(200); expect(book().versions[1].pageCount).toBe(1); expect(book().currentVersion).toBe(1); expect(sendGmailEmail).not.toHaveBeenCalled();
+     expect(response.status).toBe(200); expect(book().versions[1].pageCount).toBe(1); expect(book().currentVersion).toBe(1); expect(sendGmailEmail).not.toHaveBeenCalled();
+     expect((await response.json()).page).toMatchObject({ pageNumber: 1, fileName: 'pagina.jpg' });
+     expect([...h.docs.entries()].find(([path]) => path.startsWith('photobookPages/'))?.[1].fileName).toBe('pagina.jpg');
   });
   it('lock durante upload impedisce scrittura pagina e contatore', async () => {
     const image = await sharp({create:{width:600,height:400,channels:3,background:'#997744'}}).jpeg().toBuffer();

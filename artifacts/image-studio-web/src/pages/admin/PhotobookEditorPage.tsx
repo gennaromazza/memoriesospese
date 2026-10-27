@@ -7,6 +7,7 @@
 
 import { useRef, useState } from 'react';
 import { assignPageNumbers } from '@/lib/photobook-page-numbers';
+import { photobookPageName } from '@/lib/photobook-page-name';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import PhotobookMockup from '@/components/photobook/PhotobookMockup';
@@ -496,12 +497,12 @@ export default function PhotobookEditorPage() {
                     type="button"
                     onClick={() => setViewerIndex(pages.findIndex((p) => p.id === page.id))}
                     className="group relative block w-full rounded-md overflow-hidden border bg-muted cursor-zoom-in"
-                    aria-label={`Ingrandisci pagina ${page.pageNumber}`}
+                    aria-label={`Ingrandisci ${photobookPageName(page.fileName, page.pageNumber)}`}
                     data-testid={`button-view-page-${page.pageNumber}`}
                   >
                     <img
                       src={page.displayUrl || page.url}
-                      alt={`Pagina ${page.pageNumber}`}
+                      alt={`${photobookPageName(page.fileName, page.pageNumber)} · pagina ${page.pageNumber}`}
                       loading="lazy"
                       className="w-full h-auto"
                     />
@@ -510,15 +511,18 @@ export default function PhotobookEditorPage() {
                     </span>
                   </button>
                   <div className="flex items-center justify-between gap-2">
-                    <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                    <label className="flex min-w-0 items-center gap-2 text-sm font-medium cursor-pointer">
                       <Checkbox
                         checked={selectedPageIds.has(page.id)}
                         onCheckedChange={() => togglePageSelected(page.id)}
                         disabled={busy || book.locked}
-                        aria-label={`Seleziona pagina ${page.pageNumber}`}
+                        aria-label={`Seleziona ${photobookPageName(page.fileName, page.pageNumber)}`}
                         data-testid={`checkbox-page-${page.pageNumber}`}
                       />
-                      Pagina {page.pageNumber}
+                      <span className="truncate" title={photobookPageName(page.fileName, page.pageNumber)}>
+                        {photobookPageName(page.fileName, page.pageNumber)}
+                      </span>
+                      <span className="shrink-0 text-xs text-muted-foreground">Pagina {page.pageNumber}</span>
                     </label>
                     <Button
                       size="sm"
@@ -551,7 +555,7 @@ export default function PhotobookEditorPage() {
           {viewerIndex !== null && pages[viewerIndex] && (
             <>
               <DialogTitle className="text-sm">
-                Pagina {pages[viewerIndex].pageNumber} di {pages.length}
+                {photobookPageName(pages[viewerIndex].fileName, pages[viewerIndex].pageNumber)} · Pagina {pages[viewerIndex].pageNumber} di {pages.length}
               </DialogTitle>
               <DialogDescription className="sr-only">
                 Anteprima ingrandita della pagina. Usa le frecce per scorrere le pagine.
@@ -569,7 +573,7 @@ export default function PhotobookEditorPage() {
                 </Button>
                 <img
                   src={pages[viewerIndex].url}
-                  alt={`Pagina ${pages[viewerIndex].pageNumber}`}
+                  alt={`${photobookPageName(pages[viewerIndex].fileName, pages[viewerIndex].pageNumber)} · pagina ${pages[viewerIndex].pageNumber}`}
                   className="max-h-[82vh] max-w-[80vw] object-contain mx-auto"
                   data-testid="img-viewer-page"
                 />

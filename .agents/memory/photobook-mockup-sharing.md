@@ -22,3 +22,15 @@ Un fotolibro senza lavoro e senza galleria è un elemento distinto dai fotolibri
 **Why:** Alcuni fotolibri vengono preparati o ristampati indipendentemente da un servizio fotografico registrato; mescolarli ai lavori collegati crea confusione e un job fittizio altererebbe i dati operativi.
 
 **How to apply:** Mantieni il link cliente copiabile per la condivisione manuale. Senza una galleria non proporre foto sostitutive; nella spedizione usa le pagine del fotolibro e le istruzioni inserite per quella consegna, senza snapshot o timeline di un job.
+
+Anche l’assegnazione del modello e il salvataggio del mockup devono funzionare senza `jobId`. Applicare comunque i normali controlli di autorizzazione, versione e modello: l’assenza del lavoro non è un errore né va corretta inventando un’associazione.
+
+**Why:** I fotolibri autonomi possono avere un mockup completo e modificabile, indipendente dal lavoro fotografico.
+
+**How to apply:** Le route del mockup non devono imporre un lavoro collegato per assegnare il modello, salvare la bozza o gestire la revisione.
+
+Lo studio deve poter correggere un modello assegnato per errore. Le modifiche locali non salvate possono richiedere una conferma prima di cambiare modello, ma non devono bloccare definitivamente il selettore; le bozze già salvate hanno una conferma separata e restano nello storico.
+
+**Why:** Una prima assegnazione può essere sbagliata e l’admin deve poter correggerla senza perdere silenziosamente le modifiche in corso o la revisione già salvata.
+
+**How to apply:** Se la bozza locale è modificata, chiedi conferma prima di aprire il selettore e abilitalo solo dopo il consenso. Dopo il salvataggio di un nuovo modello, azzera lo stato sporco e rigenera l’anteprima sul nuovo modello.

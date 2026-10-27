@@ -332,8 +332,8 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
   const entryId = '33333333-3333-4333-8333-333333333333';
   const selection = { labId: 'lab', modelId: entryId };
   const secondSelection = { labId: 'lab', modelId: '66666666-6666-4666-8666-666666666666' };
-  async function publish(base: string, selections = [selection], mode: 'fixed' | 'choice' = 'choice') {
-    h.docs.get('photobooks/book').jobId = 'job';
+  async function publish(base: string, selections = [selection], mode: 'fixed' | 'choice' = 'choice', attachToJob = true) {
+    if (attachToJob) h.docs.get('photobooks/book').jobId = 'job';
     const models = selections.map((item, index) => ({
       id: item.modelId,
       name: index === 0 ? 'Custodia personalizzata' : `Modello alternativo ${index}`,
@@ -346,6 +346,29 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     return fetch(`${base}/admin/offer`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: 0, savedRevision: 0, mode, selections }) });
   }
   const action = (base: string, scope: string, path: string, revision: number) => fetch(`${base}/${scope}/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision, note: 'Controlla il ritaglio' }) });
+
+  it('assegna e salva un mockup per un fotolibro autonomo senza lavoro associato', async () => {
+    const assigned = await publish(base, [selection], 'fixed', false);
+    expect(assigned.status).toBe(200);
+    expect(h.docs.get('photobooks/book').jobId).toBeUndefined();
+
+    const payload = await fetch(`${base}/admin`).then(r => r.json());
+    expect(payload).toMatchObject({
+      editable: true,
+      modelMode: 'fixed',
+      offer: { mode: 'fixed', options: [{ id: entryId, rendererId: MOCKUP_MODEL.id }] },
+    });
+
+    const saved = await save(base, { revision: 0, configuration, selection, offerRevision: 1 });
+    expect(saved.status).toBe(200);
+    expect(await saved.json()).toMatchObject({
+      revision: 1,
+      status: 'draft',
+      selection,
+      configuration,
+    });
+    expect(h.docs.get('photobooks/book').jobId).toBeUndefined();
+  });
 
   it('percorso studio completo: assegna, prepara dopo, salva, conferma e lascia un link cliente verificabile', async () => {
     const assigned = await publish(base, [selection], 'fixed');

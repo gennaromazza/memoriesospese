@@ -13,6 +13,7 @@ import PhotobookMockup from '@/components/photobook/PhotobookMockup';
 import PhotobookClientProgress from '@/components/photobook/PhotobookClientProgress';
 import { createPortal } from 'react-dom';
 import { usePhoneOrientation } from '@/hooks/use-phone-orientation';
+import { photobookPageName } from '@/lib/photobook-page-name';
 import { useParams } from 'wouter';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
@@ -99,7 +100,7 @@ function PageLightbox({
   onIndexChange,
   onClose,
 }: {
-  pages: { url: string; displayUrl?: string | null; pageNumber: number }[];
+  pages: { url: string; displayUrl?: string | null; pageNumber: number; fileName?: string | null }[];
   index: number;
   onIndexChange: (i: number) => void;
   onClose: () => void;
@@ -168,7 +169,7 @@ function PageLightbox({
       {/* Barra superiore */}
       <div className="flex items-center justify-between px-4 py-2 text-white shrink-0">
         <p className="text-sm font-medium">
-          Pagina {page.pageNumber} · {index + 1} di {pages.length}
+          {photobookPageName(page.fileName, page.pageNumber)} · Pagina {page.pageNumber} · {index + 1} di {pages.length}
         </p>
         <div className="flex items-center gap-1">
           <button
@@ -1015,7 +1016,10 @@ export default function PhotobookViewPage() {
             >
               <div className="flex items-center gap-2 flex-wrap px-1">
                 <p className="text-xs font-medium text-stone-500 uppercase tracking-wide">
-                  Pagina {page.pageNumber}
+                  <span className="max-w-[70vw] truncate" title={photobookPageName(page.fileName, page.pageNumber)}>
+                    {photobookPageName(page.fileName, page.pageNumber)}
+                  </span>
+                  <span className="shrink-0">· Pagina {page.pageNumber}</span>
                 </p>
                 <button
                   type="button"

@@ -16,6 +16,7 @@ import MockupOfferEditor from './MockupOfferEditor';
 import { OPEN_MOCKUP_EVENT, type MockupAdminTab } from './MockupAdminFlow';
 import { BOX_MOCKUP_MODEL, IMAGEBOX_MOCKUP_MODEL, MOCKUP_RENDERERS } from '@shared/mockup-catalog';
 import { hasUnsavedMockupChanges, stableSerialize } from './mockup-dirty-state';
+import { isMockupOfferEditorDisabled, shouldConfirmMockupOfferEdit } from './mockup-offer-edit-guard';
 import MockupClientApproval from './MockupClientApproval';
 import type { MockupOption } from '@shared/mockup-workflow';
 import MockupModelChooser from './MockupModelChooser';
@@ -57,6 +58,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   const [open, setOpen] = useState(false);
   const autoOpened = useRef(false);
   const [adminTab, setAdminTab] = useState<'review' | 'edit' | 'offer'>('review');
+  const [offerChangeConfirmed, setOfferChangeConfirmed] = useState(false);
   const [adminSlot, setAdminSlot] = useState<HTMLDivElement | null>(null);
   const [askingChanges, setAskingChanges] = useState(false);
   const adminPanel = (content: ReactNode) => adminSlot ? createPortal(content, adminSlot) : null;
@@ -228,11 +230,25 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     skipRestoreRevision.current = null; initializing.current = true;
     setSelection(initialMockupSelection(payload)); setRendererOverride(null);
     setConfiguration(null); setWizard(null); setReady(false); setRenderBusy(true);
+    setDirty(false); setOfferChangeConfirmed(false);
     setRendererError(''); setGeneration(g => g + 1); setAssignmentRefreshError('');
     setMessage(payload.mockupPath === 'studio'
       ? 'Modello assegnato. Ora prepara la bozza e associa le foto necessarie.'
       : 'Modello assegnato nel link cliente.');
     if (payload.mockupPath === 'studio') setAdminTab('edit');
+  }
+  function authorizeOfferTab(): boolean {
+    if (!shouldConfirmMockupOfferEdit(dirty, offerChangeConfirmed)) return true;
+    const confirmed = window.confirm(
+      'Ci sono modifiche non salvate nella bozza. Se confermi un modello diverso, queste modifiche verranno sostituite. Vuoi continuare?',
+    );
+    if (confirmed) setOfferChangeConfirmed(true);
+    return confirmed;
+  }
+  function changeAdminTab(tab: 'review' | 'edit' | 'offer') {
+    if (tab === 'offer' && !authorizeOfferTab()) return;
+    if (tab !== 'offer') setOfferChangeConfirmed(false);
+    setAdminTab(tab);
   }
   function showAssignmentRefreshError(error: unknown) {
     const detail = error instanceof Error ? error.message : 'Connessione non disponibile.';
@@ -249,7 +265,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     if (dirty && !window.confirm('Chiudere il configuratore e abbandonare le modifiche non salvate?')) return;
     setOpen(false); setPicker(false); setReady(false); setRenderBusy(true); setRendererError('');
     setSavedPhotoError(null); setSavedPhotoSlot(null); setSavedPhotoRetryBusy(false); savedPhotoRecovery.current = null;
-    setDirty(false); setConfiguration(null); setRendererOverride(null); setSelection(undefined);
+    setDirty(false); setOfferChangeConfirmed(false); setConfiguration(null); setRendererOverride(null); setSelection(undefined);
     setDraftCoverLayout(''); setDraftBackCover(''); setFrontPhotoPresent(false); setBackPhotoPresent(false);
     pendingOption.current = null; pendingPreview.current = null; currentPhoto.current = undefined; initializing.current = true;
     setHistory(null); setNote(''); setMessage(''); setPhotoSide('front'); setAskingChanges(false); setViewerExpanded(false);
@@ -280,7 +296,9 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     const handler = (event: Event) => {
       const detail = (event as CustomEvent<{ photobookId: string; tab: MockupAdminTab }>).detail;
       if (detail?.photobookId !== photobookId) return;
+      if (detail.tab === 'offer' && !authorizeOfferTab()) return;
       if (!open) openConfigurator();
+      if (detail.tab !== 'offer') setOfferChangeConfirmed(false);
       setAdminTab(detail.tab);
     };
     window.addEventListener(OPEN_MOCKUP_EVENT, handler);
@@ -1138,7 +1156,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       <div style={choosing ? { display: 'none' } : undefined} className={token ? 'min-h-0 flex-1 flex flex-col overflow-hidden' : 'mockup-admin-body'} data-testid="mockup-dialog-body">
       {!token && <div className="mockup-admin-panel" ref={setAdminSlot}>
         <nav className="sticky top-0 z-10 bg-background flex flex-wrap gap-1 border-b pb-3" aria-label="Gestione proposta album">
-          {([['offer', '1 · Modello'], ['edit', '2 · Bozza'], ['review', '3 · Verifica e conferma']] as const).map(([tab, label]) => <Button key={tab} size="sm" variant={adminTab === tab ? 'default' : 'outline'} aria-pressed={adminTab === tab} onClick={() => setAdminTab(tab)}>{label}</Button>)}
+          {([['offer', '1 · Modello'], ['edit', '2 · Bozza'], ['review', '3 · Verifica e conferma']] as const).map(([tab, label]) => <Button key={tab} size="sm" variant={adminTab === tab ? 'default' : 'outline'} aria-pressed={adminTab === tab} onClick={() => changeAdminTab(tab)}>{label}</Button>)}
          </nav>
        </div>}
       {open && !token && adminPanel(<Button hidden={adminTab !== 'edit'} variant="ghost" size="sm" className="self-start" disabled={busy} onClick={async () => {
@@ -1157,7 +1175,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       {state.data?.offerError && <p role="alert" className="text-destructive">{state.data.offerError}</p>}
       {staleFixedSave && <p role="alert" className="text-amber-700">La bozza precedente usa un modello non più proposto. Scegli il modello aggiornato e salva una nuova revisione.</p>}
       {state.data && <>
-        {!token && adminPanel(<div hidden={adminTab !== 'offer'}><p className="text-sm mb-3">Scegli il modello dell’album, oppure più modelli tra cui sceglierà il cliente. Qui non prepari la bozza: le foto necessarie si associano nel passaggio successivo.</p><MockupOfferEditor alwaysOpen offer={state.data.offer} modelMode={state.data.modelMode} modelSelection={state.data.modelSelection} hasSavedMockup={!!saved} disabled={readOnly || busy || dirty || !!assignmentRefreshError} uploadGraphic={async file => (await (await request(`/upload?name=${encodeURIComponent(file.name)}`, { method: 'POST', headers: { 'Content-Type': file.type }, body: file })).json() as { id: string }).id} publish={async (mode, selections) => {
+        {!token && adminPanel(<div hidden={adminTab !== 'offer'}><p className="text-sm mb-3">Scegli il modello dell’album, oppure più modelli tra cui sceglierà il cliente. Qui non prepari la bozza: le foto necessarie si associano nel passaggio successivo.</p><MockupOfferEditor alwaysOpen offer={state.data.offer} modelMode={state.data.modelMode} modelSelection={state.data.modelSelection} hasSavedMockup={!!saved} disabled={isMockupOfferEditorDisabled({ readOnly, busy, dirty, dirtyChangeConfirmed: offerChangeConfirmed, assignmentRefreshError: !!assignmentRefreshError })} uploadGraphic={async file => (await (await request(`/upload?name=${encodeURIComponent(file.name)}`, { method: 'POST', headers: { 'Content-Type': file.type }, body: file })).json() as { id: string }).id} publish={async (mode, selections) => {
           setBusy(true);
           try {
             const result = await assignMockupOffer(
@@ -1211,7 +1229,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
           {!renderer && !!state.data && <div role="status" className="flex min-h-48 flex-1 flex-col items-center justify-center gap-2 p-6 text-center" data-testid="mockup-no-model">
             <p className="font-medium">{presentation.title}</p>
             <p className="text-sm text-muted-foreground">{token ? 'Lo studio deve assegnare un modello prima di avviare l’anteprima.' : 'Assegna un modello nel passaggio “1 · Modello” per avviare l’anteprima.'}</p>
-            {!token && <Button variant="outline" onClick={() => setAdminTab('offer')}>Scegli modello</Button>}
+            {!token && <Button variant="outline" onClick={() => changeAdminTab('offer')}>Scegli modello</Button>}
           </div>}
           {renderer && (!mobile || viewerStarted) && !!state.data && <iframe key={`${renderer.id}-${generation}`} ref={frame} title={`Configuratore 3D ${renderer.name}`} src={`${import.meta.env.BASE_URL}mockups/${renderer.path}`} sandbox="allow-scripts allow-same-origin allow-downloads" style={{ visibility: token && (!ready || (!wizard && !isBox) || !!rendererError || !!savedPhotoError) ? 'hidden' : undefined }} aria-hidden={token && (!ready || (!wizard && !isBox) || !!rendererError || !!savedPhotoError) ? true : undefined} className={`${token ? 'w-full min-h-0 flex-1 border-0' : 'mockup-admin-viewer'} ${busy ? 'pointer-events-none' : ''}`} />}
         {phoneWizard && wizard.topSlot && createPortal(<>

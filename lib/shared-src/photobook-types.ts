@@ -34,7 +34,8 @@ export interface PhotobookPage {
   photobookId: string;
   version: number;
   pageNumber: number;
-  fileName: string;
+  /** Nome originale del file; assente o null nei dati legacy. */
+  fileName: string | null;
   url: string; // download URL Storage (photobooks/{photobookId}/v{version}/...)
   storagePath: string;
   /** Versione ridotta (~1400px) per la visualizzazione: molto più leggera su mobile */
