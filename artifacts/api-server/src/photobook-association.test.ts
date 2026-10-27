@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { jsonFetch } from './test-utils/json-fetch.js';
 
 const fetch = jsonFetch<{
-  photobook: { galleryId: string; jobId: string };
+  photobook: { galleryId?: string | null; jobId?: string | null; token?: string };
   code: string;
   warnings: string[];
 }>;
@@ -35,7 +35,8 @@ function makeDocRef(collectionName: string, id: string) {
 }
 
 function makeCollection(collectionName: string) {
-  return {
+  const filters: Array<[string, unknown]> = [];
+  const collection: any = {
     doc: (id?: string) => makeDocRef(collectionName, id || `auto-${h.nextId++}`),
     add: async (data: any) => {
       const id = `auto-${h.nextId++}`;
@@ -47,7 +48,23 @@ function makeCollection(collectionName: string) {
       };
       return makeDocRef(collectionName, id);
     },
+    where: (field: string, _operator: string, value: unknown) => {
+      filters.push([field, value]);
+      return collection;
+    },
+    limit: () => collection,
+    get: async () => {
+      const docs = Object.entries(h.state[collectionName] || {})
+        .filter(([, value]) => filters.every(([field, expected]) => (value as any)[field] === expected))
+        .map(([id, value]) => ({
+          id,
+          exists: true,
+          data: () => clone(value),
+        }));
+      return { docs, empty: docs.length === 0 };
+    },
   };
+  return collection;
 }
 
 vi.mock('./firebase-admin.js', () => ({
@@ -173,6 +190,32 @@ describe('photobook Job-galleria association', () => {
     expect(result.status).toBe(200);
     expect(result.json.photobook.galleryId).toBe('linked');
     expect(result.json.photobook.jobId).toBe('withoutGalleries');
+  });
+
+  it('creates an independent photobook without a gallery or Job', async () => {
+    const result = await postPhotobook({
+      name: 'Fotolibro autonomo',
+    });
+
+    expect(result.status).toBe(200);
+    expect(result.json.photobook).toMatchObject({
+      name: 'Fotolibro autonomo',
+      galleryId: null,
+      jobId: null,
+    });
+    expect(result.json.photobook.token).toEqual(expect.any(String));
+
+    const clientGalleryResponse = await fetch(
+      `${baseUrl}/api/photobooks/by-token/${result.json.photobook.token}/gallery-photos`,
+    );
+    expect(clientGalleryResponse.status).toBe(200);
+    expect(await clientGalleryResponse.json()).toEqual({ photos: [], chapters: [] });
+
+    const adminGalleryResponse = await fetch(
+      `${baseUrl}/api/photobooks/${result.json.photobook.id}/gallery-photos`,
+    );
+    expect(adminGalleryResponse.status).toBe(200);
+    expect(await adminGalleryResponse.json()).toEqual({ photos: [] });
   });
 
   it('blocks an unrelated gallery until the explicit mismatch confirmation', async () => {

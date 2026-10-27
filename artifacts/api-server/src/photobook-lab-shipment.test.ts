@@ -264,6 +264,23 @@ describe('POST /api/photobooks/:id/lab-shipment (trasferimento background)', () 
     expect(new Set(names).size).toBe(N + 1); // pagine + un solo documento istruzioni
   });
 
+  it('crea una spedizione del fotolibro autonomo senza collegare un Job', async () => {
+    delete h.state.photobooks.book1.jobId;
+    delete h.state.photobooks.book1.galleryId;
+
+    const result = await postShipment({ descrizione: 'Album autonomo', labNote: 'Copertina opaca' });
+
+    expect(result.status).toBe(202);
+    expect(result.json.totalPages).toBe(N);
+    const shipment = h.state.labShipments[result.json.shipment.id];
+    expect(shipment.sourceType).toBe('photobook');
+    expect(shipment.jobId).toBeUndefined();
+    expect(shipment.labNote).toBe('Copertina opaca');
+    expect(h.state.photobooks.book1.jobId).toBeUndefined();
+    expect(h.state.photobooks.book1.labShipmentId).toBe(result.json.shipment.id);
+    await waitTransferDone(result.json.shipment.id);
+  });
+
   it('un secondo POST durante il run non avvia un secondo trasferimento', async () => {
     h.uploadDelayMs = 30;
     const r1 = await postShipment();

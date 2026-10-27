@@ -292,7 +292,12 @@ export default function PhotobookEditorPage() {
           <div className="min-w-0 flex-1">
             <h1 className="text-lg font-semibold truncate">{book.name}</h1>
             <p className="text-xs text-muted-foreground truncate">
-              {book.galleryName} {book.clientName ? `· ${book.clientName}` : ''} · {photos.length} foto in galleria
+              {book.galleryName ||
+                book.galleryId ||
+                (book.jobId ? 'Senza galleria · lavoro collegato' : 'Fotolibro autonomo')}
+              {book.clientName ? ` · ${book.clientName}` : ''}
+              {' · '}
+              {book.galleryId ? `${photos.length} foto in galleria` : 'nessuna galleria sorgente'}
             </p>
             {photosError && (
               <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-destructive" role="alert">

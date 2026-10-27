@@ -33,7 +33,7 @@ const STEPS: TutorialStep[] = [
     icon: BookImage,
     title: '1. Crea il fotolibro',
     description:
-      'Da "Nuovo Fotolibro" scegli nome, galleria e lavoro. Dalla galleria arrivano sia le foto sostitutive sia le foto del mockup.',
+      'Da "Nuovo Fotolibro" scegli se collegarlo a un lavoro oppure crearlo autonomo. Nei fotolibri collegati la galleria fornisce le foto sostitutive per il mockup; negli autonomi carichi le pagine già impaginate.',
     points: [
       'Il sistema genera un link segreto per il cliente.',
       'Ogni fotolibro parte dalla versione 1.',

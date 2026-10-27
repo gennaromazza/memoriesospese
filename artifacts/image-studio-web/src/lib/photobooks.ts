@@ -42,8 +42,8 @@ export async function listPhotobooks(): Promise<Photobook[]> {
 export async function createPhotobook(data: {
   mockupPath: 'client' | 'studio';
   name: string;
-  galleryId: string;
-  jobId: string;
+  galleryId?: string;
+  jobId?: string;
   allowAssociationMismatch?: boolean;
 }): Promise<Photobook> {
   const res = await apiRequest('POST', '/api/photobooks', data);

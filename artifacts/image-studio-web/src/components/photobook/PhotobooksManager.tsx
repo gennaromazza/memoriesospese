@@ -140,6 +140,7 @@ export default function PhotobooksManager({
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const [createOpen, setCreateOpen] = useState(false);
+  const [createMode, setCreateMode] = useState<'linked' | 'standalone'>('linked');
   const [showArchived, setShowArchived] = useState(false);
   const [newName, setNewName] = useState('');
   const [newGalleryId, setNewGalleryId] = useState('');
@@ -195,8 +196,7 @@ export default function PhotobooksManager({
   const createMutation = useMutation({
     mutationFn: () => createPhotobook({
       name: newName.trim(),
-      galleryId: newGalleryId,
-      jobId: newJobId,
+      ...(createMode === 'linked' ? { galleryId: newGalleryId, jobId: newJobId } : {}),
       // Il percorso si sceglie dopo, nel passo 3 del mockup: si parte sempre da "lo prepara lo studio".
       mockupPath: 'studio',
       allowAssociationMismatch: associationMismatchConfirmed,
@@ -207,6 +207,7 @@ export default function PhotobooksManager({
       setNewName('');
       setNewGalleryId('');
       setNewJobId('');
+      setCreateMode('linked');
       setAssociationMismatchConfirmed(false);
       toast({ title: 'Fotolibro creato', description: 'Ora carica le pagine JPEG nell\u2019editor.' });
       navigate(`/admin/photobooks/${book.id}`);
@@ -332,6 +333,7 @@ export default function PhotobooksManager({
   const selectedShipJobId = lockTarget?.jobId || shipJobId;
   const selectedShipJob = jobs.find((job) => job.id === selectedShipJobId);
   const selectedShipGallery = galleries.find((gallery) => gallery.id === lockTarget?.galleryId);
+  const shipmentNeedsJobSelection = Boolean(lockTarget?.galleryId && !lockTarget?.jobId);
   const shipAssociationWarnings = associationWarnings(selectedShipGallery, selectedShipJob);
 
   useEffect(() => {
@@ -401,6 +403,11 @@ export default function PhotobooksManager({
 
   const activeBooks = books.filter((b) => !b.locked);
   const archivedBooks = books.filter((b) => b.locked);
+  const isStandaloneBook = (book: Photobook) => !book.jobId && !book.galleryId;
+  const activeLinkedBooks = activeBooks.filter((book) => !isStandaloneBook(book));
+  const activeStandaloneBooks = activeBooks.filter(isStandaloneBook);
+  const archivedLinkedBooks = archivedBooks.filter((book) => !isStandaloneBook(book));
+  const archivedStandaloneBooks = archivedBooks.filter(isStandaloneBook);
 
   const renderBook = (book: Photobook) => {
             const currentVer = book.versions.find((v) => v.version === book.currentVersion);
@@ -411,7 +418,7 @@ export default function PhotobooksManager({
                     <div className="min-w-0">
                       <h3 className="font-semibold truncate">{book.name}</h3>
                       <p className="text-xs text-muted-foreground truncate">
-                        {book.galleryName || book.galleryId}
+                        {book.galleryName || book.galleryId || 'Fotolibro autonomo'}
                         {book.clientName ? ` · ${book.clientName}` : ''}
                       </p>
                     </div>
@@ -531,12 +538,12 @@ export default function PhotobooksManager({
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <p className="text-sm text-muted-foreground">
-          Carichi le pagine, il cliente le controlla e le approva dal suo link, poi assegni il
-          modello dell’album e prepari il mockup. Ogni passo si fa da “Apri editor”.
+          Carica le pagine, invia al cliente il link per l’approvazione e prepara il mockup.
+          Puoi creare fotolibri collegati a un lavoro o autonomi.
         </p>
         <div className="flex items-center gap-2">
           <PhotobookTutorial />
-          <Button onClick={() => setCreateOpen(true)} data-testid="button-create-photobook">
+          <Button onClick={() => { setCreateMode('linked'); setCreateOpen(true); }} data-testid="button-create-photobook">
             <Plus className="h-4 w-4 mr-2" />
             Nuovo Fotolibro
           </Button>
@@ -573,10 +580,29 @@ export default function PhotobooksManager({
         </Card>
       ) : (
         <div className="space-y-6">
-          {activeBooks.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {activeBooks.map(renderBook)}
-            </div>
+          {activeLinkedBooks.length > 0 && (
+            <section className="space-y-3" data-testid="section-linked-photobooks">
+              <div>
+                <h3 className="font-semibold">Fotolibri collegati</h3>
+                <p className="text-xs text-muted-foreground">Associati a un lavoro o a una galleria.</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {activeLinkedBooks.map(renderBook)}
+              </div>
+            </section>
+          )}
+          {activeStandaloneBooks.length > 0 && (
+            <section className="space-y-3" data-testid="section-standalone-photobooks">
+              <div>
+                <h3 className="font-semibold">Fotolibri autonomi</h3>
+                <p className="text-xs text-muted-foreground">
+                  Senza lavoro e galleria: le pagine si caricano direttamente nell’editor.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {activeStandaloneBooks.map(renderBook)}
+              </div>
+            </section>
           )}
           {archivedBooks.length > 0 && (
             <div className="space-y-3" data-testid="section-archived-photobooks">
@@ -591,8 +617,23 @@ export default function PhotobooksManager({
                 Archivio — mandati in stampa ({archivedBooks.length})
               </button>
               {showArchived && (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 opacity-80">
-                  {archivedBooks.map(renderBook)}
+                <div className="space-y-5 opacity-80">
+                  {archivedLinkedBooks.length > 0 && (
+                    <section data-testid="section-archived-linked-photobooks">
+                      <h4 className="mb-2 text-sm font-medium">Collegati</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                        {archivedLinkedBooks.map(renderBook)}
+                      </div>
+                    </section>
+                  )}
+                  {archivedStandaloneBooks.length > 0 && (
+                    <section data-testid="section-archived-standalone-photobooks">
+                      <h4 className="mb-2 text-sm font-medium">Autonomi</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                        {archivedStandaloneBooks.map(renderBook)}
+                      </div>
+                    </section>
+                  )}
                 </div>
               )}
             </div>
@@ -606,11 +647,39 @@ export default function PhotobooksManager({
           <DialogHeader>
             <DialogTitle>Nuovo Fotolibro</DialogTitle>
             <DialogDescription>
-              Il fotolibro è collegato a un lavoro e usa una galleria come sorgente delle foto
-              sostitutive.
+              Scegli se collegarlo a un lavoro e a una galleria oppure gestirlo come fotolibro autonomo.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-2" role="group" aria-label="Tipo di fotolibro">
+              <Button
+                type="button"
+                variant={createMode === 'linked' ? 'default' : 'outline'}
+                onClick={() => setCreateMode('linked')}
+                data-testid="button-photobook-mode-linked"
+              >
+                Collegato
+              </Button>
+              <Button
+                type="button"
+                variant={createMode === 'standalone' ? 'default' : 'outline'}
+                onClick={() => {
+                  setCreateMode('standalone');
+                  setNewGalleryId('');
+                  setNewJobId('');
+                  setAssociationMismatchConfirmed(false);
+                }}
+                data-testid="button-photobook-mode-standalone"
+              >
+                Autonomo
+              </Button>
+            </div>
+            {createMode === 'standalone' && (
+              <p className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
+                Non serve un lavoro né una galleria. Carica le pagine già impaginate nell’editor;
+                senza galleria non sarà disponibile la selezione di foto sostitutive.
+              </p>
+            )}
             <div className="space-y-2">
               <Label htmlFor="pb-name">Nome fotolibro</Label>
               <Input
@@ -621,7 +690,7 @@ export default function PhotobooksManager({
                 data-testid="input-photobook-name"
               />
             </div>
-            <div className="space-y-2">
+            {createMode === 'linked' && <div className="space-y-2">
               <Label>Galleria</Label>
               <Input
                 value={gallerySearch}
@@ -641,8 +710,8 @@ export default function PhotobooksManager({
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-            <div className="space-y-2">
+            </div>}
+            {createMode === 'linked' && <div className="space-y-2">
               <Label>Lavoro associato</Label>
               <JobPicker
                 jobs={jobs}
@@ -698,7 +767,7 @@ export default function PhotobooksManager({
                   </label>
                 </div>
               )}
-            </div>
+            </div>}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateOpen(false)}>
@@ -707,8 +776,7 @@ export default function PhotobooksManager({
             <Button
               disabled={
                 !newName.trim() ||
-                !newGalleryId ||
-                !newJobId ||
+                (createMode === 'linked' && (!newGalleryId || !newJobId)) ||
                 (createAssociationWarnings.length > 0 && !associationMismatchConfirmed) ||
                 createMutation.isPending
               }
@@ -762,7 +830,7 @@ export default function PhotobooksManager({
 
                 {createShip && (
                   <div className="space-y-3 pl-6">
-                    {!lockTarget?.jobId && (
+                    {shipmentNeedsJobSelection && (
                       <div className="space-y-1.5">
                         <Label className="flex items-center gap-1.5 text-amber-600">
                           <AlertTriangle className="h-3.5 w-3.5" />
@@ -778,6 +846,12 @@ export default function PhotobooksManager({
                           testId="select-shipment-job"
                         />
                       </div>
+                    )}
+                    {!lockTarget?.jobId && !lockTarget?.galleryId && (
+                      <p className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
+                        Fotolibro autonomo: la spedizione non sarà collegata a un lavoro e non includerà
+                        note o foto provenienti da un job.
+                      </p>
                     )}
                     {selectedShipJob && (
                       <div className="rounded-md border bg-muted/30 p-3 text-sm space-y-1">
@@ -818,13 +892,14 @@ export default function PhotobooksManager({
                         onChange={(e) => setShipDesc(e.target.value)}
                       />
                     </div>
-                    {selectedShipJob && (
+                    {(selectedShipJob || !lockTarget?.jobId) && (
                       <div className="space-y-3 rounded-md border p-3">
                         <div>
                           <Label htmlFor="ship-lab-note">Note per il laboratorio</Label>
                           <p className="text-xs text-muted-foreground mt-1">
-                            È una copia iniziale della nota del lavoro. Puoi modificarla liberamente:
-                            la nota originale del job non verrà aggiornata.
+                            {selectedShipJob
+                              ? 'È una copia iniziale della nota del lavoro. Puoi modificarla liberamente: la nota originale non verrà aggiornata.'
+                              : 'Aggiungi istruzioni per questa spedizione; saranno salvate solo sulla consegna al laboratorio.'}
                           </p>
                         </div>
                         <Textarea
@@ -836,16 +911,16 @@ export default function PhotobooksManager({
                           data-testid="textarea-shipment-lab-note"
                         />
 
-                        {(selectedShipJob.notePerFoto || []).length > 0 && (
+                        {(selectedShipJob?.notePerFoto || []).length > 0 && (
                           <div className="space-y-2">
                             <p className="text-sm font-medium">
-                              Note con foto del lavoro ({selectedShipJob.notePerFoto?.length})
+                              Note con foto del lavoro ({selectedShipJob?.notePerFoto?.length})
                             </p>
                             <p className="text-xs text-muted-foreground">
                               Seleziona solo quelle da copiare nella cartella Drive del laboratorio.
                               Anche il loro testo può essere modificato per questa spedizione.
                             </p>
-                            {selectedShipJob.notePerFoto?.map((photoNote, index) => {
+                            {selectedShipJob?.notePerFoto?.map((photoNote, index) => {
                               const draft = shipPhotoNotes[photoNote.id] || {
                                 selected: false,
                                 note: photoNote.nota || '',
@@ -934,7 +1009,9 @@ export default function PhotobooksManager({
                 <Button
                   disabled={
                     lockMutation.isPending ||
-                    (createShip && (!selectedShipJobId || !selectedShipJob))
+                    (createShip &&
+                      shipmentNeedsJobSelection &&
+                      (!selectedShipJobId || !selectedShipJob))
                   }
                   onClick={() => {
                     setTransferError(null);

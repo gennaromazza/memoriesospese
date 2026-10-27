@@ -355,6 +355,9 @@ router.get('/by-token/:token/gallery-photos', async (req: Request, res: Response
     const bookDoc = await getBookByToken(req.params.token);
     if (!bookDoc) return res.status(404).json({ error: 'Fotolibro non trovato' });
     const galleryId = bookDoc.data().galleryId;
+    if (typeof galleryId !== 'string' || !galleryId.trim()) {
+      return res.json({ photos: [], chapters: [] });
+    }
     const [photos, chapters] = await Promise.all([
       listGalleryPhotosPublic(galleryId),
       loadGalleryChapters(galleryId),
@@ -893,7 +896,7 @@ router.get('/', async (_req: Request, res: Response) => {
     // gallery.jobId e persisti. jobId === null (galleria orfana) viene
     // ritentato ad ogni lista finché non risolto (o impostato a mano).
     for (const e of entries) {
-      if (e.data.jobId) continue;
+      if (e.data.jobId || !e.data.galleryId) continue;
       try {
         const gDoc = await db.collection('galleries').doc(e.data.galleryId).get();
         const gJobId = (gDoc.exists ? gDoc.data()?.jobId : null) || null;
@@ -916,35 +919,39 @@ router.get('/', async (_req: Request, res: Response) => {
   }
 });
 
-/** POST / — crea fotolibro { name, galleryId, jobId, allowAssociationMismatch? } */
+/** POST / — crea fotolibro collegato o autonomo. */
 router.post('/', async (req: Request, res: Response) => {
   try {
     const { name, galleryId, jobId, allowAssociationMismatch, mockupPath } = req.body || {};
     if (mockupPath !== 'client' && mockupPath !== 'studio') return res.status(400).json({ error: 'Scegli chi prepara il mockup' });
-    if (
-      !name ||
-      typeof name !== 'string' ||
-      !galleryId ||
-      typeof galleryId !== 'string' ||
-      !jobId ||
-      typeof jobId !== 'string'
-    ) {
-      return res.status(400).json({ error: 'Nome, galleria e lavoro sono obbligatori' });
+    if (typeof name !== 'string' || !name.trim()) {
+      return res.status(400).json({ error: 'Il nome del fotolibro è obbligatorio' });
+    }
+    if (galleryId != null && typeof galleryId !== 'string') {
+      return res.status(400).json({ error: 'La galleria selezionata non è valida' });
+    }
+    if (jobId != null && typeof jobId !== 'string') {
+      return res.status(400).json({ error: 'Il lavoro selezionato non è valido' });
     }
 
-    const galleryDoc = await db.collection('galleries').doc(galleryId).get();
-    if (!galleryDoc.exists) return res.status(404).json({ error: 'Galleria non trovata' });
-    const g = galleryDoc.data() || {};
-    const normalizedJobId = jobId.trim();
-    const jobDoc = await db.collection('jobs').doc(normalizedJobId).get();
-    if (!jobDoc.exists) return res.status(404).json({ error: 'Lavoro non trovato' });
+    const normalizedGalleryId = typeof galleryId === 'string' ? galleryId.trim() : '';
+    const galleryDoc = normalizedGalleryId
+      ? await db.collection('galleries').doc(normalizedGalleryId).get()
+      : null;
+    if (normalizedGalleryId && !galleryDoc?.exists) return res.status(404).json({ error: 'Galleria non trovata' });
+    const g = galleryDoc?.data() || {};
 
-    const associationWarnings = galleryJobAssociationWarnings(
-      g,
-      galleryId,
-      normalizedJobId,
-      jobDoc.data(),
-    );
+    const requestedJobId = typeof jobId === 'string' ? jobId.trim() : '';
+    const normalizedJobId = requestedJobId || (typeof g.jobId === 'string' ? g.jobId.trim() : '');
+    const jobDoc = normalizedJobId
+      ? await db.collection('jobs').doc(normalizedJobId).get()
+      : null;
+    if (normalizedJobId && !jobDoc?.exists) return res.status(404).json({ error: 'Lavoro non trovato' });
+    const job = jobDoc?.data() || {};
+
+    const associationWarnings = normalizedGalleryId && normalizedJobId
+      ? galleryJobAssociationWarnings(g, normalizedGalleryId, normalizedJobId, job)
+      : [];
     if (associationWarnings.length > 0 && allowAssociationMismatch !== true) {
       return res.status(409).json({
         error: 'I collegamenti della galleria non coincidono con il lavoro selezionato',
@@ -957,12 +964,17 @@ router.post('/', async (req: Request, res: Response) => {
     const now = new Date();
     const docData = {
       name: name.trim(),
-      galleryId,
+      galleryId: normalizedGalleryId || null,
       galleryName: g.name || '',
-      clientName: g.clientName || g.clientEmail || g.name || '',
+      clientName:
+        g.clientName ||
+        g.clientEmail ||
+        (Array.isArray(job.clientNames) ? job.clientNames.join(', ') : '') ||
+        g.name ||
+        null,
       // Il lavoro è l'associazione canonica del fotolibro. La galleria resta
       // la sorgente delle fotografie e non viene modificata implicitamente.
-      jobId: normalizedJobId,
+      jobId: normalizedJobId || null,
       token,
       mockupPath,
       currentVersion: 1,
@@ -972,7 +984,9 @@ router.post('/', async (req: Request, res: Response) => {
     };
     const ref = await db.collection(BOOKS_COL).add(docData);
     const saved = await ref.get();
-    console.log(`📖 [photobooks] Creato fotolibro "${name}" per galleria ${galleryId}`);
+    console.log(
+      `📖 [photobooks] Creato fotolibro "${name}"${normalizedJobId ? ` per lavoro ${normalizedJobId}` : ' autonomo'}`,
+    );
     return res.json({ photobook: serializeBook(ref.id, saved.data()) });
   } catch (error) {
     console.error('[photobooks] Errore creazione:', error);
@@ -1555,18 +1569,14 @@ router.post('/:id/lab-shipment', async (req: any, res: Response) => {
     if (!bookDoc.exists) return res.status(404).json({ error: 'Fotolibro non trovato' });
     const book = bookDoc.data()!;
 
-    // Lavoro associato (obbligatorio per la spedizione)
+    // Un fotolibro autonomo può essere spedito senza lavoro: in quel caso la
+    // spedizione contiene solo pagine e istruzioni inserite per il laboratorio.
+    const requestedJobId = typeof req.body?.jobId === 'string' ? req.body.jobId.trim() : '';
     const jobId: string =
-      book.jobId || (typeof req.body?.jobId === 'string' ? req.body.jobId.trim() : '');
-    if (!jobId) {
-      return res.status(400).json({
-        error:
-          'Il fotolibro non è associato a nessun lavoro: seleziona il lavoro a cui collegare la spedizione',
-      });
-    }
-    const jobDoc = await db.collection('jobs').doc(jobId).get();
-    if (!jobDoc.exists) return res.status(404).json({ error: 'Lavoro non trovato' });
-    const job = jobDoc.data() || {};
+      (typeof book.jobId === 'string' ? book.jobId.trim() : '') || requestedJobId;
+    const jobDoc = jobId ? await db.collection('jobs').doc(jobId).get() : null;
+    if (jobId && !jobDoc?.exists) return res.status(404).json({ error: 'Lavoro non trovato' });
+    const job = jobDoc?.data() || {};
 
     // Pagine della versione corrente (originali ad alta risoluzione)
     const pagesSnap = await db
@@ -1616,7 +1626,10 @@ router.post('/:id/lab-shipment', async (req: any, res: Response) => {
       if (requestedPhotoNotes.length > 30) {
         return res.status(400).json({ error: 'Puoi allegare al massimo 30 note con foto' });
       }
-      const sourcePhotoNotes = Array.isArray(job.notePerFoto) ? job.notePerFoto : [];
+      const sourcePhotoNotes = jobId && Array.isArray(job.notePerFoto) ? job.notePerFoto : [];
+      if (!jobId && requestedPhotoNotes.length > 0) {
+        return res.status(400).json({ error: 'Le note con foto richiedono un lavoro associato' });
+      }
       const bucketName = storage.bucket().name;
       const sourceById = new Map(
         sourcePhotoNotes
@@ -1659,19 +1672,21 @@ router.post('/:id/lab-shipment', async (req: any, res: Response) => {
         });
       }
 
-      jobNotesSnapshot = {
-        jobId,
-        ...(labNote ? { generalNote: labNote } : {}),
-        photoNotes: selectedPhotoNotes,
-        capturedAt: FieldValue.serverTimestamp(),
-        ...(req.user?.email ? { capturedBy: req.user.email } : {}),
-      };
+      jobNotesSnapshot = jobId
+        ? {
+            jobId,
+            ...(labNote ? { generalNote: labNote } : {}),
+            photoNotes: selectedPhotoNotes,
+            capturedAt: FieldValue.serverTimestamp(),
+            ...(req.user?.email ? { capturedBy: req.user.email } : {}),
+          }
+        : null;
       const shipmentData: any = {
-        jobId,
+        ...(jobId ? { jobId } : {}),
         descrizione,
         sourceType: 'photobook',
         ...(labNote ? { labNote } : {}),
-        jobNotesSnapshot,
+        ...(jobNotesSnapshot ? { jobNotesSnapshot } : {}),
         files: [],
         status: 'da_inviare',
         expiryDays,
@@ -1773,12 +1788,13 @@ router.post('/:id/lab-shipment', async (req: any, res: Response) => {
 
     // Collega subito fotolibro ↔ spedizione (evita doppie creazioni anche se
     // il trasferimento fallisce a metà e si riprova)
-    await ref.update({
-      jobId,
+    const photobookUpdate: Record<string, unknown> = {
       labShipmentId: shipmentRef.id,
       ...(req.body?.lockPhotobook === true ? { locked: true } : {}),
       updatedAt: FieldValue.serverTimestamp(),
-    });
+    };
+    if (jobId) photobookUpdate.jobId = jobId;
+    await ref.update(photobookUpdate);
 
     // Trasferimento pagine in BACKGROUND: con fotolibri grandi (50+ pagine ad
     // alta risoluzione) la copia sequenziale può durare minuti e far scadere la
@@ -1823,7 +1839,7 @@ router.post('/:id/lab-shipment', async (req: any, res: Response) => {
     }
 
     // Evento timeline sul job (solo alla prima creazione, best-effort)
-    if (isNewShipment) {
+    if (isNewShipment && jobId) {
       try {
         await db.collection('jobTimeline').add({
           id: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -1890,7 +1906,11 @@ router.get('/:id/gallery-photos', async (req: Request, res: Response) => {
   try {
     const bookDoc = await db.collection(BOOKS_COL).doc(req.params.id).get();
     if (!bookDoc.exists) return res.status(404).json({ error: 'Fotolibro non trovato' });
-    const photos = await listGalleryPhotosPublic(bookDoc.data()!.galleryId);
+    const galleryId = bookDoc.data()?.galleryId;
+    if (typeof galleryId !== 'string' || !galleryId.trim()) {
+      return res.json({ photos: [] });
+    }
+    const photos = await listGalleryPhotosPublic(galleryId);
     return res.json({ photos });
   } catch (error) {
     console.error('[photobooks] Errore gallery-photos:', error);

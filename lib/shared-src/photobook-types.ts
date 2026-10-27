@@ -72,7 +72,8 @@ export interface PhotobookApproval {
 export interface Photobook {
   id: string;
   name: string;
-  galleryId: string;
+  /** Galleria sorgente facoltativa per fotolibri autonomi. */
+  galleryId?: string | null;
   galleryName?: string;
   clientName?: string;
   /** Token univoco per l'accesso cliente a /fotolibro/:token */
