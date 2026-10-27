@@ -42,6 +42,7 @@ export interface QuoteBundleItem {
 
 export interface QuoteProduct {
   productId?: string;           // Link opzionale a products collection
+  customProductId?: string;     // Identità stabile dei prodotti custom, distinta da React Hook Form
   nome: string;
   descrizione: string;
   prezzo: number;

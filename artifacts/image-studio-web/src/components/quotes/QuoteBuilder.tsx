@@ -123,6 +123,7 @@ const quoteSchema = z.object({
   templateId: z.string().optional(),
   catalogProductIds: z.array(z.string()).default([]),
   products: z.array(z.object({
+    customProductId: z.string().optional(),
     nome: z.string(),
     descrizione: z.string(),
     prezzo: z.number().min(0),
@@ -381,7 +382,7 @@ export default function QuoteBuilder({
   const { toast } = useToast();
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [selectedClauseTemplateId, setSelectedClauseTemplateId] = useState<string>('');
-  const [uploadingImages, setUploadingImages] = useState<{ [key: number]: boolean }>({});
+  const [uploadingImages, setUploadingImages] = useState<Record<string, boolean>>({});
   const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
   const [frequentProductValue, setFrequentProductValue] = useState<string>('');
   const prevFieldsCountRef = useRef<number>(0);
@@ -395,9 +396,14 @@ export default function QuoteBuilder({
   // Override per-quote dei prodotti catalogo (prezzo snapshot + selectable Fisso/Extra).
   // Inizializzati dal template selezionato o dal preventivo esistente.
   const [catalogOverrides, setCatalogOverrides] = useState<Record<string, { prezzo?: number; selectable?: boolean; isOmaggio?: boolean }>>({});
+  const [hasNonFormChanges, setHasNonFormChanges] = useState(false);
   // Ref usata per saltare il reset auto del selectable quando type viene cambiato
   // programmaticamente (caricamento template o preventivo esistente).
   const skipNextSelectableResetRef = useRef(false);
+  const hydratedQuoteRef = useRef<string | null>(null);
+  const clauseChoiceMadeRef = useRef(false);
+  const clauseDefaultAppliedRef = useRef(false);
+  const originalProductStatesRef = useRef<Record<string, { prezzo: number; selectable: boolean }>>({});
 
   // Query job per eventDate
   const { data: job } = useQuery({
@@ -454,6 +460,7 @@ export default function QuoteBuilder({
       type: 'fisso',
       catalogProductIds: [],
       products: [{
+        customProductId: nanoid(),
         nome: '',
         descrizione: '',
         prezzo: 0,
@@ -487,32 +494,30 @@ export default function QuoteBuilder({
     studioSettings.quoteTheme.secondaryColor,
   ]);
 
-  // Reset state quando dialog si chiude
   useEffect(() => {
-    if (!open) {
-      setSelectedClauseTemplateId('');
-      form.setValue('clauseTemplateId', '');
-      setCatalogProductSections({});
-      setProductOrderKeys([]);
-    }
-  }, [open, form]);
+    if (!open) return;
+    clauseDefaultAppliedRef.current = false;
+  }, [open]);
 
   useEffect(() => {
     // Reset clausole quando cambia jobType per evitare salvataggio clausole sbagliate
     setSelectedClauseTemplateId('');
-    form.setValue('clauseTemplateId', '');
+    form.setValue('clauseTemplateId', '', { shouldDirty: false });
+    clauseChoiceMadeRef.current = false;
+    clauseDefaultAppliedRef.current = false;
   }, [jobTypeSlug, form]);
 
   // Auto-select template predefinito per le clausole (dopo form init)
   useEffect(() => {
-    if (clauseTemplates.length > 0 && !selectedClauseTemplateId) {
+    if (open && !clauseDefaultAppliedRef.current && !clauseChoiceMadeRef.current && clauseTemplates.length > 0 && !selectedClauseTemplateId) {
+      clauseDefaultAppliedRef.current = true;
       const defaultTemplate = clauseTemplates.find(t => t.predefinito);
       if (defaultTemplate) {
         setSelectedClauseTemplateId(defaultTemplate.id);
-        form.setValue('clauseTemplateId', defaultTemplate.id);
+        form.setValue('clauseTemplateId', defaultTemplate.id, { shouldDirty: false });
       }
     }
-  }, [clauseTemplates, selectedClauseTemplateId, form]);
+  }, [open, clauseTemplates, selectedClauseTemplateId, form]);
 
   // Carica dati preventivo esistente nel form quando disponibile.
   // ⚠️ Dipende anche da catalogProducts: se i prodotti catalogo arrivano DOPO il quote,
@@ -520,11 +525,18 @@ export default function QuoteBuilder({
   // Nota: se il preventivo NON contiene catalogProductId (solo custom), procediamo
   // anche con catalogProducts vuoto per non bloccare l'hydration dei campi base.
   useEffect(() => {
-    if (!existingQuote || !editQuoteId) return;
+    if (!open || !existingQuote || !editQuoteId) return;
+    const quoteKey = `${editQuoteId}`;
+    if (hydratedQuoteRef.current === quoteKey) return;
     const hasCatalogRefs = Array.isArray(existingQuote.products)
       && existingQuote.products.some((p: any) => p?.catalogProductId || p?.productId);
     // Aspetta catalogProducts SOLO se il quote referenzia prodotti catalogo
     if (hasCatalogRefs && (!catalogProducts || catalogProducts.length === 0)) return;
+    // Non sostituire input inseriti mentre il fetch iniziale era ancora in corso.
+    if (form.formState.isDirty) {
+      hydratedQuoteRef.current = quoteKey;
+      return;
+    }
 
     // Separa prodotti catalogo da custom
     const catalogIds: string[] = [];
@@ -557,7 +569,9 @@ export default function QuoteBuilder({
             initialCatalogOverridesFromQuote[catId] = ov;
           }
         } else {
+          const customProductId = product.customProductId || nanoid();
           customProducts.push({
+            customProductId,
             nome: product.nome || '',
             descrizione: product.descrizione || '',
             prezzo: product.prezzo || 0,
@@ -573,6 +587,7 @@ export default function QuoteBuilder({
       });
     }
     setCatalogOverrides(initialCatalogOverridesFromQuote);
+    originalProductStatesRef.current = {};
 
     // Skip il reset auto del selectable SOLO se type sta effettivamente cambiando
     // (altrimenti l'useEffect non scatta e il flag resterebbe armato per il prossimo cambio utente).
@@ -582,9 +597,8 @@ export default function QuoteBuilder({
     }
 
     // Popola form
-    form.setValue('type', targetType);
-    form.setValue('catalogProductIds', catalogIds);
-    form.setValue('products', customProducts.length > 0 ? customProducts : [{
+    const hydratedProducts = customProducts.length > 0 ? customProducts : [{
+      customProductId: nanoid(),
       nome: '',
       descrizione: '',
       prezzo: 0,
@@ -592,33 +606,27 @@ export default function QuoteBuilder({
       numeroFoto: 0,
       categoria: '',
       immagini: []
-    }]);
+    }];
+    form.reset({
+      ...form.getValues(),
+      jobId,
+      clienteId,
+      type: targetType,
+      catalogProductIds: catalogIds,
+      products: hydratedProducts,
+      discountType: existingQuote.discountType || undefined,
+      discountValue: existingQuote.discountValue !== undefined ? Number(existingQuote.discountValue) || 0 : undefined,
+      theme: existingQuote.theme || form.getValues('theme'),
+      expiresAt: existingQuote.expiresAt
+        ? (existingQuote.expiresAt?.toDate ? existingQuote.expiresAt.toDate() : new Date(existingQuote.expiresAt))
+        : undefined,
+      noteInterne: existingQuote.noteInterne || '',
+      paymentScheduleConfig: existingQuote.paymentScheduleConfig || form.getValues('paymentScheduleConfig'),
+      clauseTemplateId: existingQuote.clauseTemplateId || '',
+    });
     
-    if (existingQuote.discountType) {
-      form.setValue('discountType', existingQuote.discountType);
-      form.setValue('discountValue', existingQuote.discountValue !== undefined ? Number(existingQuote.discountValue) || 0 : 0);
-    }
-
-    if (existingQuote.theme) {
-      form.setValue('theme', existingQuote.theme);
-    }
-
-    if (existingQuote.expiresAt) {
-      const expiryDate = existingQuote.expiresAt?.toDate ? existingQuote.expiresAt.toDate() : new Date(existingQuote.expiresAt);
-      form.setValue('expiresAt', expiryDate);
-    }
-
-    if (existingQuote.noteInterne) {
-      form.setValue('noteInterne', existingQuote.noteInterne);
-    }
-
-    if (existingQuote.paymentScheduleConfig) {
-      form.setValue('paymentScheduleConfig', existingQuote.paymentScheduleConfig);
-    }
-
-    if (existingQuote.clauseTemplateId) {
+    if (existingQuote.clauseTemplateId && !clauseChoiceMadeRef.current) {
       setSelectedClauseTemplateId(existingQuote.clauseTemplateId);
-      form.setValue('clauseTemplateId', existingQuote.clauseTemplateId);
     }
 
     setSelectedTemplateId(existingQuote.templateId ?? '');
@@ -631,9 +639,15 @@ export default function QuoteBuilder({
 
     // Inizializza l'ordine prodotti dall'ordine salvato nel preventivo
     if (Array.isArray(existingQuote.products)) {
-      const initialOrderKeys = existingQuote.products.map((p: any) =>
-        p.catalogProductId ? `cat:${p.catalogProductId}` : `cust:${p.nome?.trim() || ''}`
-      ).filter((k: string) => k !== 'cust:');
+      let customIndex = 0;
+      const initialOrderKeys = existingQuote.products.map((p: any) => {
+        const catalogId = p.catalogProductId || (
+          p.productId && catalogProducts.some((cp: any) => cp.id === p.productId) ? p.productId : null
+        );
+        if (catalogId) return `cat:${catalogId}`;
+        const customProduct = customProducts[customIndex++];
+        return `cust:${p.customProductId || customProduct?.customProductId || ''}`;
+      }).filter((key: string) => !key.endsWith('cust:'));
       setProductOrderKeys(initialOrderKeys);
 
       // Carica le sezioni salvate per i prodotti da catalogo (reset esplicito per evitare stale data)
@@ -651,7 +665,9 @@ export default function QuoteBuilder({
       title: 'Preventivo caricato',
       description: 'Modifica i campi e salva per aggiornare'
     });
-  }, [existingQuote, editQuoteId, form, toast, catalogProducts]);
+    hydratedQuoteRef.current = quoteKey;
+    setHasNonFormChanges(false);
+  }, [existingQuote, editQuoteId, form, toast, catalogProducts, jobId, clienteId, open]);
 
   // Fallback benefit rules: se il preventivo non ha benefitRules propri ma ha un templateId,
   // carica i benefit dal template aggiornato (utile se i benefit sono stati aggiunti
@@ -690,8 +706,10 @@ export default function QuoteBuilder({
 
   // Handler cambio template clausole
   const handleClauseTemplateChange = (templateId: string) => {
+    clauseChoiceMadeRef.current = true;
     setSelectedClauseTemplateId(templateId);
-    form.setValue('clauseTemplateId', templateId);
+    form.setValue('clauseTemplateId', templateId, { shouldDirty: true });
+    setHasNonFormChanges(true);
   };
 
   const { fields, append, remove, move } = useFieldArray({
@@ -701,8 +719,6 @@ export default function QuoteBuilder({
   });
 
   // Mappa prezzi originali: quando si attiva omaggio, salva il prezzo precedente per ripristinarlo
-  const originalPricesRef = useRef<Record<number, number>>({});
-
   // Auto-expand newly added custom products
   const pendingExpandRef = useRef(false);
   useEffect(() => {
@@ -718,28 +734,32 @@ export default function QuoteBuilder({
 
   const appendProduct = useCallback((data: Parameters<typeof append>[0]) => {
     pendingExpandRef.current = true;
-    append(data);
+    append({ ...data, customProductId: (data as any).customProductId || nanoid() });
   }, [append]);
 
   // Gestisce il cambio di sezione da ProductOrderEditor (sia per prodotti catalogo che custom)
   const handleSectionChange = useCallback((key: string, sezione: string) => {
     if (key.startsWith('cat:')) {
       const productId = key.slice(4);
+      if ((catalogProductSections[productId] || '') === sezione) return;
       setCatalogProductSections(prev => {
         const next = { ...prev };
         if (sezione) next[productId] = sezione;
         else delete next[productId];
         return next;
       });
+      setHasNonFormChanges(true);
     } else if (key.startsWith('cust:')) {
-      const nomeTrimmed = key.slice(5);
+      const customProductId = key.slice(5);
       const products = form.getValues('products');
-      const idx = (products || []).findIndex((p: any) => p.nome?.trim() === nomeTrimmed);
+      const idx = (products || []).findIndex((p: any) => p.customProductId === customProductId);
       if (idx >= 0) {
+        if (((products[idx] as any).sezione || '') === sezione) return;
         form.setValue(`products.${idx}.sezione` as any, sezione, { shouldDirty: true });
+        setHasNonFormChanges(true);
       }
     }
-  }, [form]);
+  }, [form, catalogProductSections]);
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -763,6 +783,7 @@ export default function QuoteBuilder({
       
       if (oldIndex !== -1 && newIndex !== -1) {
         move(oldIndex, newIndex);
+        setHasNonFormChanges(true);
       }
     }
   };
@@ -800,7 +821,7 @@ export default function QuoteBuilder({
     const cust: OrderableProduct[] = (watchedProducts || [])
       .filter((f: any) => f.nome?.trim())
       .map((f: any) => ({
-        key: `cust:${f.nome.trim()}`,
+        key: `cust:${f.customProductId}`,
         nome: f.nome,
         prezzo: f.isOmaggio ? 0 : (f.prezzo || 0),
         sezione: f.sezione || undefined,
@@ -862,11 +883,13 @@ export default function QuoteBuilder({
     if (key.startsWith('cat:')) {
       const id = key.slice(4);
       setCatalogOverrides(prev => ({ ...prev, [id]: { ...(prev[id] || {}), prezzo } }));
+      setHasNonFormChanges(true);
     } else if (key.startsWith('cust:')) {
-      const nome = key.slice(5);
+      const customProductId = key.slice(5);
       const products = form.getValues('products') || [];
-      const idx = products.findIndex((p: any) => p.nome?.trim() === nome);
+      const idx = products.findIndex((p: any) => p.customProductId === customProductId);
       if (idx >= 0) form.setValue(`products.${idx}.prezzo` as any, prezzo, { shouldDirty: true });
+      setHasNonFormChanges(true);
     }
   }, [form]);
 
@@ -882,42 +905,78 @@ export default function QuoteBuilder({
       else delete next[id];
       return next;
     });
+    setHasNonFormChanges(true);
   }, []);
 
   // Handler toggle Omaggio (sia catalogo che custom)
   const handleEditorOmaggioChange = useCallback((key: string, isOmaggio: boolean) => {
     if (key.startsWith('cat:')) {
       const id = key.slice(4);
+      const currentOverride = catalogOverrides[id] || {};
+      const catalogProduct = catalogProducts.find(product => product.id === id);
+      const snapshotKey = `cat:${id}`;
+      if (isOmaggio) {
+        originalProductStatesRef.current[snapshotKey] = {
+          prezzo: currentOverride.prezzo ?? catalogProduct?.prezzoFinale ?? catalogProduct?.prezzo ?? 0,
+          selectable: currentOverride.selectable ?? form.getValues('type') === 'variabile',
+        };
+      }
       setCatalogOverrides(prev => {
         const curr = prev[id] || {};
         if (isOmaggio) {
           return { ...prev, [id]: { ...curr, isOmaggio: true } };
         }
         const { isOmaggio: _, ...rest } = curr;
+        const saved = originalProductStatesRef.current[snapshotKey];
+        delete originalProductStatesRef.current[snapshotKey];
         const next = { ...prev };
-        if (Object.keys(rest).length > 0) next[id] = rest;
+        const restored = saved ? { ...rest, prezzo: saved.prezzo, selectable: saved.selectable } : rest;
+        if (Object.keys(restored).length > 0) next[id] = restored;
         else delete next[id];
         return next;
       });
     } else if (key.startsWith('cust:')) {
-      const nome = key.slice(5);
+      const customProductId = key.slice(5);
       const products = form.getValues('products') || [];
-      const idx = products.findIndex((p: any) => p.nome?.trim() === nome);
-      if (idx >= 0) form.setValue(`products.${idx}.isOmaggio` as any, isOmaggio, { shouldDirty: true });
+      const idx = products.findIndex((p: any) => p.customProductId === customProductId);
+      if (idx >= 0) {
+        const snapshotKey = `cust:${customProductId}`;
+        if (isOmaggio) {
+          originalProductStatesRef.current[snapshotKey] = {
+            prezzo: products[idx].prezzo || 0,
+            selectable: products[idx].selectable !== undefined
+              ? !!products[idx].selectable
+              : form.getValues('type') === 'variabile',
+          };
+        }
+        const saved = originalProductStatesRef.current[snapshotKey];
+        form.setValue(`products.${idx}.isOmaggio` as any, isOmaggio, { shouldDirty: true });
+        if (isOmaggio) {
+          form.setValue(`products.${idx}.prezzo` as any, 0, { shouldDirty: true });
+          form.setValue(`products.${idx}.selectable` as any, false, { shouldDirty: true });
+        } else if (saved) {
+          form.setValue(`products.${idx}.prezzo` as any, saved.prezzo, { shouldDirty: true });
+          form.setValue(`products.${idx}.selectable` as any, saved.selectable, { shouldDirty: true });
+          delete originalProductStatesRef.current[snapshotKey];
+        }
+      }
     }
-  }, [form]);
+    setHasNonFormChanges(true);
+  }, [form, catalogOverrides, catalogProducts]);
 
   // Handler toggle Fisso/Extra (solo per preventivi variabili)
   const handleEditorSelectableChange = useCallback((key: string, selectable: boolean) => {
     if (key.startsWith('cat:')) {
       const id = key.slice(4);
       setCatalogOverrides(prev => ({ ...prev, [id]: { ...(prev[id] || {}), selectable } }));
+      setHasNonFormChanges(true);
     } else if (key.startsWith('cust:')) {
-      const nome = key.slice(5);
+      const customProductId = key.slice(5);
       const products = form.getValues('products') || [];
-      const idx = products.findIndex((p: any) => p.nome?.trim() === nome);
+      const idx = products.findIndex((p: any) => p.customProductId === customProductId);
       if (idx >= 0) form.setValue(`products.${idx}.selectable` as any, selectable, { shouldDirty: true });
     }
+    setHasNonFormChanges(true);
   }, [form]);
   // Lista sezioni già usate nel preventivo corrente (per autocomplete)
   const sectionSuggestions = useMemo<string[]>(() => {
@@ -1041,6 +1100,10 @@ export default function QuoteBuilder({
   }, [customProducts]);
 
   const subtotale = totaleCatalogo + totaleCustom;
+  const liveDiscountValidation = useMemo(
+    () => validateDiscount(subtotale, discountType, discountValue),
+    [subtotale, discountType, discountValue]
+  );
 
   // Calcola totali con sconto usando utility condivisa
   const { totalBeforeDiscount, discountAmount, totalAfterDiscount } = useMemo(() => {
@@ -1083,6 +1146,7 @@ export default function QuoteBuilder({
     if (!template) return;
 
     setSelectedTemplateId(templateId);
+    originalProductStatesRef.current = {};
     // Evita il reset automatico del selectable SOLO se type cambia davvero
     // (altrimenti l'useEffect non scatta e il flag resterebbe armato per il prossimo cambio utente).
     if (form.getValues('type') !== template.type) {
@@ -1098,6 +1162,7 @@ export default function QuoteBuilder({
       .filter(p => !p.productId)
       .map(p => ({
         ...p,
+        customProductId: (p as any).customProductId || nanoid(),
         // Preserva selectable dal template (Fisso/Extra impostato dall'admin); fallback al default
         selectable: p.selectable !== undefined ? !!p.selectable : template.type === 'variabile',
       }));
@@ -1126,6 +1191,7 @@ export default function QuoteBuilder({
     setCatalogOverrides(tmplOverrides);
     form.setValue('catalogProductIds', catalogIds);
     form.setValue('products', customProds.length > 0 ? customProds : [{
+      customProductId: nanoid(),
       nome: '', descrizione: '', prezzo: 0, selectable: false, numeroFoto: 0, categoria: '', immagini: [], isOmaggio: false
     }]);
     form.setValue('theme', { ...studioSettings.quoteTheme });
@@ -1140,10 +1206,14 @@ export default function QuoteBuilder({
     setCatalogProductSections(templateCatalogSections);
 
     // Ripristina l'ordine prodotti (catalogo + custom interleaved) dal template
+    let customOrderIndex = 0;
     const templateOrderKeys = template.defaultProducts
-      .map((p: any) => p.productId ? `cat:${p.productId}` : `cust:${(p.nome || '').trim()}`)
-      .filter((k: string) => k !== 'cust:');
+      .map((p: any) => p.productId
+        ? `cat:${p.productId}`
+        : `cust:${customProds[customOrderIndex++]?.customProductId || ''}`)
+      .filter((k: string) => !k.endsWith('cust:'));
     setProductOrderKeys(templateOrderKeys);
+    setHasNonFormChanges(true);
 
     // Carica anche lo sconto dal template (coercizione a number per sicurezza)
     const tmplDiscountType = (template as any).discountType;
@@ -1167,6 +1237,9 @@ export default function QuoteBuilder({
 
   // Upload immagine prodotto custom
   const handleImageUpload = async (file: File, productIndex: number) => {
+    const initialProduct = form.getValues(`products.${productIndex}`);
+    const customProductId = initialProduct?.customProductId;
+    if (!customProductId) return;
     try {
       // Controllo limite 5MB
       if (file.size > 5 * 1024 * 1024) {
@@ -1178,7 +1251,7 @@ export default function QuoteBuilder({
         return;
       }
 
-      setUploadingImages(prev => ({ ...prev, [productIndex]: true }));
+      setUploadingImages(prev => ({ ...prev, [customProductId]: true }));
 
       // Upload su Firebase Storage
       const storageRef = ref(storage, `quote-products/${nanoid()}_${file.name}`);
@@ -1186,8 +1259,12 @@ export default function QuoteBuilder({
       const downloadURL = await getDownloadURL(storageRef);
 
       // Aggiorna form
-      const currentImages = form.getValues(`products.${productIndex}.immagini`) || [];
-      form.setValue(`products.${productIndex}.immagini`, [...currentImages, downloadURL]);
+      const currentProducts = form.getValues('products') || [];
+      const currentIndex = currentProducts.findIndex(item => item.customProductId === customProductId);
+      if (currentIndex < 0) return;
+      const currentImages = form.getValues(`products.${currentIndex}.immagini`) || [];
+      form.setValue(`products.${currentIndex}.immagini`, [...currentImages, downloadURL], { shouldDirty: true });
+      setHasNonFormChanges(true);
 
       toast({
         title: 'Immagine caricata',
@@ -1201,20 +1278,35 @@ export default function QuoteBuilder({
         variant: 'destructive'
       });
     } finally {
-      setUploadingImages(prev => ({ ...prev, [productIndex]: false }));
+      setUploadingImages(prev => {
+        const next = { ...prev };
+        if (!(form.getValues('products') || []).some(product => product.customProductId === customProductId)) {
+          delete next[customProductId];
+        } else {
+          next[customProductId] = false;
+        }
+        return next;
+      });
     }
   };
 
   // Rimuovi immagine
-  const handleRemoveImage = (productIndex: number, imageIndex: number) => {
+  const handleRemoveImage = (customProductId: string, imageIndex: number) => {
+    const products = form.getValues('products') || [];
+    const productIndex = products.findIndex(product => product.customProductId === customProductId);
+    if (productIndex < 0) return;
     const currentImages = form.getValues(`products.${productIndex}.immagini`) || [];
     const newImages = currentImages.filter((_, idx) => idx !== imageIndex);
-    form.setValue(`products.${productIndex}.immagini`, newImages);
+    form.setValue(`products.${productIndex}.immagini`, newImages, { shouldDirty: true });
+    setHasNonFormChanges(true);
   };
 
   // Mutation crea/aggiorna preventivo
   const createMutation = useMutation({
     mutationFn: async (data: FormData) => {
+      if (!editQuoteId && !user?.uid) {
+        throw new Error('La sessione è scaduta. Accedi di nuovo e riprova a creare il preventivo.');
+      }
       // Se stiamo modificando un preventivo esistente
       if (editQuoteId) {
         const { doc, updateDoc } = await import('firebase/firestore');
@@ -1261,7 +1353,7 @@ export default function QuoteBuilder({
         if (productOrderKeys.length > 0) {
           const productMap = new Map<string, any>(
             (mergedProducts as any[]).map((p: any) => {
-              const k = p.productId ? `cat:${p.productId}` : `cust:${p.nome?.trim() || ''}`;
+              const k = p.productId ? `cat:${p.productId}` : `cust:${p.customProductId}`;
               return [k, p];
             })
           );
@@ -1353,7 +1445,7 @@ export default function QuoteBuilder({
       if (productOrderKeys.length > 0) {
         const productMapNew = new Map(
           mergedProductsNew.map((p: any) => {
-            const k = p.productId ? `cat:${p.productId}` : `cust:${p.nome?.trim() || ''}`;
+            const k = p.productId ? `cat:${p.productId}` : `cust:${p.customProductId}`;
             return [k, p];
           })
         );
@@ -1478,7 +1570,11 @@ export default function QuoteBuilder({
         }),
       };
 
-      return createQuote(quoteData, user!.uid);
+      const userId = user?.uid;
+      if (!userId) {
+        throw new Error('La sessione è scaduta. Accedi di nuovo e riprova a creare il preventivo.');
+      }
+      return createQuote(quoteData, userId);
     },
     onSuccess: async (quoteId: string) => {
       // Refetch queries to ensure UI updates before closing dialog
@@ -1502,6 +1598,7 @@ export default function QuoteBuilder({
         type: 'fisso',
         catalogProductIds: [],
         products: [{
+          customProductId: nanoid(),
           nome: '',
           descrizione: '',
           prezzo: 0,
@@ -1529,6 +1626,13 @@ export default function QuoteBuilder({
       setCompatibilityProductName(null);
       // Reset anche gli override per evitare leak su sessioni successive
       setCatalogOverrides({});
+      originalProductStatesRef.current = {};
+      setHasNonFormChanges(false);
+      hydratedQuoteRef.current = null;
+      clauseChoiceMadeRef.current = false;
+      clauseDefaultAppliedRef.current = false;
+      setSelectedClauseTemplateId('');
+      setSelectedTemplateId('');
       skipNextSelectableResetRef.current = false;
       onClose();
     },
@@ -1545,16 +1649,24 @@ export default function QuoteBuilder({
     createMutation.mutate(data);
   };
 
+  const onInvalidSubmit = (errors: any) => {
+    if (!errors.products) return;
+    const currentProducts = form.getValues('products') || [];
+    const invalidIds = currentProducts.flatMap((product, index) => {
+      const hasName = !!product.nome?.trim();
+      const hasPrice = Number(product.prezzo) > 0;
+      const invalid = product.isOmaggio ? !hasName : (hasName && !hasPrice) || (!hasName && hasPrice);
+      return invalid && fields[index]?.id ? [fields[index].id] : [];
+    });
+    setExpandedProducts(new Set(invalidIds.length ? invalidIds : fields.map(field => field.id)));
+  };
+
   // Stabilizza il callback per evitare loop infiniti
   const handleDialogChange = useCallback(
     (isOpen: boolean) => {
       if (!isOpen) {
-        const currentCatalogIds = form.getValues('catalogProductIds');
-        const currentProducts = form.getValues('products');
-        const hasData = (currentCatalogIds && currentCatalogIds.length > 0) || 
-                      (currentProducts && currentProducts.some(p => p.nome.trim()));
-        
-        if (hasData) {
+        if (createMutation.isPending) return;
+        if (form.formState.isDirty || hasNonFormChanges) {
           if (window.confirm('Hai delle modifiche non salvate. Sei sicuro di voler chiudere?')) {
             onClose();
           }
@@ -1563,7 +1675,7 @@ export default function QuoteBuilder({
         }
       }
     },
-    [onClose, form]
+    [onClose, form, hasNonFormChanges, createMutation.isPending]
   );
 
   return (
@@ -1573,6 +1685,7 @@ export default function QuoteBuilder({
       <DialogContent 
         className="w-[98vw] sm:max-w-4xl p-0"
         onInteractOutside={(e) => { if (createMutation.isPending) e.preventDefault(); }}
+        onEscapeKeyDown={(e) => { if (createMutation.isPending) e.preventDefault(); }}
       >
         
         {/* Wrapper scrollabile */}
@@ -1589,7 +1702,7 @@ export default function QuoteBuilder({
           </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={form.handleSubmit(onSubmit, onInvalidSubmit)} className="space-y-6">
             {/* Template selector */}
             {filteredTemplates.length > 0 && (
               <Card className="bg-blue-50 border-blue-200">
@@ -1722,9 +1835,11 @@ export default function QuoteBuilder({
                 <Select 
                   value={selectedClauseTemplateId || '_default'} 
                   onValueChange={(val) => {
+                    clauseChoiceMadeRef.current = true;
+                    setHasNonFormChanges(true);
                     if (val === '_default') {
                       setSelectedClauseTemplateId('');
-                      form.setValue('clauseTemplateId', '');
+                      form.setValue('clauseTemplateId', '', { shouldDirty: true });
                     } else {
                       handleClauseTemplateChange(val);
                     }
@@ -1836,7 +1951,24 @@ export default function QuoteBuilder({
                         <FormControl>
                           <CatalogProductSelector
                             selectedProductIds={field.value}
-                            onSelectionChange={field.onChange}
+                            onSelectionChange={(nextIds) => {
+                              const removedIds = field.value.filter((id: string) => !nextIds.includes(id));
+                              if (removedIds.length > 0) {
+                                setCatalogOverrides(prev => {
+                                  const next = { ...prev };
+                                  removedIds.forEach(id => delete next[id]);
+                                  return next;
+                                });
+                                setCatalogProductSections(prev => {
+                                  const next = { ...prev };
+                                  removedIds.forEach(id => delete next[id]);
+                                  return next;
+                                });
+                                setProductOrderKeys(prev => prev.filter(key => !removedIds.some(id => key === `cat:${id}`)));
+                                removedIds.forEach(id => delete originalProductStatesRef.current[`cat:${id}`]);
+                              }
+                              field.onChange(nextIds);
+                            }}
                             products={catalogProducts}
                             defaultCategory={jobTypeSlug}
                           />
@@ -1853,6 +1985,12 @@ export default function QuoteBuilder({
 
             {/* Sezione 2: Prodotti Custom */}
             <div>
+              {form.getFieldState('products').error?.message && (
+                <Alert variant="destructive" className="mb-3" data-testid="alert-product-validation">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>{form.getFieldState('products').error?.message}</AlertDescription>
+                </Alert>
+              )}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                 <h3 className="text-lg font-semibold">2. Prodotti Custom (opzionale)</h3>
                 <div className="flex flex-wrap items-center gap-2">
@@ -1945,6 +2083,7 @@ export default function QuoteBuilder({
                       const productName = watchedProducts?.[index]?.nome || '';
                       const productPrice = watchedProducts?.[index]?.prezzo || 0;
                       const isOmaggioProduct = watchedProducts?.[index]?.isOmaggio || false;
+                      const customProductId = watchedProducts?.[index]?.customProductId || '';
                       const hasName = productName.trim().length > 0;
                       const hasPrice = productPrice > 0;
                       const isIncomplete = !isOmaggioProduct && ((hasName && !hasPrice) || (!hasName && hasPrice));
@@ -1965,6 +2104,15 @@ export default function QuoteBuilder({
                               newSet.delete(field.id);
                               return newSet;
                             });
+                            if (customProductId) {
+                              delete originalProductStatesRef.current[`cust:${customProductId}`];
+                              setUploadingImages(prev => {
+                                const next = { ...prev };
+                                delete next[customProductId];
+                                return next;
+                              });
+                            }
+                            setHasNonFormChanges(true);
                             remove(index);
                           }}
                           isExpanded={expandedProducts.has(field.id)}
@@ -1994,20 +2142,9 @@ export default function QuoteBuilder({
                               <Switch
                                 checked={field.value || false}
                                 onCheckedChange={(checked) => {
-                                  field.onChange(checked);
-                                  if (checked) {
-                                    const currentPrice = form.getValues(`products.${index}.prezzo`);
-                                    if (currentPrice > 0) {
-                                      originalPricesRef.current[index] = currentPrice;
-                                    }
-                                    form.setValue(`products.${index}.prezzo`, 0);
-                                    form.setValue(`products.${index}.selectable`, false);
-                                  } else {
-                                    const saved = originalPricesRef.current[index];
-                                    if (saved !== undefined && saved > 0) {
-                                      form.setValue(`products.${index}.prezzo`, saved);
-                                      delete originalPricesRef.current[index];
-                                    }
+                                  const customProductId = watchedProducts?.[index]?.customProductId;
+                                  if (customProductId) {
+                                    handleEditorOmaggioChange(`cust:${customProductId}`, checked);
                                   }
                                 }}
                                 data-testid={`switch-omaggio-${index}`}
@@ -2192,7 +2329,7 @@ export default function QuoteBuilder({
                                             size="icon"
                                             variant="destructive"
                                             className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                                            onClick={() => handleRemoveImage(index, imgIndex)}
+                                            onClick={() => handleRemoveImage(customProductId, imgIndex)}
                                           >
                                             <X className="h-3 w-3" />
                                           </Button>
@@ -2218,7 +2355,7 @@ export default function QuoteBuilder({
                                       type="file"
                                       accept="image/*"
                                       className="hidden"
-                                      id={`upload-${index}`}
+                                      id={`upload-${fields[index]?.id}`}
                                       onChange={(e) => {
                                         const file = e.target.files?.[0];
                                         if (file) handleImageUpload(file, index);
@@ -2229,11 +2366,11 @@ export default function QuoteBuilder({
                                       type="button"
                                       variant="outline"
                                       size="sm"
-                                      disabled={uploadingImages[index]}
-                                      onClick={() => document.getElementById(`upload-${index}`)?.click()}
+                                      disabled={uploadingImages[customProductId]}
+                                      onClick={() => document.getElementById(`upload-${fields[index]?.id}`)?.click()}
                                       data-testid={`button-upload-image-${index}`}
                                     >
-                                      {uploadingImages[index] ? (
+                                      {uploadingImages[customProductId] ? (
                                         <>
                                           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                                           Caricamento...
@@ -2283,7 +2420,10 @@ export default function QuoteBuilder({
                   <ProductOrderEditor
                     products={mergedForOrderEditor}
                     orderKeys={productOrderKeys}
-                    onOrderChange={setProductOrderKeys}
+                    onOrderChange={(keys) => {
+                      setProductOrderKeys(keys);
+                      setHasNonFormChanges(true);
+                    }}
                     onSectionChange={quoteType === 'variabile' ? handleSectionChange : undefined}
                     sectionSuggestions={quoteType === 'variabile' ? sectionSuggestions : undefined}
                     onPriceChange={handleEditorPriceChange}
@@ -2342,13 +2482,16 @@ export default function QuoteBuilder({
                               disabled={isDuplicate}
                               aria-pressed={isIncompatible}
                               title={isDuplicate ? 'Rinomina i prodotti con lo stesso nome per distinguerli' : undefined}
-                              onClick={() => setRequirementRules(prev => setMutualExclusionPair(
-                                prev,
-                                compatibilityProductName,
-                                name,
-                                !isIncompatible,
-                                () => nanoid()
-                              ))}
+                              onClick={() => {
+                                setHasNonFormChanges(true);
+                                setRequirementRules(prev => setMutualExclusionPair(
+                                  prev,
+                                  compatibilityProductName,
+                                  name,
+                                  !isIncompatible,
+                                  () => nanoid()
+                                ));
+                              }}
                               className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                                 isIncompatible
                                   ? 'border-rose-600 bg-rose-600 text-white'
@@ -2392,15 +2535,18 @@ export default function QuoteBuilder({
                 };
                 setBenefitRules(prev => [...prev, newRule]);
                 setExpandedBenefitRules(prev => new Set([...prev, newRule.id]));
+                setHasNonFormChanges(true);
               };
 
               const updateRule = (id: string, patch: Partial<BenefitRule>) => {
+                setHasNonFormChanges(true);
                 setBenefitRules(prev =>
                   prev.map(r => r.id === id ? { ...r, ...patch } : r)
                 );
               };
 
               const removeRule = (id: string) => {
+                setHasNonFormChanges(true);
                 setBenefitRules(prev => prev.filter(r => r.id !== id));
               };
 
@@ -2711,6 +2857,12 @@ export default function QuoteBuilder({
                       </FormItem>
                     )}
                   />
+                )}
+                {!liveDiscountValidation.valid && (
+                  <Alert variant="destructive" data-testid="alert-discount-validation">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>{liveDiscountValidation.error}</AlertDescription>
+                  </Alert>
                 )}
               </CardContent>
             </Card>
