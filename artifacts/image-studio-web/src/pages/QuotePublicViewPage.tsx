@@ -72,6 +72,12 @@ import { useCountdown } from "@/hooks/useCountdown";
 import { db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { useStudio } from "@/context/StudioContext";
+import {
+  getQuoteProductSelectionKey,
+  getQuoteProductSelectionKeysForNames,
+  getSelectedQuoteProductNames,
+  isQuoteProductSelected,
+} from "@shared/quote-product-selection";
 
 interface QuotePublicData {
   quote: Quote;
@@ -115,7 +121,7 @@ export default function QuotePublicViewPage() {
   const { studioSettings } = useStudio();
 
   // State
-  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+  const [selectedProductKeys, setSelectedProductKeys] = useState<string[]>([]);
   const [acceptedClauses, setAcceptedClauses] = useState<string[]>([]);
   const [signerName, setSignerName] = useState("");
   const [studioLogo, setStudioLogo] = useState<string | null>(null);
@@ -136,11 +142,14 @@ export default function QuotePublicViewPage() {
   // FIX: usa updater funzionale per evitare closure stale su selectedProducts
   const autoFillForRule = (bs: BenefitState) => {
     if (!quote) return;
-    const allSelectableNames = (quote.products ?? [])
+    const products = quote.products ?? [];
+    const allSelectableNames = products
       .filter((p) => p.selectable)
       .map((p) => p.nome);
-    setSelectedProducts((prev) => {
-      const neededNames = new Set<string>(prev);
+    setSelectedProductKeys((prev) => {
+      const neededNames = new Set<string>(
+        getSelectedQuoteProductNames(products, prev),
+      );
 
       // Aggiungi tutti i prodotti trigger richiesti per questa regola
       for (const name of bs.rule.requiredProductNames ?? []) {
@@ -160,7 +169,10 @@ export default function QuotePublicViewPage() {
           }
         }
       }
-      return Array.from(neededNames);
+      return getQuoteProductSelectionKeysForNames(
+        products,
+        Array.from(neededNames),
+      );
     });
     setShowBenefitGuide(false);
   };
@@ -202,15 +214,25 @@ export default function QuotePublicViewPage() {
   const clientiInfo = portalData?.clientiInfo || [];
   const appuntamentiClienti = portalData?.appuntamentiClienti || [];
   const jobTypeInfo = portalData?.jobTypeInfo;
+  // Rule configuration remains name-based for backward compatibility, but UI
+  // selection and totals use per-row keys so duplicate names stay independent.
+  const selectedProducts = useMemo(
+    () => getSelectedQuoteProductNames(quote?.products ?? [], selectedProductKeys),
+    [quote?.products, selectedProductKeys],
+  );
 
   // Initialize selected products for variabile quotes.
   // Rimuove i prodotti benefit che non hanno la regola soddisfatta con i trigger pre-selezionati,
   // così al caricamento non compaiono "checkati a prezzo pieno" in modo contraddittorio.
   useEffect(() => {
     if (quote?.type === "variabile" && quote.products) {
-      const allPreselected = quote.products
-        .filter((p) => p.selected === true)
-        .map((p) => p.nome);
+      const allPreselectedKeys = quote.products.flatMap((p, index) =>
+        p.selected === true ? [getQuoteProductSelectionKey(p, index)] : [],
+      );
+      const allPreselected = getSelectedQuoteProductNames(
+        quote.products,
+        allPreselectedKeys,
+      );
 
       const allSelectableNames = quote.products
         .filter((p) => p.selectable)
@@ -241,12 +263,18 @@ export default function QuotePublicViewPage() {
       }
 
       // Mantieni solo i prodotti che NON sono benefit, oppure che sono benefit con regola attiva
-      const cleanSelected = allPreselected.filter((name) => {
-        if (!allBenefitNames.has(name)) return true; // prodotto normale → tienilo
-        return benefitUnlockedMap.get(name) === true; // benefit → solo se regola attiva
+      const cleanSelectedKeys = quote.products.flatMap((product, index) => {
+        const key = getQuoteProductSelectionKey(product, index);
+        if (!allPreselectedKeys.includes(key)) return [];
+        if (!allBenefitNames.has(product.nome)) return [key];
+        return benefitUnlockedMap.get(product.nome) === true ? [key] : [];
       });
+      const cleanSelected = getSelectedQuoteProductNames(
+        quote.products,
+        cleanSelectedKeys,
+      );
 
-      setSelectedProducts(cleanSelected);
+      setSelectedProductKeys(cleanSelectedKeys);
 
       // FIX Bug #1: Pre-sincronizza le ref del toast-effect con la chiave calcolata
       // sui prodotti puliti, così il toast non vede un falso "sblocco" al caricamento.
@@ -319,6 +347,8 @@ export default function QuotePublicViewPage() {
         },
         selectedProducts:
           quote.type === "variabile" ? selectedProducts : undefined,
+        selectedProductKeys:
+          quote.type === "variabile" ? selectedProductKeys : undefined,
         unlockedBenefitProductNames:
           unlockedBenefitNames.length > 0 ? unlockedBenefitNames : undefined,
         clausesAccepted: acceptedClauses,
@@ -459,12 +489,17 @@ export default function QuotePublicViewPage() {
     const removable = removed.filter((n) => selectedProducts.includes(n));
     if (removable.length === 0) return;
     const removedSet = new Set(removable);
-    setSelectedProducts((prev) => prev.filter((n) => !removedSet.has(n)));
+    setSelectedProductKeys((prev) =>
+      (quote?.products ?? []).flatMap((product, index) => {
+        const key = getQuoteProductSelectionKey(product, index);
+        return prev.includes(key) && !removedSet.has(product.nome) ? [key] : [];
+      }),
+    );
     toastRef.current({
       title: "Servizi rimossi automaticamente",
       description: `${formatRequiredNames(removable)}: ${removable.length === 1 ? "richiede" : "richiedono"} servizi che non sono più selezionati.`,
     });
-  }, [requirementRules, selectedProducts, alwaysIncludedNames]);
+  }, [quote?.products, requirementRules, selectedProducts, alwaysIncludedNames]);
 
   // Mappa: nome prodotto → BenefitState (se il prodotto è un omaggio in qualche regola)
   // IMPORTANTE: un prodotto può comparire in più regole. Si usa lo stato PIÙ FAVOREVOLE:
@@ -543,8 +578,9 @@ export default function QuotePublicViewPage() {
     );
     prevUnlockedRuleKeyForAutoRef.current = unlockedRuleKey;
 
-    setSelectedProducts((prev) => {
-      const set = new Set(prev);
+    setSelectedProductKeys((prev) => {
+      const products = quote?.products ?? [];
+      const names = new Set(getSelectedQuoteProductNames(products, prev));
       let changed = false;
       for (const bs of currentStates) {
         const ruleId = bs.rule.id;
@@ -552,7 +588,7 @@ export default function QuotePublicViewPage() {
         if (currentUnlockedIds.has(ruleId) && !prevUnlockedIds.has(ruleId)) {
           // Regola appena sbloccata → aggiungi prodotti benefit
           for (const n of benefitNames) {
-            if (!set.has(n)) { set.add(n); changed = true; }
+            if (!names.has(n)) { names.add(n); changed = true; }
           }
         } else if (!currentUnlockedIds.has(ruleId) && prevUnlockedIds.has(ruleId)) {
           // Regola appena bloccata → rimuovi prodotti benefit SOLO SE nessun'altra regola li sblocca ancora
@@ -564,11 +600,13 @@ export default function QuotePublicViewPage() {
                 otherBs.isUnlocked &&
                 (otherBs.rule.benefitProductNames ?? []).includes(n),
             );
-            if (set.has(n) && !stillUnlockedByOther) { set.delete(n); changed = true; }
+            if (names.has(n) && !stillUnlockedByOther) { names.delete(n); changed = true; }
           }
         }
       }
-      return changed ? Array.from(set) : prev;
+      return changed
+        ? getQuoteProductSelectionKeysForNames(products, Array.from(names))
+        : prev;
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unlockedRuleKey]);
@@ -668,16 +706,18 @@ export default function QuotePublicViewPage() {
   // Calcola il valore monetario dei benefit sbloccati e selezionati
   const unlockedBenefitTotalValue = useMemo(() => {
     if (!quote?.products) return 0;
-    // FIX Bug #5+#6: Number() per coercizione sicura; filtra solo i veri omaggio (isUnlocked)
-    // Esclude anche i prodotti con p.isOmaggio=true (già gratuiti per scelta admin, non contano come risparmio da benefit)
-    return Array.from(omaggioByProductName.entries())
-      .filter(([name, bs]) => bs.isUnlocked && selectedProducts.includes(name))
-      .reduce((sum, [name]) => {
-        const p = quote.products?.find((pr) => pr.nome === name);
-        if (!p || p.isOmaggio === true) return sum; // già gratuito per admin, non conta come benefit
-        return sum + toNum(p.prezzo);
-      }, 0);
-  }, [quote, omaggioByProductName, selectedProducts]);
+    return quote.products.reduce((sum, product, index) => {
+      const benefit = omaggioByProductName.get(product.nome);
+      if (
+        !isQuoteProductSelected(product, index, selectedProductKeys) ||
+        !benefit?.isUnlocked ||
+        product.isOmaggio === true
+      ) {
+        return sum;
+      }
+      return sum + toNum(product.prezzo);
+    }, 0);
+  }, [quote, omaggioByProductName, selectedProductKeys]);
 
   // Calculate totals with discount
   const totals = useMemo(() => {
@@ -716,14 +756,15 @@ export default function QuotePublicViewPage() {
     // Variable quote (non firmato): calculate subtotal based on selected products
     // Gli omaggi sbloccati (selezionati + regola attiva) e i prodotti con isOmaggio=true non contribuiscono al totale
     const subtotale = (quote.products ?? [])
-      .filter((p) => {
+      .filter((p, index) => {
         // Prodotto marcato dall'admin come omaggio → prezzo zero, escludi dal totale
         if (p.isOmaggio === true) return false;
         // Prodotto benefit selezionato con regola sbloccata → GRATIS, escludi dal totale
         const bs = omaggioByProductName.get(p.nome);
-        if (bs?.isUnlocked && selectedProducts.includes(p.nome)) return false;
+        const isSelected = isQuoteProductSelected(p, index, selectedProductKeys);
+        if (bs?.isUnlocked && isSelected) return false;
         // Prodotto selezionabile → includi solo se il cliente l'ha selezionato (anche benefit a prezzo pieno)
-        if (p.selectable) return selectedProducts.includes(p.nome);
+        if (p.selectable) return isSelected;
         // Prodotti non selezionabili sono sempre inclusi (prodotti fissi/obbligatori)
         return true;
       })
@@ -736,7 +777,7 @@ export default function QuotePublicViewPage() {
       quote.discountType,
       quote.discountValue,
     );
-  }, [quote, selectedProducts, omaggioByProductName]);
+  }, [quote, selectedProductKeys, omaggioByProductName]);
 
   const totale = totals.totalAfterDiscount;
 
@@ -1454,6 +1495,8 @@ export default function QuotePublicViewPage() {
                     </div>
                   )}
                   {items.map(({ product, idx }) => {
+                    const productSelectionKey = getQuoteProductSelectionKey(product, idx);
+                    const productIsSelected = selectedProductKeys.includes(productSelectionKey);
                     const isExpanded = expandedDescriptions.has(idx);
                     const hasLongDescription =
                       product.descrizione && product.descrizione.length > 120;
@@ -1463,11 +1506,11 @@ export default function QuotePublicViewPage() {
                     // isOmaggioUnlocked: regola sbloccata E prodotto selezionato (auto-selezionato via useEffect)
                     const isOmaggioUnlocked =
                       benefitEntry?.isUnlocked === true &&
-                      selectedProducts.includes(product.nome);
+                      productIsSelected;
                     // isBenefitAvailableButDeselected: regola sbloccata ma l'utente ha deselezionato manualmente il benefit
                     const isBenefitAvailableButDeselected =
                       benefitEntry?.isUnlocked === true &&
-                      !selectedProducts.includes(product.nome) &&
+                      !productIsSelected &&
                       product.selectable;
                     // Tutti i prodotti selezionabili hanno checkbox, inclusi i prodotti benefit
                     const showCheckbox =
@@ -1493,7 +1536,7 @@ export default function QuotePublicViewPage() {
                       ? blockedProducts.get(product.nome)
                       : undefined;
                     const isBlocked =
-                      !!blockInfo && !selectedProducts.includes(product.nome);
+                      !!blockInfo && !productIsSelected;
 
                     return (
                       <div
@@ -1528,10 +1571,11 @@ export default function QuotePublicViewPage() {
                               </span>
                               <button
                                 onClick={() =>
-                                  setSelectedProducts((prev) => [
-                                    ...prev,
-                                    product.nome,
-                                  ])
+                                  setSelectedProductKeys((prev) =>
+                                    prev.includes(productSelectionKey)
+                                      ? prev
+                                      : [...prev, productSelectionKey],
+                                  )
                                 }
                                 className="ml-auto text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 border border-amber-300 text-amber-800 hover:bg-amber-200 transition-colors"
                               >
@@ -1545,15 +1589,15 @@ export default function QuotePublicViewPage() {
                           {showCheckbox && (
                             <div className="sm:hidden flex items-center gap-2 mb-2">
                               <Checkbox
-                                checked={selectedProducts.includes(
-                                  product.nome,
-                                )}
+                                checked={productIsSelected}
                                 disabled={isBlocked}
                                 onCheckedChange={(checked) => {
-                                  setSelectedProducts((prev) =>
+                                  setSelectedProductKeys((prev) =>
                                     checked
-                                      ? [...prev, product.nome]
-                                      : prev.filter((p) => p !== product.nome),
+                                      ? prev.includes(productSelectionKey)
+                                        ? prev
+                                        : [...prev, productSelectionKey]
+                                      : prev.filter((key) => key !== productSelectionKey),
                                   );
                                 }}
                                 className={isBlocked ? "opacity-40 cursor-not-allowed" : ""}
@@ -1587,13 +1631,15 @@ export default function QuotePublicViewPage() {
                           {/* Desktop checkbox */}
                           {showCheckbox && (
                             <Checkbox
-                              checked={selectedProducts.includes(product.nome)}
+                              checked={productIsSelected}
                               disabled={isBlocked}
                               onCheckedChange={(checked) => {
-                                setSelectedProducts((prev) =>
+                                setSelectedProductKeys((prev) =>
                                   checked
-                                    ? [...prev, product.nome]
-                                    : prev.filter((p) => p !== product.nome),
+                                    ? prev.includes(productSelectionKey)
+                                      ? prev
+                                      : [...prev, productSelectionKey]
+                                    : prev.filter((key) => key !== productSelectionKey),
                                 );
                               }}
                               className={`mt-1 hidden sm:flex ${isBlocked ? "opacity-40 cursor-not-allowed" : ""}`}
@@ -1914,7 +1960,11 @@ export default function QuotePublicViewPage() {
             {/* Totale */}
             <div className="flex justify-between items-center text-xl font-bold">
               <span>Totale</span>
-              <span className="text-2xl" style={{ color: primaryColor }}>
+              <span
+                className="text-2xl"
+                style={{ color: primaryColor }}
+                data-testid="quote-total-value"
+              >
                 {formatCurrency(totale)}
               </span>
             </div>

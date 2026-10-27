@@ -356,6 +356,7 @@ export interface AcceptQuoteData {
     clientName: string;
   };
   selectedProducts?: string[];             // Nomi prodotti selezionati (solo variabile)
+  selectedProductKeys?: string[];          // Identità delle singole righe selezionate (retrocompatibile)
   unlockedBenefitProductNames?: string[];  // Nomi prodotti omaggio sbloccati via benefit rules
   clausesAccepted: string[];               // IDs clausole accettate
 }

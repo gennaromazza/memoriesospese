@@ -1,0 +1,3256 @@
+/**
+ * QUOTE BUILDER
+ * Interfaccia admin per creare preventivi personalizzati
+ */
+
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { useForm, useFieldArray, useWatch } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { nanoid } from 'nanoid';
+import { createQuote, getAllQuoteTemplates } from '@/lib/quotes';
+import { getAllProducts } from '@/lib/products';
+import { getAllClauseTemplates } from '@/lib/contract-clauses';
+import { mergeQuoteProducts } from '@/lib/quote-mappers';
+import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
+import { useStudio } from '@/context/StudioContext';
+import { queryClient } from '@/lib/queryClient';
+import { useToast } from '@/hooks/use-toast';
+import CatalogProductSelector from './CatalogProductSelector';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { DateInput } from '@/components/ui/date-input';
+import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import {
+  Plus,
+  Trash2,
+  FileText,
+  Palette,
+  Loader2,
+  Calendar,
+  Euro,
+  Percent,
+  Tag,
+  Upload,
+  X,
+  Image as ImageIcon,
+  CreditCard,
+  Eye,
+  Package,
+  GripVertical,
+  Gift,
+  Lock,
+  Unlock,
+  ChevronDown,
+  ChevronUp,
+  AlertTriangle,
+  RefreshCw,
+} from 'lucide-react';
+import { JobTypeIcon } from '@/lib/job-type-icons';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import type { QuoteType, QuoteProduct } from '@shared/quotes-types';
+import type { BenefitRule } from '@shared/quote-benefits';
+import { computeBenefitStates, migrateBenefitRules } from '@shared/quote-benefits';
+import type { RequirementRule } from '@shared/quote-requirements';
+import {
+  getMutuallyExcludedProductNames,
+  migrateRequirementRules,
+  pruneRequirementRules,
+  setMutualExclusionPair,
+} from '@shared/quote-requirements';
+import ProductOrderEditor, { type OrderableProduct } from './ProductOrderEditor';
+import type { JobType as JobTypeSlug, Job } from '@shared/jobs-types';
+import type { JobType, JobTypeFE } from '@shared/job-types';
+import { DEFAULT_CLAUSES } from '@shared/contract-clause-types';
+import { calculateQuoteTotals, validateDiscount } from '@shared/quote-utils';
+import { calculatePaymentSchedule, validatePaymentScheduleConfig, formatDueDate, formatCurrency } from '@shared/payment-schedule-utils';
+import { storage } from '@/lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { cn } from '@/lib/utils';
+import { getJob } from '@/lib/jobs';
+import placeholderUrl from '@/assets/generated_images/Custom_product_placeholder_image_f076e89e.png';
+
+const quoteSchema = z.object({
+  jobId: z.string().min(1),
+  clienteId: z.string().min(1),
+  type: z.enum(['fisso', 'variabile']),
+  templateId: z.string().optional(),
+  catalogProductIds: z.array(z.string()).default([]),
+  products: z.array(z.object({
+    customProductId: z.string().optional(),
+    nome: z.string(),
+    descrizione: z.string(),
+    prezzo: z.number().min(0),
+    selectable: z.boolean(),
+    numeroFoto: z.number().optional(),
+    categoria: z.string().optional(),
+    sezione: z.string().optional(),
+    immagini: z.array(z.string()).optional(),
+    isOmaggio: z.boolean().optional()
+  })),
+  discountType: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.enum(['amount', 'percent']).optional()
+  ),
+  discountValue: z.number().min(0).optional(),
+  theme: z.object({
+    primaryColor: z.string(),
+    secondaryColor: z.string(),
+    footerText: z.string().optional()
+  }).optional(),
+  expiresAt: z.date().optional(),
+  noteInterne: z.string().optional(),
+  paymentScheduleConfig: z.object({
+    autoGenerate: z.boolean(),
+    numberOfPayments: z.number().min(1).max(10).optional(),
+    accontoType: z.enum(['percentage', 'amount']),
+    accontoPercentage: z.number().min(0).max(100).optional(),
+    accontoAmount: z.number().min(0).optional(),
+    useEventDateReference: z.boolean(),
+    accontoRelativeDays: z.number().optional(),
+    rateIntervalDays: z.number().min(1).optional()
+  }).optional(),
+  clauseTemplateId: z.string().optional()
+}).refine(
+  (data) => {
+    // Valida che ci sia almeno un prodotto (catalogo o custom compilato)
+    const hasValidCustomProducts = data.products.some(p => p.nome.trim() && (p.prezzo > 0 || p.isOmaggio));
+    return data.catalogProductIds.length > 0 || hasValidCustomProducts;
+  },
+  { message: 'Aggiungi almeno un prodotto (catalogo o custom)', path: ['products'] }
+).refine(
+  (data) => {
+    // Valida prodotti custom: se nome è compilato, deve avere anche prezzo > 0 (a meno che sia omaggio)
+    const invalidProducts = data.products.filter(p => {
+      const hasName = !!p.nome.trim();
+      const hasPrice = p.prezzo > 0;
+      const isOmaggio = p.isOmaggio;
+      // Omaggio: valido solo se ha il nome (il prezzo è sempre 0)
+      if (isOmaggio) return !hasName; // Invalido se omaggio senza nome
+      return (hasName && !hasPrice) || (!hasName && hasPrice);
+    });
+    return invalidProducts.length === 0;
+  },
+  { message: 'Inserisci un nome per tutti i prodotti (inclusi gli omaggi)', path: ['products'] }
+);
+
+type FormData = z.infer<typeof quoteSchema>;
+
+// Template prodotti frequenti per quick-add
+const FREQUENT_PRODUCTS = [
+  { nome: 'Album Matrimonio 30x30', descrizione: '30 facciate, copertina in pelle', prezzo: 450 },
+  { nome: 'Album Matrimonio 35x35', descrizione: '40 facciate, copertina in pelle premium', prezzo: 650 },
+  { nome: 'Album Genitori 20x20', descrizione: '20 facciate, copertina rigida', prezzo: 180 },
+  { nome: 'Stampa Fine Art 30x40', descrizione: 'Stampa giclée su carta cotone', prezzo: 80 },
+  { nome: 'Stampa Fine Art 50x70', descrizione: 'Stampa giclée su carta cotone', prezzo: 150 },
+  { nome: 'Box USB Personalizzato', descrizione: 'Chiavetta USB in cofanetto legno', prezzo: 120 },
+  { nome: 'Ingrandimento con Cornice', descrizione: 'Stampa 40x60 con cornice', prezzo: 220 },
+  { nome: 'Secondo Fotografo', descrizione: '8 ore di servizio aggiuntivo', prezzo: 400 },
+  { nome: 'Servizio Video Highlights', descrizione: 'Video 3-5 minuti highlight', prezzo: 800 },
+  { nome: 'Servizio Droni', descrizione: 'Riprese aeree location', prezzo: 300 },
+];
+
+// Sortable Product Card component for drag and drop
+interface SortableProductCardProps {
+  id: string;
+  index: number;
+  isIncomplete: boolean;
+  isEmpty: boolean;
+  hasName: boolean;
+  fieldsLength: number;
+  onRemove: () => void;
+  children: React.ReactNode;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+  productName: string;
+  productPrice: number;
+  isOmaggio?: boolean;
+}
+
+function SortableProductCard({
+  id,
+  index,
+  isIncomplete,
+  isEmpty,
+  hasName,
+  fieldsLength,
+  onRemove,
+  children,
+  isExpanded,
+  onToggleExpand,
+  productName,
+  productPrice,
+  isOmaggio
+}: SortableProductCardProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 1000 : 'auto',
+  };
+
+  return (
+    <Card
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "relative",
+        isIncomplete && "border-amber-500 bg-amber-50/50 dark:bg-amber-950/20",
+        isEmpty && "border-dashed border-muted-foreground/30",
+        isDragging && "shadow-lg ring-2 ring-primary"
+      )}
+    >
+      <CardContent className="pt-6">
+        <div 
+          className="flex justify-between items-start gap-2 cursor-pointer"
+          onClick={onToggleExpand}
+        >
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
+            {/* Drag Handle - accessible button */}
+            <button
+              type="button"
+              {...attributes}
+              {...listeners}
+              className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded touch-none focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+              aria-label={`Trascina per riordinare prodotto ${index + 1}`}
+              data-testid={`drag-handle-product-${index}`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <GripVertical className="w-4 h-4 text-muted-foreground" />
+            </button>
+            <Badge variant={isIncomplete ? "destructive" : isEmpty ? "secondary" : "outline"}>
+              Prodotto {index + 1}
+            </Badge>
+            {isOmaggio && !isExpanded && (
+              <Badge className="bg-emerald-100 text-emerald-700 border-emerald-300 text-xs">✓ Servizio Incluso</Badge>
+            )}
+            {!isExpanded && productName && (
+              <span className="text-sm text-muted-foreground truncate max-w-[140px] sm:max-w-[200px]">
+                {productName}{!isOmaggio && ` - €${productPrice.toFixed(2)}`}
+              </span>
+            )}
+            {isIncomplete && !isOmaggio && (
+              <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                ⚠️ {!hasName ? 'Inserisci nome' : 'Inserisci prezzo'}
+              </span>
+            )}
+            {isOmaggio && !hasName && !isExpanded && (
+              <span className="text-xs text-amber-600 font-medium">
+                ⚠️ Inserisci nome servizio incluso
+              </span>
+            )}
+            {!isEmpty && !isIncomplete && (
+              <span className="text-xs text-green-600 dark:text-green-400">✓</span>
+            )}
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              data-testid={`button-toggle-expand-product-${index}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleExpand();
+              }}
+              className="h-8 w-8 p-0"
+            >
+              <svg
+                className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </Button>
+            {fieldsLength > 1 && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRemove();
+                }}
+                data-testid={`button-remove-product-${index}`}
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            )}
+          </div>
+        </div>
+        {isExpanded && (
+          <div className="mt-4">
+            {children}
+            <div className="mt-4 flex justify-end">
+              <Button
+                type="button"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleExpand();
+                }}
+                className="bg-green-600 hover:bg-green-700 text-white"
+                data-testid={`button-confirm-product-${index}`}
+              >
+                ✓ Conferma prodotto
+              </Button>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+interface QuoteBuilderProps {
+  jobId: string;
+  clienteId: string;
+  jobType: JobType | JobTypeFE;
+  jobTypeSlug: JobTypeSlug;
+  open: boolean;
+  onClose: () => void;
+  editQuoteId?: string; // ID del preventivo da modificare (opzionale)
+}
+
+export default function QuoteBuilder({
+  jobId,
+  clienteId,
+  jobType,
+  jobTypeSlug,
+  open,
+  onClose,
+  editQuoteId
+}: QuoteBuilderProps) {
+  const { user } = useFirebaseAuth();
+  const { studioSettings } = useStudio();
+  const { toast } = useToast();
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+  const [selectedClauseTemplateId, setSelectedClauseTemplateId] = useState<string>('');
+  const [uploadingImages, setUploadingImages] = useState<Record<string, boolean>>({});
+  const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
+  const [frequentProductValue, setFrequentProductValue] = useState<string>('');
+  const prevFieldsCountRef = useRef<number>(0);
+  const [benefitRules, setBenefitRules] = useState<BenefitRule[]>([]);
+  const [expandedBenefitRules, setExpandedBenefitRules] = useState<Set<string>>(new Set());
+  const [requirementRules, setRequirementRules] = useState<RequirementRule[]>([]);
+  const [compatibilityProductName, setCompatibilityProductName] = useState<string | null>(null);
+  const [productOrderKeys, setProductOrderKeys] = useState<string[]>([]);
+  // Sezioni per i prodotti da catalogo (non hanno form field proprio)
+  const [catalogProductSections, setCatalogProductSections] = useState<Record<string, string>>({});
+  // Override per-quote dei prodotti catalogo (prezzo snapshot + selectable Fisso/Extra).
+  // Inizializzati dal template selezionato o dal preventivo esistente.
+  const [catalogOverrides, setCatalogOverrides] = useState<Record<string, { prezzo?: number; selectable?: boolean; isOmaggio?: boolean }>>({});
+  const [hasNonFormChanges, setHasNonFormChanges] = useState(false);
+  // Tipo di destinazione per cui saltare il reset selectable, evitando che
+  // StrictMode consumi il flag su un render intermedio col vecchio tipo.
+  const skipSelectableResetForTypeRef = useRef<string | null>(null);
+  const hydratedQuoteRef = useRef<string | null>(null);
+  const clauseChoiceMadeRef = useRef(false);
+  const clauseDefaultAppliedRef = useRef(false);
+  const originalProductStatesRef = useRef<Record<string, { prezzo: number; selectable: boolean }>>({});
+
+  // Query job per eventDate
+  const { data: job } = useQuery({
+    queryKey: ['jobs', jobId],
+    queryFn: () => getJob(jobId),
+    enabled: !!jobId
+  });
+
+  // Query preventivo esistente se in modalità edit
+  const { data: existingQuote } = useQuery({
+    queryKey: ['quotes', editQuoteId],
+    queryFn: async () => {
+      if (!editQuoteId) return null;
+      const { doc, getDoc } = await import('firebase/firestore');
+      const { db } = await import('@/lib/firebase');
+      const { collection } = await import('firebase/firestore');
+      const quoteRef = doc(collection(db, 'quotes'), editQuoteId);
+      const snapshot = await getDoc(quoteRef);
+      if (!snapshot.exists()) return null;
+      return { id: snapshot.id, ...snapshot.data() } as any;
+    },
+    enabled: !!editQuoteId && open
+  });
+
+  // Query templates
+  const { data: templates = [] } = useQuery({
+    queryKey: ['quote-templates'],
+    queryFn: getAllQuoteTemplates
+  });
+
+  // Query catalog products
+  const { data: catalogProducts = [] } = useQuery({
+    queryKey: ['products'],
+    queryFn: getAllProducts
+  });
+
+  // Query contract clause templates
+  const { data: allClauseTemplates = [], isLoading: isLoadingClauses } = useQuery({
+    queryKey: ['contract-clause-templates'],
+    queryFn: getAllClauseTemplates
+  });
+
+  // Filtro templates per tipo job usando lo slug
+  const filteredTemplates = templates.filter(t => t.jobType === jobType.slug && t.attivo);
+  
+  // Filtro contract clause templates per jobType e attivi
+  const clauseTemplates = allClauseTemplates.filter(t => t.jobType === jobTypeSlug && t.attivo);
+
+  const form = useForm<FormData>({
+    resolver: zodResolver(quoteSchema),
+    defaultValues: {
+      jobId,
+      clienteId,
+      type: 'fisso',
+      catalogProductIds: [],
+      products: [{
+        customProductId: nanoid(),
+        nome: '',
+        descrizione: '',
+        prezzo: 0,
+        selectable: false,
+        numeroFoto: 0,
+        categoria: '',
+        immagini: []
+      }],
+      theme: { ...studioSettings.quoteTheme },
+      noteInterne: '',
+      paymentScheduleConfig: {
+        autoGenerate: false,
+        numberOfPayments: 2,
+        accontoType: 'percentage',
+        accontoPercentage: 30,
+        accontoAmount: 0,
+        useEventDateReference: true,
+        accontoRelativeDays: -30,
+        rateIntervalDays: 30
+      }
+    }
+  });
+
+  useEffect(() => {
+    if (editQuoteId) return;
+    form.setValue('theme', { ...studioSettings.quoteTheme });
+  }, [
+    editQuoteId,
+    form,
+    studioSettings.quoteTheme.primaryColor,
+    studioSettings.quoteTheme.secondaryColor,
+  ]);
+
+  useEffect(() => {
+    if (!open) return;
+    clauseDefaultAppliedRef.current = false;
+  }, [open]);
+
+  useEffect(() => {
+    // Reset clausole quando cambia jobType per evitare salvataggio clausole sbagliate
+    setSelectedClauseTemplateId('');
+    form.setValue('clauseTemplateId', '', { shouldDirty: false });
+    clauseChoiceMadeRef.current = false;
+    clauseDefaultAppliedRef.current = false;
+  }, [jobTypeSlug, form]);
+
+  // Auto-select template predefinito per le clausole (dopo form init)
+  useEffect(() => {
+    if (open && !clauseDefaultAppliedRef.current && !clauseChoiceMadeRef.current && clauseTemplates.length > 0 && !selectedClauseTemplateId) {
+      clauseDefaultAppliedRef.current = true;
+      const defaultTemplate = clauseTemplates.find(t => t.predefinito);
+      if (defaultTemplate) {
+        setSelectedClauseTemplateId(defaultTemplate.id);
+        form.setValue('clauseTemplateId', defaultTemplate.id, { shouldDirty: false });
+      }
+    }
+  }, [open, clauseTemplates, selectedClauseTemplateId, form]);
+
+  // Carica dati preventivo esistente nel form quando disponibile.
+  // ⚠️ Dipende anche da catalogProducts: se i prodotti catalogo arrivano DOPO il quote,
+  // ri-idriata gli override per evitare di trattare catalog products come custom.
+  // Nota: se il preventivo NON contiene catalogProductId (solo custom), procediamo
+  // anche con catalogProducts vuoto per non bloccare l'hydration dei campi base.
+  useEffect(() => {
+    if (!open || !existingQuote || !editQuoteId) return;
+    const quoteKey = `${editQuoteId}`;
+    if (hydratedQuoteRef.current === quoteKey) return;
+    const hasCatalogRefs = Array.isArray(existingQuote.products)
+      && existingQuote.products.some((p: any) => p?.catalogProductId || p?.productId);
+    // Aspetta catalogProducts SOLO se il quote referenzia prodotti catalogo
+    if (hasCatalogRefs && (!catalogProducts || catalogProducts.length === 0)) return;
+    // Non sostituire input inseriti mentre il fetch iniziale era ancora in corso.
+    if (form.formState.isDirty) {
+      hydratedQuoteRef.current = quoteKey;
+      return;
+    }
+
+    // Separa prodotti catalogo da custom
+    const catalogIds: string[] = [];
+    const customProducts: any[] = [];
+
+    // Protezione struttura array per evitare crash se schema cambia
+    // Override per prodotti catalogo (prezzo/selectable) presi dallo snapshot del preventivo
+    const initialCatalogOverridesFromQuote: Record<string, { prezzo?: number; selectable?: boolean; isOmaggio?: boolean }> = {};
+    const quoteTypeFromExisting: 'fisso' | 'variabile' = (existingQuote.type as any) || 'fisso';
+    const defaultSelectableExisting = quoteTypeFromExisting === 'variabile';
+
+    if (Array.isArray(existingQuote.products)) {
+      existingQuote.products.forEach((product: any) => {
+        const catId = product.catalogProductId || (product.productId && catalogProducts?.find((cp: any) => cp.id === product.productId) ? product.productId : null);
+        if (catId) {
+          catalogIds.push(catId);
+          // Calcola override
+          const catalogP = catalogProducts?.find((cp: any) => cp.id === catId);
+          const catalogPrice = catalogP ? (catalogP.prezzoFinale || catalogP.prezzo || 0) : undefined;
+          const ov: { prezzo?: number; selectable?: boolean; isOmaggio?: boolean } = {};
+          if (product.isOmaggio === true) {
+            ov.isOmaggio = true;
+          } else if (catalogPrice !== undefined && Math.round((product.prezzo || 0) * 100) !== Math.round(catalogPrice * 100)) {
+            ov.prezzo = product.prezzo || 0;
+          }
+          if (!ov.isOmaggio && product.selectable !== undefined && product.selectable !== defaultSelectableExisting) {
+            ov.selectable = !!product.selectable;
+          }
+          if (ov.prezzo !== undefined || ov.selectable !== undefined || ov.isOmaggio !== undefined) {
+            initialCatalogOverridesFromQuote[catId] = ov;
+          }
+        } else {
+          const customProductId = product.customProductId || nanoid();
+          customProducts.push({
+            customProductId,
+            nome: product.nome || '',
+            descrizione: product.descrizione || '',
+            prezzo: product.prezzo || 0,
+            // Preserva selectable salvato (incl. false esplicito) — usato per Fisso/Extra
+            selectable: product.selectable !== undefined ? !!product.selectable : false,
+            numeroFoto: product.numeroFoto || 0,
+            categoria: product.categoria || '',
+            sezione: product.sezione || '',
+            immagini: product.immagini || [],
+            isOmaggio: product.isOmaggio || false
+          });
+        }
+      });
+    }
+    setCatalogOverrides(initialCatalogOverridesFromQuote);
+    originalProductStatesRef.current = {};
+
+    // Skip il reset auto del selectable SOLO se type sta effettivamente cambiando
+    // (altrimenti l'useEffect non scatta e il flag resterebbe armato per il prossimo cambio utente).
+    const targetType = existingQuote.type || 'fisso';
+    if (form.getValues('type') !== targetType) {
+      skipSelectableResetForTypeRef.current = targetType;
+    }
+
+    // Popola form
+    const hydratedProducts = customProducts.length > 0 ? customProducts : [{
+      customProductId: nanoid(),
+      nome: '',
+      descrizione: '',
+      prezzo: 0,
+      selectable: false,
+      numeroFoto: 0,
+      categoria: '',
+      immagini: []
+    }];
+    form.reset({
+      ...form.getValues(),
+      jobId,
+      clienteId,
+      type: targetType,
+      catalogProductIds: catalogIds,
+      products: hydratedProducts,
+      discountType: existingQuote.discountType || undefined,
+      discountValue: existingQuote.discountValue !== undefined ? Number(existingQuote.discountValue) || 0 : undefined,
+      theme: existingQuote.theme || form.getValues('theme'),
+      expiresAt: existingQuote.expiresAt
+        ? (existingQuote.expiresAt?.toDate ? existingQuote.expiresAt.toDate() : new Date(existingQuote.expiresAt))
+        : undefined,
+      noteInterne: existingQuote.noteInterne || '',
+      paymentScheduleConfig: existingQuote.paymentScheduleConfig || form.getValues('paymentScheduleConfig'),
+      clauseTemplateId: existingQuote.clauseTemplateId || '',
+    });
+    
+    if (existingQuote.clauseTemplateId && !clauseChoiceMadeRef.current) {
+      setSelectedClauseTemplateId(existingQuote.clauseTemplateId);
+    }
+
+    setSelectedTemplateId(existingQuote.templateId ?? '');
+    setExpandedProducts(new Set());
+    setUploadingImages({});
+    setBenefitRules(migrateBenefitRules(existingQuote.benefitRules ?? []));
+    setExpandedBenefitRules(new Set());
+    setRequirementRules(migrateRequirementRules(existingQuote.requirementRules ?? []));
+    setCompatibilityProductName(null);
+
+    // Inizializza l'ordine prodotti dall'ordine salvato nel preventivo
+    if (Array.isArray(existingQuote.products)) {
+      let customIndex = 0;
+      const initialOrderKeys = existingQuote.products.map((p: any) => {
+        const catalogId = p.catalogProductId || (
+          p.productId && catalogProducts.some((cp: any) => cp.id === p.productId) ? p.productId : null
+        );
+        if (catalogId) return `cat:${catalogId}`;
+        const customProduct = customProducts[customIndex++];
+        return `cust:${p.customProductId || customProduct?.customProductId || ''}`;
+      }).filter((key: string) => !key.endsWith('cust:'));
+      setProductOrderKeys(initialOrderKeys);
+
+      // Carica le sezioni salvate per i prodotti da catalogo (reset esplicito per evitare stale data)
+      const initialCatalogSections: Record<string, string> = {};
+      existingQuote.products.forEach((p: any) => {
+        const productId = p.productId || p.catalogProductId;
+        if (productId && p.sezione) {
+          initialCatalogSections[productId] = p.sezione;
+        }
+      });
+      setCatalogProductSections(initialCatalogSections); // sempre reset, anche se vuoto
+    }
+
+    toast({
+      title: 'Preventivo caricato',
+      description: 'Modifica i campi e salva per aggiornare'
+    });
+    hydratedQuoteRef.current = quoteKey;
+    setHasNonFormChanges(false);
+  }, [existingQuote, editQuoteId, form, toast, catalogProducts, jobId, clienteId, open]);
+
+  // Fallback benefit rules: se il preventivo non ha benefitRules propri ma ha un templateId,
+  // carica i benefit dal template aggiornato (utile se i benefit sono stati aggiunti
+  // al template DOPO la creazione del preventivo).
+  useEffect(() => {
+    if (!existingQuote || !editQuoteId) return;
+    if (!existingQuote.templateId) return;
+    if ((existingQuote.benefitRules ?? []).length > 0) return; // ha già benefit propri
+    if (templates.length === 0) return; // template non ancora caricati
+    
+    const matchingTemplate = templates.find((t: any) => t.id === existingQuote.templateId);
+    const templateBenefits = (matchingTemplate as any)?.benefitRules ?? [];
+    if (templateBenefits.length > 0) {
+      setBenefitRules(prev => {
+        // Non sovrascrivere se nel frattempo l'utente ha già aggiunto benefit manualmente
+        if (prev.length > 0) return prev;
+        return migrateBenefitRules(templateBenefits);
+      });
+    }
+  }, [existingQuote, editQuoteId, templates]);
+
+  // Fallback per i preventivi legacy: se il preventivo non ha regole proprie ma
+  // conserva il templateId, recupera le regole attuali del template associato.
+  useEffect(() => {
+    if (!existingQuote || !editQuoteId || !existingQuote.templateId) return;
+    if (existingQuote.type !== 'variabile') return;
+    if ((existingQuote.requirementRules ?? []).length > 0) return;
+    if (templates.length === 0) return;
+
+    const matchingTemplate = templates.find((template: any) => template.id === existingQuote.templateId);
+    const templateRules = (matchingTemplate as any)?.requirementRules ?? [];
+    if (templateRules.length > 0) {
+      setRequirementRules(prev => prev.length > 0 ? prev : migrateRequirementRules(templateRules));
+    }
+  }, [existingQuote, editQuoteId, templates]);
+
+  // Handler cambio template clausole
+  const handleClauseTemplateChange = (templateId: string) => {
+    clauseChoiceMadeRef.current = true;
+    setSelectedClauseTemplateId(templateId);
+    form.setValue('clauseTemplateId', templateId, { shouldDirty: true });
+    setHasNonFormChanges(true);
+  };
+
+  const { fields, append, remove, move } = useFieldArray({
+    control: form.control,
+    name: 'products',
+    shouldUnregister: false
+  });
+
+  // Mappa prezzi originali: quando si attiva omaggio, salva il prezzo precedente per ripristinarlo
+  // Auto-expand newly added custom products
+  const pendingExpandRef = useRef(false);
+  useEffect(() => {
+    if (pendingExpandRef.current) {
+      pendingExpandRef.current = false;
+      const newField = fields[fields.length - 1];
+      if (newField) {
+        setExpandedProducts(prev => new Set([...prev, newField.id]));
+      }
+    }
+    prevFieldsCountRef.current = fields.length;
+  }, [fields]);
+
+  const appendProduct = useCallback((data: Parameters<typeof append>[0]) => {
+    pendingExpandRef.current = true;
+    append({ ...data, customProductId: (data as any).customProductId || nanoid() });
+  }, [append]);
+
+  // Gestisce il cambio di sezione da ProductOrderEditor (sia per prodotti catalogo che custom)
+  const handleSectionChange = useCallback((key: string, sezione: string) => {
+    if (key.startsWith('cat:')) {
+      const productId = key.slice(4);
+      if ((catalogProductSections[productId] || '') === sezione) return;
+      setCatalogProductSections(prev => {
+        const next = { ...prev };
+        if (sezione) next[productId] = sezione;
+        else delete next[productId];
+        return next;
+      });
+      setHasNonFormChanges(true);
+    } else if (key.startsWith('cust:')) {
+      const customProductId = key.slice(5);
+      const products = form.getValues('products');
+      const idx = (products || []).findIndex((p: any) => p.customProductId === customProductId);
+      if (idx >= 0) {
+        if (((products[idx] as any).sezione || '') === sezione) return;
+        form.setValue(`products.${idx}.sezione` as any, sezione, { shouldDirty: true });
+        setHasNonFormChanges(true);
+      }
+    }
+  }, [form, catalogProductSections]);
+
+  // Drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Handle drag end for reordering products
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    if (over && active.id !== over.id) {
+      const oldIndex = fields.findIndex((field) => field.id === active.id);
+      const newIndex = fields.findIndex((field) => field.id === over.id);
+      
+      if (oldIndex !== -1 && newIndex !== -1) {
+        move(oldIndex, newIndex);
+        setHasNonFormChanges(true);
+      }
+    }
+  };
+
+  // Watch form values for totals
+  const catalogProductIds = form.watch('catalogProductIds') || [];
+  const customProducts = form.watch('products') || [];
+  
+  // Watch products for performance optimization in render loop
+  const watchedProducts = useWatch({ control: form.control, name: 'products' });
+  const quoteTypeForEditor = form.watch('type');
+
+  // Merged product list per ProductOrderEditor (catalog + custom products)
+  // Applica override prezzo/selectable e include originalPrice (listino) per i prodotti catalogo.
+  const mergedForOrderEditor = useMemo<OrderableProduct[]>(() => {
+    const defaultSelectable = quoteTypeForEditor === 'variabile';
+    const cat: OrderableProduct[] = catalogProductIds.map((id: string) => {
+      const p = catalogProducts?.find((cp: any) => cp.id === id);
+      const sezione = catalogProductSections[id];
+      const ov = catalogOverrides[id];
+      const basePrice = p?.prezzoFinale || p?.prezzo || 0;
+      const selectable = ov?.selectable !== undefined ? ov.selectable : defaultSelectable;
+      const isOmaggio = ov?.isOmaggio === true;
+      return {
+        key: `cat:${id}`,
+        nome: p?.nome || id,
+        prezzo: isOmaggio ? 0 : (ov?.prezzo !== undefined ? ov.prezzo : basePrice),
+        originalPrice: basePrice,
+        isFromCatalog: true,
+        sezione: sezione || undefined,
+        selectable: isOmaggio ? false : selectable,
+        isOmaggio,
+      };
+    });
+    const cust: OrderableProduct[] = (watchedProducts || [])
+      .filter((f: any) => f.nome?.trim())
+      .map((f: any) => ({
+        key: `cust:${f.customProductId}`,
+        nome: f.nome,
+        prezzo: f.isOmaggio ? 0 : (f.prezzo || 0),
+        sezione: f.sezione || undefined,
+        selectable: f.isOmaggio ? false : (f.selectable !== undefined ? !!f.selectable : defaultSelectable),
+        isOmaggio: f.isOmaggio === true,
+      }));
+    const products = [...cat, ...cust];
+    const nameCounts = new Map<string, number>();
+    products.forEach(product => {
+      nameCounts.set(product.nome, (nameCounts.get(product.nome) ?? 0) + 1);
+    });
+
+    return products.map(product => ({
+      ...product,
+      compatibilityCount: getMutuallyExcludedProductNames(requirementRules, product.nome)
+        .filter(name => nameCounts.has(name))
+        .length,
+      compatibilityDisabled: (nameCounts.get(product.nome) ?? 0) > 1,
+    }));
+  }, [catalogProductIds, watchedProducts, catalogProducts, catalogProductSections, catalogOverrides, quoteTypeForEditor, requirementRules]);
+
+  const compatibilityProductNames = useMemo(
+    () => [...new Set(mergedForOrderEditor.map(product => product.nome).filter(Boolean))],
+    [mergedForOrderEditor]
+  );
+  const duplicateCompatibilityProductNames = useMemo(
+    () => new Set(mergedForOrderEditor.filter(product => product.compatibilityDisabled).map(product => product.nome)),
+    [mergedForOrderEditor]
+  );
+
+  useEffect(() => {
+    if (
+      compatibilityProductName &&
+      (
+        !compatibilityProductNames.includes(compatibilityProductName) ||
+        duplicateCompatibilityProductNames.has(compatibilityProductName)
+      )
+    ) {
+      setCompatibilityProductName(null);
+    }
+  }, [compatibilityProductName, compatibilityProductNames, duplicateCompatibilityProductNames]);
+
+  const handleCompatibilityClick = useCallback((key: string) => {
+    const product = mergedForOrderEditor.find(item => item.key === key);
+    if (!product) return;
+    if (product.compatibilityDisabled) {
+      toast({
+        title: 'Nomi prodotto duplicati',
+        description: 'Rinomina i prodotti con lo stesso nome per poter distinguere le incompatibilità.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setCompatibilityProductName(current => current === product.nome ? null : product.nome);
+  }, [mergedForOrderEditor, toast]);
+
+  // Handler modifica prezzo inline (override solo per questo preventivo)
+  const handleEditorPriceChange = useCallback((key: string, prezzo: number) => {
+    if (key.startsWith('cat:')) {
+      const id = key.slice(4);
+      setCatalogOverrides(prev => ({ ...prev, [id]: { ...(prev[id] || {}), prezzo } }));
+      setHasNonFormChanges(true);
+    } else if (key.startsWith('cust:')) {
+      const customProductId = key.slice(5);
+      const products = form.getValues('products') || [];
+      const idx = products.findIndex((p: any) => p.customProductId === customProductId);
+      if (idx >= 0) form.setValue(`products.${idx}.prezzo` as any, prezzo, { shouldDirty: true });
+      setHasNonFormChanges(true);
+    }
+  }, [form]);
+
+  // Handler ripristino prezzo listino (rimuove override prezzo)
+  const handleEditorResetPrice = useCallback((key: string) => {
+    if (!key.startsWith('cat:')) return;
+    const id = key.slice(4);
+    setCatalogOverrides(prev => {
+      if (!prev[id] || prev[id].prezzo === undefined) return prev;
+      const { prezzo, ...rest } = prev[id];
+      const next = { ...prev };
+      if (Object.keys(rest).length > 0) next[id] = rest;
+      else delete next[id];
+      return next;
+    });
+    setHasNonFormChanges(true);
+  }, []);
+
+  // Handler toggle Omaggio (sia catalogo che custom)
+  const handleEditorOmaggioChange = useCallback((key: string, isOmaggio: boolean) => {
+    if (key.startsWith('cat:')) {
+      const id = key.slice(4);
+      const currentOverride = catalogOverrides[id] || {};
+      const catalogProduct = catalogProducts.find(product => product.id === id);
+      const snapshotKey = `cat:${id}`;
+      if (isOmaggio) {
+        originalProductStatesRef.current[snapshotKey] = {
+          prezzo: currentOverride.prezzo ?? catalogProduct?.prezzoFinale ?? catalogProduct?.prezzo ?? 0,
+          selectable: currentOverride.selectable ?? form.getValues('type') === 'variabile',
+        };
+      }
+      setCatalogOverrides(prev => {
+        const curr = prev[id] || {};
+        if (isOmaggio) {
+          return { ...prev, [id]: { ...curr, isOmaggio: true } };
+        }
+        const { isOmaggio: _, ...rest } = curr;
+        const saved = originalProductStatesRef.current[snapshotKey];
+        delete originalProductStatesRef.current[snapshotKey];
+        const next = { ...prev };
+        const restored = saved ? { ...rest, prezzo: saved.prezzo, selectable: saved.selectable } : rest;
+        if (Object.keys(restored).length > 0) next[id] = restored;
+        else delete next[id];
+        return next;
+      });
+    } else if (key.startsWith('cust:')) {
+      const customProductId = key.slice(5);
+      const products = form.getValues('products') || [];
+      const idx = products.findIndex((p: any) => p.customProductId === customProductId);
+      if (idx >= 0) {
+        const snapshotKey = `cust:${customProductId}`;
+        if (isOmaggio) {
+          originalProductStatesRef.current[snapshotKey] = {
+            prezzo: products[idx].prezzo || 0,
+            selectable: products[idx].selectable !== undefined
+              ? !!products[idx].selectable
+              : form.getValues('type') === 'variabile',
+          };
+        }
+        const saved = originalProductStatesRef.current[snapshotKey];
+        form.setValue(`products.${idx}.isOmaggio` as any, isOmaggio, { shouldDirty: true });
+        if (isOmaggio) {
+          form.setValue(`products.${idx}.prezzo` as any, 0, { shouldDirty: true });
+          form.setValue(`products.${idx}.selectable` as any, false, { shouldDirty: true });
+        } else if (saved) {
+          form.setValue(`products.${idx}.prezzo` as any, saved.prezzo, { shouldDirty: true });
+          form.setValue(`products.${idx}.selectable` as any, saved.selectable, { shouldDirty: true });
+          delete originalProductStatesRef.current[snapshotKey];
+        }
+      }
+    }
+    setHasNonFormChanges(true);
+  }, [form, catalogOverrides, catalogProducts]);
+
+  // Handler toggle Fisso/Extra (solo per preventivi variabili)
+  const handleEditorSelectableChange = useCallback((key: string, selectable: boolean) => {
+    if (key.startsWith('cat:')) {
+      const id = key.slice(4);
+      setCatalogOverrides(prev => ({ ...prev, [id]: { ...(prev[id] || {}), selectable } }));
+      setHasNonFormChanges(true);
+    } else if (key.startsWith('cust:')) {
+      const customProductId = key.slice(5);
+      const products = form.getValues('products') || [];
+      const idx = products.findIndex((p: any) => p.customProductId === customProductId);
+      if (idx >= 0) form.setValue(`products.${idx}.selectable` as any, selectable, { shouldDirty: true });
+    }
+    setHasNonFormChanges(true);
+  }, [form]);
+  // Lista sezioni già usate nel preventivo corrente (per autocomplete)
+  const sectionSuggestions = useMemo<string[]>(() => {
+    const seen = new Set<string>();
+    mergedForOrderEditor.forEach(p => { if (p.sezione) seen.add(p.sezione); });
+    return Array.from(seen).sort();
+  }, [mergedForOrderEditor]);
+
+  // Rileva prodotti catalogo con prezzo cambiato rispetto al preventivo salvato
+  const priceMismatches = useMemo(() => {
+    if (!editQuoteId || !existingQuote || !catalogProducts.length) return [];
+    const result: { nome: string; oldPrice: number; newPrice: number }[] = [];
+    (existingQuote.products || []).forEach((p: any) => {
+      const pid = p.catalogProductId || p.productId;
+      if (!pid) return;
+      const current = catalogProducts.find((cp: any) => cp.id === pid);
+      if (!current) return;
+      const currentPrice = current.prezzoFinale ?? current.prezzo ?? 0;
+      if (Math.round(p.prezzo * 100) !== Math.round(currentPrice * 100)) {
+        result.push({ nome: p.nome || current.nome || pid, oldPrice: p.prezzo, newPrice: currentPrice });
+      }
+    });
+    return result;
+  }, [editQuoteId, existingQuote, catalogProducts]);
+
+  const discountType = form.watch('discountType');
+  const discountValue = form.watch('discountValue') || 0;
+  const quoteType = form.watch('type');
+
+  // Aggiorna selectable su tutti i prodotti quando l'admin cambia il tipo preventivo.
+  // ⚠️ NON deve scattare al mount né dopo caricamento di template/preventivo esistente,
+  // altrimenti distruggerebbe il flag Fisso/Extra impostato per-prodotto dal template.
+  const prevQuoteTypeRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    // Primo render: registra senza resettare
+    if (prevQuoteTypeRef.current === undefined) {
+      prevQuoteTypeRef.current = quoteType;
+      return;
+    }
+    // Salta se template/quote loader ha appena cambiato type programmaticamente
+    if (skipSelectableResetForTypeRef.current === quoteType) {
+      skipSelectableResetForTypeRef.current = null;
+      prevQuoteTypeRef.current = quoteType;
+      return;
+    }
+    // Stesso valore: niente da fare
+    if (prevQuoteTypeRef.current === quoteType) return;
+    prevQuoteTypeRef.current = quoteType;
+    // Solo qui = cambio reale dell'utente: riallinea il default ai nuovi prodotti
+    const products = form.getValues('products');
+    if (products && products.length > 0) {
+      const shouldBeSelectable = quoteType === 'variabile';
+      const updatedProducts = products.map(p => ({ ...p, selectable: shouldBeSelectable }));
+      form.setValue('products', updatedProducts, { shouldDirty: true, shouldTouch: false, shouldValidate: false });
+    }
+    // Reset anche gli override selectable dei prodotti catalogo
+    setCatalogOverrides(prev => {
+      let changed = false;
+      const next: typeof prev = {};
+      Object.entries(prev).forEach(([k, v]) => {
+        if (v.selectable !== undefined) {
+          changed = true;
+          const { selectable, ...rest } = v;
+          if (Object.keys(rest).length > 0) next[k] = rest;
+        } else {
+          next[k] = v;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [quoteType, form]);
+
+  // Watch payment schedule config for simulator - watch individual fields to ensure updates
+  const paymentConfigAutoGenerate = form.watch('paymentScheduleConfig.autoGenerate');
+  const paymentConfigNumberOfPayments = form.watch('paymentScheduleConfig.numberOfPayments');
+  const paymentConfigAccontoType = form.watch('paymentScheduleConfig.accontoType');
+  const paymentConfigAccontoPercentage = form.watch('paymentScheduleConfig.accontoPercentage');
+  const paymentConfigAccontoAmount = form.watch('paymentScheduleConfig.accontoAmount');
+  const paymentConfigAccontoRelativeDays = form.watch('paymentScheduleConfig.accontoRelativeDays');
+  const paymentConfigRateIntervalDays = form.watch('paymentScheduleConfig.rateIntervalDays');
+  const paymentConfigUseEventDateReference = form.watch('paymentScheduleConfig.useEventDateReference');
+  
+  // Rebuild paymentConfig object for calculations
+  const paymentConfig = useMemo(() => ({
+    autoGenerate: paymentConfigAutoGenerate ?? false,
+    numberOfPayments: paymentConfigNumberOfPayments ?? 2,
+    accontoType: paymentConfigAccontoType ?? 'percentage',
+    accontoPercentage: paymentConfigAccontoPercentage ?? 30,
+    accontoAmount: paymentConfigAccontoAmount ?? 0,
+    accontoRelativeDays: paymentConfigAccontoRelativeDays ?? 0,
+    rateIntervalDays: paymentConfigRateIntervalDays ?? 30,
+    useEventDateReference: paymentConfigUseEventDateReference ?? false,
+  }), [
+    paymentConfigAutoGenerate,
+    paymentConfigNumberOfPayments,
+    paymentConfigAccontoType,
+    paymentConfigAccontoPercentage,
+    paymentConfigAccontoAmount,
+    paymentConfigAccontoRelativeDays,
+    paymentConfigRateIntervalDays,
+    paymentConfigUseEventDateReference,
+  ]);
+  const autoGenerate = paymentConfig?.autoGenerate || false;
+
+  // Calcola totale unificato (catalog + custom) - wrapped in useMemo to prevent loop
+  // Applica override prezzo del template/quote se presente (snapshot)
+  const totaleCatalogo = useMemo(() => {
+    return catalogProductIds.reduce((sum, id) => {
+      const ov = catalogOverrides[id];
+      if (ov?.isOmaggio) return sum;
+      if (ov?.prezzo !== undefined) return sum + ov.prezzo;
+      const product = catalogProducts.find(p => p.id === id);
+      return sum + (product?.prezzoFinale || product?.prezzo || 0);
+    }, 0);
+  }, [catalogProductIds, catalogProducts, catalogOverrides]);
+
+  const totaleCustom = useMemo(() => {
+    return customProducts
+      .filter(p => p.nome?.trim())
+      .reduce((sum, p) => sum + ((p as any).isOmaggio ? 0 : (p.prezzo || 0)), 0);
+  }, [customProducts]);
+
+  const subtotale = totaleCatalogo + totaleCustom;
+  const liveDiscountValidation = useMemo(
+    () => validateDiscount(subtotale, discountType, discountValue),
+    [subtotale, discountType, discountValue]
+  );
+
+  // Calcola totali con sconto usando utility condivisa
+  const { totalBeforeDiscount, discountAmount, totalAfterDiscount } = useMemo(() => {
+    return calculateQuoteTotals(subtotale, discountType, discountValue);
+  }, [subtotale, discountType, discountValue]);
+
+  // Validazione + simulazione piano pagamenti real-time
+  const paymentSchedulePreview = useMemo(() => {
+    if (!autoGenerate || !paymentConfig || totalAfterDiscount === 0) return null;
+
+    // Valida config prima di calcolare
+    const validation = validatePaymentScheduleConfig(paymentConfig, totalAfterDiscount);
+    if (!validation.valid) {
+      console.warn('Configurazione pagamenti non valida:', validation.error);
+      return null;
+    }
+
+    // Converti eventDate da Timestamp a Date
+    const eventDate = job?.eventDate ? 
+      (job.eventDate instanceof Date ? job.eventDate : (job.eventDate as any).toDate?.() || null) 
+      : null;
+
+    try {
+      return calculatePaymentSchedule(totalAfterDiscount, paymentConfig, eventDate || undefined);
+    } catch (error) {
+      console.error('Errore calcolo preview pagamenti:', error);
+      return null;
+    }
+  }, [autoGenerate, paymentConfig, totalAfterDiscount, job?.eventDate]);
+
+  // Validazione errori per alert inline
+  const paymentConfigValidation = useMemo(() => {
+    if (!autoGenerate || !paymentConfig || totalAfterDiscount === 0) return { valid: true };
+    return validatePaymentScheduleConfig(paymentConfig, totalAfterDiscount);
+  }, [autoGenerate, paymentConfig, totalAfterDiscount]);
+
+  // Load template
+  const handleLoadTemplate = (templateId: string) => {
+    const template = templates.find(t => t.id === templateId);
+    if (!template) return;
+
+    setSelectedTemplateId(templateId);
+    originalProductStatesRef.current = {};
+    // Evita il reset automatico del selectable SOLO se type cambia davvero
+    // (altrimenti l'useEffect non scatta e il flag resterebbe armato per il prossimo cambio utente).
+    if (form.getValues('type') !== template.type) {
+      skipSelectableResetForTypeRef.current = template.type;
+    }
+    form.setValue('type', template.type);
+
+    // Separa prodotti catalogo (hanno productId) da prodotti custom
+    const catalogIds = template.defaultProducts
+      .filter(p => p.productId)
+      .map(p => p.productId!);
+    const customProds = template.defaultProducts
+      .filter(p => !p.productId)
+      .map(p => ({
+        ...p,
+        customProductId: (p as any).customProductId || nanoid(),
+        // Preserva selectable dal template (Fisso/Extra impostato dall'admin); fallback al default
+        selectable: p.selectable !== undefined ? !!p.selectable : template.type === 'variabile',
+      }));
+
+    // Costruisci catalogOverrides dal template (prezzo + selectable per prodotti catalogo)
+    const tmplOverrides: Record<string, { prezzo?: number; selectable?: boolean; isOmaggio?: boolean }> = {};
+    const defaultSelectableTmpl = template.type === 'variabile';
+    template.defaultProducts
+      .filter(p => p.productId)
+      .forEach(p => {
+        const catalogP = catalogProducts?.find((cp: any) => cp.id === p.productId);
+        const catalogPrice = catalogP ? (catalogP.prezzoFinale || catalogP.prezzo || 0) : undefined;
+        const ov: { prezzo?: number; selectable?: boolean; isOmaggio?: boolean } = {};
+        if ((p as any).isOmaggio === true) {
+          ov.isOmaggio = true;
+        } else if (catalogPrice !== undefined && Math.round(p.prezzo * 100) !== Math.round(catalogPrice * 100)) {
+          ov.prezzo = p.prezzo;
+        }
+        if (!ov.isOmaggio && p.selectable !== undefined && p.selectable !== defaultSelectableTmpl) {
+          ov.selectable = !!p.selectable;
+        }
+        if (ov.prezzo !== undefined || ov.selectable !== undefined || ov.isOmaggio !== undefined) {
+          tmplOverrides[p.productId!] = ov;
+        }
+      });
+    setCatalogOverrides(tmplOverrides);
+    form.setValue('catalogProductIds', catalogIds);
+    form.setValue('products', customProds.length > 0 ? customProds : [{
+      customProductId: nanoid(),
+      nome: '', descrizione: '', prezzo: 0, selectable: false, numeroFoto: 0, categoria: '', immagini: [], isOmaggio: false
+    }]);
+    form.setValue('theme', { ...studioSettings.quoteTheme });
+
+    // Ripristina le sezioni dei prodotti catalogo dal template
+    const templateCatalogSections: Record<string, string> = {};
+    template.defaultProducts.forEach(p => {
+      if (p.productId && (p as any).sezione) {
+        templateCatalogSections[p.productId] = (p as any).sezione;
+      }
+    });
+    setCatalogProductSections(templateCatalogSections);
+
+    // Ripristina l'ordine prodotti (catalogo + custom interleaved) dal template
+    let customOrderIndex = 0;
+    const templateOrderKeys = template.defaultProducts
+      .map((p: any) => p.productId
+        ? `cat:${p.productId}`
+        : `cust:${customProds[customOrderIndex++]?.customProductId || ''}`)
+      .filter((k: string) => !k.endsWith('cust:'));
+    setProductOrderKeys(templateOrderKeys);
+    setHasNonFormChanges(true);
+
+    // Carica anche lo sconto dal template (coercizione a number per sicurezza)
+    const tmplDiscountType = (template as any).discountType;
+    const tmplDiscountValue = (template as any).discountValue;
+    if (tmplDiscountType) {
+      form.setValue('discountType', tmplDiscountType);
+      form.setValue('discountValue', tmplDiscountValue !== undefined ? Number(tmplDiscountValue) || 0 : 0);
+    } else {
+      form.setValue('discountType', undefined);
+      form.setValue('discountValue', undefined);
+    }
+
+    // Carica i benefit rules dal template (solo per template variabili)
+    setBenefitRules(migrateBenefitRules((template as any).benefitRules ?? []));
+    setExpandedBenefitRules(new Set());
+    setRequirementRules(template.type === 'variabile'
+      ? migrateRequirementRules((template as any).requirementRules ?? [])
+      : []);
+    setCompatibilityProductName(null);
+  };
+
+  // Upload immagine prodotto custom
+  const handleImageUpload = async (file: File, productIndex: number) => {
+    const initialProduct = form.getValues(`products.${productIndex}`);
+    const customProductId = initialProduct?.customProductId;
+    if (!customProductId) return;
+    try {
+      // Controllo limite 5MB
+      if (file.size > 5 * 1024 * 1024) {
+        toast({
+          title: 'File troppo grande',
+          description: 'L\'immagine deve essere inferiore a 5MB',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      setUploadingImages(prev => ({ ...prev, [customProductId]: true }));
+
+      // Upload su Firebase Storage
+      const storageRef = ref(storage, `quote-products/${nanoid()}_${file.name}`);
+      await uploadBytes(storageRef, file);
+      const downloadURL = await getDownloadURL(storageRef);
+
+      // Aggiorna form
+      const currentProducts = form.getValues('products') || [];
+      const currentIndex = currentProducts.findIndex(item => item.customProductId === customProductId);
+      if (currentIndex < 0) return;
+      const currentImages = form.getValues(`products.${currentIndex}.immagini`) || [];
+      form.setValue(`products.${currentIndex}.immagini`, [...currentImages, downloadURL], { shouldDirty: true });
+      setHasNonFormChanges(true);
+
+      toast({
+        title: 'Immagine caricata',
+        description: 'L\'immagine è stata aggiunta al prodotto'
+      });
+    } catch (error) {
+      console.error('Errore upload immagine:', error);
+      toast({
+        title: 'Errore',
+        description: 'Impossibile caricare l\'immagine',
+        variant: 'destructive'
+      });
+    } finally {
+      setUploadingImages(prev => {
+        const next = { ...prev };
+        if (!(form.getValues('products') || []).some(product => product.customProductId === customProductId)) {
+          delete next[customProductId];
+        } else {
+          next[customProductId] = false;
+        }
+        return next;
+      });
+    }
+  };
+
+  // Rimuovi immagine
+  const handleRemoveImage = (customProductId: string, imageIndex: number) => {
+    const products = form.getValues('products') || [];
+    const productIndex = products.findIndex(product => product.customProductId === customProductId);
+    if (productIndex < 0) return;
+    const currentImages = form.getValues(`products.${productIndex}.immagini`) || [];
+    const newImages = currentImages.filter((_, idx) => idx !== imageIndex);
+    form.setValue(`products.${productIndex}.immagini`, newImages, { shouldDirty: true });
+    setHasNonFormChanges(true);
+  };
+
+  // Mutation crea/aggiorna preventivo
+  const createMutation = useMutation({
+    mutationFn: async (data: FormData) => {
+      if (!editQuoteId && !user?.uid) {
+        throw new Error('La sessione è scaduta. Accedi di nuovo e riprova a creare il preventivo.');
+      }
+      // Se stiamo modificando un preventivo esistente
+      if (editQuoteId) {
+        const { doc, updateDoc } = await import('firebase/firestore');
+        const { db } = await import('@/lib/firebase');
+        const { collection, Timestamp } = await import('firebase/firestore');
+
+        // Helper to clean undefined values from objects (Firestore doesn't accept undefined)
+        const cleanObject = (obj: any): any => {
+          if (Array.isArray(obj)) {
+            return obj.filter(v => v !== undefined).map(cleanObject);
+          }
+          if (obj && typeof obj === 'object') {
+            const cleaned: any = {};
+            Object.entries(obj).forEach(([key, value]) => {
+              if (value !== undefined) {
+                cleaned[key] = cleanObject(value);
+              }
+            });
+            return cleaned;
+          }
+          return obj;
+        };
+
+        // Merge catalog + custom products
+        let mergedProducts = cleanObject(mergeQuoteProducts(
+          data.catalogProductIds,
+          data.products.filter(p => p.nome.trim()),
+          catalogProducts,
+          data.type,
+          catalogOverrides
+        ));
+
+        // Applica le sezioni ai prodotti da catalogo (gestite separatamente dal form)
+        if (Object.keys(catalogProductSections).length > 0) {
+          mergedProducts = (mergedProducts as any[]).map((p: any) => {
+            if (p.productId && catalogProductSections[p.productId]) {
+              return { ...p, sezione: catalogProductSections[p.productId] };
+            }
+            return p;
+          });
+        }
+
+        // Applica l'ordine prodotti scelto dall'admin tramite ProductOrderEditor
+        if (productOrderKeys.length > 0) {
+          const productMap = new Map<string, any>(
+            (mergedProducts as any[]).map((p: any) => {
+              const k = p.productId ? `cat:${p.productId}` : `cust:${p.customProductId}`;
+              return [k, p];
+            })
+          );
+          const sorted: any[] = productOrderKeys.map(k => productMap.get(k)).filter(Boolean);
+          // Aggiungi eventuali prodotti non presenti nella lista ordine
+          productMap.forEach((p: any, k: string) => { if (!productOrderKeys.includes(k)) sorted.push(p); });
+          mergedProducts = sorted;
+        }
+
+        const subtotale = mergedProducts.reduce((sum: number, p: any) => sum + p.prezzo, 0);
+
+        const discountValidation = validateDiscount(subtotale, data.discountType, data.discountValue);
+        if (!discountValidation.valid) {
+          throw new Error(discountValidation.error);
+        }
+
+        const finalTotals = calculateQuoteTotals(subtotale, data.discountType, data.discountValue);
+
+        // Prepara clausole per l'update
+        let updateContractClauses;
+        let updateClauseTemplateId;
+        
+        if (selectedClauseTemplateId) {
+          const selectedTemplate = clauseTemplates.find(t => t.id === selectedClauseTemplateId);
+          if (selectedTemplate) {
+            updateContractClauses = selectedTemplate.clauses.map(c => ({
+              id: nanoid(),
+              text: c.text,
+              required: c.required,
+              ordine: c.ordine
+            }));
+            updateClauseTemplateId = selectedClauseTemplateId;
+          }
+        }
+
+        const updateData: any = {
+          type: data.type,
+          products: mergedProducts,
+          totalBeforeDiscount: finalTotals.totalBeforeDiscount,
+          totalAfterDiscount: finalTotals.totalAfterDiscount,
+          expiresAt: data.expiresAt ? Timestamp.fromDate(data.expiresAt) : null,
+          noteInterne: data.noteInterne || '',
+          updatedAt: Timestamp.now(),
+          theme: data.theme,
+          discountType: data.discountType,
+          discountValue: data.discountValue || 0,
+          paymentScheduleConfig: data.paymentScheduleConfig,
+          benefitRules: benefitRules.length > 0 ? benefitRules : [],
+          requirementRules: data.type === 'variabile'
+            ? pruneRequirementRules(requirementRules, mergedProducts.map((product: QuoteProduct) => product.nome))
+            : [],
+        };
+        
+        // Aggiorna clausole se selezionato un template
+        if (updateClauseTemplateId) {
+          updateData.clauseTemplateId = updateClauseTemplateId;
+          updateData.contractClauses = updateContractClauses;
+        }
+
+        // Clean all undefined values before saving to Firestore
+        const cleanedUpdateData = cleanObject(updateData);
+
+        const quoteRef = doc(collection(db, 'quotes'), editQuoteId);
+        await updateDoc(quoteRef, cleanedUpdateData);
+        return editQuoteId;
+      }
+
+      // Altrimenti crea nuovo preventivo (logica esistente)
+      // Merge catalog + custom products
+      let mergedProductsNew = mergeQuoteProducts(
+        data.catalogProductIds,
+        data.products.filter(p => p.nome.trim()), // Solo custom con nome
+        catalogProducts,
+        data.type,
+        catalogOverrides
+      );
+
+      // Applica le sezioni ai prodotti da catalogo (gestite separatamente dal form)
+      if (Object.keys(catalogProductSections).length > 0) {
+        mergedProductsNew = mergedProductsNew.map((p: any) => {
+          if (p.productId && catalogProductSections[p.productId]) {
+            return { ...p, sezione: catalogProductSections[p.productId] };
+          }
+          return p;
+        });
+      }
+
+      // Applica l'ordine prodotti scelto dall'admin tramite ProductOrderEditor
+      if (productOrderKeys.length > 0) {
+        const productMapNew = new Map(
+          mergedProductsNew.map((p: any) => {
+            const k = p.productId ? `cat:${p.productId}` : `cust:${p.customProductId}`;
+            return [k, p];
+          })
+        );
+        const sortedNew = productOrderKeys.map(k => productMapNew.get(k)).filter(Boolean) as typeof mergedProductsNew;
+        productMapNew.forEach((p: any, k: string) => { if (!productOrderKeys.includes(k)) sortedNew.push(p); });
+        mergedProductsNew = sortedNew;
+      }
+      const mergedProducts = mergedProductsNew;
+
+      // Prepara clausole: priorità template Firestore → fallback DEFAULT_CLAUSES
+      let contractClauses;
+      let usedTemplateId;
+      
+      if (selectedClauseTemplateId) {
+        const selectedTemplate = clauseTemplates.find(t => t.id === selectedClauseTemplateId);
+        if (selectedTemplate) {
+          // Usa clausole dal template Firestore
+          contractClauses = selectedTemplate.clauses.map(c => ({
+            id: nanoid(),
+            text: c.text,
+            required: c.required,
+            ordine: c.ordine
+          }));
+          usedTemplateId = selectedClauseTemplateId;
+        } else {
+          // Template ID fornito ma non trovato - ERROR critico
+          throw new Error(`Template clausole con ID "${selectedClauseTemplateId}" non trovato. Riprova o seleziona un altro template.`);
+        }
+      }
+      
+      // Fallback a DEFAULT_CLAUSES se nessun template selezionato
+      if (!contractClauses) {
+        const clauses = DEFAULT_CLAUSES[jobTypeSlug] || [];
+        contractClauses = clauses.map(c => ({
+          id: nanoid(),
+          text: c.text,
+          required: c.required,
+          ordine: c.ordine
+        }));
+        
+        // Info toast solo se query completata E ci sono template disponibili ma non selezionati
+        if (!isLoadingClauses && clauseTemplates.length > 0) {
+          toast({
+            title: 'Clausole di default',
+            description: 'Nessun template clausole selezionato. Uso clausole predefinite hardcoded.',
+            variant: 'default'
+          });
+        }
+      }
+
+      // Calcola totali finali con sconto
+      const subtotale = mergedProducts.reduce((sum, p) => sum + p.prezzo, 0);
+      
+      // Valida sconto PRIMA di calcolare (blocca input invalidi invece di correggere silenziosamente)
+      const discountValidation = validateDiscount(subtotale, data.discountType, data.discountValue);
+      if (!discountValidation.valid) {
+        throw new Error(discountValidation.error);
+      }
+      
+      const finalTotals = calculateQuoteTotals(subtotale, data.discountType, data.discountValue);
+
+      // Prepara jobInfo e clientiInfo per il portale firmato
+      const jobInfo = job && job.eventDate ? {
+        nomeEvento: job.nomeEvento,
+        eventDate: job.eventDate instanceof Date ? job.eventDate : (job.eventDate as any).toDate?.() || new Date(),
+        rito: job.rituLocation || '',
+        location: job.eventLocation || ''
+      } : undefined;
+
+      // Fetch clienti completi da Firestore per includere tutti i dati
+      const clientiInfo = [];
+      if (job?.clientiIds && job.clientiIds.length > 0) {
+        const { getClienteById } = await import('@/lib/clienti');
+        for (const clienteId of job.clientiIds) {
+          try {
+            const cliente = await getClienteById(clienteId);
+            if (cliente) {
+              clientiInfo.push({
+                id: cliente.id,
+                nome: cliente.nome,
+                cognome: cliente.cognome,
+                email: cliente.email,
+                telefono: cliente.cellulare1 || cliente.cellulare2 || '',
+                indirizzo: cliente.via || '',
+                cap: cliente.cap || '',
+                citta: cliente.citta || '',
+                ...(cliente.provincia && { provincia: cliente.provincia }),
+                ...(cliente.codiceFiscale && { codiceFiscale: cliente.codiceFiscale }),
+                ...(cliente.partitaIva && { partitaIva: cliente.partitaIva }),
+                ...(cliente.ragioneSociale && { ragioneSociale: cliente.ragioneSociale }),
+                ...(cliente.codiceSdi && { codiceSdi: cliente.codiceSdi }),
+                ...(cliente.pec && { pec: cliente.pec })
+              });
+            }
+          } catch (error) {
+            console.warn(`Impossibile caricare cliente ${clienteId}:`, error);
+          }
+        }
+      }
+
+      const quoteData = {
+        jobId: data.jobId,
+        clienteId: data.clienteId,
+        type: data.type,
+        products: mergedProducts,
+        discountType: data.discountType,
+        discountValue: data.discountValue,
+        totalBeforeDiscount: finalTotals.totalBeforeDiscount,
+        totalAfterDiscount: finalTotals.totalAfterDiscount,
+        theme: data.theme,
+        expiresAt: data.expiresAt || undefined,
+        noteInterne: data.noteInterne,
+        paymentScheduleConfig: data.paymentScheduleConfig,
+        templateId: selectedTemplateId || undefined,
+        ...(usedTemplateId && { clauseTemplateId: usedTemplateId }),
+        contractClauses,
+        ...(jobInfo && { jobInfo }),
+        ...(clientiInfo.length > 0 && { clientiInfo }),
+        ...(benefitRules.length > 0 && { benefitRules }),
+        ...(data.type === 'variabile' && requirementRules.length > 0 && {
+          requirementRules: pruneRequirementRules(requirementRules, mergedProducts.map(product => product.nome)),
+        }),
+      };
+
+      const userId = user?.uid;
+      if (!userId) {
+        throw new Error('La sessione è scaduta. Accedi di nuovo e riprova a creare il preventivo.');
+      }
+      return createQuote(quoteData, userId);
+    },
+    onSuccess: async (quoteId: string) => {
+      // Refetch queries to ensure UI updates before closing dialog
+      await queryClient.refetchQueries({ queryKey: ['quotes', 'job', jobId] });
+      await queryClient.invalidateQueries({ queryKey: ['jobs', jobId] });
+      if (editQuoteId) {
+        await queryClient.invalidateQueries({ queryKey: ['quotes', editQuoteId] });
+      }
+      
+      toast({
+        title: editQuoteId ? 'Preventivo aggiornato!' : 'Preventivo creato!',
+        description: editQuoteId 
+          ? 'Le modifiche sono state salvate correttamente.' 
+          : 'Il preventivo è stato salvato. Potrai inviarlo manualmente dalla pagina del lavoro.'
+      });
+      
+      // Reset form with default values to preserve structure
+      form.reset({
+        jobId,
+        clienteId,
+        type: 'fisso',
+        catalogProductIds: [],
+        products: [{
+          customProductId: nanoid(),
+          nome: '',
+          descrizione: '',
+          prezzo: 0,
+          selectable: false,
+          numeroFoto: 0,
+          categoria: '',
+          immagini: []
+        }],
+        theme: { ...studioSettings.quoteTheme },
+        noteInterne: '',
+        paymentScheduleConfig: {
+          autoGenerate: false,
+          numberOfPayments: 2,
+          accontoType: 'percentage',
+          accontoPercentage: 30,
+          accontoAmount: 0,
+          useEventDateReference: true,
+          accontoRelativeDays: -30,
+          rateIntervalDays: 30
+        }
+      });
+      setCatalogProductSections({});
+      setProductOrderKeys([]);
+      setRequirementRules([]);
+      setCompatibilityProductName(null);
+      // Reset anche gli override per evitare leak su sessioni successive
+      setCatalogOverrides({});
+      originalProductStatesRef.current = {};
+      setHasNonFormChanges(false);
+      hydratedQuoteRef.current = null;
+      clauseChoiceMadeRef.current = false;
+      clauseDefaultAppliedRef.current = false;
+      setSelectedClauseTemplateId('');
+      setSelectedTemplateId('');
+      skipSelectableResetForTypeRef.current = null;
+      onClose();
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Errore',
+        description: error.message,
+        variant: 'destructive'
+      });
+    }
+  });
+
+  const onSubmit = (data: FormData) => {
+    createMutation.mutate(data);
+  };
+
+  const onInvalidSubmit = (errors: any) => {
+    if (!errors.products) return;
+    const currentProducts = form.getValues('products') || [];
+    const invalidIds = currentProducts.flatMap((product, index) => {
+      const hasName = !!product.nome?.trim();
+      const hasPrice = Number(product.prezzo) > 0;
+      const invalid = product.isOmaggio ? !hasName : (hasName && !hasPrice) || (!hasName && hasPrice);
+      return invalid && fields[index]?.id ? [fields[index].id] : [];
+    });
+    setExpandedProducts(new Set(invalidIds.length ? invalidIds : fields.map(field => field.id)));
+  };
+
+  // Stabilizza il callback per evitare loop infiniti
+  const handleDialogChange = useCallback(
+    (isOpen: boolean) => {
+      if (!isOpen) {
+        if (createMutation.isPending) return;
+        if (form.formState.isDirty || hasNonFormChanges) {
+          if (window.confirm('Hai delle modifiche non salvate. Sei sicuro di voler chiudere?')) {
+            onClose();
+          }
+        } else {
+          onClose();
+        }
+      }
+    },
+    [onClose, form, hasNonFormChanges, createMutation.isPending]
+  );
+
+  return (
+    <Dialog open={open} onOpenChange={handleDialogChange}>
+      {/* FIX: Rimuovere overflow dal DialogContent perché blocca i click sui Select/Popover
+           e spostare lo scroll in un wrapper interno */}
+      <DialogContent 
+        className="w-[98vw] sm:max-w-4xl p-0"
+        onInteractOutside={(e) => { if (createMutation.isPending) e.preventDefault(); }}
+        onEscapeKeyDown={(e) => { if (createMutation.isPending) e.preventDefault(); }}
+      >
+        
+        {/* Wrapper scrollabile */}
+        <div className="max-h-[90vh] overflow-y-auto px-6 py-4">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <JobTypeIcon slug={jobType.slug} size="lg" />
+              <FileText className="w-5 h-5" />
+              {editQuoteId ? 'Modifica Preventivo' : 'Crea Preventivo'}
+            </DialogTitle>
+            <DialogDescription>
+              Crea un preventivo personalizzato per il lavoro <span style={{ color: jobType.colore }} className="font-semibold">{jobType.nome}</span>
+            </DialogDescription>
+          </DialogHeader>
+
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit, onInvalidSubmit)} className="space-y-6">
+            {/* Template selector */}
+            {filteredTemplates.length > 0 && (
+              <Card className="bg-blue-50 border-blue-200">
+                <CardHeader>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Palette className="w-4 h-4" />
+                    Carica da Template
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <Select value={selectedTemplateId} onValueChange={handleLoadTemplate}>
+                    <SelectTrigger data-testid="select-template">
+                      <SelectValue placeholder="Seleziona template..." />
+                    </SelectTrigger>
+                    <SelectContent position="popper" sideOffset={4} className="z-[9999]">
+                      {filteredTemplates.map(template => (
+                        <SelectItem key={template.id} value={template.id}>
+                          {template.nome} ({template.type})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  
+                  {/* Anteprima Template Selezionato */}
+                  {selectedTemplateId && (() => {
+                    const selectedTemplate = filteredTemplates.find(t => t.id === selectedTemplateId);
+                    if (!selectedTemplate) return null;
+                    
+                    const templateDiscount = (selectedTemplate as any).discountType;
+                    const templateDiscountValue = (selectedTemplate as any).discountValue || 0;
+                    const productCount = selectedTemplate.defaultProducts?.length || 0;
+                    const templateTotal = selectedTemplate.defaultProducts?.reduce((sum, p) => sum + (p.prezzo || 0), 0) || 0;
+                    
+                    // Calcola prezzo finale scontato
+                    let finalPrice = templateTotal;
+                    if (templateDiscount === 'amount') {
+                      finalPrice = Math.max(0, templateTotal - templateDiscountValue);
+                    } else if (templateDiscount === 'percent') {
+                      finalPrice = templateTotal * (1 - templateDiscountValue / 100);
+                    }
+                    
+                    return (
+                      <div className="bg-white rounded-lg border p-3 space-y-2 text-sm">
+                        <div className="font-medium text-blue-800 flex items-center gap-2">
+                          <Eye className="w-4 h-4" />
+                          Anteprima Template
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-2 text-muted-foreground">
+                          <div className="flex items-center gap-1">
+                            <Package className="w-3.5 h-3.5" />
+                            <span>{productCount} prodotti</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Euro className="w-3.5 h-3.5" />
+                            <span className={templateDiscount ? 'line-through' : ''}>
+                              €{templateTotal.toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        {templateDiscount && (
+                          <>
+                            <div className="flex items-center gap-1 text-orange-600">
+                              <Tag className="w-3.5 h-3.5" />
+                              <span>
+                                Sconto: {templateDiscount === 'percent' 
+                                  ? `${templateDiscountValue}%` 
+                                  : `€${templateDiscountValue.toFixed(2)}`}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1 text-green-600 font-semibold">
+                              <Euro className="w-3.5 h-3.5" />
+                              <span>Prezzo Finale: €{finalPrice.toFixed(2)}</span>
+                            </div>
+                          </>
+                        )}
+                        
+                        {productCount > 0 && (
+                          <div className="pt-2 border-t">
+                            <div className="text-xs text-muted-foreground mb-1">Prodotti inclusi ({productCount}):</div>
+                            <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto">
+                              {selectedTemplate.defaultProducts?.map((p, idx) => (
+                                <Badge key={idx} variant="secondary" className="text-xs">
+                                  {p.nome} - €{(p.prezzo || 0).toFixed(0)}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </CardContent>
+              </Card>
+            )}
+
+            <div className="grid grid-cols-2 gap-4">
+              {/* Tipo preventivo */}
+              <FormField
+                control={form.control}
+                name="type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tipo Preventivo *</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-quote-type">
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent position="popper" sideOffset={4} className="z-[9999]">
+                        <SelectItem value="fisso">Fisso (prezzo totale)</SelectItem>
+                        <SelectItem value="variabile">Variabile (cliente sceglie)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      {field.value === 'fisso'
+                        ? 'Il cliente vede solo il totale e firma'
+                        : 'Il cliente può selezionare i prodotti desiderati'}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Template Clausole Contrattuali */}
+              <FormItem>
+                <FormLabel>Template Clausole Contrattuali</FormLabel>
+                <Select 
+                  value={selectedClauseTemplateId || '_default'} 
+                  onValueChange={(val) => {
+                    clauseChoiceMadeRef.current = true;
+                    setHasNonFormChanges(true);
+                    if (val === '_default') {
+                      setSelectedClauseTemplateId('');
+                      form.setValue('clauseTemplateId', '', { shouldDirty: true });
+                    } else {
+                      handleClauseTemplateChange(val);
+                    }
+                  }}
+                  data-testid="select-clause-template"
+                >
+                  <FormControl>
+                    <SelectTrigger data-testid="select-clause-template-trigger">
+                      <SelectValue placeholder="Seleziona template..." />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent position="popper" sideOffset={4} className="z-[9999]">
+                    {/* Opzione default sempre disponibile */}
+                    <SelectItem value="_default">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary">DEFAULT</Badge>
+                        <span>Clausole predefinite</span>
+                      </div>
+                    </SelectItem>
+                    {clauseTemplates.map(template => (
+                      <SelectItem key={template.id} value={template.id}>
+                        <div className="flex items-center gap-2">
+                          {template.predefinito && <Badge variant="default">PREDEFINITO</Badge>}
+                          <span>{template.titolo}</span>
+                          <span className="text-xs text-muted-foreground">
+                            ({template.clauses.length} clausole)
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormDescription>
+                  {clauseTemplates.length > 0 
+                    ? 'Template clausole gestito in Admin Dashboard'
+                    : 'Nessun template disponibile - uso clausole di default'}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              {/* Data scadenza */}
+              <FormField
+                control={form.control}
+                name="expiresAt"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Data Scadenza</FormLabel>
+                    <FormControl>
+                      <DateInput
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder="gg/mm/aaaa"
+                        data-testid="input-expires-at-manual"
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Il link preventivo scadrà dopo questa data
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <Separator />
+
+            {/* Sezione 1: Catalogo Prodotti */}
+            <div>
+              <h3 className="text-lg font-semibold mb-4">1. Prodotti dal Catalogo</h3>
+
+              {/* Avviso prezzi disallineati dal catalogo */}
+              {priceMismatches.length > 0 && (
+                <Alert className="mb-4 border-amber-300 bg-amber-50">
+                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+                  <AlertDescription className="text-amber-800">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <span className="font-semibold">Prezzi cambiati nel catalogo</span>
+                        <span className="text-sm ml-1">— il preventivo salvato ha prezzi diversi da quelli attuali:</span>
+                        <ul className="mt-1 space-y-0.5">
+                          {priceMismatches.map((m, i) => (
+                            <li key={i} className="text-sm">
+                              <span className="font-medium">{m.nome}</span>:{' '}
+                              <span className="line-through text-amber-600">{m.oldPrice.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}</span>
+                              {' → '}
+                              <span className="font-semibold text-emerald-700">{m.newPrice.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div className="flex items-center gap-1 text-xs text-amber-700 whitespace-nowrap mt-0.5">
+                        <RefreshCw className="h-3 w-3" />
+                        Salva per aggiornare
+                      </div>
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              <Card>
+                <CardContent className="pt-6">
+                  <FormField
+                    control={form.control}
+                    name="catalogProductIds"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormControl>
+                          <CatalogProductSelector
+                            selectedProductIds={field.value}
+                            onSelectionChange={(nextIds) => {
+                              const removedIds = field.value.filter((id: string) => !nextIds.includes(id));
+                              if (removedIds.length > 0) {
+                                setCatalogOverrides(prev => {
+                                  const next = { ...prev };
+                                  removedIds.forEach(id => delete next[id]);
+                                  return next;
+                                });
+                                setCatalogProductSections(prev => {
+                                  const next = { ...prev };
+                                  removedIds.forEach(id => delete next[id]);
+                                  return next;
+                                });
+                                setProductOrderKeys(prev => prev.filter(key => !removedIds.some(id => key === `cat:${id}`)));
+                                removedIds.forEach(id => delete originalProductStatesRef.current[`cat:${id}`]);
+                              }
+                              field.onChange(nextIds);
+                            }}
+                            products={catalogProducts}
+                            defaultCategory={jobTypeSlug}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </CardContent>
+              </Card>
+            </div>
+
+            <Separator />
+
+            {/* Sezione 2: Prodotti Custom */}
+            <div>
+              {form.getFieldState('products').error?.message && (
+                <Alert variant="destructive" className="mb-3" data-testid="alert-product-validation">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>{form.getFieldState('products').error?.message}</AlertDescription>
+                </Alert>
+              )}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                <h3 className="text-lg font-semibold">2. Prodotti Custom (opzionale)</h3>
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Dropdown prodotti frequenti */}
+                  <Select
+                    value={frequentProductValue}
+                    onValueChange={(value) => {
+                      const product = FREQUENT_PRODUCTS.find(p => p.nome === value);
+                      if (product) {
+                        appendProduct({
+                          nome: product.nome,
+                          descrizione: product.descrizione,
+                          prezzo: product.prezzo,
+                          selectable: form.watch('type') === 'variabile',
+                          numeroFoto: 0,
+                          categoria: '',
+                          immagini: [],
+                          isOmaggio: false
+                        });
+                      }
+                      setFrequentProductValue('');
+                    }}
+                  >
+                    <SelectTrigger className="w-full sm:w-[200px]" data-testid="select-frequent-product">
+                      <SelectValue placeholder="Prodotti frequenti..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {FREQUENT_PRODUCTS.map((product) => (
+                        <SelectItem key={product.nome} value={product.nome}>
+                          <span className="flex items-center justify-between gap-2">
+                            <span className="truncate">{product.nome}</span>
+                            <span className="text-muted-foreground text-xs">€{product.prezzo}</span>
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => appendProduct({
+                      nome: '',
+                      descrizione: '',
+                      prezzo: 0,
+                      selectable: form.watch('type') === 'variabile',
+                      numeroFoto: 0,
+                      categoria: '',
+                      immagini: [],
+                      isOmaggio: false
+                    })}
+                    data-testid="button-add-custom-product"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Vuoto
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="border-rose-300 text-rose-600 hover:bg-rose-50"
+                    onClick={() => appendProduct({
+                      nome: '',
+                      descrizione: '',
+                      prezzo: 0,
+                      selectable: false,
+                      numeroFoto: 0,
+                      categoria: '',
+                      immagini: [],
+                      isOmaggio: true
+                    })}
+                    data-testid="button-add-omaggio-product"
+                  >
+                    ✓ Servizio Incluso
+                  </Button>
+                </div>
+              </div>
+
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={fields.map(f => f.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="space-y-4">
+                    {fields.map((field, index) => {
+                      const productName = watchedProducts?.[index]?.nome || '';
+                      const productPrice = watchedProducts?.[index]?.prezzo || 0;
+                      const isOmaggioProduct = watchedProducts?.[index]?.isOmaggio || false;
+                      const customProductId = watchedProducts?.[index]?.customProductId || '';
+                      const hasName = productName.trim().length > 0;
+                      const hasPrice = productPrice > 0;
+                      const isIncomplete = !isOmaggioProduct && ((hasName && !hasPrice) || (!hasName && hasPrice));
+                      const isEmpty = !hasName && !hasPrice;
+                      
+                      return (
+                        <SortableProductCard
+                          key={field.id}
+                          id={field.id}
+                          index={index}
+                          isIncomplete={isIncomplete}
+                          isEmpty={isEmpty}
+                          hasName={hasName}
+                          fieldsLength={fields.length}
+                          onRemove={() => {
+                            setExpandedProducts(prev => {
+                              const newSet = new Set(prev);
+                              newSet.delete(field.id);
+                              return newSet;
+                            });
+                            if (customProductId) {
+                              delete originalProductStatesRef.current[`cust:${customProductId}`];
+                              setUploadingImages(prev => {
+                                const next = { ...prev };
+                                delete next[customProductId];
+                                return next;
+                              });
+                            }
+                            setHasNonFormChanges(true);
+                            remove(index);
+                          }}
+                          isExpanded={expandedProducts.has(field.id)}
+                          onToggleExpand={() => {
+                            setExpandedProducts(prev => {
+                              const newSet = new Set(prev);
+                              if (newSet.has(field.id)) {
+                                newSet.delete(field.id);
+                              } else {
+                                newSet.add(field.id);
+                              }
+                              return newSet;
+                            });
+                          }}
+                          productName={productName}
+                          productPrice={productPrice}
+                          isOmaggio={isOmaggioProduct}
+                        >
+                          <div className="space-y-4">
+
+                        {/* Toggle Omaggio */}
+                        <FormField
+                          control={form.control}
+                          name={`products.${index}.isOmaggio`}
+                          render={({ field }) => (
+                            <div className="flex items-center gap-3 p-3 rounded-lg bg-rose-50 border border-rose-200">
+                              <Switch
+                                checked={field.value || false}
+                                onCheckedChange={(checked) => {
+                                  const customProductId = watchedProducts?.[index]?.customProductId;
+                                  if (customProductId) {
+                                    handleEditorOmaggioChange(`cust:${customProductId}`, checked);
+                                  }
+                                }}
+                                data-testid={`switch-omaggio-${index}`}
+                              />
+                              <div>
+                                <Label className="text-emerald-700 font-medium">✓ Servizio Incluso</Label>
+                                <p className="text-xs text-emerald-600">Prezzo = €0, visibile nel preventivo come "Servizio Incluso"</p>
+                              </div>
+                            </div>
+                          )}
+                        />
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <FormField
+                            control={form.control}
+                            name={`products.${index}.nome`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Nome *</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    placeholder="es. Album 30x30"
+                                    {...field}
+                                    data-testid={`input-product-name-${index}`}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name={`products.${index}.prezzo`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>
+                                  Prezzo €{isOmaggioProduct ? '' : ' *'}
+                                </FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="number"
+                                    placeholder={isOmaggioProduct ? "Omaggio (€0)" : "0"}
+                                    {...field}
+                                    disabled={isOmaggioProduct}
+                                    value={isOmaggioProduct ? 0 : field.value}
+                                    onChange={e => field.onChange(parseFloat(e.target.value) || 0)}
+                                    data-testid={`input-product-price-${index}`}
+                                    className={isOmaggioProduct ? "bg-rose-50 text-rose-400" : ""}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+
+                        <FormField
+                          control={form.control}
+                          name={`products.${index}.descrizione`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Descrizione</FormLabel>
+                              <FormControl>
+                                <Textarea
+                                  placeholder="Descrizione dettagliata del prodotto..."
+                                  rows={2}
+                                  {...field}
+                                  data-testid={`textarea-product-description-${index}`}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <FormField
+                            control={form.control}
+                            name={`products.${index}.numeroFoto`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>N° Foto</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="number"
+                                    placeholder="0"
+                                    {...field}
+                                    value={field.value || ''}
+                                    onChange={e => field.onChange(parseInt(e.target.value) || 0)}
+                                    data-testid={`input-product-photos-${index}`}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name={`products.${index}.categoria`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Categoria</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    placeholder="es. Album, Video, Stampe"
+                                    {...field}
+                                    value={field.value || ''}
+                                    data-testid={`input-product-category-${index}`}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+
+                        {/* Sezione (solo preventivi variabili) */}
+                        {quoteType === 'variabile' && (() => {
+                          // Usa sectionSuggestions che include sezioni sia da prodotti custom che da catalogo
+                          const uniqueSections = sectionSuggestions;
+                          return (
+                            <FormField
+                              control={form.control}
+                              name={`products.${index}.sezione`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel className="flex items-center gap-1.5">
+                                    <span>Sezione</span>
+                                    <span className="text-xs text-muted-foreground font-normal">(opzionale — raggruppa prodotti nel portale cliente)</span>
+                                  </FormLabel>
+                                  <FormControl>
+                                    <div className="relative">
+                                      <Input
+                                        placeholder="es. Servizi Principali, Esperienze Esclusive, Luxury Touch"
+                                        {...field}
+                                        value={field.value || ''}
+                                        list={`sezione-suggestions-${index}`}
+                                        data-testid={`input-product-sezione-${index}`}
+                                      />
+                                      {uniqueSections.length > 0 && (
+                                        <datalist id={`sezione-suggestions-${index}`}>
+                                          {uniqueSections.map(s => (
+                                            <option key={s} value={s} />
+                                          ))}
+                                        </datalist>
+                                      )}
+                                    </div>
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          );
+                        })()}
+
+                        {/* Upload Immagine Prodotto */}
+                        <FormField
+                          control={form.control}
+                          name={`products.${index}.immagini`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="flex items-center gap-2">
+                                <ImageIcon className="w-4 h-4" />
+                                Immagine Prodotto (opzionale)
+                              </FormLabel>
+                              <FormControl>
+                                <div className="space-y-3">
+                                  {/* Preview immagini caricate */}
+                                  {field.value && field.value.length > 0 ? (
+                                    <div className="grid grid-cols-3 gap-2">
+                                      {field.value.map((url, imgIndex) => (
+                                        <div key={imgIndex} className="relative group">
+                                          <img
+                                            src={url}
+                                            alt={`Prodotto ${index + 1} - Immagine ${imgIndex + 1}`}
+                                            className="w-full h-24 object-cover rounded-md border"
+                                          />
+                                          <Button
+                                            type="button"
+                                            size="icon"
+                                            variant="destructive"
+                                            className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                                            onClick={() => handleRemoveImage(customProductId, imgIndex)}
+                                          >
+                                            <X className="h-3 w-3" />
+                                          </Button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <div className="border-2 border-dashed rounded-md p-4 text-center">
+                                      <img
+                                        src={placeholderUrl}
+                                        alt="Placeholder"
+                                        className="w-32 h-24 mx-auto object-cover rounded-md mb-2"
+                                      />
+                                      <p className="text-xs text-muted-foreground">
+                                        Nessuna immagine caricata
+                                      </p>
+                                    </div>
+                                  )}
+
+                                  {/* Upload button */}
+                                  <div>
+                                    <Input
+                                      type="file"
+                                      accept="image/*"
+                                      className="hidden"
+                                      id={`upload-${fields[index]?.id}`}
+                                      onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) handleImageUpload(file, index);
+                                      }}
+                                      data-testid={`input-upload-image-${index}`}
+                                    />
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      disabled={uploadingImages[customProductId]}
+                                      onClick={() => document.getElementById(`upload-${fields[index]?.id}`)?.click()}
+                                      data-testid={`button-upload-image-${index}`}
+                                    >
+                                      {uploadingImages[customProductId] ? (
+                                        <>
+                                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                          Caricamento...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Upload className="w-4 h-4 mr-2" />
+                                          Carica Immagine
+                                        </>
+                                      )}
+                                    </Button>
+                                  </div>
+                                </div>
+                              </FormControl>
+                              <FormDescription>
+                                Aggiungi un'immagine rappresentativa del prodotto (max 5MB)
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                          </div>
+                        </SortableProductCard>
+                      );
+                    })}
+                  </div>
+                </SortableContext>
+              </DndContext>
+            </div>
+
+            {/* Sezione Prodotti - ordina, modifica prezzo (solo per questo preventivo) e marca Fisso/Extra */}
+            {mergedForOrderEditor.length >= 1 && (
+              <>
+                <Separator />
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <GripVertical className="h-4 w-4 text-muted-foreground" />
+                    <h3 className="text-sm font-semibold text-sage-800">
+                      Prodotti del preventivo
+                    </h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {mergedForOrderEditor.length > 1 && 'Trascina per riordinare. '}
+                    Clicca sul prezzo per modificarlo <strong>solo per questo preventivo</strong> (il listino non viene toccato).
+                    {quoteType === 'variabile' && ' Usa il toggle FISSO/EXTRA per scegliere quali prodotti il cliente può deselezionare.'}
+                  </p>
+                  <ProductOrderEditor
+                    products={mergedForOrderEditor}
+                    orderKeys={productOrderKeys}
+                    onOrderChange={(keys) => {
+                      setProductOrderKeys(keys);
+                      setHasNonFormChanges(true);
+                    }}
+                    onSectionChange={quoteType === 'variabile' ? handleSectionChange : undefined}
+                    sectionSuggestions={quoteType === 'variabile' ? sectionSuggestions : undefined}
+                    onPriceChange={handleEditorPriceChange}
+                    onResetPrice={handleEditorResetPrice}
+                    onSelectableChange={handleEditorSelectableChange}
+                    showSelectableToggle={quoteType === 'variabile'}
+                    onOmaggioChange={handleEditorOmaggioChange}
+                    onCompatibilityClick={quoteType === 'variabile' ? handleCompatibilityClick : undefined}
+                  />
+                </div>
+              </>
+            )}
+
+            {quoteType === 'variabile' && compatibilityProductName && (
+              <Card className="border-rose-200 bg-rose-50/40" data-testid="panel-product-compatibility">
+                <CardHeader className="flex flex-row items-center justify-between gap-3 py-3 px-4">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Lock className="h-4 w-4 text-rose-600" />
+                    Compatibilità: {compatibilityProductName}
+                  </CardTitle>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setCompatibilityProductName(null)}
+                    aria-label="Chiudi compatibilità prodotto"
+                    data-testid="button-close-product-compatibility"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </CardHeader>
+                <CardContent className="space-y-3 px-4 pb-4">
+                  <p className="text-xs text-muted-foreground">
+                    Se il cliente sceglie <strong>{compatibilityProductName}</strong>, gli altri prodotti selezionati qui
+                    saranno disattivati. L’esclusione vale anche al contrario.
+                  </p>
+                  {duplicateCompatibilityProductNames.size > 0 && (
+                    <p className="text-xs text-amber-800">
+                      I prodotti con nome duplicato non sono selezionabili qui: rinominali nell’offerta per distinguerli.
+                    </p>
+                  )}
+                  {compatibilityProductNames.filter(name => name !== compatibilityProductName).length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {compatibilityProductNames
+                        .filter(name => name !== compatibilityProductName)
+                        .map(name => {
+                          const isDuplicate = duplicateCompatibilityProductNames.has(name);
+                          const isIncompatible = getMutuallyExcludedProductNames(
+                            requirementRules,
+                            compatibilityProductName
+                          ).includes(name);
+                          return (
+                            <button
+                              key={name}
+                              type="button"
+                              disabled={isDuplicate}
+                              aria-pressed={isIncompatible}
+                              title={isDuplicate ? 'Rinomina i prodotti con lo stesso nome per distinguerli' : undefined}
+                              onClick={() => {
+                                setHasNonFormChanges(true);
+                                setRequirementRules(prev => setMutualExclusionPair(
+                                  prev,
+                                  compatibilityProductName,
+                                  name,
+                                  !isIncompatible,
+                                  () => nanoid()
+                                ));
+                              }}
+                              className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                                isIncompatible
+                                  ? 'border-rose-600 bg-rose-600 text-white'
+                                  : 'border-gray-300 bg-white text-gray-700 hover:border-rose-400 hover:bg-rose-50'
+                              }`}
+                              data-testid={`button-toggle-incompatible-${encodeURIComponent(name)}`}
+                            >
+                              {isIncompatible ? '✓ ' : ''}{name}
+                            </button>
+                          );
+                        })}
+                    </div>
+                  ) : (
+                    <p className="text-xs italic text-muted-foreground">
+                      Aggiungi almeno un altro prodotto al preventivo per configurare un’esclusione.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            <Separator />
+
+            {/* Sezione 3: Benefici Inclusi Automatici - solo preventivi variabili */}
+            {quoteType === 'variabile' && (() => {
+              const allSelectableNames: string[] = [
+                ...catalogProductIds.map((id: string) => {
+                  const p = catalogProducts.find((cp: any) => cp.id === id);
+                  return p?.nome ?? '';
+                }).filter(Boolean),
+                ...customProducts.filter((p: any) => p.nome?.trim()).map((p: any) => p.nome),
+              ];
+
+              const addBenefitRule = () => {
+                const newRule: BenefitRule = {
+                  id: nanoid(),
+                  benefitProductNames: [],
+                  enabled: true,
+                  requiredProductNames: [],
+                  minSelectableCount: undefined,
+                };
+                setBenefitRules(prev => [...prev, newRule]);
+                setExpandedBenefitRules(prev => new Set([...prev, newRule.id]));
+                setHasNonFormChanges(true);
+              };
+
+              const updateRule = (id: string, patch: Partial<BenefitRule>) => {
+                setHasNonFormChanges(true);
+                setBenefitRules(prev =>
+                  prev.map(r => r.id === id ? { ...r, ...patch } : r)
+                );
+              };
+
+              const removeRule = (id: string) => {
+                setHasNonFormChanges(true);
+                setBenefitRules(prev => prev.filter(r => r.id !== id));
+              };
+
+              const toggleRuleExpand = (id: string) => {
+                setExpandedBenefitRules(prev => {
+                  const next = new Set(prev);
+                  if (next.has(id)) next.delete(id); else next.add(id);
+                  return next;
+                });
+              };
+
+              const previewStates = benefitRules.length > 0
+                ? computeBenefitStates(benefitRules, [], allSelectableNames)
+                : [];
+
+              return (
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-lg font-semibold flex items-center gap-2">
+                        <Gift className="w-5 h-5 text-emerald-600" />
+                        3. Benefici Inclusi Automatici
+                      </h3>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Si attivano automaticamente quando il cliente seleziona determinate combinazioni di servizi.
+                      </p>
+                    </div>
+                    <Button type="button" variant="outline" size="sm" onClick={addBenefitRule}
+                      className="gap-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50">
+                      <Plus className="w-4 h-4" />
+                      Aggiungi benefit
+                    </Button>
+                  </div>
+
+                  {benefitRules.length === 0 && (
+                    <Card className="border-dashed border-emerald-200 bg-emerald-50/40">
+                      <CardContent className="py-8 text-center text-sm text-muted-foreground">
+                        <Gift className="w-8 h-8 mx-auto mb-2 text-emerald-300" />
+                        Nessun benefit configurato. Aggiungine uno per mostrare ai clienti cosa possono sbloccare.
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  <div className="space-y-3">
+                    {benefitRules.map(rule => {
+                      const isExpanded = expandedBenefitRules.has(rule.id);
+                      const preview = previewStates.find(s => s.rule.id === rule.id);
+                      return (
+                        <Card key={rule.id} className={`border transition-colors ${rule.enabled ? 'border-emerald-200 bg-emerald-50/30' : 'border-gray-200 bg-gray-50 opacity-60'}`}>
+                          <CardHeader className="py-3 px-4">
+                            <div className="flex items-center gap-3">
+                              <button type="button" onClick={() => toggleRuleExpand(rule.id)}
+                                className="flex-1 flex items-center gap-3 text-left min-w-0">
+                                {isExpanded
+                                  ? <ChevronUp className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                  : <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                }
+                                <span className="font-medium truncate text-sm">
+                                  {(rule.benefitProductNames ?? []).length > 0
+                                    ? <><span className="text-emerald-700">INCLUSI:</span> {rule.benefitProductNames.join(', ')}</>
+                                    : <span className="text-muted-foreground italic">Nessun prodotto selezionato</span>
+                                  }
+                                </span>
+                                {(rule.benefitProductNames ?? []).length > 0 && (
+                                  <Badge className="flex-shrink-0 text-xs bg-emerald-100 text-emerald-700 border-0">
+                                    {rule.benefitProductNames.length} {rule.benefitProductNames.length === 1 ? 'servizio incluso' : 'servizi inclusi'}
+                                  </Badge>
+                                )}
+                                {(rule.requiredProductNames ?? []).length > 0 && (
+                                  <Badge variant="outline" className="flex-shrink-0 text-xs text-gray-500 border-gray-300">
+                                    {(rule.requiredProductNames ?? []).length} trigger
+                                  </Badge>
+                                )}
+                                {/* Warning: regola senza condizioni → sempre sbloccata */}
+                                {(rule.benefitProductNames ?? []).length > 0 &&
+                                  (rule.requiredProductNames ?? []).length === 0 &&
+                                  !rule.minSelectableCount && (
+                                  <Badge className="flex-shrink-0 text-xs bg-amber-100 text-amber-700 border border-amber-300">
+                                    ⚠ Sempre attivo
+                                  </Badge>
+                                )}
+                              </button>
+                              <Switch
+                                checked={rule.enabled}
+                                onCheckedChange={(v) => updateRule(rule.id, { enabled: v })}
+                                aria-label="Attiva benefit"
+                              />
+                              <Button type="button" variant="ghost" size="sm"
+                                onClick={() => removeRule(rule.id)}
+                                className="text-destructive hover:bg-destructive/10 flex-shrink-0 h-7 w-7 p-0">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          </CardHeader>
+
+                          {isExpanded && (
+                            <CardContent className="px-4 pb-4 space-y-4 border-t border-emerald-100 pt-4">
+
+                              {/* Servizi Inclusi (benefit rule) */}
+                              <div className="border border-emerald-300 rounded-lg p-3 space-y-2 bg-emerald-50/50">
+                                <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide flex items-center gap-1.5">
+                                  <Gift className="w-3.5 h-3.5" />
+                                  Servizi Inclusi
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  Seleziona uno o più prodotti del preventivo che diventano <strong>Servizi Inclusi</strong> (€0) quando si verificano le condizioni. Puoi selezionarne quanti vuoi.
+                                </p>
+                                {allSelectableNames.length > 0 ? (
+                                  <div className="flex flex-wrap gap-2">
+                                    {allSelectableNames.map(name => {
+                                      const isSelected = (rule.benefitProductNames ?? []).includes(name);
+                                      return (
+                                        <button
+                                          key={name}
+                                          type="button"
+                                          onClick={() => {
+                                            const current = rule.benefitProductNames ?? [];
+                                            updateRule(rule.id, {
+                                              benefitProductNames: isSelected
+                                                ? current.filter(n => n !== name)
+                                                : [...current, name]
+                                            });
+                                          }}
+                                          className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
+                                            isSelected
+                                              ? 'bg-emerald-600 text-white border-emerald-600'
+                                              : 'bg-white text-gray-700 border-gray-300 hover:border-emerald-400 hover:bg-emerald-50'
+                                          }`}
+                                        >
+                                          {isSelected && '✓ '}{name}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <p className="text-xs text-muted-foreground italic">
+                                    Aggiungi prodotti al preventivo per selezionarne come Servizi Inclusi.
+                                  </p>
+                                )}
+                              </div>
+
+                              {/* Condizioni di attivazione */}
+                              <div className="border border-gray-200 rounded-lg p-3 space-y-3 bg-white">
+                                <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                                  Condizioni di attivazione
+                                </p>
+
+                                <div className="space-y-2">
+                                  <Label className="text-xs font-medium">Prodotti trigger richiesti (tutti)</Label>
+                                  {allSelectableNames.filter(n => !(rule.benefitProductNames ?? []).includes(n)).length > 0 ? (
+                                    <div className="flex flex-wrap gap-2">
+                                      {allSelectableNames
+                                        .filter(name => !(rule.benefitProductNames ?? []).includes(name))
+                                        .map(name => {
+
+                                          const isRequired = (rule.requiredProductNames ?? []).includes(name);
+                                          return (
+                                            <button
+                                              key={name}
+                                              type="button"
+                                              onClick={() => {
+                                                const current = rule.requiredProductNames ?? [];
+                                                updateRule(rule.id, {
+                                                  requiredProductNames: isRequired
+                                                    ? current.filter(n => n !== name)
+                                                    : [...current, name]
+                                                });
+                                              }}
+                                              className={`text-xs px-2 py-1 rounded-full border transition-colors ${
+                                                isRequired
+                                                  ? 'bg-blue-600 text-white border-blue-600'
+                                                  : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
+                                              }`}
+                                            >
+                                              {name}
+                                            </button>
+                                          );
+                                        })}
+                                    </div>
+                                  ) : (
+                                    <p className="text-xs text-muted-foreground italic">
+                                      {allSelectableNames.length === 0
+                                        ? 'Aggiungi prodotti al preventivo per impostare i trigger.'
+                                        : 'Aggiungi altri prodotti oltre al servizio incluso.'}
+                                    </p>
+                                  )}
+                                  {(rule.requiredProductNames ?? []).length > 0 && (
+                                    <p className="text-xs text-blue-700">
+                                      Trigger: {rule.requiredProductNames!.join(', ')}
+                                    </p>
+                                  )}
+                                </div>
+
+                                <Separator className="my-1" />
+
+                                <div className="space-y-1.5">
+                                  <Label className="text-xs font-medium">OPPURE: numero minimo servizi selezionati</Label>
+                                  <div className="flex items-center gap-2">
+                                    <Input
+                                      type="number"
+                                      min={1}
+                                      placeholder="Es. 5"
+                                      className="w-28"
+                                      value={rule.minSelectableCount ?? ''}
+                                      onChange={e => updateRule(rule.id, {
+                                        minSelectableCount: e.target.value ? parseInt(e.target.value) : undefined
+                                      })}
+                                    />
+                                    <span className="text-xs text-muted-foreground">servizi selezionati</span>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">
+                                    Si attiva quando il cliente seleziona almeno N servizi (qualsiasi combinazione).
+                                  </p>
+                                </div>
+                              </div>
+
+                              {(rule.benefitProductNames ?? []).length > 0 && preview && (
+                                <div className="text-xs rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-muted-foreground">
+                                  <span className="font-medium">Anteprima messaggio (0 servizi selezionati):</span>{' '}
+                                  {preview.feedbackMessage}
+                                </div>
+                              )}
+                            </CardContent>
+                          )}
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+
+            <Separator />
+
+            {/* Sconto Finale */}
+            <Card className="bg-orange-50 border-orange-200">
+              <CardHeader>
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Tag className="w-4 h-4" />
+                  Sconto Finale (Opzionale)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Tipo Sconto */}
+                <FormField
+                  control={form.control}
+                  name="discountType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tipo Sconto</FormLabel>
+                      <Select value={field.value || 'none'} onValueChange={(val) => field.onChange(val === 'none' ? undefined : val)}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-discount-type">
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent position="popper" sideOffset={4} className="z-[9999]">
+                          <SelectItem value="none">Nessuno sconto</SelectItem>
+                          <SelectItem value="amount">
+                            <div className="flex items-center gap-2">
+                              <Euro className="w-4 h-4" />
+                              <span>Sconto Fisso (€)</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="percent">
+                            <div className="flex items-center gap-2">
+                              <Percent className="w-4 h-4" />
+                              <span>Sconto Percentuale (%)</span>
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Valore Sconto (solo se tipo è selezionato) */}
+                {discountType && (
+                  <FormField
+                    control={form.control}
+                    name="discountValue"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          Valore Sconto {discountType === 'amount' ? '(€)' : '(%)'}
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max={discountType === 'percent' ? '100' : undefined}
+                            placeholder={discountType === 'amount' ? '0.00' : '0'}
+                            {...field}
+                            value={field.value || ''}
+                            onChange={e => field.onChange(parseFloat(e.target.value) || 0)}
+                            data-testid="input-discount-value"
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {discountType === 'amount' 
+                            ? `Max: €${subtotale.toFixed(2)}`
+                            : 'Max: 100%'
+                          }
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+                {!liveDiscountValidation.valid && (
+                  <Alert variant="destructive" data-testid="alert-discount-validation">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>{liveDiscountValidation.error}</AlertDescription>
+                  </Alert>
+                )}
+              </CardContent>
+            </Card>
+
+            <Separator />
+
+            {/* Configurazione Piano Pagamenti Avanzata - SOLO per moduli FISSI */}
+            {quoteType === 'fisso' && (
+            <Card className="bg-blue-50 border-blue-200">
+              <CardHeader>
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <CreditCard className="w-4 h-4" />
+                  Piano Pagamenti (Opzionale)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="paymentScheduleConfig.autoGenerate"
+                  render={({ field }) => (
+                    <FormItem className="flex items-center justify-between space-y-0">
+                      <div className="space-y-1">
+                        <FormLabel>Genera automaticamente alla firma</FormLabel>
+                        <FormDescription>
+                          Crea piano pagamenti quando il cliente firma il preventivo
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          data-testid="switch-auto-payment"
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                {autoGenerate && (
+                  <>
+                    {/* Alert validazione inline */}
+                    {!paymentConfigValidation.valid && (
+                      <div className="flex items-start gap-2 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                        <span className="text-orange-600 text-sm font-medium">
+                          ⚠️ {paymentConfigValidation.error}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Numero Rate */}
+                    <FormField
+                      control={form.control}
+                      name="paymentScheduleConfig.numberOfPayments"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Numero Rate Totali</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              placeholder="es. 3"
+                              min={1}
+                              max={10}
+                              {...field}
+                              onChange={e => field.onChange(parseInt(e.target.value) || 2)}
+                              data-testid="input-num-payments"
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            Totale rate incluso acconto (min 1, max 10)
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {/* Dual-Mode Acconto */}
+                    <div className="space-y-3">
+                      <FormField
+                        control={form.control}
+                        name="paymentScheduleConfig.accontoType"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Tipo Acconto</FormLabel>
+                            <Select value={field.value} onValueChange={field.onChange}>
+                              <FormControl>
+                                <SelectTrigger data-testid="select-acconto-type">
+                                  <SelectValue />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent position="popper" sideOffset={4} className="z-[9999]">
+                                <SelectItem value="percentage">Percentuale (%)</SelectItem>
+                                <SelectItem value="amount">Importo Fisso (€)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {paymentConfig?.accontoType === 'percentage' ? (
+                        <FormField
+                          control={form.control}
+                          name="paymentScheduleConfig.accontoPercentage"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Percentuale Acconto</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  placeholder="es. 30"
+                                  min={0}
+                                  max={100}
+                                  {...field}
+                                  onChange={e => field.onChange(parseInt(e.target.value) || 30)}
+                                  data-testid="input-acconto-percent"
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                Percentuale acconto iniziale (0-100%)
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      ) : (
+                        <FormField
+                          control={form.control}
+                          name="paymentScheduleConfig.accontoAmount"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Importo Acconto</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  placeholder="es. 500"
+                                  min={0}
+                                  max={totalAfterDiscount}
+                                  {...field}
+                                  onChange={e => field.onChange(parseFloat(e.target.value) || 0)}
+                                  data-testid="input-acconto-amount"
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                Importo acconto fisso in € (max: {formatCurrency(totalAfterDiscount)})
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
+                    </div>
+
+                    {/* Riferimento Data */}
+                    <FormField
+                      control={form.control}
+                      name="paymentScheduleConfig.useEventDateReference"
+                      render={({ field }) => (
+                        <FormItem className="flex items-center justify-between space-y-0">
+                          <div className="space-y-1">
+                            <FormLabel>Usa Data Evento come Riferimento</FormLabel>
+                            <FormDescription>
+                              Calcola scadenze relative alla data dell'evento
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                              data-testid="switch-event-reference"
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+
+                    {paymentConfig?.useEventDateReference && !job?.eventDate && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+                        ⚠️ Il lavoro non ha una data evento impostata. Le scadenze relative all'evento non potranno essere calcolate correttamente.
+                      </div>
+                    )}
+
+                    {paymentConfig?.useEventDateReference && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="paymentScheduleConfig.accontoRelativeDays"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Giorni Acconto da Evento</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  placeholder="es. -30"
+                                  {...field}
+                                  onChange={e => field.onChange(parseInt(e.target.value) || -30)}
+                                  data-testid="input-acconto-days"
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                Negativo = giorni prima evento
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="paymentScheduleConfig.rateIntervalDays"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Intervallo tra Rate (gg)</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  placeholder="es. 30"
+                                  min={1}
+                                  {...field}
+                                  onChange={e => field.onChange(parseInt(e.target.value) || 30)}
+                                  data-testid="input-rate-interval"
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                Giorni tra ogni rata
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    )}
+
+                    {/* Simulatore Visivo */}
+                    {paymentSchedulePreview && (
+                      <div className="mt-6 bg-white border border-blue-300 rounded-lg p-4">
+                        <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
+                          <Calendar className="w-4 h-4" />
+                          Anteprima Piano Pagamenti
+                          <Badge variant="outline" className="ml-auto" data-testid="badge-payments-count">
+                            {paymentSchedulePreview.payments.length} rate
+                          </Badge>
+                        </h4>
+                        <div className="space-y-2">
+                          {paymentSchedulePreview.payments.map((payment, idx) => (
+                            <div 
+                              key={idx} 
+                              className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded border"
+                              data-testid={`preview-payment-${idx}`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <Badge 
+                                  variant={payment.tipo === 'acconto' ? 'default' : payment.tipo === 'saldo' ? 'secondary' : 'outline'}
+                                  className="capitalize"
+                                >
+                                  {payment.tipo}
+                                </Badge>
+                                <span className="text-sm text-gray-600">{payment.descrizione}</span>
+                              </div>
+                              <div className="text-right">
+                                <div className="font-semibold">{formatCurrency(payment.importo)}</div>
+                                <div className="text-xs text-gray-500">{formatDueDate(payment.dataScadenza)}</div>
+                                {payment.giorniDaEvento !== undefined && (
+                                  <div className="text-xs text-blue-600">
+                                    {payment.giorniDaEvento > 0 ? '+' : ''}{payment.giorniDaEvento} gg da evento
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-4 pt-3 border-t border-gray-200 flex justify-between items-center">
+                          <span className="text-sm font-medium">Totale Piano</span>
+                          <span className="text-lg font-bold text-blue-700">
+                            {formatCurrency(paymentSchedulePreview.totale)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </CardContent>
+            </Card>
+            )}
+
+            {/* Riepilogo Totale */}
+            <Card className="bg-green-50 border-green-200">
+              <CardContent className="pt-6">
+                <div className="space-y-3">
+                  {/* Breakdown */}
+                  {(catalogProductIds.length > 0 || customProducts.some(p => p.nome.trim())) && (
+                    <div className="space-y-2 pb-3 border-b border-green-200">
+                      {catalogProductIds.length > 0 && (
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-green-700">
+                            Catalogo ({catalogProductIds.length} prodotti)
+                          </span>
+                          <span className="font-medium">€{totaleCatalogo.toFixed(2)}</span>
+                        </div>
+                      )}
+                      {customProducts.some(p => p.nome.trim()) && (
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-green-700">
+                            Custom ({customProducts.filter(p => p.nome.trim()).length} prodotti)
+                          </span>
+                          <span className="font-medium">€{totaleCustom.toFixed(2)}</span>
+                        </div>
+                      )}
+                      
+                      {/* Subtotale */}
+                      <div className="flex items-center justify-between text-sm font-semibold pt-2">
+                        <span className="text-green-800">Subtotale</span>
+                        <span>€{totalBeforeDiscount.toFixed(2)}</span>
+                      </div>
+                      
+                      {/* Sconto applicato */}
+                      {discountAmount > 0 && (
+                        <div className="flex items-center justify-between text-sm text-orange-600">
+                          <span>
+                            Sconto {discountType === 'percent' ? `(${discountValue}%)` : ''}
+                          </span>
+                          <span>-€{discountAmount.toFixed(2)}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Totale Finale */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Euro className="w-5 h-5 text-green-600" />
+                      <span className="text-lg font-semibold">Totale Finale</span>
+                    </div>
+                    <div className="text-3xl font-bold text-green-600" data-testid="text-total-quote">
+                      €{totalAfterDiscount.toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Note interne */}
+            <FormField
+              control={form.control}
+              name="noteInterne"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Note Interne</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Note visibili solo in admin..."
+                      rows={3}
+                      {...field}
+                      data-testid="textarea-notes"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Actions */}
+            <div className="flex justify-end gap-3 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => handleDialogChange(false)}
+                disabled={createMutation.isPending}
+                data-testid="button-cancel"
+              >
+                Annulla
+              </Button>
+              <Button
+                type="submit"
+                disabled={createMutation.isPending}
+                className="bg-sage hover:bg-dark-sage"
+                data-testid="button-submit"
+              >
+                {createMutation.isPending && (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                )}
+                {editQuoteId ? 'Salva Modifiche' : 'Crea Preventivo'}
+              </Button>
+            </div>
+          </form>
+        </Form>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
