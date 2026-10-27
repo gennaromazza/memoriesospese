@@ -191,6 +191,21 @@ export const BOX_MOCKUP_MODEL = {
   variants: MOCKUP_MODEL.variants,
 } as const;
 
+// ImageBox: plexiglass davanti, sopra, sotto e a sinistra; retro e cornici ai lati in tessuto; l'album esce a destra.
+// Il formato lo decide lo studio tra quelli di IMAGEBOX_FORMATS (vedi mockupImageBoxSetupSchema).
+export const IMAGEBOX_MOCKUP_MODEL = {
+  id: 'imagebox', name: 'ImageBox', assetRevision: 1,
+  coverLayouts: ['full', 'photo-plaque', 'plaque', 'split-photo-fabric'], defaultCoverLayout: 'full',
+  // Stesso campionario tessuti della Custodia.
+  variants: MOCKUP_MODEL.variants,
+} as const;
+/** Formati dell'album in cm (larghezza × altezza), verticali e orizzontali. */
+export const IMAGEBOX_FORMATS = [
+  { w: 20, h: 30 }, { w: 30, h: 20 },
+  { w: 25, h: 35 }, { w: 35, h: 25 },
+  { w: 30, h: 40 }, { w: 40, h: 30 },
+] as const;
+
 /**
  * Step semantici del wizard cliente.
  *
@@ -250,6 +265,15 @@ const BOX_WIZARD_STEPS: readonly MockupWizardStepDefinition[] = [
   { id: 'summary', title: 'Riepilogo e invio', description: 'Controlla tutte le scelte prima di salvare o inviare la proposta.', nativeStep: 0, panel: 'summary' },
 ];
 
+// ImageBox: visualizzatore autonomo come il Quadrobook; il formato lo decide lo studio.
+const IMAGEBOX_WIZARD_STEPS: readonly MockupWizardStepDefinition[] = [
+  { id: 'fabric', title: 'Il tessuto', description: 'Un tessuto per scatola e album, oppure due tessuti diversi.', nativeStep: 0, panel: 'fabric' },
+  { id: 'cover', title: 'Copertina dell’album', description: 'Scegli la copertina e completa foto o incisione.', nativeStep: 0, panel: 'cover' },
+  { id: 'base-photo', title: 'Foto sul fondo', description: 'La foto stampata sul fondo della scatola, visibile quando l’album è fuori.', nativeStep: 0, panel: 'base-photo' },
+  { id: 'glass', title: 'Incisione sul plexiglass', description: 'Facoltativa: una scritta o una grafica sul plexiglass davanti.', nativeStep: 0, panel: 'glass' },
+  { id: 'summary', title: 'Riepilogo e invio', description: 'Controlla tutte le scelte prima di salvare o inviare la proposta.', nativeStep: 0, panel: 'summary' },
+];
+
 function defineRenderer<T extends MockupRendererDefinition>(renderer: T): T {
   const layouts = new Set(renderer.coverLayouts);
   const examples = new Set(renderer.coverExamples.map(example => example.layout));
@@ -303,6 +327,17 @@ export const MOCKUP_RENDERERS = [
     coverExamples: [
       { layout: 'photo', title: 'Foto in copertina', description: 'Una tua fotografia sulla copertina dell’album.', image: 'scatola-photo.webp' },
       { layout: 'graphic', title: 'Grafica dello studio', description: 'Una grafica preparata dallo studio per la copertina.', image: 'scatola-graphic.webp' },
+    ],
+  }),
+  defineRenderer({
+    ...IMAGEBOX_MOCKUP_MODEL,
+    path: 'imagebox-v1/index.html',
+    wizardSteps: IMAGEBOX_WIZARD_STEPS,
+    coverExamples: [
+      { layout: 'full', title: 'Foto piena', description: 'La tua fotografia su tutta la copertina dell’album.', image: 'imagebox-full.svg' },
+      { layout: 'photo-plaque', title: 'Foto piccola al centro', description: 'Una fotografia al centro della copertina in tessuto.', image: 'imagebox-photo-plaque.svg' },
+      { layout: 'plaque', title: 'Placchetta in legno incisa', description: 'Una placchetta di legno al centro, con la scritta incisa.', image: 'imagebox-plaque.svg' },
+      { layout: 'split-photo-fabric', title: 'Metà foto e metà tessuto', description: 'Foto verticale a destra, tessuto della scatola a sinistra con incisione.', image: 'imagebox-split-photo-fabric.svg' },
     ],
   }),
 ] as const;

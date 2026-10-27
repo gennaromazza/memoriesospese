@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { BOX_MOCKUP_MODEL, MOCKUP_MODEL, PLAZA_MOCKUP_MODEL, ROTATING_MOCKUP_MODEL } from './mockup-catalog';
+import { BOX_MOCKUP_MODEL, IMAGEBOX_MOCKUP_MODEL, MOCKUP_MODEL, PLAZA_MOCKUP_MODEL, ROTATING_MOCKUP_MODEL } from './mockup-catalog';
 import type { MockupOffer, MockupOfferMode, MockupOption, MockupSelection, MockupStatus } from './mockup-workflow';
 
 const isCatalogMaterial = (variants: readonly { readonly id: string; readonly appearanceRevision: number }[], materialId: string, appearanceRevision: number) =>
@@ -92,9 +92,47 @@ const boxConfigurationSchema = z.object({
   .refine(c => isCatalogMaterial(BOX_MOCKUP_MODEL.variants, c.materialId, c.appearanceRevision), 'Revisione del rivestimento non disponibile')
   .refine(c => isCatalogMaterial(BOX_MOCKUP_MODEL.variants, c.albumMaterialId, c.albumAppearanceRevision), 'Revisione del tessuto album non disponibile')
   .refine(c => c.coverLayout === 'graphic' || !!c.coverPhotoAssetId, 'Seleziona una foto per la copertina');
-export const mockupConfigurationSchema = z.union([custodiaConfigurationSchema, rotatingConfigurationSchema, rotatingPlexConfigurationSchema, rotatingMonogramConfigurationSchema, rotatingBoxConfigurationSchema, plazaConfigurationSchema, boxConfigurationSchema]);
+// ImageBox: `photoAssetId` è la foto sul fondo della scatola (obbligatoria). Il tessuto della scatola
+// (`materialId`) riveste le cornici, il retro e la metà in tessuto della copertina divisa; quello dell'album
+// (`albumMaterialId`, uguale se il cliente sceglie un solo tessuto) riveste retro, dorso e copertine in tessuto.
+// Le incisioni sono un testo oppure una grafica caricata dallo studio (vedi mockupGraphicAssetIds).
+const engravingTextSchema = z.string().trim().min(1).max(120).refine(t => t.split('\n').length <= 3, 'Al massimo tre righe');
+const engravingGraphicSchema = z.object({ mode: z.literal('graphic'), assetId: z.string().uuid() }).strict();
+const coverEngravingSchema = z.union([z.object({ mode: z.literal('text'), text: engravingTextSchema }).strict(), engravingGraphicSchema]);
+const glassEngravingSchema = z.union([z.object({ mode: z.literal('text'), text: engravingTextSchema, color: z.enum(['white', 'black']) }).strict(), engravingGraphicSchema]);
+const imageBoxConfigurationSchema = z.object({
+  modelId: z.literal(IMAGEBOX_MOCKUP_MODEL.id), assetRevision: z.literal(1),
+  materialId: z.string(), appearanceRevision: z.number().int(),
+  albumMaterialId: z.string(), albumAppearanceRevision: z.number().int(),
+  coverLayout: z.enum(['full', 'photo-plaque', 'plaque', 'split-photo-fabric']),
+  format: z.object({ w: boxCm, h: boxCm }).strict(),
+  photoAssetId: z.string().uuid(),
+  coverPhotoAssetId: z.string().uuid().nullable(),
+  coverEngraving: coverEngravingSchema.nullable(),
+  glassEngraving: glassEngravingSchema.nullable(),
+}).strict()
+  .refine(c => isCatalogMaterial(IMAGEBOX_MOCKUP_MODEL.variants, c.materialId, c.appearanceRevision), 'Revisione del rivestimento non disponibile')
+  .refine(c => isCatalogMaterial(IMAGEBOX_MOCKUP_MODEL.variants, c.albumMaterialId, c.albumAppearanceRevision), 'Revisione del tessuto album non disponibile')
+  .refine(c => c.coverLayout === 'plaque' || !!c.coverPhotoAssetId, 'Seleziona una foto per la copertina')
+  .refine(c => c.coverLayout !== 'plaque' || !!c.coverEngraving, 'Scrivi il testo da incidere sulla placchetta')
+  .refine(c => ['plaque', 'split-photo-fabric'].includes(c.coverLayout) || !c.coverEngraving, 'Questa copertina non prevede incisioni');
+export const mockupConfigurationSchema = z.union([custodiaConfigurationSchema, rotatingConfigurationSchema, rotatingPlexConfigurationSchema, rotatingMonogramConfigurationSchema, rotatingBoxConfigurationSchema, plazaConfigurationSchema, boxConfigurationSchema, imageBoxConfigurationSchema]);
 
 export type MockupConfiguration = z.infer<typeof mockupConfigurationSchema>;
+
+/** Grafiche caricate dallo studio a cui la configurazione fa riferimento (solo ImageBox). */
+export function mockupGraphicAssetIds(configuration: MockupConfiguration): string[] {
+  if (configuration.modelId !== IMAGEBOX_MOCKUP_MODEL.id) return [];
+  return [configuration.coverEngraving, configuration.glassEngraving].flatMap(e => e?.mode === 'graphic' ? [e.assetId] : []);
+}
+/** Tutte le foto e le grafiche del fotolibro usate dalla configurazione. */
+export function mockupAssetIds(configuration: MockupConfiguration): string[] {
+  const ids: (string | null | undefined)[] = [configuration.photoAssetId];
+  if ('backPhotoAssetId' in configuration) ids.push(configuration.backPhotoAssetId);
+  if ('lidPhotoAssetId' in configuration) ids.push(configuration.lidPhotoAssetId);
+  if ('coverPhotoAssetId' in configuration) ids.push(configuration.coverPhotoAssetId);
+  return [...new Set([...ids, ...mockupGraphicAssetIds(configuration)].filter((id): id is string => !!id))];
+}
 export interface MockupPhoto { id: string; name: string; source: 'upload' | 'gallery'; photoId?: string; width: number; height: number }
 export const mockupPhotoSchema = z.object({
   id: z.string().min(1),

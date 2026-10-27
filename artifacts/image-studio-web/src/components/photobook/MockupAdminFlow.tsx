@@ -42,8 +42,10 @@ export async function fetchMockupState(photobookId: string, version: number): Pr
 
 function describeOption(o: MockupOption): string {
   if (!o.setup) return `${o.labName} · ${o.name}`;
+  const size = `${o.labName} · ${o.name} · ${o.setup.format.w}×${o.setup.format.h} cm`;
+  if (!('cover' in o.setup)) return size;
   const cover = { choice: 'copertina a scelta del cliente', photo: 'copertina con foto del cliente', graphic: 'copertina con la tua grafica' }[o.setup.cover.mode];
-  return `${o.labName} · ${o.name} · ${o.setup.format.w}×${o.setup.format.h} cm · ${cover}`;
+  return `${size} · ${cover}`;
 }
 
 function Step({ n, title, done, active, children }: { n: number; title: string; done?: boolean; active?: boolean; children: React.ReactNode }) {

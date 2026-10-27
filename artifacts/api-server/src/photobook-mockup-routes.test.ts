@@ -472,6 +472,50 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     expect((await action(base, 'client', 'submit', 2)).status).toBe(200);
   });
 
+  it('ImageBox: formato dallo studio; grafiche solo dallo studio quando prepara lui il mockup', async () => {
+    h.docs.get('photobooks/book').jobId = 'job';
+    h.docs.set('labs/lab', { nome: 'PeppeLab', attivo: true, mockupCatalog: { revision: 1, materials: [{ id: material.id, label: 'Tessuto scelto', supplierCode: 'PL-01' }], models: [{ id: entryId, name: 'ImageBox', supplierCode: 'IB-01', rendererId: 'imagebox', active: true, materialIds: [material.id] }] } });
+    const put = (setup?: unknown) => fetch(`${base}/admin/offer?version=1`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: 0, savedRevision: 0, mode: 'fixed', selections: [{ ...selection, ...(setup ? { setup } : {}) }] }) });
+    // Senza formato, o con un formato fuori elenco, o con le impostazioni del Quadrobook, non si pubblica.
+    expect((await put()).status).toBe(400);
+    expect((await put({ format: { w: 28, h: 35 } })).status).toBe(400);
+    expect((await put({ format: { w: 25, h: 35 }, cover: { mode: 'photo' } })).status).toBe(400);
+    const published = await put({ format: { w: 40, h: 30 } });
+    expect(published.status).toBe(200);
+    expect((await published.json()).options[0].setup).toEqual({ format: { w: 40, h: 30 } });
+
+    const box = { modelId: 'imagebox', assetRevision: 1, materialId: material.id, appearanceRevision: material.appearanceRevision, albumMaterialId: material.id, albumAppearanceRevision: material.appearanceRevision, coverLayout: 'plaque', format: { w: 40, h: 30 }, photoAssetId: photoId, coverPhotoAssetId: null, coverEngraving: { mode: 'text', text: 'Lorenzo' }, glassEngraving: { mode: 'text', text: 'il mio battesimo', color: 'white' } };
+    const mine = { selection, offerRevision: 1 };
+    // Il formato lo decide lo studio; la placchetta richiede la scritta; il fondo richiede la foto.
+    expect((await save(base, { revision: 0, configuration: { ...box, format: { w: 30, h: 20 } }, ...mine }, 'client')).status).toBe(409);
+    expect((await save(base, { revision: 0, configuration: { ...box, coverEngraving: null }, ...mine }, 'client')).status).toBe(400);
+    expect((await save(base, { revision: 0, configuration: { ...box, photoAssetId: null }, ...mine }, 'client')).status).toBe(400);
+    expect((await save(base, { revision: 0, configuration: box, ...mine }, 'client')).status).toBe(200);
+
+    // Grafica: il cliente non la carica e non la usa; lo studio solo nel percorso in cui prepara lui il mockup.
+    const png = await sharp({ create: { width: 40, height: 20, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).png().toBuffer();
+    const upload = (scope: string) => globalThis.fetch(`${base}/${scope}/upload-graphic?version=1&name=logo.png`, { method: 'POST', headers: { 'Content-Type': 'image/png' }, body: png });
+    expect((await upload('client')).status).toBe(403);
+    const uploaded = await upload('admin');
+    expect(uploaded.status).toBe(200);
+    const graphicId = (await uploaded.json() as { id: string }).id;
+    const asset = h.docs.get(`photobooks/book/mockupAssets/${graphicId}`);
+    expect(asset).toMatchObject({ kind: 'graphic', contentType: 'image/png' });
+    expect(asset.storagePath).toMatch(/\.png$/);
+    const served = await globalThis.fetch(`${base}/admin/photos/${graphicId}?version=1`);
+    expect(served.headers.get('content-type')).toContain('image/png');
+    const withGraphic = { ...box, glassEngraving: { mode: 'graphic', assetId: graphicId } };
+    expect((await save(base, { revision: 1, configuration: withGraphic, ...mine }, 'client')).status).toBe(403);
+    // Percorso in cui sceglie il cliente: nemmeno lo studio mette grafiche.
+    expect((await save(base, { revision: 1, configuration: withGraphic, ...mine }, 'admin')).status).toBe(403);
+    h.docs.set('photobooks/book', { ...h.docs.get('photobooks/book'), mockupPath: 'studio' });
+    // Una foto normale non vale come grafica da incidere.
+    expect((await save(base, { revision: 1, configuration: { ...box, coverEngraving: { mode: 'graphic', assetId: photoId } }, ...mine }, 'admin')).status).toBe(400);
+    const studio = await save(base, { revision: 1, configuration: withGraphic, ...mine }, 'admin');
+    expect(studio.status).toBe(200);
+    expect((await studio.json()).configuration).toEqual(withGraphic);
+  });
+
   it('avvisa lo studio solo dopo l’invio acquisito, mai dopo bozza, rifiuto o richiesta di correzioni', async () => {
     await publish(base);
     await save(base, { revision: 0, configuration, selection, offerRevision: 1 }, 'client');

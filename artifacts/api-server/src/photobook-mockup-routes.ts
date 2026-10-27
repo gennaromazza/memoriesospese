@@ -7,8 +7,8 @@ import type { DocumentSnapshot } from 'firebase-admin/firestore';
 import { db, storage } from './firebase-admin.js';
 import { loadGalleryPhotoDocs } from './photobook-gallery.js';
 import { uidRateLimiter } from './print-shop/rate-limit.js';
-import { mockupConfigurationSchema, mockupEditable, type MockupPhoto, type SavedMockup } from '../shared/mockup-types.js';
-import { catalogAllowedForLab, optionAllowsBoxSetup, optionAllowsMaterials, labMockupCatalogSchema, mockupOfferInputSchema, mockupSelectionSchema, mockupWorkflowInputSchema, optionFor, type MockupOffer, type MockupOption, type MockupOfferMode } from '../shared/mockup-workflow.js';
+import { mockupAssetIds, mockupConfigurationSchema, mockupEditable, mockupGraphicAssetIds, type MockupPhoto, type SavedMockup } from '../shared/mockup-types.js';
+import { boxCoverGraphicId, catalogAllowedForLab, optionAllowsBoxSetup, optionAllowsMaterials, labMockupCatalogSchema, mockupOfferInputSchema, mockupSelectionSchema, mockupWorkflowInputSchema, optionFor, rendererNeedsSetup, setupFitsRenderer, type MockupOffer, type MockupOption, type MockupOfferMode } from '../shared/mockup-workflow.js';
 import { buildMockupReport, mockupConfirmSchema } from './mockup-report.js';
 
 class MockupError extends Error { constructor(public status: number, message: string) { super(message); } }
@@ -261,10 +261,9 @@ export function createPhotobookMockupRouter(
           const model = catalog.models.find(m => m.id === selection.modelId && m.active && m.rendererId);
           if (!model) throw new MockupError(400, 'Modello non disponibile o asset 3D non ancora integrato');
           if (!catalogAllowedForLab({ ...catalog, models: [model] }, lab.data()?.nome)) throw new MockupError(400, 'Plaza LED è disponibile solo per i Nobili');
-          const isBox = model.rendererId === 'scatola-cornice';
-          if (isBox && !selection.setup) throw new MockupError(400, 'Imposta formato e copertina del Quadrobook prima di pubblicare');
-          if (!isBox && selection.setup) throw new MockupError(400, 'Formato e copertina si impostano solo per il Quadrobook');
-          const graphicId = selection.setup?.cover.graphicAssetId;
+          if (rendererNeedsSetup(model.rendererId) && !setupFitsRenderer(model.rendererId, selection.setup)) throw new MockupError(400, model.rendererId === 'imagebox' ? 'Scegli il formato dell’ImageBox prima di pubblicare' : 'Imposta formato e copertina del Quadrobook prima di pubblicare');
+          if (!rendererNeedsSetup(model.rendererId) && selection.setup) throw new MockupError(400, 'Il formato si imposta solo per Quadrobook e ImageBox');
+          const graphicId = boxCoverGraphicId(selection.setup);
           if (graphicId) {
             const graphic = await tx.get(book.ref.collection('mockupAssets').doc(graphicId));
             if (!graphic.exists) throw new MockupError(400, 'Grafica di copertina non trovata: caricala di nuovo');
@@ -299,10 +298,13 @@ export function createPhotobookMockupRouter(
         const currentBook = await tx.get(book.ref);
         const offer = await effectiveOfferInTransaction(tx, book, version, currentBook.data()!, offerDoc);
         if (currentBook.data()!.mockupModelMode === 'fixed' && !offer) throw new MockupError(409, 'Il modello fisso non è più disponibile. Lo studio deve ripubblicare la proposta.');
-        const photoIds = [input.configuration.photoAssetId, ...('backPhotoAssetId' in input.configuration ? [input.configuration.backPhotoAssetId] : []), ...('lidPhotoAssetId' in input.configuration ? [input.configuration.lidPhotoAssetId, input.configuration.coverPhotoAssetId] : [])];
-        for (const id of new Set(photoIds.filter((id): id is string => !!id))) {
+        // Le grafiche le carica lo studio, e solo quando è lui a preparare il mockup: il cliente incide solo testo.
+        const graphicIds = new Set(mockupGraphicAssetIds(input.configuration));
+        if (graphicIds.size && (!isAdmin || currentBook.data()!.mockupPath !== 'studio')) throw new MockupError(403, 'Le grafiche da incidere le carica lo studio quando prepara il mockup. Usa una scritta.');
+        for (const id of mockupAssetIds(input.configuration)) {
           const photo = await tx.get(book.ref.collection('mockupAssets').doc(id));
           if (!photo.exists || photo.data()!.version !== version) throw new MockupError(400, 'Foto non appartenente a questa versione del fotolibro');
+          if (graphicIds.has(id) && photo.data()!.kind !== 'graphic') throw new MockupError(400, 'Carica di nuovo la grafica da incidere');
         }
         if ((previous.data()?.revision || 0) !== input.revision) throw new MockupError(409, 'Il mockup è stato modificato in un’altra sessione. Riaprilo per caricare la versione aggiornata.');
         if (!isAdmin && !previous.exists && !offer) throw new MockupError(403, 'Mockup non attivato');
@@ -467,27 +469,31 @@ export function createPhotobookMockupRouter(
     } catch (error) { next(error); }
   });
 
-  async function storePhoto(res: Response, input: Buffer, info: { name: string; source: 'upload' | 'gallery'; photoId?: string }) {
+  // Le grafiche da incidere restano PNG: la trasparenza serve a ritagliare la scritta o il disegno.
+  async function storePhoto(res: Response, input: Buffer, info: { name: string; source: 'upload' | 'gallery'; photoId?: string }, kind: 'photo' | 'graphic' = 'photo') {
     if (!input.length || input.length > 20 * 1024 * 1024) throw new MockupError(400, 'La foto deve essere entro 20 MB');
     const image = sharp(input, { limitInputPixels: 40_000_000, animated: false });
+    const graphic = kind === 'graphic';
     let output: Buffer;
     try {
       const metadata = await image.metadata();
       if (!['jpeg','png','webp'].includes(metadata.format || '') || (metadata.pages || 1) > 1) throw new Error();
-      output = await image.rotate().resize(2048, 2048, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 90 }).toBuffer();
+      const resized = image.rotate().resize(2048, 2048, { fit: 'inside', withoutEnlargement: true });
+      output = await (graphic ? resized.png() : resized.jpeg({ quality: 90 })).toBuffer();
     } catch { throw new MockupError(400, 'Foto non leggibile: usa un JPG, PNG o WebP statico entro 40 megapixel.'); }
     const dimensions = await sharp(output).metadata();
     const book = res.locals.book as DocumentSnapshot;
     const version = res.locals.version as number;
     const id = randomUUID();
-    const storagePath = `photobook-mockups/${book.id}/v${version}/${id}.jpg`;
+    const contentType = graphic ? 'image/png' : 'image/jpeg';
+    const storagePath = `photobook-mockups/${book.id}/v${version}/${id}.${graphic ? 'png' : 'jpg'}`;
     const photo: MockupPhoto = { id, ...info, width: dimensions.width!, height: dimensions.height! };
     const file = storage.bucket().file(storagePath);
-    await file.save(output, { metadata: { contentType: 'image/jpeg', cacheControl: 'private, no-store' } });
+    await file.save(output, { metadata: { contentType, cacheControl: 'private, no-store' } });
     try {
       await db.runTransaction(async tx => {
         await guardCurrent(tx, book, version);
-        tx.set(book.ref.collection('mockupAssets').doc(id), { ...photo, version, storagePath, createdAt: new Date().toISOString() });
+        tx.set(book.ref.collection('mockupAssets').doc(id), { ...photo, version, storagePath, ...(graphic ? { kind, contentType } : {}), createdAt: new Date().toISOString() });
       });
     } catch (error) {
       if (error instanceof MockupError) await file.delete().catch(() => undefined);
@@ -501,6 +507,15 @@ export function createPhotobookMockupRouter(
       if (!Buffer.isBuffer(req.body)) throw new MockupError(400, 'Formato immagine non supportato');
       const name = z.string().trim().min(1).max(200).parse(req.query.name);
       res.json(await storePhoto(res, req.body, { name, source: 'upload' }));
+    } catch (error) { next(error); }
+  });
+
+  router.post('/upload-graphic', express.raw({ type: ['image/jpeg','image/png','image/webp'], limit: '20mb' }), async (req, res, next) => {
+    try {
+      if (!isAdmin) throw new MockupError(403, 'Le grafiche da incidere le carica lo studio');
+      if (!Buffer.isBuffer(req.body)) throw new MockupError(400, 'Formato immagine non supportato');
+      const name = z.string().trim().min(1).max(200).parse(req.query.name);
+      res.json(await storePhoto(res, req.body, { name, source: 'upload' }, 'graphic'));
     } catch (error) { next(error); }
   });
 
@@ -527,7 +542,7 @@ export function createPhotobookMockupRouter(
       const asset = await book.ref.collection('mockupAssets').doc(id).get();
       if (!asset.exists || asset.data()!.version !== res.locals.version) throw new MockupError(404, 'Foto non trovata');
       const [buffer] = await storage.bucket().file(asset.data()!.storagePath).download();
-      res.type('image/jpeg').send(buffer);
+      res.type(asset.data()!.contentType === 'image/png' ? 'image/png' : 'image/jpeg').send(buffer);
     } catch (error) { next(error); }
   });
 
@@ -538,7 +553,7 @@ export function createPhotobookMockupRouter(
       const book = res.locals.book as DocumentSnapshot;
       const version = res.locals.version as number;
       const offer = await effectiveOffer(book, version);
-      const id = offer?.options.find(o => o.rendererId === 'scatola-cornice')?.setup?.cover.graphicAssetId;
+      const id = boxCoverGraphicId(offer?.options.find(o => o.rendererId === 'scatola-cornice')?.setup);
       if (!id) throw new MockupError(404, 'Nessuna grafica di copertina in questa proposta');
       const asset = await book.ref.collection('mockupAssets').doc(id).get();
       if (!asset.exists) throw new MockupError(404, 'Grafica non trovata');

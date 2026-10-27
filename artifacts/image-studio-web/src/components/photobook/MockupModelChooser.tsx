@@ -31,7 +31,7 @@ export function mockupCoverExamples(
     MOCKUP_RENDERERS.find((renderer) => renderer.id === rendererId)
       ?.coverExamples ?? EMPTY_EXAMPLES;
   // Quadrobook: se lo studio ha imposto foto o grafica, il cliente vede solo quella.
-  const mode = setup?.cover.mode;
+  const mode = setup && "cover" in setup ? setup.cover.mode : undefined;
   return mode === "photo" || mode === "graphic"
     ? examples.filter((example) => example.layout === mode)
     : examples;

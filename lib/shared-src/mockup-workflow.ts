@@ -1,6 +1,6 @@
 import { I_NOBILI_MATERIALS } from './i-nobili-catalog';
 import { z } from 'zod';
-import { BOX_MOCKUP_MODEL, MOCKUP_MODEL, PLAZA_MOCKUP_MODEL, ROTATING_MOCKUP_MODEL } from './mockup-catalog';
+import { BOX_MOCKUP_MODEL, IMAGEBOX_FORMATS, IMAGEBOX_MOCKUP_MODEL, MOCKUP_MODEL, PLAZA_MOCKUP_MODEL, ROTATING_MOCKUP_MODEL } from './mockup-catalog';
 
 export const mockupIdSchema = z.string().min(1).max(128).regex(/^[a-zA-Z0-9_-]+$/);
 const materialSchema = z.object({
@@ -11,7 +11,7 @@ const materialSchema = z.object({
 export const labMockupModelSchema = z.object({
   id: z.string().uuid(), name: z.string().trim().min(1).max(100),
   supplierCode: z.string().trim().max(100),
-  rendererId: z.union([z.literal(MOCKUP_MODEL.id), z.literal(ROTATING_MOCKUP_MODEL.id), z.literal(PLAZA_MOCKUP_MODEL.id), z.literal(BOX_MOCKUP_MODEL.id)]).nullable(),
+  rendererId: z.union([z.literal(MOCKUP_MODEL.id), z.literal(ROTATING_MOCKUP_MODEL.id), z.literal(PLAZA_MOCKUP_MODEL.id), z.literal(BOX_MOCKUP_MODEL.id), z.literal(IMAGEBOX_MOCKUP_MODEL.id)]).nullable(),
   active: z.boolean(),
   materialIds: z.array(z.string().uuid()).max(200).refine(items => new Set(items).size === items.length),
 }).strict().refine(model => !model.rendererId || model.materialIds.length > 0, 'Seleziona almeno un rivestimento');
@@ -38,15 +38,31 @@ export const mockupBoxSetupSchema = z.object({
   }).strict().refine(c => c.mode === 'photo' || !!c.graphicAssetId, 'Carica la grafica di copertina'),
 }).strict();
 export type MockupBoxSetup = z.infer<typeof mockupBoxSetupSchema>;
-export interface MockupOption extends LabMockupModel { labId: string; labName: string; materials: z.infer<typeof materialSchema>[]; setup?: MockupBoxSetup }
+/** ImageBox: lo studio sceglie solo il formato dell'album, tra quelli del catalogo. */
+export const mockupImageBoxSetupSchema = z.object({
+  format: z.object({ w: z.number(), h: z.number() }).strict()
+    .refine(f => IMAGEBOX_FORMATS.some(x => x.w === f.w && x.h === f.h), 'Formato ImageBox non disponibile'),
+}).strict();
+export type MockupImageBoxSetup = z.infer<typeof mockupImageBoxSetupSchema>;
+export type MockupModelSetup = MockupBoxSetup | MockupImageBoxSetup;
+export interface MockupOption extends LabMockupModel { labId: string; labName: string; materials: z.infer<typeof materialSchema>[]; setup?: MockupModelSetup }
 export type MockupOfferMode = 'fixed' | 'choice';
 export interface MockupOffer { revision: number; options: MockupOption[]; updatedAt: string; mode?: MockupOfferMode }
 export type MockupStatus = 'draft' | 'submitted' | 'changes_requested' | 'confirmed';
 export const MOCKUP_STATUS_LABELS: Record<MockupStatus, string> = {
   draft: 'Bozza', submitted: 'Da verificare', changes_requested: 'Modifiche richieste', confirmed: 'Confermato dallo studio',
 };
-export interface MockupSelection { labId: string; modelId: string; setup?: MockupBoxSetup }
-export const mockupSelectionSchema = z.object({ labId: mockupIdSchema, modelId: z.string().uuid(), setup: mockupBoxSetupSchema.optional() }).strict();
+export interface MockupSelection { labId: string; modelId: string; setup?: MockupModelSetup }
+export const mockupSelectionSchema = z.object({ labId: mockupIdSchema, modelId: z.string().uuid(), setup: z.union([mockupBoxSetupSchema, mockupImageBoxSetupSchema]).optional() }).strict();
+/** Modelli che richiedono le impostazioni dello studio; ognuno valida le proprie. */
+export const rendererNeedsSetup = (rendererId: string | null) => rendererId === BOX_MOCKUP_MODEL.id || rendererId === IMAGEBOX_MOCKUP_MODEL.id;
+export function setupFitsRenderer(rendererId: string | null, setup: unknown): boolean {
+  if (rendererId === BOX_MOCKUP_MODEL.id) return mockupBoxSetupSchema.safeParse(setup).success;
+  if (rendererId === IMAGEBOX_MOCKUP_MODEL.id) return mockupImageBoxSetupSchema.safeParse(setup).success;
+  return setup === undefined;
+}
+/** Grafica di copertina del Quadrobook, se lo studio l'ha caricata. */
+export const boxCoverGraphicId = (setup?: MockupModelSetup) => setup && 'cover' in setup ? setup.cover.graphicAssetId : undefined;
 export const mockupOfferInputSchema = z.object({
   revision: z.number().int().min(0),
   savedRevision: z.number().int().min(0),
@@ -67,10 +83,11 @@ export function optionAllowsMaterials(option: MockupOption, configuration: { mat
 }
 /** La scatola richiede formato e copertina decisi dallo studio; la configurazione deve rispettarli. */
 export function optionAllowsBoxSetup(option: MockupOption, configuration: { format?: { w: number; h: number }; coverLayout: string }): boolean {
-  if (option.rendererId !== BOX_MOCKUP_MODEL.id) return !option.setup;
+  if (!rendererNeedsSetup(option.rendererId)) return !option.setup;
   const setup = option.setup;
-  if (!setup || !configuration.format) return false;
+  if (!setup || !setupFitsRenderer(option.rendererId, setup) || !configuration.format) return false;
   if (configuration.format.w !== setup.format.w || configuration.format.h !== setup.format.h) return false;
+  if (!('cover' in setup)) return true;
   return setup.cover.mode === 'choice' ? ['photo', 'graphic'].includes(configuration.coverLayout) : configuration.coverLayout === setup.cover.mode;
 }
 export const isNobiliLab = (name: unknown) => String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '') === 'inobili';
@@ -79,7 +96,7 @@ const nobiliMaterialIds = new Set<string>(I_NOBILI_MATERIALS.map(m => m.id));
 export const isNobiliMaterial = (id: string) => nobiliMaterialIds.has(id);
 export function materialFitsRenderer(rendererId: string | null, id: string): boolean {
   if (!rendererId) return true;
-  const model = [MOCKUP_MODEL, ROTATING_MOCKUP_MODEL, PLAZA_MOCKUP_MODEL, BOX_MOCKUP_MODEL].find(m => m.id === rendererId);
+  const model = [MOCKUP_MODEL, ROTATING_MOCKUP_MODEL, PLAZA_MOCKUP_MODEL, BOX_MOCKUP_MODEL, IMAGEBOX_MOCKUP_MODEL].find(m => m.id === rendererId);
   return !!model?.variants.some(v => v.id === id);
 }
 export function catalogAllowedForLab(catalog: LabMockupCatalog, name: unknown): boolean {

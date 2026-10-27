@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" role="img" aria-labelledby="title desc">
+  <title id="title">ImageBox con copertina a foto piena</title>
+  <desc id="desc">L’album nel plexiglass mostra una fotografia su tutta la copertina.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#eee9df"/><stop offset="1" stop-color="#d8d0c3"/></linearGradient>
+    <pattern id="cloth" width="12" height="12" patternUnits="userSpaceOnUse"><rect width="12" height="12" fill="#ded5c6"/><path d="M0 2h12M0 8h12M2 0v12M8 0v12" stroke="#9d8f7e" stroke-opacity=".25" stroke-width="1"/></pattern>
+    <pattern id="frame" width="10" height="10" patternUnits="userSpaceOnUse"><rect width="10" height="10" fill="#d9cfbf"/><path d="M0 3h10M0 8h10" stroke="#a89884" stroke-opacity=".3"/></pattern>
+    <linearGradient id="photo" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#d9b7a0"/><stop offset=".5" stop-color="#b98f78"/><stop offset="1" stop-color="#7a5b4f"/></linearGradient>
+    <linearGradient id="wood" x1="0" x2="1"><stop offset="0" stop-color="#c99d6b"/><stop offset=".5" stop-color="#bb8c58"/><stop offset="1" stop-color="#c79b67"/></linearGradient>
+    <linearGradient id="glass" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity=".35"/><stop offset=".45" stop-color="#ffffff" stop-opacity=".05"/><stop offset="1" stop-color="#ffffff" stop-opacity=".18"/></linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="18" stdDeviation="16" flood-color="#4a4033" flood-opacity=".25"/></filter>
+  </defs>
+  <rect width="1200" height="800" fill="url(#bg)"/>
+  <g filter="url(#shadow)">
+    <rect x="240" y="170" width="720" height="460" fill="#cbbfae"/>
+    <g><rect x="244" y="174" width="712" height="452" fill="url(#photo)"/><circle cx="685.44" cy="318.64" r="54.239999999999995" fill="#f3dfc9" opacity=".85"/><path d="M244 526.56q178.0 -81.36 356.0 -54.239999999999995t356.0 45.2V626H244z" fill="#5d4339" opacity=".55"/></g>
+    <rect x="232" y="162" width="736" height="476" fill="url(#glass)" stroke="#9fb7b0" stroke-width="3"/>
+    <rect x="232" y="162" width="736" height="476" fill="none" stroke="#ffffff" stroke-opacity=".5" stroke-width="1"/>
+    <text x="600" y="565" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-weight="300" font-size="30" fill="#ffffff">il mio battesimo</text>
+    <rect x="196" y="140" width="56" height="520" rx="4" fill="url(#frame)" stroke="#b3a48f"/>
+    <rect x="948" y="140" width="56" height="520" rx="4" fill="url(#frame)" stroke="#b3a48f"/>
+  </g>
+</svg>

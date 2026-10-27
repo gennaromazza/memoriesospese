@@ -14,6 +14,7 @@ export async function buildMockupReport(saved: SavedMockup, previews: z.infer<ty
   const option = saved.option!;
   const material = option.materials.find(m => m.id === saved.configuration.materialId)!;
   if (saved.configuration.modelId === 'scatola-cornice') return buildBoxReport(saved, material, previews);
+  if (saved.configuration.modelId === 'imagebox') return buildImageBoxReport(saved, material, previews);
   const engravedCover = ['plaque', 'split-photo-fabric'].includes(saved.configuration.coverLayout);
   const rows = [
     ['Laboratorio', option.labName], ['Modello', option.name], ['Codice modello fornitore', option.supplierCode || 'Non impostato'],
@@ -72,5 +73,35 @@ async function buildBoxReport(saved: SavedMockup, material: { label: string; sup
     ['Foto del fondo (da appendere)', 'Stampata sul fondo della scatola'], ['Foto del tappo (cornice)', 'Nel tappo, appoggiato sul piedistallo'],
     ['Versione fotolibro', saved.version], ['Revisione mockup confermata', saved.revision], ['Confermato dallo studio', saved.confirmedAt],
   ];
+  return renderReport(option, saved, rows, previews);
+}
+
+type Engraving = { mode: 'text'; text: string; color?: 'white' | 'black' } | { mode: 'graphic'; assetId: string } | null;
+const engravingLabel = (e: Engraving, none: string) => !e ? none
+  : e.mode === 'graphic' ? 'Grafica caricata dallo studio (allegata nelle viste)'
+  : `Scritta: «${e.text.split('\n').join(' / ')}»${e.color ? ` · ${e.color === 'white' ? 'bianca' : 'nera'}` : ''}`;
+
+async function buildImageBoxReport(saved: SavedMockup, material: { label: string; supplierCode: string }, previews: z.infer<typeof mockupConfirmSchema>['previews']): Promise<Buffer> {
+  const option = saved.option!;
+  const cfg = saved.configuration;
+  if (cfg.modelId !== 'imagebox') throw new Error('Configurazione non valida');
+  const album = option.materials.find(m => m.id === cfg.albumMaterialId);
+  const sameFabric = cfg.albumMaterialId === cfg.materialId;
+  const rows: unknown[][] = [
+    ['Laboratorio', option.labName], ['Modello', option.name], ['Codice modello fornitore', option.supplierCode || 'Non impostato'],
+    ['Formato album (deciso dallo studio)', `${cfg.format.w} × ${cfg.format.h} cm ${cfg.format.w > cfg.format.h ? 'orizzontale' : 'verticale'}`],
+    ['Tessuto della scatola (cornici e retro)', `${material.label} · ${material.supplierCode || 'codice non impostato'}`],
+    ['Tessuto album (retro e dorso)', sameFabric ? 'Uguale alla scatola' : `${album?.label || 'Non disponibile'} · ${album?.supplierCode || 'codice non impostato'}`],
+    ['Copertina album', { full: 'Foto piena', 'photo-plaque': 'Foto piccola al centro, su tessuto album', plaque: 'Placchetta in legno incisa, su tessuto album', 'split-photo-fabric': 'Foto verticale a destra, tessuto della scatola a sinistra' }[cfg.coverLayout]],
+  ];
+  if (cfg.coverLayout === 'plaque') rows.push(['Incisione placchetta', engravingLabel(cfg.coverEngraving, 'Nessuna')]);
+  if (cfg.coverLayout === 'split-photo-fabric') rows.push(['Incisione sul tessuto', engravingLabel(cfg.coverEngraving, 'Nessuna')]);
+  rows.push(
+    ['Foto sul fondo della scatola', 'Stampata sul fondo, visibile con l’album estratto'],
+    ['Plexiglass davanti', engravingLabel(cfg.glassEngraving, 'Trasparente, senza incisione')],
+    ['Struttura', 'Plexiglass davanti, sopra, sotto e a sinistra; retro rivestito con il tessuto della scatola'],
+    ['Apertura', 'L’album esce dal lato destro; il lato sinistro è chiuso in plexiglass'],
+    ['Versione fotolibro', saved.version], ['Revisione mockup confermata', saved.revision], ['Confermato dallo studio', saved.confirmedAt],
+  );
   return renderReport(option, saved, rows, previews);
 }

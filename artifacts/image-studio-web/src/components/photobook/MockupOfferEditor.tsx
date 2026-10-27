@@ -3,7 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { getAllLabs } from "@/lib/labs";
 import { Button } from "@/components/ui/button";
 import { BOX_FORMAT_MAX_CM, BOX_FORMAT_MIN_CM, mockupBoxSetupSchema, visibleCatalogForLab } from "@shared/mockup-workflow";
-import type { MockupBoxSetup } from "@shared/mockup-workflow";
+import type { MockupBoxSetup, MockupModelSetup } from "@shared/mockup-workflow";
+import { IMAGEBOX_FORMATS } from "@shared/mockup-catalog";
 import type {
   LabMockupCatalog,
   MockupOffer,
@@ -42,11 +43,18 @@ function computeDefaultMode(
 }
 
 const BOX_RENDERER = "scatola-cornice";
+const IMAGEBOX_RENDERER = "imagebox";
 interface BoxDraft { w: string; h: string; mode: MockupBoxSetup["cover"]["mode"]; graphicAssetId?: string; graphicName?: string }
-const boxDraftOf = (setup?: MockupBoxSetup): BoxDraft => ({
-  w: String(setup?.format.w ?? 25), h: String(setup?.format.h ?? 35),
-  mode: setup?.cover.mode ?? "photo", graphicAssetId: setup?.cover.graphicAssetId, graphicName: setup?.cover.graphicAssetId ? "Grafica già caricata" : undefined,
-});
+const boxDraftOf = (setup?: MockupModelSetup): BoxDraft => {
+  const cover = setup && "cover" in setup ? setup.cover : undefined;
+  return {
+    w: String(setup?.format.w ?? 25), h: String(setup?.format.h ?? 35),
+    mode: cover?.mode ?? "photo", graphicAssetId: cover?.graphicAssetId, graphicName: cover?.graphicAssetId ? "Grafica già caricata" : undefined,
+  };
+};
+// ImageBox: lo studio sceglie solo il formato, tra quelli del laboratorio.
+const formatKey = (f: { w: number; h: number }) => `${f.w}x${f.h}`;
+const DEFAULT_IMAGEBOX_FORMAT = "30x20";
 const COVER_MODES: { id: BoxDraft["mode"]; label: string; hint: string }[] = [
   { id: "photo", label: "Foto scelta dal cliente", hint: "La sceglie dalla sua galleria nello slide della copertina. Non devi caricare niente." },
   { id: "graphic", label: "La mia grafica", hint: "Carichi tu la grafica; il cliente non la cambia." },
@@ -64,6 +72,7 @@ export default function MockupOfferEditor({
   publish,
 }: MockupOfferEditorProps) {
   const [boxDrafts, setBoxDrafts] = useState<Record<string, BoxDraft>>({});
+  const [imageBoxFormats, setImageBoxFormats] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(alwaysOpen);
   const [selected, setSelected] = useState<string[] | null>(null);
@@ -128,7 +137,19 @@ export default function MockupOfferEditor({
     () => new Set(choices.flatMap((l) => l.models.filter((m) => m.rendererId === BOX_RENDERER).map((m) => `${l.id}/${m.id}`))),
     [choices],
   );
-  function setupFor(key: string): { setup?: MockupBoxSetup; error?: string } {
+  const imageBoxKeys = useMemo(
+    () => new Set(choices.flatMap((l) => l.models.filter((m) => m.rendererId === IMAGEBOX_RENDERER).map((m) => `${l.id}/${m.id}`))),
+    [choices],
+  );
+  const imageBoxFormat = (key: string) => {
+    const saved = offer?.options.find((o) => `${o.labId}/${o.id}` === key)?.setup;
+    return imageBoxFormats[key] ?? (saved ? formatKey(saved.format) : DEFAULT_IMAGEBOX_FORMAT);
+  };
+  function setupFor(key: string): { setup?: MockupModelSetup; error?: string } {
+    if (imageBoxKeys.has(key)) {
+      const format = IMAGEBOX_FORMATS.find((f) => formatKey(f) === imageBoxFormat(key));
+      return format ? { setup: { format: { w: format.w, h: format.h } } } : { error: "Scegli il formato dell’ImageBox." };
+    }
     if (!boxKeys.has(key)) return {};
     const d = boxDraft(key);
     const parsed = mockupBoxSetupSchema.safeParse({
@@ -365,6 +386,20 @@ export default function MockupOfferEditor({
                     />
                     {model.name}
                   </label>
+                  {isChecked && imageBoxKeys.has(key) && (
+                    <fieldset className="ml-5 rounded border p-3 space-y-2 bg-muted/30" data-testid="imagebox-setup">
+                      <legend className="text-sm font-medium px-1">Formato dell’album (lo decidi tu, il cliente non lo cambia)</legend>
+                      <div className="grid grid-cols-2 gap-2">
+                        {IMAGEBOX_FORMATS.map((f) => (
+                          <label key={formatKey(f)} className="flex items-center gap-2 rounded border bg-background p-2 text-sm min-h-11">
+                            <input type="radio" name={`imagebox-format-${key}`} checked={imageBoxFormat(key) === formatKey(f)} onChange={() => setImageBoxFormats((prev) => ({ ...prev, [key]: formatKey(f) }))} />
+                            {f.w} × {f.h} cm <span className="text-muted-foreground">{f.w > f.h ? "orizzontale" : "verticale"}</span>
+                          </label>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground">Le grafiche da incidere le carichi nella bozza, solo se prepari tu il mockup.</p>
+                    </fieldset>
+                  )}
                   {isChecked && boxKeys.has(key) && (() => {
                     const d = boxDraft(key);
                     return (

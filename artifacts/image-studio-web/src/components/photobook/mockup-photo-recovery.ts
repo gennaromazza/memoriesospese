@@ -1,4 +1,4 @@
-import { BOX_MOCKUP_MODEL } from '@shared/mockup-catalog';
+import { BOX_MOCKUP_MODEL, IMAGEBOX_MOCKUP_MODEL } from '@shared/mockup-catalog';
 import type { MockupConfiguration } from '@shared/mockup-types';
 
 export interface RuntimeMockupPhoto {
@@ -15,6 +15,9 @@ export interface SavedMockupPhotoAssets {
     base?: RuntimeMockupPhoto;
     lid?: RuntimeMockupPhoto;
     cover?: RuntimeMockupPhoto;
+    /** ImageBox: grafiche da incidere caricate dallo studio. */
+    coverGraphic?: RuntimeMockupPhoto;
+    glassGraphic?: RuntimeMockupPhoto;
   };
 }
 
@@ -24,7 +27,9 @@ export interface SavedMockupPhotoLabels {
   boxPhoto?: string;
 }
 
-export type SavedMockupPhotoSlot = 'front' | 'back' | 'base' | 'lid' | 'cover';
+export type SavedMockupPhotoSlot = 'front' | 'back' | 'base' | 'lid' | 'cover' | 'coverGraphic' | 'glassGraphic';
+/** Slot delle grafiche da incidere: si sostituiscono solo caricando un file, mai dalla galleria. */
+export const isGraphicSlot = (slot: string | null | undefined): slot is 'coverGraphic' | 'glassGraphic' => slot === 'coverGraphic' || slot === 'glassGraphic';
 
 export interface SavedMockupPhotoLoadFailure {
   slot: SavedMockupPhotoSlot;
@@ -72,6 +77,7 @@ export function hasSavedMockupPhotos(configuration: MockupConfiguration) {
   if (configuration.modelId === BOX_MOCKUP_MODEL.id) {
     return !!(configuration.photoAssetId || configuration.lidPhotoAssetId || configuration.coverPhotoAssetId);
   }
+  if (configuration.modelId === IMAGEBOX_MOCKUP_MODEL.id) return true;
 
   return !!(
     configuration.photoAssetId
@@ -131,6 +137,16 @@ export async function loadSavedMockupPhotosPartial(
     ]);
     return { assets: { boxPhotos: { base, lid, cover } }, failures };
   }
+  if (configuration.modelId === IMAGEBOX_MOCKUP_MODEL.id) {
+    const graphicId = (e: typeof configuration.coverEngraving | typeof configuration.glassEngraving) => e?.mode === 'graphic' ? e.assetId : null;
+    const [base, cover, coverGraphic, glassGraphic] = await Promise.all([
+      get(configuration.photoAssetId, boxPhotoName, 'base'),
+      get(configuration.coverPhotoAssetId, boxPhotoName, 'cover'),
+      get(graphicId(configuration.coverEngraving), 'grafica dello studio', 'coverGraphic'),
+      get(graphicId(configuration.glassEngraving), 'grafica dello studio', 'glassGraphic'),
+    ]);
+    return { assets: { boxPhotos: { base, cover, coverGraphic, glassGraphic } }, failures };
+  }
 
   const backPhotoAssetId = 'backPhotoAssetId' in configuration ? configuration.backPhotoAssetId : null;
   const [photo, backPhoto] = await Promise.all([
@@ -153,6 +169,13 @@ export function replaceMockupPhotoReference(
           : null;
     if (!field) throw new Error(`Lo slot ${slot} non appartiene a questo modello`);
     return { ...configuration, [field]: photoId };
+  }
+  if (configuration.modelId === IMAGEBOX_MOCKUP_MODEL.id) {
+    if (slot === 'base') return { ...configuration, photoAssetId: photoId };
+    if (slot === 'cover') return { ...configuration, coverPhotoAssetId: photoId };
+    if (slot === 'coverGraphic') return { ...configuration, coverEngraving: { mode: 'graphic', assetId: photoId } };
+    if (slot === 'glassGraphic') return { ...configuration, glassEngraving: { mode: 'graphic', assetId: photoId } };
+    throw new Error(`Lo slot ${slot} non appartiene a questo modello`);
   }
 
   const field = slot === 'front' ? 'photoAssetId'

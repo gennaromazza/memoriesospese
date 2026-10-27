@@ -11,10 +11,10 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import PhotobookPhotoPicker from './PhotobookPhotoPicker';
 import { mockupConfigurationSchema, mockupPhotoSchema, type MockupConfiguration, type MockupPayload, type MockupPhoto, type SavedMockup } from '@shared/mockup-types';
-import { MOCKUP_STATUS_LABELS, optionFor, type MockupSelection } from '@shared/mockup-workflow';
+import { boxCoverGraphicId, MOCKUP_STATUS_LABELS, optionFor, type MockupSelection } from '@shared/mockup-workflow';
 import MockupOfferEditor from './MockupOfferEditor';
 import { OPEN_MOCKUP_EVENT, type MockupAdminTab } from './MockupAdminFlow';
-import { BOX_MOCKUP_MODEL, MOCKUP_RENDERERS } from '@shared/mockup-catalog';
+import { BOX_MOCKUP_MODEL, IMAGEBOX_MOCKUP_MODEL, MOCKUP_RENDERERS } from '@shared/mockup-catalog';
 import { hasUnsavedMockupChanges, stableSerialize } from './mockup-dirty-state';
 import MockupClientApproval from './MockupClientApproval';
 import type { MockupOption } from '@shared/mockup-workflow';
@@ -23,7 +23,7 @@ import { initialMockupSelection, mockupPresentation, needsClientModelChoice } fr
 import MockupRendererError from './MockupRendererError';
 import SavedMockupPhotoRecoveryError from './SavedMockupPhotoRecoveryError';
 import { beginMockupRendererRetry, configurationForRendererRestore, shouldSkipSavedMockupRestore } from './mockup-renderer-recovery';
-import { hasSavedMockupPhotos, loadSavedMockupPhotos, loadSavedMockupPhotosPartial, mockupRequestErrorFromResponse, replaceMockupPhotoReference, savedMockupPhotoFailure, type RuntimeMockupPhoto, type SavedMockupPhotoFailure, type SavedMockupPhotoLabels, type SavedMockupPhotoSlot } from './mockup-photo-recovery';
+import { hasSavedMockupPhotos, isGraphicSlot, loadSavedMockupPhotos, loadSavedMockupPhotosPartial, mockupRequestErrorFromResponse, replaceMockupPhotoReference, savedMockupPhotoFailure, type RuntimeMockupPhoto, type SavedMockupPhotoFailure, type SavedMockupPhotoLabels, type SavedMockupPhotoSlot } from './mockup-photo-recovery';
 import { useToast } from '@/hooks/use-toast';
 import PhotobookInlineGallery from './PhotobookInlineGallery';
 import { ArrowLeft, ArrowRight, HelpCircle, LogOut, Rotate3D, RotateCcw, Save, X, ZoomIn, ZoomOut } from 'lucide-react';
@@ -80,15 +80,16 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   const [wizard, setWizard] = useState<ReturnType<typeof installMockupWizard> | null>(null);
   const [picker, setPicker] = useState(false);
   const [photoSide, setPhotoSide] = useState<'front' | 'back'>('front');
-  // Quadrobook: quale foto sta scegliendo il cliente (fondo, tappo o copertina dell'album).
-  const [boxSlot, setBoxSlot] = useState<'base' | 'lid' | 'cover'>('base');
+  // Quadrobook e ImageBox: quale foto sta scegliendo il cliente (fondo, tappo o copertina dell'album)
+  // oppure quale grafica da incidere sta caricando lo studio (solo ImageBox).
+  const [boxSlot, setBoxSlot] = useState<'base' | 'lid' | 'cover' | 'coverGraphic' | 'glassGraphic'>('base');
   const [phoneBox, setPhoneBox] = useState(false);
   // Telefono, altri modelli: 3D a schermo pieno solo su richiesta; ultime foto scelte dalla galleria nello slide.
   const [phone3d, setPhone3d] = useState(false);
   const [familyCount, setFamilyCount] = useState(0);
   const [pickedPhoto, setPickedPhoto] = useState<{ front?: string; back?: string }>({});
   const skipRestoreRevision = useRef<number | null>(null);
-  const hostActions = useRef<{ close: () => void; submit: () => void; step: () => void; pickGallery: (slot: string, photoId: string) => void }>({ close: () => undefined, submit: () => undefined, step: () => undefined, pickGallery: () => undefined });
+  const hostActions = useRef<{ close: () => void; submit: () => void; step: () => void; pickGallery: (slot: string, photoId: string) => void; pickGraphic: (slot: string) => void }>({ close: () => undefined, submit: () => undefined, step: () => undefined, pickGallery: () => undefined, pickGraphic: () => undefined });
   const graphicBlob = useRef<Promise<Blob> | null>(null);
   const [busy, setBusy] = useState(false);
   const [renderBusy, setRenderBusy] = useState(true);
@@ -176,16 +177,21 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
           ? 'Lo studio ha confermato il mockup. Puoi ancora modificarlo fino alla stampa: una nuova modifica richiederà una nuova verifica.'
           : 'Bozza salvata: puoi riprenderla quando vuoi oppure inviarla allo studio per la verifica.';
   const title = presentation.title;
-  const isBox = renderer.id === BOX_MOCKUP_MODEL.id;
+  // Quadrobook e ImageBox hanno un visualizzatore autonomo, con i propri passi e le proprie foto.
+  const isImageBox = renderer.id === IMAGEBOX_MOCKUP_MODEL.id;
+  const isBox = renderer.id === BOX_MOCKUP_MODEL.id || isImageBox;
+  // Le grafiche da incidere le carica lo studio, e solo quando prepara lui il mockup.
+  const allowGraphics = !token && state.data?.mockupPath === 'studio';
   const noModelAssigned = !token && !!state.data && !state.data.offer?.options.length && !state.data.saved;
-  const post = (payload: Record<string, unknown>) => frame.current?.contentWindow?.postMessage({ channel: 'memorie-mockup-v1', type: 'apply', ...payload }, window.location.origin);
+  const post = (payload: Record<string, unknown>) => frame.current?.contentWindow?.postMessage({ channel: 'memorie-mockup-v1', type: 'apply', allowGraphics, ...payload }, window.location.origin);
   // La grafica di copertina del Quadrobook la carica lo studio: si scarica una volta e si passa al visualizzatore.
   const apply = (payload: Record<string, unknown>) => {
     const option = payload.option as MockupOption | undefined;
     const photos = payload.photos as Record<string, unknown> | undefined;
-    if (option?.rendererId === BOX_MOCKUP_MODEL.id && option.setup?.cover.graphicAssetId && !photos?.graphic) {
+    const graphicId = option?.rendererId === BOX_MOCKUP_MODEL.id ? boxCoverGraphicId(option.setup) : undefined;
+    if (graphicId && !photos?.graphic) {
       graphicBlob.current ??= request('/cover-graphic').then(response => response.blob());
-      graphicBlob.current .then(blob => post({ ...payload, photos: { ...photos, graphic: { id: option.setup!.cover.graphicAssetId, name: 'grafica dello studio', blob } } }))
+      graphicBlob.current .then(blob => post({ ...payload, photos: { ...photos, graphic: { id: graphicId, name: 'grafica dello studio', blob } } }))
         .catch(() => { graphicBlob.current = null; post(payload); setMessage('Grafica di copertina non disponibile. Riprova più tardi.'); });
       return;
     }
@@ -204,7 +210,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       skipSlot,
     );
   const savedBoxPhotos = async (cfg: MockupConfiguration, label = 'Foto salvata') =>
-    cfg.modelId === BOX_MOCKUP_MODEL.id ? (await loadSavedPhotos(cfg, { boxPhoto: label })).boxPhotos : undefined;
+    cfg.modelId === BOX_MOCKUP_MODEL.id || cfg.modelId === IMAGEBOX_MOCKUP_MODEL.id ? (await loadSavedPhotos(cfg, { boxPhoto: label })).boxPhotos : undefined;
   const recordSaved = (value: SavedMockup) => {
     revision.current = value.revision;
     dirtyContext.current.saved = value;
@@ -413,6 +419,11 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     submit: () => { void submitWizard(); },
     // Salvataggio automatico al cambio di passo, solo se c'è qualcosa di nuovo e la configurazione è completa.
     step: () => { if (phoneBox && editable && dirty && configuration && !busy && !renderBusy) void save(true); },
+    pickGraphic: slot => {
+      if (token || !isGraphicSlot(slot)) return;
+      setBoxSlot(slot);
+      upload.current?.click();
+    },
     pickGallery: (slot, photoId) => {
       const target = slot === 'album' ? 'cover' : slot as 'base' | 'lid';
       setBoxSlot(target);
@@ -442,6 +453,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       if (event.data.type === 'submit') hostActions.current.submit();
       if (event.data.type === 'step') hostActions.current.step();
       if (event.data.type === 'pick-gallery' && ['base', 'lid', 'album'].includes(event.data.slot) && typeof event.data.photoId === 'string') hostActions.current.pickGallery(event.data.slot, event.data.photoId);
+      if (event.data.type === 'pick-graphic' && typeof event.data.slot === 'string') hostActions.current.pickGraphic(event.data.slot);
       if (event.data.type === 'pick-photo' && ['base', 'lid', 'album'].includes(event.data.slot)) {
         setBoxSlot(event.data.slot === 'album' ? 'cover' : event.data.slot);
         if (event.data.source === 'upload') upload.current?.click(); else setPicker(true);
@@ -461,6 +473,15 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
         const draft = event.data.configuration;
         if (draft?.modelId === BOX_MOCKUP_MODEL.id) {
           setConfigurationIssue(parsed.success ? '' : !draft.photoAssetId ? 'Scegli la foto del quadro da parete.' : !draft.lidPhotoAssetId ? 'Scegli la foto della cornice da tavolo.' : draft.coverLayout === 'photo' && !draft.coverPhotoAssetId ? 'Scegli la foto della copertina.' : 'Controlla le scelte: tessuto non disponibile per questo modello.');
+          initializing.current = false;
+          return;
+        }
+        if (draft?.modelId === IMAGEBOX_MOCKUP_MODEL.id) {
+          setConfigurationIssue(parsed.success ? ''
+            : !draft.photoAssetId ? 'Scegli la foto sul fondo della scatola.'
+            : draft.coverLayout !== 'plaque' && !draft.coverPhotoAssetId ? 'Scegli la foto della copertina.'
+            : draft.coverLayout === 'plaque' && !draft.coverEngraving ? 'Scrivi il testo da incidere sulla placchetta.'
+            : 'Controlla le scelte: tessuto non disponibile per questo modello o grafica da caricare.');
           initializing.current = false;
           return;
         }
@@ -617,7 +638,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     return () => window.removeEventListener('beforeunload', warn);
   }, [dirty]);
 
-  async function selectPhoto(operation: () => Promise<Response>, slotOverride?: 'base' | 'lid' | 'cover') {
+  async function selectPhoto(operation: () => Promise<Response>, slotOverride?: typeof boxSlot) {
     const target = mobile ? (step === 7 ? 'back' : 'front') : renderer.id === 'album-girevole' || renderer.id === 'plaza-led' ? photoSide : 'front';
     setBusy(true); setMessage('Preparazione foto…');
     try {
@@ -638,13 +659,21 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     return ({
       front: 'di copertina',
       back: 'del plexiglass posteriore',
-      base: 'del fondo del quadro',
+      base: isImageBox ? 'del fondo della scatola' : 'del fondo del quadro',
       lid: 'del tappo del quadro',
-      cover: 'della copertina del quadro',
+      cover: isImageBox ? 'della copertina dell’album' : 'della copertina del quadro',
+      coverGraphic: 'della grafica incisa sulla copertina',
+      glassGraphic: 'della grafica incisa sul plexiglass',
     } as const)[slot];
   }
   function openMissingPhotoPicker() {
     if (!savedPhotoSlot) return;
+    if (isGraphicSlot(savedPhotoSlot)) {
+      // Una grafica si sostituisce caricando il file, non dalla galleria.
+      setBoxSlot(savedPhotoSlot);
+      upload.current?.click();
+      return;
+    }
     if (savedPhotoSlot === 'base' || savedPhotoSlot === 'lid' || savedPhotoSlot === 'cover') {
       setBoxSlot(savedPhotoSlot);
     } else {
@@ -667,7 +696,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       let boxPhotos = partial.assets.boxPhotos;
       let frontPhoto = partial.assets.photo;
       let backPhoto = partial.assets.backPhoto;
-      if (slot === 'base' || slot === 'lid' || slot === 'cover') {
+      if (slot === 'base' || slot === 'lid' || slot === 'cover' || isGraphicSlot(slot)) {
         boxPhotos = { ...boxPhotos, [slot]: replacement };
       } else if (slot === 'front') {
         frontPhoto = replacement;
@@ -1129,7 +1158,9 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
           const file = event.target.files?.[0]; event.target.value = '';
           if (!file) return;
           if (file.size > 20 * 1024 * 1024) { setMessage('Scegli una foto entro 20 MB.'); return; }
-          const operation = () => request(`/upload?name=${encodeURIComponent(file.name)}`, { method: 'POST', headers: { 'Content-Type': file.type }, body: file });
+          // Le grafiche da incidere restano PNG (con la trasparenza): hanno un proprio caricamento.
+          const graphicUpload = isBox && isGraphicSlot(savedPhotoError?.kind === 'unavailable' && savedPhotoSlot ? savedPhotoSlot : boxSlot);
+          const operation = () => request(`/${graphicUpload ? 'upload-graphic' : 'upload'}?name=${encodeURIComponent(file.name)}`, { method: 'POST', headers: { 'Content-Type': file.type }, body: file });
           if (!token && savedPhotoError?.kind === 'unavailable' && savedPhotoSlot) void replaceUnavailablePhoto(operation);
           else void selectPhoto(operation);
         }} />}
@@ -1322,7 +1353,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
           {gallery.isFetching ? 'Caricamento…' : 'Riprova'}
         </Button>
       </div>}
-      <PhotobookPhotoPicker open={picker && !!gallery.data} onOpenChange={setPicker} photos={gallery.data?.photos || []} chapters={gallery.data?.chapters || []} title={isBox ? ({ base: 'Scegli la foto del quadro da parete', lid: 'Scegli la foto della cornice da tavolo', cover: 'Scegli la foto della copertina' }[boxSlot]) : photoSide === 'back' ? 'Scegli la foto del retro' : 'Scegli la foto di copertina'} onSelect={photo => {
+      <PhotobookPhotoPicker open={picker && !!gallery.data} onOpenChange={setPicker} photos={gallery.data?.photos || []} chapters={gallery.data?.chapters || []} title={isBox ? ({ base: isImageBox ? 'Scegli la foto sul fondo della scatola' : 'Scegli la foto del quadro da parete', lid: 'Scegli la foto della cornice da tavolo', cover: 'Scegli la foto della copertina', coverGraphic: 'Scegli la foto della copertina', glassGraphic: 'Scegli la foto della copertina' }[boxSlot]) : photoSide === 'back' ? 'Scegli la foto del retro' : 'Scegli la foto di copertina'} onSelect={photo => {
         setPicker(false);
         const operation = () => request('/gallery-photo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ photoId: photo.id }) });
         if (!token && savedPhotoError?.kind === 'unavailable' && savedPhotoSlot) void replaceUnavailablePhoto(operation);
