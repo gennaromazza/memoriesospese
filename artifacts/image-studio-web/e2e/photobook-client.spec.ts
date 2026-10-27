@@ -676,3 +676,142 @@ async function exerciseStudioSharing(page: Page) {
 test("lo studio copia una sola volta il link del mockup confermato su telefono", async ({ page }) => {
   await exerciseStudioSharing(page);
 });
+
+test.describe("approvazione di un fotolibro autonomo", () => {
+  test.use({
+    viewport: { width: 1280, height: 900 },
+    isMobile: false,
+    hasTouch: false,
+    deviceScaleFactor: 1,
+  });
+
+  test("il cliente approva le pagine caricate e lo studio vede lo stato nella sezione autonoma", async ({ page }) => {
+    const standaloneToken = "e2e-standalone-approval-token";
+    const standaloneId = "e2e-standalone-approval-book";
+    const imageUrl = (label: string, color: string) =>
+      `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1100"><rect width="100%" height="100%" fill="${color}"/><text x="50%" y="50%" text-anchor="middle" font-size="64" fill="white">${label}</text></svg>`)}`;
+    const pageOneUrl = imageUrl("PAGINA UNO", "#70594b");
+    const pageTwoUrl = imageUrl("PAGINA DUE", "#4f6d61");
+    const pages = [
+      {
+        id: "e2e-standalone-page-1",
+        photobookId: standaloneId,
+        version: 3,
+        pageNumber: 1,
+        fileName: "pagina-1.jpg",
+        url: pageOneUrl,
+        storagePath: "e2e/standalone/v3/pagina-1.jpg",
+        width: 800,
+        height: 1100,
+        createdAt: "2026-10-27T09:00:00.000Z",
+      },
+      {
+        id: "e2e-standalone-page-2",
+        photobookId: standaloneId,
+        version: 3,
+        pageNumber: 2,
+        fileName: "pagina-2.jpg",
+        url: pageTwoUrl,
+        storagePath: "e2e/standalone/v3/pagina-2.jpg",
+        width: 800,
+        height: 1100,
+        createdAt: "2026-10-27T09:01:00.000Z",
+      },
+    ];
+    const book: Record<string, any> = {
+      id: standaloneId,
+      name: "Fotolibro autonomo E2E",
+      token: standaloneToken,
+      currentVersion: 3,
+      versions: [{ version: 3, status: "published", pageCount: pages.length, createdAt: "2026-10-27T09:00:00.000Z" }],
+      approval: null,
+      locked: false,
+      mockupPath: "studio",
+      createdAt: "2026-10-27T09:00:00.000Z",
+      updatedAt: "2026-10-27T09:00:00.000Z",
+    };
+    let galleryPhotoRequestCount = 0;
+    let approvalRequestCount = 0;
+    let approvedRevision: number | undefined;
+
+    await page.route("**/api/**", async route => {
+      const request = route.request();
+      const url = new URL(request.url());
+      const json = (body: unknown) => route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(body),
+      });
+
+      if (url.pathname === `/api/photobooks/by-token/${standaloneToken}/gallery-photos`) {
+        galleryPhotoRequestCount += 1;
+        await json({ photos: [], chapters: [] });
+        return;
+      }
+      if (url.pathname === `/api/photobooks/by-token/${standaloneToken}/approve` && request.method() === "POST") {
+        approvalRequestCount += 1;
+        approvedRevision = book.currentVersion;
+        book.approval = {
+          version: approvedRevision,
+          approvedAt: "2026-10-27T09:10:00.000Z",
+          note: null,
+        };
+        await json({ ok: true, approved: true, mockupNotification: "not-configured" });
+        return;
+      }
+      if (url.pathname === `/api/photobooks/by-token/${standaloneToken}`) {
+        await json({
+          photobook: book,
+          version: book.currentVersion,
+          pages,
+          requests: [],
+        });
+        return;
+      }
+      if (url.pathname === "/api/photobooks" && request.method() === "GET") {
+        await json({ photobooks: [book] });
+        return;
+      }
+      if (url.pathname === "/api/photobooks/requests" && request.method() === "GET") {
+        await json({ requests: [] });
+        return;
+      }
+
+      await route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: JSON.stringify({ error: `Unexpected API request: ${request.method()} ${url.pathname}` }),
+      });
+    });
+
+    await page.goto(`/fotolibro/${standaloneToken}`);
+    await expect(page.getByTestId("text-photobook-name")).toHaveText("Fotolibro autonomo E2E");
+    const firstPage = page.locator('img[alt="Pagina 1"]');
+    const secondPage = page.locator('img[alt="Pagina 2"]');
+    await expect(firstPage).toHaveAttribute("src", pageOneUrl);
+    await expect(secondPage).toHaveAttribute("src", pageTwoUrl);
+    await expect.poll(() => Promise.all([firstPage, secondPage].map(img =>
+      img.evaluate(element => (element as HTMLImageElement).naturalWidth),
+    ))).toEqual([800, 800]);
+    await expect(page.getByRole("button", { name: /sostituisci/i })).toHaveCount(0);
+    expect(galleryPhotoRequestCount).toBeGreaterThan(0);
+
+    await page.getByTestId("button-open-approve").click();
+    await expect(page.getByRole("dialog", { name: "Approvi l'impaginato?" })).toBeVisible();
+    await page.getByTestId("button-confirm-approve").click();
+    await expect(page.getByTestId("photobook-client-progress")).toContainText("Pagine approvate");
+    expect(approvalRequestCount).toBe(1);
+    expect(approvedRevision).toBe(3);
+    expect(book.approval.version).toBe(book.currentVersion);
+
+    await page.goto("/admin/__e2e/photobook-job-gallery");
+    const standaloneSection = page.getByTestId("section-standalone-photobooks");
+    await expect(standaloneSection).toBeVisible();
+    const standaloneCard = page.getByTestId(`card-photobook-${standaloneId}`);
+    await expect(standaloneCard).toBeVisible();
+    await expect(standaloneCard).toContainText("Fotolibro autonomo");
+    await expect(standaloneCard.getByTestId(`badge-approved-${standaloneId}`)).toBeVisible();
+    await expect(standaloneCard).toContainText("v3");
+    await expect(page.getByTestId("section-linked-photobooks")).toHaveCount(0);
+  });
+});
