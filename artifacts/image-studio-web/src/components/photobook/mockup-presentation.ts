@@ -2,6 +2,14 @@ import { optionFor, type MockupSelection } from '@shared/mockup-workflow';
 import { MOCKUP_RENDERERS } from '@shared/mockup-catalog';
 import type { MockupPayload } from '@shared/mockup-types';
 
+export function shouldStartClientMockupIn3d({ confirmedOnly, mobile, choosing }: {
+  confirmedOnly: boolean;
+  mobile: boolean;
+  choosing: boolean;
+}): boolean {
+  return confirmedOnly && mobile && !choosing;
+}
+
 export function needsClientModelChoice(payload: MockupPayload | undefined): boolean {
   const offer = payload?.offer;
   if (!offer?.options.length) return false;

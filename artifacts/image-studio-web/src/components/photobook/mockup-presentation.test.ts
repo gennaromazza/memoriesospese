@@ -1,10 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { initialMockupSelection, mockupPresentation, needsClientModelChoice } from './mockup-presentation';
+import { initialMockupSelection, mockupPresentation, needsClientModelChoice, shouldStartClientMockupIn3d } from './mockup-presentation';
 import type { MockupPayload } from '@shared/mockup-types';
 import { MOCKUP_MODEL, ROTATING_MOCKUP_MODEL } from '@shared/mockup-catalog';
 
 describe('modello mostrato nel link cliente', () => {
   const plaza = { labId: 'nobili', id: 'plaza', name: 'Plaza LED', rendererId: 'plaza-led' };
+  it('avvia in 3D i link cliente confermati su smartphone, ma non il configuratore', () => {
+    expect(shouldStartClientMockupIn3d({ confirmedOnly: true, mobile: true, choosing: false })).toBe(true);
+    expect(shouldStartClientMockupIn3d({ confirmedOnly: false, mobile: true, choosing: false })).toBe(false);
+    expect(shouldStartClientMockupIn3d({ confirmedOnly: true, mobile: false, choosing: false })).toBe(false);
+    expect(shouldStartClientMockupIn3d({ confirmedOnly: true, mobile: true, choosing: true })).toBe(false);
+  });
+
   it('non risolve un renderer mentre i dati non sono ancora caricati', () => {
     expect(mockupPresentation(undefined)).toMatchObject({ title: 'Scegli un modello', rendererId: undefined, savedRendererUnavailable: false });
   });
