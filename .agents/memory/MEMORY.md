@@ -15,6 +15,7 @@
 - [Drive resumable upload CORS](drive-resumable-upload-cors.md) — l'upload browser→Drive richiede header Origin nella init server-side della sessione resumable, altrimenti i PUT dei chunk sono bloccati da CORS.
 - [Google Drive via connectors SDK](drive-connectors-sdk.md) — l'endpoint raw v2 ritorna items:[] anche a connessione sana; ogni chiamata Drive passa dal proxy @replit/connectors-sdk, niente token raw.
 - [Quote price snapshot vs catalog](quote-price-snapshot.md) — la creazione preventivo deve rispettare il prezzo override/omaggio deciso dall'admin; mai ri-leggere il listino catalogo (solo existence check).
+- [QuoteBuilder type hydration in StrictMode](quote-builder-type-hydration.md) — i reset programmatici del tipo devono attendere il valore target; un flag one-shot può essere consumato sul render intermedio.
 - [Masonry render-window reset loop](gallery-render-window-reset.md) — callback non-memoizzata usata in un useEffect figlio resetta la finestra masonry (~60 foto, lightbox ok). Fix: useCallback.
 - [Dedup foto legacy cross-pagina](gallery-legacy-photo-dedup.md) — foto in 2 collezioni: le legacy senza chapterId vanno dedupate per nome sull'elenco completo o appare il capitolo fantasma "Altre Foto".
 - [Gallery photo completeness & lightbox](gallery-photo-completeness.md) — Firestore orderBy scarta i doc senza il campo → galleria perde foto; riconcilia con query unordered gated su photoCount (deve throw, no save parziale).

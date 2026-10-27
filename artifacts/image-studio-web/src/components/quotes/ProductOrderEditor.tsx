@@ -134,6 +134,7 @@ function SortableRow({ product, index, onSectionChange, sectionSuggestions, onPr
       ref={setNodeRef}
       style={style}
       className="flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-lg shadow-sm hover:border-sage/50 hover:shadow-md transition-all"
+      data-testid={`order-row-${product.key}`}
     >
       <span className="text-xs text-gray-400 w-5 text-center font-mono">{index + 1}</span>
       <button
@@ -161,6 +162,7 @@ function SortableRow({ product, index, onSectionChange, sectionSuggestions, onPr
               onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') { setEditing(false); setDraft(product.sezione || ''); } }}
               placeholder="Sezione..."
               className="w-28 text-xs border border-sage/40 rounded px-2 py-0.5 focus:outline-none focus:border-sage flex-shrink-0"
+              data-testid={`input-section-${product.key}`}
             />
             {sectionSuggestions && sectionSuggestions.length > 0 && (
               <datalist id={`sezione-options-${product.key}`}>

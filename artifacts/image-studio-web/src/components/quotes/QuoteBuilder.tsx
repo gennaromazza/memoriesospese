@@ -303,6 +303,7 @@ function SortableProductCard({
               type="button"
               size="sm"
               variant="ghost"
+              data-testid={`button-toggle-expand-product-${index}`}
               onClick={(e) => {
                 e.stopPropagation();
                 onToggleExpand();
@@ -397,9 +398,9 @@ export default function QuoteBuilder({
   // Inizializzati dal template selezionato o dal preventivo esistente.
   const [catalogOverrides, setCatalogOverrides] = useState<Record<string, { prezzo?: number; selectable?: boolean; isOmaggio?: boolean }>>({});
   const [hasNonFormChanges, setHasNonFormChanges] = useState(false);
-  // Ref usata per saltare il reset auto del selectable quando type viene cambiato
-  // programmaticamente (caricamento template o preventivo esistente).
-  const skipNextSelectableResetRef = useRef(false);
+  // Tipo di destinazione per cui saltare il reset selectable, evitando che
+  // StrictMode consumi il flag su un render intermedio col vecchio tipo.
+  const skipSelectableResetForTypeRef = useRef<string | null>(null);
   const hydratedQuoteRef = useRef<string | null>(null);
   const clauseChoiceMadeRef = useRef(false);
   const clauseDefaultAppliedRef = useRef(false);
@@ -593,7 +594,7 @@ export default function QuoteBuilder({
     // (altrimenti l'useEffect non scatta e il flag resterebbe armato per il prossimo cambio utente).
     const targetType = existingQuote.type || 'fisso';
     if (form.getValues('type') !== targetType) {
-      skipNextSelectableResetRef.current = true;
+      skipSelectableResetForTypeRef.current = targetType;
     }
 
     // Popola form
@@ -1017,8 +1018,8 @@ export default function QuoteBuilder({
       return;
     }
     // Salta se template/quote loader ha appena cambiato type programmaticamente
-    if (skipNextSelectableResetRef.current) {
-      skipNextSelectableResetRef.current = false;
+    if (skipSelectableResetForTypeRef.current === quoteType) {
+      skipSelectableResetForTypeRef.current = null;
       prevQuoteTypeRef.current = quoteType;
       return;
     }
@@ -1150,7 +1151,7 @@ export default function QuoteBuilder({
     // Evita il reset automatico del selectable SOLO se type cambia davvero
     // (altrimenti l'useEffect non scatta e il flag resterebbe armato per il prossimo cambio utente).
     if (form.getValues('type') !== template.type) {
-      skipNextSelectableResetRef.current = true;
+      skipSelectableResetForTypeRef.current = template.type;
     }
     form.setValue('type', template.type);
 
@@ -1633,7 +1634,7 @@ export default function QuoteBuilder({
       clauseDefaultAppliedRef.current = false;
       setSelectedClauseTemplateId('');
       setSelectedTemplateId('');
-      skipNextSelectableResetRef.current = false;
+      skipSelectableResetForTypeRef.current = null;
       onClose();
     },
     onError: (error: any) => {
