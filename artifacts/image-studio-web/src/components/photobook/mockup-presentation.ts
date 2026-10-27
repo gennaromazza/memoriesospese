@@ -1,4 +1,5 @@
 import { optionFor, type MockupSelection } from '@shared/mockup-workflow';
+import { MOCKUP_RENDERERS } from '@shared/mockup-catalog';
 import type { MockupPayload } from '@shared/mockup-types';
 
 export function needsClientModelChoice(payload: MockupPayload | undefined): boolean {
@@ -20,10 +21,25 @@ export function mockupPresentation(payload: MockupPayload | undefined, selection
   const option = optionFor(payload?.offer || null, selection);
   const awaitingClientChoice = needsClientModelChoice(payload) && !option;
   const displayOption = option || (staleFixedSave || awaitingClientChoice ? payload?.offer?.options[0] : undefined);
+  const rendererId = override || (staleFixedSave || awaitingClientChoice ? displayOption?.rendererId : undefined)
+    || option?.rendererId
+    || (fixed && !saved ? payload?.offer?.options[0]?.rendererId : undefined)
+    || saved?.configuration?.modelId
+    || displayOption?.rendererId;
+  const savedRendererId = saved?.configuration?.modelId;
+  const savedRendererIsUnknown = typeof savedRendererId === 'string'
+    && !!savedRendererId
+    && !MOCKUP_RENDERERS.some(renderer => renderer.id === savedRendererId);
+  const replacementRendererIsKnown = !!rendererId
+    && MOCKUP_RENDERERS.some(renderer => renderer.id === rendererId);
+  const savedRendererUnavailable = savedRendererIsUnknown && !replacementRendererIsKnown;
   return {
     staleFixedSave,
-    title: payload?.offerError ? 'Modello non disponibile' : displayOption?.name || payload?.offer?.options[0]?.name || saved?.option?.name || 'Scegli un modello',
-    rendererId: override || (staleFixedSave || awaitingClientChoice ? displayOption?.rendererId : undefined) || option?.rendererId || (fixed && !saved ? payload?.offer?.options[0]?.rendererId : undefined) || saved?.configuration?.modelId || displayOption?.rendererId,
+    savedRendererUnavailable,
+    title: savedRendererUnavailable
+      ? 'Visualizzatore non disponibile'
+      : payload?.offerError ? 'Modello non disponibile' : displayOption?.name || payload?.offer?.options[0]?.name || saved?.option?.name || 'Scegli un modello',
+    rendererId: savedRendererUnavailable ? undefined : rendererId,
   };
 }
 

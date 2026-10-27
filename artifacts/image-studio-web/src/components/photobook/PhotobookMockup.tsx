@@ -168,6 +168,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   const shouldPromptForModel = !!token && editable && needsClientModelChoice(state.data) && !selectedOption;
   const presentation = mockupPresentation(state.data, selection, rendererOverride);
   const staleFixedSave = presentation.staleFixedSave;
+  const savedRendererUnavailable = presentation.savedRendererUnavailable;
   const renderer = MOCKUP_RENDERERS.find(r => r.id === presentation.rendererId);
   const clientStatusMessage = state.data?.mockupPath === 'studio'
     ? saved?.status === 'confirmed' ? 'Lo studio ha confermato il mockup. Puoi consultarlo qui; per modifiche contatta lo studio.' : 'Lo studio prepara il mockup. Potrai consultarlo quando sarà confermato.'
@@ -1226,10 +1227,23 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
           />}
           {token && rendererError && !choosing && <MockupRendererError message={rendererError} onRetry={retryRenderer} />}
          {token && renderer && !rendererError && (!ready || (!wizard && !isBox)) && !choosing && <p role="status" className="p-4 text-sm">Preparazione del tuo configuratore…</p>}
-          {!renderer && !!state.data && <div role="status" className="flex min-h-48 flex-1 flex-col items-center justify-center gap-2 p-6 text-center" data-testid="mockup-no-model">
+          {!renderer && !!state.data && <div role={savedRendererUnavailable ? 'alert' : 'status'} className="flex min-h-48 flex-1 flex-col items-center justify-center gap-2 p-6 text-center" data-testid={savedRendererUnavailable ? 'mockup-saved-renderer-unavailable' : 'mockup-no-model'}>
             <p className="font-medium">{presentation.title}</p>
-            <p className="text-sm text-muted-foreground">{token ? 'Lo studio deve assegnare un modello prima di avviare l’anteprima.' : 'Assegna un modello nel passaggio “1 · Modello” per avviare l’anteprima.'}</p>
-            {!token && <Button variant="outline" onClick={() => changeAdminTab('offer')}>Scegli modello</Button>}
+            {savedRendererUnavailable ? (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  Questo fotolibro ha già una configurazione salvata con il modello “{saved?.option?.name || 'precedentemente assegnato'}”, ma il relativo visualizzatore non è disponibile in questa versione. La configurazione precedente resta conservata.
+                </p>
+                {token
+                  ? <p className="text-sm text-muted-foreground">Contatta lo studio per aggiornare l’assegnazione del modello.</p>
+                  : <Button variant="outline" onClick={() => changeAdminTab('offer')}>Aggiorna assegnazione modello</Button>}
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground">{token ? 'Lo studio deve assegnare un modello prima di avviare l’anteprima.' : 'Assegna un modello nel passaggio “1 · Modello” per avviare l’anteprima.'}</p>
+                {!token && <Button variant="outline" onClick={() => changeAdminTab('offer')}>Scegli modello</Button>}
+              </>
+            )}
           </div>}
           {renderer && (!mobile || viewerStarted) && !!state.data && <iframe key={`${renderer.id}-${generation}`} ref={frame} title={`Configuratore 3D ${renderer.name}`} src={`${import.meta.env.BASE_URL}mockups/${renderer.path}`} sandbox="allow-scripts allow-same-origin allow-downloads" style={{ visibility: token && (!ready || (!wizard && !isBox) || !!rendererError || !!savedPhotoError) ? 'hidden' : undefined }} aria-hidden={token && (!ready || (!wizard && !isBox) || !!rendererError || !!savedPhotoError) ? true : undefined} className={`${token ? 'w-full min-h-0 flex-1 border-0' : 'mockup-admin-viewer'} ${busy ? 'pointer-events-none' : ''}`} />}
         {phoneWizard && wizard.topSlot && createPortal(<>
