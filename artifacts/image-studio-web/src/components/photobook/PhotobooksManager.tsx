@@ -189,7 +189,7 @@ export default function PhotobooksManager({
   const { data: galleries = [] } = useQuery<Gallery[]>({
     queryKey: ['admin-galleries-for-photobooks'],
     queryFn: loadGalleries,
-    enabled: createOpen || !!lockTarget,
+    enabled: (createOpen && createMode === 'linked') || Boolean(lockTarget?.galleryId),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -319,7 +319,9 @@ export default function PhotobooksManager({
   const { data: jobs = [], isLoading: jobsLoading } = useQuery<Job[]>({
     queryKey: ['/api/jobs', 'for-photobook-shipment'],
     queryFn: loadJobs,
-    enabled: createOpen || (!!lockTarget && createShip),
+    enabled:
+      (createOpen && createMode === 'linked') ||
+      Boolean(lockTarget && createShip && (lockTarget.jobId || lockTarget.galleryId)),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -410,6 +412,10 @@ export default function PhotobooksManager({
   const archivedStandaloneBooks = archivedBooks.filter(isStandaloneBook);
 
   const renderBook = (book: Photobook) => {
+            const sourceLabel =
+              book.galleryName ||
+              book.galleryId ||
+              (book.jobId ? 'Senza galleria · lavoro collegato' : 'Fotolibro autonomo');
             const currentVer = book.versions.find((v) => v.version === book.currentVersion);
             return (
               <Card key={book.id} data-testid={`card-photobook-${book.id}`}>
@@ -418,7 +424,7 @@ export default function PhotobooksManager({
                     <div className="min-w-0">
                       <h3 className="font-semibold truncate">{book.name}</h3>
                       <p className="text-xs text-muted-foreground truncate">
-                        {book.galleryName || book.galleryId || 'Fotolibro autonomo'}
+                        {sourceLabel}
                         {book.clientName ? ` · ${book.clientName}` : ''}
                       </p>
                     </div>

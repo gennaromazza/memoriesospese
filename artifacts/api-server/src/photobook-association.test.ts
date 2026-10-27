@@ -4,7 +4,12 @@ import type { AddressInfo } from 'node:net';
 import { jsonFetch } from './test-utils/json-fetch.js';
 
 const fetch = jsonFetch<{
-  photobook: { galleryId?: string | null; jobId?: string | null; token?: string };
+  photobook: {
+    id: string;
+    galleryId?: string | null;
+    jobId?: string | null;
+    token?: string;
+  };
   code: string;
   warnings: string[];
 }>;

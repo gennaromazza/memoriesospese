@@ -14,3 +14,11 @@ Quando il cliente cambia modello partendo da una bozza salvata, il browser può 
 **Why:** Lo studio può aver già concordato il risultato con il cliente fuori dalla piattaforma: prepara il mockup e vuole inviare un link perché il cliente lo controlli e lo approvi, senza personalizzarlo.
 
 **How to apply:** La conferma tecnica dello studio prepara il mockup condivisibile; l’approvazione del cliente è un passaggio distinto, riferito alla revisione vista. Il cliente non deve personalizzare il modello. Nessuna di queste azioni avvia automaticamente la stampa. Una modifica successiva richiede una nuova approvazione.
+
+## Fotolibri autonomi
+
+Un fotolibro senza lavoro e senza galleria è un elemento distinto dai fotolibri collegati e va mostrato in una sezione separata, anche nell’archivio delle stampe. L’editor deve accettare pagine caricate direttamente e la spedizione al laboratorio non deve inventare o richiedere un lavoro associato.
+
+**Why:** Alcuni fotolibri vengono preparati o ristampati indipendentemente da un servizio fotografico registrato; mescolarli ai lavori collegati crea confusione e un job fittizio altererebbe i dati operativi.
+
+**How to apply:** Mantieni il link cliente copiabile per la condivisione manuale. Senza una galleria non proporre foto sostitutive; nella spedizione usa le pagine del fotolibro e le istruzioni inserite per quella consegna, senza snapshot o timeline di un job.
