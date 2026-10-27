@@ -1848,7 +1848,7 @@ export default function QuoteBuilder({
                   data-testid="select-clause-template"
                 >
                   <FormControl>
-                    <SelectTrigger>
+                    <SelectTrigger data-testid="select-clause-template-trigger">
                       <SelectValue placeholder="Seleziona template..." />
                     </SelectTrigger>
                   </FormControl>

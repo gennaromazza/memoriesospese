@@ -112,6 +112,7 @@ const WeddingSeoDraftE2EHarness = lazyWithRetry(() => import("./pages/WeddingSeo
 const MockupOfferE2EHarness = lazyWithRetry(() => import("./pages/MockupOfferE2EHarness"));
 const DateSelectorE2EHarness = lazyWithRetry(() => import("./pages/DateSelectorE2EHarness"));
 const QuoteBuilderProductsE2EHarness = lazyWithRetry(() => import("./pages/QuoteBuilderProductsE2EHarness"));
+const QuoteBuilderLifecycleE2EHarness = lazyWithRetry(() => import("./pages/QuoteBuilderLifecycleE2EHarness"));
 const FinancialDashboardE2EHarness = lazyWithRetry(() => import("./pages/FinancialDashboardE2EHarness"));
 const CollaboratorProductsE2EHarness = lazyWithRetry(() => import("./pages/CollaboratorProductsE2EHarness"));
 const BulkEmailSender = lazyWithRetry(() => import("./pages/BulkEmailSender"));
@@ -323,6 +324,12 @@ function AppRoutes() {
           <Route
             path="/admin/__e2e/quote-builder-products"
             component={QuoteBuilderProductsE2EHarness}
+          />
+        )}
+        {import.meta.env.DEV && import.meta.env.VITE_QUOTE_BUILDER_LIFECYCLE_E2E_HARNESS === "true" && (
+          <Route
+            path="/admin/__e2e/quote-builder-lifecycle"
+            component={QuoteBuilderLifecycleE2EHarness}
           />
         )}
         {import.meta.env.DEV && import.meta.env.VITE_STUDIO_SETTINGS_E2E_HARNESS === "true" && (
