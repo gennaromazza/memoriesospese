@@ -1,12 +1,32 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { assignMockupOffer } from './mockup-offer-assignment';
-import { MockupOfferPublishError } from './MockupOfferEditor';
+import MockupOfferEditor, { MockupOfferPublishError } from './MockupOfferEditor';
 import { initialMockupSelection, mockupPresentation } from './mockup-presentation';
 import type { MockupPayload } from '@shared/mockup-types';
 
 describe('assegnazione modello e aggiornamento anteprima', () => {
+  it('spiega che qui si decide chi sceglie il modello, non chi prepara la bozza', () => {
+    const client = new QueryClient();
+    const html = renderToStaticMarkup(createElement(
+      QueryClientProvider,
+      { client },
+      createElement(MockupOfferEditor, {
+        disabled: false,
+        alwaysOpen: true,
+        reloadOffer: async () => undefined,
+        publish: async () => true,
+      }),
+    ));
+
+    expect(html).toContain('Chi sceglie il modello dell’album?');
+    expect(html).toContain('Un solo modello: lo scelgo io');
+    expect(html).toContain('Il cliente sceglie tra i modelli pubblicati');
+    expect(html).toContain('non sceglie tra modelli diversi');
+  });
+
   it('propaga l’errore di salvataggio del server senza tentare il refetch', async () => {
     const serverError = Object.assign(new Error('Proposta modificata: ricarica prima di proseguire'), { status: 409 });
     const save = vi.fn().mockRejectedValue(serverError);

@@ -21,7 +21,7 @@ const render = (props: Partial<Parameters<typeof MockupAdminFlow>[0]> = {}, save
 describe('MockupAdminFlow', () => {
   it('mostra lo stato delle pagine separato dai tre passi del mockup', () => {
     const html = render();
-    const order = ['Impaginato:', 'Modello assegnato', 'Percorso del mockup', 'Verifica e condivisione'].map(t => html.indexOf(t));
+    const order = ['Impaginato:', 'Modello assegnato', 'Chi prepara la bozza?', 'Verifica e condivisione'].map(t => html.indexOf(t));
     expect(order.every(i => i >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
   });
@@ -29,6 +29,13 @@ describe('MockupAdminFlow', () => {
     expect(render()).toContain('versione 1 non ancora approvata');
     expect(render({ pagesApproved: true })).toContain('versione 1 approvata dal cliente');
     expect(render({ mockupPath: 'client' })).not.toContain('Prepara la bozza');
+  });
+  it('distingue chi prepara la bozza da chi sceglie il modello', () => {
+    const html = render();
+    expect(html).toContain('La preparo io in studio');
+    expect(html).toContain('Il cliente la personalizza dal link');
+    expect(html).toContain('qui scegli chi la compone, non chi sceglie il modello');
+    expect(html).not.toContain('Il cliente sceglie tra i modelli assegnati');
   });
   it('mostra la preparazione come prossima azione e non duplica il comando 3D', () => {
     const state = {

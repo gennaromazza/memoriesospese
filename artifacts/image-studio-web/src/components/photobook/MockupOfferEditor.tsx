@@ -331,7 +331,7 @@ export default function MockupOfferEditor({
         <>
           <fieldset className="space-y-2" disabled={disabled}>
             <legend className="text-sm font-medium">
-              Come deve essere scelto il modello?
+              Chi sceglie il modello dell’album?
             </legend>
             <label className="flex items-start gap-2 text-sm">
               <input
@@ -341,9 +341,9 @@ export default function MockupOfferEditor({
                 onChange={() => setMode("fixed")}
               />
               <span>
-                <strong>Un solo modello, deciso da me</strong>
+                <strong>Un solo modello: lo scelgo io</strong>
                 <small className="block text-muted-foreground">
-                  Il cliente lo vede e poi continua con la personalizzazione.
+                  Il cliente vede questo modello e può personalizzarlo, ma non sceglie tra modelli diversi.
                 </small>
               </span>
             </label>
@@ -355,9 +355,9 @@ export default function MockupOfferEditor({
                 onChange={() => setMode("choice")}
               />
               <span>
-                <strong>Il cliente sceglie tra più modelli</strong>
+                <strong>Il cliente sceglie tra i modelli pubblicati</strong>
                 <small className="block text-muted-foreground">
-                  Proponi due o più modelli: il cliente ne sceglie uno.
+                  Pubblica due o più modelli: nel link il cliente ne sceglie uno prima di personalizzarlo.
                 </small>
               </span>
             </label>

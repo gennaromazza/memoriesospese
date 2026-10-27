@@ -131,11 +131,11 @@ export default function MockupAdminFlow({ photobookId, version, currentVersion, 
             <Button variant={assigned ? 'outline' : 'default'} className="min-h-11" disabled={readOnly} onClick={() => openMockupTab(photobookId, 'offer')}>{assigned ? 'Cambia modello' : 'Assegna modello'}</Button>
           </div>
         </Step>
-        <Step n={2} title="Percorso del mockup" done active={currentStep === 2}>
+        <Step n={2} title="Chi prepara la bozza?" done active={currentStep === 2}>
           <fieldset className="space-y-2" disabled={pathBusy || readOnly}>
-            <legend className="sr-only">Chi prepara la bozza</legend>
-            <label className="flex items-start gap-2 text-sm"><input type="radio" name="mockup-path" className="mt-1" checked={studio} onChange={() => onPathChange('studio')} /><span><strong>Io preparo e confermo</strong><small className="block text-muted-foreground">Puoi preparare e condividere il mockup indipendentemente dall’approvazione delle pagine.</small></span></label>
-            <label className="flex items-start gap-2 text-sm"><input type="radio" name="mockup-path" className="mt-1" checked={!studio} onChange={() => onPathChange('client')} /><span><strong>Il cliente sceglie tra i modelli assegnati</strong><small className="block text-muted-foreground">Il cliente riceve il link e personalizza dopo aver approvato le pagine.</small></span></label>
+            <legend className="sr-only">Chi prepara la bozza del mockup?</legend>
+            <label className="flex items-start gap-2 text-sm"><input type="radio" name="mockup-path" className="mt-1" checked={studio} onChange={() => onPathChange('studio')} /><span><strong>La preparo io in studio</strong><small className="block text-muted-foreground">Preparo e verifico io la bozza: qui scegli chi la compone, non chi sceglie il modello.</small></span></label>
+            <label className="flex items-start gap-2 text-sm"><input type="radio" name="mockup-path" className="mt-1" checked={!studio} onChange={() => onPathChange('client')} /><span><strong>Il cliente la personalizza dal link</strong><small className="block text-muted-foreground">Dopo aver approvato le pagine, il cliente personalizza la bozza online. Se assegni più modelli, può sceglierne uno.</small></span></label>
           </fieldset>
           {studio
             ? <><p className="text-sm text-muted-foreground">Le foto della bozza si scelgono dalla galleria o si caricano nel passaggio successivo, non qui.</p><Button className="min-h-11" disabled={readOnly || !assigned} onClick={() => openMockupTab(photobookId, 'edit')}>{saved ? 'Modifica la bozza' : 'Prepara la bozza'}</Button></>
