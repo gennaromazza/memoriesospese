@@ -275,18 +275,21 @@ export default function PhotobooksManager({
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['/api/photobooks'] });
+      // Il fotolibro bloccato passa nell'archivio: aprilo subito, altrimenti
+      // l'utente può pensare che sia sparito prima di poter inviare l'email.
+      setShowArchived(true);
       if (result) {
         queryClient.invalidateQueries({ queryKey: ['/api/lab-shipments', result.shipment.id] });
         toast({
-          title: 'Album mandato in stampa',
-          description: `Trasferimento di ${result.totalPages} pagine su Google Drive avviato: segui l'avanzamento nella scheda del fotolibro.`,
+          title: 'Fotolibro preparato per la stampa',
+          description: `Trasferimento di ${result.totalPages} pagine su Google Drive avviato. L'email al laboratorio non è ancora stata inviata: apri il riquadro “Spedizione laboratorio” e premi “Invia email al laboratorio” quando il trasferimento è completo.`,
         });
         setLockTarget(null);
       } else {
         toast({
-          title: 'Album mandato in stampa',
+          title: 'Fotolibro bloccato per la stampa',
           description:
-            'Il cliente ora vede il fotolibro in sola lettura e non può più inviare o cancellare richieste.',
+            'Il cliente ora vede il fotolibro in sola lettura. Il fotolibro è nell’archivio; non è stata creata né inviata una spedizione al laboratorio.',
         });
         setLockTarget(null);
       }
@@ -461,7 +464,7 @@ export default function PhotobooksManager({
                           data-testid={`badge-locked-${book.id}`}
                         >
                           <Lock className="h-3 w-3 mr-1" />
-                          In stampa
+                          Bloccato per la stampa
                         </Badge>
                       )}
                     </div>
@@ -625,10 +628,15 @@ export default function PhotobooksManager({
                 data-testid="button-toggle-archived"
               >
                 {showArchived ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                Archivio — mandati in stampa ({archivedBooks.length})
+                Fotolibri bloccati per la stampa ({archivedBooks.length})
               </button>
               {showArchived && (
                 <div className="space-y-5 opacity-80">
+                  <p className="text-xs text-muted-foreground">
+                    Il blocco impedisce al cliente di modificare l’album, ma non conferma che
+                    l’email sia stata inviata. Se non risulta ancora inviata, controlla lo stato
+                    e completa l’invio dal riquadro “Spedizione laboratorio”.
+                  </p>
                   {archivedLinkedBooks.length > 0 && (
                     <section data-testid="section-archived-linked-photobooks">
                       <h4 className="mb-2 text-sm font-medium">Collegati</h4>

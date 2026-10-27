@@ -34,3 +34,11 @@ Lo studio deve poter correggere un modello assegnato per errore. Le modifiche lo
 **Why:** Una prima assegnazione può essere sbagliata e l’admin deve poter correggerla senza perdere silenziosamente le modifiche in corso o la revisione già salvata.
 
 **How to apply:** Se la bozza locale è modificata, chiedi conferma prima di aprire il selettore e abilitalo solo dopo il consenso. Dopo il salvataggio di un nuovo modello, azzera lo stato sporco e rigenera l’anteprima sul nuovo modello.
+
+## Invio in stampa
+
+Bloccare un fotolibro lo rende di sola lettura per il cliente e lo archivia, ma non significa che l’email al laboratorio sia stata inviata. La spedizione crea la cartella Drive e avvia il trasferimento delle pagine; l’invio al laboratorio è un’azione separata, disponibile dopo il trasferimento.
+
+**Why:** La preparazione su Drive e la comunicazione al laboratorio hanno esiti e tempi separati; chiamare entrambi “mandato in stampa” nasconde quando il fornitore ha davvero ricevuto il link.
+
+**How to apply:** Mostrare i fotolibri bloccati nell’archivio, esplicitare trasferimento e stato email, e tenere visibile il passaggio successivo senza dichiarare l’invio completato prima della conferma.
