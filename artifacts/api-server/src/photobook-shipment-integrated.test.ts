@@ -89,6 +89,14 @@ beforeAll(async () => {
   await context.route('**/*', route => {
     const url = new URL(route.request().url());
     if (url.origin === origin) return route.continue();
+    // The real API serializes in-memory Storage objects as Firebase-style
+    // URLs. Serve those bytes locally rather than letting the browser reach
+    // Firebase or recording a blocked external request.
+    if (url.hostname === 'firebasestorage.googleapis.com' && url.pathname.includes('/o/')) {
+      const storagePath = decodeURIComponent(url.pathname.split('/o/')[1]);
+      const image = services.objects.get(storagePath);
+      if (image) return route.fulfill({ status: 200, contentType: 'image/jpeg', body: image });
+    }
     blocked.push(url.origin);
     return route.abort('blockedbyclient');
   });
@@ -125,33 +133,53 @@ it('autonomo: crea, carica originali, prepara, ritenta solo la pagina mancante e
   const id = bookPath.split('/')[1];
   expect(book).toMatchObject({ jobId: null, galleryId: null, currentVersion: 1 });
 
-  // Use the production upload client, not seeded page documents or fabricated
-  // responses. The manager's editor is a separate page, outside this harness.
-  const originals: Buffer[] = [];
-  for (let number = 1; number <= 3; number++) {
+  // Use the actual editor route and file control. Deliberately provide files
+  // in a different order from their numbered names to verify the visible order.
+  const selectedFiles = [
+    { name: '03-terza.jpg', number: 3 },
+    { name: '01-copertina.jpg', number: 1 },
+    { name: '02-interno.jpg', number: 2 },
+  ];
+  const originals = new Map<number, Buffer>();
+  const uploads = [];
+  for (const { name, number } of selectedFiles) {
     const buffer = await sharp({
       create: { width: 600, height: 400, channels: 3, background: { r: number * 50, g: 70, b: 100 } },
     }).jpeg({ quality: 95 }).toBuffer();
-    originals.push(buffer);
-    await page.evaluate(async ({ id, number, bytes, clientPath, authPath }) => {
-      // Keep browser imports out of Vitest's server-side import transform.
-      const browserImport = new Function('url', 'return import(url)');
-      const { auth } = await browserImport('/@fs' + authPath);
-      auth.currentUser = { getIdToken: async () => 'isolated-admin-not-a-real-token' };
-      const { uploadPhotobookPage } = await browserImport('/@fs' + clientPath);
-      const file = new File([new Uint8Array(bytes)], `originale-${number}.jpg`, { type: 'image/jpeg' });
-      await uploadPhotobookPage({ photobookId: id, version: 1, pageNumber: number, file });
-    }, {
-      id, number, bytes: [...buffer],
-      clientPath: fileURLToPath(new URL('../../image-studio-web/src/lib/photobooks.ts', import.meta.url)),
-      authPath: fileURLToPath(new URL('../../image-studio-web/e2e/campaign-product-selection-harness/stubs/firebase.ts', import.meta.url)),
-    });
+    originals.set(number, buffer);
+    uploads.push({ name, mimeType: 'image/jpeg', buffer });
   }
+  await page.evaluate(async authPath => {
+    // Keep the browser Firebase stub import out of Vitest's server-side transform.
+    const browserImport = new Function('url', 'return import(url)');
+    const { auth } = await browserImport('/@fs' + authPath);
+    auth.currentUser = { getIdToken: async () => 'isolated-admin-not-a-real-token' };
+  }, fileURLToPath(new URL('../../image-studio-web/e2e/campaign-product-selection-harness/stubs/firebase.ts', import.meta.url)));
+  expect(await page.getByTestId('input-upload-pages').count()).toBe(1);
+  await page.getByTestId('input-upload-pages').setInputFiles(uploads);
+  await browserExpect(page.getByTestId('card-page-1')).toContainText('01-copertina.jpg', { timeout: 15_000 });
+  await browserExpect(page.getByTestId('card-page-2')).toContainText('02-interno.jpg');
+  await browserExpect(page.getByTestId('card-page-3')).toContainText('03-terza.jpg');
+  const visiblePageOrder = await page.locator('[data-testid^="card-page-"]').evaluateAll(cards =>
+    cards.map(card => card.getAttribute('data-testid')),
+  );
+  expect(visiblePageOrder).toEqual([
+    'card-page-1', 'card-page-2', 'card-page-3',
+  ]);
   expect([...services.docs.keys()].filter(path => path.startsWith('photobookPages/'))).toHaveLength(3);
   expect(services.docs.get(bookPath).versions[0].pageCount).toBe(3);
-  await page.reload();
+  const pageDocuments = [...services.docs]
+    .filter(([path]) => path.startsWith('photobookPages/'))
+    .map(([, document]) => document)
+    .sort((a, b) => a.pageNumber - b.pageNumber);
+  expect(pageDocuments.map(({ pageNumber, fileName }) => [pageNumber, fileName])).toEqual([
+    [1, '01-copertina.jpg'],
+    [2, '02-interno.jpg'],
+    [3, '03-terza.jpg'],
+  ]);
+  await page.getByTestId('button-back-to-photobooks').click();
+  await browserExpect(page.getByTestId(`card-photobook-${id}`)).toBeVisible();
   const card = page.getByTestId(`card-photobook-${id}`);
-  await browserExpect(card).toBeVisible();
   await page.getByTestId(`button-lock-${id}`).click();
   await page.getByTestId('select-shipment-lab').click();
   await page.getByRole('option', { name: 'Laboratorio isolato' }).click();
@@ -190,12 +218,12 @@ it('autonomo: crea, carica originali, prepara, ritenta solo la pagina mancante e
   ]);
   expect(services.docs.get(bookPath).labShipmentId).toBe(shipmentId);
   expect([...services.docs.keys()].filter(path => path.startsWith('labShipments/'))).toHaveLength(1);
-  const files = shipment.files.filter((file: any) => file.kind === 'original');
-  expect(files).toHaveLength(3);
-  expect(new Set(files.map((file: any) => file.driveFileId)).size).toBe(3);
-  files.forEach((file: any) => {
+  const shipmentFiles = shipment.files.filter((file: any) => file.kind === 'original');
+  expect(shipmentFiles).toHaveLength(3);
+  expect(new Set(shipmentFiles.map((file: any) => file.driveFileId)).size).toBe(3);
+  shipmentFiles.forEach((file: any) => {
     const number = Number(file.name.match(/^pagina-(\d+)-/)[1]);
-    expect(services.drive.get(file.name)).toEqual(originals[number - 1]);
+    expect(services.drive.get(file.name)).toEqual(originals.get(number));
   });
   expect(services.emails).toHaveLength(0);
   await page.reload();

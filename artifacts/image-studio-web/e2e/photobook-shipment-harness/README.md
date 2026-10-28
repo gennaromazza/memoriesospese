@@ -29,9 +29,9 @@ posta o avvio dei workflow dell'app.
 ## Contratti verificati
 
 La creazione avviene dall'interfaccia in modalità autonoma, senza Job o galleria.
-L'upload usa il vero helper browser `uploadPhotobookPage` e la vera route raw
-JPEG, non documenti pagina precostruiti. L'editor completo è una pagina distinta:
-qui si verifica il contratto di caricamento, non il suo selettore di file.
+Il test visita il vero `PhotobookEditorPage`, seleziona più JPEG dal suo input
+file reale e verifica ordine, numeri e nomi mostrati dall'editor e salvati nelle
+route reali. Poi torna al manager e prosegue nella preparazione della stampa.
 
 Si provoca il fallimento della seconda di tre pagine; si verificano stato
 parziale e invio email bloccato sia nell'interfaccia sia lato API. Dopo refresh,
