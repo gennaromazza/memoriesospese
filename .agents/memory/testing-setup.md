@@ -5,15 +5,27 @@ description: How to run unit tests and the pattern for testing Firestore-depende
 
 # Vitest in questo progetto
 
-Il progetto usa **vitest** (devDependency) ma NON ha uno script npm dedicato
-(package.json scripts è vietato modificarlo). Si lancia con:
+Usare configurazioni Vitest separate da quelle del dev server.
 
-- `npx vitest run` (tutta la suite) oppure `npx vitest run <file>`.
+**Why:** caricare i plugin React/Replit del server nei test unitari può richiedere
+un ambiente di sviluppo completo e avviare integrazioni non necessarie.
 
-`vitest.config.ts` è **standalone di proposito**: quando esiste, vitest lo usa al
-posto di `vite.config.ts`, evitando di caricare i plugin React/Replit (cartographer,
-runtime-error-modal) che richiedono l'ambiente del dev server. Pattern dei file: `**/*.test.ts`
-sotto `server/` e `shared/`. `tsconfig.json` esclude già `**/*.test.ts` dal type-check/build.
+**How to apply:** cercare la configurazione nell'artifact interessato; non assumere
+che la struttura legacy `server/` alla radice o le vecchie istruzioni npm siano
+ancora valide nel monorepo.
+
+## Import browser dentro Vitest
+
+Le funzioni passate a Playwright da un test Vitest non devono contenere
+direttamente import dinamici destinati al browser.
+
+**Why:** Vitest li riscrive usando il proprio helper SSR, che non esiste nella
+pagina del browser; il test fallisce prima di raggiungere il codice applicativo.
+
+**How to apply:** caricare un modulo browser dedicato oppure mantenere l'import
+fuori dalla trasformazione SSR (ad esempio un import nativo creato nel contesto
+browser). Non sostituire il client applicativo con risposte API simulate per
+aggirare il problema.
 
 ## Testare logica server che dipende da Firestore
 

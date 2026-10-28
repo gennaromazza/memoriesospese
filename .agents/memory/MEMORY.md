@@ -26,7 +26,7 @@
 - [Job custom date-range picker](job-filter-custom-date-range.md) — fine intervallo inclusiva con endOfDay; calendari popover a due mesi richiedono larghezza mese vincolata.
 - [Auto-send email scheduler idempotency](auto-send-scheduler-idempotency.md) — marker in transazione PRIMA dell'invio; rollback SOLO se l'invio email fallisce; timeline post-invio best-effort (mai rollback) → evita doppi invii.
 - [Real Wedding cover contract](wedding-cover-contract.md) — Home e articolo usano endpoint distinti: entrambi devono risolvere lato server la stessa cover e lo stesso fallback; i client usano coverImage/photos[0].
-- [Test framework (vitest) setup](testing-setup.md) — `npx vitest run` (niente npm script); config standalone evita i plugin Vite; pattern per mockare Firestore/Gmail in test server.
+- [Test framework (vitest) setup](testing-setup.md) — config separate dal dev server; mock ai confini esterni; attenzione alla trasformazione SSR degli import nelle funzioni Playwright.
 - [Firebase emulator config per E2E](firebase-emulator-e2e-config.md) — test browser con helper a porte fisse usano una config Firebase dedicata, non quella generale del progetto.
 - [Job denormalized aggregates](job-denormalized-aggregates.md) — quoteStatus/transactionCount da ricalcolare sui write-path; financials.totalePagato/saldoResiduo STALE → incassi reali da paymentSchedules.importoPagato.
 - [Pagamenti e compensi collaboratori](job-collaborator-costs.md) — i costi seguono i pagamenti registrati; le modifiche al compenso devono essere atomiche e non scendere sotto il già pagato.
