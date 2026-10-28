@@ -48,6 +48,7 @@ import { refreshWalkInLabShipmentInstructions } from './walk-in-lab-shipment-ins
 import { labMockupCatalogRouter } from './lab-mockup-catalog.js';
 import { recentLabShipments } from './lab-recent-shipments.js';
 import { photobookShipmentReadiness } from './photobook-shipment-readiness.js';
+import { newPhotobookOperation, operationAbandoned, photobookRecovery, watchPhotobookOperation } from './photobook-operation.js';
 import { GetRecentLabShipmentsQueryParams, GetRecentLabShipmentsResponse } from '@workspace/api-zod';
 
 const ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
@@ -452,7 +453,7 @@ router.get('/lab-shipments/:id', authenticateFirebase, requireAdmin, async (req:
     if (!doc.exists) {
       return res.status(404).json({ error: 'Spedizione non trovata' });
     }
-    res.json({ id: doc.id, ...doc.data() });
+    res.json({ id: doc.id, ...doc.data(), photobookRecovery: photobookRecovery(doc.data()) });
   } catch (error: any) {
     console.error('❌ Error fetching lab shipment:', error);
     res.status(500).json({ error: error.message });
@@ -796,6 +797,7 @@ router.post('/lab-shipments/:id/send', authenticateFirebase, requireAdmin, async
   let mockupDispatchClaimed = false;
   let emailAttempted = false;
   let emailPersisted = false;
+  let dispatchOperation: ReturnType<typeof watchPhotobookOperation> | undefined;
   try {
     const { id } = req.params;
     const { labId: labIdFromBody } = req.body;
@@ -809,6 +811,7 @@ router.post('/lab-shipments/:id/send', authenticateFirebase, requireAdmin, async
     if (rejectPrintShopLegacyMutation(shipment, res)) return;
 
     if (shipment.sourceType === 'photobook') {
+      const operation = newPhotobookOperation();
       let readinessError: string | null = null;
       const claimed = await db.runTransaction(async tx => {
         const ref = db.collection('labShipments').doc(id);
@@ -817,11 +820,12 @@ router.post('/lab-shipments/:id/send', authenticateFirebase, requireAdmin, async
         if (!data || data.mockupDispatching || ['uploading', 'needs_review'].includes(data.mockupTransfer?.status) || (data.mockupSnapshot && (labIdFromBody || data.labId) !== data.mockupSnapshot.labId)) return false;
         readinessError = await photobookShipmentReadiness(tx, db, data);
         if (readinessError) return false;
-        tx.update(ref, { mockupDispatching: true, photobookDispatchUncertain: false });
+        tx.update(ref, { mockupDispatching: true, photobookDispatchUncertain: false, photobookDispatch: operation });
         return true;
       });
       if (!claimed) return res.status(409).json({ error: readinessError || 'Invio bloccato: controlla trasferimento mockup e laboratorio destinatario della conferma.' });
       mockupDispatchClaimed = true;
+      dispatchOperation = watchPhotobookOperation(db, db.collection('labShipments').doc(id), 'photobookDispatch', operation.id);
       shipment = await refreshLabShipmentInstructions(
         db.collection('labShipments').doc(id),
       );
@@ -983,6 +987,9 @@ router.post('/lab-shipments/:id/send', authenticateFirebase, requireAdmin, async
       </div>
     `;
 
+    // Persist the ambiguous phase BEFORE invoking the provider. A process kill
+    // cannot execute catch/finally, but recovery must still require verification.
+    if (dispatchOperation) await dispatchOperation.update({ 'photobookDispatch.phase': 'email', photobookDispatchUncertain: true });
     emailAttempted = true;
     await sendGmailEmail(
       lab.email,
@@ -997,7 +1004,7 @@ router.post('/lab-shipments/:id/send', authenticateFirebase, requireAdmin, async
       }
     );
 
-    await db.collection('labShipments').doc(id).update({
+    const sentPatch = {
       status: 'inviato' as LabShipmentStatus,
       sentAt,
       expiresAt,
@@ -1005,7 +1012,9 @@ router.post('/lab-shipments/:id/send', authenticateFirebase, requireAdmin, async
       labNome: lab.nome,
       labEmail: lab.email,
       updatedAt: Timestamp.now(),
-    });
+    };
+    if (dispatchOperation) await dispatchOperation.update(sentPatch);
+    else await db.collection('labShipments').doc(id).update(sentPatch);
 
     console.log(`✅ Spedizione ${id} inviata a ${lab.email} (scadenza ${scadenzaFormatted})`);
     emailPersisted = true;
@@ -1014,8 +1023,9 @@ router.post('/lab-shipments/:id/send', authenticateFirebase, requireAdmin, async
     res.json({ id: updated.id, ...updated.data() });
   } catch (error: any) {
     if (mockupDispatchClaimed && emailAttempted && !emailPersisted) {
-      await db.collection('labShipments').doc(req.params.id).update({
+      await dispatchOperation?.update({
         photobookDispatchUncertain: true,
+        'photobookDispatch.settled': true,
       }).catch(() => undefined);
     }
     console.error('❌ Error sending lab shipment:', error);
@@ -1023,8 +1033,9 @@ router.post('/lab-shipments/:id/send', authenticateFirebase, requireAdmin, async
   } finally {
     // Non liberare il blocco dopo un invio email dall'esito ambiguo.
     if (mockupDispatchClaimed && (!emailAttempted || emailPersisted)) {
-      await db.collection('labShipments').doc(req.params.id).update({ mockupDispatching: false }).catch(() => undefined);
+      await dispatchOperation?.update({ mockupDispatching: false, photobookDispatchUncertain: false }).catch(() => undefined);
     }
+    dispatchOperation?.stop();
   }
 });
 
@@ -1037,10 +1048,12 @@ router.post('/lab-shipments/:id/resolve-photobook-send', authenticateFirebase, r
     const resolved = await db.runTransaction(async tx => {
       const snap = await tx.get(ref);
       const data = snap.data();
-      if (data?.sourceType !== 'photobook' || !data.mockupDispatching || !data.photobookDispatchUncertain) return false;
+      if (data?.sourceType !== 'photobook' || !data.mockupDispatching) return false;
+      if (!operationAbandoned(data, 'photobookDispatch')) return false;
       const now = Timestamp.now();
       tx.update(ref, {
         mockupDispatching: false, photobookDispatchUncertain: false, updatedAt: now,
+        photobookDispatch: null,
         ...(req.body.delivered ? {
           status: 'inviato', sentAt: now,
           expiresAt: Timestamp.fromDate(nowRome().plus({ days: data.expiryDays || LAB_SHIPMENT_DEFAULT_EXPIRY_DAYS }).toJSDate()),
@@ -1048,7 +1061,7 @@ router.post('/lab-shipments/:id/resolve-photobook-send', authenticateFirebase, r
       });
       return true;
     });
-    if (!resolved) return res.status(409).json({ error: 'Nessun invio con esito incerto da verificare.' });
+    if (!resolved) return res.status(409).json({ error: 'Invio ancora attivo o heartbeat recente: attendi prima di verificarne l’esito.' });
     const updated = await ref.get();
     return res.json({ id: updated.id, ...updated.data() });
   } catch (error: any) {

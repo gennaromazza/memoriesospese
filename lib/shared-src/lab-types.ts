@@ -291,6 +291,11 @@ export interface LabShipment {
   photobookVersion?: number;
   /** Transport failed after invocation; studio must check delivery before retry. */
   photobookDispatchUncertain?: boolean;
+  /** Server-derived recovery eligibility; mutations recheck transactionally. */
+  photobookRecovery?: {
+    pageTransferAbandoned: boolean;
+    dispatchAbandoned: boolean;
+  };
   transfer?: LabShipmentTransfer;
 
   createdAt: Timestamp;

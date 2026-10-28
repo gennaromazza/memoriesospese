@@ -33,6 +33,7 @@ import { PHOTOBOOK_MARK_PALETTE, type PhotobookMarkPoint } from '../shared/photo
 import { refreshLabShipmentInstructions } from './lab-shipment-instructions.js';
 import { createPhotobookMockupRouter } from './photobook-mockup-routes.js';
 import { createVersionDraft, publishVersion, PhotobookVersionError } from './photobook-version-workflow.js';
+import { newPhotobookOperation, operationAbandoned, watchPhotobookOperation } from './photobook-operation.js';
 
 const router: Router = express.Router();
 
@@ -1443,12 +1444,6 @@ async function notifyVersion(req: Request, res: Response) {
 }
 
 /**
- * Un trasferimento marcato "running" senza heartbeat da oltre questo tempo è
- * considerato morto (crash/restart del server): un nuovo POST può ripartire.
- */
-const TRANSFER_STALE_MS = 3 * 60 * 1000;
-
-/**
  * Trasferimento pagine → Drive eseguito in background (fuori dalla richiesta
  * HTTP). Idempotente: nome file deterministico per pagina, salta quelle già
  * presenti nella spedizione. Avanzamento e esito vengono scritti in
@@ -1459,7 +1454,9 @@ async function runPhotobookPageTransfer(
   photobookId: string,
   driveFolderId: string,
   pages: Array<{ id: string; pageNumber: number; storagePath: string }>,
+  operationId: string,
 ): Promise<void> {
+  const operation = watchPhotobookOperation(db, shipmentRef, 'pageTransfer', operationId);
   const bucket = storage.bucket();
   let transferred = 0;
   let skipped = 0;
@@ -1472,6 +1469,7 @@ async function runPhotobookPageTransfer(
     const existingNames = new Set(files.map((f) => f.name));
 
     for (const page of pages) {
+      await operation.update();
       const extMatch = String(page.storagePath).match(/\.(\w+)$/);
       const ext = extMatch ? extMatch[1] : 'jpg';
       const fileName = `pagina-${String(page.pageNumber).padStart(3, '0')}-${page.id}.${ext}`;
@@ -1509,7 +1507,7 @@ async function runPhotobookPageTransfer(
       }
       // Persistenza incrementale + avanzamento: un crash a metà non perde i
       // file già copiati e il client vede il progresso in tempo reale
-      await shipmentRef.update({
+      await operation.update({
         files,
         'pageTransfer.transferred': transferred,
         'pageTransfer.skipped': skipped,
@@ -1519,7 +1517,7 @@ async function runPhotobookPageTransfer(
       });
     }
 
-    await shipmentRef.update({
+    await operation.update({
       'pageTransfer.status': failed.length > 0 ? 'partial' : 'completed',
       'pageTransfer.finishedAt': FieldValue.serverTimestamp(),
       'pageTransfer.heartbeatAt': FieldValue.serverTimestamp(),
@@ -1535,7 +1533,7 @@ async function runPhotobookPageTransfer(
       e?.message || e,
     );
     try {
-      await shipmentRef.update({
+      await operation.update({
         'pageTransfer.status': 'failed',
         'pageTransfer.error': String(e?.message || 'Errore trasferimento'),
         'pageTransfer.finishedAt': FieldValue.serverTimestamp(),
@@ -1545,6 +1543,8 @@ async function runPhotobookPageTransfer(
     } catch {
       // best-effort
     }
+  } finally {
+    operation.stop();
   }
 }
 
@@ -1807,25 +1807,23 @@ router.post('/:id/lab-shipment', async (req: any, res: Response) => {
     // alta risoluzione) la copia sequenziale può durare minuti e far scadere la
     // richiesta HTTP lato client/proxy. La route risponde subito e il client
     // segue l'avanzamento leggendo `pageTransfer` sulla spedizione.
-    const now = Date.now();
     const existingTransfer = shipment.pageTransfer;
-    const heartbeatMs = existingTransfer?.heartbeatAt?.toDate
-      ? existingTransfer.heartbeatAt.toDate().getTime()
-      : typeof existingTransfer?.heartbeatAt?._seconds === 'number'
-        ? existingTransfer.heartbeatAt._seconds * 1000
-        : 0;
     let transferAlreadyRunning =
-      existingTransfer?.status === 'running' && now - heartbeatMs < TRANSFER_STALE_MS;
+      existingTransfer?.status === 'running' && !operationAbandoned(shipment, 'pageTransfer');
 
     if (!transferAlreadyRunning) {
+      const operation = newPhotobookOperation();
       const started = await db.runTransaction(async tx => {
         const fresh = await tx.get(shipmentRef!);
         const data = fresh.data();
         if (!data || data.mockupDispatching || ['uploading', 'needs_review'].includes(data.mockupTransfer?.status)) return false;
-        const freshHeartbeat = data.pageTransfer?.heartbeatAt?.toDate?.().getTime() || Number(data.pageTransfer?.heartbeatAt?._seconds || 0) * 1000;
-        if (data.pageTransfer?.status === 'running' && Date.now() - freshHeartbeat < TRANSFER_STALE_MS) return 'running' as const;
+        if (data.pageTransfer?.status === 'running') {
+          if (!operationAbandoned(data, 'pageTransfer')) return 'running' as const;
+          if (req.body?.recoverAbandoned !== true) return false;
+        }
         tx.update(shipmentRef!, {
           pageTransfer: {
+            ...operation,
             status: 'running',
             total: pages.length,
             transferred: 0,
@@ -1843,7 +1841,7 @@ router.post('/:id/lab-shipment', async (req: any, res: Response) => {
       if (!started) return res.status(409).json({ error: 'Attendi la conclusione del trasferimento mockup o verifica l’invio della spedizione prima di trasferire le pagine.' });
       // Fire-and-forget: gli errori vengono registrati dentro pageTransfer
       if (started === 'running') transferAlreadyRunning = true;
-      else void runPhotobookPageTransfer(shipmentRef, ref.id, driveFolderId, pages);
+      else void runPhotobookPageTransfer(shipmentRef, ref.id, driveFolderId, pages, operation.id);
     }
 
     // Evento timeline sul job (solo alla prima creazione, best-effort)

@@ -1095,7 +1095,7 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
     refetchOnMount: 'always',
     // Trasferimento in background in corso: polla l'avanzamento ogni 2.5s
     refetchInterval: (query) =>
-      query.state.data?.pageTransfer?.status === 'running' ? 2500 : false,
+      query.state.data?.pageTransfer?.status === 'running' || query.state.data?.mockupDispatching ? 2500 : false,
   });
   const { data: availableLabs = [], isError: labsError, refetch: reloadLabs } = useQuery<Lab[]>({
     queryKey: ['photobook-shipment-labs'],
@@ -1104,7 +1104,10 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
   });
   const labMutation = useMutation({
     mutationFn: (labId: string) => updateShipment(shipmentId, { labId }),
-    onSuccess: updated => queryClient.setQueryData(['/api/lab-shipments', shipmentId], updated),
+    onSuccess: updated => {
+      queryClient.setQueryData(['/api/lab-shipments', shipmentId], updated);
+      void refetch();
+    },
     onError: (e: Error) => toast({ title: 'Laboratorio non aggiornato', description: e.message, variant: 'destructive' }),
   });
   const resolveMutation = useMutation({
@@ -1114,12 +1117,15 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
       if (!response.ok) throw new Error('Impossibile registrare la verifica. Riprova.');
       return await response.json() as LabShipment;
     },
-    onSuccess: updated => queryClient.setQueryData(['/api/lab-shipments', shipmentId], updated),
+    onSuccess: updated => {
+      queryClient.setQueryData(['/api/lab-shipments', shipmentId], updated);
+      void refetch();
+    },
     onError: (e: Error) => toast({ title: 'Verifica non salvata', description: e.message, variant: 'destructive' }),
   });
 
   const retryMutation = useMutation({
-    mutationFn: () => createPhotobookLabShipment(book.id, {}),
+    mutationFn: (recoverAbandoned: boolean = false) => createPhotobookLabShipment(book.id, { recoverAbandoned }),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['/api/lab-shipments', shipmentId] });
       queryClient.invalidateQueries({ queryKey: ['/api/photobooks'] });
@@ -1185,6 +1191,8 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
   );
   const transfer = shipment.pageTransfer;
   const transferRunning = transfer?.status === 'running';
+  const transferAbandoned = shipment.photobookRecovery?.pageTransferAbandoned === true;
+  const dispatchAbandoned = shipment.photobookRecovery?.dispatchAbandoned === true;
   const incomplete =
     !transferRunning && !shipment.deletedFromDrive &&
     (pageCount < 1 || pageFilesCount < pageCount ||
@@ -1208,13 +1216,15 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
         )}
       </p>
       <p className="text-xs" role="status">
-        {shipment.photobookDispatchUncertain ? 'Esito email da verificare: nessun nuovo invio automatico.'
+        {dispatchAbandoned ? 'Invio interrotto o con esito incerto: verifica manuale necessaria.'
+          : shipment.mockupDispatching ? 'Invio email in corso o verifica del blocco in attesa: nessun nuovo invio consentito.'
+          : transferAbandoned ? 'Trasferimento interrotto: è disponibile il recupero manuale.'
           : shipment.sentAt ? 'Email al laboratorio inviata.'
           : transferRunning ? 'Trasferimento pagine in corso · email non inviata.'
           : incomplete ? 'Trasferimento incompleto · invio email bloccato.'
           : 'Spedizione pronta · email non ancora inviata.'}
       </p>
-      {shipment.photobookDispatchUncertain && (
+      {dispatchAbandoned && (
         <div className="rounded border border-amber-400 p-2 space-y-2">
           <p>Verifica la posta inviata o contatta il laboratorio prima di procedere, per evitare doppioni.</p>
           <Button size="sm" variant="outline" disabled={resolveMutation.isPending} onClick={() => {
@@ -1313,7 +1323,7 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
         )}
       </div>
       <LabSendFeedback shipment={shipment} pending={sendMutation.isPending} error={sendMutation.error} />
-      {transferRunning && transfer && (
+      {transferRunning && !transferAbandoned && transfer && (
         <div className="space-y-1">
           <p className="text-xs text-muted-foreground flex items-center gap-1.5">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1328,6 +1338,15 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
               }}
             />
           </div>
+        </div>
+      )}
+      {transferAbandoned && (
+        <div role="alert" className="rounded border border-amber-400 p-2 space-y-2">
+          <p>Il trasferimento non riceve più aggiornamenti. Puoi recuperarlo senza inviare email al laboratorio.</p>
+          <Button size="sm" variant="outline" disabled={retryMutation.isPending || !!shipment.mockupDispatching}
+            onClick={() => {
+              if (window.confirm('Recuperare il trasferimento interrotto? Verranno copiate solo le pagine mancanti. Il server controllerà di nuovo che il trasferimento non sia attivo.')) retryMutation.mutate(true);
+            }}>Recupera trasferimento interrotto</Button>
         </div>
       )}
       {!transferRunning && transfer && (transfer.status === 'partial' || transfer.status === 'failed') && (
@@ -1374,8 +1393,8 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
           <Button
             size="sm"
             variant="outline"
-            disabled={retryMutation.isPending}
-            onClick={() => retryMutation.mutate()}
+            disabled={retryMutation.isPending || !!shipment.mockupDispatching}
+            onClick={() => retryMutation.mutate(false)}
             data-testid={`button-retry-shipment-${book.id}`}
           >
             {retryMutation.isPending ? (

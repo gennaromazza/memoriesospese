@@ -14,3 +14,9 @@ Un errore dopo aver invocato il trasporto email può avere esito ambiguo: non ri
 **Why:** L’errore potrebbe avvenire dopo la consegna effettiva; un retry automatico rischia un doppio ordine al laboratorio.
 
 **How to apply:** Conservare il blocco preventivo nei casi ambigui e offrire una riconciliazione esplicita, distinta dalla semplice ripetizione della richiesta.
+
+Anche un arresto prima che venga registrato l’errore può lasciare un’email dall’esito incerto. L’assenza del marker di errore non dimostra che l’email non sia partita; un heartbeat scaduto consente solo di proporre una verifica manuale, mai di ritentare l’invio.
+
+**Why:** Un processo terminato bruscamente non esegue i blocchi di gestione errore e rilascio; recuperare automaticamente il claim potrebbe duplicare un ordine.
+
+**How to apply:** Distinguere il recupero del trasferimento pagine dalla riconciliazione dell’email, ricontrollare l’abbandono in transazione e mantenere heartbeat anche durante una singola operazione esterna lenta.

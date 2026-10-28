@@ -7,7 +7,16 @@ import { MOCKUP_MODEL } from '../shared/mockup-catalog';
 import peppeLabCatalog from '../../image-studio-web/public/mockups/custodia-v1/peppe-lab-catalog.json';
 const h = vi.hoisted(() => ({ docs: new Map<string, any>(), sends: 0, failSend: false, sendDelayMs: 0, queue: Promise.resolve() }));
 function ref(path: string): any {
-  return { id: path.split('/').pop(), path, get: async () => { const value = h.docs.get(path); return { exists: !!value, id: path.split('/').pop(), ref: ref(path), data: () => value ? { ...value } : undefined }; }, update: async (data: any) => h.docs.set(path, { ...h.docs.get(path), ...data }) };
+  return { id: path.split('/').pop(), path, get: async () => { const value = h.docs.get(path); return { exists: !!value, id: path.split('/').pop(), ref: ref(path), data: () => value ? structuredClone(value) : undefined }; }, update: async (data: any) => {
+    const value = h.docs.get(path);
+    for (const [key, entry] of Object.entries(data)) {
+      const parts = key.split('.');
+      let target = value;
+      for (const part of parts.slice(0, -1)) target = target[part] ||= {};
+      target[parts.at(-1)!] = entry;
+    }
+    h.docs.set(path, value);
+  } };
 }
 function collection(name: string, filters: Array<[string, unknown]> = []): any {
   return {
@@ -228,9 +237,47 @@ describe('Catalogo laboratori e protezioni spedizione mockup', () => {
   it('registra email ricevuta senza un nuovo invio', async () => {
     const shipment = seedPages();
     shipment.mockupDispatching = true; shipment.photobookDispatchUncertain = true;
+    shipment.updatedAt = new Date(Date.now() - 240_000);
     expect((await request('/lab-shipments/shipment/resolve-photobook-send', 'POST', { delivered: true })).status).toBe(200);
     expect(h.docs.get('labShipments/shipment').status).toBe('inviato');
     expect(h.docs.get('labShipments/shipment').mockupDispatching).toBe(false);
     expect(h.sends).toBe(0);
+  });
+  it('recupera un claim abbandonato senza marker uncertain, senza inviare email', async () => {
+    const shipment = seedPages();
+    shipment.mockupDispatching = true;
+    shipment.photobookDispatch = { id: 'server-terminated', heartbeatAt: new Date(Date.now() - 240_000) };
+    const detail = await request('/lab-shipments/shipment');
+    expect((await detail.json() as any).photobookRecovery.dispatchAbandoned).toBe(true);
+    expect((await request('/lab-shipments/shipment/send', 'POST', {})).status).toBe(409);
+    expect((await request('/lab-shipments/shipment/resolve-photobook-send', 'POST', { delivered: false })).status).toBe(200);
+    expect(h.docs.get('labShipments/shipment').mockupDispatching).toBe(false);
+    expect(h.sends).toBe(0);
+    expect((await request('/lab-shipments/shipment/resolve-photobook-send', 'POST', { delivered: false })).status).toBe(409);
+  });
+  it('rifiuta il recupero se il heartbeat del claim è tornato recente', async () => {
+    const shipment = seedPages();
+    shipment.mockupDispatching = true;
+    shipment.photobookDispatchUncertain = true;
+    shipment.photobookDispatch = { id: 'another-server', heartbeatAt: new Date(Date.now() - 240_000) };
+    expect((await (await request('/lab-shipments/shipment')).json() as any).photobookRecovery.dispatchAbandoned).toBe(true);
+    shipment.photobookDispatch.heartbeatAt = new Date();
+    expect((await request('/lab-shipments/shipment/resolve-photobook-send', 'POST', { delivered: false })).status).toBe(409);
+    expect(h.docs.get('labShipments/shipment').mockupDispatching).toBe(true);
+    expect(h.sends).toBe(0);
+  });
+  it('mantiene il blocco durante un trasporto email lento anche se il heartbeat salvato è vecchio', async () => {
+    seedPages();
+    h.sendDelayMs = 250;
+    const sending = request('/lab-shipments/shipment/send', 'POST', {});
+    while (h.sends === 0) await new Promise(resolve => setTimeout(resolve, 1));
+    const shipment = h.docs.get('labShipments/shipment');
+    // The ambiguous phase was persisted before invoking the simulated provider.
+    expect(shipment.photobookDispatchUncertain).toBe(true);
+    shipment.photobookDispatch.heartbeatAt = new Date(1);
+    expect((await (await request('/lab-shipments/shipment')).json() as any).photobookRecovery.dispatchAbandoned).toBe(false);
+    expect((await request('/lab-shipments/shipment/resolve-photobook-send', 'POST', { delivered: false })).status).toBe(409);
+    expect((await sending).status).toBe(200);
+    expect(h.sends).toBe(1);
   });
 });

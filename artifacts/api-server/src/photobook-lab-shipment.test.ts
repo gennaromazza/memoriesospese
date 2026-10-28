@@ -265,6 +265,39 @@ describe('POST /api/photobooks/:id/lab-shipment (trasferimento background)', () 
     expect(new Set(names).size).toBe(N + 1); // pagine + un solo documento istruzioni
   });
 
+  it('richiede recupero esplicito dopo arresto e copia solo le pagine mancanti', async () => {
+    const first = await postShipment();
+    const id = first.json.shipment.id;
+    await waitTransferDone(id);
+    const shipment = h.state.labShipments[id];
+    shipment.files = shipment.files.filter((file: any) => !file.name.startsWith('pagina-040-'));
+    shipment.pageTransfer = {
+      id: 'killed-worker', status: 'running',
+      heartbeatAt: { _seconds: Math.floor((Date.now() - 240_000) / 1000) },
+    };
+    h.uploadCalls = [];
+    expect((await postShipment()).status).toBe(409);
+    expect(h.uploadCalls).toEqual([]);
+    const recovered = await postShipment({ recoverAbandoned: true });
+    expect(recovered.status).toBe(202);
+    await waitTransferDone(id);
+    expect(h.uploadCalls).toEqual(['pagina-040-p40.jpg']);
+    expect(shipment.pageTransfer.status).toBe('completed');
+  });
+
+  it('un recupero richiesto contro un worker vivo non avvia un altro upload', async () => {
+    h.uploadDelayMs = 20;
+    const first = await postShipment();
+    const id = first.json.shipment.id;
+    // Even a stale persisted heartbeat cannot override a locally live worker.
+    h.state.labShipments[id].pageTransfer.heartbeatAt = { _seconds: 1 };
+    const second = await postShipment({ recoverAbandoned: true });
+    expect(second.status).toBe(202);
+    expect(second.json.alreadyRunning).toBe(true);
+    await waitTransferDone(id);
+    expect(h.uploadCalls.filter(name => name.startsWith('pagina-'))).toHaveLength(N);
+  });
+
   it('crea una spedizione del fotolibro autonomo senza collegare un Job', async () => {
     delete h.state.photobooks.book1.jobId;
     delete h.state.photobooks.book1.galleryId;
