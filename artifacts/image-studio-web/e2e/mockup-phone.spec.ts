@@ -159,16 +159,23 @@ for (const model of models) {
   });
 }
 
-async function exercisePlazaBackPhotoSaveRestore(page: Page) {
+async function exercisePlazaBackPhotoSaveRestore(
+  page: Page,
+  rendererId: "plaza-led" | "album-girevole" = "plaza-led",
+) {
   test.setTimeout(300_000);
   await page.goto("about:blank");
+  const isPlazaLed = rendererId === "plaza-led";
+  const rendererPath = isPlazaLed ? "plaza-v2" : "girevole-v4";
+  const rendererName = isPlazaLed ? "Plaza LED" : "Plaza senza LED";
+  const testToken = isPlazaLed ? "e2e-plaza-back-photo" : "e2e-plaza-no-led-back-photo";
   const photo = await jpeg(page, "#e23b36");
   const thumbnail = await jpeg(page, "#e23b36");
   const option = {
     id: "50000000-0000-4000-8000-000000000001",
-    name: "Plaza LED",
+    name: rendererName,
     supplierCode: "P-01",
-    rendererId: "plaza-led",
+    rendererId,
     active: true,
     materialIds: [materialId],
     materials: [{ id: materialId, label: "Tessuto di prova", supplierCode: "P-01" }],
@@ -176,7 +183,6 @@ async function exercisePlazaBackPhotoSaveRestore(page: Page) {
     labName: "Studio",
   };
   const backAssetId = "50000000-0000-4000-8000-000000000002";
-  const testToken = "e2e-plaza-back-photo";
   const base = `/api/photobooks/by-token/${testToken}`;
   let saved: Record<string, unknown> | null = null;
   let saveCount = 0;
@@ -185,7 +191,7 @@ async function exercisePlazaBackPhotoSaveRestore(page: Page) {
   await page.route("**/*", async route => {
     const request = route.request(), url = new URL(request.url());
     if (url.origin !== localOrigin) { await route.abort(); return; }
-    if (url.pathname.startsWith("/mockups/plaza-v2/") && !url.searchParams.has("plaza-test-renderer")) {
+    if (url.pathname.startsWith(`/mockups/${rendererPath}/`) && isPlazaLed && !url.searchParams.has("plaza-test-renderer")) {
       url.searchParams.set("plaza-test-renderer", "");
       return route.continue({ url: url.href });
     }
@@ -202,7 +208,7 @@ async function exercisePlazaBackPhotoSaveRestore(page: Page) {
         thumbnailUrl: `${localOrigin}/plaza-back-photo-thumb.jpg`,
         chapterId: "chapter-1",
       }],
-      chapters: [{ id: "chapter-1", titolo: "Retro LED" }],
+      chapters: [{ id: "chapter-1", titolo: "Retro scrigno" }],
     });
     if (url.pathname === "/plaza-back-photo-thumb.jpg") {
       return route.fulfill({ status: 200, contentType: "image/jpeg", body: thumbnail });
@@ -252,8 +258,8 @@ async function exercisePlazaBackPhotoSaveRestore(page: Page) {
     }
     if (url.pathname === base) return json({
       photobook: {
-        id: "e2e-plaza-back-book",
-        name: "Fotolibro Plaza",
+        id: `e2e-${rendererId}-back-book`,
+        name: `Fotolibro ${rendererName}`,
         galleryId: "e2e-gallery",
         token: testToken,
         currentVersion: 1,
@@ -288,7 +294,7 @@ async function exercisePlazaBackPhotoSaveRestore(page: Page) {
   await card.getByRole("button").click();
   const isMobile = page.viewportSize()!.width < 768;
   const waitForViewer = (restored = false) => page.waitForFunction((shouldBeRestored) => {
-    const frame = document.querySelector<HTMLIFrameElement>('iframe[title="Configuratore 3D Plaza LED"]');
+    const frame = document.querySelector<HTMLIFrameElement>('iframe[src*="/mockups/"]');
     const body = frame?.contentDocument?.body;
     return body?.dataset.ready === "true"
       && (shouldBeRestored || body.dataset.wizard === "true");
@@ -310,7 +316,7 @@ async function exercisePlazaBackPhotoSaveRestore(page: Page) {
   }
 
   await page.evaluate(async ({ isMobile }) => {
-    const frame = document.querySelector<HTMLIFrameElement>('iframe[title="Configuratore 3D Plaza LED"]');
+    const frame = document.querySelector<HTMLIFrameElement>('iframe[src*="/mockups/"]');
     const doc = frame?.contentDocument;
     const body = doc?.body;
     if (!doc || !body) throw new Error("Il viewer Plaza non è disponibile");
@@ -361,12 +367,14 @@ async function exercisePlazaBackPhotoSaveRestore(page: Page) {
     await waitForStep("7");
   }, { isMobile });
 
-  const frameLocator = page.frameLocator('iframe[title="Configuratore 3D Plaza LED"]');
-  const rearPhotoChoice = frameLocator.getByRole("button", { name: "Foto a tutta superficie sul telaio" });
+  const frameLocator = page.frameLocator('iframe[src*="/mockups/"]');
+  const rearPhotoChoice = frameLocator.getByRole("button", {
+    name: isPlazaLed ? "Foto a tutta superficie sul telaio" : "Foto a tutta superficie su plexiglass",
+  });
   await rearPhotoChoice.click();
   await expect(rearPhotoChoice).toHaveAttribute("aria-pressed", "true");
   await page.waitForFunction(() => {
-    const frame = document.querySelector<HTMLIFrameElement>('iframe[title="Configuratore 3D Plaza LED"]');
+    const frame = document.querySelector<HTMLIFrameElement>('iframe[src*="/mockups/"]');
     return frame?.contentDocument?.body.dataset.backCover === "photo";
   }, undefined, { timeout: 20_000 });
   if (isMobile) {
@@ -374,7 +382,7 @@ async function exercisePlazaBackPhotoSaveRestore(page: Page) {
     await expect(galleryPhoto).toBeVisible();
     await galleryPhoto.click();
     await page.waitForFunction((assetId) => {
-      const frame = document.querySelector<HTMLIFrameElement>('iframe[title="Configuratore 3D Plaza LED"]');
+      const frame = document.querySelector<HTMLIFrameElement>('iframe[src*="/mockups/"]');
       const body = frame?.contentDocument?.body;
       return body?.dataset.backPhotoId === assetId
         && body.dataset.backPhotoLoaded === "true"
@@ -383,7 +391,7 @@ async function exercisePlazaBackPhotoSaveRestore(page: Page) {
   }
 
   const browserState = await page.evaluate(async ({ isMobile, backAssetId }) => {
-    const frame = document.querySelector<HTMLIFrameElement>('iframe[title="Configuratore 3D Plaza LED"]');
+    const frame = document.querySelector<HTMLIFrameElement>('iframe[src*="/mockups/"]');
     const doc = frame?.contentDocument;
     const body = doc?.body;
     if (!doc || !body) throw new Error("Il viewer Plaza non è disponibile");
@@ -461,14 +469,14 @@ async function exercisePlazaBackPhotoSaveRestore(page: Page) {
   await saveResponse;
   await expect.poll(() => saveCount).toBeGreaterThan(0);
   expect(saved?.configuration).toMatchObject({
-    modelId: "plaza-led",
+    modelId: rendererId,
     materialId,
     coverLayout: "plaque",
-    ledEnabled: true,
     backCover: "photo",
     backPhotoAssetId: backAssetId,
     backCrop: { zoom: 1.65, x: 0.31, y: 0.68 },
   });
+  if (isPlazaLed) expect(saved?.configuration).toMatchObject({ ledEnabled: true });
 
   await page.reload();
   await page.getByRole("button", { name: "Solo Necessari" }).click({ timeout: 5_000 }).catch(() => undefined);
@@ -477,7 +485,7 @@ async function exercisePlazaBackPhotoSaveRestore(page: Page) {
   await page.evaluate(() => document.querySelector<HTMLButtonElement>('[data-testid="photobook-mockup"] button')?.click());
   await waitForViewer(true);
   await page.waitForFunction((assetId) => {
-    const frame = document.querySelector<HTMLIFrameElement>('iframe[title="Configuratore 3D Plaza LED"]');
+    const frame = document.querySelector<HTMLIFrameElement>('iframe[src*="/mockups/"]');
     const doc = frame?.contentDocument;
     const body = doc?.body;
     return body?.dataset.backPhotoId === assetId
@@ -489,7 +497,7 @@ async function exercisePlazaBackPhotoSaveRestore(page: Page) {
       && (doc?.getElementById("coverLayout") as HTMLSelectElement | null)?.value === "plaque";
   }, backAssetId, { timeout: 90_000 });
   const restoredState = await page.evaluate(() => {
-    const frame = document.querySelector<HTMLIFrameElement>('iframe[title="Configuratore 3D Plaza LED"]');
+    const frame = document.querySelector<HTMLIFrameElement>('iframe[src*="/mockups/"]');
     const doc = frame?.contentDocument;
     const body = doc?.body;
     if (!doc || !body) throw new Error("Il viewer Plaza ripristinato non è disponibile");
@@ -514,19 +522,18 @@ async function exercisePlazaBackPhotoSaveRestore(page: Page) {
     x: "31",
     y: "68",
     coverLayout: "plaque",
-    led: "true",
     view: "front",
   });
   expect(restoredState.photoName).toContain("retro");
   expect(saved?.configuration).toMatchObject({
-    modelId: "plaza-led",
+    modelId: rendererId,
     materialId,
     coverLayout: "plaque",
-    ledEnabled: true,
     backCover: "photo",
     backPhotoAssetId: backAssetId,
     backCrop: { zoom: 1.65, x: 0.31, y: 0.68 },
   });
+  if (isPlazaLed) expect(restoredState.led).toBe("true");
 }
 
 test.describe("salvataggio foto retro Plaza LED", () => {
@@ -547,6 +554,28 @@ test.describe("salvataggio foto retro Plaza LED", () => {
     test.use({ viewport: { width: 390, height: 780 }, isMobile: true, hasTouch: true });
     test("sceglie dalla galleria, ruota, salva e ripristina foto e ritaglio", async ({ page }) => {
       await exercisePlazaBackPhotoSaveRestore(page);
+    });
+  });
+});
+
+test.describe("salvataggio foto retro Plaza senza LED", () => {
+  test.describe("desktop", () => {
+    test.use({
+      viewport: { width: 1280, height: 900 },
+      screen: { width: 1280, height: 900 },
+      deviceScaleFactor: 1,
+      userAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+      isMobile: false,
+      hasTouch: false,
+    });
+    test("sceglie dalla galleria, mostra il retro, salva e ripristina la foto", async ({ page }) => {
+      await exercisePlazaBackPhotoSaveRestore(page, "album-girevole");
+    });
+  });
+  test.describe("smartphone", () => {
+    test.use({ viewport: { width: 390, height: 780 }, isMobile: true, hasTouch: true });
+    test("sceglie dalla galleria, mostra il retro, salva e ripristina la foto", async ({ page }) => {
+      await exercisePlazaBackPhotoSaveRestore(page, "album-girevole");
     });
   });
 });

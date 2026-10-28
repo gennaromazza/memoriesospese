@@ -18,6 +18,21 @@ describe('recupero del mockup fotolibro', () => {
     })).toBe('back');
   });
 
+  it.each(['album-girevole', 'plaza-led'])(
+    'mantiene il lato posteriore selezionato dall’admin nel renderer %s, indipendentemente dal dispositivo',
+    rendererId => {
+      for (const mobile of [false, true]) {
+        expect(resolveMockupPhotoTarget({
+          mobile,
+          clientWizard: false,
+          step: 2,
+          rendererId,
+          selectedSide: 'back',
+        })).toBe('back');
+      }
+    },
+  );
+
   it('mantiene il routing per passo del wizard cliente su smartphone', () => {
     expect(resolveMockupPhotoTarget({
       mobile: true,

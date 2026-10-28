@@ -90,6 +90,8 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   const [wizard, setWizard] = useState<ReturnType<typeof installMockupWizard> | null>(null);
   const [picker, setPicker] = useState(false);
   const [photoSide, setPhotoSide] = useState<'front' | 'back'>('front');
+  const uploadPhotoSide = useRef<'front' | 'back' | null>(null);
+  const pickerPhotoSide = useRef<'front' | 'back' | null>(null);
   // Quadrobook e ImageBox: quale foto sta scegliendo il cliente (fondo, tappo o copertina dell'album)
   // oppure quale grafica da incidere sta caricando lo studio (solo ImageBox).
   const [boxSlot, setBoxSlot] = useState<'base' | 'lid' | 'cover' | 'coverGraphic' | 'glassGraphic'>('base');
@@ -790,8 +792,8 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     return () => window.removeEventListener('beforeunload', warn);
   }, [dirty]);
 
-  async function selectPhoto(operation: () => Promise<Response>, slotOverride?: typeof boxSlot) {
-    const target = resolveMockupPhotoTarget({
+  async function selectPhoto(operation: () => Promise<Response>, slotOverride?: typeof boxSlot, targetOverride?: 'front' | 'back') {
+    const target = targetOverride || resolveMockupPhotoTarget({
       mobile,
       clientWizard: !!token,
       step,
@@ -1353,12 +1355,12 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
         {!token && adminPanel(<p className="text-xs text-muted-foreground">Qui verifichi copertina e box, non le pagine interne. La conferma non avvia la stampa.</p>)}
          {!editable && token && <p role="status">Questa versione è in sola lettura: puoi esplorare l’album e scaricare le viste.</p>}
          {!editable && !token && !mobile && adminPanel(<p role="status" className="text-sm">Versione in sola lettura: puoi esplorare l’album e consultare le conferme.</p>)}
-        {!token && (renderer?.id === 'album-girevole' || renderer?.id === 'plaza-led') && adminPanel(<div hidden={adminTab !== 'edit'}><label className="block text-sm">Foto da personalizzare<select aria-label="Foto da personalizzare" className="block border rounded p-2 mt-1" value={photoSide} disabled={!editable || busy || picker || renderBusy} onChange={e => setPhotoSide(e.target.value === 'back' ? 'back' : 'front')}><option value="front">Copertina album</option><option value="back">Plexiglass posteriore dello scrigno</option></select></label></div>)}
+        {!token && (renderer?.id === 'album-girevole' || renderer?.id === 'plaza-led') && adminPanel(<div hidden={adminTab !== 'edit'}><label className="block text-sm">Foto da personalizzare<select aria-label="Foto da personalizzare" className="block border rounded p-2 mt-1" value={photoSide} disabled={!editable || busy || picker || renderBusy} onChange={e => { const side = e.target.value === 'back' ? 'back' : 'front'; setPhotoSide(side); uploadPhotoSide.current = side; }}><option value="front">Copertina album</option><option value="back">Plexiglass posteriore dello scrigno</option></select></label></div>)}
         {!token && isBox && adminPanel(<div hidden={adminTab !== 'edit'}><p className="text-sm">Scegli tessuti e foto direttamente nell’anteprima, uno slide alla volta: le foto arrivano dalla galleria del fotolibro. Poi salva e passa a “Verifica e conferma”.</p></div>)}
         {!token && !isBox && adminPanel(<div hidden={adminTab !== 'edit'}><p className="text-sm mb-3">Modifica i dettagli nell’anteprima, poi salva la nuova revisione e passa a “Verifica e conferma”.</p><div className="flex flex-wrap gap-2">
-          <Button variant="outline" disabled={!editable || busy || !ready || renderBusy} onClick={() => upload.current?.click()}>{renderer?.id === 'plaza-led' ? (photoSide === 'back' ? 'Carica foto sul retro' : 'Carica foto copertina') : 'Carica una foto'}</Button>
-          {renderer?.id === 'plaza-led' && photoSide !== 'back' && <Button variant="outline" disabled={!editable || busy || !ready || renderBusy || picker} onClick={() => { setPhotoSide('back'); upload.current?.click(); }}>Carica foto sul retro</Button>}
-          <Button variant="outline" disabled={!editable || busy || !ready || renderBusy} onClick={() => setPicker(true)}>Scegli dalla galleria</Button>
+          <Button variant="outline" disabled={!editable || busy || !ready || renderBusy} onClick={() => { uploadPhotoSide.current = photoSide; upload.current?.click(); }}>{renderer?.id === 'plaza-led' || renderer?.id === 'album-girevole' ? (photoSide === 'back' ? 'Carica foto sul retro' : 'Carica foto copertina') : 'Carica una foto'}</Button>
+          {renderer?.id === 'plaza-led' && photoSide !== 'back' && <Button variant="outline" disabled={!editable || busy || !ready || renderBusy || picker} onClick={() => { uploadPhotoSide.current = 'back'; setPhotoSide('back'); upload.current?.click(); }}>Carica foto sul retro</Button>}
+          <Button variant="outline" disabled={!editable || busy || !ready || renderBusy} onClick={() => { pickerPhotoSide.current = photoSide; setPicker(true); }}>Scegli dalla galleria</Button>
         </div></div>)}
         {(!mobile || isBox || !token) && <input ref={upload} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={event => {
           const file = event.target.files?.[0]; event.target.value = '';
@@ -1369,7 +1371,13 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
           const graphicUpload = isBox && isGraphicSlot(savedPhotoError?.kind === 'unavailable' && savedPhotoSlot ? savedPhotoSlot : boxSlot);
           const operation = () => request(`/${graphicUpload ? 'upload-graphic' : 'upload'}?name=${encodeURIComponent(file.name)}`, { method: 'POST', headers: { 'Content-Type': file.type }, body: file });
           if (!token && savedPhotoError?.kind === 'unavailable' && savedPhotoSlot) void replaceUnavailablePhoto(operation);
-          else void selectPhoto(operation);
+          else {
+            const target = !token && (renderer?.id === 'album-girevole' || renderer?.id === 'plaza-led')
+              ? uploadPhotoSide.current || photoSide
+              : undefined;
+            uploadPhotoSide.current = null;
+            void selectPhoto(operation, undefined, target);
+          }
         }} />}
         {!token && message && adminPanel(<p role="status" className="rounded border p-3 text-sm">{message}</p>)}
           {savedPhotoError && <SavedMockupPhotoRecoveryError
@@ -1433,7 +1441,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
                 {phoneWizard && <PhotobookInlineGallery photos={gallery.data?.photos || []} chapters={gallery.data?.chapters || []} disabled={!editable || busy || !ready || renderBusy} selectedId={pickedPhoto.front} onPick={photo => { setPickedPhoto(prev => ({ ...prev, front: photo.id })); void selectPhoto(() => request('/gallery-photo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ photoId: photo.id }) })); }} />}
                 {phoneWizard && frontPhotoPresent && <p className="mq-status" role="status">Foto scelta ✓</p>}
                 {!phoneWizard && <div className="wizard-photo-actions">
-                  <button type="button" disabled={!editable || busy || !ready || renderBusy} onClick={() => { setPhotoSide('front'); setPicker(true); }}>
+                  <button type="button" disabled={!editable || busy || !ready || renderBusy} onClick={() => { pickerPhotoSide.current = 'front'; setPhotoSide('front'); setPicker(true); }}>
                     Scegli dalla galleria
                   </button>
                   {!mobile && <button type="button" disabled={!editable || busy || !ready || renderBusy} onClick={() => upload.current?.click()}>Carica una foto</button>}
@@ -1451,7 +1459,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
             </>}
             {draftBackCover === 'photo' && !phoneWizard && (
               <div className="wizard-photo-actions">
-                <button type="button" disabled={!editable || busy || !ready || renderBusy} onClick={() => { setPhotoSide('back'); setPicker(true); }}>
+                <button type="button" disabled={!editable || busy || !ready || renderBusy} onClick={() => { pickerPhotoSide.current = 'back'; setPhotoSide('back'); setPicker(true); }}>
                   Scegli foto per il retro
                 </button>
               </div>
@@ -1582,7 +1590,13 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
         setPicker(false);
         const operation = () => request('/gallery-photo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ photoId: photo.id }) });
         if (!token && savedPhotoError?.kind === 'unavailable' && savedPhotoSlot) void replaceUnavailablePhoto(operation);
-        else void selectPhoto(operation);
+        else {
+          const target = !token && (renderer?.id === 'album-girevole' || renderer?.id === 'plaza-led')
+            ? pickerPhotoSide.current || photoSide
+            : undefined;
+          pickerPhotoSide.current = null;
+          void selectPhoto(operation, undefined, target);
+        }
       }} />
     </>}
       </div>
