@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { createServer, type ViteDevServer } from 'vite';
 import { chromium, expect as browserExpect, type Browser, type BrowserContext } from '@playwright/test';
 import sharp from 'sharp';
-import { services } from './test-utils/photobook-integrated-services';
+import { driveObjectKey, services } from './test-utils/photobook-integrated-services';
 
 vi.mock('./firebase-admin.js', async () => {
   const { db, storage, FieldValue, Timestamp } = await import('./test-utils/photobook-integrated-services');
@@ -188,6 +188,7 @@ it('autonomo: crea, carica originali, prepara, ritenta solo la pagina mancante e
   await browserExpect(page.getByTestId(`button-retry-shipment-${id}`)).toBeVisible({ timeout: 15_000 });
   const shipmentId = services.docs.get(bookPath).labShipmentId;
   const shipmentPath = `labShipments/${shipmentId}`;
+  const firstDriveFolder = `isolated-folder-${services.folderSequence}`;
   expect(services.docs.get(shipmentPath).pageTransfer).toMatchObject({
     status: 'partial', total: 3, transferred: 2, failed: [expect.objectContaining({ pageNumber: 2 })],
   });
@@ -223,7 +224,7 @@ it('autonomo: crea, carica originali, prepara, ritenta solo la pagina mancante e
   expect(new Set(shipmentFiles.map((file: any) => file.driveFileId)).size).toBe(3);
   shipmentFiles.forEach((file: any) => {
     const number = Number(file.name.match(/^pagina-(\d+)-/)[1]);
-    expect(services.drive.get(file.name)).toEqual(originals.get(number));
+    expect(services.drive.get(driveObjectKey(firstDriveFolder, file.name))).toEqual(originals.get(number));
   });
   expect(services.emails).toHaveLength(0);
   await page.reload();
@@ -233,13 +234,134 @@ it('autonomo: crea, carica originali, prepara, ritenta solo la pagina mancante e
   await browserExpect(card).toContainText('Email al laboratorio inviata.');
   expect(services.emails).toHaveLength(1);
   expect(services.emails[0][0]).toBe('lab@example.test');
-  expect(services.emails[0][2]).toContain('https://drive.invalid/isolated-folder');
-  expect(services.drive.get('ISTRUZIONI-DI-STAMPA.txt')?.toString()).toContain('Carta opaca, controllo colore');
+  expect(services.emails[0][2]).toContain(`https://drive.invalid/${firstDriveFolder}`);
+  expect(services.drive.get(driveObjectKey(firstDriveFolder, 'ISTRUZIONI-DI-STAMPA.txt'))?.toString()).toContain('Carta opaca, controllo colore');
   expect(services.docs.get(shipmentPath)).toMatchObject({ status: 'inviato', sentAt: expect.any(Object) });
   await page.reload();
   await browserExpect(card).toBeVisible();
   await browserExpect(card).toContainText('Email al laboratorio inviata.');
   expect(services.emails).toHaveLength(1);
+
+  // Create a second standalone album through the same UI. Its source page names
+  // match the first book, but its image bytes deliberately have different colors.
+  const firstShipmentSnapshot = structuredClone(services.docs.get(shipmentPath));
+  const firstFolderContents = new Map(
+    [...services.drive.entries()].filter(([key]) => key.startsWith(`${firstDriveFolder}/`)),
+  );
+  const firstEmailCount = services.emails.length;
+  const secondPageContents = new Map<number, Buffer>();
+
+  await page.getByTestId('button-create-photobook').click();
+  await page.getByTestId('button-photobook-mode-standalone').click();
+  await page.getByTestId('input-photobook-name').fill('Secondo album autonomo integrato');
+  await page.getByTestId('button-confirm-create-photobook').click();
+  await browserExpect(page.getByText('Secondo album autonomo integrato', { exact: true })).toBeVisible();
+
+  const secondBookEntry = [...services.docs].find(([path, book]) =>
+    path.startsWith('photobooks/') && book.name === 'Secondo album autonomo integrato');
+  expect(secondBookEntry).toBeDefined();
+  const [secondBookPath, secondBook] = secondBookEntry!;
+  const secondId = secondBookPath.split('/')[1];
+  expect(secondBook).toMatchObject({ jobId: null, galleryId: null, currentVersion: 1 });
+
+  const secondUploads = [];
+  for (const { name, number } of selectedFiles) {
+    const buffer = await sharp({
+      create: { width: 600, height: 400, channels: 3, background: { r: 20, g: number * 60, b: 210 } },
+    }).jpeg({ quality: 95 }).toBuffer();
+    secondPageContents.set(number, buffer);
+    secondUploads.push({ name, mimeType: 'image/jpeg', buffer });
+  }
+  await page.evaluate(async authPath => {
+    const browserImport = new Function('url', 'return import(url)');
+    const { auth } = await browserImport('/@fs' + authPath);
+    auth.currentUser = { getIdToken: async () => 'isolated-admin-not-a-real-token' };
+  }, fileURLToPath(new URL('../../image-studio-web/e2e/campaign-product-selection-harness/stubs/firebase.ts', import.meta.url)));
+  await page.getByTestId('input-upload-pages').setInputFiles(secondUploads);
+  await browserExpect(page.getByTestId('card-page-1')).toContainText('01-copertina.jpg', { timeout: 15_000 });
+  await browserExpect(page.getByTestId('card-page-2')).toContainText('02-interno.jpg');
+  await browserExpect(page.getByTestId('card-page-3')).toContainText('03-terza.jpg');
+  const secondPageDocuments = [...services.docs]
+    .filter(([path, document]) => path.startsWith('photobookPages/') && document.photobookId === secondId)
+    .map(([, document]) => document)
+    .sort((a, b) => a.pageNumber - b.pageNumber);
+  expect(secondPageDocuments.map(({ pageNumber, fileName }) => [pageNumber, fileName])).toEqual(
+    pageDocuments.map(({ pageNumber, fileName }) => [pageNumber, fileName]),
+  );
+  expect(secondPageContents.get(1)).not.toEqual(originals.get(1));
+  await page.getByTestId('button-back-to-photobooks').click();
+  const secondCard = page.getByTestId(`card-photobook-${secondId}`);
+  await browserExpect(secondCard).toBeVisible();
+
+  // Only the second shipment's page 2 fails. Both albums have identical
+  // original filenames, so folder-scoped assertions detect cross-book writes.
+  services.failPage = 2;
+  services.failFolderId = `isolated-folder-${services.folderSequence + 1}`;
+  await page.getByTestId(`button-lock-${secondId}`).click();
+  await page.getByTestId('select-shipment-lab').click();
+  await page.getByRole('option', { name: 'Laboratorio isolato' }).click();
+  await page.getByTestId('button-confirm-lock').click();
+  await browserExpect(page.getByTestId(`button-retry-shipment-${secondId}`)).toBeVisible({ timeout: 15_000 });
+  const secondShipmentId = services.docs.get(secondBookPath).labShipmentId;
+  const secondShipmentPath = `labShipments/${secondShipmentId}`;
+  const secondFolder = `isolated-folder-${services.folderSequence}`;
+  expect(secondShipmentId).not.toBe(shipmentId);
+  expect(secondFolder).not.toBe(firstDriveFolder);
+  expect(services.docs.get(secondShipmentPath).pageTransfer).toMatchObject({
+    status: 'partial', total: 3, failed: [expect.objectContaining({ pageNumber: 2 })],
+  });
+  expect(services.docs.get(shipmentPath)).toEqual(firstShipmentSnapshot);
+  expect(services.docs.get(bookPath).labShipmentId).toBe(shipmentId);
+  expect(services.emails).toHaveLength(firstEmailCount);
+  for (const [key, content] of firstFolderContents) expect(services.drive.get(key)).toEqual(content);
+  await page.reload();
+  const firstCardAfterRefresh = page.getByTestId(`card-photobook-${id}`);
+  const secondCardAfterRefresh = page.getByTestId(`card-photobook-${secondId}`);
+  await browserExpect(firstCardAfterRefresh).toBeVisible();
+  await browserExpect(firstCardAfterRefresh).toContainText('Email al laboratorio inviata.');
+  await browserExpect(secondCardAfterRefresh).toBeVisible();
+  await browserExpect(page.getByTestId(`button-retry-shipment-${secondId}`)).toBeVisible();
+
+  const secondRetryStart = services.uploadAttempts.length;
+  services.failPage = 0;
+  services.failFolderId = null;
+  await page.getByTestId(`button-retry-shipment-${secondId}`).click();
+  await browserExpect(secondCardAfterRefresh.getByTestId('button-send-lab-email')).toBeEnabled({ timeout: 15_000 });
+  const secondShipment = services.docs.get(secondShipmentPath);
+  expect(secondShipment.pageTransfer).toMatchObject({ status: 'completed', transferred: 1, skipped: 2, failed: [] });
+  expect(services.uploadAttempts.slice(secondRetryStart).filter(attempt => attempt.name.startsWith('pagina-'))).toEqual([
+    { folderId: secondFolder, name: expect.stringMatching(/^pagina-002-/) },
+  ]);
+
+  const firstFiles = services.docs.get(shipmentPath).files.filter((file: any) => file.kind === 'original');
+  const secondFiles = secondShipment.files.filter((file: any) => file.kind === 'original');
+  expect(firstFiles).toHaveLength(3);
+  expect(secondFiles).toHaveLength(3);
+  for (const file of firstFiles) {
+    const number = Number(file.name.match(/^pagina-(\d+)-/)[1]);
+    expect(services.drive.get(driveObjectKey(firstDriveFolder, file.name))).toEqual(originals.get(number));
+  }
+  for (const file of secondFiles) {
+    const number = Number(file.name.match(/^pagina-(\d+)-/)[1]);
+    expect(services.drive.get(driveObjectKey(secondFolder, file.name))).toEqual(secondPageContents.get(number));
+  }
+  expect(services.docs.get(shipmentPath)).toEqual(firstShipmentSnapshot);
+  expect(services.docs.get(bookPath).labShipmentId).toBe(shipmentId);
+  expect(services.emails).toHaveLength(firstEmailCount);
+  await page.reload();
+  await browserExpect(firstCardAfterRefresh).toContainText('Email al laboratorio inviata.');
+  await browserExpect(secondCardAfterRefresh).toContainText(/Email non ancora inviata/i);
+  await secondCardAfterRefresh.getByTestId('button-send-lab-email').click();
+  await browserExpect(secondCardAfterRefresh).toContainText('Email al laboratorio inviata.');
+  expect(services.emails).toHaveLength(firstEmailCount + 1);
+  expect(services.emails[0][2]).toContain(`https://drive.invalid/${firstDriveFolder}`);
+  expect(services.emails[1][2]).toContain(`https://drive.invalid/${secondFolder}`);
+  expect(services.docs.get(shipmentPath)).toEqual(firstShipmentSnapshot);
+  await page.reload();
+  await browserExpect(firstCardAfterRefresh).toContainText('Email al laboratorio inviata.');
+  await browserExpect(secondCardAfterRefresh).toContainText('Email al laboratorio inviata.');
+  expect(services.docs.get(shipmentPath)).toEqual(firstShipmentSnapshot);
+
   // Shared CSS tries to load Google Fonts. Those requests are aborted too;
   // no Firebase, Drive or mail transport may even be attempted by the browser.
   expect([...new Set(blocked)].filter(host => host !== 'https://fonts.googleapis.com')).toEqual([]);

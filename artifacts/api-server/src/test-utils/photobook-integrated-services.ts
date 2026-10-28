@@ -4,10 +4,15 @@ import { Readable } from 'node:stream';
 export const services = {
   docs: new Map<string, any>(),
   objects: new Map<string, Buffer>(),
+  // Drive IDs and file bytes are scoped by shipment folder, not just file name.
   drive: new Map<string, Buffer>(),
   uploads: [] as string[],
+  uploadAttempts: [] as { folderId: string; name: string }[],
+  driveFileKeys: new Map<string, string>(),
+  folderSequence: 0,
   emails: [] as unknown[][],
   failPage: 2,
+  failFolderId: null as string | null,
   nextId: 1,
   queue: Promise.resolve(),
 };
@@ -106,23 +111,34 @@ async function consume(body: AsyncIterable<Buffer>) {
   for await (const chunk of body) chunks.push(Buffer.from(chunk));
   return Buffer.concat(chunks);
 }
+export const driveObjectKey = (folderId: string, name: string) => `${folderId}/${name}`;
 export const drive = {
   findOrCreateLabParentFolder: async () => 'isolated-parent',
-  createShipmentFolder: async () => ({
-    folderId: 'isolated-folder', webViewLink: 'https://drive.invalid/isolated-folder',
-  }),
-  uploadStreamToDriveFolder: async (_folder: string, name: string, _mime: string, body: AsyncIterable<Buffer>) => {
+  createShipmentFolder: async () => {
+    const folderId = `isolated-folder-${++services.folderSequence}`;
+    return { folderId, webViewLink: `https://drive.invalid/${folderId}` };
+  },
+  uploadStreamToDriveFolder: async (folderId: string, name: string, _mime: string, body: AsyncIterable<Buffer>) => {
     services.uploads.push(name);
+    services.uploadAttempts.push({ folderId, name });
     const buffer = await consume(body);
-    if (name.startsWith(`pagina-${String(services.failPage).padStart(3, '0')}-`)) {
+    if (
+      name.startsWith(`pagina-${String(services.failPage).padStart(3, '0')}-`)
+      && (!services.failFolderId || services.failFolderId === folderId)
+    ) {
       throw new Error('Trasferimento pagina simulato fallito');
     }
-    services.drive.set(name, buffer);
-    return { fileId: `drive-${name}`, size: buffer.length };
+    const key = driveObjectKey(folderId, name);
+    const fileId = `drive-${folderId}::${name}`;
+    services.drive.set(key, buffer);
+    services.driveFileKeys.set(fileId, key);
+    return { fileId, size: buffer.length };
   },
   updateDriveFileContent: async (id: string, _mime: string, body: AsyncIterable<Buffer>) => {
     const buffer = await consume(body);
-    services.drive.set(id.replace(/^drive-/, ''), buffer);
+    const key = services.driveFileKeys.get(id);
+    if (!key) throw new Error(`Missing isolated Drive file: ${id}`);
+    services.drive.set(key, buffer);
     return { fileId: id, size: buffer.length };
   },
   deleteDriveFile: async () => {},
