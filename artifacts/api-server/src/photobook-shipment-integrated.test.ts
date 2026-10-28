@@ -114,6 +114,81 @@ afterAll(async () => {
   restoreNetwork?.();
 });
 
+function resetIntegratedServices() {
+  services.docs.clear();
+  services.objects.clear();
+  services.drive.clear();
+  services.uploads.length = 0;
+  services.uploadAttempts.length = 0;
+  services.driveFileKeys.clear();
+  services.folderSequence = 0;
+  services.emails.length = 0;
+  services.failPage = 0;
+  services.failFolderId = null;
+  services.beforeUpload = null;
+  services.nextId = 1;
+  services.docs.set('labs/lab-fixture', {
+    nome: 'Laboratorio isolato', email: 'lab@example.test', attivo: true,
+  });
+}
+
+function createUploadGate(folderIds: string[]) {
+  const expectedFolders = new Set(folderIds);
+  const reachedFolders = new Set<string>();
+  let signalReached!: () => void;
+  let release!: () => void;
+  const reached = new Promise<void>(resolve => { signalReached = resolve; });
+  const released = new Promise<void>(resolve => { release = resolve; });
+  return {
+    reached,
+    release,
+    beforeUpload: async (folderId: string) => {
+      if (!expectedFolders.has(folderId)) return;
+      reachedFolders.add(folderId);
+      if (reachedFolders.size === expectedFolders.size) signalReached();
+      await released;
+    },
+  };
+}
+
+async function waitForSignal(signal: Promise<void>, label: string, timeoutMs = 10_000) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      signal,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error(`Timeout waiting for ${label}`)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function postIntegratedJson(path: string, body: unknown) {
+  const response = await fetch(`${origin}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return { status: response.status, json: await response.json() as any };
+}
+
+async function getIntegratedShipment(shipmentId: string) {
+  const response = await fetch(`${origin}/api/lab-shipments/${shipmentId}`);
+  return { status: response.status, json: await response.json() as any };
+}
+
+async function waitForIntegratedTransfer(shipmentPath: string) {
+  const deadline = Date.now() + 15_000;
+  while (Date.now() < deadline) {
+    const transfer = services.docs.get(shipmentPath)?.pageTransfer;
+    if (transfer && transfer.status !== 'running') return transfer;
+    await new Promise(resolve => setTimeout(resolve, 20));
+  }
+  throw new Error(`Timeout waiting for transfer ${shipmentPath}`);
+}
+
 it('autonomo: crea, carica originali, prepara, ritenta solo la pagina mancante e invia email dopo refresh', async () => {
   const page = await context!.newPage();
   const responses: Array<{ path: string; status: number }> = [];
@@ -369,4 +444,181 @@ it('autonomo: crea, carica originali, prepara, ritenta solo la pagina mancante e
     { path: `/api/lab-shipments/${shipmentId}/send`, status: 409 },
   ]);
   expect(responses.filter(response => response.path === `/api/photobooks/${id}/lab-shipment`).map(response => response.status)).toEqual([202, 202]);
+}, 60_000);
+
+it('due spedizioni autonome sovrapposte isolano cartelle, retry, email e stato', async () => {
+  resetIntegratedServices();
+
+  const books = [
+    { id: 'concurrent-book-a', name: 'Album concorrente A', color: { r: 190, g: 35, b: 55 } },
+    { id: 'concurrent-book-b', name: 'Album concorrente B', color: { r: 25, g: 145, b: 210 } },
+  ];
+  const originalNames = ['01-copertina.jpg', '02-interno.jpg', '03-terza.jpg'];
+  const originals = new Map<string, Map<number, Buffer>>();
+  for (const book of books) {
+    services.docs.set(`photobooks/${book.id}`, {
+      name: book.name,
+      jobId: null,
+      galleryId: null,
+      currentVersion: 1,
+      versions: [{ version: 1, pageCount: originalNames.length }],
+    });
+    const bookOriginals = new Map<number, Buffer>();
+    for (const [index, name] of originalNames.entries()) {
+      const pageNumber = index + 1;
+      const storagePath = `photobooks/${book.id}/v1/${name}`;
+      const buffer = await sharp({
+        create: {
+          width: 600,
+          height: 400,
+          channels: 3,
+          background: {
+            r: (book.color.r + pageNumber * 11) % 255,
+            g: (book.color.g + pageNumber * 17) % 255,
+            b: (book.color.b + pageNumber * 23) % 255,
+          },
+        },
+      }).jpeg({ quality: 95 }).toBuffer();
+      bookOriginals.set(pageNumber, buffer);
+      services.objects.set(storagePath, buffer);
+      services.docs.set(`photobookPages/${book.id}-page-${pageNumber}`, {
+        photobookId: book.id,
+        version: 1,
+        pageNumber,
+        fileName: name,
+        storagePath,
+      });
+    }
+    originals.set(book.id, bookOriginals);
+  }
+
+  expect(originals.get(books[0].id)?.get(1)).not.toEqual(originals.get(books[1].id)?.get(1));
+  for (const book of books) {
+    const uploadedOriginalNames = [...services.docs]
+      .filter(([path, page]) => path.startsWith('photobookPages/') && page.photobookId === book.id)
+      .map(([, page]) => page.fileName)
+      .sort();
+    expect(uploadedOriginalNames).toEqual([...originalNames].sort());
+  }
+  const initialFolders = ['isolated-folder-1', 'isolated-folder-2'];
+  const initialGate = createUploadGate(initialFolders);
+  services.beforeUpload = initialGate.beforeUpload;
+
+  const [firstStart, secondStart] = await Promise.all(books.map(book =>
+    postIntegratedJson(`/api/photobooks/${book.id}/lab-shipment`, {
+      labId: 'lab-fixture',
+      lockPhotobook: true,
+      labNote: `Istruzioni per ${book.name}`,
+    }),
+  ));
+  expect([firstStart.status, secondStart.status]).toEqual([202, 202]);
+  const startedShipments = [firstStart.json.shipment, secondStart.json.shipment];
+  const shipmentIds = startedShipments.map(shipment => shipment.id);
+  const shipmentPaths = shipmentIds.map(id => `labShipments/${id}`);
+  const shipmentFolders = shipmentPaths.map(path => services.docs.get(path).driveFolderId);
+  expect(new Set(shipmentIds).size).toBe(2);
+  expect(new Set(shipmentFolders)).toEqual(new Set(initialFolders));
+
+  await waitForSignal(initialGate.reached, 'both first-page uploads to enter Drive');
+  const [firstRunning, secondRunning] = await Promise.all(shipmentIds.map(getIntegratedShipment));
+  expect([firstRunning.status, secondRunning.status]).toEqual([200, 200]);
+  expect(firstRunning.json.pageTransfer).toMatchObject({ status: 'running', total: 3 });
+  expect(secondRunning.json.pageTransfer).toMatchObject({ status: 'running', total: 3 });
+  expect(services.docs.get(`photobooks/${books[0].id}`)).toMatchObject({
+    jobId: null, galleryId: null, locked: true, labShipmentId: shipmentIds[0],
+  });
+  expect(services.docs.get(`photobooks/${books[1].id}`)).toMatchObject({
+    jobId: null, galleryId: null, locked: true, labShipmentId: shipmentIds[1],
+  });
+  expect(services.uploadAttempts).toEqual(expect.arrayContaining([
+    { folderId: shipmentFolders[0], name: expect.stringMatching(/^pagina-001-/) },
+    { folderId: shipmentFolders[1], name: expect.stringMatching(/^pagina-001-/) },
+  ]));
+  expect(services.emails).toHaveLength(0);
+
+  services.failPage = 2;
+  services.failFolderId = initialFolders[0];
+  initialGate.release();
+  const [firstPartial, secondCompleted] = await Promise.all(
+    shipmentPaths.map(path => waitForIntegratedTransfer(path)),
+  );
+  expect(firstPartial).toMatchObject({
+    status: 'partial', total: 3, transferred: 2, failed: [expect.objectContaining({ pageNumber: 2 })],
+  });
+  expect(secondCompleted).toMatchObject({ status: 'completed', total: 3, transferred: 3, failed: [] });
+
+  const [firstShipment, secondShipment] = shipmentPaths.map(path => services.docs.get(path));
+  expect(firstShipment.driveFolderId).toBe(shipmentFolders[0]);
+  expect(secondShipment.driveFolderId).toBe(shipmentFolders[1]);
+  expect(firstShipment.shareableLink).toContain(shipmentFolders[0]);
+  expect(secondShipment.shareableLink).toContain(shipmentFolders[1]);
+  expect(firstShipment.files.filter((file: any) => file.kind === 'original')).toHaveLength(2);
+  expect(secondShipment.files.filter((file: any) => file.kind === 'original')).toHaveLength(3);
+  for (const [index, book] of books.entries()) {
+    const folder = shipmentFolders[index];
+    for (const file of services.docs.get(shipmentPaths[index]).files.filter((entry: any) => entry.kind === 'original')) {
+      const pageNumber = Number(file.name.match(/^pagina-(\d+)-/)[1]);
+      expect(services.drive.get(driveObjectKey(folder, file.name))).toEqual(originals.get(book.id)?.get(pageNumber));
+    }
+  }
+  expect([...services.drive.keys()].every(key =>
+    initialFolders.some(folder => key.startsWith(`${folder}/`)),
+  )).toBe(true);
+
+  // Retry A while holding its missing page in Drive; B must remain complete
+  // and can send its own folder link without altering A's in-progress state.
+  services.failPage = 0;
+  services.failFolderId = null;
+  const retryGate = createUploadGate([shipmentFolders[0]]);
+  services.beforeUpload = retryGate.beforeUpload;
+  const retryStartIndex = services.uploadAttempts.length;
+  const retryStart = await postIntegratedJson(`/api/photobooks/${books[0].id}/lab-shipment`, {
+    labId: 'lab-fixture',
+    lockPhotobook: true,
+  });
+  expect(retryStart.status).toBe(202);
+  expect(retryStart.json.shipment.id).toBe(shipmentIds[0]);
+  await waitForSignal(retryGate.reached, 'first shipment retry upload');
+
+  const [firstRetryRunning, secondStillCompleted] = await Promise.all(shipmentIds.map(getIntegratedShipment));
+  expect(firstRetryRunning.json.pageTransfer.status).toBe('running');
+  expect(secondStillCompleted.json.pageTransfer.status).toBe('completed');
+  expect(services.uploadAttempts.slice(retryStartIndex)).toEqual([
+    { folderId: shipmentFolders[0], name: expect.stringMatching(/^pagina-002-/) },
+  ]);
+
+  const secondEmail = await postIntegratedJson(`/api/lab-shipments/${shipmentIds[1]}/send`, {});
+  expect(secondEmail.status).toBe(200);
+  expect(secondEmail.json).toMatchObject({ id: shipmentIds[1], status: 'inviato' });
+  expect(services.docs.get(shipmentPaths[0]).pageTransfer.status).toBe('running');
+  expect(services.docs.get(shipmentPaths[1])).toMatchObject({ status: 'inviato', driveFolderId: shipmentFolders[1] });
+  expect(services.emails).toHaveLength(1);
+  expect(services.emails[0][2]).toContain(`https://drive.invalid/${shipmentFolders[1]}`);
+  expect(services.emails[0][2]).not.toContain(`https://drive.invalid/${shipmentFolders[0]}`);
+
+  retryGate.release();
+  const firstCompleted = await waitForIntegratedTransfer(shipmentPaths[0]);
+  expect(firstCompleted).toMatchObject({ status: 'completed', transferred: 1, skipped: 2, failed: [] });
+  expect(services.docs.get(shipmentPaths[0]).files.filter((file: any) => file.kind === 'original')).toHaveLength(3);
+  for (const [index, book] of books.entries()) {
+    const folder = initialFolders[index];
+    for (const file of services.docs.get(shipmentPaths[index]).files.filter((entry: any) => entry.kind === 'original')) {
+      const pageNumber = Number(file.name.match(/^pagina-(\d+)-/)[1]);
+      expect(services.drive.get(driveObjectKey(folder, file.name))).toEqual(originals.get(book.id)?.get(pageNumber));
+    }
+  }
+
+  services.beforeUpload = null;
+  const firstEmail = await postIntegratedJson(`/api/lab-shipments/${shipmentIds[0]}/send`, {});
+  expect(firstEmail.status).toBe(200);
+  expect(firstEmail.json).toMatchObject({ id: shipmentIds[0], status: 'inviato' });
+  expect(services.emails).toHaveLength(2);
+  expect(services.emails[1][2]).toContain(`https://drive.invalid/${shipmentFolders[0]}`);
+  expect(services.emails[1][2]).not.toContain(`https://drive.invalid/${shipmentFolders[1]}`);
+  expect(services.docs.get(shipmentPaths[0])).toMatchObject({
+    status: 'inviato', driveFolderId: shipmentFolders[0], pageTransfer: { status: 'completed' },
+  });
+  expect(services.docs.get(shipmentPaths[1])).toMatchObject({
+    status: 'inviato', driveFolderId: shipmentFolders[1], pageTransfer: { status: 'completed' },
+  });
 }, 60_000);

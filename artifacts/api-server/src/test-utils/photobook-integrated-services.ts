@@ -13,6 +13,7 @@ export const services = {
   emails: [] as unknown[][],
   failPage: 2,
   failFolderId: null as string | null,
+  beforeUpload: null as ((folderId: string, name: string) => Promise<void>) | null,
   nextId: 1,
   queue: Promise.resolve(),
 };
@@ -121,6 +122,7 @@ export const drive = {
   uploadStreamToDriveFolder: async (folderId: string, name: string, _mime: string, body: AsyncIterable<Buffer>) => {
     services.uploads.push(name);
     services.uploadAttempts.push({ folderId, name });
+    await services.beforeUpload?.(folderId, name);
     const buffer = await consume(body);
     if (
       name.startsWith(`pagina-${String(services.failPage).padStart(3, '0')}-`)
