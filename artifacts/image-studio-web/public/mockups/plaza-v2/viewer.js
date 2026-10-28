@@ -235,7 +235,14 @@ if (embedded) {
     try {
       locked = !!data.readOnly;
       if (data.option) { if (!data.configuration) edited(); if (data.option.rendererId !== modelId) throw new Error('Modello non supportato'); option = data.option; for (const b of document.querySelectorAll('[data-finish]')) { const m = option.materials.find(m => m.id === b.dataset.finish); b.hidden = !m; if (m) b.lastChild.textContent = m.label; } for (const section of document.querySelectorAll('.category')) section.hidden = !section.querySelector('[data-finish]:not([hidden])'); if (!data.configuration && option.materials.length && !option.materials.some(m => m.id === selected)) await finish(option.materials[0].id); if (!data.configuration && !option.materials.some(m => m.id === innerSelected)) await finish(selected, 'inner'); }
-      if (data.photo) await setPhoto(data.photo); if (data.backPhoto) await setPhoto(data.backPhoto, 'back'); const c = data.configuration;
+      if (data.photo) await setPhoto(data.photo);
+      if (data.backPhoto) {
+        await setPhoto(data.backPhoto, 'back');
+        // Le nuove selezioni devono mostrare subito il lato posteriore. Nel
+        // ripristino di una configurazione già salvata, invece, mantieni la vista corrente.
+        if (!data.configuration) view([0, .1, -1]);
+      }
+      const c = data.configuration;
       if (c) { if (c.modelId !== modelId || ![1, 2].includes(c.assetRevision)) throw new Error('Revisione del modello non supportata'); configurationRevision = c.assetRevision; monogramEnabled = !!c.engravingNames; $('firstName').value = c.engravingNames?.first || ''; $('secondName').value = c.engravingNames?.second || ''; $('ledEnabled').checked = c.ledEnabled !== false; $('backCover').value = c.backCover || 'fabric'; $('backZoom').value = c.backCrop?.zoom ?? 1; $('backX').value = (c.backCrop?.x ?? .5) * 100; $('backY').value = (c.backCrop?.y ?? .5) * 100; for (const id of ['coverLayout', 'topText', 'bottomText']) $(id).value = c[id] || $(id).value; $('photoZoom').value = c.crop?.zoom ?? 1; $('photoX').value = (c.crop?.x ?? .5) * 100; $('photoY').value = (c.crop?.y ?? .5) * 100; await finish(c.materialId); await finish(c.innerMaterialId || c.materialId, 'inner'); updateLed(); updateBack(); }
       updateCover(); lock(); notify('applied');
     } catch (error) { fail(error); } finally { applying = false; initialized = true; busy(); summary(); }
