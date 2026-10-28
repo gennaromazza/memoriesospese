@@ -6,6 +6,7 @@ export const services = {
   objects: new Map<string, Buffer>(),
   // Drive IDs and file bytes are scoped by shipment folder, not just file name.
   drive: new Map<string, Buffer>(),
+  deletedDriveFolders: [] as string[],
   uploads: [] as string[],
   uploadAttempts: [] as { folderId: string; name: string }[],
   driveFileKeys: new Map<string, string>(),
@@ -33,6 +34,7 @@ export function doc(path: string): any {
     get: async () => snapshot(path),
     collection: (name: string) => collection(`${path}/${name}`),
     set: async (value: any) => { services.docs.set(path, clone(value)); },
+    delete: async () => { services.docs.delete(path); },
     update: async (patch: any) => {
       if (!services.docs.has(path)) throw new Error(`Missing document: ${path}`);
       const value = clone(services.docs.get(path));
@@ -145,7 +147,23 @@ export const drive = {
     services.drive.set(key, buffer);
     return { fileId: id, size: buffer.length };
   },
-  deleteDriveFile: async () => {},
+  deleteDriveFile: async (id: string) => {
+    const fileKey = services.driveFileKeys.get(id);
+    if (fileKey) {
+      services.drive.delete(fileKey);
+      services.driveFileKeys.delete(id);
+      return;
+    }
+
+    services.deletedDriveFolders.push(id);
+    const folderPrefix = `${id}/`;
+    for (const key of services.drive.keys()) {
+      if (key.startsWith(folderPrefix)) services.drive.delete(key);
+    }
+    for (const [fileId, key] of services.driveFileKeys) {
+      if (key.startsWith(folderPrefix)) services.driveFileKeys.delete(fileId);
+    }
+  },
   createResumableUploadSession: async () => { throw new Error('Unexpected resumable upload'); },
   revokeShipmentFolderPermission: async () => {},
 };

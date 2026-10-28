@@ -118,6 +118,7 @@ function resetIntegratedServices() {
   services.docs.clear();
   services.objects.clear();
   services.drive.clear();
+  services.deletedDriveFolders.length = 0;
   services.uploads.length = 0;
   services.uploadAttempts.length = 0;
   services.driveFileKeys.clear();
@@ -195,6 +196,11 @@ async function postIntegratedJson(path: string, body: unknown) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+  return { status: response.status, json: await response.json() as any };
+}
+
+async function deleteIntegrated(path: string) {
+  const response = await fetch(`${origin}${path}`, { method: 'DELETE' });
   return { status: response.status, json: await response.json() as any };
 }
 
@@ -799,3 +805,61 @@ it('due invii email simultanei mantengono destinatario, cartella e stato della s
     });
   }
 }, 60_000);
+
+it('eliminare una spedizione autonoma non tocca cartella, file o record dell’altra', async () => {
+  resetIntegratedServices();
+  const shipments = [
+    { id: 'delete-shipment-a', photobookId: 'delete-book-a', folderId: 'delete-folder-a', fileName: 'pagina-a.jpg' },
+    { id: 'delete-shipment-b', photobookId: 'delete-book-b', folderId: 'delete-folder-b', fileName: 'pagina-b.jpg' },
+  ];
+
+  for (const [index, shipment] of shipments.entries()) {
+    const fileId = `drive-${shipment.folderId}::${shipment.fileName}`;
+    const fileKey = driveObjectKey(shipment.folderId, shipment.fileName);
+    const fileBytes = Buffer.from(`originale-spedizione-${index}`);
+    services.docs.set(`photobooks/${shipment.photobookId}`, {
+      name: `Fotolibro autonomo ${index + 1}`,
+      jobId: null,
+      galleryId: null,
+      locked: true,
+      labShipmentId: shipment.id,
+    });
+    services.docs.set(`labShipments/${shipment.id}`, {
+      sourceType: 'photobook',
+      photobookId: shipment.photobookId,
+      jobId: null,
+      galleryId: null,
+      status: 'da_inviare',
+      files: [{ driveFileId: fileId, name: shipment.fileName, kind: 'original' }],
+      driveFolderId: shipment.folderId,
+      shareableLink: `https://drive.invalid/${shipment.folderId}`,
+    });
+    services.drive.set(fileKey, fileBytes);
+    services.driveFileKeys.set(fileId, fileKey);
+  }
+
+  const [deleted, preserved] = shipments;
+  const preservedRecord = structuredClone(services.docs.get(`labShipments/${preserved.id}`));
+  const preservedBytes = Buffer.from(services.drive.get(driveObjectKey(preserved.folderId, preserved.fileName))!);
+
+  const response = await deleteIntegrated(`/api/lab-shipments/${deleted.id}`);
+
+  expect(response.status).toBe(200);
+  expect(response.json).toMatchObject({ success: true });
+  expect(services.deletedDriveFolders).toEqual([deleted.folderId]);
+  expect(services.docs.has(`labShipments/${deleted.id}`)).toBe(false);
+  expect(services.drive.has(driveObjectKey(deleted.folderId, deleted.fileName))).toBe(false);
+  expect(services.driveFileKeys.has(`drive-${deleted.folderId}::${deleted.fileName}`)).toBe(false);
+
+  expect(services.docs.get(`labShipments/${preserved.id}`)).toEqual(preservedRecord);
+  expect(services.docs.get(`photobooks/${preserved.photobookId}`)).toMatchObject({
+    jobId: null,
+    galleryId: null,
+    locked: true,
+    labShipmentId: preserved.id,
+  });
+  expect(services.drive.get(driveObjectKey(preserved.folderId, preserved.fileName))).toEqual(preservedBytes);
+  expect(services.driveFileKeys.get(`drive-${preserved.folderId}::${preserved.fileName}`))
+    .toBe(driveObjectKey(preserved.folderId, preserved.fileName));
+  expect(services.deletedDriveFolders).not.toContain(preserved.folderId);
+});
