@@ -25,7 +25,7 @@ import { assignMockupOffer } from './mockup-offer-assignment';
 import MockupRendererError from './MockupRendererError';
 import SavedMockupPhotoRecoveryError from './SavedMockupPhotoRecoveryError';
 import { beginMockupRendererRetry, configurationForRendererRestore, planMockupRendererRecovery, reuseCompatibleMockupChoices, shouldSkipSavedMockupRestore, type RendererRecoveryPlan } from './mockup-renderer-recovery';
-import { hasSavedMockupPhotos, isGraphicSlot, loadSavedMockupPhotos, loadSavedMockupPhotosPartial, mockupRequestErrorFromResponse, replaceMockupPhotoReference, savedMockupPhotoFailure, type RuntimeMockupPhoto, type SavedMockupPhotoFailure, type SavedMockupPhotoLabels, type SavedMockupPhotoSlot } from './mockup-photo-recovery';
+import { hasSavedMockupPhotos, isGraphicSlot, loadSavedMockupPhotos, loadSavedMockupPhotosPartial, mockupRequestErrorFromResponse, replaceMockupPhotoReference, resolveMockupPhotoTarget, savedMockupPhotoFailure, type RuntimeMockupPhoto, type SavedMockupPhotoFailure, type SavedMockupPhotoLabels, type SavedMockupPhotoSlot } from './mockup-photo-recovery';
 import { useToast } from '@/hooks/use-toast';
 import PhotobookInlineGallery from './PhotobookInlineGallery';
 import { ArrowLeft, ArrowRight, HelpCircle, LogOut, Rotate3D, RotateCcw, Save, X, ZoomIn, ZoomOut } from 'lucide-react';
@@ -791,7 +791,13 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   }, [dirty]);
 
   async function selectPhoto(operation: () => Promise<Response>, slotOverride?: typeof boxSlot) {
-    const target = mobile ? (step === 7 ? 'back' : 'front') : renderer?.id === 'album-girevole' || renderer?.id === 'plaza-led' ? photoSide : 'front';
+    const target = resolveMockupPhotoTarget({
+      mobile,
+      clientWizard: !!token,
+      step,
+      rendererId: renderer?.id,
+      selectedSide: photoSide,
+    });
     setBusy(true); setMessage('Preparazione foto…');
     try {
       const photo: MockupPhoto = mockupPhotoSchema.parse(await (await operation()).json());

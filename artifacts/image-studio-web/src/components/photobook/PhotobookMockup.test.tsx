@@ -5,9 +5,36 @@ import type { MockupConfiguration } from '@shared/mockup-types';
 import MockupRendererError from './MockupRendererError';
 import SavedMockupPhotoRecoveryError from './SavedMockupPhotoRecoveryError';
 import { beginMockupRendererRetry, configurationForRendererRestore, planMockupRendererRecovery, reuseCompatibleMockupChoices, shouldSkipSavedMockupRestore } from './mockup-renderer-recovery';
-import { hasSavedMockupPhotos, loadSavedMockupPhotos, loadSavedMockupPhotosPartial, mockupRequestErrorFromResponse, replaceMockupPhotoReference, savedMockupPhotoFailure } from './mockup-photo-recovery';
+import { hasSavedMockupPhotos, loadSavedMockupPhotos, loadSavedMockupPhotosPartial, mockupRequestErrorFromResponse, replaceMockupPhotoReference, resolveMockupPhotoTarget, savedMockupPhotoFailure } from './mockup-photo-recovery';
 
 describe('recupero del mockup fotolibro', () => {
+  it('rispetta il lato scelto dall’admin anche su smartphone', () => {
+    expect(resolveMockupPhotoTarget({
+      mobile: true,
+      clientWizard: false,
+      step: 2,
+      rendererId: 'plaza-led',
+      selectedSide: 'back',
+    })).toBe('back');
+  });
+
+  it('mantiene il routing per passo del wizard cliente su smartphone', () => {
+    expect(resolveMockupPhotoTarget({
+      mobile: true,
+      clientWizard: true,
+      step: 7,
+      rendererId: 'plaza-led',
+      selectedSide: 'front',
+    })).toBe('back');
+    expect(resolveMockupPhotoTarget({
+      mobile: true,
+      clientWizard: true,
+      step: 6,
+      rendererId: 'plaza-led',
+      selectedSide: 'back',
+    })).toBe('front');
+  });
+
   it('riusa foto, layout e scritte compatibili e richiede una nuova scelta per il rivestimento non condiviso', () => {
     const source = {
       modelId: MOCKUP_MODEL.id,

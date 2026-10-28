@@ -1,6 +1,20 @@
 import { BOX_MOCKUP_MODEL, IMAGEBOX_MOCKUP_MODEL } from '@shared/mockup-catalog';
 import type { MockupConfiguration } from '@shared/mockup-types';
 
+export type MockupPhotoTarget = 'front' | 'back';
+
+export function resolveMockupPhotoTarget(input: {
+  mobile: boolean;
+  clientWizard: boolean;
+  step: number;
+  rendererId?: string;
+  selectedSide: MockupPhotoTarget;
+}): MockupPhotoTarget {
+  if (input.clientWizard && input.mobile) return input.step === 7 ? 'back' : 'front';
+  if (input.rendererId === 'album-girevole' || input.rendererId === 'plaza-led') return input.selectedSide;
+  return 'front';
+}
+
 export interface RuntimeMockupPhoto {
   id: string;
   name: string;
