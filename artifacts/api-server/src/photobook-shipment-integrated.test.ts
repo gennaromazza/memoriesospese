@@ -124,6 +124,7 @@ function resetIntegratedServices() {
   services.folderSequence = 0;
   services.emails.length = 0;
   services.failEmailShipmentId = null;
+  services.beforeEmail = null;
   services.failPage = 0;
   services.failFolderId = null;
   services.beforeUpload = null;
@@ -147,6 +148,28 @@ function createUploadGate(folderIds: string[]) {
       if (!expectedFolders.has(folderId)) return;
       reachedFolders.add(folderId);
       if (reachedFolders.size === expectedFolders.size) signalReached();
+      await released;
+    },
+  };
+}
+
+function createEmailGate(shipmentIds: string[]) {
+  const expectedShipmentIds = new Set(shipmentIds);
+  const reachedShipmentIds = new Set<string>();
+  const enteredEmails: unknown[][] = [];
+  let signalReached!: () => void;
+  let release!: () => void;
+  const reached = new Promise<void>(resolve => { signalReached = resolve; });
+  const released = new Promise<void>(resolve => { release = resolve; });
+  return {
+    reached,
+    release,
+    enteredEmails,
+    beforeEmail: async (shipmentId: string | undefined, args: unknown[]) => {
+      if (!shipmentId || !expectedShipmentIds.has(shipmentId)) return;
+      reachedShipmentIds.add(shipmentId);
+      enteredEmails.push(args);
+      if (reachedShipmentIds.size === expectedShipmentIds.size) signalReached();
       await released;
     },
   };
@@ -664,4 +687,115 @@ it('due spedizioni autonome sovrapposte isolano cartelle, retry, email e stato',
   expect(services.docs.get(shipmentPaths[1])).toMatchObject({
     status: 'inviato', driveFolderId: shipmentFolders[1], pageTransfer: { status: 'completed' },
   });
+}, 60_000);
+
+it('due invii email simultanei mantengono destinatario, cartella e stato della spedizione', async () => {
+  resetIntegratedServices();
+  const shipments = [
+    {
+      id: 'parallel-shipment-a',
+      photobookId: 'parallel-book-a',
+      labId: 'lab-fixture',
+      labNome: 'Laboratorio A',
+      labEmail: 'lab@example.test',
+      folderId: 'parallel-folder-a',
+    },
+    {
+      id: 'parallel-shipment-b',
+      photobookId: 'parallel-book-b',
+      labId: 'lab-fixture-b',
+      labNome: 'Laboratorio B',
+      labEmail: 'lab-b@example.test',
+      folderId: 'parallel-folder-b',
+    },
+  ];
+  services.docs.set('labs/lab-fixture-b', {
+    nome: 'Laboratorio B',
+    email: 'lab-b@example.test',
+    attivo: true,
+  });
+
+  for (const [index, shipment] of shipments.entries()) {
+    const pageDocId = `${shipment.photobookId}-page-1`;
+    const pageFileName = `pagina-001-${pageDocId}.jpg`;
+    services.docs.set(`photobooks/${shipment.photobookId}`, {
+      name: `Fotolibro ${index === 0 ? 'A' : 'B'}`,
+      currentVersion: 1,
+      versions: [{ version: 1, pageCount: 1 }],
+    });
+    services.docs.set(`photobookPages/${pageDocId}`, {
+      photobookId: shipment.photobookId,
+      version: 1,
+      pageNumber: 1,
+      storagePath: `photobooks/${shipment.photobookId}/v1/pagina.jpg`,
+    });
+    services.docs.set(`labShipments/${shipment.id}`, {
+      sourceType: 'photobook',
+      photobookId: shipment.photobookId,
+      photobookVersion: 1,
+      labId: shipment.labId,
+      labNome: shipment.labNome,
+      labEmail: shipment.labEmail,
+      status: 'da_inviare',
+      files: [{ driveFileId: `drive-${shipment.folderId}::${pageFileName}`, name: pageFileName, kind: 'original' }],
+      pageTransfer: { status: 'completed', total: 1, transferred: 1, failed: [] },
+      driveFolderId: shipment.folderId,
+      shareableLink: `https://drive.invalid/${shipment.folderId}`,
+      expiryDays: 30,
+    });
+  }
+
+  const emailGate = createEmailGate(shipments.map(shipment => shipment.id));
+  services.beforeEmail = emailGate.beforeEmail;
+  const emailRequests = shipments.map(shipment =>
+    postIntegratedJson(`/api/lab-shipments/${shipment.id}/send`, {}),
+  );
+
+  try {
+    await waitForSignal(emailGate.reached, 'both shipment emails to enter the mail service');
+    expect(emailGate.enteredEmails).toHaveLength(2);
+    expect(emailGate.enteredEmails.map(args => args[4])).toEqual(expect.arrayContaining(
+      shipments.map(shipment => expect.objectContaining({ relatedDocId: shipment.id })),
+    ));
+
+    for (const args of emailGate.enteredEmails) {
+      const shipmentIndex = shipments.findIndex(shipment =>
+        (args[4] as { relatedDocId: string }).relatedDocId === shipment.id,
+      );
+      expect(shipmentIndex).not.toBe(-1);
+      expect(args[0]).toBe(shipments[shipmentIndex].labEmail);
+      expect(args[2]).toContain(`href="https://drive.invalid/${shipments[shipmentIndex].folderId}"`);
+      expect(args[2]).not.toContain(`https://drive.invalid/${shipments[1 - shipmentIndex].folderId}`);
+    }
+    expect(services.emails).toHaveLength(0);
+    expect(shipments.map(shipment => services.docs.get(`labShipments/${shipment.id}`).status))
+      .toEqual(['da_inviare', 'da_inviare']);
+  } finally {
+    emailGate.release();
+  }
+
+  const responses = await Promise.all(emailRequests);
+  expect(responses.map(response => response.status)).toEqual([200, 200]);
+  expect(responses.map(response => response.json)).toEqual(expect.arrayContaining(
+    shipments.map(shipment => expect.objectContaining({ id: shipment.id, status: 'inviato' })),
+  ));
+  expect(services.emails).toHaveLength(2);
+
+  for (const shipment of shipments) {
+    const emailArgs = services.emails.find(args =>
+      (args[4] as { relatedDocId?: string } | undefined)?.relatedDocId === shipment.id,
+    );
+    expect(emailArgs?.[0]).toBe(shipment.labEmail);
+    expect(emailArgs?.[2]).toContain(`href="https://drive.invalid/${shipment.folderId}"`);
+    expect(emailArgs?.[2]).not.toContain(`https://drive.invalid/${shipments.find(other => other.id !== shipment.id)?.folderId}`);
+    expect(services.docs.get(`labShipments/${shipment.id}`)).toMatchObject({
+      status: 'inviato',
+      labId: shipment.labId,
+      labEmail: shipment.labEmail,
+      driveFolderId: shipment.folderId,
+      shareableLink: `https://drive.invalid/${shipment.folderId}`,
+      pageTransfer: { status: 'completed' },
+      sentAt: expect.any(Object),
+    });
+  }
 }, 60_000);

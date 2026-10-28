@@ -12,6 +12,7 @@ export const services = {
   folderSequence: 0,
   emails: [] as unknown[][],
   failEmailShipmentId: null as string | null,
+  beforeEmail: null as ((relatedDocId: string | undefined, args: unknown[]) => Promise<void>) | null,
   failPage: 2,
   failFolderId: null as string | null,
   beforeUpload: null as ((folderId: string, name: string) => Promise<void>) | null,
@@ -156,6 +157,7 @@ export const email = {
   authenticateFirebase: authenticate,
   sendGmailEmail: async (...args: unknown[]) => {
     const metadata = args[4] as { relatedDocId?: string } | undefined;
+    await services.beforeEmail?.(metadata?.relatedDocId, args);
     if (metadata?.relatedDocId === services.failEmailShipmentId) {
       services.failEmailShipmentId = null;
       throw new Error('Esito email simulato come incerto');
