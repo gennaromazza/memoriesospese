@@ -8,6 +8,7 @@ import { installHomeScenes } from '../home-scenes.js';
 import { phoneView, fitPhoneProduct, phoneDetailDistance } from '../mobile-view.js';
 import { getExportSize, setExportProgress, triggerDownload, yieldToBrowser } from '../export-yield.js';
 import { installFabricSampling } from '../fabric-sampling.js';
+import { installPlazaPhotoUpload } from '../plaza-photo-upload.js';
 
 const $ = id => document.getElementById(id);
 const embedded = window.parent !== window;
@@ -95,7 +96,7 @@ inscription.position.set(0, 0, .0322); album.add(inscription);
 const plaqueMaterial = new THREE.MeshStandardMaterial({ color: '#bfc0b8', metalness: .45, roughness: .42 });
 const plaque = box(album, 'Placchetta copertina', [.20, .14, .003], [0, 0, .030], wood);
 const loader = new THREE.TextureLoader(), textureCache = new Map();
-function busy() { const active = pending > 0 || applying || exporting || capturing; $('downloadClient').disabled = active; lock(); notify('busy', { busy: active }); }
+function busy() { const active = pending > 0 || applying || exporting || capturing; $('downloadClient').disabled = active; if ($('backPhotoShortcut')) $('backPhotoShortcut').disabled = locked || active; lock(); notify('busy', { busy: active }); }
 function edited() { configurationRevision = 2; updateBack(); }
 function configuration() {
   const variant = variants.find(v => v.id === selected);
@@ -192,7 +193,15 @@ for (const button of document.querySelectorAll('[data-panel]')) button.onclick =
 const detailTabs = [...document.querySelectorAll('[data-detail-tab]')], detailSections = [...document.querySelectorAll('[data-detail-panel-section]')]; function selectDetailPanel(panelId) { detailTabs.forEach(tab => tab.setAttribute('aria-selected', String(tab.dataset.detailTab === panelId))); detailSections.forEach(section => { section.hidden = section.id !== panelId; }); } detailTabs.forEach(tab => tab.onclick = () => selectDetailPanel(tab.dataset.detailTab)); selectDetailPanel('structurePanel');
 for (const id of ['coverLayout', 'frameFinish', 'backCover']) $(id).onchange = () => { edited(); updateCover(); if (id === 'backCover') view([0, .1, -1]); }; $('ledEnabled').onchange = () => { edited(); updateLed(); };
 for (const id of ['topText', 'bottomText', 'photoZoom', 'photoX', 'photoY', 'backZoom', 'backX', 'backY']) $(id).oninput = () => { edited(); updateCover(); updateBack(); }; for (const id of ['firstName', 'secondName']) $(id).oninput = () => { edited(); monogramEnabled = true; updateCover(); };
-$('coverUpload').onchange = () => { const file = $('coverUpload').files[0]; if (file && ['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) setPhoto({ blob: file, name: file.name, source: 'local' }).catch(fail); }; $('backUpload').onchange = () => { const file = $('backUpload').files[0]; if (file && ['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) setPhoto({ blob: file, name: file.name, source: 'local' }, 'back').then(() => view([0, .1, -1])).catch(fail); };
+installPlazaPhotoUpload({
+  setPhoto, fail, embedded, viewBack: () => view([0, .1, -1]),
+  canUpload: () => !locked && !pending && !applying && !exporting && !capturing,
+  openBackPanel: () => {
+    document.querySelector('[data-panel="detailPanel"]').click();
+    selectDetailPanel('boxPanel');
+    $('backPhotoControls').hidden = false;
+  },
+});
 function setRotation(degrees) { mobilePivot.rotation.y = THREE.MathUtils.degToRad(degrees); $('rotationValue').value = `${Math.round(degrees)}°`; document.body.dataset.rotation = String(degrees); }
 $('rotation').oninput = () => { automatic = false; $('rotate').setAttribute('aria-pressed', 'false'); setRotation(+$('rotation').value); }; $('rotate').onclick = () => { automatic = !automatic; $('rotate').setAttribute('aria-pressed', String(automatic)); };
 function view(direction = [-.6, .32, 1]) { if (phoneView) { camera.position.copy(controls.target).add(new THREE.Vector3(...direction)); controls.minDistance = .09; if (fitPhoneProduct(product, camera, controls)) return; } const sphere = new THREE.Box3().setFromObject(product).getBoundingSphere(new THREE.Sphere()); controls.target.copy(sphere.center); const distance = Math.max(.3, sphere.radius * 1.1) / Math.sin(Math.min(Math.PI / 10, Math.atan(Math.tan(Math.PI / 10) * camera.aspect))); camera.position.copy(controls.target).add(new THREE.Vector3(...direction).normalize().multiplyScalar(distance)); controls.update(); }

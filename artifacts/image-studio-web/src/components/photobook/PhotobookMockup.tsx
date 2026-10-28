@@ -1356,12 +1356,14 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
         {!token && (renderer?.id === 'album-girevole' || renderer?.id === 'plaza-led') && adminPanel(<div hidden={adminTab !== 'edit'}><label className="block text-sm">Foto da personalizzare<select aria-label="Foto da personalizzare" className="block border rounded p-2 mt-1" value={photoSide} disabled={!editable || busy || picker || renderBusy} onChange={e => setPhotoSide(e.target.value === 'back' ? 'back' : 'front')}><option value="front">Copertina album</option><option value="back">Plexiglass posteriore dello scrigno</option></select></label></div>)}
         {!token && isBox && adminPanel(<div hidden={adminTab !== 'edit'}><p className="text-sm">Scegli tessuti e foto direttamente nell’anteprima, uno slide alla volta: le foto arrivano dalla galleria del fotolibro. Poi salva e passa a “Verifica e conferma”.</p></div>)}
         {!token && !isBox && adminPanel(<div hidden={adminTab !== 'edit'}><p className="text-sm mb-3">Modifica i dettagli nell’anteprima, poi salva la nuova revisione e passa a “Verifica e conferma”.</p><div className="flex flex-wrap gap-2">
-          <Button variant="outline" disabled={!editable || busy || !ready || renderBusy} onClick={() => upload.current?.click()}>Carica una foto</Button>
+          <Button variant="outline" disabled={!editable || busy || !ready || renderBusy} onClick={() => upload.current?.click()}>{renderer?.id === 'plaza-led' ? (photoSide === 'back' ? 'Carica foto sul retro' : 'Carica foto copertina') : 'Carica una foto'}</Button>
+          {renderer?.id === 'plaza-led' && photoSide !== 'back' && <Button variant="outline" disabled={!editable || busy || !ready || renderBusy || picker} onClick={() => { setPhotoSide('back'); upload.current?.click(); }}>Carica foto sul retro</Button>}
           <Button variant="outline" disabled={!editable || busy || !ready || renderBusy} onClick={() => setPicker(true)}>Scegli dalla galleria</Button>
         </div></div>)}
         {(!mobile || isBox || !token) && <input ref={upload} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={event => {
           const file = event.target.files?.[0]; event.target.value = '';
           if (!file) return;
+          if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) { setMessage('Formato non supportato. Scegli una foto JPEG, PNG o WebP.'); return; }
           if (file.size > 20 * 1024 * 1024) { setMessage('Scegli una foto entro 20 MB.'); return; }
           // Le grafiche da incidere restano PNG (con la trasparenza): hanno un proprio caricamento.
           const graphicUpload = isBox && isGraphicSlot(savedPhotoError?.kind === 'unavailable' && savedPhotoSlot ? savedPhotoSlot : boxSlot);
