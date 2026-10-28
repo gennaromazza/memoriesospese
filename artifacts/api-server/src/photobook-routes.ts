@@ -1591,6 +1591,10 @@ router.post('/:id/lab-shipment', async (req: any, res: Response) => {
     if (pages.length === 0) {
       return res.status(400).json({ error: 'La versione corrente non ha pagine da trasferire' });
     }
+    const expectedPages = book.versions?.find((v: any) => v.version === book.currentVersion)?.pageCount;
+    if (pages.length !== pagesSnap.docs.length || pages.length !== expectedPages) {
+      return res.status(409).json({ error: 'Le pagine della versione corrente sono incomplete. Ripristina gli originali prima di preparare la spedizione.' });
+    }
 
     // Riusa la spedizione già collegata (retry idempotente), altrimenti creala
     let shipmentRef = book.labShipmentId
@@ -1699,6 +1703,9 @@ router.post('/:id/lab-shipment', async (req: any, res: Response) => {
       if (labId) {
         shipmentData.labId = labId;
         const labDoc = await db.collection('labs').doc(labId).get();
+        if (!labDoc.exists || labDoc.data()?.attivo === false || !labDoc.data()?.email?.trim()) {
+          return res.status(400).json({ error: 'Scegli un laboratorio attivo con un indirizzo email valido.' });
+        }
         if (labDoc.exists) {
           shipmentData.labNome = labDoc.data()?.nome;
           shipmentData.labEmail = labDoc.data()?.email;
@@ -1828,6 +1835,7 @@ router.post('/:id/lab-shipment', async (req: any, res: Response) => {
             heartbeatAt: FieldValue.serverTimestamp(),
             finishedAt: null,
           },
+          photobookVersion: book.currentVersion,
           updatedAt: FieldValue.serverTimestamp(),
         });
         return true;

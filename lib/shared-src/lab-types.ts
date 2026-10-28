@@ -287,6 +287,10 @@ export interface LabShipment {
   pageTransfer?: LabShipmentPageTransfer;
   /** Fotolibro di origine, quando sourceType='photobook'. */
   photobookId?: string;
+  /** Version of the pages copied to this shipment (legacy shipments may omit it). */
+  photobookVersion?: number;
+  /** Transport failed after invocation; studio must check delivery before retry. */
+  photobookDispatchUncertain?: boolean;
   transfer?: LabShipmentTransfer;
 
   createdAt: Timestamp;

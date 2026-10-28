@@ -25,6 +25,7 @@ import { getAllLabs } from '@/lib/labs';
 import {
   getShipment,
   sendShipment,
+  updateShipment,
   tsToDate,
   daysUntilExpiry,
   formatFileSize,
@@ -141,7 +142,8 @@ export default function PhotobooksManager({
   const { toast } = useToast();
   const [createOpen, setCreateOpen] = useState(false);
   const [createMode, setCreateMode] = useState<'linked' | 'standalone'>('linked');
-  const [showArchived, setShowArchived] = useState(false);
+  // The print queue must remain discoverable after navigation and refresh.
+  const [showArchived, setShowArchived] = useState(true);
   const [newName, setNewName] = useState('');
   const [newGalleryId, setNewGalleryId] = useState('');
   const [newJobId, setNewJobId] = useState('');
@@ -464,7 +466,7 @@ export default function PhotobooksManager({
                           data-testid={`badge-locked-${book.id}`}
                         >
                           <Lock className="h-3 w-3 mr-1" />
-                          Bloccato per la stampa
+                          Modifiche bloccate
                         </Badge>
                       )}
                     </div>
@@ -542,6 +544,12 @@ export default function PhotobooksManager({
                       shipmentId={book.labShipmentId}
                       book={book}
                     />
+                  )}
+                  {book.locked && !book.labShipmentId && (
+                    <div className="rounded border p-3 text-sm space-y-2">
+                      <p>Modifiche bloccate. Nessuna spedizione preparata e nessuna email inviata.</p>
+                      <Button size="sm" variant="outline" onClick={() => openLockDialog(book)}>Prepara spedizione laboratorio</Button>
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -628,10 +636,10 @@ export default function PhotobooksManager({
                 data-testid="button-toggle-archived"
               >
                 {showArchived ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                Fotolibri bloccati per la stampa ({archivedBooks.length})
+                Coda stampa · fotolibri con modifiche bloccate ({archivedBooks.length})
               </button>
               {showArchived && (
-                <div className="space-y-5 opacity-80">
+                <div className="space-y-5">
                   <p className="text-xs text-muted-foreground">
                     Il blocco impedisce al cliente di modificare l’album, ma non conferma che
                     l’email sia stata inviata. Se non risulta ancora inviata, controlla lo stato
@@ -1080,13 +1088,34 @@ export default function PhotobooksManager({
 function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book: Photobook }) {
   const { toast } = useToast();
   const [supplementalUploading, setSupplementalUploading] = useState(false);
-  const { data: shipment, isLoading } = useQuery<LabShipment>({
+  const { data: shipment, isLoading, isError, error, refetch } = useQuery<LabShipment>({
     queryKey: ['/api/lab-shipments', shipmentId],
     queryFn: () => getShipment(shipmentId),
-    staleTime: 60 * 1000,
+    staleTime: 0,
+    refetchOnMount: 'always',
     // Trasferimento in background in corso: polla l'avanzamento ogni 2.5s
     refetchInterval: (query) =>
       query.state.data?.pageTransfer?.status === 'running' ? 2500 : false,
+  });
+  const { data: availableLabs = [], isError: labsError, refetch: reloadLabs } = useQuery<Lab[]>({
+    queryKey: ['photobook-shipment-labs'],
+    queryFn: () => getAllLabs(true),
+    staleTime: 60 * 1000,
+  });
+  const labMutation = useMutation({
+    mutationFn: (labId: string) => updateShipment(shipmentId, { labId }),
+    onSuccess: updated => queryClient.setQueryData(['/api/lab-shipments', shipmentId], updated),
+    onError: (e: Error) => toast({ title: 'Laboratorio non aggiornato', description: e.message, variant: 'destructive' }),
+  });
+  const resolveMutation = useMutation({
+    mutationFn: async (delivered: boolean) => {
+      const { apiRequest } = await import('@/lib/queryClient');
+      const response = await apiRequest('POST', `/api/lab-shipments/${shipmentId}/resolve-photobook-send`, { delivered });
+      if (!response.ok) throw new Error('Impossibile registrare la verifica. Riprova.');
+      return await response.json() as LabShipment;
+    },
+    onSuccess: updated => queryClient.setQueryData(['/api/lab-shipments', shipmentId], updated),
+    onError: (e: Error) => toast({ title: 'Verifica non salvata', description: e.message, variant: 'destructive' }),
   });
 
   const retryMutation = useMutation({
@@ -1115,8 +1144,10 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
         description: `Email inviata${updated.labNome ? ` a ${updated.labNome}` : ''} con il link Google Drive ai file di stampa.`,
       });
     },
-    onError: (e: any) =>
-      toast({ title: 'Errore invio email', description: e.message, variant: 'destructive' }),
+    onError: (e: any) => {
+      void refetch();
+      toast({ title: 'Errore invio email', description: e.message, variant: 'destructive' });
+    },
   });
 
   if (isLoading) {
@@ -1127,7 +1158,13 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
       </div>
     );
   }
-  if (!shipment) return null;
+  if (isError || !shipment) return (
+    <div role="alert" className="mt-3 rounded border border-destructive p-3 text-sm space-y-2">
+      <p>Impossibile caricare la spedizione laboratorio. Il fotolibro resta disponibile.</p>
+      <p>{error instanceof Error ? error.message : 'Spedizione non disponibile.'}</p>
+      <Button size="sm" variant="outline" onClick={() => void refetch()}>Riprova caricamento spedizione</Button>
+    </div>
+  );
 
   const expiresDate = tsToDate(shipment.expiresAt);
   const daysLeft = daysUntilExpiry(shipment.expiresAt);
@@ -1149,7 +1186,11 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
   const transfer = shipment.pageTransfer;
   const transferRunning = transfer?.status === 'running';
   const incomplete =
-    !transferRunning && !shipment.deletedFromDrive && pageCount > 0 && pageFilesCount < pageCount;
+    !transferRunning && !shipment.deletedFromDrive &&
+    (pageCount < 1 || pageFilesCount < pageCount ||
+      (shipment.photobookVersion !== undefined && shipment.photobookVersion !== book.currentVersion) ||
+      (!!transfer && (transfer.status !== 'completed' || !!transfer.failed?.length)));
+  const selectedLabValid = availableLabs.some(lab => lab.id === shipment.labId && !!lab.email?.trim());
 
   return (
     <div className="mt-3 rounded-md border bg-muted/30 p-3 text-sm space-y-1.5">
@@ -1166,6 +1207,38 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
           </Badge>
         )}
       </p>
+      <p className="text-xs" role="status">
+        {shipment.photobookDispatchUncertain ? 'Esito email da verificare: nessun nuovo invio automatico.'
+          : shipment.sentAt ? 'Email al laboratorio inviata.'
+          : transferRunning ? 'Trasferimento pagine in corso · email non inviata.'
+          : incomplete ? 'Trasferimento incompleto · invio email bloccato.'
+          : 'Spedizione pronta · email non ancora inviata.'}
+      </p>
+      {shipment.photobookDispatchUncertain && (
+        <div className="rounded border border-amber-400 p-2 space-y-2">
+          <p>Verifica la posta inviata o contatta il laboratorio prima di procedere, per evitare doppioni.</p>
+          <Button size="sm" variant="outline" disabled={resolveMutation.isPending} onClick={() => {
+            if (window.confirm('Hai verificato che il laboratorio ha ricevuto l’email?')) resolveMutation.mutate(true);
+          }}>Ho verificato: email ricevuta</Button>
+          <Button size="sm" variant="outline" disabled={resolveMutation.isPending} onClick={() => {
+            if (window.confirm('Hai verificato che l’email NON è stata inviata? Il nuovo tentativo potrebbe duplicarla se la verifica è errata.')) resolveMutation.mutate(false);
+          }}>Ho verificato: email non inviata</Button>
+        </div>
+      )}
+      {labsError ? <p role="alert">Impossibile verificare il laboratorio. <button className="underline" onClick={() => void reloadLabs()}>Riprova</button></p> : (
+        <label className="block text-xs">
+          Laboratorio destinatario
+          <select className="block w-full rounded border p-2 mt-1" value={shipment.labId || ''}
+            disabled={labMutation.isPending || !!shipment.mockupDispatching || !!shipment.mockupSnapshot}
+            onChange={event => { if (event.target.value) labMutation.mutate(event.target.value); }}>
+            <option value="">Seleziona un laboratorio</option>
+            {!selectedLabValid && shipment.labId && <option value={shipment.labId}>Laboratorio non disponibile: scegline un altro</option>}
+            {availableLabs.filter(lab => !!lab.email?.trim()).map(lab => <option key={lab.id} value={lab.id}>{lab.nome}</option>)}
+          </select>
+          {!selectedLabValid && <span className="text-destructive">Seleziona un laboratorio attivo con email valida prima di inviare.</span>}
+          {!selectedLabValid && shipment.mockupSnapshot && <span className="block">Il laboratorio è vincolato al mockup confermato: ripristina i suoi dati in Anagrafica laboratori, oppure correggi il modello dall’editor del fotolibro.</span>}
+        </label>
+      )}
       <p className="text-muted-foreground">
         {shipment.labNome ? `Laboratorio: ${shipment.labNome} · ` : ''}
         Pagine trasferite: {pageFilesCount}
@@ -1282,7 +1355,7 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
             <Button
               size="sm"
               variant={shipment.sentAt ? 'outline' : 'default'}
-              disabled={sendMutation.isPending || supplementalUploading || expired || shipment.mockupDispatching
+              disabled={sendMutation.isPending || supplementalUploading || expired || incomplete || !selectedLabValid || shipment.mockupDispatching
                 || ['uploading', 'needs_review'].includes(shipment.mockupTransfer?.status || '')}
               onClick={() => sendMutation.mutate()}
               data-testid="button-send-lab-email"
@@ -1313,7 +1386,7 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
             Riprova pagine mancanti
           </Button>
         )}
-        {!incomplete && !expired && pageFilesCount > 0 && (
+        {!incomplete && !transferRunning && !expired && pageFilesCount > 0 && (
           <span className="text-xs text-muted-foreground flex items-center gap-1">
             <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
             Tutte le pagine trasferite

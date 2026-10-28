@@ -60,6 +60,7 @@ function makeDocRef(col: string, id: string) {
       if (!d) throw new Error('not found');
       applyPatch(d, resolveTimestamps(patch));
     },
+    collection: (name: string) => makeCollection(`${col}/${id}/${name}`),
     delete: async () => {
       delete h.state[col]?.[id];
     },
@@ -279,6 +280,33 @@ describe('POST /api/photobooks/:id/lab-shipment (trasferimento background)', () 
     expect(h.state.photobooks.book1.jobId).toBeUndefined();
     expect(h.state.photobooks.book1.labShipmentId).toBe(result.json.shipment.id);
     await waitTransferDone(result.json.shipment.id);
+  });
+  it('l’unico fotolibro autonomo resta nella lista dopo il blocco e il trasferimento', async () => {
+    delete h.state.photobooks.book1.jobId;
+    delete h.state.photobooks.book1.galleryId;
+    h.state.photobooks.book1.approval = { version: 1, note: 'Approvato' };
+    const result = await postShipment({ lockPhotobook: true });
+    expect(result.status).toBe(202);
+    await waitTransferDone(result.json.shipment.id);
+    for (let read = 0; read < 2; read++) {
+      const response = await globalThis.fetch(`${baseUrl}/api/photobooks`);
+      const data = await response.json() as { photobooks: any[] };
+      expect(data.photobooks).toHaveLength(1);
+      expect(data.photobooks[0]).toMatchObject({ id: 'book1', locked: true, approval: { version: 1 }, labShipmentId: result.json.shipment.id });
+      expect(data.photobooks[0].jobId).toBeNull();
+    }
+  });
+  it('non blocca il fotolibro né crea spedizioni con un laboratorio non valido', async () => {
+    const result = await postShipment({ lockPhotobook: true, labId: 'inesistente' });
+    expect(result.status).toBe(400);
+    expect(h.state.photobooks.book1.locked).not.toBe(true);
+    expect(h.state.labShipments).toEqual({});
+  });
+  it('rifiuta pagine prive del file originale prima di preparare la stampa', async () => {
+    delete h.state.photobookPages.p2.storagePath;
+    expect((await postShipment({ lockPhotobook: true })).status).toBe(409);
+    expect(h.state.labShipments).toEqual({});
+    expect(h.state.photobooks.book1.locked).not.toBe(true);
   });
 
   it('un secondo POST durante il run non avvia un secondo trasferimento', async () => {
