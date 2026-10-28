@@ -159,6 +159,398 @@ for (const model of models) {
   });
 }
 
+async function exercisePlazaBackPhotoSaveRestore(page: Page) {
+  test.setTimeout(300_000);
+  await page.goto("about:blank");
+  const photo = await jpeg(page, "#e23b36");
+  const thumbnail = await jpeg(page, "#e23b36");
+  const option = {
+    id: "50000000-0000-4000-8000-000000000001",
+    name: "Plaza LED",
+    supplierCode: "P-01",
+    rendererId: "plaza-led",
+    active: true,
+    materialIds: [materialId],
+    materials: [{ id: materialId, label: "Tessuto di prova", supplierCode: "P-01" }],
+    labId: "studio",
+    labName: "Studio",
+  };
+  const backAssetId = "50000000-0000-4000-8000-000000000002";
+  const testToken = "e2e-plaza-back-photo";
+  const base = `/api/photobooks/by-token/${testToken}`;
+  let saved: Record<string, unknown> | null = null;
+  let saveCount = 0;
+  let selectedPhotoId = "";
+
+  await page.route("**/*", async route => {
+    const request = route.request(), url = new URL(request.url());
+    if (url.origin !== localOrigin) { await route.abort(); return; }
+    if (url.pathname.startsWith("/mockups/plaza-v2/") && !url.searchParams.has("plaza-test-renderer")) {
+      url.searchParams.set("plaza-test-renderer", "");
+      return route.continue({ url: url.href });
+    }
+    const json = (body: unknown) => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(body),
+    });
+    if (url.pathname === `${base}/gallery-photos`) return json({
+      photos: [{
+        id: "plaza-back-gallery-photo",
+        name: "retro-plaza-e2e.jpg",
+        url: `${localOrigin}/plaza-back-photo-thumb.jpg`,
+        thumbnailUrl: `${localOrigin}/plaza-back-photo-thumb.jpg`,
+        chapterId: "chapter-1",
+      }],
+      chapters: [{ id: "chapter-1", titolo: "Retro LED" }],
+    });
+    if (url.pathname === "/plaza-back-photo-thumb.jpg") {
+      return route.fulfill({ status: 200, contentType: "image/jpeg", body: thumbnail });
+    }
+    if (url.pathname === `${base}/mockup/gallery-photo`) {
+      selectedPhotoId = request.postDataJSON()?.photoId || "";
+      return json({
+        id: backAssetId,
+        name: "retro-plaza-e2e.jpg",
+        source: "gallery",
+        photoId: selectedPhotoId,
+        width: 600,
+        height: 400,
+      });
+    }
+    if (url.pathname === `${base}/mockup/photos/${backAssetId}`) {
+      return route.fulfill({ status: 200, contentType: "image/jpeg", body: photo });
+    }
+    if (url.pathname === `${base}/mockup` && request.method() === "PUT") {
+      const body = request.postDataJSON();
+      saved = {
+        revision: Number(body.revision) + 1,
+        version: 1,
+        status: "draft",
+        updatedAt: "2026-10-28T10:00:00.000Z",
+        updatedBy: "client",
+        selection: body.selection,
+        configuration: body.configuration,
+        option,
+      };
+      saveCount += 1;
+      return json(saved);
+    }
+    if (url.pathname === `${base}/mockup`) {
+      return json({
+        version: 1,
+        mockupPath: "client",
+        editable: true,
+        enabled: true,
+        approvalRequired: false,
+        saved,
+        offer: { revision: 1, mode: "fixed", options: [option] },
+        modelMode: "fixed",
+        modelSelection: { labId: "studio", modelId: option.id },
+        offerError: null,
+      });
+    }
+    if (url.pathname === base) return json({
+      photobook: {
+        id: "e2e-plaza-back-book",
+        name: "Fotolibro Plaza",
+        galleryId: "e2e-gallery",
+        token: testToken,
+        currentVersion: 1,
+        versions: [{ version: 1, pageCount: 0 }],
+        approval: { version: 1 },
+        mockupPath: "client",
+      },
+      version: 1,
+      pages: [],
+      requests: [],
+    });
+    if (request.method() === "GET" || request.method() === "HEAD") return route.continue();
+    return route.abort();
+  });
+
+  await page.addInitScript(() => {
+    window.addEventListener("message", event => {
+      const payload = event.data as {
+        channel?: string;
+        type?: string;
+        configuration?: unknown;
+      } | null;
+      if (payload?.channel === "memorie-mockup-v1" && payload.type === "change" && payload.configuration) {
+        (window as typeof window & { __plazaTestConfiguration?: unknown }).__plazaTestConfiguration = payload.configuration;
+      }
+    });
+  });
+  await page.goto(`/fotolibro/${testToken}`);
+  await page.getByRole("button", { name: "Solo Necessari" }).click({ timeout: 5_000 }).catch(() => undefined);
+  const card = page.getByTestId("photobook-mockup");
+  await expect(card).toBeVisible();
+  await card.getByRole("button").click();
+  const isMobile = page.viewportSize()!.width < 768;
+  const waitForViewer = (restored = false) => page.waitForFunction((shouldBeRestored) => {
+    const frame = document.querySelector<HTMLIFrameElement>('iframe[title="Configuratore 3D Plaza LED"]');
+    const body = frame?.contentDocument?.body;
+    return body?.dataset.ready === "true"
+      && (shouldBeRestored || body.dataset.wizard === "true");
+  }, restored, { timeout: 90_000 });
+  await waitForViewer();
+
+  let saveResponse: Promise<unknown>;
+  if (isMobile) {
+    saveResponse = page.waitForResponse(response => {
+      const body = response.request().postDataJSON() as { configuration?: { backPhotoAssetId?: string } } | null;
+      return response.request().method() === "PUT"
+        && response.url().includes(`${base}/mockup`)
+        && body?.configuration?.backPhotoAssetId === backAssetId;
+    });
+  } else {
+    saveResponse = page.waitForResponse(response =>
+      response.request().method() === "PUT" && response.url().includes(`${base}/mockup`),
+    );
+  }
+
+  await page.evaluate(async ({ isMobile }) => {
+    const frame = document.querySelector<HTMLIFrameElement>('iframe[title="Configuratore 3D Plaza LED"]');
+    const doc = frame?.contentDocument;
+    const body = doc?.body;
+    if (!doc || !body) throw new Error("Il viewer Plaza non è disponibile");
+    const waitFor = async (check: () => boolean, message: string) => {
+      const deadline = Date.now() + 20_000;
+      while (Date.now() < deadline) {
+        if (check()) return;
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      throw new Error(`${message}: ${JSON.stringify(body.dataset)}`);
+    };
+    const waitForStep = (step: string) => waitFor(
+      () => body.dataset.wizardStep === step,
+      `Il wizard non è arrivato allo step ${step}`,
+    );
+    const next = doc.querySelector<HTMLButtonElement>(".wizard-nav .wizard-primary");
+    if (!next) throw new Error("Pulsante Avanti del wizard non trovato");
+
+    if (body.dataset.wizardStep === "2") {
+      const family = doc.querySelector<HTMLButtonElement>(".wizard-family-card:not([hidden])");
+      if (!family) throw new Error("Famiglia di tessuti non disponibile");
+      family.click();
+      await waitForStep("3");
+    }
+    if (body.dataset.wizardStep === "3") {
+      const selectedMaterial = doc.querySelector<HTMLButtonElement>(".materials button[aria-pressed='true']");
+      if (!selectedMaterial) {
+        const material = doc.querySelector<HTMLButtonElement>(".materials button");
+        if (!material) throw new Error("Nessun tessuto selezionabile");
+        material.click();
+      }
+    }
+    for (const step of ["3", "4"]) {
+      await waitFor(() => !next.disabled, `Avanti non è disponibile allo step ${step}`);
+      next.click();
+      await waitForStep(String(Number(step) + 1));
+    }
+
+    const cover = Array.from(doc.querySelectorAll<HTMLButtonElement>(".wizard-cards[data-wizard-cover-layout] button"))
+      .find(button => button.textContent?.includes("Placchetta con incisione"));
+    if (!cover) throw new Error("Layout copertina non disponibile");
+    cover.click();
+    await waitFor(() => !next.disabled, "Layout copertina non selezionato");
+    next.click();
+    await waitForStep("6");
+    await waitFor(() => !next.disabled, "Avanti non è disponibile allo step 6");
+    next.click();
+    await waitForStep("7");
+  }, { isMobile });
+
+  const frameLocator = page.frameLocator('iframe[title="Configuratore 3D Plaza LED"]');
+  const rearPhotoChoice = frameLocator.getByRole("button", { name: "Foto a tutta superficie sul telaio" });
+  await rearPhotoChoice.click();
+  await expect(rearPhotoChoice).toHaveAttribute("aria-pressed", "true");
+  await page.waitForFunction(() => {
+    const frame = document.querySelector<HTMLIFrameElement>('iframe[title="Configuratore 3D Plaza LED"]');
+    return frame?.contentDocument?.body.dataset.backCover === "photo";
+  }, undefined, { timeout: 20_000 });
+  if (isMobile) {
+    const galleryPhoto = frameLocator.getByRole("button", { name: "retro-plaza-e2e.jpg" });
+    await expect(galleryPhoto).toBeVisible();
+    await galleryPhoto.click();
+    await page.waitForFunction((assetId) => {
+      const frame = document.querySelector<HTMLIFrameElement>('iframe[title="Configuratore 3D Plaza LED"]');
+      const body = frame?.contentDocument?.body;
+      return body?.dataset.backPhotoId === assetId
+        && body.dataset.backPhotoLoaded === "true"
+        && body.dataset.view === "back";
+    }, backAssetId, { timeout: 60_000 });
+  }
+
+  const browserState = await page.evaluate(async ({ isMobile, backAssetId }) => {
+    const frame = document.querySelector<HTMLIFrameElement>('iframe[title="Configuratore 3D Plaza LED"]');
+    const doc = frame?.contentDocument;
+    const body = doc?.body;
+    if (!doc || !body) throw new Error("Il viewer Plaza non è disponibile");
+    const waitFor = async (check: () => boolean, message: string) => {
+      const deadline = Date.now() + 20_000;
+      while (Date.now() < deadline) {
+        if (check()) return;
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      throw new Error(`${message}: ${JSON.stringify(body.dataset)}`);
+    };
+
+    if (!isMobile) {
+      await waitFor(
+        () => Array.from(doc.querySelectorAll<HTMLButtonElement>("button"))
+          .some(button => button.textContent?.includes("Scegli foto per il retro")),
+        "Pulsante galleria per il retro non trovato",
+      );
+      const pickerButton = Array.from(doc.querySelectorAll<HTMLButtonElement>("button"))
+        .find(button => button.textContent?.includes("Scegli foto per il retro"));
+      if (!pickerButton) throw new Error("Pulsante galleria per il retro non trovato");
+      pickerButton.click();
+      await waitFor(() => !!document.querySelector('button[aria-label="Seleziona foto retro-plaza-e2e.jpg"]'),
+        "Foto della galleria non disponibile");
+      document.querySelector<HTMLButtonElement>('button[aria-label="Seleziona foto retro-plaza-e2e.jpg"]')?.click();
+    }
+    await waitFor(
+      () => body.dataset.backPhotoId === backAssetId
+        && body.dataset.backPhotoLoaded === "true"
+        && body.dataset.view === "back",
+      "Foto posteriore o vista retro non applicata",
+    );
+    const setRange = (id: string, value: string) => {
+      const input = doc.getElementById(id) as HTMLInputElement | null;
+      if (!input) throw new Error(`Controllo ${id} non trovato`);
+      input.value = value;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    };
+    setRange("backZoom", "1.65");
+    setRange("backX", "31");
+    setRange("backY", "68");
+    return {
+      photoId: body.dataset.backPhotoId,
+      photoLoaded: body.dataset.backPhotoLoaded,
+      view: body.dataset.view,
+      backCover: body.dataset.backCover,
+    };
+  }, { isMobile, backAssetId });
+  expect(browserState).toMatchObject({
+    photoId: backAssetId,
+    photoLoaded: "true",
+    view: "back",
+    backCover: "photo",
+  });
+
+  await page.waitForFunction((assetId) => {
+    const config = (window as typeof window & {
+      __plazaTestConfiguration?: {
+        backPhotoAssetId?: string;
+        backCrop?: { zoom?: number; x?: number; y?: number };
+      };
+    }).__plazaTestConfiguration;
+    return config?.backPhotoAssetId === assetId
+      && config.backCrop?.zoom === 1.65
+      && config.backCrop?.x === 0.31
+      && config.backCrop?.y === 0.68;
+  }, backAssetId, { timeout: 20_000 });
+  await page.waitForTimeout(100);
+  if (isMobile) {
+    await frameLocator.getByRole("button", { name: "Avanti" }).click();
+  } else {
+    await frameLocator.getByRole("button", { name: /Salva bozza/ }).click();
+  }
+
+  await saveResponse;
+  await expect.poll(() => saveCount).toBeGreaterThan(0);
+  expect(saved?.configuration).toMatchObject({
+    modelId: "plaza-led",
+    materialId,
+    coverLayout: "plaque",
+    ledEnabled: true,
+    backCover: "photo",
+    backPhotoAssetId: backAssetId,
+    backCrop: { zoom: 1.65, x: 0.31, y: 0.68 },
+  });
+
+  await page.reload();
+  await page.getByRole("button", { name: "Solo Necessari" }).click({ timeout: 5_000 }).catch(() => undefined);
+  const reopened = page.getByTestId("photobook-mockup");
+  await expect(reopened).toBeVisible();
+  await page.evaluate(() => document.querySelector<HTMLButtonElement>('[data-testid="photobook-mockup"] button')?.click());
+  await waitForViewer(true);
+  await page.waitForFunction((assetId) => {
+    const frame = document.querySelector<HTMLIFrameElement>('iframe[title="Configuratore 3D Plaza LED"]');
+    const doc = frame?.contentDocument;
+    const body = doc?.body;
+    return body?.dataset.backPhotoId === assetId
+      && body.dataset.backPhotoLoaded === "true"
+      && body.dataset.backCover === "photo"
+      && (doc?.getElementById("backZoom") as HTMLInputElement | null)?.value === "1.65"
+      && (doc?.getElementById("backX") as HTMLInputElement | null)?.value === "31"
+      && (doc?.getElementById("backY") as HTMLInputElement | null)?.value === "68"
+      && (doc?.getElementById("coverLayout") as HTMLSelectElement | null)?.value === "plaque";
+  }, backAssetId, { timeout: 90_000 });
+  const restoredState = await page.evaluate(() => {
+    const frame = document.querySelector<HTMLIFrameElement>('iframe[title="Configuratore 3D Plaza LED"]');
+    const doc = frame?.contentDocument;
+    const body = doc?.body;
+    if (!doc || !body) throw new Error("Il viewer Plaza ripristinato non è disponibile");
+    return {
+      photoId: body.dataset.backPhotoId,
+      photoLoaded: body.dataset.backPhotoLoaded,
+      backCover: body.dataset.backCover,
+      photoName: doc.getElementById("backPhotoStatus")?.textContent,
+      zoom: (doc.getElementById("backZoom") as HTMLInputElement | null)?.value,
+      x: (doc.getElementById("backX") as HTMLInputElement | null)?.value,
+      y: (doc.getElementById("backY") as HTMLInputElement | null)?.value,
+      coverLayout: (doc.getElementById("coverLayout") as HTMLSelectElement | null)?.value,
+      led: body.dataset.led,
+      view: body.dataset.view,
+    };
+  });
+  expect(restoredState).toMatchObject({
+    photoId: backAssetId,
+    photoLoaded: "true",
+    backCover: "photo",
+    zoom: "1.65",
+    x: "31",
+    y: "68",
+    coverLayout: "plaque",
+    led: "true",
+    view: "front",
+  });
+  expect(restoredState.photoName).toContain("retro");
+  expect(saved?.configuration).toMatchObject({
+    modelId: "plaza-led",
+    materialId,
+    coverLayout: "plaque",
+    ledEnabled: true,
+    backCover: "photo",
+    backPhotoAssetId: backAssetId,
+    backCrop: { zoom: 1.65, x: 0.31, y: 0.68 },
+  });
+}
+
+test.describe("salvataggio foto retro Plaza LED", () => {
+  test.describe("desktop", () => {
+    test.use({
+      viewport: { width: 1280, height: 900 },
+      screen: { width: 1280, height: 900 },
+      deviceScaleFactor: 1,
+      userAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+      isMobile: false,
+      hasTouch: false,
+    });
+    test("sceglie dalla galleria, ruota, salva e ripristina foto e ritaglio", async ({ page }) => {
+      await exercisePlazaBackPhotoSaveRestore(page);
+    });
+  });
+  test.describe("smartphone", () => {
+    test.use({ viewport: { width: 390, height: 780 }, isMobile: true, hasTouch: true });
+    test("sceglie dalla galleria, ruota, salva e ripristina foto e ritaglio", async ({ page }) => {
+      await exercisePlazaBackPhotoSaveRestore(page);
+    });
+  });
+});
+
 for (const model of directModels) {
   test(`link cliente su telefono: 3D iniziale in sola lettura per ${model.name}`, async ({ page }) => {
     test.setTimeout(300_000);

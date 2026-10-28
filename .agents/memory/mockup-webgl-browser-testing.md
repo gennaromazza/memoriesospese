@@ -14,3 +14,15 @@ When the phone wizard is on its final step and the 3D view is open, the full-scr
 **Why:** Landscape testing exposed a stage reduced to the final summary's 58dvh height, allowing the gesture guide to cover the view controls even though the ready flag and 3D classes remained set.
 
 **How to apply:** Keep full-screen 3D rules aligned in the shared phone stylesheet and the injected wizard mobile stylesheet. Add the final-step state to mobile orientation regression checks.
+
+For persistence flows that mutate a photo or camera state, pause the viewer's animation loop in the test URL and assert the loaded texture plus view state rather than drawing repeatedly between interactions.
+
+**Why:** Repeated software-WebGL rendering can make headless iframe interactions extremely slow; the scene's assigned texture and camera direction are testable independently of another framebuffer draw.
+
+**How to apply:** Keep the pause hook test-only. Confirm the rear-photo texture is loaded and the view is correct after selection and restoration; production rendering remains unchanged.
+
+Desktop tests based on a mobile Playwright device must override the physical `screen`, `hasTouch`, and user agent as well as `viewport`; otherwise physical-screen phone detection can still render the mobile wizard.
+
+**Why:** A wide viewport alone did not clear Pixel-device screen emulation, so a test labeled desktop exercised the phone gallery and save path instead.
+
+**How to apply:** When a suite defaults to a phone device, explicitly set desktop screen dimensions and input capabilities for desktop-only cases that depend on `usePhoneOrientation`.
