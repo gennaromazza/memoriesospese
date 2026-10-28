@@ -24,6 +24,7 @@ import { initialMockupSelection, mockupPresentation, needsClientModelChoice, sho
 import { assignMockupOffer } from './mockup-offer-assignment';
 import MockupRendererError from './MockupRendererError';
 import SavedMockupPhotoRecoveryError from './SavedMockupPhotoRecoveryError';
+import { mockupUploadValidationError } from './mockup-upload-validation';
 import { beginMockupRendererRetry, configurationForRendererRestore, planMockupRendererRecovery, reuseCompatibleMockupChoices, shouldSkipSavedMockupRestore, type RendererRecoveryPlan } from './mockup-renderer-recovery';
 import { hasSavedMockupPhotos, isGraphicSlot, loadSavedMockupPhotos, loadSavedMockupPhotosPartial, mockupRequestErrorFromResponse, replaceMockupPhotoReference, resolveMockupPhotoTarget, savedMockupPhotoFailure, type RuntimeMockupPhoto, type SavedMockupPhotoFailure, type SavedMockupPhotoLabels, type SavedMockupPhotoSlot } from './mockup-photo-recovery';
 import { useToast } from '@/hooks/use-toast';
@@ -128,6 +129,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   const frame = useRef<HTMLIFrameElement>(null);
   const dialog = useRef<HTMLDivElement>(null);
   const upload = useRef<HTMLInputElement>(null);
+  const [uploadError, setUploadError] = useState('');
   const initializing = useRef(true);
   const dirtyContext = useRef<{ saved: SavedMockup | null; selection?: MockupSelection; editable: boolean }>({ saved: null, editable: false });
   const revision = useRef(0);
@@ -306,7 +308,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     if (dirty && !window.confirm('Chiudere il configuratore e abbandonare le modifiche non salvate?')) return;
     setOpen(false); setPicker(false); setReady(false); setRenderBusy(true); setRendererError('');
     setSavedPhotoError(null); setSavedPhotoSlot(null); setSavedPhotoRetryBusy(false); savedPhotoRecovery.current = null;
-    setDirty(false); setOfferChangeConfirmed(false); setConfiguration(null); setRendererOverride(null); setSelection(undefined);
+    setDirty(false); setUploadError(''); setOfferChangeConfirmed(false); setConfiguration(null); setRendererOverride(null); setSelection(undefined);
     setDraftCoverLayout(''); setDraftBackCover(''); setFrontPhotoPresent(false); setBackPhotoPresent(false);
     pendingOption.current = null; pendingPreview.current = null; currentPhoto.current = undefined; initializing.current = true;
     setHistory(null); setNote(''); setMessage(''); setPhotoSide('front'); setAskingChanges(false); setViewerExpanded(false);
@@ -793,6 +795,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   }, [dirty]);
 
   async function selectPhoto(operation: () => Promise<Response>, slotOverride?: typeof boxSlot, targetOverride?: 'front' | 'back') {
+    setUploadError('');
     const target = targetOverride || resolveMockupPhotoTarget({
       mobile,
       clientWizard: !!token,
@@ -1361,12 +1364,20 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
           <Button variant="outline" disabled={!editable || busy || !ready || renderBusy} onClick={() => { uploadPhotoSide.current = photoSide; upload.current?.click(); }}>{renderer?.id === 'plaza-led' || renderer?.id === 'album-girevole' ? (photoSide === 'back' ? 'Carica foto sul retro' : 'Carica foto copertina') : 'Carica una foto'}</Button>
           {renderer?.id === 'plaza-led' && photoSide !== 'back' && <Button variant="outline" disabled={!editable || busy || !ready || renderBusy || picker} onClick={() => { uploadPhotoSide.current = 'back'; setPhotoSide('back'); upload.current?.click(); }}>Carica foto sul retro</Button>}
           <Button variant="outline" disabled={!editable || busy || !ready || renderBusy} onClick={() => { pickerPhotoSide.current = photoSide; setPicker(true); }}>Scegli dalla galleria</Button>
-        </div></div>)}
+        </div>
+          <p className="mt-2 text-xs text-muted-foreground">Caricamento foto: JPEG, PNG o WebP · massimo 20 MB per file.</p>
+          {uploadError && <p role="alert" className="mt-2 rounded-md border border-destructive bg-destructive/10 p-3 text-sm text-destructive">{uploadError}</p>}
+        </div>)}
         {(!mobile || isBox || !token) && <input ref={upload} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={event => {
           const file = event.target.files?.[0]; event.target.value = '';
           if (!file) return;
-          if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) { setMessage('Formato non supportato. Scegli una foto JPEG, PNG o WebP.'); return; }
-          if (file.size > 20 * 1024 * 1024) { setMessage('Scegli una foto entro 20 MB.'); return; }
+          const validationError = mockupUploadValidationError(file);
+          setUploadError(validationError);
+          if (validationError) {
+            setMessage(validationError);
+            toast({ title: 'Foto non caricata', description: validationError, variant: 'destructive' });
+            return;
+          }
           // Le grafiche da incidere restano PNG (con la trasparenza): hanno un proprio caricamento.
           const graphicUpload = isBox && isGraphicSlot(savedPhotoError?.kind === 'unavailable' && savedPhotoSlot ? savedPhotoSlot : boxSlot);
           const operation = () => request(`/${graphicUpload ? 'upload-graphic' : 'upload'}?name=${encodeURIComponent(file.name)}`, { method: 'POST', headers: { 'Content-Type': file.type }, body: file });
