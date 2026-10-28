@@ -11,6 +11,7 @@ export const services = {
   driveFileKeys: new Map<string, string>(),
   folderSequence: 0,
   emails: [] as unknown[][],
+  failEmailShipmentId: null as string | null,
   failPage: 2,
   failFolderId: null as string | null,
   beforeUpload: null as ((folderId: string, name: string) => Promise<void>) | null,
@@ -153,7 +154,14 @@ export function authenticate(req: any, _res: any, next: () => void) {
 }
 export const email = {
   authenticateFirebase: authenticate,
-  sendGmailEmail: async (...args: unknown[]) => { services.emails.push(args); },
+  sendGmailEmail: async (...args: unknown[]) => {
+    const metadata = args[4] as { relatedDocId?: string } | undefined;
+    if (metadata?.relatedDocId === services.failEmailShipmentId) {
+      services.failEmailShipmentId = null;
+      throw new Error('Esito email simulato come incerto');
+    }
+    services.emails.push(args);
+  },
   getStudioContactInfo: async () => ({ name: 'Studio isolato', email: 'studio@example.test', phone: '' }),
   getSiteBaseUrl: () => 'https://studio.invalid',
 };

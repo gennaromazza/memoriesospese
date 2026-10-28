@@ -123,6 +123,7 @@ function resetIntegratedServices() {
   services.driveFileKeys.clear();
   services.folderSequence = 0;
   services.emails.length = 0;
+  services.failEmailShipmentId = null;
   services.failPage = 0;
   services.failFolderId = null;
   services.beforeUpload = null;
@@ -423,9 +424,51 @@ it('autonomo: crea, carica originali, prepara, ritenta solo la pagina mancante e
   expect(services.docs.get(shipmentPath)).toEqual(firstShipmentSnapshot);
   expect(services.docs.get(bookPath).labShipmentId).toBe(shipmentId);
   expect(services.emails).toHaveLength(firstEmailCount);
+
+  // The first shipment was delivered successfully. The second email transport
+  // now fails ambiguously; its reconciliation marker must not leak to the first.
+  services.failEmailShipmentId = secondShipmentId;
+  const uncertainEmail = await postIntegratedJson(`/api/lab-shipments/${secondShipmentId}/send`, {});
+  expect(uncertainEmail.status).toBe(500);
+  expect(uncertainEmail.json.error).toContain('Esito email simulato come incerto');
+  expect(services.emails).toHaveLength(firstEmailCount);
+  expect(services.docs.get(shipmentPath)).toEqual(firstShipmentSnapshot);
+  expect(services.docs.get(secondShipmentPath)).toMatchObject({
+    mockupDispatching: true,
+    photobookDispatchUncertain: true,
+    photobookDispatch: { settled: true },
+  });
+
+  await page.reload();
+  const [firstAfterAmbiguousRefresh, secondAfterAmbiguousRefresh] = await Promise.all([
+    getIntegratedShipment(shipmentId),
+    getIntegratedShipment(secondShipmentId),
+  ]);
+  expect(firstAfterAmbiguousRefresh.json.photobookRecovery).toMatchObject({ dispatchAbandoned: false });
+  expect(secondAfterAmbiguousRefresh.json.photobookRecovery).toMatchObject({ dispatchAbandoned: true });
+  await browserExpect(firstCardAfterRefresh).toContainText('Email al laboratorio inviata.');
+  await browserExpect(secondCardAfterRefresh).toContainText('Invio interrotto o con esito incerto: verifica manuale necessaria.');
+  await browserExpect(secondCardAfterRefresh.getByTestId('button-send-lab-email')).toBeDisabled();
+  await browserExpect(secondCardAfterRefresh.getByRole('button', { name: 'Ho verificato: email non inviata' })).toBeVisible();
+
+  const resolvedAsNotDelivered = await postIntegratedJson(
+    `/api/lab-shipments/${secondShipmentId}/resolve-photobook-send`,
+    { delivered: false },
+  );
+  expect(resolvedAsNotDelivered.status).toBe(200);
+  expect(resolvedAsNotDelivered.json).toMatchObject({
+    id: secondShipmentId,
+    mockupDispatching: false,
+    photobookDispatchUncertain: false,
+    photobookDispatch: null,
+  });
+  expect(services.docs.get(shipmentPath)).toEqual(firstShipmentSnapshot);
+  expect(services.emails).toHaveLength(firstEmailCount);
+
   await page.reload();
   await browserExpect(firstCardAfterRefresh).toContainText('Email al laboratorio inviata.');
   await browserExpect(secondCardAfterRefresh).toContainText(/Email non ancora inviata/i);
+  await browserExpect(secondCardAfterRefresh.getByTestId('button-send-lab-email')).toBeEnabled();
   await secondCardAfterRefresh.getByTestId('button-send-lab-email').click();
   await browserExpect(secondCardAfterRefresh).toContainText('Email al laboratorio inviata.');
   expect(services.emails).toHaveLength(firstEmailCount + 1);
