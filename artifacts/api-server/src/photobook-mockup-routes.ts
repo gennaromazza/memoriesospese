@@ -158,7 +158,7 @@ export function createPhotobookMockupRouter(
       res.locals.book = book;
       res.locals.version = version;
       if (req.method !== 'GET') {
-        const deliveryOnly = isAdmin && version === data.currentVersion && ['/attach', '/reconcile-attachment'].includes(req.path);
+        const deliveryOnly = isAdmin && version === data.currentVersion && ['/attach', '/reconcile-attachment', '/resume-attachment'].includes(req.path);
         const approvalOnly = !isAdmin && req.method === 'POST' && req.path === '/approve' && canApproveBook(data, version);
         if (!canEditBook(data, version) && !deliveryOnly && !approvalOnly) throw new MockupError(409,
           !data.locked && needsPageApproval(data, version)
@@ -470,6 +470,15 @@ export function createPhotobookMockupRouter(
       const { revision } = mockupWorkflowInputSchema.parse(req.body);
       const { reconcileMockupAttachment, MockupDeliveryError } = await import('./photobook-mockup-delivery.js');
       try { res.json(await reconcileMockupAttachment(res.locals.book as DocumentSnapshot, res.locals.version, revision)); }
+      catch (error) { if (error instanceof MockupDeliveryError) throw new MockupError(error.status, error.message); throw error; }
+    } catch (error) { next(error); }
+  });
+  router.post('/resume-attachment', async (req, res, next) => {
+    try {
+      if (!isAdmin) throw new MockupError(403, 'Operazione riservata allo studio');
+      const { revision } = mockupWorkflowInputSchema.parse(req.body);
+      const { resumeMockupAttachment, MockupDeliveryError } = await import('./photobook-mockup-delivery.js');
+      try { res.json(await resumeMockupAttachment(res.locals.book as DocumentSnapshot, res.locals.version, revision)); }
       catch (error) { if (error instanceof MockupDeliveryError) throw new MockupError(error.status, error.message); throw error; }
     } catch (error) { next(error); }
   });

@@ -139,6 +139,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   const rendererRecoveryContext = useRef<ActiveRendererRecovery | null>(null);
   const [note, setNote] = useState('');
   const [history, setHistory] = useState<SavedMockup[] | null>(null);
+  const [attachmentRecovery, setAttachmentRecovery] = useState<{ status?: string; canResume?: boolean; fileProgress?: { name: string; status: string; message?: string }[] } | null>(null);
   const [generation, setGeneration] = useState(0);
   const [rendererOverride, setRendererOverride] = useState<string | null>(null);
   const pendingOption = useRef<MockupOption | null>(null);
@@ -938,8 +939,20 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
         recordSaved(result);
         if (path === '/request-changes') setAskingChanges(false);
       }
+      let recoveryResult: typeof attachmentRecovery = null;
+      if (path === '/reconcile-attachment' || path === '/resume-attachment') {
+        recoveryResult = await response.json();
+        setAttachmentRecovery(recoveryResult);
+      } else if (path === '/attach') {
+        setAttachmentRecovery(null);
+      }
       const fresh = await state.refetch({ throwOnError: true }); revision.current = fresh.data?.saved?.revision || revision.current;
-      setMessage(notificationWarning || (path === '/attach' || path === '/reconcile-attachment' ? 'Riepilogo HTML, foto e grafiche del mockup registrati nella cartella Drive. Nessuna email inviata.' : path === '/submit' ? 'Proposta inviata allo studio per la verifica.' : 'Proposta restituita al cliente per le modifiche.'));
+      const recovery = recoveryResult;
+      setMessage(notificationWarning || (path === '/attach' || path === '/reconcile-attachment' || path === '/resume-attachment'
+        ? recovery?.status === 'needs_review'
+          ? recovery.canResume ? 'Allegati verificati: puoi completare solo i file mancanti. Nessuna email inviata.' : 'Verifica Drive non conclusiva: controlla manualmente i file ambigui. Nessuna email inviata.'
+          : 'Pacchetto mockup completo nella cartella Drive. Nessuna email inviata.'
+        : path === '/submit' ? 'Proposta inviata allo studio per la verifica.' : 'Proposta restituita al cliente per le modifiche.'));
     } catch (error) { setMessage(path === '/submit' ? `Invio non confermato. La bozza è salvata: ${(error as Error).message}` : (error as Error).message); }
     finally { setBusy(false); }
   }
@@ -1554,7 +1567,19 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
           <details className="border-t pt-3"><summary className="cursor-pointer text-sm font-medium py-2">Storico revisioni e verifiche</summary><div className="flex flex-wrap gap-2 py-2">
             <Button variant="outline" disabled={busy} onClick={async () => { try { setHistory(await (await request('/history')).json()); } catch (error) { setMessage((error as Error).message); } }}>Storico revisioni</Button>
             {saved?.status === 'confirmed' && <Button variant="outline" disabled={busy || dirty} onClick={() => action('/reconcile-attachment')}>Verifica allegato Drive dopo un errore</Button>}
+             {saved?.status === 'confirmed' && attachmentRecovery?.canResume && <Button data-testid="button-resume-mockup-attachments" disabled={readOnly || busy || dirty} onClick={() => action('/resume-attachment')}>Completa solo i file mancanti</Button>}
           </div>
+           {attachmentRecovery?.fileProgress && <div className="space-y-1 rounded border p-3 text-sm" data-testid="status-mockup-attachment-recovery">
+             <p className="font-medium">Esito verifica pacchetto</p>
+             {attachmentRecovery.fileProgress.map(file => <div key={file.name} className="flex flex-wrap justify-between gap-2" data-testid={`row-mockup-attachment-${file.name}`}>
+               <span className="break-all">{file.name}</span>
+               <span className={file.status === 'ambiguous' ? 'font-medium text-destructive' : 'text-muted-foreground'}>
+                 {file.status === 'found' ? 'Trovato e verificato' : file.status === 'missing' ? 'Mancante, verificato' : file.status === 'ambiguous' ? 'Esito ambiguo' : file.status === 'uploaded' ? 'Caricato' : file.status === 'uploading' ? 'In caricamento' : 'In attesa'}
+               </span>
+               {file.message && <span className="w-full text-destructive">{file.message}</span>}
+             </div>)}
+             {!attachmentRecovery.canResume && attachmentRecovery.status === 'needs_review' && <p className="pt-1 text-muted-foreground">Il recupero è bloccato finché tutti gli esiti non sono verificabili.</p>}
+           </div>}
           {history && <div className="max-h-60 overflow-auto text-sm space-y-1">
             {!history.length && <p>Nessuna revisione precedente.</p>}
             {history.map(item => <div

@@ -1,4 +1,5 @@
 import type { DocumentSnapshot } from 'firebase-admin/firestore';
+import { createHash } from 'node:crypto';
 import { storage } from './firebase-admin.js';
 import type { SavedMockup } from '../shared/mockup-types.js';
 import { mockupPrintMaterials } from '@shared/mockup-print-materials';
@@ -10,14 +11,16 @@ export interface MockupPackageFile {
   name: string;
   mimeType: string;
   bytes: Buffer;
+  sha256: string;
   sourceQuality?: 'original' | 'stored-preview';
 }
+type UnhashedMockupPackageFile = Omit<MockupPackageFile, 'sha256'>;
 
 /** Read every source before starting Drive: missing material must never be silently omitted. */
 export async function buildMockupPackage(book: DocumentSnapshot, saved: SavedMockup): Promise<MockupPackageFile[]> {
   const prefix = `MOCKUP-${book.id}-v${saved.version}-r${saved.revision}`;
   const [report] = await storage.bucket().file(saved.reportPath!).download();
-  const files: MockupPackageFile[] = [{ name: `${prefix}.html`, mimeType: 'text/html', bytes: report }];
+  const files: UnhashedMockupPackageFile[] = [{ name: `${prefix}.html`, mimeType: 'text/html', bytes: report }];
   const notes = [
     `MATERIALI MOCKUP — ${saved.option!.name}`,
     `Versione ${saved.version} · revisione confermata ${saved.revision}`,
@@ -52,5 +55,5 @@ export async function buildMockupPackage(book: DocumentSnapshot, saved: SavedMoc
     if (sourceQuality === 'stored-preview') notes.push('ATTENZIONE: caricamento precedente alla conservazione degli originali. Questa è la copia del mockup, eventualmente ridotta a 2048 px. Verificare la risoluzione prima della produzione; richiedere allo studio il file ad alta risoluzione se necessario.');
   }
   files.push({ name: `${prefix}-MATERIALI.txt`, mimeType: 'text/plain', bytes: Buffer.from(notes.join('\n'), 'utf8') });
-  return files;
+  return files.map(file => ({ ...file, sha256: createHash('sha256').update(file.bytes).digest('hex') }));
 }
