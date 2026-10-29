@@ -16,6 +16,8 @@ export const services = {
   uploads: [] as string[],
   uploadAttempts: [] as { folderId: string; name: string }[],
   driveFileKeys: new Map<string, string>(),
+  driveUpdateAttempts: [] as string[],
+  failInstructionUpdate: false,
   folderSequence: 0,
   emails: [] as unknown[][],
   failEmailShipmentId: null as string | null,
@@ -166,9 +168,15 @@ export const drive = {
     return { fileId, size: buffer.length };
   },
   updateDriveFileContent: async (id: string, _mime: string, body: AsyncIterable<Buffer>) => {
-    const buffer = await consume(body);
     const key = services.driveFileKeys.get(id);
     if (!key) throw new Error(`Missing isolated Drive file: ${id}`);
+    if (key.endsWith('/ISTRUZIONI-DI-STAMPA.txt')) {
+      services.driveUpdateAttempts.push(id);
+      if (services.failInstructionUpdate) {
+        throw new Error('Aggiornamento istruzioni simulato fallito');
+      }
+    }
+    const buffer = await consume(body);
     services.drive.set(key, buffer);
     return { fileId: id, size: buffer.length };
   },
