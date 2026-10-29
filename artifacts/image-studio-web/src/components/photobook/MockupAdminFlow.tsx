@@ -21,6 +21,7 @@ interface Props {
   version: number;
   currentVersion: number;
   pagesApproved: boolean;
+  hasPublishedPages?: boolean;
   mockupPath: MockupPathChoice;
   pathBusy: boolean;
   onPathChange: (path: MockupPathChoice) => void;
@@ -63,7 +64,7 @@ function Step({ n, title, done, active, children }: { n: number; title: string; 
 }
 
 /** Stato delle pagine e gestione indipendente del mockup dell'album. */
-export default function MockupAdminFlow({ photobookId, version, currentVersion, pagesApproved, mockupPath, pathBusy, onPathChange, emailStatus, emailNote, emailActions, readOnly, clientLink, onSelectVersion }: Props) {
+export default function MockupAdminFlow({ photobookId, version, currentVersion, pagesApproved, hasPublishedPages = true, mockupPath, pathBusy, onPathChange, emailStatus, emailNote, emailActions, readOnly, clientLink, onSelectVersion }: Props) {
   const state = useQuery<MockupPayload>({
     queryKey: ['photobook-mockup-flow', photobookId, version],
     queryFn: () => fetchMockupState(photobookId, version),
@@ -113,7 +114,11 @@ export default function MockupAdminFlow({ photobookId, version, currentVersion, 
         <p className="mt-2 rounded-md bg-muted/60 px-3 py-2 text-sm" role="status" data-testid="mockup-next-action"><strong>Prossima azione:</strong> {nextAction}</p>
       </div>
       <div className="rounded-md border px-3 py-2 text-sm" role="status" data-testid="photobook-page-approval-status">
-        <strong>Impaginato:</strong> {pagesApproved ? `versione ${currentVersion} approvata dal cliente` : `versione ${currentVersion} non ancora approvata`}. Questo stato è separato dal mockup.
+        <strong>Impaginato:</strong> {!hasPublishedPages
+          ? 'nessuna pagina pubblicata. La conferma del mockup è separata e non approva le pagine.'
+          : pagesApproved
+            ? `versione ${currentVersion} approvata dal cliente.`
+            : `versione ${currentVersion} non ancora approvata.`} Questo stato è separato dal mockup.
       </div>
       {readOnly && (
         <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900" data-testid="mockup-flow-readonly">

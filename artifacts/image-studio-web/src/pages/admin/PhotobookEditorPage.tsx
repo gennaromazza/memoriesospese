@@ -416,6 +416,7 @@ export default function PhotobookEditorPage() {
            version={version}
            currentVersion={book.currentVersion}
            pagesApproved={book.approval?.version === book.currentVersion}
+            hasPublishedPages={(book.versions.find(v => v.version === book.currentVersion)?.pageCount || 0) > 0}
            mockupPath={book.mockupPath || 'studio'}
            pathBusy={busy}
            readOnly={book.currentVersion !== version || !!book.locked}

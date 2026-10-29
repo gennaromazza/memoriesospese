@@ -29,6 +29,12 @@ Anche l’assegnazione del modello e il salvataggio del mockup devono funzionare
 
 **How to apply:** Le route del mockup non devono imporre un lavoro collegato per assegnare il modello, salvare la bozza o gestire la revisione.
 
+Un fotolibro autonomo può condividere e far confermare il mockup prima che siano state caricate pagine. Questa conferma appartiene alla revisione del mockup, non approva un’impaginazione assente. La prima versione grafica deve essere pubblicata come bozza separata e richiede poi la normale revisione cliente.
+
+**Why:** Il mockup può essere concordato in anticipo, ma non deve apparire come un’approvazione di pagine fittizie né impedire allo studio di caricare in seguito l’impaginato reale.
+
+**How to apply:** Permettere la conferma sul link mockup senza pagine; nascondere e rifiutare l’approvazione dell’impaginato finché non esistono pagine; quando si crea la versione grafica, conservare la revisione mockup originaria senza copiarne la conferma cliente.
+
 Lo studio deve poter correggere un modello assegnato per errore. Le modifiche locali non salvate possono richiedere una conferma prima di cambiare modello, ma non devono bloccare definitivamente il selettore; le bozze già salvate hanno una conferma separata e restano nello storico.
 
 **Why:** Una prima assegnazione può essere sbagliata e l’admin deve poter correggerla senza perdere silenziosamente le modifiche in corso o la revisione già salvata.

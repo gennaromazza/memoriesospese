@@ -275,6 +275,8 @@ const LOCKED_MESSAGE =
 const APPROVED_MESSAGE =
   "Hai approvato l'impaginato: non è più possibile inviare o cancellare richieste. " +
   'Se serve una modifica, contatta il tuo fotografo.';
+const NO_PAGES_TO_APPROVE_MESSAGE =
+  'Non ci sono pagine da approvare. Potrai approvare l’impaginato dopo aver ricevuto le pagine.';
 
 /** true se il cliente ha approvato la versione attualmente attiva. */
 function isApprovedForCurrent(book: any): boolean {
@@ -703,6 +705,15 @@ router.post('/by-token/:token/approve', async (req: Request, res: Response) => {
     if (book.locked) {
       return res.status(403).json({ error: LOCKED_MESSAGE });
     }
+    const currentPages = await db
+      .collection(PAGES_COL)
+      .where('photobookId', '==', bookDoc.id)
+      .where('version', '==', book.currentVersion)
+      .limit(1)
+      .get();
+    if (currentPages.empty) {
+      return res.status(409).json({ error: NO_PAGES_TO_APPROVE_MESSAGE });
+    }
     if (isApprovedForCurrent(book)) {
       return res.json({ ok: true, alreadyApproved: true });
     }
@@ -735,6 +746,13 @@ router.post('/by-token/:token/approve', async (req: Request, res: Response) => {
       const fresh = (await tx.get(ref)).data()!;
       if (fresh.locked) return 'locked';
       if (fresh.currentVersion !== book.currentVersion) return 'version-changed';
+      const pages = await tx.get(
+        db.collection(PAGES_COL)
+          .where('photobookId', '==', bookDoc.id)
+          .where('version', '==', fresh.currentVersion)
+          .limit(1),
+      );
+      if (pages.empty) return 'no-pages';
       if (isApprovedForCurrent(fresh)) return 'already';
       tx.update(ref, {
         approval: {
@@ -747,6 +765,9 @@ router.post('/by-token/:token/approve', async (req: Request, res: Response) => {
       return 'ok';
     });
     if (result === 'locked') return res.status(403).json({ error: LOCKED_MESSAGE });
+    if (result === 'no-pages') {
+      return res.status(409).json({ error: NO_PAGES_TO_APPROVE_MESSAGE });
+    }
     if (result === 'version-changed') {
       return res.status(409).json({
         error: 'Il fotolibro è stato aggiornato nel frattempo: ricarica la pagina.',

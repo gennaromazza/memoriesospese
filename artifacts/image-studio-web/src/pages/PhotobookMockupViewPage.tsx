@@ -66,9 +66,11 @@ export default function PhotobookMockupViewPage() {
             : state.data
               ? <div className="space-y-4 animate-in fade-in duration-500">
                   <p className="rounded-xl border border-[#dce5dc] bg-[#fbfcf8] px-4 py-3 text-sm leading-6 text-[#65756f]" role="status" data-testid="status-photobook-approval">
-                    {state.data.photobook.approval?.version === state.data.version
-                      ? `L’impaginato della versione ${state.data.version} è approvato. Questo link mostra separatamente il mockup preparato dallo studio.`
-                      : `L’impaginato della versione ${state.data.version} non è ancora approvato. Potete comunque consultare il mockup confermato dello studio; il riscontro sul mockup è facoltativo.`}
+                    {state.data.pages.length === 0
+                      ? 'L’impaginato non è ancora stato caricato. Questo link permette solo di consultare e confermare il mockup: non approva le pagine.'
+                      : state.data.photobook.approval?.version === state.data.version
+                        ? `L’impaginato della versione ${state.data.version} è approvato. Questo link mostra separatamente il mockup preparato dallo studio.`
+                        : `L’impaginato della versione ${state.data.version} non è ancora approvato. Potete comunque consultare il mockup confermato dello studio; il riscontro sul mockup è facoltativo.`}
                   </p>
                   <PhotobookMockup key={`${state.data.photobook.id}-${state.data.version}`} photobookId={state.data.photobook.id} version={state.data.version} token={token} readOnly autoOpen confirmedOnly />
                 </div>

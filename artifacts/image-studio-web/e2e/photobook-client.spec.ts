@@ -413,6 +413,47 @@ test("un link a una revisione non disponibile mostra l’errore e riprova solo q
   expect(emailRequests).toEqual([]);
 });
 
+test("il mockup condiviso senza pagine non viene presentato come impaginato approvato o da approvare", async ({ page }) => {
+  await mockPhotobookApi(
+    page,
+    route => fulfillMockup(route, confirmedMockupPayload()),
+    route => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        photobook: {
+          id: "e2e-standalone-empty",
+          name: "Fotolibro autonomo senza pagine",
+          token,
+          currentVersion: 1,
+          versions: [{ version: 1, pageCount: 0 }],
+          approval: null,
+          locked: false,
+          mockupPath: "studio",
+        },
+        version: 1,
+        pages: [],
+        requests: [],
+      }),
+    }),
+  );
+
+  await page.goto(`/fotolibro/${token}/mockup?version=1`);
+  const mockupStatus = page.getByTestId("status-photobook-approval");
+  await expect(mockupStatus).toContainText("L’impaginato non è ancora stato caricato");
+  await expect(mockupStatus).toContainText("non approva le pagine");
+  await expect(mockupStatus).not.toContainText("non è ancora approvato");
+  await expect(page.getByTestId("button-approve-mockup")).toBeVisible();
+  await expect(page.getByRole("button", { name: /Approva l'impaginato/i })).toHaveCount(0);
+  await expect(page.locator('iframe[title^="Configuratore 3D"]')).toBeVisible();
+
+  await page.goto(`/fotolibro/${token}`);
+  await expect(page.getByTestId("photobook-no-pages")).toContainText("questa conferma non approva le pagine");
+  await expect(page.getByTestId("photobook-client-progress")).toContainText("Impaginato da preparare");
+  await expect(page.getByTestId("button-open-approve")).toHaveCount(0);
+  await expect(page.getByTestId("card-approve")).toHaveCount(0);
+});
+
 test("su mobile il cliente vede un solo pulsante per aprire un mockup pronto", async ({ page }) => {
   const getMockupRequests = await mockPhotobookApi(page, route =>
     fulfillMockup(route, mockupPayload(true, true)),

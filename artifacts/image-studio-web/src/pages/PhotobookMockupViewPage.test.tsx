@@ -21,12 +21,12 @@ import PhotobookMockupViewPage from './PhotobookMockupViewPage';
 
 afterEach(() => vi.unstubAllGlobals());
 
-function render(approved: boolean, search = '?version=2') {
+function render(approved: boolean, search = '?version=2', pages: object[] = []) {
   vi.stubGlobal('window', { location: { search } });
   const client = new QueryClient();
   client.setQueryData(['/api/photobooks/by-token', 'private-token', 2], {
     photobook: { id: 'book', name: 'Album di prova', currentVersion: 2, approval: approved ? { version: 2 } : null },
-    version: 2, pages: [], requests: [],
+    version: 2, pages, requests: [],
   });
   return renderToStaticMarkup(<QueryClientProvider client={client}><PhotobookMockupViewPage /></QueryClientProvider>);
 }
@@ -41,8 +41,16 @@ describe('Link diretto al mockup cliente', () => {
     expect(html).toContain('data-auto-open="true"');
     expect(html).toContain('data-confirmed-only="true"');
   });
-  it('apre il mockup confermato e mostra separatamente lo stato delle pagine non approvate', () => {
+  it('spiega che senza pagine il link conferma solo il mockup, non l’impaginato', () => {
     const html = render(false);
+    expect(html).toContain('L’impaginato non è ancora stato caricato');
+    expect(html).toContain('non approva le pagine');
+    expect(html).not.toContain('non è ancora approvato');
+    expect(html).toContain('mockup-viewer');
+    expect(html).toContain('data-version="2"');
+  });
+  it('mostra l’approvazione delle pagine separatamente quando l’impaginato esiste', () => {
+    const html = render(false, '?version=2', [{ id: 'page-1', pageNumber: 1 }]);
     expect(html).toContain('versione 2 non è ancora approvato');
     expect(html).toContain('mockup-viewer');
     expect(html).toContain('data-version="2"');

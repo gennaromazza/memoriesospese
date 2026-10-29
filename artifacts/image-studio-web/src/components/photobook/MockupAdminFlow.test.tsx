@@ -40,6 +40,12 @@ describe('MockupAdminFlow', () => {
     expect(render({ pagesApproved: true })).toContain('versione 1 approvata dal cliente');
     expect(render({ mockupPath: 'client' })).not.toContain('Prepara la bozza');
   });
+  it('non presenta come non approvata un’impaginazione che non esiste ancora', () => {
+    const html = render({ hasPublishedPages: false });
+    expect(html).toContain('nessuna pagina pubblicata');
+    expect(html).toContain('non approva le pagine');
+    expect(html).not.toContain('versione 1 non ancora approvata');
+  });
   it('distingue chi prepara la bozza da chi sceglie il modello', () => {
     const html = render();
     expect(html).toContain('La preparo io in studio');

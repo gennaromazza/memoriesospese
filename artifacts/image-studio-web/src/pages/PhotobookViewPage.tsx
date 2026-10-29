@@ -502,6 +502,7 @@ export default function PhotobookViewPage() {
   const isApproved =
     !!data?.photobook.approval &&
     data.photobook.approval.version === data.photobook.currentVersion;
+  const hasPages = (data?.pages.length || 0) > 0;
   const clientConfiguresMockup = data?.photobook.mockupPath === 'client';
   const canEdit = isCurrentVersion && !isLocked && !isApproved;
 
@@ -824,6 +825,7 @@ export default function PhotobookViewPage() {
               {isTouchPhone
                 ? !isCurrentVersion ? `Versione ${data.version} precedente · sola lettura`
                   : isLocked ? `Versione ${data.version} · in stampa`
+                  : !hasPages ? `Versione ${data.version} · impaginato da preparare`
                   : isApproved ? `Versione ${data.version} · pagine approvate`
                   : pendingSentCount > 0 ? `Versione ${data.version} · richieste in attesa`
                   : `Versione ${data.version} aggiornata · da approvare`
@@ -859,7 +861,7 @@ export default function PhotobookViewPage() {
                 </SelectContent>
               </Select>
             )}
-            {canEdit && isTouchPhone && (
+            {canEdit && hasPages && isTouchPhone && (
               <Button
                 size="sm"
                 className="h-11 shrink-0 whitespace-nowrap bg-green-600 px-3 text-xs text-white hover:bg-green-700"
@@ -893,8 +895,15 @@ export default function PhotobookViewPage() {
           isTouchPhone ? 'px-1 py-1 space-y-1' : 'max-w-4xl px-2 sm:px-4 space-y-4 sm:space-y-6 py-4 sm:py-6'
         }`}
       >
-        <PhotobookClientProgress approved={isApproved} locked={isLocked} isCurrentVersion={isCurrentVersion} clientConfigures={clientConfiguresMockup} compact={isTouchPhone} />
-        {canEdit && !isTouchPhone && (
+        <PhotobookClientProgress approved={isApproved} locked={isLocked} isCurrentVersion={isCurrentVersion} clientConfigures={clientConfiguresMockup} hasPages={hasPages} compact={isTouchPhone} />
+        {!hasPages && isCurrentVersion && (
+          <Card className="border-[#dce5dc] bg-white" data-testid="photobook-no-pages">
+            <CardContent className="py-4 text-sm text-muted-foreground">
+              Le pagine dell’impaginato non sono ancora state caricate. Se lo studio ha condiviso un mockup, potete consultarlo e confermarlo dal link dedicato: questa conferma non approva le pagine.
+            </CardContent>
+          </Card>
+        )}
+        {canEdit && hasPages && !isTouchPhone && (
           <Card className="border-green-200 bg-white" data-testid="card-approve">
             <CardContent className="py-3 flex items-center gap-3 flex-wrap">
               <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
@@ -966,7 +975,7 @@ export default function PhotobookViewPage() {
 
 
 
-        {canEdit && !isTouchPhone && (
+        {canEdit && hasPages && !isTouchPhone && (
           <p className="text-sm text-muted-foreground px-1">
             Tocca <span className="font-medium text-foreground">"Segna una X"</span> su una pagina e
             disegna una X sulla foto che vuoi far modificare: ogni X prende un colore diverso e

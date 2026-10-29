@@ -6,21 +6,25 @@ interface Props {
   isCurrentVersion: boolean;
   /** Se true il cliente personalizza il mockup, altrimenti lo prepara lo studio. */
   clientConfigures: boolean;
+  /** False finché lo studio non ha pubblicato la prima impaginazione. */
+  hasPages?: boolean;
   compact?: boolean;
 }
 
 /** Percorso del cliente, uguale su telefono e computer: pagine → album → stampa. */
-export default function PhotobookClientProgress({ approved, locked, isCurrentVersion, clientConfigures, compact = false }: Props) {
+export default function PhotobookClientProgress({ approved, locked, isCurrentVersion, clientConfigures, hasPages = true, compact = false }: Props) {
   const printing = locked;
-  const stage = !isCurrentVersion ? 0 : printing ? 3 : approved ? 2 : 1;
+  const layoutApproved = hasPages && approved;
+  const stage = !isCurrentVersion ? 0 : printing ? 3 : !hasPages ? 2 : layoutApproved ? 2 : 1;
   const steps = [
-    { n: 1, title: 'Controlla le pagine', done: approved || printing },
+    { n: 1, title: hasPages ? 'Controlla le pagine' : 'Impaginato da preparare', done: hasPages && (layoutApproved || printing) },
     { n: 2, title: clientConfigures ? 'Personalizza l’album' : 'Mockup dello studio', done: printing },
     { n: 3, title: 'Stampa', done: false },
   ];
   const message = !isCurrentVersion ? 'Stai guardando una versione precedente, in sola lettura.'
     : printing ? 'Il tuo album è stato mandato in stampa: non si può più modificare.'
-    : !approved ? 'Sfoglia le pagine, segnala le correzioni e poi approva l’impaginato.'
+    : !hasPages ? 'L’impaginato non è ancora stato caricato. Puoi consultare e confermare il mockup separatamente.'
+    : !layoutApproved ? 'Sfoglia le pagine, segnala le correzioni e poi approva l’impaginato.'
     : clientConfigures ? 'Pagine approvate. Ora scegli tessuti, foto e copertina del tuo album: puoi modificarli fino alla stampa.'
     : 'Pagine approvate. Lo studio sta preparando il mockup e ti avviserà via email.';
   return (
