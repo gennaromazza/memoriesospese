@@ -1294,7 +1294,7 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
           : cleanup?.status === 'running' && !cleanupAbandoned ? 'Archiviazione delle pagine obsolete in corso.'
           : cleanupAbandoned ? 'Archiviazione interrotta: verifica la cartella privata e recupera l’operazione.'
           : cleanup?.status === 'needs_review' || (cleanup?.status === 'completed' && cleanup.instructionsUpdated === false)
-            ? 'La sistemazione delle pagine obsolete richiede un nuovo tentativo.'
+            ? 'Archiviazione interrotta: puoi riprenderla senza inviare email.'
           : transferAbandoned ? 'Trasferimento interrotto: è disponibile il recupero manuale.'
           : shipmentAlreadySent ? 'Email al laboratorio inviata.'
           : transferRunning ? 'Trasferimento pagine in corso · email non inviata.'
@@ -1389,7 +1389,7 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
             ) : (
               <FileText className="h-3.5 w-3.5 mr-1.5" />
             )}
-            {cleanupAbandoned ? 'Recupera archiviazione interrotta'
+            {cleanupAbandoned || cleanupNeedsAttention ? 'Riprendi archiviazione interrotta'
               : obsoletePages.length ? 'Archivia pagine obsolete' : 'Completa sistemazione'}
           </Button>
         </div>

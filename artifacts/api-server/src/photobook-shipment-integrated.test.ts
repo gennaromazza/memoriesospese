@@ -432,14 +432,38 @@ it('recupera un’archiviazione interrotta dopo lo spostamento su Drive e aggior
   expect(blockedSend.status).toBe(409);
   expect(services.emails).toHaveLength(0);
 
-  // A new explicit admin action resumes the operation. Drive recognizes that
-  // the file is already in the private archive; metadata and instructions catch up.
+  // Reload the real manager while the operation is still interrupted. The
+  // recovery action must be clear, stay separate from email sending, and be
+  // disabled while the server is processing the recovery.
   services.afterMove = null;
-  const recovered = await postIntegratedJson(
-    `/api/lab-shipments/${shipmentId}/archive-obsolete-photobook-pages`,
-    { confirm: true },
-  );
-  expect(recovered.status).toBe(200);
+  const page = await context!.newPage();
+  await page.goto(origin);
+  await page.reload();
+  const recoveryCard = page.getByTestId(`card-photobook-${bookId}`);
+  await browserExpect(recoveryCard).toBeVisible();
+  await browserExpect(recoveryCard).toContainText('Archiviazione interrotta: puoi riprenderla senza inviare email.');
+  const recoverButton = page.getByTestId(`button-archive-obsolete-pages-${bookId}`);
+  await browserExpect(recoverButton).toHaveText(/Riprendi archiviazione interrotta/);
+  await browserExpect(page.getByTestId('button-send-lab-email')).toBeDisabled();
+
+  let signalRecovery!: () => void;
+  let releaseRecovery!: () => void;
+  const recoveryReached = new Promise<void>(resolve => { signalRecovery = resolve; });
+  const recoveryReleased = new Promise<void>(resolve => { releaseRecovery = resolve; });
+  services.beforeMove = async () => {
+    signalRecovery();
+    await recoveryReleased;
+  };
+  page.once('dialog', dialog => dialog.accept());
+  await recoverButton.click();
+  await waitForSignal(recoveryReached, 'browser-triggered archive recovery');
+  await browserExpect(recoverButton).toBeDisabled();
+  expect(services.emails).toHaveLength(0);
+  releaseRecovery();
+  services.beforeMove = null;
+  await browserExpect(recoveryCard.getByLabel('Originali archiviati')).toBeVisible({ timeout: 15_000 });
+  await browserExpect(recoverButton).toHaveCount(0);
+
   const finalShipment = services.docs.get(shipmentPath);
   expect(finalShipment.photobookPageCleanup).toMatchObject({
     status: 'completed',
@@ -462,6 +486,7 @@ it('recupera un’archiviazione interrotta dopo lo spostamento su Drive e aggior
   expect(instructionText).toContain(supplemental.name);
   expect(instructionText).toContain('ISTRUZIONI DI STAMPA');
   expect(services.emails).toHaveLength(0);
+  await page.close();
 }, 60_000);
 
 it('non modifica una spedizione già inviata senza consenso esplicito', async () => {
