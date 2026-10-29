@@ -24,6 +24,7 @@ import {
   findOrCreateLabParentFolder,
   createShipmentFolder,
   moveDriveFile,
+  openDriveFileFromFolder,
   createResumableUploadSession,
   deleteDriveFile,
   revokeShipmentFolderPermission,
@@ -441,6 +442,69 @@ router.get('/lab-shipments/order/:orderId', authenticateFirebase, requireAdmin, 
   } catch (error: any) {
     console.error('❌ Error fetching walk-in lab shipments:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/lab-shipments/:id/archived-pages/:fileId
+ * Accesso admin tracciato a un originale archiviato, senza esporre link Drive.
+ */
+router.get('/lab-shipments/:id/archived-pages/:fileId', authenticateFirebase, requireAdmin, async (req: any, res): Promise<HttpHandlerResult> => {
+  try {
+    const shipmentRef = db.collection('labShipments').doc(req.params.id);
+    const doc = await shipmentRef.get();
+    const data = doc.data();
+    if (!data || data.sourceType !== 'photobook') {
+      return res.status(404).json({ error: 'Spedizione non trovata' });
+    }
+    const archived = (Array.isArray(data.archivedPhotobookPages) ? data.archivedPhotobookPages : [])
+      .find((file: any) => file.driveFileId === req.params.fileId && file.archiveFolderId);
+    if (!archived) return res.status(404).json({ error: 'Originale archiviato non trovato' });
+
+    const file = await openDriveFileFromFolder(archived.driveFileId, archived.archiveFolderId);
+    if (!file) {
+      return res.status(404).json({ error: 'Il file non si trova più nella cartella privata di archivio' });
+    }
+
+    const requestedDownload = req.query.download === 'true';
+    const mimeType = archived.mimeType || file.mimeType || 'application/octet-stream';
+    const safeInlineImage = /^image\/(jpeg|png|gif|webp|avif|bmp)$/i.test(mimeType);
+    const disposition = !requestedDownload && safeInlineImage ? 'inline' : 'attachment';
+    const filename = String(archived.name || 'pagina-archiviata')
+      .replace(/["\r\n]/g, '_')
+      .replace(/\\/g, '_');
+    const asciiFilename = filename.replace(/[^\x20-\x7E]/g, '_');
+    const encodedFilename = encodeURIComponent(filename).replace(/[!'()*]/g, char =>
+      `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
+    );
+
+    await shipmentRef.collection('archivedPageAccess').add({
+      driveFileId: archived.driveFileId,
+      fileName: archived.name || filename,
+      action: disposition === 'inline' ? 'open' : 'download',
+      accessedAt: Timestamp.now(),
+      accessedBy: req.user?.email || 'unknown',
+    });
+
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Content-Disposition', `${disposition}; filename="${asciiFilename}"; filename*=UTF-8''${encodedFilename}`);
+    if (file.size) res.setHeader('Content-Length', file.size);
+    file.stream.on('error', error => {
+      req.log?.error({ err: error, shipmentId: req.params.id }, 'Failed to stream archived photobook page');
+      res.destroy(error);
+    });
+    file.stream.pipe(res);
+    return;
+  } catch (error: any) {
+    req.log?.error({ err: error, shipmentId: req.params.id }, 'Failed to open archived photobook page');
+    if (res.headersSent) {
+      res.destroy(error);
+      return;
+    }
+    return res.status(503).json({ error: 'Impossibile recuperare l’originale archiviato.' });
   }
 });
 

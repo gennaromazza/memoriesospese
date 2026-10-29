@@ -314,6 +314,33 @@ export async function moveDriveFile(
   );
 }
 
+/**
+ * Apre un file soltanto se Drive lo conferma ancora nella cartella privata attesa.
+ * Il contenuto resta in streaming, senza creare una copia pubblica o caricarlo
+ * interamente in memoria.
+ */
+export async function openDriveFileFromFolder(
+  fileId: string,
+  expectedFolderId: string,
+): Promise<{ stream: Readable; mimeType?: string; size?: string } | null> {
+  const metadata = await driveJson<{ parents?: string[]; mimeType?: string; size?: string }>(
+    `/drive/v3/files/${encodeURIComponent(fileId)}?fields=parents,mimeType,size&supportsAllDrives=true`,
+  );
+  if (!metadata.parents?.includes(expectedFolderId)) return null;
+
+  const response = await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`);
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(`Google Drive API error: ${response.status} ${text.slice(0, 300)}`);
+  }
+  if (!response.body) throw new Error('Contenuto Drive non disponibile');
+  return {
+    stream: Readable.fromWeb(response.body as any),
+    ...(metadata.mimeType ? { mimeType: metadata.mimeType } : {}),
+    ...(metadata.size ? { size: metadata.size } : {}),
+  };
+}
+
 /** Rende pubblica-by-link una cartella già persistita con scadenza nel gestionale. */
 export async function shareShipmentFolder(folderId: string): Promise<string | undefined> {
   const existing = await driveJson<{

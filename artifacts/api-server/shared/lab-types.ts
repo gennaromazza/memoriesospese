@@ -91,6 +91,12 @@ export interface MissingPhotobookPageFile {
   storagePath: string;
 }
 
+export interface ArchivedPhotobookPage extends LabShipmentFile {
+  archivedAt: Timestamp;
+  archivedBy?: string;
+  archiveFolderId: string;
+}
+
 /** Copia storica di una nota con foto scelta per il laboratorio. */
 export interface LabShipmentJobPhotoNoteSnapshot {
   sourceNoteId: string;
@@ -241,11 +247,7 @@ export interface LabShipment {
     startedAt?: Timestamp;
     finishedAt?: Timestamp;
   };
-  archivedPhotobookPages?: Array<LabShipmentFile & {
-    archivedAt: Timestamp;
-    archivedBy?: string;
-    archiveFolderId: string;
-  }>;
+  archivedPhotobookPages?: ArchivedPhotobookPage[];
   obsoletePhotobookPages?: ObsoletePhotobookPageFile[];
   missingPhotobookPages?: MissingPhotobookPageFile[];
   /** Fotolibro di origine, quando sourceType='photobook'. */

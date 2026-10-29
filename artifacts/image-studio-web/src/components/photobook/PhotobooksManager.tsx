@@ -87,6 +87,8 @@ import {
   CheckCircle2,
   MessageSquareWarning,
   FileText,
+  Eye,
+  Download,
   ChevronDown,
   ChevronRight,
 } from 'lucide-react';
@@ -1095,6 +1097,7 @@ export default function PhotobooksManager({
 function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book: Photobook }) {
   const { toast } = useToast();
   const [supplementalUploading, setSupplementalUploading] = useState(false);
+  const [archivedPageBusyId, setArchivedPageBusyId] = useState<string | null>(null);
   const { data: shipment, isLoading, isError, error, refetch } = useQuery<LabShipment>({
     queryKey: ['/api/lab-shipments', shipmentId],
     queryFn: () => getShipment(shipmentId),
@@ -1154,6 +1157,37 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
       toast({ title: 'Archiviazione non completata', description: e.message, variant: 'destructive' });
     },
   });
+  const accessArchivedPage = async (file: NonNullable<LabShipment['archivedPhotobookPages']>[number], action: 'open' | 'download') => {
+    const popup = action === 'open' ? window.open('about:blank', '_blank') : null;
+    if (popup) popup.opener = null;
+    setArchivedPageBusyId(file.driveFileId);
+    try {
+      const { apiRequest } = await import('@/lib/queryClient');
+      const url = `/api/lab-shipments/${encodeURIComponent(shipmentId)}/archived-pages/${encodeURIComponent(file.driveFileId)}${action === 'download' ? '?download=true' : ''}`;
+      const response = await apiRequest('GET', url);
+      const objectUrl = URL.createObjectURL(await response.blob());
+      if (action === 'open' && popup) {
+        popup.location.href = objectUrl;
+      } else {
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = file.name;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      }
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    } catch (error) {
+      popup?.close();
+      toast({
+        title: action === 'open' ? 'Originale non disponibile' : 'Download non riuscito',
+        description: error instanceof Error ? error.message : 'Riprova tra poco.',
+        variant: 'destructive',
+      });
+    } finally {
+      setArchivedPageBusyId(null);
+    }
+  };
 
   const retryMutation = useMutation({
     mutationFn: (recoverAbandoned: boolean = false) => createPhotobookLabShipment(book.id, { recoverAbandoned }),
@@ -1367,6 +1401,63 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
         <p className="text-xs text-destructive" role="alert">
           {cleanup.error || 'L’archiviazione non è stata completata.'} I file non sono stati cancellati; puoi ripetere l’azione.
         </p>
+      )}
+      {(shipment.archivedPhotobookPages || []).length > 0 && (
+        <section className="rounded border bg-background p-3 space-y-2" aria-label="Originali archiviati">
+          <div>
+            <p className="font-medium">Originali archiviati</p>
+            <p className="text-xs text-muted-foreground">
+              Accesso riservato agli amministratori. Il laboratorio non può aprire questi file.
+            </p>
+          </div>
+          <ul className="space-y-2">
+            {[...(shipment.archivedPhotobookPages || [])]
+              .sort((a, b) => (tsToDate(b.archivedAt)?.getTime() || 0) - (tsToDate(a.archivedAt)?.getTime() || 0))
+              .map(file => {
+                const archivedAt = tsToDate(file.archivedAt);
+                const busy = archivedPageBusyId === file.driveFileId;
+                return (
+                  <li
+                    key={file.driveFileId}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded bg-muted/50 px-2.5 py-2 text-xs"
+                    data-testid={`archived-photobook-page-${file.driveFileId}`}
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{file.name}</p>
+                      <p className="text-muted-foreground">
+                        {file.sourcePageNumber ? `Pagina ${file.sourcePageNumber} · ` : ''}
+                        Archiviato il {archivedAt ? archivedAt.toLocaleString('it-IT') : 'data non disponibile'}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 gap-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() => void accessArchivedPage(file, 'open')}
+                        aria-label={`Apri ${file.name}`}
+                        data-testid={`button-open-archived-page-${file.driveFileId}`}
+                      >
+                        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
+                        <span className="ml-1">Apri</span>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() => void accessArchivedPage(file, 'download')}
+                        aria-label={`Scarica ${file.name}`}
+                        data-testid={`button-download-archived-page-${file.driveFileId}`}
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                        <span className="ml-1">Scarica</span>
+                      </Button>
+                    </div>
+                  </li>
+                );
+              })}
+          </ul>
+        </section>
       )}
       <div className="rounded border bg-background p-3 space-y-2">
         <div className="space-y-3">

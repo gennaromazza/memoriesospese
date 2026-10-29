@@ -22,6 +22,7 @@ export const services = {
   failPage: 2,
   failFolderId: null as string | null,
   beforeUpload: null as ((folderId: string, name: string) => Promise<void>) | null,
+  userEmail: 'gennaro.mazzacane@gmail.com',
   nextId: 1,
   queue: Promise.resolve(),
 };
@@ -187,6 +188,13 @@ export const drive = {
     services.drive.set(targetKey, content);
     services.driveFileKeys.set(fileId, targetKey);
   },
+  openDriveFileFromFolder: async (fileId: string, expectedFolderId: string) => {
+    const key = services.driveFileKeys.get(fileId);
+    if (!key?.startsWith(`${expectedFolderId}/`)) return null;
+    const content = services.drive.get(key);
+    if (!content) return null;
+    return { stream: Readable.from([content]), mimeType: 'image/jpeg', size: String(content.length) };
+  },
   deleteDriveFile: async (id: string) => {
     services.driveDeleteAttempts.push(id);
     if (id === services.failDeleteFolderId) {
@@ -213,7 +221,7 @@ export const drive = {
   revokeShipmentFolderPermission: async () => {},
 };
 export function authenticate(req: any, _res: any, next: () => void) {
-  req.user = { email: 'gennaro.mazzacane@gmail.com' };
+  req.user = { email: services.userEmail };
   next();
 }
 export const email = {

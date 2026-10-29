@@ -134,6 +134,7 @@ function resetIntegratedServices() {
   services.failPage = 0;
   services.failFolderId = null;
   services.beforeUpload = null;
+  services.userEmail = 'gennaro.mazzacane@gmail.com';
   services.nextId = 1;
   services.docs.set('labs/lab-fixture', {
     nome: 'Laboratorio isolato', email: 'lab@example.test', attivo: true,
@@ -323,6 +324,30 @@ it('archivia l’originale sostituito, ripete il trasferimento senza duplicati e
   expect(services.drive.get(driveObjectKey(folderId, attachment.name))).toEqual(Buffer.from('cover'));
   expect(services.docs.get(shipmentPath).files).not.toContainEqual(expect.objectContaining({ driveFileId: oldPageFile.driveFileId }));
   expect(services.docs.get(shipmentPath).files).toContainEqual(expect.objectContaining({ driveFileId: attachment.driveFileId }));
+
+  const openedArchiveResponse = await fetch(
+    `${origin}/api/lab-shipments/${shipmentId}/archived-pages/${encodeURIComponent(oldPageFile.driveFileId)}`,
+  );
+  expect(openedArchiveResponse.status).toBe(200);
+  expect(openedArchiveResponse.headers.get('content-disposition')).toContain('inline');
+  expect(Buffer.from(await openedArchiveResponse.arrayBuffer())).toEqual(oldBytes);
+  const downloadedArchiveResponse = await fetch(
+    `${origin}/api/lab-shipments/${shipmentId}/archived-pages/${encodeURIComponent(oldPageFile.driveFileId)}?download=true`,
+  );
+  expect(downloadedArchiveResponse.status).toBe(200);
+  expect(downloadedArchiveResponse.headers.get('content-disposition')).toContain('attachment');
+  expect(Buffer.from(await downloadedArchiveResponse.arrayBuffer())).toEqual(oldBytes);
+  expect([...services.docs.keys()].filter(path => path.startsWith(`${shipmentPath}/archivedPageAccess/`))).toHaveLength(2);
+  const privateFileAccessDenied = await fetch(
+    `${origin}/api/lab-shipments/${shipmentId}/archived-pages/${encodeURIComponent(attachment.driveFileId)}`,
+  );
+  expect(privateFileAccessDenied.status).toBe(404);
+  services.userEmail = 'lab@example.test';
+  const nonAdminAccessDenied = await fetch(
+    `${origin}/api/lab-shipments/${shipmentId}/archived-pages/${encodeURIComponent(oldPageFile.driveFileId)}`,
+  );
+  expect(nonAdminAccessDenied.status).toBe(403);
+  services.userEmail = 'gennaro.mazzacane@gmail.com';
 
   const replacementTransfer = await postIntegratedJson(`/api/photobooks/${bookId}/lab-shipment`, { labId: 'lab-fixture' });
   expect(replacementTransfer.status).toBe(202);

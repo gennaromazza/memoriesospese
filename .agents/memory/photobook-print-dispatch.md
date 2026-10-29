@@ -38,3 +38,9 @@ Gli originali delle pagine nella spedizione devono conservare la provenienza esa
 **Why:** Ricaricare una pagina nella stessa versione può lasciare copie precedenti visibili al laboratorio, anche con numerazione ripetuta; dopo un invio, cambiare i file è un’azione amministrativa distinta e potenzialmente sensibile.
 
 **How to apply:** Confrontare ogni originale con la pagina corrente tramite il percorso Storage registrato, bloccare l’invio ambiguo e aggiornare insieme Drive e metadati quando l’admin autorizza l’archiviazione.
+
+Gli originali archiviati restano in una cartella Drive privata: gli admin li aprono o scaricano tramite il server, che verifica la cartella attesa e registra utente, file, azione e data. Non esporre link Drive diretti né aggiungere il laboratorio ai permessi dell’archivio.
+
+**Why:** L’archivio contiene versioni superate e non deve diventare una seconda cartella di consegna; il recupero amministrativo deve restare controllato e verificabile.
+
+**How to apply:** Qualsiasi nuova revisione o recupero degli originali deve passare da un endpoint admin-only, verificare che il file sia ancora nella cartella privata e lasciare una traccia di accesso.
