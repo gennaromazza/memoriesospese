@@ -23,6 +23,7 @@ import { authenticatePrintShop as authenticateFirebase } from './print-shop/auth
 import {
   findOrCreateLabParentFolder,
   createShipmentFolder,
+  moveDriveFile,
   createResumableUploadSession,
   deleteDriveFile,
   revokeShipmentFolderPermission,
@@ -47,7 +48,7 @@ import {
 import { refreshWalkInLabShipmentInstructions } from './walk-in-lab-shipment-instructions.js';
 import { labMockupCatalogRouter } from './lab-mockup-catalog.js';
 import { recentLabShipments } from './lab-recent-shipments.js';
-import { photobookShipmentReadiness } from './photobook-shipment-readiness.js';
+import { comparePhotobookShipmentPages, photobookShipmentReadiness } from './photobook-shipment-readiness.js';
 import { newPhotobookOperation, operationAbandoned, photobookRecovery, watchPhotobookOperation } from './photobook-operation.js';
 import { GetRecentLabShipmentsQueryParams, GetRecentLabShipmentsResponse } from '@workspace/api-zod';
 
@@ -449,14 +450,197 @@ router.get('/lab-shipments/order/:orderId', authenticateFirebase, requireAdmin, 
  */
 router.get('/lab-shipments/:id', authenticateFirebase, requireAdmin, async (req: any, res): Promise<HttpHandlerResult> => {
   try {
-    const doc = await db.collection('labShipments').doc(req.params.id).get();
+    const shipmentRef = db.collection('labShipments').doc(req.params.id);
+    const doc = await shipmentRef.get();
     if (!doc.exists) {
       return res.status(404).json({ error: 'Spedizione non trovata' });
     }
-    res.json({ id: doc.id, ...doc.data(), photobookRecovery: photobookRecovery(doc.data()) });
+    const data = doc.data();
+    let pageComparison = {};
+    if (data?.sourceType === 'photobook' && data.photobookId) {
+      const comparison = await comparePhotobookShipmentPages({ get: (ref: any) => ref.get() }, db, data);
+      pageComparison = {
+        obsoletePhotobookPages: comparison.obsoleteFiles,
+        missingPhotobookPages: comparison.missingPages,
+      };
+    }
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({
+      id: doc.id,
+      ...data,
+      ...pageComparison,
+      photobookRecovery: photobookRecovery(data),
+    });
   } catch (error: any) {
     console.error('❌ Error fetching lab shipment:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/lab-shipments/:id/archive-obsolete-photobook-pages
+ * Sposta gli originali obsoleti fuori dalla cartella condivisa e aggiorna
+ * l'elenco dei file consegnati. Non invia email e non elimina file.
+ */
+router.post('/lab-shipments/:id/archive-obsolete-photobook-pages', authenticateFirebase, requireAdmin, async (req: any, res): Promise<HttpHandlerResult> => {
+  const shipmentRef = db.collection('labShipments').doc(req.params.id);
+  const operation = newPhotobookOperation();
+  let claimed = false;
+  let operationWatcher: ReturnType<typeof watchPhotobookOperation> | undefined;
+  try {
+    if (req.body?.confirm !== true) {
+      return res.status(400).json({ error: 'Conferma esplicita richiesta per archiviare le pagine obsolete.' });
+    }
+    const claim = await db.runTransaction(async tx => {
+      const snap = await tx.get(shipmentRef);
+      const data = snap.data();
+      if (!data) return { error: 'Spedizione non trovata', status: 404 };
+      if (data.sourceType !== 'photobook' || !data.photobookId) {
+        return { error: 'Questa azione è disponibile solo per le spedizioni dei fotolibri.', status: 409 };
+      }
+      if (data.deletedFromDrive || !data.driveFolderId) {
+        return { error: 'La cartella Drive della spedizione non è disponibile.', status: 409 };
+      }
+      const sent = !!data.sentAt || ['inviato', 'in_stampa', 'ricevuto'].includes(data.status);
+      if (sent && req.body?.confirmSentShipment !== true) {
+        return { error: 'La spedizione è già stata inviata. Serve un consenso esplicito per modificarne i file.', status: 409 };
+      }
+      if (data.mockupDispatching || ['uploading', 'needs_review'].includes(data.mockupTransfer?.status)) {
+        return { error: 'Attendi la verifica o il completamento degli allegati mockup prima di archiviare.', status: 409 };
+      }
+      if (data.pageTransfer?.status === 'running') {
+        return { error: 'Attendi la conclusione del trasferimento delle pagine prima di archiviare.', status: 409 };
+      }
+      const previous = data.photobookPageCleanup;
+      if (previous?.status === 'running') {
+        if (!operationAbandoned(data, 'photobookPageCleanup')) {
+          return { error: 'È già in corso la sistemazione delle pagine obsolete.', status: 409 };
+        }
+        if (req.body?.recoverAbandoned !== true) {
+          return { error: 'La sistemazione risulta interrotta. Conferma il recupero per riprenderla senza cancellare file.', status: 409, abandoned: true };
+        }
+      }
+      const comparison = await comparePhotobookShipmentPages(tx, db, data);
+      const needsManifestRefresh = !!data.photobookPageCleanup
+        && (data.photobookPageCleanup.status !== 'completed'
+          || data.photobookPageCleanup.instructionsUpdated === false);
+      if (comparison.pages.length !== comparison.expectedPageCount
+        || comparison.pages.some((page: any) => !page.storagePath)) {
+        return { error: 'Le pagine correnti non sono complete. Ripristina gli originali prima di archiviare file.', status: 409 };
+      }
+      if (!comparison.obsoleteFiles.length && !needsManifestRefresh) {
+        return { noWork: true, obsoleteFiles: [], data };
+      }
+      tx.update(shipmentRef, {
+        photobookPageCleanup: {
+          ...operation,
+          status: 'running',
+          archiveFolderId: previous?.archiveFolderId || null,
+          obsoleteFileIds: comparison.obsoleteFiles.map((file: any) => file.driveFileId),
+          archivedFileIds: previous?.archivedFileIds || [],
+          instructionsUpdated: false,
+        },
+        updatedAt: Timestamp.now(),
+      });
+      return {
+        obsoleteFiles: comparison.obsoleteFiles,
+        archiveFolderId: previous?.archiveFolderId,
+        driveFolderId: data.driveFolderId,
+      };
+    });
+    if ('error' in claim) return res.status(claim.status || 409).json({ error: claim.error, ...(claim.abandoned ? { recoverable: true } : {}) });
+    if ('noWork' in claim) {
+      return res.json({
+        id: req.params.id,
+        ...claim.data,
+        obsoletePhotobookPages: [],
+        missingPhotobookPages: [],
+        photobookRecovery: photobookRecovery(claim.data),
+      });
+    }
+    claimed = true;
+    operationWatcher = watchPhotobookOperation(db, shipmentRef, 'photobookPageCleanup', operation.id);
+
+    let archiveFolderId = claim.archiveFolderId;
+    if (claim.obsoleteFiles.length && !archiveFolderId) {
+      const parentId = await findOrCreateLabParentFolder();
+      const folderName = `Archivio pagine obsolete - ${req.params.id}`;
+      archiveFolderId = (await createShipmentFolder(parentId, folderName, { deferPublicAccess: true })).folderId;
+      await db.runTransaction(async tx => {
+        const snap = await tx.get(shipmentRef);
+        const data = snap.data();
+        if (data?.photobookPageCleanup?.id !== operation.id) throw new Error('Il blocco di archiviazione è cambiato.');
+        tx.update(shipmentRef, { 'photobookPageCleanup.archiveFolderId': archiveFolderId });
+      });
+    }
+
+    for (const file of claim.obsoleteFiles) {
+      await operationWatcher.update();
+      await moveDriveFile(file.driveFileId, claim.driveFolderId, archiveFolderId);
+      await db.runTransaction(async tx => {
+        const snap = await tx.get(shipmentRef);
+        const data = snap.data();
+        if (data?.photobookPageCleanup?.id !== operation.id) throw new Error('Il blocco di archiviazione è cambiato.');
+        const files = Array.isArray(data.files) ? data.files : [];
+        const movedFile = files.find((entry: any) => entry.driveFileId === file.driveFileId);
+        if (!movedFile) return;
+        tx.update(shipmentRef, {
+          files: files.filter((entry: any) => entry.driveFileId !== file.driveFileId),
+          archivedPhotobookPages: [
+            ...(Array.isArray(data.archivedPhotobookPages) ? data.archivedPhotobookPages : []),
+            { ...movedFile, archivedAt: Timestamp.now(), archivedBy: req.user?.email, archiveFolderId },
+          ],
+          'photobookPageCleanup.archivedFileIds': [
+            ...(data.photobookPageCleanup?.archivedFileIds || []),
+            file.driveFileId,
+          ],
+          updatedAt: Timestamp.now(),
+        });
+      });
+    }
+
+    // Keep the instruction sheet consistent with the now-delivered folder.
+    await refreshLabShipmentInstructions(shipmentRef);
+    await db.runTransaction(async tx => {
+      const snap = await tx.get(shipmentRef);
+      const data = snap.data();
+      if (data?.photobookPageCleanup?.id !== operation.id) throw new Error('Il blocco di archiviazione è cambiato.');
+      tx.update(shipmentRef, {
+        'photobookPageCleanup.status': 'completed',
+        'photobookPageCleanup.instructionsUpdated': true,
+        'photobookPageCleanup.finishedAt': Timestamp.now(),
+        'photobookPageCleanup.heartbeatAt': Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      });
+    });
+    const updated = await shipmentRef.get();
+    const finalData = updated.data();
+    const comparison = await comparePhotobookShipmentPages({ get: (ref: any) => ref.get() }, db, finalData);
+    return res.json({
+      id: updated.id,
+      ...finalData,
+      obsoletePhotobookPages: comparison.obsoleteFiles,
+      missingPhotobookPages: comparison.missingPages,
+      photobookRecovery: photobookRecovery(finalData),
+    });
+  } catch (error: any) {
+    if (claimed) {
+      await db.runTransaction(async tx => {
+        const snap = await tx.get(shipmentRef);
+        if (snap.data()?.photobookPageCleanup?.id === operation.id) {
+          tx.update(shipmentRef, {
+            'photobookPageCleanup.status': 'needs_review',
+            'photobookPageCleanup.error': String(error?.message || 'Errore di archiviazione').slice(0, 500),
+            'photobookPageCleanup.heartbeatAt': Timestamp.now(),
+            updatedAt: Timestamp.now(),
+          });
+        }
+      }).catch(() => undefined);
+    }
+    console.error('❌ Error archiving obsolete photobook pages:', error);
+    return res.status(503).json({ error: 'Archiviazione incompleta: nessun file è stato cancellato. Verifica la cartella archivio e ripeti l’azione per completare la sistemazione.' });
+  } finally {
+    operationWatcher?.stop();
   }
 });
 

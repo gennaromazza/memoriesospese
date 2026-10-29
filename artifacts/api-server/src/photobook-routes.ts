@@ -31,6 +31,7 @@ import { authenticateFirebase, sendGmailEmail, getSiteBaseUrl } from './email-ro
 import { loadGalleryPhotoDocs, listGalleryPhotosPublic, loadGalleryChapters } from './photobook-gallery.js';
 import { PHOTOBOOK_MARK_PALETTE, type PhotobookMarkPoint } from '../shared/photobook-types.js';
 import { refreshLabShipmentInstructions } from './lab-shipment-instructions.js';
+import { comparePhotobookShipmentPages } from './photobook-shipment-readiness.js';
 import { createPhotobookMockupRouter } from './photobook-mockup-routes.js';
 import { createVersionDraft, publishVersion, PhotobookVersionError } from './photobook-version-workflow.js';
 import { newPhotobookOperation, operationAbandoned, watchPhotobookOperation } from './photobook-operation.js';
@@ -1487,15 +1488,26 @@ async function runPhotobookPageTransfer(
     // Rileggi i file già presenti (fonte di verità per il retry)
     const sDoc = await shipmentRef.get();
     const files: any[] = Array.isArray(sDoc.data()?.files) ? [...sDoc.data()!.files] : [];
-    const existingNames = new Set(files.map((f) => f.name));
+    const existingFilesByName = new Map<string, any[]>();
+    for (const file of files) {
+      const entries = existingFilesByName.get(file.name) || [];
+      entries.push(file);
+      existingFilesByName.set(file.name, entries);
+    }
 
     for (const page of pages) {
       await operation.update();
       const extMatch = String(page.storagePath).match(/\.(\w+)$/);
       const ext = extMatch ? extMatch[1] : 'jpg';
       const fileName = `pagina-${String(page.pageNumber).padStart(3, '0')}-${page.id}.${ext}`;
-      if (existingNames.has(fileName)) {
+      const sameNameFiles = existingFilesByName.get(fileName) || [];
+      if (sameNameFiles.some((file) => !file.sourceStoragePath || file.sourceStoragePath === page.storagePath)) {
         skipped++;
+      } else if (sameNameFiles.length) {
+        failed.push({
+          pageNumber: page.pageNumber,
+          error: 'L’originale precedente deve essere archiviato prima di trasferire la pagina sostitutiva.',
+        });
       } else {
         try {
           const storageFile = bucket.file(page.storagePath);
@@ -1511,12 +1523,14 @@ async function runPhotobookPageTransfer(
             name: fileName,
             size: uploaded.size || Number(meta.size) || 0,
             kind: 'original',
+            sourcePageId: page.id,
+            sourcePageNumber: page.pageNumber,
+            sourceStoragePath: page.storagePath,
             mimeType: String(meta.contentType || 'image/jpeg'),
             uploadedAt: new Date(),
           };
           if (uploaded.webViewLink) entry.webViewLink = uploaded.webViewLink;
           files.push(entry);
-          existingNames.add(fileName);
           transferred++;
         } catch (e: any) {
           console.error(
@@ -1636,6 +1650,28 @@ router.post('/:id/lab-shipment', async (req: any, res: Response) => {
       const sDoc = await shipmentRef.get();
       if (sDoc.exists) shipment = sDoc.data();
       else shipmentRef = null;
+    }
+    if (shipment) {
+      if (shipment.sentAt || ['inviato', 'in_stampa', 'ricevuto'].includes(shipment.status)) {
+        return res.status(409).json({
+          error: 'La spedizione è già stata inviata. Per modificarne i file serve prima la conferma esplicita dell’admin.',
+        });
+      }
+      if (shipment.photobookPageCleanup?.status === 'running'
+        || shipment.photobookPageCleanup?.status === 'needs_review'
+        || (shipment.photobookPageCleanup?.status === 'completed' && shipment.photobookPageCleanup.instructionsUpdated === false)) {
+        return res.status(409).json({
+          error: 'Completa o ripeti la sistemazione delle pagine obsolete prima di trasferire.',
+        });
+      }
+      const comparison = await comparePhotobookShipmentPages({ get: (document: any) => document.get() }, db, shipment);
+      if (comparison.obsoleteFiles.length) {
+        return res.status(409).json({
+          error: 'La spedizione contiene pagine obsolete. Archiviali fuori dalla cartella del laboratorio prima di trasferire quelle correnti.',
+          shipmentId: shipmentRef!.id,
+          obsoletePhotobookPages: comparison.obsoleteFiles,
+        });
+      }
     }
 
     let isNewShipment = false;
@@ -1847,7 +1883,10 @@ router.post('/:id/lab-shipment', async (req: any, res: Response) => {
       const started = await db.runTransaction(async tx => {
         const fresh = await tx.get(shipmentRef!);
         const data = fresh.data();
-        if (!data || data.mockupDispatching || ['uploading', 'needs_review'].includes(data.mockupTransfer?.status)) return false;
+        if (!data || data.mockupDispatching || ['uploading', 'needs_review'].includes(data.mockupTransfer?.status)
+          || data.photobookPageCleanup?.status === 'running'
+          || data.photobookPageCleanup?.status === 'needs_review'
+          || (data.photobookPageCleanup?.status === 'completed' && data.photobookPageCleanup.instructionsUpdated === false)) return false;
         if (data.pageTransfer?.status === 'running') {
           if (!operationAbandoned(data, 'pageTransfer')) return 'running' as const;
           if (req.body?.recoverAbandoned !== true) return false;

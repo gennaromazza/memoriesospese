@@ -6,6 +6,9 @@ export const services = {
   objects: new Map<string, Buffer>(),
   // Drive IDs and file bytes are scoped by shipment folder, not just file name.
   drive: new Map<string, Buffer>(),
+  privateDriveFolders: new Set<string>(),
+  driveMoveAttempts: [] as Array<{ fileId: string; fromFolderId: string; toFolderId: string }>,
+  beforeMove: null as ((fileId: string, fromFolderId: string, toFolderId: string) => Promise<void>) | null,
   deletedDriveFolders: [] as string[],
   driveDeleteAttempts: [] as string[],
   failDeleteFolderId: null as string | null,
@@ -135,8 +138,12 @@ async function consume(body: AsyncIterable<Buffer>) {
 export const driveObjectKey = (folderId: string, name: string) => `${folderId}/${name}`;
 export const drive = {
   findOrCreateLabParentFolder: async () => 'isolated-parent',
-  createShipmentFolder: async () => {
+  createShipmentFolder: async (_parentId: string, _name: string, metadata?: { deferPublicAccess?: boolean }) => {
     const folderId = `isolated-folder-${++services.folderSequence}`;
+    if (metadata?.deferPublicAccess) {
+      services.privateDriveFolders.add(folderId);
+      return { folderId };
+    }
     return { folderId, webViewLink: `https://drive.invalid/${folderId}` };
   },
   uploadStreamToDriveFolder: async (folderId: string, name: string, _mime: string, body: AsyncIterable<Buffer>) => {
@@ -162,6 +169,23 @@ export const drive = {
     if (!key) throw new Error(`Missing isolated Drive file: ${id}`);
     services.drive.set(key, buffer);
     return { fileId: id, size: buffer.length };
+  },
+  moveDriveFile: async (fileId: string, fromFolderId: string, toFolderId: string) => {
+    services.driveMoveAttempts.push({ fileId, fromFolderId, toFolderId });
+    await services.beforeMove?.(fileId, fromFolderId, toFolderId);
+    const key = services.driveFileKeys.get(fileId);
+    if (!key) throw new Error(`Missing isolated Drive file: ${fileId}`);
+    const sourcePrefix = `${fromFolderId}/`;
+    const targetPrefix = `${toFolderId}/`;
+    if (key.startsWith(targetPrefix)) return;
+    if (!key.startsWith(sourcePrefix)) throw new Error(`Drive file is outside expected shipment folder: ${fileId}`);
+    const name = key.slice(sourcePrefix.length);
+    const content = services.drive.get(key);
+    if (!content) throw new Error(`Missing isolated Drive content: ${fileId}`);
+    services.drive.delete(key);
+    const targetKey = `${toFolderId}/${name}`;
+    services.drive.set(targetKey, content);
+    services.driveFileKeys.set(fileId, targetKey);
   },
   deleteDriveFile: async (id: string) => {
     services.driveDeleteAttempts.push(id);

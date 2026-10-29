@@ -7,7 +7,7 @@ import { MOCKUP_MODEL } from '../shared/mockup-catalog';
 import peppeLabCatalog from '../../image-studio-web/public/mockups/custodia-v1/peppe-lab-catalog.json';
 const h = vi.hoisted(() => ({ docs: new Map<string, any>(), sends: 0, failSend: false, sendDelayMs: 0, queue: Promise.resolve() }));
 function ref(path: string): any {
-  return { id: path.split('/').pop(), path, get: async () => { const value = h.docs.get(path); return { exists: !!value, id: path.split('/').pop(), ref: ref(path), data: () => value ? structuredClone(value) : undefined }; }, update: async (data: any) => {
+  return { id: path.split('/').pop(), path, collection: (name: string) => collection(`${path}/${name}`), get: async () => { const value = h.docs.get(path); return { exists: !!value, id: path.split('/').pop(), ref: ref(path), data: () => value ? structuredClone(value) : undefined }; }, update: async (data: any) => {
     const value = h.docs.get(path);
     for (const [key, entry] of Object.entries(data)) {
       const parts = key.split('.');
@@ -49,7 +49,7 @@ describe('Catalogo laboratori e protezioni spedizione mockup', () => {
   beforeEach(async () => {
     h.docs.clear(); h.sends = 0; h.failSend = false; h.sendDelayMs = 0; h.queue = Promise.resolve();
     h.docs.set('labs/lab', { nome: 'Laboratorio', email: 'lab@example.test', attivo: true });
-    h.docs.set('labShipments/shipment', { sourceType: 'photobook', jobId: 'job', photobookId: 'book', labId: 'lab', driveFolderId: 'folder', shareableLink: 'https://drive.google.com/example', status: 'da_inviare', files: [], mockupSnapshot: { labId: 'lab', revision: 3 } });
+    h.docs.set('labShipments/shipment', { sourceType: 'photobook', jobId: 'job', labId: 'lab', driveFolderId: 'folder', shareableLink: 'https://drive.google.com/example', status: 'da_inviare', files: [], mockupSnapshot: { labId: 'lab', revision: 3 } });
     h.docs.set('jobs/job', { nomeEvento: 'Lavoro test' });
     const app = express(); app.use(express.json()); app.use(router); server = app.listen(0, '127.0.0.1');
     await new Promise<void>(resolve => server.once('listening', resolve)); base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -133,7 +133,8 @@ describe('Catalogo laboratori e protezioni spedizione mockup', () => {
     expect(h.sends).toBe(0);
   });
   it('conserva il normale invio esplicito della spedizione al laboratorio corretto', async () => {
-    expect((await request('/lab-shipments/shipment/send', 'POST', { labId: 'lab' })).status).toBe(200);
+    const response = await request('/lab-shipments/shipment/send', 'POST', { labId: 'lab' });
+    expect(response.status).toBe(200);
     expect(h.sends).toBe(1);
     expect(h.docs.get('labShipments/shipment').status).toBe('inviato');
     expect(h.docs.get('labShipments/shipment').mockupDispatching).toBe(false);
@@ -148,6 +149,7 @@ describe('Catalogo laboratori e protezioni spedizione mockup', () => {
   function seedPages() {
     const shipment = h.docs.get('labShipments/shipment');
     delete shipment.jobId; // Autonomous, no dummy job or gallery.
+    shipment.photobookId = 'book';
     h.docs.set('photobooks/book', { name: 'Autonomo', currentVersion: 1, locked: true, versions: [{ version: 1, pageCount: 2 }] });
     for (const number of [1, 2]) h.docs.set(`photobookPages/p${number}`, {
       photobookId: 'book', version: 1, pageNumber: number, storagePath: `photobooks/book/v1/${number}.jpg`,

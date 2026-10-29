@@ -32,3 +32,9 @@ Per preparare un mockup, caricare nel rendering solo anteprime compresse; i file
 **Why:** I file sorgente pesanti rallentano l’editor e il cliente deve poter approvare il 3D prima che lo studio carichi i file destinati alla stampa. Un’anteprima del mockup non è un originale di produzione.
 
 **How to apply:** Ridurre e comprimere la foto nel browser prima del caricamento, non conservare copie originali in questo passaggio; mostrare l’upload post-conferma nella sezione della spedizione e non indicare le anteprime come file stampa.
+
+Gli originali delle pagine nella spedizione devono conservare la provenienza esatta del file Storage: nome, numero pagina e ID documento non provano che siano ancora i pixel correnti. Gli obsoleti vanno spostati fuori dalla cartella condivisa solo con conferma esplicita; mantenere pagine correnti e allegati, senza cancellare o inviare email.
+
+**Why:** Ricaricare una pagina nella stessa versione può lasciare copie precedenti visibili al laboratorio, anche con numerazione ripetuta; dopo un invio, cambiare i file è un’azione amministrativa distinta e potenzialmente sensibile.
+
+**How to apply:** Confrontare ogni originale con la pagina corrente tramite il percorso Storage registrato, bloccare l’invio ambiguo e aggiornare insieme Drive e metadati quando l’admin autorizza l’archiviazione.

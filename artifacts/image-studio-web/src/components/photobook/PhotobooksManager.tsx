@@ -1130,6 +1130,30 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
     },
     onError: (e: Error) => toast({ title: 'Verifica non salvata', description: e.message, variant: 'destructive' }),
   });
+  const archiveObsoleteMutation = useMutation({
+    mutationFn: async ({ confirmSentShipment, recoverAbandoned }: { confirmSentShipment: boolean; recoverAbandoned: boolean }) => {
+      const { apiRequest } = await import('@/lib/queryClient');
+      const response = await apiRequest('POST', `/api/lab-shipments/${shipmentId}/archive-obsolete-photobook-pages`, {
+        confirm: true,
+        confirmSentShipment,
+        recoverAbandoned,
+      });
+      return await response.json() as LabShipment;
+    },
+    onSuccess: updated => {
+      queryClient.setQueryData(['/api/lab-shipments', shipmentId], updated);
+      void refetch();
+      queryClient.invalidateQueries({ queryKey: ['/api/photobooks'] });
+      toast({
+        title: 'Pagine obsolete archiviate',
+        description: 'Sono state spostate in una cartella privata; le pagine correnti e gli allegati restano nella spedizione.',
+      });
+    },
+    onError: (e: Error) => {
+      void refetch();
+      toast({ title: 'Archiviazione non completata', description: e.message, variant: 'destructive' });
+    },
+  });
 
   const retryMutation = useMutation({
     mutationFn: (recoverAbandoned: boolean = false) => createPhotobookLabShipment(book.id, { recoverAbandoned }),
@@ -1199,11 +1223,19 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
   const transfer = shipment.pageTransfer;
   const transferRunning = transfer?.status === 'running';
   const transferAbandoned = shipment.photobookRecovery?.pageTransferAbandoned === true;
+  const cleanup = shipment.photobookPageCleanup;
+  const obsoletePages = shipment.obsoletePhotobookPages || [];
+  const missingPages = shipment.missingPhotobookPages || [];
+  const cleanupAbandoned = shipment.photobookRecovery?.pageCleanupAbandoned === true;
+  const cleanupNeedsAttention = cleanup?.status === 'running' || cleanup?.status === 'needs_review'
+    || (cleanup?.status === 'completed' && cleanup.instructionsUpdated === false);
+  const shipmentAlreadySent = !!shipment.sentAt || ['inviato', 'in_stampa', 'ricevuto'].includes(shipment.status);
   const dispatchAbandoned = shipment.photobookRecovery?.dispatchAbandoned === true;
   const incomplete =
     !transferRunning && !shipment.deletedFromDrive &&
     (pageCount < 1 || pageFilesCount < pageCount ||
       (shipment.photobookVersion !== undefined && shipment.photobookVersion !== book.currentVersion) ||
+      obsoletePages.length > 0 || missingPages.length > 0 ||
       (!!transfer && (transfer.status !== 'completed' || !!transfer.failed?.length)));
   const selectedLabValid = availableLabs.some(lab => lab.id === shipment.labId && !!lab.email?.trim());
 
@@ -1225,8 +1257,12 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
       <p className="text-xs" role="status">
         {dispatchAbandoned ? 'Invio interrotto o con esito incerto: verifica manuale necessaria.'
           : shipment.mockupDispatching ? 'Invio email in corso o verifica del blocco in attesa: nessun nuovo invio consentito.'
+          : cleanup?.status === 'running' && !cleanupAbandoned ? 'Archiviazione delle pagine obsolete in corso.'
+          : cleanupAbandoned ? 'Archiviazione interrotta: verifica la cartella privata e recupera l’operazione.'
+          : cleanup?.status === 'needs_review' || (cleanup?.status === 'completed' && cleanup.instructionsUpdated === false)
+            ? 'La sistemazione delle pagine obsolete richiede un nuovo tentativo.'
           : transferAbandoned ? 'Trasferimento interrotto: è disponibile il recupero manuale.'
-          : shipment.sentAt ? 'Email al laboratorio inviata.'
+          : shipmentAlreadySent ? 'Email al laboratorio inviata.'
           : transferRunning ? 'Trasferimento pagine in corso · email non inviata.'
           : incomplete ? 'Trasferimento incompleto · invio email bloccato.'
           : 'Spedizione pronta · email non ancora inviata.'}
@@ -1273,6 +1309,64 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
           <p className="font-medium mb-1">Note inviate al laboratorio</p>
           <p className="whitespace-pre-wrap text-muted-foreground">{shipment.labNote}</p>
         </div>
+      )}
+      {(obsoletePages.length > 0 || cleanupNeedsAttention || cleanupAbandoned) && (
+        <div role="alert" className="rounded border border-amber-500 bg-amber-50 p-3 space-y-2">
+          <p className="font-medium text-amber-950">
+            {obsoletePages.length === 1
+              ? 'La cartella contiene un originale di pagina superato.'
+              : `La cartella contiene ${obsoletePages.length} originali di pagina superati.`}
+            {' '}L’invio email è bloccato finché non vengono sistemati.
+          </p>
+          <ul className="list-disc pl-5 text-xs text-amber-950">
+            {obsoletePages.map(file => (
+              <li key={file.driveFileId}>
+                {file.pageNumber ? `Pagina ${file.pageNumber}: ` : ''}{file.name}
+              </li>
+            ))}
+          </ul>
+          {shipmentAlreadySent && (
+            <p className="text-xs text-amber-950">
+              Questa spedizione è già stata inviata. L’archiviazione cambierà i file visibili nella cartella condivisa e richiede la tua autorizzazione esplicita.
+            </p>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={archiveObsoleteMutation.isPending || transferRunning || !!shipment.mockupDispatching}
+            onClick={() => {
+              const sentConsent = shipmentAlreadySent;
+              const message = obsoletePages.length === 0
+                ? 'Riprendere la sistemazione interrotta? Nessun file verrà cancellato e non verrà inviata alcuna email.'
+                : sentConsent
+                ? `La spedizione è già stata inviata. Confermi di spostare ${obsoletePages.length} originale/i obsoleto/i dalla cartella condivisa a una cartella privata di archivio? Non verrà inviata alcuna email.`
+                : `Confermi di spostare ${obsoletePages.length} originale/i obsoleto/i fuori dalla cartella del laboratorio? Le pagine correnti e gli allegati resteranno. Non verrà inviata alcuna email.`;
+              if (window.confirm(message)) {
+                archiveObsoleteMutation.mutate({
+                  confirmSentShipment: sentConsent,
+                  recoverAbandoned: cleanupAbandoned,
+                });
+              }
+            }}
+            data-testid={`button-archive-obsolete-pages-${book.id}`}
+          >
+            {archiveObsoleteMutation.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+            ) : (
+              <FileText className="h-3.5 w-3.5 mr-1.5" />
+            )}
+            {cleanupAbandoned ? 'Recupera archiviazione interrotta'
+              : obsoletePages.length ? 'Archivia pagine obsolete' : 'Completa sistemazione'}
+          </Button>
+        </div>
+      )}
+      {cleanup?.status === 'running' && !cleanupAbandoned && (
+        <p className="text-xs text-muted-foreground" role="status">Spostamento delle pagine obsolete nella cartella privata…</p>
+      )}
+      {cleanup?.status === 'needs_review' && (
+        <p className="text-xs text-destructive" role="alert">
+          {cleanup.error || 'L’archiviazione non è stata completata.'} I file non sono stati cancellati; puoi ripetere l’azione.
+        </p>
       )}
       <div className="rounded border bg-background p-3 space-y-2">
         <div className="space-y-3">
@@ -1382,7 +1476,7 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
             <Button
               size="sm"
               variant={shipment.sentAt ? 'outline' : 'default'}
-              disabled={sendMutation.isPending || supplementalUploading || expired || incomplete || !selectedLabValid || shipment.mockupDispatching
+              disabled={sendMutation.isPending || supplementalUploading || expired || incomplete || !selectedLabValid || shipment.mockupDispatching || obsoletePages.length > 0 || cleanupNeedsAttention
                 || ['uploading', 'needs_review'].includes(shipment.mockupTransfer?.status || '')}
               onClick={() => sendMutation.mutate()}
               data-testid="button-send-lab-email"
@@ -1397,7 +1491,7 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
                 : 'Invia email al laboratorio'}
             </Button>
           )}
-        {incomplete && (
+        {incomplete && obsoletePages.length === 0 && !cleanupNeedsAttention && (
           <Button
             size="sm"
             variant="outline"

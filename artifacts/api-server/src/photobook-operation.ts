@@ -11,9 +11,15 @@ function millis(value: any): number {
   return value instanceof Date ? value.getTime() : 0;
 }
 
-export function operationAbandoned(shipment: any, kind: 'pageTransfer' | 'photobookDispatch', now = Date.now()): boolean {
+type PhotobookOperationKind = 'pageTransfer' | 'photobookDispatch' | 'photobookPageCleanup';
+
+export function operationAbandoned(shipment: any, kind: PhotobookOperationKind, now = Date.now()): boolean {
   const operation = shipment[kind];
-  const running = kind === 'pageTransfer' ? operation?.status === 'running' : shipment.mockupDispatching;
+  const running = kind === 'pageTransfer'
+    ? operation?.status === 'running'
+    : kind === 'photobookDispatch'
+      ? shipment.mockupDispatching
+      : operation?.status === 'running';
   if (!running || (operation?.id && active.has(operation.id))) return false;
   if (kind === 'photobookDispatch' && operation?.settled === true) return true;
   // Legacy claims have no dedicated heartbeat. A missing date is not proof of
@@ -26,6 +32,7 @@ export function photobookRecovery(shipment: any) {
   return {
     pageTransferAbandoned: shipment.sourceType === 'photobook' && operationAbandoned(shipment, 'pageTransfer'),
     dispatchAbandoned: shipment.sourceType === 'photobook' && operationAbandoned(shipment, 'photobookDispatch'),
+    pageCleanupAbandoned: shipment.sourceType === 'photobook' && operationAbandoned(shipment, 'photobookPageCleanup'),
   };
 }
 
@@ -35,7 +42,7 @@ export function newPhotobookOperation() {
 
 /** Persistent ownership fences old workers after explicit recovery. A periodic
  * heartbeat also covers a single slow Drive upload / email transport. */
-export function watchPhotobookOperation(db: any, ref: any, kind: 'pageTransfer' | 'photobookDispatch', id: string) {
+export function watchPhotobookOperation(db: any, ref: any, kind: PhotobookOperationKind, id: string) {
   active.add(id);
   let stopped = false;
   let ticking = false;
@@ -43,7 +50,11 @@ export function watchPhotobookOperation(db: any, ref: any, kind: 'pageTransfer' 
     if (stopped) throw new Error('Operazione non più attiva');
     await db.runTransaction(async (tx: any) => {
       const data = (await tx.get(ref)).data();
-      const running = kind === 'pageTransfer' ? data?.pageTransfer?.status === 'running' : data?.mockupDispatching;
+      const running = kind === 'pageTransfer'
+        ? data?.pageTransfer?.status === 'running'
+        : kind === 'photobookDispatch'
+          ? data?.mockupDispatching
+          : data?.photobookPageCleanup?.status === 'running';
       if (!running || data?.[kind]?.id !== id) throw new Error('Il blocco dell’operazione è cambiato');
       tx.update(ref, { [`${kind}.heartbeatAt`]: new Date(), ...patch });
     });

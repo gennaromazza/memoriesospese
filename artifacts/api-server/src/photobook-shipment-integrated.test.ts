@@ -118,6 +118,9 @@ function resetIntegratedServices() {
   services.docs.clear();
   services.objects.clear();
   services.drive.clear();
+  services.privateDriveFolders.clear();
+  services.driveMoveAttempts.length = 0;
+  services.beforeMove = null;
   services.deletedDriveFolders.length = 0;
   services.driveDeleteAttempts.length = 0;
   services.failDeleteFolderId = null;
@@ -221,7 +224,176 @@ async function waitForIntegratedTransfer(shipmentPath: string) {
   throw new Error(`Timeout waiting for transfer ${shipmentPath}`);
 }
 
+function seedOnePagePhotobook(bookId: string) {
+  const oldPath = `photobooks/${bookId}/v1/originale-precedente.jpg`;
+  const oldBytes = Buffer.from('originale precedente');
+  services.docs.set(`photobooks/${bookId}`, {
+    name: `Album ${bookId}`,
+    jobId: null,
+    galleryId: null,
+    currentVersion: 1,
+    versions: [{ version: 1, pageCount: 1 }],
+  });
+  services.docs.set(`photobookPages/${bookId}-page-1`, {
+    photobookId: bookId,
+    version: 1,
+    pageNumber: 1,
+    storagePath: oldPath,
+  });
+  services.objects.set(oldPath, oldBytes);
+  return { oldPath, oldBytes };
+}
+
+it('archivia l’originale sostituito, ripete il trasferimento senza duplicati e non invia email automaticamente', async () => {
+  resetIntegratedServices();
+  const bookId = 'same-version-replacement';
+  const { oldPath, oldBytes } = seedOnePagePhotobook(bookId);
+  const started = await postIntegratedJson(`/api/photobooks/${bookId}/lab-shipment`, { labId: 'lab-fixture' });
+  expect(started.status).toBe(202);
+  const shipmentId = started.json.shipment.id;
+  const shipmentPath = `labShipments/${shipmentId}`;
+  await waitForIntegratedTransfer(shipmentPath);
+
+  const shipment = services.docs.get(shipmentPath);
+  const folderId = shipment.driveFolderId;
+  const oldPageFile = shipment.files.find((file: any) => file.kind === 'original');
+  expect(oldPageFile).toMatchObject({ sourceStoragePath: oldPath, sourcePageNumber: 1 });
+  const attachment = {
+    driveFileId: 'drive-supplemental-cover',
+    name: 'copertina-aggiuntiva.pdf',
+    size: 6,
+    kind: 'supplemental',
+  };
+  shipment.files.push(attachment);
+  const attachmentKey = driveObjectKey(folderId, attachment.name);
+  services.drive.set(attachmentKey, Buffer.from('cover'));
+  services.driveFileKeys.set(attachment.driveFileId, attachmentKey);
+
+  const currentPath = `photobooks/${bookId}/v1/originale-corrente.jpg`;
+  const currentBytes = Buffer.from('originale corrente');
+  services.objects.set(currentPath, currentBytes);
+  services.docs.get(`photobookPages/${bookId}-page-1`).storagePath = currentPath;
+
+  const detail = await getIntegratedShipment(shipmentId);
+  expect(detail.status).toBe(200);
+  expect(detail.json.obsoletePhotobookPages).toEqual([
+    expect.objectContaining({ driveFileId: oldPageFile.driveFileId, name: oldPageFile.name, pageNumber: 1 }),
+  ]);
+  expect(detail.json.missingPhotobookPages).toEqual([
+    expect.objectContaining({ pageNumber: 1, storagePath: currentPath }),
+  ]);
+  const blockedSend = await postIntegratedJson(`/api/lab-shipments/${shipmentId}/send`, {});
+  expect(blockedSend.status).toBe(409);
+  expect(services.emails).toHaveLength(0);
+
+  const uploadsBeforeCleanup = services.uploadAttempts.length;
+  const blockedRetry = await postIntegratedJson(`/api/photobooks/${bookId}/lab-shipment`, { labId: 'lab-fixture' });
+  expect(blockedRetry.status).toBe(409);
+  expect(services.uploadAttempts).toHaveLength(uploadsBeforeCleanup);
+
+  let signalMove!: () => void;
+  let releaseMove!: () => void;
+  const reachedMove = new Promise<void>(resolve => { signalMove = resolve; });
+  const moveReleased = new Promise<void>(resolve => { releaseMove = resolve; });
+  services.beforeMove = async () => {
+    signalMove();
+    await moveReleased;
+  };
+  const archiveRequest = postIntegratedJson(
+    `/api/lab-shipments/${shipmentId}/archive-obsolete-photobook-pages`,
+    { confirm: true },
+  );
+  await waitForSignal(reachedMove, 'obsolete page move');
+  const competingArchive = await postIntegratedJson(
+    `/api/lab-shipments/${shipmentId}/archive-obsolete-photobook-pages`,
+    { confirm: true },
+  );
+  expect(competingArchive.status).toBe(409);
+  releaseMove();
+  const archived = await archiveRequest;
+  services.beforeMove = null;
+  expect(archived.status).toBe(200);
+  expect(archived.json.obsoletePhotobookPages).toEqual([]);
+  expect(archived.json.missingPhotobookPages).toHaveLength(1);
+  expect(services.emails).toHaveLength(0);
+
+  const archiveFolderId = archived.json.photobookPageCleanup.archiveFolderId;
+  expect(services.privateDriveFolders.has(archiveFolderId)).toBe(true);
+  expect(services.drive.get(driveObjectKey(archiveFolderId, oldPageFile.name))).toEqual(oldBytes);
+  expect(services.drive.get(driveObjectKey(folderId, attachment.name))).toEqual(Buffer.from('cover'));
+  expect(services.docs.get(shipmentPath).files).not.toContainEqual(expect.objectContaining({ driveFileId: oldPageFile.driveFileId }));
+  expect(services.docs.get(shipmentPath).files).toContainEqual(expect.objectContaining({ driveFileId: attachment.driveFileId }));
+
+  const replacementTransfer = await postIntegratedJson(`/api/photobooks/${bookId}/lab-shipment`, { labId: 'lab-fixture' });
+  expect(replacementTransfer.status).toBe(202);
+  await waitForIntegratedTransfer(shipmentPath);
+  const currentFile = services.docs.get(shipmentPath).files.find((file: any) => file.kind === 'original');
+  expect(currentFile).toMatchObject({ name: oldPageFile.name, sourceStoragePath: currentPath });
+  expect(services.drive.get(driveObjectKey(folderId, currentFile.name))).toEqual(currentBytes);
+  expect(services.drive.get(driveObjectKey(archiveFolderId, oldPageFile.name))).toEqual(oldBytes);
+  expect(services.docs.get(shipmentPath).files).toContainEqual(expect.objectContaining({ driveFileId: attachment.driveFileId }));
+
+  const attemptsBeforeRetry = services.uploadAttempts.length;
+  const retry = await postIntegratedJson(`/api/photobooks/${bookId}/lab-shipment`, { labId: 'lab-fixture' });
+  expect(retry.status).toBe(202);
+  await waitForIntegratedTransfer(shipmentPath);
+  expect(services.docs.get(shipmentPath).pageTransfer).toMatchObject({ status: 'completed', transferred: 0, skipped: 1 });
+  expect(services.uploadAttempts).toHaveLength(attemptsBeforeRetry);
+  const deliveredPageFiles = [...services.drive.keys()].filter(key =>
+    key.startsWith(`${folderId}/pagina-`),
+  );
+  expect(deliveredPageFiles).toEqual([driveObjectKey(folderId, currentFile.name)]);
+  expect(services.emails).toHaveLength(0);
+
+  const manualSend = await postIntegratedJson(`/api/lab-shipments/${shipmentId}/send`, {});
+  expect(manualSend.status).toBe(200);
+  expect(services.emails).toHaveLength(1);
+}, 60_000);
+
+it('non modifica una spedizione già inviata senza consenso esplicito', async () => {
+  resetIntegratedServices();
+  const bookId = 'sent-replacement';
+  seedOnePagePhotobook(bookId);
+  const started = await postIntegratedJson(`/api/photobooks/${bookId}/lab-shipment`, { labId: 'lab-fixture' });
+  expect(started.status).toBe(202);
+  const shipmentId = started.json.shipment.id;
+  const shipmentPath = `labShipments/${shipmentId}`;
+  await waitForIntegratedTransfer(shipmentPath);
+  const sent = await postIntegratedJson(`/api/lab-shipments/${shipmentId}/send`, {});
+  expect(sent.status).toBe(200);
+  const shipment = services.docs.get(shipmentPath);
+  const folderId = shipment.driveFolderId;
+  const oldPageFile = shipment.files.find((file: any) => file.kind === 'original');
+  const currentPath = `photobooks/${bookId}/v1/originale-modificato-dopo-invio.jpg`;
+  services.objects.set(currentPath, Buffer.from('nuovo originale'));
+  services.docs.get(`photobookPages/${bookId}-page-1`).storagePath = currentPath;
+  const fileNamesBefore = [...services.drive.keys()].sort();
+
+  const refused = await postIntegratedJson(
+    `/api/lab-shipments/${shipmentId}/archive-obsolete-photobook-pages`,
+    { confirm: true },
+  );
+  expect(refused.status).toBe(409);
+  expect(services.drive.has(driveObjectKey(folderId, oldPageFile.name))).toBe(true);
+  expect([...services.drive.keys()].sort()).toEqual(fileNamesBefore);
+  expect(services.docs.get(shipmentPath).files).toContainEqual(expect.objectContaining({ driveFileId: oldPageFile.driveFileId }));
+
+  const authorized = await postIntegratedJson(
+    `/api/lab-shipments/${shipmentId}/archive-obsolete-photobook-pages`,
+    { confirm: true, confirmSentShipment: true },
+  );
+  expect(authorized.status).toBe(200);
+  expect(services.drive.has(driveObjectKey(folderId, oldPageFile.name))).toBe(false);
+  expect(services.drive.get(driveObjectKey(authorized.json.photobookPageCleanup.archiveFolderId, oldPageFile.name))).toBeDefined();
+  expect(services.emails).toHaveLength(1);
+  expect(services.docs.get(shipmentPath).status).toBe('inviato');
+  expect(services.docs.get(`photobookPages/${bookId}-page-1`).storagePath).toBe(currentPath);
+}, 60_000);
+
 it('autonomo: crea, carica originali, prepara, ritenta solo la pagina mancante e invia email dopo refresh', async () => {
+  resetIntegratedServices();
+  services.failPage = 2;
+  services.failFolderId = 'isolated-folder-1';
   const page = await context!.newPage();
   const responses: Array<{ path: string; status: number }> = [];
   page.on('response', response => {

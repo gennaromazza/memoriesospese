@@ -290,6 +290,30 @@ export async function createShipmentFolder(
   }
 }
 
+/**
+ * Sposta un file fra due cartelle Drive. Il controllo dei parent rende
+ * l'operazione ripetibile se la risposta della prima PATCH è andata persa.
+ */
+export async function moveDriveFile(
+  fileId: string,
+  fromFolderId: string,
+  toFolderId: string,
+): Promise<void> {
+  const encodedId = encodeURIComponent(fileId);
+  const current = await driveJson<{ parents?: string[] }>(
+    `/drive/v3/files/${encodedId}?fields=parents&supportsAllDrives=true`,
+  );
+  const parents = current.parents || [];
+  if (parents.includes(toFolderId) && !parents.includes(fromFolderId)) return;
+
+  const params = new URLSearchParams({ addParents: toFolderId, supportsAllDrives: 'true' });
+  if (parents.includes(fromFolderId)) params.set('removeParents', fromFolderId);
+  await driveJson(
+    `/drive/v3/files/${encodedId}?${params.toString()}&fields=id,parents&supportsAllDrives=true`,
+    { method: 'PATCH' },
+  );
+}
+
 /** Rende pubblica-by-link una cartella già persistita con scadenza nel gestionale. */
 export async function shareShipmentFolder(folderId: string): Promise<string | undefined> {
   const existing = await driveJson<{

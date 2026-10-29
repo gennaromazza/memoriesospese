@@ -70,8 +70,25 @@ export interface LabShipmentFile {
   /** Distinta HTML oppure originale JPG; assente sui documenti legacy. */
   kind?: 'manifest' | 'original' | 'note_attachment' | 'supplemental' | 'other';
   mimeType?: string;
+  /** Sorgente esatta degli originali fotolibro, per riconoscere sostituzioni nella stessa versione. */
+  sourceStoragePath?: string;
+  sourcePageId?: string;
+  sourcePageNumber?: number;
   webViewLink?: string;  // link diretto al file (opzionale, lo share è a livello cartella)
   uploadedAt: Timestamp;
+}
+
+export interface ObsoletePhotobookPageFile {
+  driveFileId: string;
+  name: string;
+  pageNumber?: number;
+  sourceStoragePath?: string;
+}
+
+export interface MissingPhotobookPageFile {
+  pageNumber: number;
+  name: string;
+  storagePath: string;
 }
 
 /** Copia storica di una nota con foto scelta per il laboratorio. */
@@ -212,6 +229,25 @@ export interface LabShipment {
 
   // Trasferimento pagine fotolibro in background (solo spedizioni da fotolibro)
   pageTransfer?: LabShipmentPageTransfer;
+  /** Pulizia esplicita di pagine originali superate, senza cancellare i file. */
+  photobookPageCleanup?: {
+    id: string;
+    status: 'running' | 'completed' | 'needs_review';
+    archiveFolderId?: string;
+    obsoleteFileIds?: string[];
+    archivedFileIds?: string[];
+    error?: string;
+    instructionsUpdated?: boolean;
+    startedAt?: Timestamp;
+    finishedAt?: Timestamp;
+  };
+  archivedPhotobookPages?: Array<LabShipmentFile & {
+    archivedAt: Timestamp;
+    archivedBy?: string;
+    archiveFolderId: string;
+  }>;
+  obsoletePhotobookPages?: ObsoletePhotobookPageFile[];
+  missingPhotobookPages?: MissingPhotobookPageFile[];
   /** Fotolibro di origine, quando sourceType='photobook'. */
   photobookId?: string;
   transfer?: LabShipmentTransfer;
