@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { createServer, type ViteDevServer } from 'vite';
 import { chromium, expect as browserExpect, type Browser, type BrowserContext } from '@playwright/test';
 import sharp from 'sharp';
-import { driveObjectKey, services } from './test-utils/photobook-integrated-services';
+import { driveObjectKey, services, Timestamp } from './test-utils/photobook-integrated-services';
 
 vi.mock('./firebase-admin.js', async () => {
   const { db, storage, FieldValue, Timestamp } = await import('./test-utils/photobook-integrated-services');
@@ -35,7 +35,7 @@ vi.mock('./photobook-gallery.js', () => ({
   loadGalleryChapters: vi.fn(() => { throw new Error('Unexpected gallery access'); }),
 }));
 import photobooks from './photobook-routes';
-import labs from './lab-routes';
+import labs, { runLabShipmentExpiryCheck } from './lab-routes';
 
 let server: Server | undefined;
 let vite: ViteDevServer | undefined;
@@ -1154,6 +1154,72 @@ it('mantiene la spedizione e i riferimenti se Drive non elimina la cartella, poi
   expect(services.driveDeleteAttempts).toEqual([shipment.folderId, shipment.folderId]);
   expect(services.deletedDriveFolders).toEqual([shipment.folderId]);
   expect(services.docs.has(`labShipments/${shipment.id}`)).toBe(false);
+  expect(services.drive.has(fileKey)).toBe(false);
+  expect(services.driveFileKeys.has(fileId)).toBe(false);
+});
+
+it('lascia ritentabile la pulizia automatica se Drive fallisce e marca la scadenza solo dopo il retry riuscito', async () => {
+  resetIntegratedServices();
+  const shipment = {
+    id: 'expiry-retry-shipment',
+    photobookId: 'expiry-retry-book',
+    folderId: 'expiry-retry-folder',
+    fileName: 'pagina-da-conservare.jpg',
+  };
+  const fileId = `drive-${shipment.folderId}::${shipment.fileName}`;
+  const fileKey = driveObjectKey(shipment.folderId, shipment.fileName);
+  const fileBytes = Buffer.from('pagina ancora presente su Drive');
+  services.docs.set(`photobooks/${shipment.photobookId}`, {
+    name: 'Fotolibro da conservare durante il retry',
+    jobId: null,
+    galleryId: null,
+    locked: true,
+    labShipmentId: shipment.id,
+  });
+  services.docs.set(`labShipments/${shipment.id}`, {
+    sourceType: 'photobook',
+    photobookId: shipment.photobookId,
+    jobId: null,
+    galleryId: null,
+    status: 'inviato',
+    files: [{ driveFileId: fileId, name: shipment.fileName, kind: 'original' }],
+    driveFolderId: shipment.folderId,
+    shareableLink: `https://drive.invalid/${shipment.folderId}`,
+    expiresAt: Timestamp.fromDate(new Date(Date.now() - 24 * 60 * 60 * 1000)),
+  });
+  services.drive.set(fileKey, fileBytes);
+  services.driveFileKeys.set(fileId, fileKey);
+  services.failDeleteFolderId = shipment.folderId;
+
+  const failedCheck = await runLabShipmentExpiryCheck();
+
+  expect(failedCheck).toEqual({ expired: 0 });
+  expect(services.driveDeleteAttempts).toEqual([shipment.folderId]);
+  expect(services.deletedDriveFolders).toEqual([]);
+  expect(services.docs.get(`labShipments/${shipment.id}`)).toMatchObject({
+    status: 'inviato',
+    driveFolderId: shipment.folderId,
+    shareableLink: `https://drive.invalid/${shipment.folderId}`,
+    expiryDeletionLastAttemptAt: expect.any(Object),
+    expiryDeletionLastError: 'Eliminazione cartella Drive simulata fallita',
+  });
+  expect(services.docs.get(`labShipments/${shipment.id}`).deletedFromDrive).toBeUndefined();
+  expect(services.drive.get(fileKey)).toEqual(fileBytes);
+  expect(services.driveFileKeys.get(fileId)).toBe(fileKey);
+
+  services.failDeleteFolderId = null;
+  const successfulRetry = await runLabShipmentExpiryCheck();
+
+  expect(successfulRetry).toEqual({ expired: 1 });
+  expect(services.driveDeleteAttempts).toEqual([shipment.folderId, shipment.folderId]);
+  expect(services.deletedDriveFolders).toEqual([shipment.folderId]);
+  expect(services.docs.get(`labShipments/${shipment.id}`)).toMatchObject({
+    status: 'scaduto',
+    deletedFromDrive: true,
+    driveFolderId: shipment.folderId,
+    shareableLink: `https://drive.invalid/${shipment.folderId}`,
+  });
+  expect(services.docs.get(`labShipments/${shipment.id}`).expiryDeletionLastError).toBeUndefined();
   expect(services.drive.has(fileKey)).toBe(false);
   expect(services.driveFileKeys.has(fileId)).toBe(false);
 });

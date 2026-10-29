@@ -23,6 +23,7 @@ export const services = {
   queue: Promise.resolve(),
 };
 
+const DELETE_FIELD = { __isolatedDeleteField: true };
 const clone = (value: any) => structuredClone(value);
 function snapshot(path: string) {
   return {
@@ -44,13 +45,15 @@ export function doc(path: string): any {
         const parts = key.split('.');
         let target = value;
         for (const part of parts.slice(0, -1)) target = target[part] ||= {};
-        target[parts.at(-1)!] = clone(entry);
+        const field = parts.at(-1)!;
+        if (entry === DELETE_FIELD) delete target[field];
+        else target[field] = clone(entry);
       }
       services.docs.set(path, value);
     },
   };
 }
-export function collection(path: string, filters: [string, unknown][] = []): any {
+export function collection(path: string, filters: [string, string, unknown][] = []): any {
   return {
     doc: (id = `fixture-${services.nextId++}`) => doc(`${path}/${id}`),
     add: async (value: any) => {
@@ -59,13 +62,23 @@ export function collection(path: string, filters: [string, unknown][] = []): any
       return ref;
     },
     where: (key: string, op: string, value: unknown) => {
-      if (op !== '==') throw new Error(`Unsupported fixture operator: ${op}`);
-      return collection(path, [...filters, [key, value]]);
+      if (op !== '==' && op !== '<=') throw new Error(`Unsupported fixture operator: ${op}`);
+      return collection(path, [...filters, [key, op, value]]);
     },
     get: async () => {
       const docs = [...services.docs].filter(([key, value]) =>
         key.slice(0, key.lastIndexOf('/')) === path
-        && filters.every(([field, expected]) => value[field] === expected),
+        && filters.every(([field, operator, expected]) => {
+          if (operator === '==') return value[field] === expected;
+          if (operator === '<=') {
+            const timestamp = (entry: any) => {
+              if (typeof entry?._seconds !== 'number') throw new Error(`Expected timestamp for ${field}`);
+              return entry._seconds * 1_000 + (entry._nanoseconds || 0) / 1_000_000;
+            };
+            return timestamp(value[field]) <= timestamp(expected);
+          }
+          throw new Error(`Unsupported fixture operator: ${operator}`);
+        }),
       ).map(([key]) => snapshot(key));
       return { docs, empty: !docs.length, size: docs.length };
     },
@@ -94,7 +107,7 @@ export const db = {
 const timestamp = (date = new Date()) => ({
   _seconds: Math.floor(date.getTime() / 1000), _nanoseconds: 0,
 });
-export const FieldValue = { serverTimestamp: () => timestamp() };
+export const FieldValue = { serverTimestamp: () => timestamp(), delete: () => DELETE_FIELD };
 export const Timestamp = { now: () => timestamp(), fromDate: timestamp };
 export const storage = {
   bucket: () => ({
