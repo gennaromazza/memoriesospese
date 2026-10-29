@@ -9,6 +9,7 @@ export const services = {
   privateDriveFolders: new Set<string>(),
   driveMoveAttempts: [] as Array<{ fileId: string; fromFolderId: string; toFolderId: string }>,
   beforeMove: null as ((fileId: string, fromFolderId: string, toFolderId: string) => Promise<void>) | null,
+  afterMove: null as ((fileId: string, fromFolderId: string, toFolderId: string) => Promise<void>) | null,
   deletedDriveFolders: [] as string[],
   driveDeleteAttempts: [] as string[],
   failDeleteFolderId: null as string | null,
@@ -187,6 +188,7 @@ export const drive = {
     const targetKey = `${toFolderId}/${name}`;
     services.drive.set(targetKey, content);
     services.driveFileKeys.set(fileId, targetKey);
+    await services.afterMove?.(fileId, fromFolderId, toFolderId);
   },
   openDriveFileFromFolder: async (fileId: string, expectedFolderId: string) => {
     const key = services.driveFileKeys.get(fileId);

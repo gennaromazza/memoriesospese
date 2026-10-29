@@ -121,6 +121,7 @@ function resetIntegratedServices() {
   services.privateDriveFolders.clear();
   services.driveMoveAttempts.length = 0;
   services.beforeMove = null;
+  services.afterMove = null;
   services.deletedDriveFolders.length = 0;
   services.driveDeleteAttempts.length = 0;
   services.failDeleteFolderId = null;
@@ -373,6 +374,94 @@ it('archivia l’originale sostituito, ripete il trasferimento senza duplicati e
   const manualSend = await postIntegratedJson(`/api/lab-shipments/${shipmentId}/send`, {});
   expect(manualSend.status).toBe(200);
   expect(services.emails).toHaveLength(1);
+}, 60_000);
+
+it('recupera un’archiviazione interrotta dopo lo spostamento su Drive e aggiorna istruzioni senza inviare email', async () => {
+  resetIntegratedServices();
+  const bookId = 'interrupted-page-archive';
+  const { oldBytes } = seedOnePagePhotobook(bookId);
+  const started = await postIntegratedJson(`/api/photobooks/${bookId}/lab-shipment`, { labId: 'lab-fixture' });
+  expect(started.status).toBe(202);
+  const shipmentId = started.json.shipment.id;
+  const shipmentPath = `labShipments/${shipmentId}`;
+  await waitForIntegratedTransfer(shipmentPath);
+
+  const shipment = services.docs.get(shipmentPath);
+  const shipmentFolderId = shipment.driveFolderId;
+  const oldPageFile = shipment.files.find((file: any) => file.kind === 'original');
+  const oldPageKey = driveObjectKey(shipmentFolderId, oldPageFile.name);
+  const supplemental = {
+    driveFileId: 'drive-interrupted-archive-cover',
+    name: 'copertina-produzione.pdf',
+    size: 7,
+    kind: 'supplemental',
+  };
+  shipment.files.push(supplemental);
+  services.drive.set(driveObjectKey(shipmentFolderId, supplemental.name), Buffer.from('cover'));
+  services.driveFileKeys.set(supplemental.driveFileId, driveObjectKey(shipmentFolderId, supplemental.name));
+
+  const currentPath = `photobooks/${bookId}/v1/originale-corrente.jpg`;
+  services.objects.set(currentPath, Buffer.from('originale corrente'));
+  services.docs.get(`photobookPages/${bookId}-page-1`).storagePath = currentPath;
+  const privateArchiveFolderId = `isolated-folder-${services.folderSequence + 1}`;
+
+  let simulatedInterruption = true;
+  services.afterMove = async () => {
+    if (!simulatedInterruption) return;
+    simulatedInterruption = false;
+    throw new Error('Interruzione simulata dopo il trasferimento Drive');
+  };
+  const interrupted = await postIntegratedJson(
+    `/api/lab-shipments/${shipmentId}/archive-obsolete-photobook-pages`,
+    { confirm: true },
+  );
+  expect(interrupted.status).toBe(503);
+
+  const needsRecovery = services.docs.get(shipmentPath);
+  expect(needsRecovery.photobookPageCleanup).toMatchObject({
+    status: 'needs_review',
+    instructionsUpdated: false,
+  });
+  expect(needsRecovery.files).toContainEqual(expect.objectContaining({ driveFileId: oldPageFile.driveFileId }));
+  expect(needsRecovery.archivedPhotobookPages || []).toHaveLength(0);
+  expect(services.privateDriveFolders.has(privateArchiveFolderId)).toBe(true);
+  expect(services.drive.has(oldPageKey)).toBe(false);
+  expect(services.drive.get(driveObjectKey(privateArchiveFolderId, oldPageFile.name))).toEqual(oldBytes);
+  expect(needsRecovery.files.some((file: any) => file.kind === 'manifest')).toBe(false);
+  const blockedSend = await postIntegratedJson(`/api/lab-shipments/${shipmentId}/send`, {});
+  expect(blockedSend.status).toBe(409);
+  expect(services.emails).toHaveLength(0);
+
+  // A new explicit admin action resumes the operation. Drive recognizes that
+  // the file is already in the private archive; metadata and instructions catch up.
+  services.afterMove = null;
+  const recovered = await postIntegratedJson(
+    `/api/lab-shipments/${shipmentId}/archive-obsolete-photobook-pages`,
+    { confirm: true },
+  );
+  expect(recovered.status).toBe(200);
+  const finalShipment = services.docs.get(shipmentPath);
+  expect(finalShipment.photobookPageCleanup).toMatchObject({
+    status: 'completed',
+    instructionsUpdated: true,
+    archivedFileIds: [oldPageFile.driveFileId],
+  });
+  expect(finalShipment.files).not.toContainEqual(expect.objectContaining({ driveFileId: oldPageFile.driveFileId }));
+  expect(finalShipment.archivedPhotobookPages).toContainEqual(expect.objectContaining({
+    driveFileId: oldPageFile.driveFileId,
+    archiveFolderId: privateArchiveFolderId,
+  }));
+  expect(services.drive.has(oldPageKey)).toBe(false);
+  expect(services.drive.get(driveObjectKey(privateArchiveFolderId, oldPageFile.name))).toEqual(oldBytes);
+  expect(services.driveMoveAttempts.filter(attempt => attempt.fileId === oldPageFile.driveFileId)).toHaveLength(2);
+
+  const updatedManifest = finalShipment.files.find((file: any) => file.kind === 'manifest');
+  expect(updatedManifest).toBeDefined();
+  expect(services.driveFileKeys.get(updatedManifest.driveFileId)).toBe(driveObjectKey(shipmentFolderId, updatedManifest.name));
+  const instructionText = services.drive.get(driveObjectKey(shipmentFolderId, updatedManifest.name))?.toString();
+  expect(instructionText).toContain(supplemental.name);
+  expect(instructionText).toContain('ISTRUZIONI DI STAMPA');
+  expect(services.emails).toHaveLength(0);
 }, 60_000);
 
 it('non modifica una spedizione già inviata senza consenso esplicito', async () => {
