@@ -1258,8 +1258,29 @@ router.delete('/lab-shipments/:id', authenticateFirebase, requireAdmin, async (r
       }
     }
 
-    // 3. Elimina il doc
-    await db.collection('labShipments').doc(id).delete();
+    // 3. Elimina la spedizione e rimuove il collegamento dal fotolibro solo
+    // se punta ancora a questa spedizione. In questo modo una spedizione più
+    // recente non viene scollegata da una cancellazione concorrente/ritardata.
+    const shipmentRef = db.collection('labShipments').doc(id);
+    await db.runTransaction(async (tx) => {
+      const currentShipmentDoc = await tx.get(shipmentRef);
+      if (!currentShipmentDoc.exists) return;
+
+      const currentShipment = currentShipmentDoc.data() as LabShipment;
+      const photobookId = (currentShipment as any).photobookId;
+      if (typeof photobookId === 'string' && photobookId) {
+        const photobookRef = db.collection('photobooks').doc(photobookId);
+        const photobookDoc = await tx.get(photobookRef);
+        if (photobookDoc.exists && photobookDoc.data()?.labShipmentId === id) {
+          tx.update(photobookRef, {
+            labShipmentId: null,
+            locked: false,
+            updatedAt: Timestamp.now(),
+          });
+        }
+      }
+      tx.delete(shipmentRef);
+    });
 
     console.log(`🗑️ Spedizione laboratorio eliminata: ${id}`);
     res.json({ success: true, message: 'Spedizione eliminata' });

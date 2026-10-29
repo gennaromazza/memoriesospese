@@ -1008,6 +1008,91 @@ it('eliminare una spedizione autonoma non tocca cartella, file o record dell’a
   expect(services.deletedDriveFolders).not.toContain(preserved.folderId);
 });
 
+it('dopo la cancellazione scollega e sblocca il fotolibro, che può ricevere una nuova spedizione', async () => {
+  resetIntegratedServices();
+  const bookId = 'recreate-after-delete-book';
+  const bookPath = `photobooks/${bookId}`;
+  const pagePath = `photobookPages/${bookId}-page-1`;
+  const storagePath = `photobooks/${bookId}/v1/copertina.jpg`;
+  const pageBytes = Buffer.from('pagina originale');
+  services.docs.set(bookPath, {
+    name: 'Fotolibro da rispedire',
+    jobId: null,
+    galleryId: null,
+    locked: false,
+    currentVersion: 1,
+    versions: [{ version: 1, pageCount: 1, status: 'draft' }],
+  });
+  services.docs.set(pagePath, {
+    photobookId: bookId,
+    version: 1,
+    pageNumber: 1,
+    fileName: 'copertina.jpg',
+    storagePath,
+  });
+  services.objects.set(storagePath, pageBytes);
+  const preservedShipment = {
+    id: 'recreate-preserved-shipment',
+    photobookId: 'recreate-preserved-book',
+  };
+  const preservedRecord = {
+    sourceType: 'photobook',
+    photobookId: preservedShipment.photobookId,
+    status: 'da_inviare',
+    files: [],
+  };
+  services.docs.set(`photobooks/${preservedShipment.photobookId}`, {
+    locked: true,
+    labShipmentId: preservedShipment.id,
+  });
+  services.docs.set(`labShipments/${preservedShipment.id}`, preservedRecord);
+
+  const firstStart = await postIntegratedJson(`/api/photobooks/${bookId}/lab-shipment`, {
+    labId: 'lab-fixture',
+    lockPhotobook: true,
+  });
+  expect(firstStart.status).toBe(202);
+  const firstShipmentId = firstStart.json.shipment.id;
+  const firstShipmentPath = `labShipments/${firstShipmentId}`;
+  await waitForIntegratedTransfer(firstShipmentPath);
+  expect(services.docs.get(bookPath)).toMatchObject({
+    locked: true,
+    labShipmentId: firstShipmentId,
+  });
+
+  const deleted = await deleteIntegrated(`/api/lab-shipments/${firstShipmentId}`);
+  expect(deleted.status).toBe(200);
+  expect(services.docs.has(firstShipmentPath)).toBe(false);
+  expect(services.docs.get(bookPath)).toMatchObject({
+    locked: false,
+    labShipmentId: null,
+  });
+  expect(services.docs.get(`labShipments/${preservedShipment.id}`)).toEqual(preservedRecord);
+  expect(services.docs.get(`photobooks/${preservedShipment.photobookId}`)).toEqual({
+    locked: true,
+    labShipmentId: preservedShipment.id,
+  });
+
+  const secondStart = await postIntegratedJson(`/api/photobooks/${bookId}/lab-shipment`, {
+    labId: 'lab-fixture',
+    lockPhotobook: true,
+  });
+  expect(secondStart.status).toBe(202);
+  const secondShipmentId = secondStart.json.shipment.id;
+  expect(secondShipmentId).not.toBe(firstShipmentId);
+  await waitForIntegratedTransfer(`labShipments/${secondShipmentId}`);
+  expect(services.docs.get(bookPath)).toMatchObject({
+    locked: true,
+    labShipmentId: secondShipmentId,
+  });
+  expect(services.docs.has(firstShipmentPath)).toBe(false);
+  expect(services.docs.get(`labShipments/${preservedShipment.id}`)).toEqual(preservedRecord);
+  expect(services.docs.get(`photobooks/${preservedShipment.photobookId}`)).toEqual({
+    locked: true,
+    labShipmentId: preservedShipment.id,
+  });
+});
+
 it('mantiene la spedizione e i riferimenti se Drive non elimina la cartella, poi consente il retry', async () => {
   resetIntegratedServices();
   const shipment = {

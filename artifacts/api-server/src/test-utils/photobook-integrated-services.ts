@@ -84,6 +84,7 @@ export const db = {
         get: (ref: any) => ref.get(),
         set: (ref: any, value: any) => writes.push(() => ref.set(value)),
         update: (ref: any, value: any) => writes.push(() => ref.update(value)),
+        delete: (ref: any) => writes.push(() => ref.delete()),
       });
       for (const write of writes) await write();
       return result;
