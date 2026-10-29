@@ -16,6 +16,17 @@ export async function photobookShipmentReadiness(tx: any, db: any, shipment: any
   const book = bookDoc.data();
   const version = shipment.photobookVersion ?? book.currentVersion;
   if (version !== book.currentVersion) return 'La spedizione contiene una versione precedente: trasferisci le pagine della versione corrente.';
+  const mockup = (await tx.get(bookDoc.ref.collection('mockups').doc(`v${version}`))).data();
+  if (mockup?.status === 'confirmed') {
+    const snapshot = shipment.mockupSnapshot;
+    if (shipment.mockupTransfer?.status !== 'attached' || snapshot?.version !== version || snapshot?.revision !== mockup.revision || snapshot?.packageVersion !== 2) {
+      return 'Il mockup confermato e tutti i suoi materiali devono essere allegati prima di inviare.';
+    }
+    const names = new Set((shipment.files || []).filter((file: any) => file.driveFileId).map((file: any) => file.name));
+    if (!snapshot.materialFileNames?.length || snapshot.materialFileNames.some((name: string) => !names.has(name))) {
+      return 'Mancano file del pacchetto mockup. Verifica gli allegati prima di inviare.';
+    }
+  }
   const versionInfo = book.versions?.find((entry: any) => entry.version === version);
   const pages = await tx.get(db.collection('photobookPages')
     .where('photobookId', '==', shipment.photobookId).where('version', '==', version));

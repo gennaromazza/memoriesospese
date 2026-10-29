@@ -168,6 +168,13 @@ export default function PhotobooksManager({
     queryKey: ['/api/photobooks'],
     queryFn: listPhotobooks,
   });
+  useEffect(() => {
+    const target = new URLSearchParams(window.location.search).get('photobook');
+    if (!target || !books.some(book => book.id === target)) return;
+    const element = document.getElementById(`photobook-materials-${target}`);
+    element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    element?.focus({ preventScroll: true });
+  }, [books]);
 
   // Richieste di modifica pendenti: badge sui fotolibri + banner riepilogo
   const { data: changeRequests = [] } = useQuery({
@@ -423,7 +430,7 @@ export default function PhotobooksManager({
               (book.jobId ? 'Senza galleria · lavoro collegato' : 'Fotolibro autonomo');
             const currentVer = book.versions.find((v) => v.version === book.currentVersion);
             return (
-              <Card key={book.id} data-testid={`card-photobook-${book.id}`}>
+              <Card key={book.id} id={`photobook-materials-${book.id}`} tabIndex={-1} className="focus:ring-2 focus:ring-primary focus:outline-none" data-testid={`card-photobook-${book.id}`}>
                 <CardContent className="pt-5 space-y-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
@@ -1095,7 +1102,7 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
     refetchOnMount: 'always',
     // Trasferimento in background in corso: polla l'avanzamento ogni 2.5s
     refetchInterval: (query) =>
-      query.state.data?.pageTransfer?.status === 'running' || query.state.data?.mockupDispatching ? 2500 : false,
+      query.state.data?.pageTransfer?.status === 'running' || query.state.data?.mockupTransfer?.status === 'uploading' || query.state.data?.mockupDispatching ? 2500 : false,
   });
   const { data: availableLabs = [], isError: labsError, refetch: reloadLabs } = useQuery<Lab[]>({
     queryKey: ['photobook-shipment-labs'],
@@ -1272,8 +1279,8 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
           <div>
             <p className="font-medium">Copertine e altri file per il fotolibro</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Aggiungi copertine, dorsi, loghi, PDF tecnici o altri materiali. Verranno caricati
-              nella stessa cartella Drive delle pagine.
+              Il mockup confermato, le sue foto e le grafiche vengono allegati automaticamente.
+              Qui puoi aggiungere dorsi, PDF tecnici o file ad alta risoluzione aggiuntivi, nella stessa cartella Drive delle pagine.
             </p>
           </div>
           {!expired && (

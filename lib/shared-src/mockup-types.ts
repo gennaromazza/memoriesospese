@@ -150,6 +150,8 @@ export interface SavedMockup {
 }
 export interface MockupPayload {
   version: number;
+  /** Admin-only: file preparation, never proof that the laboratory was emailed. */
+  labAttachment?: { status: 'pending' | 'uploading' | 'attached' | 'needs_review'; message?: string };
   mockupPath?: 'client' | 'studio';
   notificationState?: string;
   editable: boolean;

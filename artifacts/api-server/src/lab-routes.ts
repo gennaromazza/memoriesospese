@@ -811,6 +811,17 @@ router.post('/lab-shipments/:id/send', authenticateFirebase, requireAdmin, async
     if (rejectPrintShopLegacyMutation(shipment, res)) return;
 
     if (shipment.sourceType === 'photobook') {
+      if (shipment.pageTransfer?.status === 'running') return res.status(409).json({ error: 'Attendi il completamento del trasferimento delle pagine.' });
+      // This also upgrades an older HTML-only attachment. No email is attempted
+      // until the confirmed report AND every referenced material are registered.
+      if (shipment.photobookId) {
+        const { ensureConfirmedMockupAttached } = await import('./photobook-mockup-delivery.js');
+        try {
+          await ensureConfirmedMockupAttached(await db.collection('photobooks').doc(shipment.photobookId).get());
+        } catch (error: any) {
+          return res.status(error.status || 409).json({ error: `Completa gli allegati del mockup prima dell’email: ${error.message}` });
+        }
+      }
       const operation = newPhotobookOperation();
       let readinessError: string | null = null;
       const claimed = await db.runTransaction(async tx => {

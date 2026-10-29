@@ -196,7 +196,13 @@ export function createPhotobookMockupRouter(
       const notificationState = data?.status === 'confirmed'
         ? root.mockupNotifications?.[`confirmed_v${version}_r${data.revision}`]?.state
         : undefined;
-      res.json({ version, mockupPath: root.mockupPath, notificationState, clientApprovalAllowed: !isAdmin && canApproveBook(root, version) && data?.status === 'confirmed', editable: canEditBook(root, version) && !(modelMode === 'fixed' && !offer), enabled: isAdmin || saved.exists || !!offer, approvalRequired: needsPageApproval(root, version), saved: data || null, offer, modelMode, modelSelection, offerError: modelMode === 'fixed' && !offer ? 'Il modello fisso non è più disponibile. Lo studio deve ripubblicare la proposta.' : null, offerInherited: modelMode === 'fixed' && !offerDoc.exists });
+      const attachment = isAdmin && data?.status === 'confirmed'
+        ? (await book.ref.collection('mockupAttachments').doc(`v${version}-r${data.revision}`).get()).data()
+        : undefined;
+      const labAttachment = isAdmin && data?.status === 'confirmed'
+        ? { status: attachment?.status === 'attached' && attachment.packageVersion !== 2 ? 'pending' : attachment?.status || 'pending', ...(attachment?.message ? { message: attachment.message } : {}) }
+        : undefined;
+      res.json({ version, mockupPath: root.mockupPath, notificationState, ...(labAttachment ? { labAttachment } : {}), clientApprovalAllowed: !isAdmin && canApproveBook(root, version) && data?.status === 'confirmed', editable: canEditBook(root, version) && !(modelMode === 'fixed' && !offer), enabled: isAdmin || saved.exists || !!offer, approvalRequired: needsPageApproval(root, version), saved: data || null, offer, modelMode, modelSelection, offerError: modelMode === 'fixed' && !offer ? 'Il modello fisso non è più disponibile. Lo studio deve ripubblicare la proposta.' : null, offerInherited: modelMode === 'fixed' && !offerDoc.exists });
     } catch (error) { next(error); }
   });
 
@@ -474,9 +480,11 @@ export function createPhotobookMockupRouter(
     const image = sharp(input, { limitInputPixels: 40_000_000, animated: false });
     const graphic = kind === 'graphic';
     let output: Buffer;
+    let originalContentType: string;
     try {
       const metadata = await image.metadata();
       if (!['jpeg','png','webp'].includes(metadata.format || '') || (metadata.pages || 1) > 1) throw new Error();
+      originalContentType = `image/${metadata.format}`;
       const resized = image.rotate().resize(2048, 2048, { fit: 'inside', withoutEnlargement: true });
       output = await (graphic ? resized.png() : resized.jpeg({ quality: 90 })).toBuffer();
     } catch { throw new MockupError(400, 'Foto non leggibile: usa un JPG, PNG o WebP statico entro 40 megapixel.'); }
@@ -486,16 +494,22 @@ export function createPhotobookMockupRouter(
     const id = randomUUID();
     const contentType = graphic ? 'image/png' : 'image/jpeg';
     const storagePath = `photobook-mockups/${book.id}/v${version}/${id}.${graphic ? 'png' : 'jpg'}`;
+    const originalExtension = originalContentType === 'image/png' ? 'png' : originalContentType === 'image/webp' ? 'webp' : 'jpg';
+    const originalStoragePath = `photobook-mockups/${book.id}/v${version}/${id}-original.${originalExtension}`;
     const photo: MockupPhoto = { id, ...info, width: dimensions.width!, height: dimensions.height! };
     const file = storage.bucket().file(storagePath);
     await file.save(output, { metadata: { contentType, cacheControl: 'private, no-store' } });
     try {
+      await storage.bucket().file(originalStoragePath).save(input, { metadata: { contentType: originalContentType, cacheControl: 'private, no-store' } });
       await db.runTransaction(async tx => {
         await guardCurrent(tx, book, version);
-        tx.set(book.ref.collection('mockupAssets').doc(id), { ...photo, version, storagePath, ...(graphic ? { kind, contentType } : {}), createdAt: new Date().toISOString() });
+        tx.set(book.ref.collection('mockupAssets').doc(id), { ...photo, version, storagePath, originalStoragePath, originalContentType, ...(graphic ? { kind, contentType } : {}), createdAt: new Date().toISOString() });
       });
     } catch (error) {
-      if (error instanceof MockupError) await file.delete().catch(() => undefined);
+      if (error instanceof MockupError) {
+        await file.delete().catch(() => undefined);
+        await storage.bucket().file(originalStoragePath).delete().catch(() => undefined);
+      }
       throw error;
     }
     return photo;

@@ -571,7 +571,7 @@ export default function AdminDashboard() {
       }
 
       // Pulisci URL dopo cambio tab (nessun highlight da aspettare)
-      cleanDeeplinkUrl();
+      if (!(mappedTab === 'photobooks' && params.has('photobook'))) cleanDeeplinkUrl();
     }
   }, [navigate, cleanDeeplinkUrl]);
 

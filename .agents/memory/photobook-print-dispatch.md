@@ -20,3 +20,9 @@ Anche un arresto prima che venga registrato l’errore può lasciare un’email 
 **Why:** Un processo terminato bruscamente non esegue i blocchi di gestione errore e rilascio; recuperare automaticamente il claim potrebbe duplicare un ordine.
 
 **How to apply:** Distinguere il recupero del trasferimento pagine dalla riconciliazione dell’email, ricontrollare l’abbandono in transazione e mantenere heartbeat anche durante una singola operazione esterna lenta.
+
+La conferma del mockup deve portare nella spedizione anche il riepilogo, le foto usate e le grafiche d’incisione disponibili, senza richiedere allo studio di ricaricare gli stessi materiali.
+
+**Why:** Lo studio si aspetta che il laboratorio riceva quanto concordato nel mockup; la sola anteprima non equivale alla consegna dei sorgenti necessari alla produzione.
+
+**How to apply:** Distinguere chiaramente testi, grafiche e foto; segnalare le copie storiche ridotte quando l’originale non è disponibile. Non dichiarare un pacchetto completo se un materiale referenziato manca e non generare programmi macchina implicitamente.

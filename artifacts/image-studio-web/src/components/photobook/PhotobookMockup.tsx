@@ -29,6 +29,7 @@ import { beginMockupRendererRetry, configurationForRendererRestore, planMockupRe
 import { hasSavedMockupPhotos, isGraphicSlot, loadSavedMockupPhotos, loadSavedMockupPhotosPartial, mockupRequestErrorFromResponse, replaceMockupPhotoReference, resolveMockupPhotoTarget, savedMockupPhotoFailure, type RuntimeMockupPhoto, type SavedMockupPhotoFailure, type SavedMockupPhotoLabels, type SavedMockupPhotoSlot } from './mockup-photo-recovery';
 import { useToast } from '@/hooks/use-toast';
 import PhotobookInlineGallery from './PhotobookInlineGallery';
+import MockupLabMaterialsNotice from './MockupLabMaterialsNotice';
 import { ArrowLeft, ArrowRight, HelpCircle, LogOut, Rotate3D, RotateCcw, Save, X, ZoomIn, ZoomOut } from 'lucide-react';
 
 interface Props { photobookId: string; version: number; token?: string; readOnly?: boolean; autoOpen?: boolean; initialAdminTab?: MockupAdminTab; confirmedOnly?: boolean; summary?: boolean; compact?: boolean; /** Admin: solo la finestra, aperta dai passi della card Mockup. */ headless?: boolean; onOpenChange?: (open: boolean) => void }
@@ -938,7 +939,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
         if (path === '/request-changes') setAskingChanges(false);
       }
       const fresh = await state.refetch({ throwOnError: true }); revision.current = fresh.data?.saved?.revision || revision.current;
-      setMessage(notificationWarning || (path === '/attach' || path === '/reconcile-attachment' ? 'Mockup registrato nella cartella Drive. Nessuna email inviata.' : path === '/submit' ? 'Proposta inviata allo studio per la verifica.' : 'Proposta restituita al cliente per le modifiche.'));
+      setMessage(notificationWarning || (path === '/attach' || path === '/reconcile-attachment' ? 'Riepilogo HTML, foto e grafiche del mockup registrati nella cartella Drive. Nessuna email inviata.' : path === '/submit' ? 'Proposta inviata allo studio per la verifica.' : 'Proposta restituita al cliente per le modifiche.'));
     } catch (error) { setMessage(path === '/submit' ? `Invio non confermato. La bozza è salvata: ${(error as Error).message}` : (error as Error).message); }
     finally { setBusy(false); }
   }
@@ -1546,7 +1547,10 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
             {state.data?.mockupPath !== 'studio' && <Button className="w-full" variant="outline" disabled={!editable || busy || dirty || !saved} onClick={() => setAskingChanges(!askingChanges)}>Richiedi modifiche al cliente</Button>}
           </div>
           {askingChanges && state.data?.mockupPath !== 'studio' && <div className="rounded border p-3 space-y-3"><label className="block text-sm">Cosa deve correggere il cliente?<textarea className="block border rounded p-2 w-full mt-2" rows={3} maxLength={2000} value={note} onChange={e => setNote(e.target.value)} /></label><p className="text-xs text-muted-foreground">Il messaggio sarà visibile nel suo link e inviato via email.</p><Button disabled={!editable || busy || dirty || !saved || !note.trim()} onClick={() => action('/request-changes')}>Invia richiesta di modifiche</Button></div>}
-          {saved?.status === 'confirmed' && <div className="rounded border p-3 space-y-2"><p className="text-sm font-medium">Mockup confermato: prepara l’invio</p><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => downloadReport(saved.revision)}>Scarica conferma</Button><Button disabled={readOnly || busy || dirty} onClick={() => action('/attach')}>Allega all’invio fotolibro su Drive</Button></div></div>}
+          {saved?.status === 'confirmed' && <div className="space-y-2">
+            <MockupLabMaterialsNotice photobookId={photobookId} payload={state.data!} />
+            <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => downloadReport(saved.revision)}>Scarica conferma</Button><Button disabled={readOnly || busy || dirty} onClick={() => action('/attach')}>Allega materiali ora su Drive</Button></div>
+          </div>}
           <details className="border-t pt-3"><summary className="cursor-pointer text-sm font-medium py-2">Storico revisioni e verifiche</summary><div className="flex flex-wrap gap-2 py-2">
             <Button variant="outline" disabled={busy} onClick={async () => { try { setHistory(await (await request('/history')).json()); } catch (error) { setMessage((error as Error).message); } }}>Storico revisioni</Button>
             {saved?.status === 'confirmed' && <Button variant="outline" disabled={busy || dirty} onClick={() => action('/reconcile-attachment')}>Verifica allegato Drive dopo un errore</Button>}

@@ -8,6 +8,7 @@ import type { MockupPayload } from '@shared/mockup-types';
 import { MOCKUP_STATUS_LABELS, type MockupOption } from '@shared/mockup-workflow';
 import { mockupPresentation } from './mockup-presentation';
 import { CopyFeedbackButton } from './PhotobookUiStates';
+import MockupLabMaterialsNotice from './MockupLabMaterialsNotice';
 
 export type MockupPathChoice = 'client' | 'studio';
 export type MockupAdminTab = 'review' | 'edit' | 'offer';
@@ -151,6 +152,7 @@ export default function MockupAdminFlow({ photobookId, version, currentVersion, 
         <Step n={3} title={studio ? 'Verifica e condivisione' : 'Stato della scelta cliente'} done={saved?.status === 'confirmed'} active={currentStep === 3}>
           <p className="text-sm">{saved ? `Bozza: ${MOCKUP_STATUS_LABELS[saved.status || 'draft']} · revisione ${saved.revision}` : 'Nessuna bozza ancora.'}</p>
           {saved?.status === 'confirmed' && <p className="text-sm" data-testid="mockup-client-approval-status">{saved.clientApproval?.revision === saved.revision ? `Mockup approvato dal cliente il ${new Date(saved.clientApproval.approvedAt).toLocaleString('it-IT')}` : 'Il riscontro del cliente sul mockup è facoltativo e distinto dall’approvazione delle pagine.'}</p>}
+          {state.data && <MockupLabMaterialsNotice photobookId={photobookId} payload={state.data} />}
           <p className="text-sm">Email: {emailStatus}</p>
           {emailNote && <p className="text-sm text-amber-700">{emailNote}</p>}
           <div className="flex flex-wrap gap-2">

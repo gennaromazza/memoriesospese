@@ -1547,6 +1547,16 @@ async function runPhotobookPageTransfer(
     console.log(
       `📖 [photobooks] Trasferimento pagine fotolibro ${photobookId} → spedizione ${shipmentRef.id} concluso: ${transferred} trasferite, ${skipped} già presenti, ${failed.length} fallite`,
     );
+    if (!failed.length) {
+      try {
+        const { ensureConfirmedMockupAttached } = await import('./photobook-mockup-delivery.js');
+        await ensureConfirmedMockupAttached(await db.collection('photobooks').doc(photobookId).get());
+      } catch (error: any) {
+        // Pages are complete even when supplementary materials need attention.
+        // Sending email performs the same check and must fail closed.
+        console.error(`[photobooks] Materiali mockup non allegati (${photobookId}):`, error?.message || error);
+      }
+    }
   } catch (e: any) {
     // Errore fatale (es. Firestore/Drive irraggiungibile): marca il fallimento
     console.error(
