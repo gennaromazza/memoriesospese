@@ -119,6 +119,8 @@ function resetIntegratedServices() {
   services.objects.clear();
   services.drive.clear();
   services.deletedDriveFolders.length = 0;
+  services.driveDeleteAttempts.length = 0;
+  services.failDeleteFolderId = null;
   services.uploads.length = 0;
   services.uploadAttempts.length = 0;
   services.driveFileKeys.clear();
@@ -989,4 +991,69 @@ it('eliminare una spedizione autonoma non tocca cartella, file o record dell’a
   expect(services.driveFileKeys.get(`drive-${preserved.folderId}::${preserved.fileName}`))
     .toBe(driveObjectKey(preserved.folderId, preserved.fileName));
   expect(services.deletedDriveFolders).not.toContain(preserved.folderId);
+});
+
+it('mantiene la spedizione e i riferimenti se Drive non elimina la cartella, poi consente il retry', async () => {
+  resetIntegratedServices();
+  const shipment = {
+    id: 'delete-retry-shipment',
+    photobookId: 'delete-retry-book',
+    folderId: 'delete-retry-folder',
+    fileName: 'pagina-originale.jpg',
+  };
+  const fileId = `drive-${shipment.folderId}::${shipment.fileName}`;
+  const fileKey = driveObjectKey(shipment.folderId, shipment.fileName);
+  const fileBytes = Buffer.from('contenuto originale della pagina');
+  services.docs.set(`photobooks/${shipment.photobookId}`, {
+    name: 'Fotolibro autonomo per retry',
+    jobId: null,
+    galleryId: null,
+    locked: true,
+    labShipmentId: shipment.id,
+  });
+  const originalRecord = {
+    sourceType: 'photobook',
+    photobookId: shipment.photobookId,
+    jobId: null,
+    galleryId: null,
+    status: 'da_inviare',
+    files: [{ driveFileId: fileId, name: shipment.fileName, kind: 'original' }],
+    driveFolderId: shipment.folderId,
+    shareableLink: `https://drive.invalid/${shipment.folderId}`,
+  };
+  services.docs.set(`labShipments/${shipment.id}`, originalRecord);
+  services.drive.set(fileKey, fileBytes);
+  services.driveFileKeys.set(fileId, fileKey);
+  services.failDeleteFolderId = shipment.folderId;
+
+  const failedResponse = await deleteIntegrated(`/api/lab-shipments/${shipment.id}`);
+
+  expect(failedResponse.status).toBe(503);
+  expect(failedResponse.json).toMatchObject({ code: 'drive_delete_failed' });
+  expect(services.driveDeleteAttempts).toEqual([shipment.folderId]);
+  expect(services.deletedDriveFolders).toEqual([]);
+  expect(services.docs.get(`labShipments/${shipment.id}`)).toMatchObject({
+    ...originalRecord,
+    deleteLastError: 'Eliminazione cartella Drive simulata fallita',
+    deleteLastAttemptAt: expect.any(Object),
+    updatedAt: expect.any(Object),
+  });
+  expect(services.docs.has(`labShipments/${shipment.id}`)).toBe(true);
+  expect(services.docs.get(`labShipments/${shipment.id}`).driveFolderId).toBe(shipment.folderId);
+  expect(services.docs.get(`labShipments/${shipment.id}`).shareableLink)
+    .toBe(`https://drive.invalid/${shipment.folderId}`);
+  expect(services.docs.get(`photobooks/${shipment.photobookId}`).labShipmentId).toBe(shipment.id);
+  expect(services.drive.get(fileKey)).toEqual(fileBytes);
+  expect(services.driveFileKeys.get(fileId)).toBe(fileKey);
+
+  services.failDeleteFolderId = null;
+  const retryResponse = await deleteIntegrated(`/api/lab-shipments/${shipment.id}`);
+
+  expect(retryResponse.status).toBe(200);
+  expect(retryResponse.json).toMatchObject({ success: true });
+  expect(services.driveDeleteAttempts).toEqual([shipment.folderId, shipment.folderId]);
+  expect(services.deletedDriveFolders).toEqual([shipment.folderId]);
+  expect(services.docs.has(`labShipments/${shipment.id}`)).toBe(false);
+  expect(services.drive.has(fileKey)).toBe(false);
+  expect(services.driveFileKeys.has(fileId)).toBe(false);
 });

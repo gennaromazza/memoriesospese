@@ -7,6 +7,8 @@ export const services = {
   // Drive IDs and file bytes are scoped by shipment folder, not just file name.
   drive: new Map<string, Buffer>(),
   deletedDriveFolders: [] as string[],
+  driveDeleteAttempts: [] as string[],
+  failDeleteFolderId: null as string | null,
   uploads: [] as string[],
   uploadAttempts: [] as { folderId: string; name: string }[],
   driveFileKeys: new Map<string, string>(),
@@ -148,6 +150,11 @@ export const drive = {
     return { fileId: id, size: buffer.length };
   },
   deleteDriveFile: async (id: string) => {
+    services.driveDeleteAttempts.push(id);
+    if (id === services.failDeleteFolderId) {
+      throw new Error('Eliminazione cartella Drive simulata fallita');
+    }
+
     const fileKey = services.driveFileKeys.get(id);
     if (fileKey) {
       services.drive.delete(fileKey);
