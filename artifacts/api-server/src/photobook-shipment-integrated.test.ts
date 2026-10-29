@@ -697,7 +697,7 @@ it('due spedizioni autonome sovrapposte isolano cartelle, retry, email e stato',
   });
 }, 60_000);
 
-it('due invii email simultanei mantengono destinatario, cartella e stato della spedizione', async () => {
+it('gli invii simultanei mantengono destinatario e stato senza duplicare email per la stessa spedizione', async () => {
   resetIntegratedServices();
   const shipments = [
     {
@@ -766,6 +766,18 @@ it('due invii email simultanei mantengono destinatario, cartella e stato della s
       shipments.map(shipment => expect.objectContaining({ relatedDocId: shipment.id })),
     ));
 
+    // Keep the first delivery in flight and race a repeated request for its
+    // shipment. The route must reject it before it reaches the mail provider.
+    const duplicateRequest = await postIntegratedJson(`/api/lab-shipments/${shipments[0].id}/send`, {});
+    expect(duplicateRequest.status).toBe(409);
+    expect(services.docs.get(`labShipments/${shipments[0].id}`)).toMatchObject({
+      mockupDispatching: true,
+      photobookDispatchUncertain: true,
+      photobookDispatch: { phase: 'email' },
+      status: 'da_inviare',
+    });
+    expect(emailGate.enteredEmails).toHaveLength(2);
+
     for (const args of emailGate.enteredEmails) {
       const shipmentIndex = shipments.findIndex(shipment =>
         (args[4] as { relatedDocId: string }).relatedDocId === shipment.id,
@@ -788,6 +800,9 @@ it('due invii email simultanei mantengono destinatario, cartella e stato della s
     shipments.map(shipment => expect.objectContaining({ id: shipment.id, status: 'inviato' })),
   ));
   expect(services.emails).toHaveLength(2);
+  expect(services.emails.filter(args =>
+    (args[4] as { relatedDocId?: string } | undefined)?.relatedDocId === shipments[0].id,
+  )).toHaveLength(1);
 
   for (const shipment of shipments) {
     const emailArgs = services.emails.find(args =>
