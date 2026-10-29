@@ -62,3 +62,4 @@
 - [Deep link e server produzione](production-spa-deep-links.md) — Vite nasconde le route mancanti nel server produzione: verificare l’apertura diretta con il server reale, non solo la Preview.
 - [Mockup WebGL browser testing](mockup-webgl-browser-testing.md) — per i test mobile 3D in iframe, verificare area full-screen e hit dei controlli anche con mq-final e cambio orientamento.
 - [Fotolibri e invio stampa](photobook-print-dispatch.md) — blocco, trasferimento ed email sono stati distinti; invii dall’esito ambiguo richiedono verifica esplicita, mai retry automatico.
+- [Costo prodotti shop e privacy](shop-product-cost-privacy.md) — i costi unitari restano in dati admin-only, mai nei prodotti pubblici o nelle risposte cliente.

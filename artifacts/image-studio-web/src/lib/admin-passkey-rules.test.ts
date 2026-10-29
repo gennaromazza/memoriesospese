@@ -56,6 +56,25 @@ async function setState(state: Record<string, unknown>) {
 }
 
 describe('admin passkey claim in Firestore rules', () => {
+  it('tiene i costi unitari dello shop privati e lascia i prodotti pubblici leggibili', async () => {
+    await env.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'products', 'tazza'), { nome: 'Tazza' });
+      await setDoc(doc(context.firestore(), 'shopProductCosts', 'tazza'), { costoUnitario: 8.5 });
+    });
+
+    const publicDb = env.unauthenticatedContext().firestore();
+    await assertSucceeds(getDoc(doc(publicDb, 'products', 'tazza')));
+    await assertFails(getDoc(doc(publicDb, 'shopProductCosts', 'tazza')));
+
+    const verifiedAdmin = adminWith(valid());
+    await assertSucceeds(getDoc(doc(verifiedAdmin, 'shopProductCosts', 'tazza')));
+    await assertSucceeds(updateDoc(doc(verifiedAdmin, 'shopProductCosts', 'tazza'), { costoUnitario: 9 }));
+
+    const customer = env.authenticatedContext('customer-uid', { email: 'cliente@example.com' }).firestore();
+    await assertFails(getDoc(doc(customer, 'shopProductCosts', 'tazza')));
+    await assertFails(setDoc(doc(customer, 'shopProductCosts', 'altra-tazza'), { costoUnitario: 3 }));
+  });
+
   it('keeps admin access unchanged before the passkey becomes mandatory (server state)', async () => {
     await setState({ passkeyRequired: false });
     await assertSucceeds(getDoc(doc(adminWith({}), ...secretPath)));

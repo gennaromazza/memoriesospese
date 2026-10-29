@@ -31,6 +31,13 @@ import {
 } from './product-categories';
 
 const PRODUCTS_COLLECTION = 'products';
+const SHOP_PRODUCT_COSTS_COLLECTION = 'shopProductCosts';
+
+function assertValidShopProductCost(value: unknown): asserts value is number | undefined {
+  if (value !== undefined && (typeof value !== 'number' || !Number.isFinite(value) || value < 0)) {
+    throw new Error('Il costo unitario deve essere un importo numerico non negativo');
+  }
+}
 
 /**
  * Ottiene tutti i prodotti, ordinati per displayOrder (con fallback a createdAt)
@@ -55,6 +62,25 @@ export async function getAllProducts(): Promise<Product[]> {
   });
 }
 
+/** Arricchisce i prodotti con i costi riservati, leggibili solo dall'area admin dello shop. */
+export async function getAllProductsWithShopCosts(): Promise<Product[]> {
+  const [products, costsSnapshot] = await Promise.all([
+    getAllProducts(),
+    getDocs(collection(db, SHOP_PRODUCT_COSTS_COLLECTION)),
+  ]);
+  const costsByProductId = new Map<string, number>();
+  for (const costDoc of costsSnapshot.docs) {
+    const cost = costDoc.data().costoUnitario;
+    if (typeof cost === 'number' && Number.isFinite(cost) && cost >= 0) {
+      costsByProductId.set(costDoc.id, cost);
+    }
+  }
+  return products.map(product => {
+    const costoUnitario = costsByProductId.get(product.id);
+    return costoUnitario === undefined ? product : { ...product, costoUnitario };
+  });
+}
+
 /**
  * Ottiene un singolo prodotto per ID
  */
@@ -74,18 +100,35 @@ export async function getProductById(id: string): Promise<Product | null> {
  * Crea un nuovo prodotto
  */
 export async function createProduct(data: InsertProduct): Promise<string> {
+  const { costoUnitario, ...productFields } = data;
+  assertValidShopProductCost(costoUnitario);
   // Calcola prezzo finale
   const prezzoFinale = data.prezzo - (data.prezzo * data.sconto / 100);
-  
-  const docRef = await addDoc(collection(db, PRODUCTS_COLLECTION), {
-    ...data,
+  const productData = {
+    ...productFields,
     immagini: data.immagini || [], // Array vuoto se non fornito
     prezzoFinale,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
+  };
+
+  if (costoUnitario === undefined) {
+    const docRef = await addDoc(collection(db, PRODUCTS_COLLECTION), productData);
+    return docRef.id;
+  }
+
+  // Il documento products è pubblico in Firestore per le prenotazioni:
+  // scrivi il costo in una raccolta admin-only, in modo atomico col prodotto.
+  const productRef = doc(collection(db, PRODUCTS_COLLECTION));
+  const batch = writeBatch(db);
+  batch.set(productRef, productData);
+  batch.set(doc(db, SHOP_PRODUCT_COSTS_COLLECTION, productRef.id), {
+    costoUnitario,
+    updatedAt: serverTimestamp(),
   });
+  await batch.commit();
   
-  return docRef.id;
+  return productRef.id;
 }
 
 const BENEFIT_RULES_BATCH_SIZE = 499; // Firestore batch limit is 500 ops
@@ -188,6 +231,9 @@ async function renameBenefitProductNameInRules(oldName: string, newName: string)
  */
 export async function updateProduct(id: string, data: Partial<InsertProduct>): Promise<void> {
   const docRef = doc(db, PRODUCTS_COLLECTION, id);
+  const hasShopCost = Object.prototype.hasOwnProperty.call(data, 'costoUnitario');
+  const { costoUnitario, ...productFields } = data;
+  if (hasShopCost) assertValidShopProductCost(costoUnitario);
 
   // Leggi sempre il doc corrente: serve per prezzo/sconto E per rilevare cambio nome
   const currentDoc = await getDoc(docRef);
@@ -200,7 +246,7 @@ export async function updateProduct(id: string, data: Partial<InsertProduct>): P
   }
 
   const updateData: Record<string, unknown> = {
-    ...data,
+    ...productFields,
     updatedAt: serverTimestamp(),
   };
 
@@ -208,6 +254,19 @@ export async function updateProduct(id: string, data: Partial<InsertProduct>): P
     const prezzo = data.prezzo ?? currentData?.prezzo ?? 0;
     const sconto = data.sconto ?? currentData?.sconto ?? 0;
     updateData.prezzoFinale = prezzo - (prezzo * sconto / 100);
+  }
+
+  if (hasShopCost) {
+    const batch = writeBatch(db);
+    batch.update(docRef, updateData);
+    const costRef = doc(db, SHOP_PRODUCT_COSTS_COLLECTION, id);
+    if (costoUnitario === undefined) {
+      batch.delete(costRef);
+    } else {
+      batch.set(costRef, { costoUnitario, updatedAt: serverTimestamp() });
+    }
+    await batch.commit();
+    return;
   }
 
   await updateDoc(docRef, updateData);
@@ -218,7 +277,10 @@ export async function updateProduct(id: string, data: Partial<InsertProduct>): P
  */
 export async function deleteProduct(id: string): Promise<void> {
   const docRef = doc(db, PRODUCTS_COLLECTION, id);
-  await deleteDoc(docRef);
+  const batch = writeBatch(db);
+  batch.delete(docRef);
+  batch.delete(doc(db, SHOP_PRODUCT_COSTS_COLLECTION, id));
+  await batch.commit();
 }
 
 /**

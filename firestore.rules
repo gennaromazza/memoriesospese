@@ -357,6 +357,11 @@ service cloud.firestore {
       allow delete: if isAdmin() &&
         !isPrintShopProduct(resource.data);
     }
+
+    // Costi unitari dello shop: mai inserirli nei prodotti, pubblicamente leggibili.
+    match /shopProductCosts/{productId} {
+      allow read, write: if isAdmin();
+    }
     
     // Campaign creation is centralized in the authenticated Admin API so a
     // transaction can reserve codes even when matching legacy documents use random IDs.

@@ -52,6 +52,7 @@ import {
   createProduct,
   updateProduct,
   deleteProduct,
+  getAllProductsWithShopCosts,
   useProductCategories,
   useReorderProducts,
 } from '@/lib/products';
@@ -239,11 +240,13 @@ interface ProductsManagerProps {
   autoCreate?: boolean;
   /** Apre subito la modifica di questo prodotto. */
   autoEditId?: string;
+  /** Mostra e salva il costo gestionale riservato allo shop online. */
+  showShopCost?: boolean;
   /** Chiamata dopo ogni salvataggio o eliminazione. */
   onChanged?: () => void;
 }
 
-export default function ProductsManager({ autoCreate, autoEditId, onChanged }: ProductsManagerProps = {}) {
+export default function ProductsManager({ autoCreate, autoEditId, showShopCost = false, onChanged }: ProductsManagerProps = {}) {
   const autoOpened = useRef(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -259,6 +262,7 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [isSyncingBundles, setIsSyncingBundles] = useState(false);
+  const [shopCostInput, setShopCostInput] = useState('');
   
   // Form state
   const [formData, setFormData] = useState<InsertProduct>({
@@ -394,7 +398,7 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
   async function loadProducts() {
     try {
       setIsLoading(true);
-      const data = await getAllProducts();
+      const data = showShopCost ? await getAllProductsWithShopCosts() : await getAllProducts();
       setProducts(data);
     } catch (error) {
       console.error('Errore caricamento prodotti:', error);
@@ -410,6 +414,7 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
 
   function openCreateDialog() {
     setEditingProduct(null);
+    setShopCostInput('');
     setFormData({
       nome: '',
       descrizione: '',
@@ -433,6 +438,11 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
 
   function openEditDialog(product: Product) {
     setEditingProduct(product);
+    setShopCostInput(
+      typeof product.costoUnitario === 'number' && Number.isFinite(product.costoUnitario)
+        ? String(product.costoUnitario)
+        : '',
+    );
 
     let syncedBundleItems = product.bundleItems || [];
     if (product.isBundle && syncedBundleItems.length > 0) {
@@ -680,6 +690,16 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
       return;
     }
 
+    const costoUnitario = shopCostInput.trim() === '' ? undefined : Number(shopCostInput);
+    if (showShopCost && costoUnitario !== undefined && (!Number.isFinite(costoUnitario) || costoUnitario < 0)) {
+      toast({
+        title: 'Costo non valido',
+        description: 'Inserisci un costo unitario pari o superiore a 0 euro.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     if (formData.numeroFoto < 0) {
       toast({
         title: 'Errore',
@@ -746,7 +766,7 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
 
     try {
       setIsSaving(true);
-      const productData = formData.isBundle
+      const productDataBase = formData.isBundle
         ? {
             ...formData,
             fotoCondivise: Boolean(formData.fotoCondivise),
@@ -755,6 +775,9 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
             numeroFoto: totalBundlePhotos,
           }
         : { ...formData, fotoCondivise: false, prodottoSorgenteFotoId: '' };
+      const productData = showShopCost
+        ? { ...productDataBase, costoUnitario }
+        : productDataBase;
 
       if (editingProduct) {
         // Modifica
@@ -808,6 +831,14 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
   }
 
   const prezzoFinale = formData.prezzo - (formData.prezzo * formData.sconto / 100);
+  const costoUnitarioPreview = shopCostInput.trim() === '' ? null : Number(shopCostInput);
+  const margineUnitarioPreview = costoUnitarioPreview !== null && Number.isFinite(costoUnitarioPreview) && costoUnitarioPreview >= 0
+    ? prezzoFinale - costoUnitarioPreview
+    : null;
+  const formatEuro = (amount: number) => new Intl.NumberFormat('it-IT', {
+    style: 'currency',
+    currency: 'EUR',
+  }).format(amount);
 
   // Sincronizza dati bundle negli ordini esistenti
   async function handleSyncBundles() {
@@ -1138,6 +1169,31 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
                   <span className="text-sm font-medium">Prezzo Finale:</span>
                   <span className="text-xl font-bold text-primary" data-testid="text-final-price">
                     €{prezzoFinale.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {showShopCost && (
+              <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+                <Label htmlFor="shop-unit-cost">Costo unitario sostenuto (€)</Label>
+                <Input
+                  id="shop-unit-cost"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={shopCostInput}
+                  onChange={e => setShopCostInput(e.target.value)}
+                  placeholder="es. 12,50"
+                  data-testid="input-shop-unit-cost"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Dato gestionale riservato: non viene mostrato ai clienti.
+                </p>
+                <div className="flex items-center justify-between border-t pt-2 text-sm">
+                  <span className="font-medium">Margine unitario stimato</span>
+                  <span className={margineUnitarioPreview !== null && margineUnitarioPreview < 0 ? 'font-semibold text-destructive' : 'font-semibold'}>
+                    {margineUnitarioPreview === null ? 'Inserisci il costo' : formatEuro(margineUnitarioPreview)}
                   </span>
                 </div>
               </div>
