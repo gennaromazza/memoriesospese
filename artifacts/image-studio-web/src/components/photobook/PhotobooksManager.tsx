@@ -1277,17 +1277,18 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
       <div className="rounded border bg-background p-3 space-y-2">
         <div className="space-y-3">
           <div>
-            <p className="font-medium">Copertine e altri file per il fotolibro</p>
+            <p className="font-medium">File originali per la stampa</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Il mockup confermato, le sue foto e le grafiche vengono allegati automaticamente.
-              Qui puoi aggiungere dorsi, PDF tecnici o file ad alta risoluzione aggiuntivi, nella stessa cartella Drive delle pagine.
+              Il mockup confermato e le sue anteprime leggere vengono allegati automaticamente come riferimento.
+              Dopo aver confermato il mockup, carica qui le foto originali ad alta risoluzione necessarie per copertina o retro.
+              I file vengono trasferiti senza compressione nella cartella Drive del laboratorio. Puoi aggiungere anche PDF tecnici.
             </p>
           </div>
           {!expired && (
             <LabFileUploader
               shipmentId={shipmentId}
               kind="supplemental"
-              label="Aggiungi file"
+              label="Carica originali e file stampa"
               disabled={transferRunning || sendMutation.isPending || shipment.mockupDispatching
                 || ['uploading', 'needs_review'].includes(shipment.mockupTransfer?.status || '')}
               onUploadingChange={setSupplementalUploading}

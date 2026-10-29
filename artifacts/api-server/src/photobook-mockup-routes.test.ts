@@ -312,6 +312,10 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     expect(response.status).toBe(200);
     const photo = await response.json();
     expect(photo).toMatchObject({ source: 'upload', width: 2048, height: 1024, name: 'cover.png' });
+    const storedAsset = h.docs.get(`photobooks/book/mockupAssets/${photo.id}`);
+    expect(storedAsset).toMatchObject({ storagePath: expect.stringMatching(/\.jpg$/) });
+    expect(storedAsset).not.toHaveProperty('originalStoragePath');
+    expect([...h.files.keys()].filter(path => path.includes(photo.id))).toEqual([storedAsset.storagePath]);
     const download = await fetch(`${base}/admin/photos/${photo.id}`);
     expect(download.status).toBe(200);
     expect(download.headers.get('cache-control')).toBe('private, no-store');

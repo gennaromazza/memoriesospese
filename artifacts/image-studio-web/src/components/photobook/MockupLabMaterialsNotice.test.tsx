@@ -17,13 +17,15 @@ describe('Feedback allegati dopo la conferma mockup', () => {
     expect(html).toContain('Nomi dell’incisione già salvati');
     expect(html).not.toContain('Foto copertina album.');
     expect(html).toContain('/admin/dashboard?tab=photobooks&amp;photobook=book');
-    expect(html).toContain('allegati automaticamente');
-    expect(html).toContain('copia ridotta');
+    expect(html).toContain('anteprime delle foto');
+    expect(html).toContain('carica gli originali ad alta risoluzione');
+    expect(html).toContain('Carica i file originali per la stampa');
   });
   it('distingue allegati pronti dall’email al laboratorio', () => {
     const html = renderToStaticMarkup(<MockupLabMaterialsNotice photobookId="book" payload={{ ...payload, labAttachment: { status: 'attached' } }} />);
     expect(html).toContain('Materiali mockup allegati alla spedizione');
     expect(html).toContain('non indica che l’email sia stata inviata');
+    expect(html).toContain('anteprime delle foto del mockup');
   });
   it('mostra il problema senza annunciare un completamento falso', () => {
     const html = renderToStaticMarkup(<MockupLabMaterialsNotice photobookId="book" payload={{ ...payload, labAttachment: { status: 'needs_review', message: 'File non disponibile' } }} />);

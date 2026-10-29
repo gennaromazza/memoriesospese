@@ -25,6 +25,7 @@ import { assignMockupOffer } from './mockup-offer-assignment';
 import MockupRendererError from './MockupRendererError';
 import SavedMockupPhotoRecoveryError from './SavedMockupPhotoRecoveryError';
 import { mockupUploadValidationError } from './mockup-upload-validation';
+import { prepareMockupPhotoPreview } from './mockup-photo-preview';
 import { beginMockupRendererRetry, configurationForRendererRestore, planMockupRendererRecovery, reuseCompatibleMockupChoices, shouldSkipSavedMockupRestore, type RendererRecoveryPlan } from './mockup-renderer-recovery';
 import { hasSavedMockupPhotos, isGraphicSlot, loadSavedMockupPhotos, loadSavedMockupPhotosPartial, mockupRequestErrorFromResponse, replaceMockupPhotoReference, resolveMockupPhotoTarget, savedMockupPhotoFailure, type RuntimeMockupPhoto, type SavedMockupPhotoFailure, type SavedMockupPhotoLabels, type SavedMockupPhotoSlot } from './mockup-photo-recovery';
 import { useToast } from '@/hooks/use-toast';
@@ -1379,7 +1380,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
           {renderer?.id === 'plaza-led' && photoSide !== 'back' && <Button variant="outline" disabled={!editable || busy || !ready || renderBusy || picker} onClick={() => { uploadPhotoSide.current = 'back'; setPhotoSide('back'); upload.current?.click(); }}>Carica foto sul retro</Button>}
           <Button variant="outline" disabled={!editable || busy || !ready || renderBusy} onClick={() => { pickerPhotoSide.current = photoSide; setPicker(true); }}>Scegli dalla galleria</Button>
         </div>
-          <p className="mt-2 text-xs text-muted-foreground">Caricamento foto: JPEG, PNG o WebP · massimo 20 MB per file.</p>
+          <p className="mt-2 text-xs text-muted-foreground">Per il 3D inviamo solo un’anteprima leggera della foto (massimo 2048 px). Dopo la conferma del mockup, carica i file originali ad alta risoluzione nella sezione della spedizione al laboratorio.</p>
           {uploadError && <p role="alert" className="mt-2 rounded-md border border-destructive bg-destructive/10 p-3 text-sm text-destructive">{uploadError}</p>}
         </div>)}
         {(!mobile || isBox || !token) && <input ref={upload} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={event => {
@@ -1394,7 +1395,14 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
           }
           // Le grafiche da incidere restano PNG (con la trasparenza): hanno un proprio caricamento.
           const graphicUpload = isBox && isGraphicSlot(savedPhotoError?.kind === 'unavailable' && savedPhotoSlot ? savedPhotoSlot : boxSlot);
-          const operation = () => request(`/${graphicUpload ? 'upload-graphic' : 'upload'}?name=${encodeURIComponent(file.name)}`, { method: 'POST', headers: { 'Content-Type': file.type }, body: file });
+          const operation = async () => {
+            const uploadFile = graphicUpload ? file : await prepareMockupPhotoPreview(file);
+            return request(`/${graphicUpload ? 'upload-graphic' : 'upload'}?name=${encodeURIComponent(file.name)}`, {
+              method: 'POST',
+              headers: { 'Content-Type': uploadFile.type },
+              body: uploadFile,
+            });
+          };
           if (!token && savedPhotoError?.kind === 'unavailable' && savedPhotoSlot) void replaceUnavailablePhoto(operation);
           else {
             const target = !token && (renderer?.id === 'album-girevole' || renderer?.id === 'plaza-led')

@@ -504,27 +504,29 @@ export function createPhotobookMockupRouter(
     const contentType = graphic ? 'image/png' : 'image/jpeg';
     const storagePath = `photobook-mockups/${book.id}/v${version}/${id}.${graphic ? 'png' : 'jpg'}`;
     const originalExtension = originalContentType === 'image/png' ? 'png' : originalContentType === 'image/webp' ? 'webp' : 'jpg';
-    const originalStoragePath = `photobook-mockups/${book.id}/v${version}/${id}-original.${originalExtension}`;
+    const originalStoragePath = graphic ? `photobook-mockups/${book.id}/v${version}/${id}-original.${originalExtension}` : undefined;
     const photo: MockupPhoto = { id, ...info, width: dimensions.width!, height: dimensions.height! };
     const file = storage.bucket().file(storagePath);
     await file.save(output, { metadata: { contentType, cacheControl: 'private, no-store' } });
     try {
-      await storage.bucket().file(originalStoragePath).save(input, { metadata: { contentType: originalContentType, cacheControl: 'private, no-store' } });
+      if (originalStoragePath) {
+        await storage.bucket().file(originalStoragePath).save(input, { metadata: { contentType: originalContentType, cacheControl: 'private, no-store' } });
+      }
       await db.runTransaction(async tx => {
         await guardCurrent(tx, book, version);
-        tx.set(book.ref.collection('mockupAssets').doc(id), { ...photo, version, storagePath, originalStoragePath, originalContentType, ...(graphic ? { kind, contentType } : {}), createdAt: new Date().toISOString() });
+        tx.set(book.ref.collection('mockupAssets').doc(id), { ...photo, version, storagePath, ...(originalStoragePath ? { originalStoragePath, originalContentType } : {}), ...(graphic ? { kind, contentType } : {}), createdAt: new Date().toISOString() });
       });
     } catch (error) {
       if (error instanceof MockupError) {
         await file.delete().catch(() => undefined);
-        await storage.bucket().file(originalStoragePath).delete().catch(() => undefined);
+        if (originalStoragePath) await storage.bucket().file(originalStoragePath).delete().catch(() => undefined);
       }
       throw error;
     }
     return photo;
   }
 
-  router.post('/upload', express.raw({ type: ['image/jpeg','image/png','image/webp'], limit: '20mb' }), async (req, res, next) => {
+  router.post('/upload', express.raw({ type: ['image/jpeg','image/png','image/webp'], limit: '6mb' }), async (req, res, next) => {
     try {
       if (!Buffer.isBuffer(req.body)) throw new MockupError(400, 'Formato immagine non supportato');
       const name = z.string().trim().min(1).max(200).parse(req.query.name);

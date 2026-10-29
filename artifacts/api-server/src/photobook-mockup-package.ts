@@ -52,7 +52,7 @@ export async function buildMockupPackage(book: DocumentSnapshot, saved: SavedMoc
     const sourceQuality = asset.originalStoragePath ? 'original' : 'stored-preview';
     files.push({ name, mimeType, bytes, sourceQuality });
     notes.push(`${material.label}: ${name}`);
-    if (sourceQuality === 'stored-preview') notes.push('ATTENZIONE: caricamento precedente alla conservazione degli originali. Questa è la copia del mockup, eventualmente ridotta a 2048 px. Verificare la risoluzione prima della produzione; richiedere allo studio il file ad alta risoluzione se necessario.');
+    if (sourceQuality === 'stored-preview') notes.push('ATTENZIONE: questa è l’anteprima leggera usata per il mockup, non il file originale di stampa. Prima dell’invio, lo studio deve caricare il file originale ad alta risoluzione nella sezione della spedizione "Copertine e altri file per il fotolibro".');
   }
   files.push({ name: `${prefix}-MATERIALI.txt`, mimeType: 'text/plain', bytes: Buffer.from(notes.join('\n'), 'utf8') });
   return files.map(file => ({ ...file, sha256: createHash('sha256').update(file.bytes).digest('hex') }));

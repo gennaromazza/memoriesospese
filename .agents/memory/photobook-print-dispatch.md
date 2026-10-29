@@ -26,3 +26,9 @@ La conferma del mockup deve portare nella spedizione anche il riepilogo, le foto
 **Why:** Lo studio si aspetta che il laboratorio riceva quanto concordato nel mockup; la sola anteprima non equivale alla consegna dei sorgenti necessari alla produzione.
 
 **How to apply:** Distinguere chiaramente testi, grafiche e foto; segnalare le copie storiche ridotte quando l’originale non è disponibile. Non dichiarare un pacchetto completo se un materiale referenziato manca e non generare programmi macchina implicitamente.
+
+Per preparare un mockup, caricare nel rendering solo anteprime compresse; i file originali ad alta risoluzione necessari alla produzione si allegano separatamente dopo la conferma, nella spedizione al laboratorio.
+
+**Why:** I file sorgente pesanti rallentano l’editor e il cliente deve poter approvare il 3D prima che lo studio carichi i file destinati alla stampa. Un’anteprima del mockup non è un originale di produzione.
+
+**How to apply:** Ridurre e comprimere la foto nel browser prima del caricamento, non conservare copie originali in questo passaggio; mostrare l’upload post-conferma nella sezione della spedizione e non indicare le anteprime come file stampa.
