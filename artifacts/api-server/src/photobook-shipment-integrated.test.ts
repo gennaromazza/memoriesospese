@@ -806,6 +806,133 @@ it('due invii email simultanei mantengono destinatario, cartella e stato della s
   }
 }, 60_000);
 
+it('il fallimento di un invio email simultaneo non altera l’altra spedizione', async () => {
+  resetIntegratedServices();
+  const shipments = [
+    {
+      id: 'mixed-shipment-failed',
+      photobookId: 'mixed-book-failed',
+      labId: 'lab-fixture',
+      labNome: 'Laboratorio non raggiungibile',
+      labEmail: 'failed-lab@example.test',
+      folderId: 'mixed-folder-failed',
+    },
+    {
+      id: 'mixed-shipment-sent',
+      photobookId: 'mixed-book-sent',
+      labId: 'lab-fixture-sent',
+      labNome: 'Laboratorio disponibile',
+      labEmail: 'sent-lab@example.test',
+      folderId: 'mixed-folder-sent',
+    },
+  ];
+  services.docs.set('labs/lab-fixture', {
+    nome: 'Laboratorio non raggiungibile',
+    email: 'failed-lab@example.test',
+    attivo: true,
+  });
+  services.docs.set('labs/lab-fixture-sent', {
+    nome: 'Laboratorio disponibile',
+    email: 'sent-lab@example.test',
+    attivo: true,
+  });
+
+  for (const [index, shipment] of shipments.entries()) {
+    const pageDocId = `${shipment.photobookId}-page-1`;
+    const pageFileName = `pagina-001-${pageDocId}.jpg`;
+    services.docs.set(`photobooks/${shipment.photobookId}`, {
+      name: `Fotolibro misto ${index + 1}`,
+      currentVersion: 1,
+      versions: [{ version: 1, pageCount: 1 }],
+    });
+    services.docs.set(`photobookPages/${pageDocId}`, {
+      photobookId: shipment.photobookId,
+      version: 1,
+      pageNumber: 1,
+      storagePath: `photobooks/${shipment.photobookId}/v1/pagina.jpg`,
+    });
+    services.docs.set(`labShipments/${shipment.id}`, {
+      sourceType: 'photobook',
+      photobookId: shipment.photobookId,
+      photobookVersion: 1,
+      labId: shipment.labId,
+      labNome: shipment.labNome,
+      labEmail: shipment.labEmail,
+      status: 'da_inviare',
+      files: [{ driveFileId: `drive-${shipment.folderId}::${pageFileName}`, name: pageFileName, kind: 'original' }],
+      pageTransfer: { status: 'completed', total: 1, transferred: 1, failed: [] },
+      driveFolderId: shipment.folderId,
+      shareableLink: `https://drive.invalid/${shipment.folderId}`,
+      expiryDays: 30,
+    });
+  }
+
+  const failedShipment = shipments[0];
+  const sentShipment = shipments[1];
+  services.failEmailShipmentId = failedShipment.id;
+  const emailGate = createEmailGate(shipments.map(shipment => shipment.id));
+  services.beforeEmail = emailGate.beforeEmail;
+  const emailRequests = shipments.map(shipment =>
+    postIntegratedJson(`/api/lab-shipments/${shipment.id}/send`, {}),
+  );
+
+  try {
+    await waitForSignal(emailGate.reached, 'both mixed shipment emails to enter the mail service');
+    expect(emailGate.enteredEmails).toHaveLength(2);
+    for (const args of emailGate.enteredEmails) {
+      const shipment = shipments.find(candidate =>
+        (args[4] as { relatedDocId: string }).relatedDocId === candidate.id,
+      );
+      expect(shipment).toBeDefined();
+      expect(args[0]).toBe(shipment!.labEmail);
+      expect(args[2]).toContain(`href="https://drive.invalid/${shipment!.folderId}"`);
+      expect(args[2]).not.toContain(`https://drive.invalid/${shipments.find(other => other.id !== shipment!.id)!.folderId}`);
+    }
+    expect(services.emails).toHaveLength(0);
+    expect(shipments.map(shipment => services.docs.get(`labShipments/${shipment.id}`).status))
+      .toEqual(['da_inviare', 'da_inviare']);
+  } finally {
+    emailGate.release();
+  }
+
+  const responses = await Promise.all(emailRequests);
+  expect(responses.map(response => response.status)).toEqual([500, 200]);
+  expect(responses[0].json.error).toContain('Esito email simulato come incerto');
+  expect(responses[1].json).toMatchObject({ id: sentShipment.id, status: 'inviato' });
+  expect(services.emails).toHaveLength(1);
+
+  const sentEmail = services.emails[0];
+  expect(sentEmail[0]).toBe(sentShipment.labEmail);
+  expect(sentEmail[2]).toContain(`href="https://drive.invalid/${sentShipment.folderId}"`);
+  expect(sentEmail[2]).not.toContain(`https://drive.invalid/${failedShipment.folderId}`);
+  expect((sentEmail[4] as { relatedDocId?: string }).relatedDocId).toBe(sentShipment.id);
+
+  expect(services.docs.get(`labShipments/${failedShipment.id}`)).toMatchObject({
+    status: 'da_inviare',
+    labId: failedShipment.labId,
+    labEmail: failedShipment.labEmail,
+    driveFolderId: failedShipment.folderId,
+    shareableLink: `https://drive.invalid/${failedShipment.folderId}`,
+    mockupDispatching: true,
+    photobookDispatchUncertain: true,
+    photobookDispatch: { phase: 'email', settled: true },
+  });
+  expect(services.docs.get(`labShipments/${failedShipment.id}`).sentAt).toBeUndefined();
+  expect(services.docs.get(`labShipments/${sentShipment.id}`)).toMatchObject({
+    status: 'inviato',
+    labId: sentShipment.labId,
+    labEmail: sentShipment.labEmail,
+    driveFolderId: sentShipment.folderId,
+    shareableLink: `https://drive.invalid/${sentShipment.folderId}`,
+    pageTransfer: { status: 'completed' },
+    mockupDispatching: false,
+    photobookDispatchUncertain: false,
+    sentAt: expect.any(Object),
+  });
+  expect(services.docs.get(`labShipments/${sentShipment.id}`).photobookDispatch).toMatchObject({ phase: 'email' });
+  expect(services.docs.get(`labShipments/${sentShipment.id}`).photobookDispatch.settled).toBeUndefined();
+}, 60_000);
+
 it('eliminare una spedizione autonoma non tocca cartella, file o record dell’altra', async () => {
   resetIntegratedServices();
   const shipments = [
