@@ -426,6 +426,34 @@ function WalkInShipmentCard({
         </AlertDialog>
       </div>
 
+      {deleteMutation.isError && (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center justify-between gap-3 border-t border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800"
+          data-testid={`walk-in-shipment-delete-error-${shipment.id}`}
+        >
+          <p className="flex min-w-0 items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            <span>
+              {(deleteMutation.error as Error).message}
+              {" "}L’invio è ancora disponibile; puoi riprovare da qui.
+            </span>
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={deleteMutation.isPending}
+            onClick={() => deleteMutation.mutate()}
+            data-testid={`button-retry-delete-walk-in-shipment-${shipment.id}`}
+          >
+            {deleteMutation.isPending
+              ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Eliminazione…</>
+              : "Riprova eliminazione"}
+          </Button>
+        </div>
+      )}
+
       {expanded && (
         <div
           id={`walk-in-shipment-details-${shipment.id}`}

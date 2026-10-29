@@ -1223,3 +1223,58 @@ it('lascia ritentabile la pulizia automatica se Drive fallisce e marca la scaden
   expect(services.drive.has(fileKey)).toBe(false);
   expect(services.driveFileKeys.has(fileId)).toBe(false);
 });
+
+it('restituisce 503 e consente il retry per spedizioni di un lavoro e di un ordine walk-in', async () => {
+  resetIntegratedServices();
+  const shipments = [
+    {
+      id: 'job-delete-retry-shipment',
+      sourceType: 'job',
+      jobId: 'job-delete-retry',
+      folderId: 'job-delete-retry-folder',
+    },
+    {
+      id: 'walk-in-delete-retry-shipment',
+      sourceType: 'walk_in',
+      orderId: 'walk-in-delete-retry-order',
+      folderId: 'walk-in-delete-retry-folder',
+    },
+  ];
+
+  for (const shipment of shipments) {
+    const record = {
+      sourceType: shipment.sourceType,
+      jobId: 'jobId' in shipment ? shipment.jobId : null,
+      orderId: 'orderId' in shipment ? shipment.orderId : null,
+      driveFolderId: shipment.folderId,
+      shareableLink: `https://drive.invalid/${shipment.folderId}`,
+      files: [],
+    };
+    services.docs.set(`labShipments/${shipment.id}`, record);
+    services.failDeleteFolderId = shipment.folderId;
+
+    const failedResponse = await deleteIntegrated(`/api/lab-shipments/${shipment.id}`);
+
+    expect(failedResponse.status).toBe(503);
+    expect(failedResponse.json).toMatchObject({
+      code: 'drive_delete_failed',
+      error: expect.stringContaining('la spedizione è stata mantenuta e puoi riprovare'),
+    });
+    expect(services.docs.get(`labShipments/${shipment.id}`)).toMatchObject({
+      ...record,
+      deleteLastError: 'Eliminazione cartella Drive simulata fallita',
+      deleteLastAttemptAt: expect.any(Object),
+    });
+    expect(services.docs.get(`labShipments/${shipment.id}`).driveFolderId).toBe(shipment.folderId);
+    expect(services.docs.get(`labShipments/${shipment.id}`).shareableLink)
+      .toBe(`https://drive.invalid/${shipment.folderId}`);
+
+    services.failDeleteFolderId = null;
+    const retryResponse = await deleteIntegrated(`/api/lab-shipments/${shipment.id}`);
+
+    expect(retryResponse.status).toBe(200);
+    expect(retryResponse.json).toMatchObject({ success: true });
+    expect(services.docs.has(`labShipments/${shipment.id}`)).toBe(false);
+    expect(services.deletedDriveFolders).toContain(shipment.folderId);
+  }
+});
