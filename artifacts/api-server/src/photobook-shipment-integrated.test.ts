@@ -14,7 +14,8 @@ import { fileURLToPath } from 'node:url';
 import { createServer, type ViteDevServer } from 'vite';
 import { chromium, expect as browserExpect, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import sharp from 'sharp';
-import { driveObjectKey, services, Timestamp } from './test-utils/photobook-integrated-services';
+import { db, doc, driveObjectKey, services, Timestamp } from './test-utils/photobook-integrated-services';
+import { watchPhotobookOperation } from './photobook-operation';
 
 vi.mock('./firebase-admin.js', async () => {
   const { db, storage, FieldValue, Timestamp } = await import('./test-utils/photobook-integrated-services');
@@ -752,6 +753,78 @@ it('recupera dal browser un’archiviazione running con heartbeat scaduto senza 
   expect(apiRequests).not.toContain(`/api/lab-shipments/${shipmentId}/send`);
   expect(services.emails).toHaveLength(0);
   await page.close();
+}, 60_000);
+
+it('rifiuta una conferma di recupero tardiva quando l’archiviazione è tornata attiva', async () => {
+  resetIntegratedServices();
+  const bookId = 'recovered-before-confirmation-page-archive';
+  const { oldBytes } = seedOnePagePhotobook(bookId);
+  const started = await postIntegratedJson(`/api/photobooks/${bookId}/lab-shipment`, { labId: 'lab-fixture' });
+  expect(started.status).toBe(202);
+  const shipmentId = started.json.shipment.id;
+  const shipmentPath = `labShipments/${shipmentId}`;
+  await waitForIntegratedTransfer(shipmentPath);
+
+  const shipment = services.docs.get(shipmentPath);
+  const oldPageFile = shipment.files.find((file: any) => file.kind === 'original');
+  const currentPath = `photobooks/${bookId}/v1/originale-corrente.jpg`;
+  services.objects.set(currentPath, Buffer.from('originale corrente'));
+  services.docs.get(`photobookPages/${bookId}-page-1`).storagePath = currentPath;
+
+  const staleHeartbeat = Timestamp.fromDate(new Date(Date.now() - 10 * 60 * 1000));
+  const staleOperationId = `abandoned-cleanup-${bookId}`;
+  shipment.photobookPageCleanup = {
+    id: staleOperationId,
+    status: 'running',
+    startedAt: staleHeartbeat,
+    heartbeatAt: staleHeartbeat,
+    archiveFolderId: null,
+    obsoleteFileIds: [oldPageFile.driveFileId],
+    archivedFileIds: [],
+    instructionsUpdated: false,
+  };
+
+  const promptData = await getIntegratedShipment(shipmentId);
+  expect(promptData.status).toBe(200);
+  expect(promptData.json.photobookRecovery.pageCleanupAbandoned).toBe(true);
+  expect(promptData.json.obsoletePhotobookPages).toEqual([
+    expect.objectContaining({ driveFileId: oldPageFile.driveFileId }),
+  ]);
+
+  // Model another worker resuming the existing claim after the admin saw the
+  // stale-recovery prompt, but before its confirmation reaches the route.
+  const resumedWorker = watchPhotobookOperation(db, doc(shipmentPath), 'photobookPageCleanup', staleOperationId);
+  try {
+    await resumedWorker.update();
+    const liveClaim = services.docs.get(shipmentPath).photobookPageCleanup;
+    expect(liveClaim.id).toBe(staleOperationId);
+    const refreshedHeartbeatMs = liveClaim.heartbeatAt instanceof Date
+      ? liveClaim.heartbeatAt.getTime()
+      : liveClaim.heartbeatAt._seconds * 1_000;
+    expect(refreshedHeartbeatMs).toBeGreaterThan(staleHeartbeat._seconds * 1_000);
+
+    const delayedRecovery = await postIntegratedJson(
+      `/api/lab-shipments/${shipmentId}/archive-obsolete-photobook-pages`,
+      { confirm: true, recoverAbandoned: true },
+    );
+    expect(delayedRecovery.status).toBe(409);
+    expect(delayedRecovery.json.error).toContain('È già in corso');
+
+    const unchangedShipment = services.docs.get(shipmentPath);
+    expect(unchangedShipment.photobookPageCleanup).toMatchObject({
+      id: staleOperationId,
+      status: 'running',
+      archiveFolderId: null,
+      archivedFileIds: [],
+    });
+    expect(unchangedShipment.files).toContainEqual(expect.objectContaining({ driveFileId: oldPageFile.driveFileId }));
+    expect(unchangedShipment.archivedPhotobookPages || []).toHaveLength(0);
+    expect(services.drive.get(driveObjectKey(shipment.driveFolderId, oldPageFile.name))).toEqual(oldBytes);
+    expect(services.driveMoveAttempts).toHaveLength(0);
+    expect(services.emails).toHaveLength(0);
+  } finally {
+    resumedWorker.stop();
+  }
 }, 60_000);
 
 it('riprende dopo il fallimento delle istruzioni senza duplicare archivio o file né inviare email prima del refresh', async () => {

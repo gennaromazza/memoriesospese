@@ -589,6 +589,8 @@ router.post('/lab-shipments/:id/archive-obsolete-photobook-pages', authenticateF
       }
       const previous = data.photobookPageCleanup;
       if (previous?.status === 'running') {
+        // Recheck inside the transaction: an admin may confirm an old prompt
+        // after another worker has resumed this same claim.
         if (!operationAbandoned(data, 'photobookPageCleanup')) {
           return { error: 'È già in corso la sistemazione delle pagine obsolete.', status: 409 };
         }
