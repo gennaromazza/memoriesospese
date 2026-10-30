@@ -13,7 +13,6 @@ import {
   getDoc,
   where,
 } from "firebase/firestore";
-import { getAuth, signOut } from "firebase/auth";
 import { db, storage, auth } from "@/lib/firebase";
 import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 import { createUrl } from "@/lib/basePath";
@@ -27,14 +26,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
   formatPasswordRequestsForExcel,
   exportToExcel,
 } from "@/lib/excelExport";
@@ -45,7 +36,6 @@ import {
   uploadBytes,
   getDownloadURL,
 } from "firebase/storage";
-import Navigation from "@/components/Navigation";
 import NewGalleryModal from "@/components/NewGalleryModal";
 import SlideshowManager from "@/components/SlideshowManager";
 import ClientiManager from "@/components/ClientiManager";
@@ -100,14 +90,12 @@ import {
   ChevronRight as ChevronRightIcon,
   Grid3x3,
   Upload,
-  Home,
   Palette,
   Camera,
   CheckCircle,
   List,
   Link2,
   AlertCircle,
-  ExternalLink,
   Database,
   HardDrive,
   ClipboardList,
@@ -163,7 +151,9 @@ import BulkEmailSender from "./BulkEmailSender";
 import QuoteTemplatesManager from "@/components/quotes/QuoteTemplatesManager";
 import { AdminCommandPalette } from "@/components/admin/AdminCommandPalette";
 import {
-  ADMIN_NAV_GROUPS,
+  ADMIN_NAVIGATION_REQUEST_EVENT,
+  ADMIN_NAVIGATION_SELECTION_EVENT,
+  findAdminNavigationSelection,
   type NavTarget,
 } from "@/components/admin/adminNavigation";
 import OspitiQrCard from "@/components/admin/OspitiQrCard";
@@ -834,24 +824,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // Funzione per effettuare il logout
-  const handleLogout = async () => {
-    try {
-      // Esegui logout da Firebase
-      await signOut(auth);
-      // Rimuovi il flag di amministratore
-      localStorage.removeItem("isAdmin");
-      // Reindirizza alla pagina di login usando il percorso assoluto
-      navigate(createUrl("/admin"));
-    } catch (error) {
-      toast({
-        title: "Errore",
-        description: "Si è verificato un errore durante il logout.",
-        variant: "destructive",
-      });
-    }
-  };
-
   // Funzione per salvare le impostazioni dello studio
   const saveStudioSettings = async () => {
     try {
@@ -1225,89 +1197,84 @@ export default function AdminDashboard() {
   const passwordRequestPagination = usePagination(passwordRequests, 10);
 
   // Navigazione unificata: usata dalla barra menu e dalla Command Palette
-  const navigateToTarget = (target: NavTarget) => {
-    if (target.href) {
-      if (target.newTab) {
-        window.open(target.href, "_blank");
-      } else {
-        navigate(target.href);
+  const navigateToTarget = useCallback(
+    (target: NavTarget) => {
+      if (target.href) {
+        if (target.newTab) {
+          window.open(target.href, "_blank", "noopener,noreferrer");
+        } else {
+          navigate(target.href);
+        }
+        return;
       }
-      return;
-    }
-    if (target.tab) {
-      setActiveTab(target.tab as any);
-    }
-    if (target.bookingSection) {
-      setActiveBookingSection(target.bookingSection as any);
-    }
-    if (target.consultationSection) {
-      setActiveConsultationSection(target.consultationSection as any);
-    }
-    if (target.jobSection) {
-      setActiveJobSection(target.jobSection as any);
-    }
-    if (target.settingsSection) {
-      setSettingsSection(target.settingsSection as any);
-    }
-    if (target.sitoSection) {
-      setActiveSitoSection(target.sitoSection as any);
-    }
-  };
+      if (target.tab) {
+        setActiveTab(target.tab as any);
+      }
+      if (target.bookingSection) {
+        setActiveBookingSection(target.bookingSection as any);
+      }
+      if (target.consultationSection) {
+        setActiveConsultationSection(target.consultationSection as any);
+      }
+      if (target.jobSection) {
+        setActiveJobSection(target.jobSection as any);
+      }
+      if (target.settingsSection) {
+        setSettingsSection(target.settingsSection as any);
+      }
+      if (target.sitoSection) {
+        setActiveSitoSection(target.sitoSection as any);
+      }
+    },
+    [
+      navigate,
+      setActiveTab,
+      setActiveBookingSection,
+      setActiveConsultationSection,
+      setActiveJobSection,
+      setSettingsSection,
+      setActiveSitoSection,
+    ],
+  );
 
-  const activeAdminNavGroup =
-    ADMIN_NAV_GROUPS.find((group) => group.tabs.includes(activeTab)) ??
-    ADMIN_NAV_GROUPS[0]!;
-  const activeAdminNavItem = activeAdminNavGroup.items?.find(({ target }) => {
-    if (!target.tab || target.tab !== activeTab) return false;
-    if (
-      target.bookingSection &&
-      target.bookingSection !== activeBookingSection
-    ) {
-      return false;
-    }
-    if (
-      target.consultationSection &&
-      target.consultationSection !== activeConsultationSection
-    ) {
-      return false;
-    }
-    if (target.jobSection && target.jobSection !== activeJobSection) {
-      return false;
-    }
-    if (target.settingsSection && target.settingsSection !== settingsSection) {
-      return false;
-    }
-    if (target.sitoSection && target.sitoSection !== activeSitoSection) {
-      return false;
-    }
-    return true;
-  });
-  const activeAdminNavSection =
-    activeAdminNavItem?.id ??
-    activeAdminNavGroup.items?.[0]?.id ??
-    activeAdminNavGroup.id;
-
-  const handleAdminAreaChange = (groupId: string) => {
-    const group = ADMIN_NAV_GROUPS.find((item) => item.id === groupId);
-    if (!group) return;
-
-    if (group.items?.length) {
-      navigateToTarget(group.items[0].target);
-    } else if (group.target) {
-      navigateToTarget(group.target);
-    }
-  };
-
-  const handleAdminSectionChange = (itemId: string) => {
-    const item = activeAdminNavGroup.items?.find(
-      (navItem) => navItem.id === itemId,
+  useEffect(() => {
+    const handleNavigationRequest = (event: Event) => {
+      const target = (event as CustomEvent<NavTarget>).detail;
+      if (target) navigateToTarget(target);
+    };
+    window.addEventListener(
+      ADMIN_NAVIGATION_REQUEST_EVENT,
+      handleNavigationRequest,
     );
-    if (item) {
-      navigateToTarget(item.target);
-    } else if (activeAdminNavGroup.target) {
-      navigateToTarget(activeAdminNavGroup.target);
-    }
-  };
+    return () =>
+      window.removeEventListener(
+        ADMIN_NAVIGATION_REQUEST_EVENT,
+        handleNavigationRequest,
+      );
+  }, [navigateToTarget]);
+
+  useEffect(() => {
+    const selection = findAdminNavigationSelection({
+      tab: activeTab,
+      bookingSection: activeBookingSection,
+      consultationSection: activeConsultationSection,
+      jobSection: activeJobSection,
+      settingsSection,
+      sitoSection: activeSitoSection,
+    });
+    window.dispatchEvent(
+      new CustomEvent(ADMIN_NAVIGATION_SELECTION_EVENT, {
+        detail: selection,
+      }),
+    );
+  }, [
+    activeTab,
+    activeBookingSection,
+    activeConsultationSection,
+    activeJobSection,
+    settingsSection,
+    activeSitoSection,
+  ]);
 
   const quoteColorContrastIssues = getQuoteColorContrastIssues(
     studioSettings.quoteTheme.primaryColor,
@@ -1328,9 +1295,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-off-white">
-      <Navigation isAdminNav={true} />
-
-      <header className="bg-white shadow sticky top-0 z-40">
+      <header className="sticky top-14 z-20 bg-white shadow lg:top-0 lg:z-40">
         <div className="max-w-7xl mx-auto py-3 px-3 sm:py-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center gap-2">
             {/* Titolo responsive */}
@@ -1342,38 +1307,7 @@ export default function AdminDashboard() {
             {/* Azioni header - Mobile Optimized */}
             <div className="flex items-center gap-1.5 sm:gap-3">
               <AdminCommandPalette onNavigate={navigateToTarget} />
-              <Link href={createUrl("/")}>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 sm:h-9 px-2 sm:px-3 flex items-center gap-1"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
-                    />
-                  </svg>
-                  <span className="text-xs sm:text-sm">Home</span>
-                </Button>
-              </Link>
               <NotificationBell enabled={notificationsEnabled} />
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleLogout}
-                className="h-8 sm:h-9 px-2 sm:px-3 text-xs sm:text-sm"
-              >
-                Logout
-              </Button>
             </div>
           </div>
         </div>
@@ -1512,152 +1446,6 @@ export default function AdminDashboard() {
             value={activeTab}
             onValueChange={(v) => setActiveTab(v as any)}
           >
-            {/* Navigazione compatta per schermi piccoli */}
-            <nav
-              aria-label="Navigazione amministrazione"
-              className="mx-4 mb-4 rounded-xl border border-border bg-card p-3 shadow-sm lg:hidden"
-            >
-              <div className="grid grid-cols-2 gap-2">
-                <div className="min-w-0">
-                  <p className="mb-1.5 px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                    Area
-                  </p>
-                  <Select
-                    value={activeAdminNavGroup.id}
-                    onValueChange={handleAdminAreaChange}
-                  >
-                    <SelectTrigger
-                      aria-label="Area amministrativa"
-                      className="h-11 w-full rounded-lg bg-background px-2.5 text-xs font-semibold [&>span]:truncate"
-                      data-testid="select-admin-area"
-                    >
-                      <activeAdminNavGroup.icon className="mr-1.5 h-4 w-4 shrink-0 text-primary" />
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent align="start">
-                      {ADMIN_NAV_GROUPS.map((group) => (
-                        <SelectItem
-                          key={group.id}
-                          value={group.id}
-                          data-testid={`select-admin-area-${group.id}`}
-                        >
-                          {group.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="min-w-0">
-                  <p className="mb-1.5 px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                    Sezione
-                  </p>
-                  <Select
-                    value={activeAdminNavSection}
-                    onValueChange={handleAdminSectionChange}
-                  >
-                    <SelectTrigger
-                      aria-label={`Sezione ${activeAdminNavGroup.label}`}
-                      className="h-11 w-full rounded-lg bg-background px-2.5 text-xs font-semibold [&>span]:truncate"
-                      data-testid="select-admin-section"
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent align="end">
-                      {activeAdminNavGroup.items?.length ? (
-                        activeAdminNavGroup.items.map((item) => (
-                          <SelectItem
-                            key={item.id}
-                            value={item.id}
-                            data-testid={`select-admin-section-${item.id}`}
-                          >
-                            {item.label}
-                          </SelectItem>
-                        ))
-                      ) : (
-                        <SelectItem
-                          value={activeAdminNavGroup.id}
-                          data-testid={`select-admin-section-${activeAdminNavGroup.id}`}
-                        >
-                          {activeAdminNavGroup.label}
-                        </SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </nav>
-
-            {/* Barra menu unificata: generata da ADMIN_NAV_GROUPS (adminNavigation.ts) */}
-            <div className="mb-4 sm:mb-6 hidden flex-wrap justify-start gap-0.5 sm:gap-1 h-auto p-1 bg-muted rounded-lg overflow-x-auto touch-manipulation lg:flex">
-              {ADMIN_NAV_GROUPS.map((group) => {
-                const GroupIcon = group.icon;
-                const isActive = group.tabs.includes(activeTab);
-                const triggerClasses =
-                  "flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]";
-
-                if (!group.items) {
-                  return (
-                    <Button
-                      key={group.id}
-                      variant={isActive ? "default" : "ghost"}
-                      className={triggerClasses}
-                      onClick={() =>
-                        group.target && navigateToTarget(group.target)
-                      }
-                      data-testid={`nav-${group.id}`}
-                    >
-                      <GroupIcon className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
-                      <span>{group.label}</span>
-                    </Button>
-                  );
-                }
-
-                return (
-                  <DropdownMenu key={group.id}>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant={isActive ? "default" : "ghost"}
-                        className={triggerClasses}
-                        data-testid={`nav-${group.id}`}
-                      >
-                        <GroupIcon className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
-                        <span>{group.label}</span>
-                        <ChevronDown className="h-2.5 w-2.5 sm:h-3 sm:w-3 ml-0.5 sm:ml-1" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="w-60">
-                      {group.items.map((item, index) => {
-                        const ItemIcon = item.icon;
-                        return (
-                          <div key={item.id}>
-                            {item.sectionLabel && (
-                              <>
-                                {index > 0 && <DropdownMenuSeparator />}
-                                <DropdownMenuLabel className="text-xs text-muted-foreground">
-                                  {item.sectionLabel}
-                                </DropdownMenuLabel>
-                              </>
-                            )}
-                            <DropdownMenuItem
-                              onClick={() => navigateToTarget(item.target)}
-                              data-testid={`nav-item-${item.id}`}
-                            >
-                              <ItemIcon className="h-4 w-4 mr-2" />
-                              <span className="flex-1">{item.label}</span>
-                              {item.target.newTab && (
-                                <ExternalLink className="h-3.5 w-3.5 ml-2 text-muted-foreground" />
-                              )}
-                            </DropdownMenuItem>
-                          </div>
-                        );
-                      })}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                );
-              })}
-            </div>
-
             {/* Contenuto Tab Calendario */}
             <TabsContent value="calendario">
               <div className="space-y-6">

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { ADMIN_NAV_GROUPS, getFlatNavItems } from './adminNavigation';
+import {
+  ADMIN_NAV_GROUPS,
+  findAdminNavigationSelection,
+  getFlatNavItems,
+} from './adminNavigation';
 
 describe('menu dell\'admin: vendite online', () => {
   const group = ADMIN_NAV_GROUPS.find(item => item.id === 'shop-online');
@@ -40,5 +44,21 @@ describe('menu dell\'admin: vendite online', () => {
     }
     const ids = flat.map(item => item.id);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('la sidebar evidenzia la sottosezione esatta del dashboard', () => {
+    expect(
+      findAdminNavigationSelection({
+        tab: 'lavori',
+        jobSection: 'clienti',
+      }),
+    ).toEqual({ groupId: 'lavori', itemId: 'clienti' });
+
+    expect(
+      findAdminNavigationSelection({
+        tab: 'bookings',
+        bookingSection: 'campaigns',
+      }),
+    ).toEqual({ groupId: 'agenda', itemId: 'campaigns' });
   });
 });

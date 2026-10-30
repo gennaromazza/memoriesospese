@@ -1,5 +1,6 @@
 import { Suspense, lazy, useEffect, type ComponentType } from "react";
 import { AdminRouteGuard } from "@/components/admin/AdminRouteGuard";
+import AdminSidebarLayout from "@/components/admin/AdminSidebarLayout";
 import { Switch, Route, useLocation } from 'wouter';
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -163,7 +164,9 @@ function adminRoute<P extends object>(Component: ComponentType<P>) {
   return function GuardedAdminRoute(props: P) {
     return (
       <AdminRouteGuard>
-        <Component {...props} />
+        <AdminSidebarLayout>
+          <Component {...props} />
+        </AdminSidebarLayout>
       </AdminRouteGuard>
     );
   };
