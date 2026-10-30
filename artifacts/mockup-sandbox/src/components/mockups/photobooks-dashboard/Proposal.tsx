@@ -2,10 +2,13 @@ import './_group.css';
 import './Proposal.css';
 
 import { useMemo, useState, type FormEvent } from 'react';
+import type { LucideIcon } from 'lucide-react';
 import {
   Album,
   ArrowUpRight,
   BookOpen,
+  Briefcase,
+  Calendar,
   Check,
   CheckCircle2,
   ChevronDown,
@@ -16,18 +19,23 @@ import {
   ExternalLink,
   FileImage,
   Filter,
+  Globe,
   Lock,
+  Menu,
   MessageSquareWarning,
   Pencil,
   Plus,
   Printer,
   Search,
+  Settings,
+  ShoppingBag,
   Send,
   Settings2,
   ShieldCheck,
   Sparkles,
   Truck,
   Unlock,
+  Wallet,
   X,
 } from 'lucide-react';
 
@@ -132,6 +140,24 @@ const statusText: Record<Book['mockup'], string> = {
   confirmed: 'Confermato dallo studio',
 };
 
+type AdminNavSection = {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  items?: string[];
+};
+
+const adminNavSections: AdminNavSection[] = [
+  { id: 'agenda', label: 'Agenda', icon: Calendar, items: ['Calendario', 'Lista Prenotazioni', 'Campagne', 'Richieste Info', 'Template Richieste', 'Centro Follow-up'] },
+  { id: 'lavori', label: 'Lavori & Clienti', icon: Briefcase, items: ['Lista Lavori', 'Clienti', 'Tipi di Lavoro', 'Laboratori', 'Clausole Contrattuali', 'Template Preventivi', 'Moduli Informativi'] },
+  { id: 'gallerie', label: 'Gallerie', icon: BookOpen, items: ['Gallerie Eventi', 'Fotolibri', 'Modifiche Fotolibro', 'Questionari', 'Richieste Password', 'Temi Stagionali'] },
+  { id: 'comunicazione', label: 'Comunicazione & Sito', icon: Globe, items: ['Sito Pubblico – Portfolio', 'Sito Pubblico – Blog', 'Video', 'Email Massivo', 'Storico Email'] },
+  { id: 'cassa', label: 'Cassa', icon: Wallet },
+  { id: 'shop', label: 'Shop online', icon: ShoppingBag, items: ['Shop di Natale', 'Stampe online', 'Gift card'] },
+  { id: 'impostazioni', label: 'Impostazioni', icon: Settings, items: ['Impostazioni Studio', 'Slideshow Homepage', 'Integrazioni', 'Collaboratori', 'Catalogo Prodotti', 'Categorie Prodotti', 'Statistiche Prodotti', 'Migrazione Foto Legacy', 'Audit Sistema', 'Gestione Backup', 'Migrazione Telefoni', 'Sicurezza Accesso'] },
+  { id: 'assistente', label: 'Assistente', icon: Sparkles },
+];
+
 export function Proposal() {
   const [books, setBooks] = useState(initialBooks);
   const [query, setQuery] = useState('');
@@ -143,6 +169,8 @@ export function Proposal() {
   const [newName, setNewName] = useState('');
   const [newType, setNewType] = useState<'linked' | 'standalone'>('linked');
   const [newGallery, setNewGallery] = useState('');
+  const [expandedNav, setExpandedNav] = useState<string | null>('gallerie');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const active = books.filter((book) => !book.locked);
   const queue = books.filter((book) => book.locked);
@@ -177,6 +205,19 @@ export function Proposal() {
   const showModal = (kind: ModalState, book?: Book) => {
     setTarget(book || null);
     setModal(kind);
+  };
+
+  const handleNavSection = (section: AdminNavSection) => {
+    if (section.items) {
+      setExpandedNav((current) => current === section.id ? null : section.id);
+      return;
+    }
+    notify(`${section.label} · navigazione di esempio`);
+  };
+
+  const handleNavItem = (label: string) => {
+    setMobileMenuOpen(false);
+    if (label !== 'Fotolibri') notify(`${label} · navigazione di esempio`);
   };
 
   const copyLink = async (book: Book) => {
@@ -300,24 +341,59 @@ export function Proposal() {
 
   return (
     <div className="proposal-shell">
-      <aside className="proposal-sidebar">
-        <div className="studio-brand"><div className="brand-mark"><Album size={19} /></div><div><strong>Studio Lume</strong><span>WEDDING PHOTOGRAPHY</span></div></div>
-        <div className="sidebar-label">STUDIO</div>
-        <nav className="studio-nav" aria-label="Navigazione studio">
-          <button><BookOpen size={17} /> Panoramica</button>
-          <button><FileImage size={17} /> Gallerie <span className="nav-count">12</span></button>
-          <button className="selected"><Album size={17} /> Fotolibri <span className="nav-active-dot" /></button>
-          <button><ClipboardCheck size={17} /> Modifiche <span className="nav-alert">3</span></button>
-          <button><Truck size={17} /> Spedizioni</button>
+      <aside className={`proposal-sidebar${mobileMenuOpen ? ' mobile-nav-open' : ''}`}>
+        <div className="studio-brand">
+          <div className="brand-mark"><Album size={19} /></div>
+          <div><strong>Image Studio</strong><span>PANNELLO AMMINISTRATIVO</span></div>
+          <button className="mobile-nav-toggle" onClick={() => setMobileMenuOpen((open) => !open)} aria-expanded={mobileMenuOpen} aria-label={mobileMenuOpen ? 'Chiudi menu' : 'Apri menu'}>
+            {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+          </button>
+        </div>
+        <div className="sidebar-label">NAVIGAZIONE</div>
+        <nav className="studio-nav" aria-label="Navigazione amministrativa">
+          {adminNavSections.map((section) => {
+            const Icon = section.icon;
+            const isExpanded = expandedNav === section.id;
+            const isCurrent = section.id === 'gallerie';
+            return (
+              <div className="nav-section" key={section.id}>
+                <button
+                  className={`nav-section-button${isCurrent ? ' current-section' : ''}`}
+                  onClick={() => handleNavSection(section)}
+                  aria-expanded={section.items ? isExpanded : undefined}
+                >
+                  <Icon size={16} />
+                  <span>{section.label}</span>
+                  {section.items && (isExpanded ? <ChevronDown className="nav-chevron" size={13} /> : <ChevronRight className="nav-chevron" size={13} />)}
+                </button>
+                {section.items && isExpanded && (
+                  <div className="nav-subitems">
+                    {section.items.map((item) => (
+                      <button
+                        key={item}
+                        className={`nav-subitem${item === 'Fotolibri' ? ' active' : ''}`}
+                        onClick={() => handleNavItem(item)}
+                        aria-current={item === 'Fotolibri' ? 'page' : undefined}
+                      >
+                        <span className="subitem-dot" />
+                        <span>{item}</span>
+                        {item === 'Modifiche Fotolibro' && pendingCount > 0 && <span className="nav-alert">{pendingCount}</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </nav>
         <div className="sidebar-bottom">
           <div className="help-card"><div className="help-icon"><CircleHelp size={16} /></div><strong>Serve una mano?</strong><span>Apri la guida rapida per il flusso album.</span><button onClick={() => showModal('tutorial')}>Vai alla guida <ArrowUpRight size={13} /></button></div>
-          <button className="profile-button"><div className="profile-avatar">SL</div><span><strong>Studio Lume</strong><small>Amministrazione</small></span><Settings2 size={16} /></button>
+          <button className="profile-button"><div className="profile-avatar">GM</div><span><strong>Gennaro Mazzacane</strong><small>Amministratore</small></span><Settings2 size={16} /></button>
         </div>
       </aside>
 
       <main className="proposal-main">
-        <header className="proposal-topbar"><div className="breadcrumbs">Studio <ChevronRight size={13} /> <span>Fotolibri</span></div><div className="topbar-right"><span className="workspace-indicator"><i /> Tutto aggiornato</span><button className="topbar-avatar" aria-label="Profilo studio">SL</button></div></header>
+        <header className="proposal-topbar"><div className="breadcrumbs">Pannello amministrativo <ChevronRight size={13} /> Gallerie <ChevronRight size={13} /> <span>Fotolibri</span></div><div className="topbar-right"><span className="workspace-indicator"><i /> Tutto aggiornato</span><button className="topbar-avatar" aria-label="Profilo amministratore">GM</button></div></header>
         <div className="proposal-content">
           <div className="page-heading">
             <div><div className="eyebrow">PRODUZIONE · 06 ALBUM</div><h1>Fotolibri</h1><p>Una vista ordinata di revisioni, approvazioni e stampa.</p></div>
@@ -365,7 +441,7 @@ export function Proposal() {
             </div>}
           </section>
 
-          <footer className="proposal-footer"><span>Studio Lume <i /> Gestione fotolibri</span><span>{waitingMockups} mockup in revisione <i /> Ultimo aggiornamento oggi, 10:42</span></footer>
+          <footer className="proposal-footer"><span>Image Studio <i /> Gestione fotolibri</span><span>{waitingMockups} mockup in revisione <i /> Ultimo aggiornamento oggi, 10:42</span></footer>
         </div>
       </main>
 
