@@ -1536,15 +1536,8 @@ export default function AdminDashboard() {
             </TabsContent>
 
             {/* Contenuto Tab Fotolibri */}
-            <TabsContent value="photobooks">
-              <div className="bg-white shadow sm:rounded-lg p-5">
-                <div className="mb-6">
-                  <h2 className="text-xl font-semibold text-blue-gray mb-2">
-                    Fotolibri
-                  </h2>
-                </div>
-                <PhotobooksManager />
-              </div>
+            <TabsContent value="photobooks" className="mt-0">
+              <PhotobooksManager />
             </TabsContent>
 
             {/* Contenuto Tab Modifiche Fotolibro */}

@@ -91,9 +91,14 @@ import {
   Download,
   ChevronDown,
   ChevronRight,
+  Filter,
+  Printer,
+  Search,
+  X,
 } from 'lucide-react';
 import PhotobookTutorial from '@/components/photobook/PhotobookTutorial';
 import { MockupStatusLine } from '@/components/photobook/MockupAdminFlow';
+import './PhotobooksManager.css';
 import LabFileUploader from '@/components/jobs/operativo/LabFileUploader';
 import LabSendFeedback from '@/components/jobs/operativo/LabSendFeedback';
 import type { Job } from '@shared/jobs-types';
@@ -145,12 +150,14 @@ export default function PhotobooksManager({
   const [createOpen, setCreateOpen] = useState(false);
   const [createMode, setCreateMode] = useState<'linked' | 'standalone'>('linked');
   // The print queue must remain discoverable after navigation and refresh.
-  const [showArchived, setShowArchived] = useState(true);
+  const [showArchived, setShowArchived] = useState(false);
   const [newName, setNewName] = useState('');
   const [newGalleryId, setNewGalleryId] = useState('');
   const [newJobId, setNewJobId] = useState('');
   const [associationMismatchConfirmed, setAssociationMismatchConfirmed] = useState(false);
   const [gallerySearch, setGallerySearch] = useState('');
+  const [bookSearch, setBookSearch] = useState('');
+  const [bookFilter, setBookFilter] = useState<'all' | 'attention' | 'approved'>('all');
   const [deleteTarget, setDeleteTarget] = useState<Photobook | null>(null);
   const [lockTarget, setLockTarget] = useState<Photobook | null>(null);
 
@@ -424,6 +431,26 @@ export default function PhotobooksManager({
   const activeStandaloneBooks = activeBooks.filter(isStandaloneBook);
   const archivedLinkedBooks = archivedBooks.filter((book) => !isStandaloneBook(book));
   const archivedStandaloneBooks = archivedBooks.filter(isStandaloneBook);
+  const searchTerm = bookSearch.trim().toLocaleLowerCase();
+  const matchesBookFilter = (book: Photobook) => {
+    const matchesSearch = !searchTerm || [
+      book.name,
+      book.clientName || '',
+      book.galleryName || '',
+      book.galleryId || '',
+      book.jobId || '',
+    ].some((value) => value.toLocaleLowerCase().includes(searchTerm));
+    const pending = pendingByBook.get(book.id) || 0;
+    const approved = book.approval?.version === book.currentVersion;
+    const matchesStatus =
+      bookFilter === 'all' ||
+      (bookFilter === 'attention' && pending > 0) ||
+      (bookFilter === 'approved' && approved);
+    return matchesSearch && matchesStatus;
+  };
+  const visibleLinkedBooks = activeLinkedBooks.filter(matchesBookFilter);
+  const visibleStandaloneBooks = activeStandaloneBooks.filter(matchesBookFilter);
+  const approvedCount = activeBooks.filter((book) => book.approval?.version === book.currentVersion).length;
 
   const renderBook = (book: Photobook) => {
             const sourceLabel =
@@ -432,9 +459,14 @@ export default function PhotobooksManager({
               (book.jobId ? 'Senza galleria · lavoro collegato' : 'Fotolibro autonomo');
             const currentVer = book.versions.find((v) => v.version === book.currentVersion);
             return (
-              <Card key={book.id} id={`photobook-materials-${book.id}`} tabIndex={-1} className="focus:ring-2 focus:ring-primary focus:outline-none" data-testid={`card-photobook-${book.id}`}>
-                <CardContent className="pt-5 space-y-3">
-                  <div className="flex items-start justify-between gap-2">
+              <Card key={book.id} id={`photobook-materials-${book.id}`} tabIndex={-1} className="pb-book-card focus:ring-2 focus:ring-primary focus:outline-none" data-testid={`card-photobook-${book.id}`}>
+                <CardContent className="pb-book-card-content">
+                  <div className="pb-book-cover" aria-hidden="true">
+                    <span>{book.name.trim().split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toLocaleUpperCase() || 'FB'}</span>
+                    <small>{currentVer?.pageCount ?? 0} pag.</small>
+                  </div>
+                  <div className="pb-book-main">
+                  <div className="pb-book-heading flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <h3 className="font-semibold truncate">{book.name}</h3>
                       <p className="text-xs text-muted-foreground truncate">
@@ -445,19 +477,20 @@ export default function PhotobooksManager({
                     <div className="flex flex-col items-end gap-1 shrink-0">
                       <Badge variant="secondary">v{book.currentVersion}</Badge>
                       {(pendingByBook.get(book.id) || 0) > 0 && (
-                        <Badge
-                          className="bg-amber-500 text-white hover:bg-amber-600 cursor-pointer"
+                        <button
+                          type="button"
+                          className="pb-status-chip pb-status-pending"
                           onClick={goToChanges}
                           data-testid={`badge-pending-changes-${book.id}`}
                         >
                           <MessageSquareWarning className="h-3 w-3 mr-1" />
                           {pendingByBook.get(book.id)}{' '}
                           {pendingByBook.get(book.id) === 1 ? 'modifica' : 'modifiche'}
-                        </Badge>
+                        </button>
                       )}
                       {book.approval?.version === book.currentVersion && (
                         <Badge
-                          className="bg-green-600 text-white hover:bg-green-600"
+                          className="pb-status-chip pb-status-approved"
                           title={
                             book.approval?.note
                               ? `Nota del cliente: ${book.approval.note}`
@@ -471,7 +504,7 @@ export default function PhotobooksManager({
                       )}
                       {book.locked && (
                         <Badge
-                          className="bg-stone-700 text-white hover:bg-stone-700"
+                          className="pb-status-chip pb-status-locked"
                           data-testid={`badge-locked-${book.id}`}
                         >
                           <Lock className="h-3 w-3 mr-1" />
@@ -480,7 +513,7 @@ export default function PhotobooksManager({
                       )}
                     </div>
                   </div>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="pb-book-meta">
                     {currentVer?.pageCount ?? 0} pagine · {book.versions.length}{' '}
                     {book.versions.length === 1 ? 'versione' : 'versioni'}
                   </p>
@@ -490,16 +523,17 @@ export default function PhotobooksManager({
                     readOnly={!!book.locked}
                     onAssign={() => navigate(`/admin/photobooks/${book.id}?mockupTab=offer`)}
                   />
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="pb-book-actions">
                     <Button
                       size="sm"
+                      className="h-8"
                       onClick={() => navigate(`/admin/photobooks/${book.id}`)}
                       data-testid={`button-edit-photobook-${book.id}`}
                     >
                       <Pencil className="h-3.5 w-3.5 mr-1.5" />
                       Apri editor
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => copyLink(book)}>
+                    <Button size="sm" variant="outline" className="h-8" onClick={() => copyLink(book)}>
                       <Copy className="h-3.5 w-3.5 mr-1.5" />
                       Copia link cliente
                     </Button>
@@ -507,6 +541,7 @@ export default function PhotobooksManager({
                       <Button
                         size="sm"
                         variant="outline"
+                        className="h-8"
                         disabled={resetApprovalMutation.isPending}
                         onClick={() => resetApprovalMutation.mutate(book.id)}
                         data-testid={`button-reset-approval-${book.id}`}
@@ -519,6 +554,7 @@ export default function PhotobooksManager({
                       <Button
                         size="sm"
                         variant="outline"
+                        className="h-8"
                         disabled={unlockMutation.isPending}
                         onClick={() => unlockMutation.mutate(book.id)}
                         data-testid={`button-unlock-${book.id}`}
@@ -530,6 +566,7 @@ export default function PhotobooksManager({
                       <Button
                         size="sm"
                         variant="outline"
+                        className="h-8"
                         disabled={lockMutation.isPending}
                         onClick={() => openLockDialog(book)}
                         data-testid={`button-lock-${book.id}`}
@@ -541,8 +578,9 @@ export default function PhotobooksManager({
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="text-destructive hover:text-destructive"
+                      className="h-8 text-destructive hover:text-destructive"
                       onClick={() => setDeleteTarget(book)}
+                      aria-label={`Elimina ${book.name}`}
                       data-testid={`button-delete-photobook-${book.id}`}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -560,119 +598,156 @@ export default function PhotobooksManager({
                       <Button size="sm" variant="outline" onClick={() => openLockDialog(book)}>Prepara spedizione laboratorio</Button>
                     </div>
                   )}
+                  </div>
                 </CardContent>
               </Card>
             );
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <p className="text-sm text-muted-foreground">
-          Carica le pagine, invia al cliente il link per l’approvazione e prepara il mockup.
-          Puoi creare fotolibri collegati a un lavoro o autonomi.
-        </p>
-        <div className="flex items-center gap-2">
+    <div className="photobooks-dashboard">
+      <header className="pb-page-heading">
+        <div>
+          <p className="pb-eyebrow">GESTIONE · {activeBooks.length} {activeBooks.length === 1 ? 'ALBUM ATTIVO' : 'ALBUM ATTIVI'}</p>
+          <h1>Fotolibri</h1>
+          <p>Una vista ordinata di revisioni, approvazioni e stampa.</p>
+        </div>
+        <div className="pb-heading-actions">
           <PhotobookTutorial />
           <Button onClick={() => { setCreateMode('linked'); setCreateOpen(true); }} data-testid="button-create-photobook">
             <Plus className="h-4 w-4 mr-2" />
-            Nuovo Fotolibro
+            Nuovo fotolibro
           </Button>
         </div>
-      </div>
+      </header>
+
+      <section className="pb-overview" aria-label="Riepilogo fotolibri">
+        <div className="pb-overview-intro">
+          <span className="pb-overview-icon"><BookImage className="h-5 w-5" /></span>
+          <div><strong>Riepilogo della lavorazione</strong><p>Album attivi, richieste in attesa e approvazioni.</p></div>
+        </div>
+        <div className="pb-overview-stat"><span>ALBUM ATTIVI</span><strong>{activeBooks.length.toString().padStart(2, '0')}</strong></div>
+        <div className="pb-overview-stat"><span>RICHIESTE APERTE</span><strong className={totalPending ? 'is-warm' : ''}>{totalPending.toString().padStart(2, '0')}</strong></div>
+        <div className="pb-overview-stat"><span>APPROVATI</span><strong>{approvedCount.toString().padStart(2, '0')}</strong></div>
+      </section>
 
       {totalPending > 0 && (
         <button
           type="button"
           onClick={goToChanges}
-          className="w-full flex items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-left hover:bg-amber-100 transition-colors"
+          className="pb-pending-banner"
           data-testid="banner-pending-changes"
         >
-          <MessageSquareWarning className="h-5 w-5 text-amber-600 shrink-0" />
-          <span className="text-sm text-amber-900">
-            <span className="font-semibold">
+          <span className="pb-pending-icon"><MessageSquareWarning className="h-5 w-5" /></span>
+          <span className="pb-pending-copy">
+            <strong>
               {totalPending} {totalPending === 1 ? 'richiesta di modifica' : 'richieste di modifica'}
-            </span>{' '}
-            in attesa dai clienti — clicca per aprire "Modifiche Fotolibro"
+            </strong>
+            <small>In attesa dai clienti — apri la coda revisioni.</small>
           </span>
+          <span className="pb-pending-link">Apri richieste <ExternalLink className="h-4 w-4" /></span>
         </button>
       )}
 
+      <div className="pb-list-toolbar">
+        <div className="pb-toolbar-title"><span>ALBUM ATTIVI</span><i aria-hidden="true" /></div>
+        <div className="pb-toolbar-controls">
+          <label className="pb-search">
+            <Search className="h-4 w-4" aria-hidden="true" />
+            <Input
+              value={bookSearch}
+              onChange={(event) => setBookSearch(event.target.value)}
+              placeholder="Cerca album, cliente o galleria"
+              aria-label="Cerca fotolibri"
+            />
+            {bookSearch && <button type="button" onClick={() => setBookSearch('')} aria-label="Cancella ricerca"><X className="h-4 w-4" /></button>}
+          </label>
+          <div className="pb-filter">
+            <Filter className="h-4 w-4" aria-hidden="true" />
+            <Select value={bookFilter} onValueChange={(value) => setBookFilter(value as typeof bookFilter)}>
+              <SelectTrigger aria-label="Filtra fotolibri"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutti gli stati</SelectItem>
+                <SelectItem value="attention">Con modifiche richieste</SelectItem>
+                <SelectItem value="approved">Approvati</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+
       {isLoading ? (
-        <div className="flex justify-center py-12">
+        <div className="flex justify-center py-12" role="status" aria-label="Caricamento fotolibri">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : books.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            <BookImage className="h-10 w-10 mx-auto mb-3 opacity-40" />
-            Nessun fotolibro ancora creato.
-          </CardContent>
-        </Card>
+        <div className="pb-empty"><BookImage className="h-8 w-8" /><strong>Nessun fotolibro ancora creato.</strong><span>Usa “Nuovo fotolibro” per iniziare.</span></div>
       ) : (
-        <div className="space-y-6">
-          {activeLinkedBooks.length > 0 && (
-            <section className="space-y-3" data-testid="section-linked-photobooks">
-              <div>
-                <h3 className="font-semibold">Fotolibri collegati</h3>
-                <p className="text-xs text-muted-foreground">Associati a un lavoro o a una galleria.</p>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {activeLinkedBooks.map(renderBook)}
-              </div>
-            </section>
-          )}
-          {activeStandaloneBooks.length > 0 && (
-            <section className="space-y-3" data-testid="section-standalone-photobooks">
-              <div>
-                <h3 className="font-semibold">Fotolibri autonomi</h3>
-                <p className="text-xs text-muted-foreground">
-                  Senza lavoro e galleria: le pagine si caricano direttamente nell’editor.
-                </p>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {activeStandaloneBooks.map(renderBook)}
-              </div>
-            </section>
+        <div className="pb-page-content">
+          {activeBooks.length > 0 ? (
+            <div className="pb-active-sections">
+              <section className="pb-book-section" data-testid="section-linked-photobooks">
+                <div className="pb-section-heading">
+                  <div><h2>Collegati a un lavoro</h2><p>Album associati a una galleria o a un incarico dello studio.</p></div>
+                  <span>{visibleLinkedBooks.length.toString().padStart(2, '0')}</span>
+                </div>
+                <div className="pb-book-list">
+                  {visibleLinkedBooks.length ? visibleLinkedBooks.map(renderBook) : <div className="pb-section-empty">Nessun fotolibro corrisponde ai filtri.</div>}
+                </div>
+              </section>
+              <section className="pb-book-section" data-testid="section-standalone-photobooks">
+                <div className="pb-section-heading">
+                  <div><h2>Autonomi</h2><p>Album indipendenti, con pagine caricate direttamente nell’editor.</p></div>
+                  <span>{visibleStandaloneBooks.length.toString().padStart(2, '0')}</span>
+                </div>
+                <div className="pb-book-list">
+                  {visibleStandaloneBooks.length ? visibleStandaloneBooks.map(renderBook) : <div className="pb-section-empty">Nessun fotolibro corrisponde ai filtri.</div>}
+                </div>
+              </section>
+            </div>
+          ) : (
+            <div className="pb-empty"><BookImage className="h-8 w-8" /><strong>Nessun album attivo.</strong><span>Gli album bloccati restano nella coda di stampa.</span></div>
           )}
           {archivedBooks.length > 0 && (
-            <div className="space-y-3" data-testid="section-archived-photobooks">
+            <section className="pb-print-queue" data-testid="section-archived-photobooks">
               <button
                 type="button"
                 onClick={() => setShowArchived((v) => !v)}
-                className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+                className="pb-queue-toggle"
                 aria-expanded={showArchived}
                 data-testid="button-toggle-archived"
               >
                 {showArchived ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                Coda stampa · fotolibri con modifiche bloccate ({archivedBooks.length})
+                <span className="pb-queue-icon"><Printer className="h-4 w-4" /></span>
+                <span className="pb-queue-title"><strong>Coda di stampa</strong><small>Album con modifiche bloccate</small></span>
+                <span className="pb-queue-count">{archivedBooks.length}</span>
               </button>
               {showArchived && (
-                <div className="space-y-5">
-                  <p className="text-xs text-muted-foreground">
+                <div className="pb-queue-content">
+                  <p className="pb-queue-note">
                     Il blocco impedisce al cliente di modificare l’album, ma non conferma che
                     l’email sia stata inviata. Se non risulta ancora inviata, controlla lo stato
                     e completa l’invio dal riquadro “Spedizione laboratorio”.
                   </p>
                   {archivedLinkedBooks.length > 0 && (
-                    <section data-testid="section-archived-linked-photobooks">
-                      <h4 className="mb-2 text-sm font-medium">Collegati</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    <section className="pb-archived-group" data-testid="section-archived-linked-photobooks">
+                      <h4>Collegati</h4>
+                      <div className="pb-book-list">
                         {archivedLinkedBooks.map(renderBook)}
                       </div>
                     </section>
                   )}
                   {archivedStandaloneBooks.length > 0 && (
-                    <section data-testid="section-archived-standalone-photobooks">
-                      <h4 className="mb-2 text-sm font-medium">Autonomi</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    <section className="pb-archived-group" data-testid="section-archived-standalone-photobooks">
+                      <h4>Autonomi</h4>
+                      <div className="pb-book-list">
                         {archivedStandaloneBooks.map(renderBook)}
                       </div>
                     </section>
                   )}
                 </div>
               )}
-            </div>
+            </section>
           )}
         </div>
       )}
