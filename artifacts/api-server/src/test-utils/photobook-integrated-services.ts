@@ -1,4 +1,5 @@
 import { Readable } from 'node:stream';
+import { makeDrivePageHttp, drivePageMetadata } from './drive-page-http.js';
 
 // No SDKs or credentials here: this store lives only for the lifetime of a test.
 export const services = {
@@ -142,6 +143,18 @@ async function consume(body: AsyncIterable<Buffer>) {
   return Buffer.concat(chunks);
 }
 export const driveObjectKey = (folderId: string, name: string) => `${folderId}/${name}`;
+export const pageHttp = makeDrivePageHttp({
+  inventory: async folderId => [...services.driveFileKeys].flatMap(([id, key]) => {
+    const prefix = `${folderId}/`;
+    const bytes = services.drive.get(key);
+    return key.startsWith(prefix) && bytes ? [drivePageMetadata(id, key.slice(prefix.length), bytes)] : [];
+  }),
+  commit: async (folderId, metadata, bytes) => {
+    const result = await drive.uploadStreamToDriveFolder(folderId, metadata.name, 'image/jpeg', Readable.from(bytes));
+    services.driveFileKeys.delete(result.fileId);
+    services.driveFileKeys.set(metadata.id, driveObjectKey(folderId, metadata.name));
+  },
+});
 export const drive = {
   findOrCreateLabParentFolder: async () => 'isolated-parent',
   createShipmentFolder: async (_parentId: string, _name: string, metadata?: { deferPublicAccess?: boolean }) => {

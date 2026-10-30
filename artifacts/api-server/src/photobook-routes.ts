@@ -32,6 +32,8 @@ import { loadGalleryPhotoDocs, listGalleryPhotosPublic, loadGalleryChapters } fr
 import { PHOTOBOOK_MARK_PALETTE, type PhotobookMarkPoint } from '../shared/photobook-types.js';
 import { refreshLabShipmentInstructions } from './lab-shipment-instructions.js';
 import { comparePhotobookShipmentPages } from './photobook-shipment-readiness.js';
+import { orderPhotobookPages, photobookPageFileName } from './photobook-page-order.js';
+import { copyPhotobookPage, verifyPhotobookDrivePages } from './photobook-drive-copy.js';
 import { createPhotobookMockupRouter } from './photobook-mockup-routes.js';
 import { createVersionDraft, publishVersion, PhotobookVersionError } from './photobook-version-workflow.js';
 import { newPhotobookOperation, operationAbandoned, watchPhotobookOperation } from './photobook-operation.js';
@@ -1485,60 +1487,55 @@ async function runPhotobookPageTransfer(
   const failed: Array<{ pageNumber: number; error: string }> = [];
 
   try {
-    // Rileggi i file già presenti (fonte di verità per il retry)
+    // Preserve non-page attachments; the actual Drive inventory, not this
+    // registration, is authoritative for each page's recovery.
     const sDoc = await shipmentRef.get();
     const files: any[] = Array.isArray(sDoc.data()?.files) ? [...sDoc.data()!.files] : [];
-    const existingFilesByName = new Map<string, any[]>();
-    for (const file of files) {
-      const entries = existingFilesByName.get(file.name) || [];
-      entries.push(file);
-      existingFilesByName.set(file.name, entries);
-    }
+    const uploadIds: Record<string, { id: string; storagePath: string }> = { ...(sDoc.data()?.pageTransfer?.uploadIds || {}) };
 
-    for (const page of pages) {
-      await operation.update();
-      const extMatch = String(page.storagePath).match(/\.(\w+)$/);
-      const ext = extMatch ? extMatch[1] : 'jpg';
-      const fileName = `pagina-${String(page.pageNumber).padStart(3, '0')}-${page.id}.${ext}`;
-      const sameNameFiles = existingFilesByName.get(fileName) || [];
-      if (sameNameFiles.some((file) => !file.sourceStoragePath || file.sourceStoragePath === page.storagePath)) {
-        skipped++;
-      } else if (sameNameFiles.length) {
-        failed.push({
-          pageNumber: page.pageNumber,
-          error: 'L’originale precedente deve essere archiviato prima di trasferire la pagina sostitutiva.',
+    for (const page of orderPhotobookPages(pages)) {
+      await operation.update({ 'pageTransfer.phase': 'copying', 'pageTransfer.currentPageNumber': page.pageNumber });
+      const fileName = photobookPageFileName(page);
+      try {
+        const storageFile = bucket.file(page.storagePath);
+        const [meta] = await storageFile.getMetadata();
+        const { file: uploaded, skipped: adopted } = await copyPhotobookPage({
+          folderId: driveFolderId, page, source: storageFile,
+          reservedId: uploadIds[page.id]?.storagePath === page.storagePath ? uploadIds[page.id].id : undefined,
+          assertActive: () => operation.update(),
+          reserve: async id => {
+            uploadIds[page.id] = { id, storagePath: page.storagePath };
+            await operation.update({ 'pageTransfer.uploadIds': uploadIds });
+          },
         });
-      } else {
-        try {
-          const storageFile = bucket.file(page.storagePath);
-          const [meta] = await storageFile.getMetadata();
-          const uploaded = await uploadStreamToDriveFolder(
-            driveFolderId,
-            fileName,
-            String(meta.contentType || 'image/jpeg'),
-            storageFile.createReadStream(),
-          );
-          const entry: any = {
-            driveFileId: uploaded.fileId,
-            name: fileName,
-            size: uploaded.size || Number(meta.size) || 0,
-            kind: 'original',
-            sourcePageId: page.id,
-            sourcePageNumber: page.pageNumber,
-            sourceStoragePath: page.storagePath,
-            mimeType: String(meta.contentType || 'image/jpeg'),
-            uploadedAt: new Date(),
-          };
-          if (uploaded.webViewLink) entry.webViewLink = uploaded.webViewLink;
-          files.push(entry);
-          transferred++;
-        } catch (e: any) {
-          console.error(
-            `[photobooks] Trasferimento pagina ${page.pageNumber} fallito (fotolibro ${photobookId}):`,
-            e?.message || e,
-          );
-          failed.push({ pageNumber: page.pageNumber, error: e?.message || 'Errore trasferimento' });
+        const entry: any = {
+          driveFileId: uploaded.id,
+          name: fileName,
+          size: Number(uploaded.size) || Number(meta.size) || 0,
+          kind: 'original',
+          sourcePageId: page.id,
+          sourcePageNumber: page.pageNumber,
+          sourceStoragePath: page.storagePath,
+          sourceMd5: uploaded.md5Checksum,
+          mimeType: String(meta.contentType || 'image/jpeg'),
+          uploadedAt: new Date(),
+        };
+        if (uploaded.webViewLink) entry.webViewLink = uploaded.webViewLink;
+        // Repair stale registrations only after verifying real remote bytes.
+        // Supplemental files and manifests are never replaced by this worker.
+        for (let i = files.length - 1; i >= 0; i--) {
+          if ((files[i].kind === 'original' || /^pagina-\d+-/.test(files[i].name || ''))
+            && files[i].name === fileName) files.splice(i, 1);
         }
+        files.push(entry);
+        if (adopted) skipped++;
+        else transferred++;
+      } catch (e: any) {
+        console.error(
+          `[photobooks] Trasferimento pagina ${page.pageNumber} fallito (fotolibro ${photobookId}):`,
+          e?.message || e,
+        );
+        failed.push({ pageNumber: page.pageNumber, error: e?.message || 'Errore trasferimento' });
       }
       // Persistenza incrementale + avanzamento: un crash a metà non perde i
       // file già copiati e il client vede il progresso in tempo reale
@@ -1552,8 +1549,26 @@ async function runPhotobookPageTransfer(
       });
     }
 
+    let instructionsError: string | null = null;
+    if (!failed.length) {
+      await operation.update({ 'pageTransfer.phase': 'verifying', 'pageTransfer.currentPageNumber': null });
+      const currentBook = (await db.collection('photobooks').doc(photobookId).get()).data();
+      const currentShipment = (await shipmentRef.get()).data();
+      const current = await comparePhotobookShipmentPages({ get: (document: any) => document.get() }, db, currentShipment);
+      const signature = (entries: typeof pages) => orderPhotobookPages(entries).map(page => `${page.id}:${page.pageNumber}:${page.storagePath}`).join('\n');
+      if (currentBook?.currentVersion !== currentShipment?.photobookVersion || signature(current.pages) !== signature(pages)) {
+        throw new Error('Le pagine sono cambiate durante il trasferimento. Verifica la versione corrente prima di riprendere.');
+      }
+      await verifyPhotobookDrivePages(driveFolderId, pages, bucket);
+      await operation.update({ 'pageTransfer.phase': 'instructions' });
+      try { await refreshLabShipmentInstructions(shipmentRef); }
+      catch (error: any) { instructionsError = `Pagine verificate, ma istruzioni non aggiornate: ${error.message}`; }
+    }
     await operation.update({
       'pageTransfer.status': failed.length > 0 ? 'partial' : 'completed',
+      'pageTransfer.phase': null,
+      'pageTransfer.currentPageNumber': null,
+      'pageTransfer.instructionsError': instructionsError,
       'pageTransfer.finishedAt': FieldValue.serverTimestamp(),
       'pageTransfer.heartbeatAt': FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
@@ -1580,6 +1595,8 @@ async function runPhotobookPageTransfer(
     try {
       await operation.update({
         'pageTransfer.status': 'failed',
+        'pageTransfer.phase': null,
+        'pageTransfer.currentPageNumber': null,
         'pageTransfer.error': String(e?.message || 'Errore trasferimento'),
         'pageTransfer.finishedAt': FieldValue.serverTimestamp(),
         'pageTransfer.heartbeatAt': FieldValue.serverTimestamp(),
@@ -1629,7 +1646,7 @@ router.post('/:id/lab-shipment', async (req: any, res: Response) => {
       .where('photobookId', '==', ref.id)
       .where('version', '==', book.currentVersion)
       .get();
-    const pages = pagesSnap.docs
+    let pages = pagesSnap.docs
       .map((d) => ({ id: d.id, ...(d.data() as any) }))
       .filter((p) => p.storagePath)
       .sort((a, b) => a.pageNumber - b.pageNumber);
@@ -1640,6 +1657,8 @@ router.post('/:id/lab-shipment', async (req: any, res: Response) => {
     if (pages.length !== pagesSnap.docs.length || pages.length !== expectedPages) {
       return res.status(409).json({ error: 'Le pagine della versione corrente sono incomplete. Ripristina gli originali prima di preparare la spedizione.' });
     }
+    try { pages = orderPhotobookPages(pages); }
+    catch (error: any) { return res.status(409).json({ error: error.message }); }
 
     // Riusa la spedizione già collegata (retry idempotente), altrimenti creala
     let shipmentRef = book.labShipmentId
@@ -1902,6 +1921,7 @@ router.post('/:id/lab-shipment', async (req: any, res: Response) => {
             startedAt: FieldValue.serverTimestamp(),
             heartbeatAt: FieldValue.serverTimestamp(),
             finishedAt: null,
+            uploadIds: data.pageTransfer?.uploadIds || {},
           },
           photobookVersion: book.currentVersion,
           updatedAt: FieldValue.serverTimestamp(),

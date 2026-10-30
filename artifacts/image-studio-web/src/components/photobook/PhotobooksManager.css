@@ -393,6 +393,140 @@
   gap: 9px;
 }
 
+.pb-shipment-details {
+  min-width: 0;
+  margin-top: 3px;
+  overflow: hidden;
+  border: 1px solid #e1e9e3;
+  border-radius: 9px;
+  background: #f8faf8;
+  color: var(--pb-ink);
+}
+
+.pb-shipment-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 9px;
+  min-height: 48px;
+  padding: 8px 10px;
+  color: #405a50;
+  cursor: pointer;
+  list-style: none;
+}
+
+.pb-shipment-summary::-webkit-details-marker {
+  display: none;
+}
+
+.pb-shipment-summary:focus-visible {
+  outline: 2px solid var(--pb-accent);
+  outline-offset: -2px;
+}
+
+.pb-shipment-summary-main {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.pb-shipment-summary-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pb-shipment-summary-title {
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.pb-shipment-summary-meta {
+  overflow-wrap: anywhere;
+  color: var(--pb-muted);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.pb-shipment-summary-status {
+  max-width: 112px;
+  padding: 4px 7px;
+  border: 1px solid #dce7dd;
+  border-radius: 999px;
+  background: #fff;
+  color: #536b60;
+  font-size: 10px;
+  line-height: 1.25;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.pb-shipment-summary-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #59766b;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pb-shipment-summary-toggle svg {
+  transition: transform 150ms ease;
+}
+
+.pb-shipment-details[open] .pb-shipment-summary-toggle svg {
+  transform: rotate(180deg);
+}
+
+.pb-shipment-panel-body {
+  min-width: 0;
+  container-type: inline-size;
+  border-top: 1px solid #e6ece7;
+  background: #fff;
+}
+
+.pb-shipment-panel-content {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+}
+
+.pb-shipment-panel-content :is(p, label, li) {
+  min-width: 0;
+  overflow-wrap: break-word;
+  line-height: 1.45;
+}
+
+.pb-shipment-panel-content select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.pb-shipment-actions > button,
+.pb-shipment-actions > a {
+  min-width: 0;
+  max-width: 100%;
+  height: auto;
+  min-height: 32px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.pb-shipment-actions > button svg,
+.pb-shipment-actions > a svg {
+  flex: 0 0 auto;
+}
+
 .pb-book-heading {
   display: flex;
   align-items: flex-start;
@@ -704,6 +838,38 @@ button.pb-status-chip {
 
   .pb-book-heading h3 {
     font-size: 13px;
+  }
+
+  .pb-shipment-summary {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 8px;
+    padding: 8px;
+  }
+
+  .pb-shipment-summary-status {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: start;
+  }
+
+  .pb-shipment-summary-toggle {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+
+  .pb-shipment-panel-content {
+    padding: 8px;
+  }
+
+  .pb-shipment-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .pb-shipment-actions > button,
+  .pb-shipment-actions > a {
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .pb-book-actions button {

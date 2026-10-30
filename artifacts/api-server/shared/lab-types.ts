@@ -146,6 +146,11 @@ export interface LabShipmentWalkInOrderSnapshot {
 export type LabShipmentPageTransferStatus = 'running' | 'completed' | 'partial' | 'failed';
 
 export interface LabShipmentPageTransfer {
+  /** Reserved before upload; reused after an ambiguous Drive response. */
+  uploadIds?: Record<string, { id: string; storagePath: string }>;
+  phase?: 'copying' | 'verifying' | 'instructions' | null;
+  currentPageNumber?: number | null;
+  instructionsError?: string | null;
   status: LabShipmentPageTransferStatus;
   total: number;
   transferred: number;
@@ -235,6 +240,7 @@ export interface LabShipment {
 
   // Trasferimento pagine fotolibro in background (solo spedizioni da fotolibro)
   pageTransfer?: LabShipmentPageTransfer;
+  drivePageVerification?: { status: 'verified' | 'failed'; error?: string };
   /** Pulizia esplicita di pagine originali superate, senza cancellare i file. */
   photobookPageCleanup?: {
     id: string;

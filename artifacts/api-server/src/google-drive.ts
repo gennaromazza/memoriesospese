@@ -7,20 +7,14 @@
  * (@replit/connectors-sdk): il token OAuth non transita mai da questo modulo.
  */
 
-import { ReplitConnectors } from '@replit/connectors-sdk';
 import { Readable } from 'stream';
+import { boundedDriveRequest } from './drive-request.js';
 
 export interface DriveConnectionStatus {
   connected: boolean;
   email?: string;
   needsReconnection: boolean;
   error?: string;
-}
-
-// Non cachare il client: l'SDK gestisce identità e refresh internamente,
-// l'istanza è comunque leggera e senza stato di sessione.
-function getConnectors(): ReplitConnectors {
-  return new ReplitConnectors();
 }
 
 /**
@@ -31,14 +25,16 @@ async function driveFetch(
   path: string,
   options?: { method?: string; headers?: Record<string, string>; body?: any },
 ): Promise<Response> {
-  const response = await getConnectors().proxy('google-drive', path, options);
-  if (response.status === 401 || response.status === 403) {
-    const text = await response.text().catch(() => '');
-    throw new Error(
-      `GOOGLE_DRIVE_RECONNECTION_NEEDED: Google Drive non connesso o autorizzazione scaduta (${response.status}) ${text.slice(0, 200)}`,
-    );
-  }
-  return response;
+  // createProxyFetch accepts Fetch bodies, unlike proxy() which also serializes
+  // plain objects. Preserve that existing contract for folder/permission calls.
+  const body = options?.body;
+  const jsonBody = body !== null && typeof body === 'object'
+    && (Array.isArray(body) || Object.getPrototypeOf(body) === Object.prototype);
+  const normalized = jsonBody ? {
+    ...options, body: JSON.stringify(body),
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+  } : options;
+  return boundedDriveRequest(path, normalized, !options?.method || options.method === 'GET');
 }
 
 /** Come driveFetch ma lancia anche sugli altri errori HTTP e fa il parse JSON. */

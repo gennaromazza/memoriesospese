@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const h = vi.hoisted(() => ({ responses: [] as Response[], calls: [] as unknown[][] }));
-vi.mock('@replit/connectors-sdk', () => ({ ReplitConnectors: class { async proxy(...args: unknown[]) { h.calls.push(args); return h.responses.shift(); } } }));
-import { findMatchingShipmentFile } from './google-drive';
+vi.mock('@replit/connectors-sdk', () => ({ ReplitConnectors: class {
+  async proxy(...args: unknown[]) { h.calls.push(args); return h.responses.shift(); }
+  createProxyFetch(connector: string) { return async (path: string, options: unknown) => this.proxy(connector, path, options); }
+} }));
+import { findMatchingShipmentFile, findOrCreateLabParentFolder } from './google-drive';
 describe('Riconciliazione Drive: verifica reale dei byte, nessun upload', () => {
   beforeEach(() => { h.responses = []; h.calls = []; });
   const expected = Buffer.from('conferma');
@@ -10,6 +13,14 @@ describe('Riconciliazione Drive: verifica reale dei byte, nessun upload', () => 
     h.responses.push(metadata([]));
     expect(await findMatchingShipmentFile('folder', 'MOCKUP.html', expected)).toBeNull();
     expect(h.calls).toHaveLength(1);
+  });
+  it('mantiene la serializzazione JSON del proxy per la creazione delle cartelle', async () => {
+    h.responses.push(metadata([]), Response.json({ id: 'parent' }));
+    expect(await findOrCreateLabParentFolder()).toBe('parent');
+    const request = h.calls[1][2] as RequestInit;
+    expect(request.method).toBe('POST');
+    expect(JSON.parse(request.body as string)).toMatchObject({ mimeType: 'application/vnd.google-apps.folder' });
+    expect(new Headers(request.headers).get('content-type')).toBe('application/json');
   });
   it('rifiuta più copie con lo stesso nome', async () => {
     h.responses.push(metadata([{ id: 'a' }, { id: 'b' }]));
@@ -25,7 +36,7 @@ describe('Riconciliazione Drive: verifica reale dei byte, nessun upload', () => 
     h.responses.push(metadata([{ id: 'a', size: '8' }]), new Response(expected));
     expect(await findMatchingShipmentFile('folder', 'MOCKUP.html', expected)).toEqual({ fileId: 'a', size: 8 });
     expect(h.calls).toHaveLength(2);
-    expect(h.calls.every(c => c[2] === undefined)).toBe(true);
+    expect(h.calls.every(c => !c[2] || !(c[2] as RequestInit).method || (c[2] as RequestInit).method === 'GET')).toBe(true);
     expect(decodeURIComponent(String(h.calls[0][1]))).toContain("'folder' in parents and name='MOCKUP.html'");
   });
   it('rifiuta file della stessa dimensione ma contenuto diverso', async () => {

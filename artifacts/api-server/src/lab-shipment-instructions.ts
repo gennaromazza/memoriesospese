@@ -39,6 +39,16 @@ function buildInstructionDocument(
     ...(photobook.version ? [`Versione: ${photobook.version}`] : []),
     ...(shipment.descrizione ? [`Descrizione: ${shipment.descrizione}`] : []),
     '',
+    'ORDINE DELLE PAGINE',
+    '--------------------',
+    'Su Google Drive ordinare per Nome, crescente (A → Z), non per data di caricamento.',
+    'I prefissi numerici dei file seguono l’ordine delle pagine nell’editor; eventuali salti di numerazione sono intenzionali.',
+    ...(shipment.files || [])
+      .filter(file => file.kind === 'original' || /^pagina-\d+-/.test(file.name))
+      .sort((a, b) => (a.sourcePageNumber || Number(a.name.match(/^pagina-(\d+)-/)?.[1]) || 0)
+        - (b.sourcePageNumber || Number(b.name.match(/^pagina-(\d+)-/)?.[1]) || 0))
+      .map(file => file.name),
+    '',
     'ISTRUZIONI GENERALI',
     '--------------------',
     generalNote || 'Nessuna istruzione generale.',

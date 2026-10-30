@@ -1,3 +1,5 @@
+import { orderPhotobookPages, photobookPageFileName } from './photobook-page-order.js';
+
 /**
  * Current originals are compared by both filename/page identity and the exact
  * Firebase Storage path registered when the file was copied to Drive. Legacy
@@ -16,9 +18,9 @@ export async function comparePhotobookShipmentPages(tx: any, db: any, shipment: 
   const expectedPageCount = book.versions?.find((entry: any) => entry.version === version)?.pageCount;
   const pagesSnapshot = await tx.get(db.collection('photobookPages')
     .where('photobookId', '==', shipment.photobookId).where('version', '==', version));
-  const pages = pagesSnapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+  const pages = orderPhotobookPages(pagesSnapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() })));
   const originalFiles = (shipment.files || []).filter((file: any) =>
-    file.driveFileId && (file.kind === 'original' || /^pagina-\d{3}-/.test(file.name || '')),
+    file.driveFileId && (file.kind === 'original' || /^pagina-\d+-/.test(file.name || '')),
   );
   const usedFileIds = new Set<string>();
   const missingPages: Array<{ pageNumber: number; name: string; storagePath: string }> = [];
@@ -28,8 +30,7 @@ export async function comparePhotobookShipmentPages(tx: any, db: any, shipment: 
       missingPages.push({ pageNumber: page.pageNumber, name: '', storagePath: '' });
       continue;
     }
-    const extension = String(page.storagePath).match(/\.(\w+)$/)?.[1] || 'jpg';
-    const name = `pagina-${String(page.pageNumber).padStart(3, '0')}-${page.id}.${extension}`;
+    const name = photobookPageFileName(page);
     const candidates = originalFiles.filter((file: any) =>
       file.name === name && !usedFileIds.has(file.driveFileId),
     );
@@ -72,6 +73,7 @@ export async function photobookShipmentReadiness(tx: any, db: any, shipment: any
   if (transfer && (transfer.status !== 'completed' || transfer.failed?.length)) {
     return 'Trasferimento pagine incompleto: completa o riprova le pagine mancanti prima di inviare.';
   }
+  if (transfer?.instructionsError) return 'Le pagine sono verificate ma le istruzioni sono incomplete. Riprendi la preparazione prima dell’email.';
   if (!shipment.photobookId) {
     return transfer ? 'Fotolibro di origine non trovato.' : null; // Valid legacy mockup-only shipment.
   }

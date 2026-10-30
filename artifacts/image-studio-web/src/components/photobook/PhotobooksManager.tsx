@@ -151,6 +151,7 @@ export default function PhotobooksManager({
   const [createMode, setCreateMode] = useState<'linked' | 'standalone'>('linked');
   // The print queue must remain discoverable after navigation and refresh.
   const [showArchived, setShowArchived] = useState(false);
+  const [expandedShipmentBookIds, setExpandedShipmentBookIds] = useState<Set<string>>(() => new Set());
   const [newName, setNewName] = useState('');
   const [newGalleryId, setNewGalleryId] = useState('');
   const [newJobId, setNewJobId] = useState('');
@@ -590,6 +591,13 @@ export default function PhotobooksManager({
                     <PhotobookShipmentInfo
                       shipmentId={book.labShipmentId}
                       book={book}
+                      expanded={expandedShipmentBookIds.has(book.id)}
+                      onExpandedChange={(expanded) => setExpandedShipmentBookIds(current => {
+                        const next = new Set(current);
+                        if (expanded) next.add(book.id);
+                        else next.delete(book.id);
+                        return next;
+                      })}
                     />
                   )}
                   {book.locked && !book.labShipmentId && (
@@ -1169,7 +1177,17 @@ export default function PhotobooksManager({
  * Riquadro spedizione laboratorio collegata a un fotolibro mandato in stampa:
  * laboratorio, stato, scadenza file, link Drive e retry per pagine mancanti.
  */
-function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book: Photobook }) {
+function PhotobookShipmentInfo({
+  shipmentId,
+  book,
+  expanded,
+  onExpandedChange,
+}: {
+  shipmentId: string;
+  book: Photobook;
+  expanded: boolean;
+  onExpandedChange: (expanded: boolean) => void;
+}) {
   const { toast } = useToast();
   const [supplementalUploading, setSupplementalUploading] = useState(false);
   const [archivedPageBusyId, setArchivedPageBusyId] = useState<string | null>(null);
@@ -1345,15 +1363,52 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
     (pageCount < 1 || pageFilesCount < pageCount ||
       (shipment.photobookVersion !== undefined && shipment.photobookVersion !== book.currentVersion) ||
       obsoletePages.length > 0 || missingPages.length > 0 ||
+      shipment.drivePageVerification?.status === 'failed' ||
+      !!transfer?.instructionsError ||
       (!!transfer && (transfer.status !== 'completed' || !!transfer.failed?.length)));
   const selectedLabValid = availableLabs.some(lab => lab.id === shipment.labId && !!lab.email?.trim());
+  const shipmentSummaryStatus = expired
+    ? 'File scaduti'
+    : dispatchAbandoned
+      ? 'Email da verificare'
+      : shipment.mockupDispatching || transferRunning
+        ? 'Preparazione in corso'
+        : shipmentAlreadySent
+          ? 'Email inviata'
+          : incomplete
+            ? 'File da completare'
+            : 'Pronta per invio';
 
   return (
-    <div className="mt-3 rounded-md border bg-muted/30 p-3 text-sm space-y-1.5">
-      <p className="font-medium flex items-center gap-1.5">
-        <Truck className="h-4 w-4" />
-        Spedizione laboratorio
-        <Badge variant="secondary" className="ml-1">
+    <details
+      className="pb-shipment-details"
+      data-testid="photobook-shipment-details"
+      open={expanded}
+      onToggle={(event) => onExpandedChange(event.currentTarget.open)}
+    >
+      <summary className="pb-shipment-summary">
+        <span className="pb-shipment-summary-main">
+          <Truck className="h-4 w-4 shrink-0" />
+          <span className="pb-shipment-summary-copy">
+            <span className="pb-shipment-summary-title">Spedizione laboratorio</span>
+            <span className="pb-shipment-summary-meta">
+              {pageFilesCount}/{pageCount} pagine
+              {shipment.labNome ? ` · ${shipment.labNome}` : ''}
+              {supplementalFiles.length ? ` · ${supplementalFiles.length} file aggiuntivi` : ''}
+            </span>
+          </span>
+        </span>
+        <span className="pb-shipment-summary-status">{shipmentSummaryStatus}</span>
+        <span className="pb-shipment-summary-toggle">
+          Gestisci
+          <ChevronDown className="h-4 w-4" aria-hidden="true" />
+        </span>
+      </summary>
+      <div className="pb-shipment-panel-body">
+      <div className="pb-shipment-panel-content">
+      <div className="font-medium flex flex-wrap items-center gap-1.5">
+        <span>Spedizione laboratorio</span>
+        <Badge variant="secondary">
           {LAB_SHIPMENT_STATUS_LABELS[shipment.status] || shipment.status}
         </Badge>
         {expired && (
@@ -1362,7 +1417,7 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
             {shipment.deletedFromDrive ? 'File eliminati da Drive' : 'File scaduti'}
           </Badge>
         )}
-      </p>
+      </div>
       <p className="text-xs" role="status">
         {dispatchAbandoned ? 'Invio interrotto o con esito incerto: verifica manuale necessaria.'
           : shipment.mockupDispatching ? 'Invio email in corso o verifica del blocco in attesa: nessun nuovo invio consentito.'
@@ -1372,7 +1427,11 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
             ? 'Archiviazione interrotta: puoi riprenderla senza inviare email.'
           : transferAbandoned ? 'Trasferimento interrotto: è disponibile il recupero manuale.'
           : shipmentAlreadySent ? 'Email al laboratorio inviata.'
-          : transferRunning ? 'Trasferimento pagine in corso · email non inviata.'
+          : transferRunning ? transfer?.phase === 'verifying'
+            ? 'Verifica di tutte le pagine effettivamente presenti su Drive · email non inviata.'
+            : transfer?.phase === 'instructions'
+              ? 'Pagine verificate · aggiornamento delle istruzioni per il laboratorio.'
+              : `Verifica e trasferimento${transfer?.currentPageNumber ? ` · pagina ${transfer.currentPageNumber}` : ''} · email non inviata.`
           : incomplete ? 'Trasferimento incompleto · invio email bloccato.'
           : 'Spedizione pronta · email non ancora inviata.'}
       </p>
@@ -1591,6 +1650,10 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
         )}
       </div>
       <LabSendFeedback shipment={shipment} pending={sendMutation.isPending} error={sendMutation.error} />
+      {transfer?.instructionsError && <p role="alert" className="text-xs text-destructive">{transfer.instructionsError} Riprendi la preparazione: le pagine già verificate non saranno ricopiate.</p>}
+      {shipment.drivePageVerification?.status === 'failed' && (
+        <p role="alert" className="text-xs text-destructive">{shipment.drivePageVerification.error} L’email al laboratorio resta bloccata.</p>
+      )}
       {transferRunning && !transferAbandoned && transfer && (
         <div className="space-y-1">
           <p className="text-xs text-muted-foreground flex items-center gap-1.5">
@@ -1626,7 +1689,7 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
           Riprova: verranno copiate solo le pagine mancanti, senza duplicati.
         </p>
       )}
-      <div className="flex flex-wrap items-center gap-2 pt-1">
+      <div className="pb-shipment-actions flex flex-wrap items-center gap-2 pt-1">
         {shipment.shareableLink && !shipment.deletedFromDrive && (
           <Button size="sm" variant="outline" asChild>
             <a href={shipment.shareableLink} target="_blank" rel="noopener noreferrer">
@@ -1634,6 +1697,9 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
               Apri cartella Drive
             </a>
           </Button>
+        )}
+        {shipment.shareableLink && !shipment.deletedFromDrive && (
+          <span className="text-xs text-muted-foreground">Su Drive: ordina per Nome, crescente (A → Z), per vedere le pagine nell’ordine del fotolibro.</span>
         )}
         {shipment.shareableLink &&
           !shipment.deletedFromDrive &&
@@ -1670,7 +1736,7 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
             ) : (
               <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
             )}
-            Riprova pagine mancanti
+            {transfer?.instructionsError ? 'Aggiorna istruzioni di stampa' : 'Riprova pagine mancanti'}
           </Button>
         )}
         {!incomplete && !transferRunning && !expired && pageFilesCount > 0 && (
@@ -1680,6 +1746,8 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
           </span>
         )}
       </div>
-    </div>
+      </div>
+      </div>
+    </details>
   );
 }

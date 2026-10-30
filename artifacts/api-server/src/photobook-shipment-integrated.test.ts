@@ -12,7 +12,7 @@ import { Socket } from 'node:net';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createServer, type ViteDevServer } from 'vite';
-import { chromium, expect as browserExpect, type Browser, type BrowserContext } from '@playwright/test';
+import { chromium, expect as browserExpect, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import sharp from 'sharp';
 import { driveObjectKey, services, Timestamp } from './test-utils/photobook-integrated-services';
 
@@ -25,6 +25,11 @@ vi.mock('firebase-admin/firestore', async () => {
   return { FieldValue, Timestamp };
 });
 vi.mock('./google-drive.js', async () => (await import('./test-utils/photobook-integrated-services')).drive);
+vi.mock('./drive-request.js', async importOriginal => {
+  const original = await importOriginal<typeof import('./drive-request.js')>();
+  const { pageHttp } = await import('./test-utils/photobook-integrated-services');
+  return { ...original, boundedDriveRequest: pageHttp.request, driveSessionRequest: pageHttp.sessionRequest };
+});
 vi.mock('./email-routes.js', async () => (await import('./test-utils/photobook-integrated-services')).email);
 vi.mock('./print-shop/auth.js', async () => ({
   authenticatePrintShop: (await import('./test-utils/photobook-integrated-services')).authenticate,
@@ -113,6 +118,29 @@ afterAll(async () => {
   });
   restoreNetwork?.();
 });
+
+async function showPrintQueue(page: Page, expandShipmentDetails = true) {
+  const toggle = page.getByTestId('button-toggle-archived');
+  // The redesigned manager keeps locked albums in a collapsed print queue.
+  await browserExpect(page.getByTestId('button-create-photobook')).toBeVisible();
+  if (await toggle.count() && await toggle.getAttribute('aria-expanded') === 'false') await toggle.click();
+  if (expandShipmentDetails) {
+    const panels = await page.getByTestId('photobook-shipment-details').all();
+    for (const panel of panels) {
+      if (!(await panel.evaluate(element => (element as { open: boolean }).open))) {
+        await panel.locator('summary').click();
+      }
+    }
+  }
+}
+async function reloadManager(page: Page) {
+  await page.reload();
+  await showPrintQueue(page);
+}
+async function openManager(page: Page, expandShipmentDetails = true) {
+  await page.goto(origin);
+  await showPrintQueue(page, expandShipmentDetails);
+}
 
 function resetIntegratedServices() {
   services.docs.clear();
@@ -248,6 +276,14 @@ function seedOnePagePhotobook(bookId: string) {
   });
   services.objects.set(oldPath, oldBytes);
   return { oldPath, oldBytes };
+}
+
+function seedRemoteOriginal(photobookId: string, folderId: string, name: string) {
+  const bytes = Buffer.from(`original-${photobookId}`);
+  services.objects.set(`photobooks/${photobookId}/v1/pagina.jpg`, bytes);
+  const key = driveObjectKey(folderId, name);
+  services.drive.set(key, bytes);
+  services.driveFileKeys.set(`drive-${folderId}::${name}`, key);
 }
 
 it('archivia l’originale sostituito, ripete il trasferimento senza duplicati e non invia email automaticamente', async () => {
@@ -431,7 +467,9 @@ it('recupera un’archiviazione interrotta dopo lo spostamento su Drive e aggior
   expect(services.privateDriveFolders.has(privateArchiveFolderId)).toBe(true);
   expect(services.drive.has(oldPageKey)).toBe(false);
   expect(services.drive.get(driveObjectKey(privateArchiveFolderId, oldPageFile.name))).toEqual(oldBytes);
-  expect(needsRecovery.files.some((file: any) => file.kind === 'manifest')).toBe(false);
+  // The completed transfer now already has instructions. A failed archival
+  // must leave that prior manifest intact, not delete it prematurely.
+  expect(needsRecovery.files.some((file: any) => file.kind === 'manifest')).toBe(true);
   const blockedSend = await postIntegratedJson(`/api/lab-shipments/${shipmentId}/send`, {});
   expect(blockedSend.status).toBe(409);
   expect(blockedSend.json.error).toContain('richiede una verifica');
@@ -442,8 +480,8 @@ it('recupera un’archiviazione interrotta dopo lo spostamento su Drive e aggior
   // disabled while the server is processing the recovery.
   services.afterMove = null;
   const page = await context!.newPage();
-  await page.goto(origin);
-  await page.reload();
+  await openManager(page);
+  await reloadManager(page);
   const recoveryCard = page.getByTestId(`card-photobook-${bookId}`);
   await browserExpect(recoveryCard).toBeVisible();
   await browserExpect(recoveryCard).toContainText('Archiviazione interrotta: puoi riprenderla senza inviare email.');
@@ -548,7 +586,7 @@ it('riprende dal browser un trasferimento pagine running con heartbeat scaduto s
     }
     if (url.pathname === `/api/lab-shipments/${shipmentId}/send`) sendRequests.push(url.pathname);
   });
-  await page.goto(origin);
+  await openManager(page);
   const recoveryCard = page.getByTestId(`card-photobook-${bookId}`);
   await browserExpect(recoveryCard).toBeVisible();
   await browserExpect(recoveryCard).toContainText('Trasferimento interrotto: è disponibile il recupero manuale.');
@@ -669,7 +707,7 @@ it('recupera dal browser un’archiviazione running con heartbeat scaduto senza 
       recoveryRequests.push({ path: url.pathname, body: JSON.parse(request.postData() || '{}') });
     }
   });
-  await page.goto(origin);
+  await openManager(page);
   const recoveryCard = page.getByTestId(`card-photobook-${bookId}`);
   await browserExpect(recoveryCard).toBeVisible();
   await browserExpect(recoveryCard).toContainText('Archiviazione interrotta: verifica la cartella privata e recupera l’operazione.');
@@ -784,7 +822,7 @@ it('riprende dopo il fallimento delle istruzioni senza duplicare archivio o file
     if (url.pathname === `/api/photobooks/${bookId}/lab-shipment`) retryRequests.push(url.pathname);
     if (url.pathname === `/api/lab-shipments/${shipmentId}/send`) sendRequests.push(url.pathname);
   });
-  await page.goto(origin);
+  await openManager(page);
   const recoveryCard = page.getByTestId(`card-photobook-${bookId}`);
   await browserExpect(recoveryCard).toBeVisible();
   await browserExpect(recoveryCard).toContainText('Archiviazione interrotta: puoi riprenderla senza inviare email.');
@@ -897,6 +935,8 @@ it('riusa le istruzioni create da Drive quando la risposta del primo upload vien
   services.objects.set(currentPath, Buffer.from('originale corrente'));
   services.docs.get(`photobookPages/${bookId}-page-1`).storagePath = currentPath;
   services.failInstructionUploadAfterCommit = true;
+  services.driveFileSearchAttempts.length = 0;
+  services.driveUpdateAttempts.length = 0;
 
   const firstAttempt = await postIntegratedJson(
     `/api/lab-shipments/${shipmentId}/archive-obsolete-photobook-pages`,
@@ -971,7 +1011,7 @@ it('non modifica una spedizione già inviata senza consenso esplicito', async ()
     }
     if (url.pathname === `/api/lab-shipments/${shipmentId}/send`) sendRequests.push(url.pathname);
   });
-  await page.goto(origin);
+  await openManager(page);
   const card = page.getByTestId(`card-photobook-${bookId}`);
   await browserExpect(card).toBeVisible();
   await browserExpect(card).toContainText(
@@ -1031,7 +1071,7 @@ it('autonomo: crea, carica originali, prepara, ritenta solo la pagina mancante e
     const url = new URL(response.url());
     if (url.pathname.startsWith('/api/')) responses.push({ path: url.pathname, status: response.status() });
   });
-  await page.goto(origin);
+  await openManager(page);
   await page.getByTestId('button-create-photobook').click();
   await page.getByTestId('button-photobook-mode-standalone').click();
   await page.getByTestId('input-photobook-name').fill('Album autonomo integrato');
@@ -1095,6 +1135,9 @@ it('autonomo: crea, carica originali, prepara, ritenta solo la pagina mancante e
   await page.getByRole('option', { name: 'Laboratorio isolato' }).click();
   await page.getByTestId('textarea-shipment-lab-note').fill('Carta opaca, controllo colore');
   await page.getByTestId('button-confirm-lock').click();
+  const shipmentDetails = card.getByTestId('photobook-shipment-details');
+  await browserExpect(shipmentDetails).toBeVisible({ timeout: 15_000 });
+  await shipmentDetails.locator('summary').click();
   await browserExpect(page.getByTestId(`button-retry-shipment-${id}`)).toBeVisible({ timeout: 15_000 });
   const shipmentId = services.docs.get(bookPath).labShipmentId;
   const shipmentPath = `labShipments/${shipmentId}`;
@@ -1114,7 +1157,7 @@ it('autonomo: crea, carica originali, prepara, ritenta solo la pagina mancante e
   }, shipmentId);
   expect(rejectedSend).toBe(409);
   expect(services.emails).toHaveLength(0);
-  await page.reload();
+  await reloadManager(page);
   await browserExpect(card).toBeVisible();
   await browserExpect(page.getByTestId('button-send-lab-email')).toBeDisabled();
 
@@ -1137,7 +1180,7 @@ it('autonomo: crea, carica originali, prepara, ritenta solo la pagina mancante e
     expect(services.drive.get(driveObjectKey(firstDriveFolder, file.name))).toEqual(originals.get(number));
   });
   expect(services.emails).toHaveLength(0);
-  await page.reload();
+  await reloadManager(page);
   await browserExpect(card).toBeVisible();
   await browserExpect(card).toContainText(/Email non ancora inviata/i);
   await page.getByTestId('button-send-lab-email').click();
@@ -1147,7 +1190,7 @@ it('autonomo: crea, carica originali, prepara, ritenta solo la pagina mancante e
   expect(services.emails[0][2]).toContain(`https://drive.invalid/${firstDriveFolder}`);
   expect(services.drive.get(driveObjectKey(firstDriveFolder, 'ISTRUZIONI-DI-STAMPA.txt'))?.toString()).toContain('Carta opaca, controllo colore');
   expect(services.docs.get(shipmentPath)).toMatchObject({ status: 'inviato', sentAt: expect.any(Object) });
-  await page.reload();
+  await reloadManager(page);
   await browserExpect(card).toBeVisible();
   await browserExpect(card).toContainText('Email al laboratorio inviata.');
   expect(services.emails).toHaveLength(1);
@@ -1224,7 +1267,7 @@ it('autonomo: crea, carica originali, prepara, ritenta solo la pagina mancante e
   expect(services.docs.get(bookPath).labShipmentId).toBe(shipmentId);
   expect(services.emails).toHaveLength(firstEmailCount);
   for (const [key, content] of firstFolderContents) expect(services.drive.get(key)).toEqual(content);
-  await page.reload();
+  await reloadManager(page);
   const firstCardAfterRefresh = page.getByTestId(`card-photobook-${id}`);
   const secondCardAfterRefresh = page.getByTestId(`card-photobook-${secondId}`);
   await browserExpect(firstCardAfterRefresh).toBeVisible();
@@ -1273,7 +1316,7 @@ it('autonomo: crea, carica originali, prepara, ritenta solo la pagina mancante e
     photobookDispatch: { settled: true },
   });
 
-  await page.reload();
+  await reloadManager(page);
   const [firstAfterAmbiguousRefresh, secondAfterAmbiguousRefresh] = await Promise.all([
     getIntegratedShipment(shipmentId),
     getIntegratedShipment(secondShipmentId),
@@ -1299,7 +1342,7 @@ it('autonomo: crea, carica originali, prepara, ritenta solo la pagina mancante e
   expect(services.docs.get(shipmentPath)).toEqual(firstShipmentSnapshot);
   expect(services.emails).toHaveLength(firstEmailCount);
 
-  await page.reload();
+  await reloadManager(page);
   await browserExpect(firstCardAfterRefresh).toContainText('Email al laboratorio inviata.');
   await browserExpect(secondCardAfterRefresh).toContainText(/Email non ancora inviata/i);
   await browserExpect(secondCardAfterRefresh.getByTestId('button-send-lab-email')).toBeEnabled();
@@ -1309,7 +1352,7 @@ it('autonomo: crea, carica originali, prepara, ritenta solo la pagina mancante e
   expect(services.emails[0][2]).toContain(`https://drive.invalid/${firstDriveFolder}`);
   expect(services.emails[1][2]).toContain(`https://drive.invalid/${secondFolder}`);
   expect(services.docs.get(shipmentPath)).toEqual(firstShipmentSnapshot);
-  await page.reload();
+  await reloadManager(page);
   await browserExpect(firstCardAfterRefresh).toContainText('Email al laboratorio inviata.');
   await browserExpect(secondCardAfterRefresh).toContainText('Email al laboratorio inviata.');
   expect(services.docs.get(shipmentPath)).toEqual(firstShipmentSnapshot);
@@ -1500,6 +1543,108 @@ it('due spedizioni autonome sovrapposte isolano cartelle, retry, email e stato',
   });
 }, 60_000);
 
+it('distingue pagine verificate da istruzioni incomplete e le recupera senza ricopiare originali', async () => {
+  resetIntegratedServices();
+  const bookId = 'instructions-incomplete';
+  seedOnePagePhotobook(bookId);
+  // Standalone books create their first instruction sheet after copying pages.
+  // Fail that actual upload boundary, rather than an update that never occurs.
+  services.beforeUpload = async (_folder, name) => {
+    if (name === 'ISTRUZIONI-DI-STAMPA.txt') throw new Error('Creazione istruzioni simulata fallita');
+  };
+  const started = await postIntegratedJson(`/api/photobooks/${bookId}/lab-shipment`, { labId: 'lab-fixture' });
+  expect(started.status).toBe(202);
+  const id = started.json.shipment.id;
+  const path = `labShipments/${id}`;
+  const transfer = await waitForIntegratedTransfer(path);
+  expect(transfer).toMatchObject({ status: 'completed', transferred: 1, instructionsError: expect.stringContaining('Pagine verificate') });
+  expect((await postIntegratedJson(`/api/lab-shipments/${id}/send`, {})).status).toBe(409);
+  expect(services.emails).toHaveLength(0);
+  const uploads = services.uploads.filter(name => name.startsWith('pagina-')).length;
+  services.beforeUpload = null;
+  expect((await postIntegratedJson(`/api/photobooks/${bookId}/lab-shipment`, { labId: 'lab-fixture' })).status).toBe(202);
+  expect(await waitForIntegratedTransfer(path)).toMatchObject({ status: 'completed', skipped: 1, transferred: 0, instructionsError: null });
+  expect(services.uploads.filter(name => name.startsWith('pagina-'))).toHaveLength(uploads);
+  expect(services.emails).toHaveLength(0);
+});
+
+it('12 pagine: ordine e byte dopo retry, verifica Drive al refresh e blocco email con copie mancanti o duplicate', async () => {
+  resetIntegratedServices();
+  const bookId = 'ordered-twelve-pages';
+  services.docs.set(`photobooks/${bookId}`, {
+    name: 'Album dodici pagine', currentVersion: 1, jobId: null, galleryId: null,
+    versions: [{ version: 1, pageCount: 12 }],
+  });
+  for (let number = 12; number >= 1; number--) {
+    const storagePath = `photobooks/${bookId}/v1/${13 - number}-nome-originale.jpg`;
+    services.docs.set(`photobookPages/${bookId}-${number}`, {
+      photobookId: bookId, version: 1, pageNumber: number,
+      fileName: `${13 - number}-nome-originale.jpg`, storagePath,
+    });
+    services.objects.set(storagePath, Buffer.from(`original bytes for page ${number}\0`));
+  }
+  services.failPage = 5;
+  const started = await postIntegratedJson(`/api/photobooks/${bookId}/lab-shipment`, { labId: 'lab-fixture' });
+  expect(started.status).toBe(202);
+  const id = started.json.shipment.id;
+  const path = `labShipments/${id}`;
+  expect((await waitForIntegratedTransfer(path)).status).toBe('partial');
+  const page = await context!.newPage();
+  await openManager(page);
+  const card = page.getByTestId(`card-photobook-${bookId}`);
+  await browserExpect(card).toBeVisible();
+  await browserExpect(card.getByTestId('button-send-lab-email')).toBeDisabled();
+  services.failPage = 0;
+  const uploadsBefore = services.uploads.length;
+  await card.getByTestId(`button-retry-shipment-${bookId}`).click();
+  await browserExpect(card.getByTestId('button-send-lab-email')).toBeEnabled({ timeout: 15_000 });
+  expect(services.uploads.slice(uploadsBefore).filter(name => name.startsWith('pagina-'))).toEqual([
+    expect.stringMatching(/^pagina-005-/),
+  ]);
+  const shipment = services.docs.get(path);
+  const originals = shipment.files.filter((file: any) => file.kind === 'original');
+  expect(originals).toHaveLength(12);
+  const ordered = [...originals].sort((a: any, b: any) => a.name.localeCompare(b.name));
+  expect(ordered.map((file: any) => file.sourcePageNumber)).toEqual(Array.from({ length: 12 }, (_, index) => index + 1));
+  for (const file of ordered) {
+    expect(services.drive.get(driveObjectKey(shipment.driveFolderId, file.name))?.equals(services.objects.get(file.sourceStoragePath)!)).toBe(true);
+  }
+  const instructions = services.drive.get(driveObjectKey(shipment.driveFolderId, 'ISTRUZIONI-DI-STAMPA.txt'))!.toString();
+  const positions = ordered.map((file: any) => instructions.indexOf(file.name));
+  expect(positions.every((position, index) => position >= 0 && (!index || position > positions[index - 1]))).toBe(true);
+  await browserExpect(card).toContainText('Su Drive: ordina per Nome');
+
+  // Preserve an unrelated production attachment through reconciliation.
+  const attachmentKey = driveObjectKey(shipment.driveFolderId, 'copertina.tif');
+  services.drive.set(attachmentKey, Buffer.from('cover original'));
+  services.driveFileKeys.set('cover-original', attachmentKey);
+  services.docs.get(path).files.push({ driveFileId: 'cover-original', name: 'copertina.tif', kind: 'supplemental' });
+  const missing = ordered[4];
+  services.drive.delete(driveObjectKey(shipment.driveFolderId, missing.name));
+  services.driveFileKeys.delete(missing.driveFileId);
+  await reloadManager(page);
+  await browserExpect(card).toContainText('Pagina 5 mancante su Drive');
+  await browserExpect(card.getByTestId('button-send-lab-email')).toBeDisabled();
+  // The server also blocks stale browsers that bypass the disabled button.
+  expect((await postIntegratedJson(`/api/lab-shipments/${id}/send`, {})).status).toBe(409);
+  expect(services.emails).toHaveLength(0);
+  await reloadManager(page);
+  await card.getByTestId(`button-retry-shipment-${bookId}`).click();
+  await browserExpect(card.getByTestId('button-send-lab-email')).toBeEnabled({ timeout: 15_000 });
+  expect(services.drive.get(attachmentKey)?.toString()).toBe('cover original');
+  expect(services.docs.get(path).files).toContainEqual(expect.objectContaining({ driveFileId: 'cover-original' }));
+
+  const duplicateKey = driveObjectKey(shipment.driveFolderId, ordered[0].name);
+  services.driveFileKeys.set('duplicate-copy', duplicateKey);
+  await reloadManager(page);
+  await browserExpect(card).toContainText('copie duplicate su Drive');
+  await browserExpect(card.getByTestId('button-send-lab-email')).toBeDisabled();
+  expect((await postIntegratedJson(`/api/lab-shipments/${id}/send`, {})).status).toBe(409);
+  expect(services.emails).toHaveLength(0);
+  expect(services.driveFileKeys.has('duplicate-copy')).toBe(true); // Never auto-delete.
+  await page.close();
+}, 60_000);
+
 it('gli invii simultanei mantengono destinatario e stato senza duplicare email per la stessa spedizione', async () => {
   resetIntegratedServices();
   const shipments = [
@@ -1529,6 +1674,7 @@ it('gli invii simultanei mantengono destinatario e stato senza duplicare email p
   for (const [index, shipment] of shipments.entries()) {
     const pageDocId = `${shipment.photobookId}-page-1`;
     const pageFileName = `pagina-001-${pageDocId}.jpg`;
+    seedRemoteOriginal(shipment.photobookId, shipment.folderId, pageFileName);
     services.docs.set(`photobooks/${shipment.photobookId}`, {
       name: `Fotolibro ${index === 0 ? 'A' : 'B'}`,
       currentVersion: 1,
@@ -1660,6 +1806,7 @@ it('il fallimento di un invio email simultaneo non altera l’altra spedizione',
   for (const [index, shipment] of shipments.entries()) {
     const pageDocId = `${shipment.photobookId}-page-1`;
     const pageFileName = `pagina-001-${pageDocId}.jpg`;
+    seedRemoteOriginal(shipment.photobookId, shipment.folderId, pageFileName);
     services.docs.set(`photobooks/${shipment.photobookId}`, {
       name: `Fotolibro misto ${index + 1}`,
       currentVersion: 1,
@@ -2080,4 +2227,63 @@ it('restituisce 503 e consente il retry per spedizioni di un lavoro e di un ordi
     expect(services.docs.has(`labShipments/${shipment.id}`)).toBe(false);
     expect(services.deletedDriveFolders).toContain(shipment.folderId);
   }
+});
+
+it('mostra la spedizione compatta e mantiene testo e azioni nei limiti dello schermo mobile', async () => {
+  resetIntegratedServices();
+  const bookId = 'compact-mobile-shipment';
+  seedOnePagePhotobook(bookId);
+  const started = await postIntegratedJson(`/api/photobooks/${bookId}/lab-shipment`, {
+    labId: 'lab-fixture',
+  });
+  expect(started.status).toBe(202);
+  await waitForIntegratedTransfer(`labShipments/${started.json.shipment.id}`);
+
+  const page = await context!.newPage();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openManager(page, false);
+
+  const card = page.getByTestId(`card-photobook-${bookId}`);
+  const panel = card.getByTestId('photobook-shipment-details');
+  await browserExpect(panel).toBeVisible();
+  expect(await panel.evaluate(element => (element as { open: boolean }).open)).toBe(false);
+  await browserExpect(panel.locator('summary')).toContainText('1/1 pagine');
+  await browserExpect(panel.locator('summary')).toContainText('Pronta per invio');
+  await browserExpect(card.getByTestId('button-send-lab-email')).toBeHidden();
+
+  const summaryBox = await panel.locator('summary').boundingBox();
+  expect(summaryBox?.height).toBeLessThan(90);
+
+  await panel.locator('summary').click();
+  const sendButton = card.getByTestId('button-send-lab-email');
+  await browserExpect(sendButton).toBeVisible();
+  await browserExpect(sendButton).toBeEnabled();
+  const dimensions = await panel.evaluate(root => {
+    const body = root.querySelector('.pb-shipment-panel-body') as unknown as {
+      clientWidth: number;
+      scrollWidth: number;
+    };
+    const content = root.querySelector('.pb-shipment-panel-content') as unknown as {
+      getBoundingClientRect: () => { left: number; right: number };
+    };
+    const contentRect = content.getBoundingClientRect();
+    const actionRects = [...root.querySelectorAll('.pb-shipment-actions > *')].map(node => {
+      const rect = (node as unknown as {
+        getBoundingClientRect: () => { left: number; right: number };
+      }).getBoundingClientRect();
+      return { left: rect.left, right: rect.right };
+    });
+    return {
+      width: body.clientWidth,
+      scrollWidth: body.scrollWidth,
+      actionRects,
+      contentLeft: contentRect.left,
+      contentRight: contentRect.right,
+    };
+  });
+  expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.width + 1);
+  expect(dimensions.actionRects.every(action =>
+    action.left >= dimensions.contentLeft - 1 && action.right <= dimensions.contentRight + 1,
+  )).toBe(true);
+  await page.close();
 });

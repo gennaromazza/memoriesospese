@@ -10,7 +10,7 @@ import type { HttpHandlerResult } from "./http-types.js";
  */
 
 import express from 'express';
-import { db } from './firebase-admin';
+import { db, storage } from './firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { nanoid } from 'nanoid';
 import { nowRome, formatRomeDateLocale } from './utils/timezone.js';
@@ -50,6 +50,7 @@ import { refreshWalkInLabShipmentInstructions } from './walk-in-lab-shipment-ins
 import { labMockupCatalogRouter } from './lab-mockup-catalog.js';
 import { recentLabShipments } from './lab-recent-shipments.js';
 import { comparePhotobookShipmentPages, photobookShipmentReadiness } from './photobook-shipment-readiness.js';
+import { verifyPhotobookDrivePages } from './photobook-drive-copy.js';
 import { newPhotobookOperation, operationAbandoned, photobookRecovery, watchPhotobookOperation } from './photobook-operation.js';
 import { GetRecentLabShipmentsQueryParams, GetRecentLabShipmentsResponse } from '@workspace/api-zod';
 
@@ -523,9 +524,20 @@ router.get('/lab-shipments/:id', authenticateFirebase, requireAdmin, async (req:
     let pageComparison = {};
     if (data?.sourceType === 'photobook' && data.photobookId) {
       const comparison = await comparePhotobookShipmentPages({ get: (ref: any) => ref.get() }, db, data);
+      let drivePageVerification: { status: 'verified' | 'failed'; error?: string } | undefined;
+      if (data.pageTransfer?.status === 'completed' && !data.sentAt
+        && !['inviato', 'in_stampa', 'ricevuto'].includes(data.status) && data.driveFolderId) {
+        try {
+          await verifyPhotobookDrivePages(data.driveFolderId, comparison.pages, storage.bucket());
+          drivePageVerification = { status: 'verified' };
+        } catch (error: any) {
+          drivePageVerification = { status: 'failed', error: `Verifica pagine Drive: ${error.message}` };
+        }
+      }
       pageComparison = {
         obsoletePhotobookPages: comparison.obsoleteFiles,
         missingPhotobookPages: comparison.missingPages,
+        ...(drivePageVerification ? { drivePageVerification } : {}),
       };
     }
     res.setHeader('Cache-Control', 'no-store');
@@ -1085,6 +1097,23 @@ router.post('/lab-shipments/:id/send', authenticateFirebase, requireAdmin, async
       if (!claimed) return res.status(409).json({ error: readinessError || 'Invio bloccato: controlla trasferimento mockup e laboratorio destinatario della conferma.' });
       mockupDispatchClaimed = true;
       dispatchOperation = watchPhotobookOperation(db, db.collection('labShipments').doc(id), 'photobookDispatch', operation.id);
+      // Verify after claiming: transfer/cleanup workers cannot race this check.
+      // Firestore metadata alone must never authorize an email to the lab.
+      if (shipment.photobookId) {
+        const freshShipment = (await shipmentDoc.ref.get()).data();
+        if (!freshShipment) throw new Error('Spedizione non più disponibile.');
+        const comparison = await comparePhotobookShipmentPages({ get: (ref: any) => ref.get() }, db, freshShipment);
+        try {
+          await verifyPhotobookDrivePages(freshShipment.driveFolderId, comparison.pages, storage.bucket());
+        } catch (error: any) {
+          // Do not rewrite delivered shipments. An unsent transfer is marked
+          // incomplete so the existing manual recovery action stays available.
+          if (!freshShipment.sentAt && !['inviato', 'in_stampa', 'ricevuto'].includes(freshShipment.status)) await shipmentDoc.ref.update({
+            'pageTransfer.status': 'failed', 'pageTransfer.error': error.message,
+          });
+          throw Object.assign(new Error(`Verifica pagine Drive: ${error.message}`), { status: 409 });
+        }
+      }
       shipment = await refreshLabShipmentInstructions(
         db.collection('labShipments').doc(id),
       );
@@ -1288,7 +1317,7 @@ router.post('/lab-shipments/:id/send', authenticateFirebase, requireAdmin, async
       }).catch(() => undefined);
     }
     console.error('❌ Error sending lab shipment:', error);
-    res.status(500).json({ error: error.message });
+    res.status(error.status || 500).json({ error: error.message });
   } finally {
     // Non liberare il blocco dopo un invio email dall'esito ambiguo.
     if (mockupDispatchClaimed && (!emailAttempted || emailPersisted)) {
