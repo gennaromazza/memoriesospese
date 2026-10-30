@@ -494,6 +494,127 @@ it('recupera un’archiviazione interrotta dopo lo spostamento su Drive e aggior
   await page.close();
 }, 60_000);
 
+it('riprende dal browser un trasferimento pagine running con heartbeat scaduto senza inviare email', async () => {
+  resetIntegratedServices();
+  const bookId = 'abandoned-running-page-transfer';
+  seedOnePagePhotobook(bookId);
+  const started = await postIntegratedJson(`/api/photobooks/${bookId}/lab-shipment`, { labId: 'lab-fixture' });
+  expect(started.status).toBe(202);
+  const shipmentId = started.json.shipment.id;
+  const shipmentPath = `labShipments/${shipmentId}`;
+  await waitForIntegratedTransfer(shipmentPath);
+
+  const shipment = services.docs.get(shipmentPath);
+  const shipmentFolderId = shipment.driveFolderId;
+  const existingPage = shipment.files.find((file: any) => file.kind === 'original');
+  shipment.files = shipment.files.filter((file: any) => file.driveFileId !== existingPage.driveFileId);
+  const existingPageKey = services.driveFileKeys.get(existingPage.driveFileId);
+  if (existingPageKey) services.drive.delete(existingPageKey);
+  services.driveFileKeys.delete(existingPage.driveFileId);
+
+  const staleHeartbeat = Timestamp.fromDate(new Date(Date.now() - 10 * 60 * 1000));
+  shipment.pageTransfer = {
+    id: `abandoned-transfer-${bookId}`,
+    status: 'running',
+    total: 1,
+    transferred: 0,
+    skipped: 0,
+    failed: [],
+    startedAt: staleHeartbeat,
+    heartbeatAt: staleHeartbeat,
+  };
+
+  const detail = await getIntegratedShipment(shipmentId);
+  expect(detail.status).toBe(200);
+  expect(detail.json.photobookRecovery.pageTransferAbandoned).toBe(true);
+
+  const missingConfirmation = await postIntegratedJson(
+    `/api/photobooks/${bookId}/lab-shipment`,
+    { recoverAbandoned: false },
+  );
+  expect(missingConfirmation.status).toBe(409);
+  expect(missingConfirmation.json.error).toContain('Attendi la conclusione del trasferimento');
+  expect(services.docs.get(shipmentPath).pageTransfer).toMatchObject({ status: 'running' });
+  expect(services.emails).toHaveLength(0);
+
+  const page = await context!.newPage();
+  const recoveryRequests: Array<{ path: string; body: any }> = [];
+  const sendRequests: string[] = [];
+  page.on('request', request => {
+    const url = new URL(request.url());
+    if (request.method() !== 'POST') return;
+    if (url.pathname === `/api/photobooks/${bookId}/lab-shipment`) {
+      recoveryRequests.push({ path: url.pathname, body: request.postDataJSON() });
+    }
+    if (url.pathname === `/api/lab-shipments/${shipmentId}/send`) sendRequests.push(url.pathname);
+  });
+  await page.goto(origin);
+  const recoveryCard = page.getByTestId(`card-photobook-${bookId}`);
+  await browserExpect(recoveryCard).toBeVisible();
+  await browserExpect(recoveryCard).toContainText('Trasferimento interrotto: è disponibile il recupero manuale.');
+  const recoverButton = page.getByRole('button', { name: 'Recupera trasferimento interrotto' });
+  await browserExpect(recoverButton).toBeVisible();
+
+  let signalUpload!: () => void;
+  let releaseUpload!: () => void;
+  const uploadReached = new Promise<void>(resolve => { signalUpload = resolve; });
+  const uploadReleased = new Promise<void>(resolve => { releaseUpload = resolve; });
+  services.beforeUpload = async folderId => {
+    if (folderId !== shipmentFolderId) return;
+    signalUpload();
+    await uploadReleased;
+  };
+
+  let signalResponse!: () => void;
+  let releaseResponse!: () => void;
+  let recoveryResponseStatus: number | undefined;
+  const responseReached = new Promise<void>(resolve => { signalResponse = resolve; });
+  const responseReleased = new Promise<void>(resolve => { releaseResponse = resolve; });
+  await page.route(`**/api/photobooks/${bookId}/lab-shipment`, async route => {
+    const response = await route.fetch();
+    recoveryResponseStatus = response.status();
+    signalResponse();
+    await responseReleased;
+    await route.fulfill({ response });
+  });
+
+  try {
+    await browserExpect(recoverButton).toBeEnabled();
+    page.once('dialog', async dialog => { await dialog.accept(); });
+    await recoverButton.click();
+    await waitForSignal(responseReached, 'recovery response');
+    expect(recoveryResponseStatus).toBe(202);
+    expect(recoveryRequests).toEqual([{
+      path: `/api/photobooks/${bookId}/lab-shipment`,
+      body: { recoverAbandoned: true },
+    }]);
+    await waitForSignal(uploadReached, 'browser-triggered abandoned page transfer');
+    await browserExpect(recoverButton).toBeDisabled();
+    expect(recoveryRequests).toEqual([{
+      path: `/api/photobooks/${bookId}/lab-shipment`,
+      body: { recoverAbandoned: true },
+    }]);
+    expect(services.docs.get(shipmentPath).pageTransfer).toMatchObject({ status: 'running' });
+    expect(sendRequests).toEqual([]);
+    expect(services.emails).toHaveLength(0);
+  } finally {
+    releaseResponse();
+    releaseUpload();
+    services.beforeUpload = null;
+  }
+
+  await waitForIntegratedTransfer(shipmentPath);
+  expect(services.docs.get(shipmentPath).pageTransfer).toMatchObject({
+    status: 'completed',
+    transferred: 1,
+    skipped: 0,
+  });
+  expect(services.emails).toHaveLength(0);
+  expect(sendRequests).toEqual([]);
+  expect([...new Set(blocked)].filter(host => host !== 'https://fonts.googleapis.com')).toEqual([]);
+  await page.close();
+}, 60_000);
+
 it('recupera dal browser un’archiviazione running con heartbeat scaduto senza inviare email', async () => {
   resetIntegratedServices();
   const bookId = 'abandoned-running-page-archive';

@@ -44,3 +44,9 @@ Gli originali archiviati restano in una cartella Drive privata: gli admin li apr
 **Why:** L’archivio contiene versioni superate e non deve diventare una seconda cartella di consegna; il recupero amministrativo deve restare controllato e verificabile.
 
 **How to apply:** Qualsiasi nuova revisione o recupero degli originali deve passare da un endpoint admin-only, verificare che il file sia ancora nella cartella privata e lasciare una traccia di accesso.
+
+For background-operation recovery tests, isolate the stale-claim condition from other fail-closed guards; when the route uses the same status for multiple guards, assert the error detail as well as the status code.
+
+**Why:** A valid recovery fixture can be rejected earlier by a separate safety check, making a generic conflict response look like proof that the stale-claim guard worked.
+
+**How to apply:** Model only the missing/incomplete work needed to trigger the recovery path, and assert both the recovery-specific rejection and the successful confirmed retry.
