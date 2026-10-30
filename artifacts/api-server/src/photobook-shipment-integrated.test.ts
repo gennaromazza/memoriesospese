@@ -12,7 +12,7 @@ import { Socket } from 'node:net';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createServer, type ViteDevServer } from 'vite';
-import { chromium, expect as browserExpect, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import { chromium, expect as browserExpect, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
 import sharp from 'sharp';
 import { db, doc, driveObjectKey, services, Timestamp } from './test-utils/photobook-integrated-services';
 import { watchPhotobookOperation } from './photobook-operation';
@@ -120,6 +120,16 @@ afterAll(async () => {
   restoreNetwork?.();
 });
 
+async function ensureShipmentDetailsOpen(scope: Locator) {
+  const panel = await scope.getAttribute('data-testid') === 'photobook-shipment-details'
+    ? scope
+    : scope.getByTestId('photobook-shipment-details');
+  await browserExpect(panel).toBeVisible();
+  if (!(await panel.evaluate(element => (element as { open: boolean }).open))) {
+    await panel.locator('summary').click();
+  }
+}
+
 async function showPrintQueue(page: Page, expandShipmentDetails = true) {
   const toggle = page.getByTestId('button-toggle-archived');
   // The redesigned manager keeps locked albums in a collapsed print queue.
@@ -128,9 +138,7 @@ async function showPrintQueue(page: Page, expandShipmentDetails = true) {
   if (expandShipmentDetails) {
     const panels = await page.getByTestId('photobook-shipment-details').all();
     for (const panel of panels) {
-      if (!(await panel.evaluate(element => (element as { open: boolean }).open))) {
-        await panel.locator('summary').click();
-      }
+      await ensureShipmentDetailsOpen(panel);
     }
   }
 }
@@ -1232,6 +1240,7 @@ it('autonomo: crea, carica originali, prepara, ritenta solo la pagina mancante e
   expect(services.emails).toHaveLength(0);
   await reloadManager(page);
   await browserExpect(card).toBeVisible();
+  await ensureShipmentDetailsOpen(card);
   await browserExpect(page.getByTestId('button-send-lab-email')).toBeDisabled();
 
   services.failPage = 0;
@@ -1256,6 +1265,11 @@ it('autonomo: crea, carica originali, prepara, ritenta solo la pagina mancante e
   await reloadManager(page);
   await browserExpect(card).toBeVisible();
   await browserExpect(card).toContainText(/Email non ancora inviata/i);
+  const finalShipmentDetails = card.getByTestId('photobook-shipment-details');
+  if (!(await finalShipmentDetails.evaluate(element => (element as { open: boolean }).open))) {
+    await finalShipmentDetails.locator('summary').click();
+  }
+  await browserExpect(card.getByTestId('button-send-lab-email')).toBeVisible();
   await page.getByTestId('button-send-lab-email').click();
   await browserExpect(card).toContainText('Email al laboratorio inviata.');
   expect(services.emails).toHaveLength(1);
@@ -1327,7 +1341,12 @@ it('autonomo: crea, carica originali, prepara, ritenta solo la pagina mancante e
   await page.getByTestId('select-shipment-lab').click();
   await page.getByRole('option', { name: 'Laboratorio isolato' }).click();
   await page.getByTestId('button-confirm-lock').click();
-  await browserExpect(page.getByTestId(`button-retry-shipment-${secondId}`)).toBeVisible({ timeout: 15_000 });
+  const secondArchivedCard = page
+    .getByTestId('section-archived-photobooks')
+    .getByTestId(`card-photobook-${secondId}`);
+  await browserExpect(secondArchivedCard).toBeVisible({ timeout: 15_000 });
+  await ensureShipmentDetailsOpen(secondArchivedCard);
+  await browserExpect(secondArchivedCard.getByTestId(`button-retry-shipment-${secondId}`)).toBeVisible();
   const secondShipmentId = services.docs.get(secondBookPath).labShipmentId;
   const secondShipmentPath = `labShipments/${secondShipmentId}`;
   const secondFolder = `isolated-folder-${services.folderSequence}`;
@@ -1702,6 +1721,7 @@ it('12 pagine: ordine e byte dopo retry, verifica Drive al refresh e blocco emai
   expect((await postIntegratedJson(`/api/lab-shipments/${id}/send`, {})).status).toBe(409);
   expect(services.emails).toHaveLength(0);
   await reloadManager(page);
+  await ensureShipmentDetailsOpen(card);
   await card.getByTestId(`button-retry-shipment-${bookId}`).click();
   await browserExpect(card.getByTestId('button-send-lab-email')).toBeEnabled({ timeout: 15_000 });
   expect(services.drive.get(attachmentKey)?.toString()).toBe('cover original');

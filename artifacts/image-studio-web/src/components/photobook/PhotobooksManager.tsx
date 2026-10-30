@@ -151,7 +151,6 @@ export default function PhotobooksManager({
   const [createMode, setCreateMode] = useState<'linked' | 'standalone'>('linked');
   // The print queue must remain discoverable after navigation and refresh.
   const [showArchived, setShowArchived] = useState(false);
-  const [expandedShipmentBookIds, setExpandedShipmentBookIds] = useState<Set<string>>(() => new Set());
   const [newName, setNewName] = useState('');
   const [newGalleryId, setNewGalleryId] = useState('');
   const [newJobId, setNewJobId] = useState('');
@@ -591,13 +590,6 @@ export default function PhotobooksManager({
                     <PhotobookShipmentInfo
                       shipmentId={book.labShipmentId}
                       book={book}
-                      expanded={expandedShipmentBookIds.has(book.id)}
-                      onExpandedChange={(expanded) => setExpandedShipmentBookIds(current => {
-                        const next = new Set(current);
-                        if (expanded) next.add(book.id);
-                        else next.delete(book.id);
-                        return next;
-                      })}
                     />
                   )}
                   {book.locked && !book.labShipmentId && (
@@ -1180,13 +1172,9 @@ export default function PhotobooksManager({
 function PhotobookShipmentInfo({
   shipmentId,
   book,
-  expanded,
-  onExpandedChange,
 }: {
   shipmentId: string;
   book: Photobook;
-  expanded: boolean;
-  onExpandedChange: (expanded: boolean) => void;
 }) {
   const { toast } = useToast();
   const [supplementalUploading, setSupplementalUploading] = useState(false);
@@ -1383,8 +1371,6 @@ function PhotobookShipmentInfo({
     <details
       className="pb-shipment-details"
       data-testid="photobook-shipment-details"
-      open={expanded}
-      onToggle={(event) => onExpandedChange(event.currentTarget.open)}
     >
       <summary className="pb-shipment-summary">
         <span className="pb-shipment-summary-main">
@@ -1407,7 +1393,7 @@ function PhotobookShipmentInfo({
       <div className="pb-shipment-panel-body">
       <div className="pb-shipment-panel-content">
       <div className="font-medium flex flex-wrap items-center gap-1.5">
-        <span>Spedizione laboratorio</span>
+        <span className="sr-only">Stato della spedizione</span>
         <Badge variant="secondary">
           {LAB_SHIPMENT_STATUS_LABELS[shipment.status] || shipment.status}
         </Badge>
