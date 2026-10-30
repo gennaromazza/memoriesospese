@@ -2,6 +2,7 @@ import { Readable } from 'node:stream';
 import { db, FieldValue, Timestamp } from './firebase-admin.js';
 import {
   deleteDriveFile,
+  findDriveFilesInFolder,
   updateDriveFileContent,
   uploadStreamToDriveFolder,
 } from './google-drive.js';
@@ -113,9 +114,15 @@ export async function refreshLabShipmentInstructions(
     (file) => file.kind === 'manifest' || file.name === LAB_INSTRUCTIONS_FILE_NAME,
   );
   const primaryManifest = oldManifests[0];
-  const uploaded = primaryManifest
+  // A prior upload may have completed in Drive even though its response was
+  // lost before the file ID could be saved to the shipment document.
+  const driveMatches = primaryManifest
+    ? []
+    : await findDriveFilesInFolder(shipment.driveFolderId, LAB_INSTRUCTIONS_FILE_NAME);
+  const existingManifestId = primaryManifest?.driveFileId || driveMatches[0]?.fileId;
+  const uploaded = existingManifestId
     ? await updateDriveFileContent(
-        primaryManifest.driveFileId,
+        existingManifestId,
         'text/plain; charset=utf-8',
         Readable.from([Buffer.from(body, 'utf8')]),
       )
@@ -143,10 +150,12 @@ export async function refreshLabShipmentInstructions(
 
   await shipmentRef.update({ files, updatedAt: FieldValue.serverTimestamp() });
   await Promise.all(
-    oldManifests
-      .slice(1)
-      .filter((file) => file.driveFileId !== uploaded.fileId)
-      .map((file) => deleteDriveFile(file.driveFileId).catch(() => undefined)),
+    [...new Set([
+      ...oldManifests.slice(1).map(file => file.driveFileId),
+      ...driveMatches.map(file => file.fileId),
+    ])]
+      .filter(fileId => fileId !== uploaded.fileId)
+      .map(fileId => deleteDriveFile(fileId).catch(() => undefined)),
   );
 
   const updated = await shipmentRef.get();

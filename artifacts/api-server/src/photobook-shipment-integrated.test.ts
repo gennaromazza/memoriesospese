@@ -130,6 +130,8 @@ function resetIntegratedServices() {
   services.driveFileKeys.clear();
   services.driveUpdateAttempts.length = 0;
   services.failInstructionUpdate = false;
+  services.failInstructionUploadAfterCommit = false;
+  services.driveFileSearchAttempts.length = 0;
   services.folderSequence = 0;
   services.emails.length = 0;
   services.failEmailShipmentId = null;
@@ -746,6 +748,67 @@ it('riprende dopo il fallimento delle istruzioni senza duplicare archivio o file
   expect(services.emails).toHaveLength(1);
   expect(services.emails).toHaveLength(1);
   await page.close();
+}, 60_000);
+
+it('riusa le istruzioni create da Drive quando la risposta del primo upload viene persa', async () => {
+  resetIntegratedServices();
+  const bookId = 'lost-instruction-upload-response';
+  const { oldBytes } = seedOnePagePhotobook(bookId);
+  const started = await postIntegratedJson(`/api/photobooks/${bookId}/lab-shipment`, { labId: 'lab-fixture' });
+  expect(started.status).toBe(202);
+  const shipmentId = started.json.shipment.id;
+  const shipmentPath = `labShipments/${shipmentId}`;
+  await waitForIntegratedTransfer(shipmentPath);
+
+  const shipment = services.docs.get(shipmentPath);
+  const shipmentFolderId = shipment.driveFolderId;
+  const oldPageFile = shipment.files.find((file: any) => file.kind === 'original');
+  const manifestKey = driveObjectKey(shipmentFolderId, 'ISTRUZIONI-DI-STAMPA.txt');
+  const manifestId = `drive-${shipmentFolderId}::ISTRUZIONI-DI-STAMPA.txt`;
+  const manifestUploadsBeforeInterruption = services.uploadAttempts.filter(
+    attempt => attempt.name === 'ISTRUZIONI-DI-STAMPA.txt',
+  ).length;
+  services.docs.get(shipmentPath).files = shipment.files.filter((file: any) => file.kind !== 'manifest');
+  services.drive.delete(manifestKey);
+  services.driveFileKeys.delete(manifestId);
+
+  const currentPath = `photobooks/${bookId}/v1/originale-corrente.jpg`;
+  services.objects.set(currentPath, Buffer.from('originale corrente'));
+  services.docs.get(`photobookPages/${bookId}-page-1`).storagePath = currentPath;
+  services.failInstructionUploadAfterCommit = true;
+
+  const firstAttempt = await postIntegratedJson(
+    `/api/lab-shipments/${shipmentId}/archive-obsolete-photobook-pages`,
+    { confirm: true },
+  );
+  expect(firstAttempt.status).toBe(503);
+  expect(services.drive.get(manifestKey)?.toString()).toContain('ISTRUZIONI DI STAMPA');
+  expect(services.docs.get(shipmentPath).files).not.toContainEqual(
+    expect.objectContaining({ name: 'ISTRUZIONI-DI-STAMPA.txt' }),
+  );
+  expect([...services.drive.keys()].filter(key => key === manifestKey)).toHaveLength(1);
+
+  const retry = await postIntegratedJson(
+    `/api/lab-shipments/${shipmentId}/archive-obsolete-photobook-pages`,
+    { confirm: true },
+  );
+  expect(retry.status).toBe(200);
+  expect(services.driveFileSearchAttempts).toEqual([
+    { folderId: shipmentFolderId, name: 'ISTRUZIONI-DI-STAMPA.txt' },
+    { folderId: shipmentFolderId, name: 'ISTRUZIONI-DI-STAMPA.txt' },
+  ]);
+  expect(services.driveUpdateAttempts).toEqual([manifestId]);
+  expect(services.uploadAttempts.filter(
+    attempt => attempt.name === 'ISTRUZIONI-DI-STAMPA.txt',
+  )).toHaveLength(manifestUploadsBeforeInterruption + 1);
+  expect(services.drive.get(manifestKey)?.toString()).toContain('ISTRUZIONI DI STAMPA');
+  expect(services.drive.get(driveObjectKey(shipmentFolderId, oldPageFile.name))).toBeUndefined();
+  expect(services.drive.get(driveObjectKey(retry.json.photobookPageCleanup.archiveFolderId, oldPageFile.name)))
+    .toEqual(oldBytes);
+  expect([...services.drive.keys()].filter(key => key === manifestKey)).toHaveLength(1);
+  expect(services.docs.get(shipmentPath).files.filter((file: any) => file.kind === 'manifest')).toEqual([
+    expect.objectContaining({ driveFileId: manifestId, name: 'ISTRUZIONI-DI-STAMPA.txt' }),
+  ]);
 }, 60_000);
 
 it('non modifica una spedizione già inviata senza consenso esplicito', async () => {

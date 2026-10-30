@@ -530,6 +530,38 @@ export async function uploadStreamToDriveFolder(
   };
 }
 
+/** Trova i file con nome esatto in una cartella Drive, incluse le unità condivise. */
+export async function findDriveFilesInFolder(
+  folderId: string,
+  fileName: string,
+): Promise<Array<{ fileId: string; webViewLink?: string; size?: number }>> {
+  const escapeQueryValue = (value: string) => value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  const params = new URLSearchParams({
+    q: `name='${escapeQueryValue(fileName)}' and '${escapeQueryValue(folderId)}' in parents and trashed=false`,
+    fields: 'nextPageToken,files(id,webViewLink,size)',
+    pageSize: '1000',
+    orderBy: 'createdTime',
+    supportsAllDrives: 'true',
+    includeItemsFromAllDrives: 'true',
+  });
+  const matches: Array<{ fileId: string; webViewLink?: string; size?: number }> = [];
+  let pageToken: string | undefined;
+  do {
+    if (pageToken) params.set('pageToken', pageToken);
+    const result = await driveJson<{
+      nextPageToken?: string;
+      files?: Array<{ id: string; webViewLink?: string; size?: string }>;
+    }>(`/drive/v3/files?${params.toString()}`);
+    matches.push(...(result.files || []).map(file => ({
+      fileId: file.id,
+      ...(file.webViewLink ? { webViewLink: file.webViewLink } : {}),
+      ...(file.size ? { size: Number(file.size) } : {}),
+    })));
+    pageToken = result.nextPageToken;
+  } while (pageToken);
+  return matches;
+}
+
 /** Aggiorna il contenuto di un file Drive esistente senza cambiarne ID o nome. */
 export async function updateDriveFileContent(
   fileId: string,

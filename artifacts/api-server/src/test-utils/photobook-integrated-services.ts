@@ -18,6 +18,8 @@ export const services = {
   driveFileKeys: new Map<string, string>(),
   driveUpdateAttempts: [] as string[],
   failInstructionUpdate: false,
+  failInstructionUploadAfterCommit: false,
+  driveFileSearchAttempts: [] as Array<{ folderId: string; name: string }>,
   folderSequence: 0,
   emails: [] as unknown[][],
   failEmailShipmentId: null as string | null,
@@ -165,7 +167,18 @@ export const drive = {
     const fileId = `drive-${folderId}::${name}`;
     services.drive.set(key, buffer);
     services.driveFileKeys.set(fileId, key);
+    if (name === 'ISTRUZIONI-DI-STAMPA.txt' && services.failInstructionUploadAfterCommit) {
+      services.failInstructionUploadAfterCommit = false;
+      throw new Error('Risposta upload istruzioni simulata persa dopo il salvataggio');
+    }
     return { fileId, size: buffer.length };
+  },
+  findDriveFilesInFolder: async (folderId: string, name: string) => {
+    services.driveFileSearchAttempts.push({ folderId, name });
+    const key = driveObjectKey(folderId, name);
+    return [...services.driveFileKeys]
+      .filter(([, fileKey]) => fileKey === key)
+      .map(([fileId]) => ({ fileId, size: services.drive.get(key)?.length }));
   },
   updateDriveFileContent: async (id: string, _mime: string, body: AsyncIterable<Buffer>) => {
     const key = services.driveFileKeys.get(id);
