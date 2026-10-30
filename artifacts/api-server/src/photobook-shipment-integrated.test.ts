@@ -648,20 +648,51 @@ it('riprende dopo il fallimento delle istruzioni senza duplicare archivio o file
   expect(blockedSend.status).toBe(409);
   expect(services.emails).toHaveLength(0);
 
+  const page = await context!.newPage();
+  const recoveryRequests: Array<{ path: string; body: any }> = [];
+  const retryRequests: string[] = [];
+  const sendRequests: string[] = [];
+  page.on('request', request => {
+    const url = new URL(request.url());
+    if (request.method() !== 'POST') return;
+    if (url.pathname === `/api/lab-shipments/${shipmentId}/archive-obsolete-photobook-pages`) {
+      recoveryRequests.push({ path: url.pathname, body: request.postDataJSON() });
+    }
+    if (url.pathname === `/api/photobooks/${bookId}/lab-shipment`) retryRequests.push(url.pathname);
+    if (url.pathname === `/api/lab-shipments/${shipmentId}/send`) sendRequests.push(url.pathname);
+  });
+  await page.goto(origin);
+  const recoveryCard = page.getByTestId(`card-photobook-${bookId}`);
+  await browserExpect(recoveryCard).toBeVisible();
+  await browserExpect(recoveryCard).toContainText('Archiviazione interrotta: puoi riprenderla senza inviare email.');
+  const recoverButton = page.getByTestId(`button-archive-obsolete-pages-${bookId}`);
+  await browserExpect(recoverButton).toHaveText(/Riprendi archiviazione interrotta/);
+  await browserExpect(page.getByTestId('button-send-lab-email')).toBeDisabled();
+
   services.failInstructionUpdate = false;
-  const resumed = await postIntegratedJson(
-    `/api/lab-shipments/${shipmentId}/archive-obsolete-photobook-pages`,
-    { confirm: true },
-  );
-  expect(resumed.status).toBe(200);
-  expect(resumed.json.photobookPageCleanup).toMatchObject({
+  page.once('dialog', dialog => dialog.accept());
+  await recoverButton.click();
+  await browserExpect(recoveryCard.getByLabel('Originali archiviati')).toBeVisible({ timeout: 15_000 });
+  await browserExpect(recoverButton).toHaveCount(0);
+  await browserExpect(recoveryCard).toContainText('Trasferimento incompleto · invio email bloccato.');
+  await browserExpect(page.getByTestId('button-send-lab-email')).toBeDisabled();
+  const retryButton = page.getByTestId(`button-retry-shipment-${bookId}`);
+  await browserExpect(retryButton).toBeVisible();
+  expect(recoveryRequests).toEqual([{
+    path: `/api/lab-shipments/${shipmentId}/archive-obsolete-photobook-pages`,
+    body: { confirm: true, confirmSentShipment: false, recoverAbandoned: false },
+  }]);
+  expect(sendRequests).toEqual([]);
+
+  const resumed = services.docs.get(shipmentPath);
+  expect(resumed.photobookPageCleanup).toMatchObject({
     status: 'completed',
     instructionsUpdated: true,
     archiveFolderId,
     archivedFileIds: [oldPageFile.driveFileId],
   });
   expect(services.driveMoveAttempts.filter(attempt => attempt.fileId === oldPageFile.driveFileId)).toHaveLength(1);
-  expect(services.docs.get(shipmentPath).archivedPhotobookPages).toHaveLength(1);
+  expect(resumed.archivedPhotobookPages).toHaveLength(1);
   expect([...services.drive.keys()].filter(key => key.startsWith(`${archiveFolderId}/`))).toEqual([
     driveObjectKey(archiveFolderId, oldPageFile.name),
   ]);
@@ -677,6 +708,25 @@ it('riprende dopo il fallimento delle istruzioni senza duplicare archivio o file
   expect(refreshedInstructions).not.toContain('RIEPILOGO PRECEDENTE');
   expect(services.emails).toHaveLength(0);
 
+  await retryButton.click();
+  await browserExpect(retryButton).toHaveCount(0, { timeout: 15_000 });
+  const sendButton = page.getByTestId('button-send-lab-email');
+  await browserExpect(sendButton).toBeEnabled({ timeout: 15_000 });
+  expect(retryRequests).toEqual([`/api/photobooks/${bookId}/lab-shipment`]);
+  const retransferred = services.docs.get(shipmentPath);
+  const currentFile = retransferred.files.find((file: any) => file.kind === 'original');
+  expect(currentFile).toMatchObject({
+    name: oldPageFile.name,
+    sourceStoragePath: currentPath,
+  });
+  expect(services.drive.get(driveObjectKey(shipmentFolderId, currentFile.name))).toEqual(
+    Buffer.from('originale corrente'),
+  );
+  expect(services.drive.get(driveObjectKey(archiveFolderId, oldPageFile.name))).toEqual(oldBytes);
+  expect([...services.drive.keys()].filter(key => key.startsWith(`${shipmentFolderId}/pagina-`))).toEqual([
+    driveObjectKey(shipmentFolderId, currentFile.name),
+  ]);
+
   const repeatedRecovery = await postIntegratedJson(
     `/api/lab-shipments/${shipmentId}/archive-obsolete-photobook-pages`,
     { confirm: true },
@@ -688,7 +738,14 @@ it('riprende dopo il fallimento delle istruzioni senza duplicare archivio o file
   expect([...services.drive.keys()].filter(key =>
     key.startsWith(`${shipmentFolderId}/`) && key.endsWith('/ISTRUZIONI-DI-STAMPA.txt'),
   )).toHaveLength(1);
-  expect(services.emails).toHaveLength(0);
+  expect(services.docs.get(shipmentPath).files.filter((file: any) => file.kind === 'manifest')).toHaveLength(1);
+
+  await sendButton.click();
+  await browserExpect(recoveryCard).toContainText('Email al laboratorio inviata.', { timeout: 15_000 });
+  expect(sendRequests).toEqual([`/api/lab-shipments/${shipmentId}/send`]);
+  expect(services.emails).toHaveLength(1);
+  expect(services.emails).toHaveLength(1);
+  await page.close();
 }, 60_000);
 
 it('non modifica una spedizione già inviata senza consenso esplicito', async () => {
