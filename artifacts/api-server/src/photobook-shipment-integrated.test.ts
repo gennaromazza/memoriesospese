@@ -719,16 +719,65 @@ it('non modifica una spedizione già inviata senza consenso esplicito', async ()
   expect([...services.drive.keys()].sort()).toEqual(fileNamesBefore);
   expect(services.docs.get(shipmentPath).files).toContainEqual(expect.objectContaining({ driveFileId: oldPageFile.driveFileId }));
 
-  const authorized = await postIntegratedJson(
-    `/api/lab-shipments/${shipmentId}/archive-obsolete-photobook-pages`,
-    { confirm: true, confirmSentShipment: true },
+  const page = await context!.newPage();
+  const archiveRequests: Array<{ path: string; body: unknown }> = [];
+  const sendRequests: string[] = [];
+  page.on('request', request => {
+    const url = new URL(request.url());
+    if (request.method() !== 'POST') return;
+    if (url.pathname === `/api/lab-shipments/${shipmentId}/archive-obsolete-photobook-pages`) {
+      archiveRequests.push({ path: url.pathname, body: request.postDataJSON() });
+    }
+    if (url.pathname === `/api/lab-shipments/${shipmentId}/send`) sendRequests.push(url.pathname);
+  });
+  await page.goto(origin);
+  const card = page.getByTestId(`card-photobook-${bookId}`);
+  await browserExpect(card).toBeVisible();
+  await browserExpect(card).toContainText(
+    'Questa spedizione è già stata inviata. L’archiviazione cambierà i file visibili nella cartella condivisa e richiede la tua autorizzazione esplicita.',
   );
-  expect(authorized.status).toBe(200);
-  expect(services.drive.has(driveObjectKey(folderId, oldPageFile.name))).toBe(false);
-  expect(services.drive.get(driveObjectKey(authorized.json.photobookPageCleanup.archiveFolderId, oldPageFile.name))).toBeDefined();
+  const archiveButton = page.getByTestId(`button-archive-obsolete-pages-${bookId}`);
+  const originalFileKey = driveObjectKey(folderId, oldPageFile.name);
+
+  let cancelledMessage = '';
+  page.once('dialog', async dialog => {
+    cancelledMessage = dialog.message();
+    await dialog.dismiss();
+  });
+  await archiveButton.click();
+  expect(cancelledMessage).toContain('La spedizione è già stata inviata.');
+  expect(cancelledMessage).toContain('Non verrà inviata alcuna email.');
+  expect(archiveRequests).toHaveLength(0);
+  expect([...services.drive.keys()].sort()).toEqual(fileNamesBefore);
+  expect(services.drive.has(originalFileKey)).toBe(true);
+  expect(services.docs.get(shipmentPath).files).toContainEqual(
+    expect.objectContaining({ driveFileId: oldPageFile.driveFileId }),
+  );
   expect(services.emails).toHaveLength(1);
-  expect(services.docs.get(shipmentPath).status).toBe('inviato');
+
+  let acceptedMessage = '';
+  page.once('dialog', async dialog => {
+    acceptedMessage = dialog.message();
+    await dialog.accept();
+  });
+  await archiveButton.click();
+  await browserExpect(card.getByLabel('Originali archiviati')).toBeVisible({ timeout: 15_000 });
+  expect(acceptedMessage).toContain('La spedizione è già stata inviata.');
+  expect(archiveRequests).toHaveLength(1);
+  expect(archiveRequests[0]).toMatchObject({
+    path: `/api/lab-shipments/${shipmentId}/archive-obsolete-photobook-pages`,
+    body: { confirm: true, confirmSentShipment: true, recoverAbandoned: false },
+  });
+  expect(sendRequests).toEqual([]);
+  expect(services.drive.has(originalFileKey)).toBe(false);
+  const archivedShipment = services.docs.get(shipmentPath);
+  const archiveFolderId = archivedShipment.photobookPageCleanup.archiveFolderId;
+  expect(services.drive.get(driveObjectKey(archiveFolderId, oldPageFile.name))).toBeDefined();
+  expect(archivedShipment.files).not.toContainEqual(expect.objectContaining({ driveFileId: oldPageFile.driveFileId }));
+  expect(services.emails).toHaveLength(1);
+  expect(archivedShipment.status).toBe('inviato');
   expect(services.docs.get(`photobookPages/${bookId}-page-1`).storagePath).toBe(currentPath);
+  await page.close();
 }, 60_000);
 
 it('autonomo: crea, carica originali, prepara, ritenta solo la pagina mancante e invia email dopo refresh', async () => {
