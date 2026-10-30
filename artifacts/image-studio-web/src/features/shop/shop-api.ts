@@ -132,6 +132,9 @@ export const shopApi = {
   getSettings: async () => (await shopRequest<{ settings: ShopSettings }>('/admin/settings')).settings,
   saveSettings: async (settings: ShopSettings) =>
     (await shopRequest<{ settings: ShopSettings }>('/admin/settings', { method: 'PUT', body: json(settings) })).settings,
+  /** Costi dei prodotti, restituiti esclusivamente al pannello autenticato dello studio. */
+  getAdminProductCosts: async () =>
+    (await shopRequest<{ costs: Array<{ productId: string; costoUnitario: number }> }>('/admin/product-costs')).costs,
 
   // Ordini del cliente
   listOrders: async () => (await shopRequest<{ orders: ShopOrderDto[] }>('/orders')).orders,

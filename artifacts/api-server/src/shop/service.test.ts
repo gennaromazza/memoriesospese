@@ -44,6 +44,19 @@ describe('ShopService', () => {
     expect(await service.settings()).toEqual(saved);
   });
 
+  it('restituisce tramite il servizio admin solo costi numerici validi', async () => {
+    const { db, service } = setup();
+    db.seed('shopProductCosts/album', { costoUnitario: 12.5 });
+    db.seed('shopProductCosts/free', { costoUnitario: 0 });
+    db.seed('shopProductCosts/invalid', { costoUnitario: -1 });
+    db.seed('shopProductCosts/legacy', { costoUnitario: 'non numerico' });
+
+    expect(await service.adminProductCosts()).toEqual([
+      { productId: 'album', costoUnitario: 12.5 },
+      { productId: 'free', costoUnitario: 0 },
+    ]);
+  });
+
   it('il catalogo pubblico contiene solo la categoria abilitata', async () => {
     const { db, service } = setup();
     seedCatalog(db);

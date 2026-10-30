@@ -52,7 +52,20 @@ export default function ShopProductsPanel() {
         {settingsQuery.isLoading || productsQuery.isLoading ? (
           <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Caricamento…</div>
         ) : settingsQuery.isError || productsQuery.isError ? (
-          <p className="text-sm text-destructive">Non riesco a caricare i prodotti. Riprova tra poco.</p>
+          <div role="alert" className="flex flex-wrap items-center justify-between gap-3 py-3">
+            <p className="text-sm text-destructive">Non riesco a caricare i prodotti. Riprova tra poco.</p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                void settingsQuery.refetch();
+                void productsQuery.refetch();
+              }}
+            >
+              Riprova
+            </Button>
+          </div>
         ) : rows.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Nessun prodotto nelle categorie dello shop. Crea un prodotto e mettilo in una delle categorie scelte nelle impostazioni.

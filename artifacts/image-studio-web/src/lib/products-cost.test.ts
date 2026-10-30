@@ -31,8 +31,13 @@ const firestoreMock = vi.hoisted(() => {
   };
 });
 
+const shopApiMock = vi.hoisted(() => ({
+  getAdminProductCosts: vi.fn(),
+}));
+
 vi.mock('firebase/firestore', () => firestoreMock);
 vi.mock('@/lib/firebase', () => ({ db: firestoreMock.db }));
+vi.mock('@/features/shop/shop-api', () => ({ shopApi: shopApiMock }));
 vi.mock('./product-categories', () => ({
   getProductCategories: vi.fn(),
   getActiveProductCategories: vi.fn(),
@@ -78,11 +83,9 @@ describe('costo riservato dei prodotti shop', () => {
       if (ref.path === 'products') {
         return { docs: [{ id: 'legacy', data: () => ({ nome: 'Legacy', prezzo: 20, sconto: 0 }) }] };
       }
-      if (ref.path === 'shopProductCosts') {
-        return { docs: [{ id: 'legacy', data: () => ({ costoUnitario: 8.25 }) }] };
-      }
       throw new Error(`Unexpected collection: ${ref.path}`);
     });
+    shopApiMock.getAdminProductCosts.mockResolvedValue([{ productId: 'legacy', costoUnitario: 8.25 }]);
   });
 
   it('salva il prodotto e il costo in documenti separati nella stessa scrittura', async () => {

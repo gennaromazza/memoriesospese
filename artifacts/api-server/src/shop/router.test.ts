@@ -157,6 +157,20 @@ describe('catalogo e impostazioni', () => {
     expect(ok.headers.get('cache-control')).toBe('private, no-store');
   });
 
+  it('i costi unitari sono accessibili solo allo studio e non vengono messi in cache', async () => {
+    const { call, db } = await start();
+    db.seed('shopProductCosts/mug', { costoUnitario: 4.25 });
+
+    expect((await call('/admin/product-costs')).status).toBe(401);
+    expect((await call('/admin/product-costs', { as: 'cliente@example.com' })).status).toBe(403);
+    const response = await call('/admin/product-costs', { as: 'admin@studio.test' });
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('private, no-store, max-age=0');
+    expect(await json(response)).toEqual({
+      costs: [{ productId: 'mug', costoUnitario: 4.25 }],
+    });
+  });
+
   it('salva le impostazioni e rifiuta quelle non valide', async () => {
     const { call } = await start();
     const put = (body: unknown) => call('/admin/settings', { method: 'PUT', as: 'admin@studio.test', json: body });

@@ -21,6 +21,17 @@ export class ShopService {
     return normalizeShopSettings(doc.exists ? doc.data() : undefined);
   }
 
+  /** Costi unitari visibili solo tramite una rotta admin autenticata. */
+  async adminProductCosts(): Promise<Array<{ productId: string; costoUnitario: number }>> {
+    const snapshot = await this.deps.db.collection('shopProductCosts').get();
+    return snapshot.docs.flatMap((doc: any) => {
+      const costoUnitario = doc.data()?.costoUnitario;
+      return typeof costoUnitario === 'number' && Number.isFinite(costoUnitario) && costoUnitario >= 0
+        ? [{ productId: doc.id, costoUnitario }]
+        : [];
+    });
+  }
+
   /**
    * Salva le impostazioni dopo averle ripulite. Il documento è pubblico in
    * lettura: non ci si scrive nulla di riservato (nemmeno chi ha modificato).

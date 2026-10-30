@@ -18,6 +18,7 @@ import {
 } from 'firebase/firestore';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
+import { shopApi } from '@/features/shop/shop-api';
 import type { Product, InsertProduct, ProductCategory } from '@shared/booking-types';
 import type { BenefitRule } from '@shared/quote-benefits';
 import {
@@ -64,17 +65,11 @@ export async function getAllProducts(): Promise<Product[]> {
 
 /** Arricchisce i prodotti con i costi riservati, leggibili solo dall'area admin dello shop. */
 export async function getAllProductsWithShopCosts(): Promise<Product[]> {
-  const [products, costsSnapshot] = await Promise.all([
+  const [products, costs] = await Promise.all([
     getAllProducts(),
-    getDocs(collection(db, SHOP_PRODUCT_COSTS_COLLECTION)),
+    shopApi.getAdminProductCosts(),
   ]);
-  const costsByProductId = new Map<string, number>();
-  for (const costDoc of costsSnapshot.docs) {
-    const cost = costDoc.data().costoUnitario;
-    if (typeof cost === 'number' && Number.isFinite(cost) && cost >= 0) {
-      costsByProductId.set(costDoc.id, cost);
-    }
-  }
+  const costsByProductId = new Map(costs.map(({ productId, costoUnitario }) => [productId, costoUnitario]));
   return products.map(product => {
     const costoUnitario = costsByProductId.get(product.id);
     return costoUnitario === undefined ? product : { ...product, costoUnitario };

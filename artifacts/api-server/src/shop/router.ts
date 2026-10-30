@@ -262,6 +262,11 @@ export function createShopRouter(
     res.json({ settings: await deps.service.settings() });
   }));
 
+  router.get('/admin/product-costs', auth, admin, handle(async (_req, res) => {
+    setSensitiveHeaders(res);
+    res.json({ costs: await deps.service.adminProductCosts() });
+  }));
+
   router.put('/admin/settings', auth, admin, handle(async (req, res) => {
     const input = settingsSchema.parse(req.body);
     const settings = await deps.service.updateSettings(input);
