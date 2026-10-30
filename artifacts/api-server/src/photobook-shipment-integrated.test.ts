@@ -492,6 +492,107 @@ it('recupera un’archiviazione interrotta dopo lo spostamento su Drive e aggior
   await page.close();
 }, 60_000);
 
+it('recupera dal browser un’archiviazione running con heartbeat scaduto senza inviare email', async () => {
+  resetIntegratedServices();
+  const bookId = 'abandoned-running-page-archive';
+  const { oldPath, oldBytes } = seedOnePagePhotobook(bookId);
+  const started = await postIntegratedJson(`/api/photobooks/${bookId}/lab-shipment`, { labId: 'lab-fixture' });
+  expect(started.status).toBe(202);
+  const shipmentId = started.json.shipment.id;
+  const shipmentPath = `labShipments/${shipmentId}`;
+  await waitForIntegratedTransfer(shipmentPath);
+
+  const shipment = services.docs.get(shipmentPath);
+  const oldPageFile = shipment.files.find((file: any) => file.kind === 'original');
+  const currentPath = `photobooks/${bookId}/v1/originale-corrente.jpg`;
+  services.objects.set(currentPath, Buffer.from('originale corrente'));
+  services.docs.get(`photobookPages/${bookId}-page-1`).storagePath = currentPath;
+  const staleHeartbeat = Timestamp.fromDate(new Date(Date.now() - 10 * 60 * 1000));
+  shipment.photobookPageCleanup = {
+    id: `abandoned-cleanup-${bookId}`,
+    status: 'running',
+    startedAt: staleHeartbeat,
+    heartbeatAt: staleHeartbeat,
+    archiveFolderId: null,
+    obsoleteFileIds: [oldPageFile.driveFileId],
+    archivedFileIds: [],
+    instructionsUpdated: false,
+  };
+
+  const detail = await getIntegratedShipment(shipmentId);
+  expect(detail.status).toBe(200);
+  expect(detail.json.photobookRecovery.pageCleanupAbandoned).toBe(true);
+  expect(detail.json.obsoletePhotobookPages).toEqual([
+    expect.objectContaining({ driveFileId: oldPageFile.driveFileId }),
+  ]);
+  const confirmationRequired = await postIntegratedJson(
+    `/api/lab-shipments/${shipmentId}/archive-obsolete-photobook-pages`,
+    { confirm: true },
+  );
+  expect(confirmationRequired.status).toBe(409);
+  expect(confirmationRequired.json.recoverable).toBe(true);
+  expect(confirmationRequired.json.error).toContain('Conferma il recupero');
+  expect(services.docs.get(shipmentPath).photobookPageCleanup).toMatchObject({ status: 'running' });
+  expect(services.emails).toHaveLength(0);
+
+  const page = await context!.newPage();
+  const recoveryRequests: Array<{ path: string; body: any }> = [];
+  const apiRequests: string[] = [];
+  page.on('request', request => {
+    const url = new URL(request.url());
+    if (!url.pathname.startsWith('/api/')) return;
+    apiRequests.push(url.pathname);
+    if (url.pathname === `/api/lab-shipments/${shipmentId}/archive-obsolete-photobook-pages`) {
+      recoveryRequests.push({ path: url.pathname, body: JSON.parse(request.postData() || '{}') });
+    }
+  });
+  await page.goto(origin);
+  const recoveryCard = page.getByTestId(`card-photobook-${bookId}`);
+  await browserExpect(recoveryCard).toBeVisible();
+  await browserExpect(recoveryCard).toContainText('Archiviazione interrotta: verifica la cartella privata e recupera l’operazione.');
+  const recoverButton = page.getByTestId(`button-archive-obsolete-pages-${bookId}`);
+  await browserExpect(recoverButton).toHaveText(/Riprendi archiviazione interrotta/);
+  await browserExpect(page.getByTestId('button-send-lab-email')).toBeDisabled();
+
+  let signalRecovery!: () => void;
+  let releaseRecovery!: () => void;
+  const recoveryReached = new Promise<void>(resolve => { signalRecovery = resolve; });
+  const recoveryReleased = new Promise<void>(resolve => { releaseRecovery = resolve; });
+  services.beforeMove = async () => {
+    signalRecovery();
+    await recoveryReleased;
+  };
+  page.once('dialog', dialog => dialog.accept());
+  await recoverButton.click();
+  await waitForSignal(recoveryReached, 'browser-triggered abandoned archive recovery');
+  await browserExpect(recoverButton).toBeDisabled();
+  expect(recoveryRequests).toContainEqual({
+    path: `/api/lab-shipments/${shipmentId}/archive-obsolete-photobook-pages`,
+    body: { confirm: true, confirmSentShipment: false, recoverAbandoned: true },
+  });
+  expect(apiRequests).not.toContain(`/api/lab-shipments/${shipmentId}/send`);
+  expect(services.emails).toHaveLength(0);
+
+  releaseRecovery();
+  services.beforeMove = null;
+  await browserExpect(recoveryCard.getByLabel('Originali archiviati')).toBeVisible({ timeout: 15_000 });
+  await browserExpect(recoverButton).toHaveCount(0);
+  const finalShipment = services.docs.get(shipmentPath);
+  expect(finalShipment.photobookPageCleanup).toMatchObject({
+    status: 'completed',
+    instructionsUpdated: true,
+    archivedFileIds: [oldPageFile.driveFileId],
+  });
+  expect(finalShipment.archivedPhotobookPages).toContainEqual(expect.objectContaining({
+    driveFileId: oldPageFile.driveFileId,
+    archiveFolderId: finalShipment.photobookPageCleanup.archiveFolderId,
+  }));
+  expect(services.drive.get(driveObjectKey(finalShipment.photobookPageCleanup.archiveFolderId, oldPageFile.name))).toEqual(oldBytes);
+  expect(apiRequests).not.toContain(`/api/lab-shipments/${shipmentId}/send`);
+  expect(services.emails).toHaveLength(0);
+  await page.close();
+}, 60_000);
+
 it('riprende dopo il fallimento delle istruzioni senza duplicare archivio o file né inviare email prima del refresh', async () => {
   resetIntegratedServices();
   const bookId = 'interrupted-instructions-refresh';
