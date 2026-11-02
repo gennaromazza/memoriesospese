@@ -46,9 +46,11 @@ describe('social metadata resolver', () => {
       alt: 'Foto articolo',
       width: 1200,
       height: 630,
-      type: 'image/webp',
       source: 'content-image',
     });
+    expect(resolveSocialImage([
+      { url: 'https://cdn.example/photo.webp', source: 'content-image' },
+    ]).type).toBeUndefined();
   });
 
   it('extracts an inline image and otherwise reaches the global fallback', () => {
@@ -86,6 +88,29 @@ describe('social metadata resolver', () => {
     }).source).toBe('section-fallback');
 
     expect(blogSocialImage({ title: 'Storia' }).source).toBe('section-fallback');
+  });
+
+  it('uses a known image MIME for a legacy .jpg URL and omits unknown MIME', () => {
+    expect(blogSocialImage({
+      title: 'Copertina PNG',
+      coverImage: 'https://cdn.example/copertina.jpg',
+      coverImageType: 'image/png',
+    })).toMatchObject({
+      url: 'https://cdn.example/copertina.jpg',
+      type: 'image/png',
+    });
+
+    expect(blogSocialImage({
+      title: 'Copertina legacy',
+      coverImage: 'https://cdn.example/copertina.jpg',
+    })).toMatchObject({
+      url: 'https://cdn.example/copertina.jpg',
+      source: 'editorial-cover',
+    });
+    expect(blogSocialImage({
+      title: 'Copertina legacy',
+      coverImage: 'https://cdn.example/copertina.jpg',
+    }).type).toBeUndefined();
   });
 
   it('resolves wedding social images from the first valid selected photo or section fallback', () => {

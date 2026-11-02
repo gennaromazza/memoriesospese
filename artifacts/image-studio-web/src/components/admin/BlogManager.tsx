@@ -21,7 +21,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Plus, Edit, Trash2, FileText, Loader2, Eye, Calendar, Trash, Upload, ImagePlus, Code, FileJson } from 'lucide-react';
 import { BlogPost, BlogPostStatus, insertBlogPostSchema } from '@shared/schema';
 import type { EditorialCoverPosition, EditorialCoverPositions } from '@shared/editorial-cover';
-import { getBlogCoverImageFormat, getBlogCoverImageFormatFromUrl } from '@shared/blog-cover-image';
+import { getBlogCoverImageFormat } from '@shared/blog-cover-image';
 import EditorialCoverPositionEditor from '@/components/EditorialCoverPositionEditor';
 import WordPressImporter from './WordPressImporter';
 import { compressImage } from '@/lib/imageCompression';
@@ -305,7 +305,7 @@ export default function BlogManager({
     setEditingPost(null);
     setSlugManuallyEdited(Boolean(typeof data.slug === 'string' && data.slug.trim()));
     setCoverImagePath('');
-    setCoverImageType(getBlogCoverImageFormatFromUrl(data.coverImage)?.contentType || '');
+    setCoverImageType('');
     setContentImagePaths([]);
     contentImageAltMapRef.current.clear();
     draftStorageKeyRef.current = doc(collection(db, 'blogPosts')).id;
@@ -387,11 +387,7 @@ export default function BlogManager({
       setEditingPost(post);
       setSlugManuallyEdited(true);
       setCoverImagePath((post as any).coverImagePath || '');
-      setCoverImageType(
-        getBlogCoverImageFormatFromUrl(post.coverImage)?.contentType
-          || (post as any).coverImageType
-          || '',
-      );
+      setCoverImageType((post as any).coverImageType || '');
       setContentImagePaths(Array.isArray((post as any).contentImagePaths) ? (post as any).contentImagePaths : []);
       contentImageAltMapRef.current.clear();
       let content = post.content || '';
@@ -790,9 +786,7 @@ export default function BlogManager({
         updatedAt: Timestamp.now()
       };
       if (formData.coverImage?.trim()) {
-        postData.coverImageType = coverImageType
-          || getBlogCoverImageFormatFromUrl(formData.coverImage)?.contentType
-          || deleteField();
+        postData.coverImageType = coverImageType || deleteField();
       }
 
       const targetId = editingPost?.id || doc(collection(db, 'blogPosts')).id;
@@ -1379,7 +1373,7 @@ export default function BlogManager({
                             const nextUrl = e.target.value;
                             const originalPath = (editingPost as any)?.coverImagePath || '';
                             setCoverImagePath(nextUrl === editingPost?.coverImage ? originalPath : '');
-                            setCoverImageType(getBlogCoverImageFormatFromUrl(nextUrl)?.contentType || '');
+                            setCoverImageType('');
                             setFormData(prev => ({ ...prev, coverImage: nextUrl }));
                           }}
                           placeholder="oppure incolla URL"

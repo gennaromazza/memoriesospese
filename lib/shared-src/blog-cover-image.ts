@@ -16,20 +16,3 @@ export function getBlogCoverImageFormat(contentType: unknown): BlogCoverImageFor
   const normalizedType = String(contentType || '').split(';', 1)[0].trim().toLowerCase();
   return BLOG_COVER_IMAGE_FORMATS[normalizedType] || null;
 }
-
-export function getBlogCoverImageFormatFromUrl(value: unknown): BlogCoverImageFormat | null {
-  const raw = String(value || '').trim();
-  if (!raw) return null;
-
-  try {
-    const pathname = new URL(raw, 'https://blog-cover.invalid').pathname.toLowerCase();
-    if (pathname.endsWith('.jpg') || pathname.endsWith('.jpeg')) {
-      return BLOG_COVER_IMAGE_FORMATS['image/jpeg'];
-    }
-    if (pathname.endsWith('.png')) return BLOG_COVER_IMAGE_FORMATS['image/png'];
-    if (pathname.endsWith('.webp')) return BLOG_COVER_IMAGE_FORMATS['image/webp'];
-    return null;
-  } catch {
-    return null;
-  }
-}

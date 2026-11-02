@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  getBlogCoverImageFormat,
-  getBlogCoverImageFormatFromUrl,
-} from '@shared/blog-cover-image';
+import { getBlogCoverImageFormat } from '@shared/blog-cover-image';
 
 describe('Blog cover image formats', () => {
   it.each([
@@ -21,12 +18,4 @@ describe('Blog cover image formats', () => {
     },
   );
 
-  it.each([
-    ['https://cdn.example/cover.jpg?token=one', 'image/jpeg'],
-    ['https://cdn.example/cover.jpeg', 'image/jpeg'],
-    ['/covers/cover.png?width=1200', 'image/png'],
-    ['https://cdn.example/cover.webp', 'image/webp'],
-  ])('infers the crawler content type from the URL %s', (url, contentType) => {
-    expect(getBlogCoverImageFormatFromUrl(url)?.contentType).toBe(contentType);
-  });
 });

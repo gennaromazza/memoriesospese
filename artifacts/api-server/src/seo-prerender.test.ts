@@ -327,10 +327,10 @@ describe('SEO prerender wedding-first', () => {
   });
 
   it.each([
-    ['jpg', 'image/jpeg'],
+    ['jpg', 'image/png'],
     ['png', 'image/png'],
     ['webp', 'image/webp'],
-  ])('publishes matching Blog image metadata for .%s covers', async (extension, contentType) => {
+  ])('publishes the known image MIME for a .%s Blog cover URL', async (extension, contentType) => {
     const post = {
       slug: `cover-${extension}`,
       status: 'published',
@@ -358,8 +358,39 @@ describe('SEO prerender wedding-first', () => {
     const { response, next } = await renderForCrawler(`/blog/cover-${extension}`);
 
     expect(next).not.toHaveBeenCalled();
-    expect(response.body).toContain(`content="${contentType}"`);
+    expect(response.body).toContain(`<meta property="og:image:type" content="${contentType}" />`);
     expect(response.body).toContain(`content="${post.coverImage}"`);
+  });
+
+  it('omits the Open Graph image MIME for a legacy cover with unknown format', async () => {
+    const post = {
+      slug: 'legacy-cover',
+      status: 'published',
+      title: 'Copertina legacy',
+      excerpt: 'Test immagine copertina.',
+      content: '<p>Contenuto di prova.</p>',
+      coverImage: 'https://firebasestorage.googleapis.com/v0/b/example/o/blog-covers%2Fcopertina.jpg?alt=media',
+      publishedAt: { seconds: 1_780_000_000 },
+    };
+    const chain = {
+      where: () => chain,
+      limit: () => chain,
+      get: async () => ({ empty: false, docs: [{ id: 'legacy-cover', data: () => post }] }),
+    };
+    mockCollection.mockImplementation((collectionName: string) => {
+      if (collectionName === 'blogPosts') return chain;
+      return {
+        where: () => ({
+          get: async () => ({ docs: [], empty: true }),
+        }),
+      };
+    });
+
+    const { response, next } = await renderForCrawler('/blog/legacy-cover');
+
+    expect(next).not.toHaveBeenCalled();
+    expect(response.body).toContain(`property="og:image" content="${post.coverImage}"`);
+    expect(response.body).not.toContain('property="og:image:type"');
   });
 
   it('renders the selected Blog cover and custom alt text in crawler social metadata', async () => {

@@ -321,15 +321,6 @@ export function normalizePublicImageUrl(value: unknown): string | null {
   }
 }
 
-function inferImageType(url: string): string | undefined {
-  const path = decodeURIComponent(new URL(url).pathname).toLowerCase();
-  if (path.endsWith('.jpg') || path.endsWith('.jpeg')) return 'image/jpeg';
-  if (path.endsWith('.png')) return 'image/png';
-  if (path.endsWith('.webp')) return 'image/webp';
-  if (path.endsWith('.gif')) return 'image/gif';
-  return undefined;
-}
-
 export function resolveSocialImage(
   candidates: SocialImageCandidate[],
   fallback: SocialImageCandidate = GLOBAL_FALLBACK,
@@ -346,7 +337,9 @@ export function resolveSocialImage(
       height: Number.isFinite(candidate.height) && Number(candidate.height) > 0
         ? Number(candidate.height)
         : undefined,
-      type: candidate.type || inferImageType(url),
+      // A filename extension is not a reliable indicator of the bytes served.
+      // Only emit a MIME type when the source explicitly knows the image format.
+      type: candidate.type || undefined,
       source: candidate.source || 'content-image',
     };
   }
