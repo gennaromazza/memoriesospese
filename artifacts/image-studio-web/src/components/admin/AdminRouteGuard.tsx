@@ -21,6 +21,7 @@ import {
   AdminPasskeyRefreshError,
   AdminSecurityError,
   DEVICE_ENROLLMENT_TIMEOUT_MS,
+  canOfferDeviceEnrollment,
   type DeviceEnrollmentHandoff,
   type DeviceEnrollmentStatus,
   hasPreviewHandoffTimedOut,
@@ -184,12 +185,10 @@ function PasskeySetupReminder({ enrolled }: { enrolled: boolean }) {
 function DeviceEnrollmentRequestPanel({
   status,
   currentRpId,
-  hasCurrentOriginPasskey,
   disabled,
 }: {
   status: AdminSecurityStatus;
   currentRpId: string;
-  hasCurrentOriginPasskey: boolean;
   disabled: boolean;
 }) {
   const queryClient = useQueryClient();
@@ -204,14 +203,7 @@ function DeviceEnrollmentRequestPanel({
   const [registered, setRegistered] = useState(false);
   const deadlineRef = useRef<number | null>(null);
 
-  const hasProductionPasskey = status.passkeys.some(
-    (passkey) => passkey.rpId === 'imagestudiofotografico.com',
-  );
-  const eligible =
-    status.passkeyRequired &&
-    !hasCurrentOriginPasskey &&
-    currentRpId === 'imagestudiofotografico.com' &&
-    hasProductionPasskey;
+  const eligible = canOfferDeviceEnrollment(status, currentRpId);
 
   useEffect(() => {
     if (!handoff) return;
@@ -346,10 +338,10 @@ function DeviceEnrollmentRequestPanel({
       <div className="flex items-start gap-2">
         <QrCode className="h-5 w-5 text-sage shrink-0 mt-0.5" />
         <div className="space-y-1">
-          <h2 className="text-sm font-semibold text-charcoal">Aggiungi una passkey da un altro dispositivo</h2>
+          <h2 className="text-sm font-semibold text-charcoal">Autorizza una passkey per questo dispositivo</h2>
           <p className="text-xs text-blue-gray">
-            Scansiona il QR con un dispositivo già verificato. Dopo l’approvazione, questa schermata registrerà
-            soltanto la nuova passkey: non trasferisce la sessione amministrativa.
+            Se questo portatile non ha ancora una passkey, genera il QR e approva la richiesta con un dispositivo
+            già verificato. Si registra solo la nuova passkey: la sessione amministrativa non viene trasferita.
           </p>
         </div>
       </div>
@@ -461,7 +453,9 @@ export function AdminPasskeyVerification({ status }: { status: AdminSecurityStat
   const locked = isAdminPasskeyLocked(status);
   const hostname = window.location.hostname.toLowerCase();
   const currentRpId = hostname.startsWith('www.') ? hostname.slice(4) : hostname;
-  const hasCurrentOriginPasskey = status.passkeys.some((passkey) => passkey.rpId === currentRpId);
+  // Le passkey elencate sono dell'account/RP, non una prova che siano salvate
+  // sul browser corrente. Questa condizione mostra solo il pulsante di verifica.
+  const hasPasskeyForCurrentRp = status.passkeys.some((passkey) => passkey.rpId === currentRpId);
   const canUseProductionHandoff =
     currentRpId !== 'imagestudiofotografico.com' &&
     status.passkeys.some((passkey) => passkey.rpId === 'imagestudiofotografico.com');
@@ -740,11 +734,10 @@ export function AdminPasskeyVerification({ status }: { status: AdminSecurityStat
               <DeviceEnrollmentRequestPanel
                 status={status}
                 currentRpId={currentRpId}
-                hasCurrentOriginPasskey={hasCurrentOriginPasskey}
                 disabled={busy || needsSessionRefresh || locked}
               />
 
-              {hasCurrentOriginPasskey && (
+              {hasPasskeyForCurrentRp && (
                 <Button
                   className="w-full"
                   disabled={busy || needsSessionRefresh || locked || !supportsPasskeys}

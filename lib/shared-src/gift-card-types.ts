@@ -140,6 +140,14 @@ export interface GiftCardItemInput {
   quantity: number;
 }
 
+/** Componente di una bundle inclusa in una gift card, senza dati economici. */
+export interface GiftCardBundleComponentDto {
+  name: string;
+  quantity: number;
+  description: string;
+  imageUrls: string[];
+}
+
 /** Prodotto incluso come lo vede chi riceve la card: mai con il prezzo. */
 export interface GiftCardItemDto {
   productId: string;
@@ -147,6 +155,8 @@ export interface GiftCardItemDto {
   name: string;
   description: string;
   imageUrls: string[];
+  /** Dettagli pubblici dei prodotti compresi, se il prodotto è una bundle. */
+  bundleItems?: GiftCardBundleComponentDto[];
 }
 
 /** Tipo di gift card come lo vede l'API (date in ISO 8601). */

@@ -14,6 +14,7 @@ import {
   resolveGiftCardVisualStyle,
   validateGiftCardTypeInput,
   type GiftCardCampaignState,
+  type GiftCardBundleComponentDto,
   type GiftCardItemDto,
   type GiftCardItemInput,
   type GiftCardChannel,
@@ -109,12 +110,51 @@ export interface GiftCardItemSnapshot extends GiftCardItemInput {
   name: string;
   description: string;
   imageUrls: string[];
+  bundleItems?: GiftCardBundleComponentDto[];
 }
 
 function imageList(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((url): url is string => typeof url === 'string' && url.length > 0).slice(0, 6)
     : [];
+}
+
+async function publicBundleComponents(
+  db: Firestore,
+  catalogItems: unknown,
+  fallbackItems: unknown = [],
+): Promise<GiftCardBundleComponentDto[]> {
+  const source = Array.isArray(catalogItems) && catalogItems.length > 0
+    ? catalogItems
+    : Array.isArray(fallbackItems)
+      ? fallbackItems
+      : [];
+
+  return Promise.all(source.slice(0, 30).map(async (raw): Promise<GiftCardBundleComponentDto> => {
+    const item = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
+    const productId = typeof item.prodottoId === 'string' ? item.prodottoId.trim() : '';
+    let product: Record<string, unknown> | null = null;
+    if (productId) {
+      try {
+        const snap = await db.collection(PRODUCTS).doc(productId).get();
+        if (snap.exists) product = snap.data() as Record<string, unknown>;
+      } catch {
+        // Usa i dati di snapshot del bundle se il lookup del componente non riesce.
+      }
+    }
+
+    const quantityValue = Number(item.quantita ?? item.quantity);
+    const quantity = Number.isFinite(quantityValue) && quantityValue > 0
+      ? Math.min(99, Math.floor(quantityValue))
+      : 1;
+    const images = imageList(product?.immagini);
+    return {
+      name: String(product?.nome || item.prodottoNome || item.name || 'Prodotto incluso'),
+      quantity,
+      description: String(product?.descrizione || item.descrizione || item.description || ''),
+      imageUrls: images.length ? images : imageList(item.immagini ?? item.imageUrls),
+    };
+  }));
 }
 
 /** Legge i prodotti del catalogo e ne salva nome, descrizione e foto: mai il prezzo. */
@@ -126,12 +166,14 @@ export async function snapshotItems(db: Firestore, items: readonly GiftCardItemI
         throw new GiftCardHttpError(422, 'product_not_found', 'Uno dei prodotti scelti non esiste più nel catalogo');
       }
       const product = snap.data() as any;
+      const bundleItems = await publicBundleComponents(db, product.bundleItems);
       return {
         productId: item.productId,
         quantity: item.quantity,
         name: String(product.nome || ''),
         description: String(product.descrizione || ''),
         imageUrls: imageList(product.immagini),
+        ...(bundleItems.length ? { bundleItems } : {}),
       };
     }),
   );
@@ -612,12 +654,14 @@ export class GiftCardService {
       const snap = await this.db.collection(PRODUCTS).doc(item.productId).get();
       const product = snap.exists ? (snap.data() as any) : null;
       if (!product || product.attivo === false) continue;
+      const bundleItems = await publicBundleComponents(this.db, product.bundleItems);
       result.push({
         productId: item.productId,
         quantity: item.quantity,
         name: String(product.nome || ''),
         description: String(product.descrizione || ''),
         imageUrls: imageList(product.immagini),
+        ...(bundleItems.length ? { bundleItems } : {}),
       });
     }
     return result;
@@ -634,16 +678,19 @@ export class GiftCardService {
           name: String(item.name || ''),
           description: String(item.description || ''),
           imageUrls: imageList(item.imageUrls),
+          ...(Array.isArray(item.bundleItems) ? { bundleItems: item.bundleItems } : {}),
         };
         try {
           const snap = await this.db.collection(PRODUCTS).doc(fallback.productId).get();
           const product = snap.exists ? (snap.data() as any) : null;
           if (!product || product.attivo === false) return fallback;
+          const bundleItems = await publicBundleComponents(this.db, product.bundleItems, fallback.bundleItems);
           return {
             ...fallback,
             name: String(product.nome || fallback.name),
             description: String(product.descrizione || fallback.description),
             imageUrls: imageList(product.immagini).length ? imageList(product.immagini) : fallback.imageUrls,
+            ...(bundleItems.length ? { bundleItems } : {}),
           };
         } catch {
           return fallback;

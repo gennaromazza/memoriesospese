@@ -509,4 +509,58 @@ describe('vetrina con i prodotti del catalogo', () => {
     ]);
     expect(JSON.stringify(shop.types[0].items)).not.toMatch(/45|30|prezzo/i);
   });
+
+  it('mostra nella vetrina i componenti e le descrizioni di una bundle, senza dati economici', async () => {
+    const { db, service, online } = setup();
+    db.seed('products/jingle', {
+      nome: 'Jingle Bells',
+      descrizione: '',
+      attivo: true,
+      prezzoFinale: 75,
+      costoUnitario: 22,
+      isBundle: true,
+      immagini: ['https://img.test/jingle.jpg'],
+      bundleItems: [
+        { prodottoId: 'shooting', prodottoNome: 'Shooting con Digital Gallery', quantita: 1, numeroFoto: 40 },
+        { prodottoId: 'cornice', prodottoNome: 'Cornice 15x20', quantita: 2, numeroFoto: 1 },
+      ],
+    });
+    db.seed('products/shooting', {
+      nome: 'Shooting con Digital Gallery',
+      descrizione: 'Servizio fotografico con galleria digitale.',
+      prezzoFinale: 40,
+      costoUnitario: 10,
+      immagini: ['https://img.test/shooting.jpg'],
+    });
+    db.seed('products/cornice', {
+      nome: 'Cornice 15x20',
+      descrizione: 'Cornice da tavolo in legno.',
+      prezzoFinale: 8,
+      costoUnitario: 2,
+      immagini: [],
+    });
+    const type = await seedType(service, { items: [{ productId: 'jingle', quantity: 1 }] });
+
+    const shop = await online.shop();
+    const included = shop.types.find(item => item.id === type.id)!.items[0];
+    expect(included).toMatchObject({
+      name: 'Jingle Bells',
+      bundleItems: [
+        {
+          name: 'Shooting con Digital Gallery',
+          quantity: 1,
+          description: 'Servizio fotografico con galleria digitale.',
+          imageUrls: ['https://img.test/shooting.jpg'],
+        },
+        {
+          name: 'Cornice 15x20',
+          quantity: 2,
+          description: 'Cornice da tavolo in legno.',
+        },
+      ],
+    });
+    expect(included).not.toHaveProperty('prezzoFinale');
+    expect(included.bundleItems?.[0]).not.toHaveProperty('costoUnitario');
+    expect(JSON.stringify(included)).not.toMatch(/prezzoFinale|costoUnitario/);
+  });
 });

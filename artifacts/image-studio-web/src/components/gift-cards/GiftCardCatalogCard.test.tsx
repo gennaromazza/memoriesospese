@@ -22,6 +22,12 @@ const sample: GiftCardShopTypeDto = {
     description: 'Album 20×30',
     quantity: 1,
     imageUrls: ['https://images.example.test/album.jpg'],
+    bundleItems: [{
+      name: 'Shooting fotografico',
+      quantity: 1,
+      description: 'Sessione fotografica con galleria digitale.',
+      imageUrls: [],
+    }],
   }],
   validUntil: null,
 };
@@ -41,6 +47,9 @@ describe('GiftCardCatalogCard', () => {
       expect(html).toContain(`data-style="${visualStyle}"`);
       expect(html).toContain('Foto di Natale');
       expect(html).toContain('Album fotografico');
+      expect(html).toContain('Shooting fotografico');
+      expect(html).toContain('Scopri i dettagli');
+      expect(html).toContain('Apri i dettagli di Album fotografico');
       expect(html).toContain('75 €');
       expect(html).toContain('aria-pressed="true"');
       expect(html).toContain('Scelto');

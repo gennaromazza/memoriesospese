@@ -386,6 +386,8 @@
 }
 
 .gcx-gift-catalog-includes {
+  display: grid;
+  gap: 8px;
   padding: 9px 10px;
   border-left: 3px solid var(--gk-f1);
   border-radius: 0 7px 7px 0;
@@ -394,6 +396,64 @@
 
 .gcx-gift-catalog-includes strong {
   color: #3e5149;
+}
+
+.gcx-gift-catalog-products {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gcx-gift-catalog-product {
+  display: grid;
+  width: 100%;
+  gap: 3px;
+  padding: 8px 9px;
+  border: 1px solid color-mix(in srgb, var(--gk-f1) 28%, transparent);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.58);
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.gcx-gift-catalog-product:hover {
+  border-color: var(--gk-f1);
+  background: #fff;
+}
+
+.gcx-gift-catalog-product:focus-visible {
+  outline: 2px solid var(--gk-f1);
+  outline-offset: 2px;
+}
+
+.gcx-gift-catalog-product-name {
+  color: #34413c;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.gcx-gift-catalog-product-description,
+.gcx-gift-catalog-product-bundle {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #5d625c;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.gcx-gift-catalog-product-link {
+  color: #315c4d;
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .gcx-gift-catalog-footer {

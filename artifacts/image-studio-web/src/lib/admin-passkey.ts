@@ -96,6 +96,19 @@ export function isAdminPasskeyVerificationRequired(status: AdminSecurityStatus):
   return status.passkeyRequired && !status.verified;
 }
 
+/**
+ * Il server conosce le passkey dell'account e del dominio, non quelle presenti
+ * fisicamente nel browser corrente. Perciò una passkey dello stesso RP non
+ * deve nascondere la possibilità di autorizzare un dispositivo nuovo.
+ */
+export function canOfferDeviceEnrollment(status: AdminSecurityStatus, currentRpId: string): boolean {
+  return (
+    status.passkeyRequired &&
+    currentRpId === 'imagestudiofotografico.com' &&
+    status.passkeys.some((passkey) => passkey.rpId === 'imagestudiofotografico.com')
+  );
+}
+
 export function isAdminPasskeyLocked(status: AdminSecurityStatus): boolean {
   return status.lockedUntil !== null;
 }

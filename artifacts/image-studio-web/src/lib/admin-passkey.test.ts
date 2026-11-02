@@ -14,7 +14,13 @@ vi.mock('@simplewebauthn/browser', () => ({
   startRegistration: vi.fn(),
 }));
 
-import { AdminPasskeyClient, AdminPasskeyRefreshError, AdminSecurityError } from './admin-passkey';
+import {
+  AdminPasskeyClient,
+  AdminPasskeyRefreshError,
+  AdminSecurityError,
+  canOfferDeviceEnrollment,
+  type AdminSecurityStatus,
+} from './admin-passkey';
 
 const claim = { req: true, exp: 1_900_000_000_000, at: 1_800_000_000_000, sat: 1_700_000_000 };
 
@@ -22,6 +28,41 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.clearAllMocks();
   mocks.auth.currentUser = null;
+});
+
+describe('autorizzazione QR per nuovo dispositivo', () => {
+  const baseStatus: AdminSecurityStatus = {
+    passkeyRequired: true,
+    passkeys: [{
+      id: 'phone-passkey',
+      label: 'Telefono',
+      rpId: 'imagestudiofotografico.com',
+      deviceType: 'multiDevice',
+      backedUp: true,
+      createdAt: 1,
+      lastUsedAt: null,
+    }],
+    recoveryCodesRemaining: 0,
+    recoveryCodesGeneratedAt: null,
+    lockedUntil: null,
+    verified: false,
+    activationReady: true,
+    verifiedUntil: null,
+    expectedClaim: null,
+  };
+
+  it('mostra il QR sul portatile anche se l’account ha già una passkey per lo stesso dominio', () => {
+    expect(canOfferDeviceEnrollment(baseStatus, 'imagestudiofotografico.com')).toBe(true);
+  });
+
+  it('non offre l’autorizzazione se manca un dispositivo fidato o l’obbligo passkey è spento', () => {
+    expect(canOfferDeviceEnrollment({ ...baseStatus, passkeys: [] }, 'imagestudiofotografico.com')).toBe(false);
+    expect(canOfferDeviceEnrollment({ ...baseStatus, passkeyRequired: false }, 'imagestudiofotografico.com')).toBe(false);
+  });
+
+  it('non espone la registrazione QR dalla Preview o da un altro dominio', () => {
+    expect(canOfferDeviceEnrollment(baseStatus, 'preview.replit.dev')).toBe(false);
+  });
 });
 
 describe('admin passkey session refresh', () => {
