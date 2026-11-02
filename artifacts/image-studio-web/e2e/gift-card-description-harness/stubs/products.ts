@@ -1,5 +1,5 @@
 import type { Product, InsertProduct, ProductCategory } from '@shared/booking-types';
-import { giftCardDescriptionState } from './state';
+import { giftCardDescriptionState, persistGiftCardDescriptionState } from './state';
 
 const categories: ProductCategory[] = [{
   id: 'e2e-category-album',
@@ -25,16 +25,19 @@ export async function updateProduct(productId: string, changes: InsertProduct): 
     productId,
     description: String(changes.descrizione ?? ''),
   });
+  persistGiftCardDescriptionState();
 }
 
 export async function createProduct(changes: InsertProduct): Promise<string> {
   const product = { ...structuredClone(changes), id: 'e2e-created-product' } as Product;
   giftCardDescriptionState.products.push(product);
+  persistGiftCardDescriptionState();
   return product.id;
 }
 
 export async function deleteProduct(productId: string): Promise<void> {
   giftCardDescriptionState.products = giftCardDescriptionState.products.filter(entry => entry.id !== productId);
+  persistGiftCardDescriptionState();
 }
 
 export function useProductCategories() {

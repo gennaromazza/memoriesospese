@@ -28,7 +28,7 @@ test('completare una descrizione mantiene la gift card in bozza e permette di sa
 
   await page.getByRole('button', { name: 'Aggiungi', exact: true }).click();
   await expect(page.getByText(/Descrizione del catalogo mancante/)).toBeVisible();
-  await expect(page.getByLabel('Quantità di Shooting test')).toHaveValue('1');
+  await page.getByLabel('Quantità di Shooting test').fill('2');
 
   await page.getByRole('button', {
     name: 'Completa descrizione di Shooting test nel catalogo prodotti',
@@ -45,7 +45,7 @@ test('completare una descrizione mantiene la gift card in bozza e permette di sa
   await expect(page.getByText(/Descrizione del catalogo mancante/)).toHaveCount(0);
   const chosenProducts = page.getByRole('region', { name: 'Nel regalo (1)' });
   await expect(chosenProducts.getByText(description, { exact: true })).toBeVisible();
-  await expect(chosenProducts.getByLabel('Quantità di Shooting test')).toHaveValue('1');
+  await expect(chosenProducts.getByLabel('Quantità di Shooting test')).toHaveValue('2');
 
   await page.getByRole('button', { name: 'Il regalo' }).click();
   await expect(page.getByLabel('Nome nel catalogo')).toHaveValue('Regalo test descrizione');
@@ -74,7 +74,33 @@ test('completare una descrizione mantiene la gift card in bozza e permette di sa
     title: 'Il mio regalo',
     description: 'Shooting e ricordi stampati',
     priceCents: 7500,
-    items: [{ productId: 'e2e-product-shooting', quantity: 1 }],
+    items: [{ productId: 'e2e-product-shooting', quantity: 2 }],
+  });
+
+  const previousQueryClientGeneration = await page.evaluate(
+    () => (window as any).__giftCardDescriptionQueryClientGeneration as number,
+  );
+  await page.reload();
+  await expect.poll(() => page.evaluate(
+    () => (window as any).__giftCardDescriptionQueryClientGeneration as number,
+  )).toBe(previousQueryClientGeneration + 1);
+  await expect(page.getByLabel('Nome nel catalogo')).toHaveValue('Regalo test descrizione');
+  await expect(page.getByLabel('Titolo sulla card')).toHaveValue('Il mio regalo');
+  await expect(page.getByLabel('Cosa include, in parole tue')).toHaveValue('Shooting e ricordi stampati');
+
+  await page.getByRole('button', { name: 'Prodotti e prezzo' }).click();
+  const reloadedProducts = page.getByRole('region', { name: 'Nel regalo (1)' });
+  await expect(reloadedProducts.getByText('Shooting test', { exact: true })).toBeVisible();
+  await expect(reloadedProducts.getByText(description, { exact: true })).toBeVisible();
+  await expect(reloadedProducts.getByLabel('Quantità di Shooting test')).toHaveValue('2');
+
+  const reloadedState = await page.evaluate(() => (window as any).__giftCardDescriptionE2E);
+  expect(reloadedState.listTypesCalls).toBeGreaterThan(0);
+  expect(reloadedState.savedGiftCards).toHaveLength(1);
+  expect(reloadedState.savedGiftCards[0]).toMatchObject({
+    name: 'Regalo test descrizione',
+    description: 'Shooting e ricordi stampati',
+    items: [{ productId: 'e2e-product-shooting', quantity: 2 }],
   });
   expect(externalRequests).toEqual([]);
 });

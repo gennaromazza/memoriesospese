@@ -23,15 +23,37 @@ export const giftCardDescriptionState: {
   products: Product[];
   productUpdates: Array<{ productId: string; description: string }>;
   savedGiftCards: GiftCardTypeInput[];
+  listTypesCalls: number;
 } = {
   products: [],
   productUpdates: [],
   savedGiftCards: [],
+  listTypesCalls: 0,
 };
 
-export function resetGiftCardDescriptionState() {
-  giftCardDescriptionState.products = [missingDescriptionProduct()];
-  giftCardDescriptionState.productUpdates = [];
-  giftCardDescriptionState.savedGiftCards = [];
+const STORAGE_KEY = 'gift-card-description-e2e-persisted-state';
+
+export function initializeGiftCardDescriptionState() {
+  const persisted = window.localStorage.getItem(STORAGE_KEY);
+  if (persisted) {
+    const saved = JSON.parse(persisted) as Pick<typeof giftCardDescriptionState, 'products' | 'productUpdates' | 'savedGiftCards'>;
+    giftCardDescriptionState.products = saved.products;
+    giftCardDescriptionState.productUpdates = saved.productUpdates;
+    giftCardDescriptionState.savedGiftCards = saved.savedGiftCards;
+  } else {
+    giftCardDescriptionState.products = [missingDescriptionProduct()];
+    giftCardDescriptionState.productUpdates = [];
+    giftCardDescriptionState.savedGiftCards = [];
+    persistGiftCardDescriptionState();
+  }
+  giftCardDescriptionState.listTypesCalls = 0;
   (window as any).__giftCardDescriptionE2E = giftCardDescriptionState;
+}
+
+export function persistGiftCardDescriptionState() {
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    products: giftCardDescriptionState.products,
+    productUpdates: giftCardDescriptionState.productUpdates,
+    savedGiftCards: giftCardDescriptionState.savedGiftCards,
+  }));
 }
