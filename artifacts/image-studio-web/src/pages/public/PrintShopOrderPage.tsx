@@ -1386,7 +1386,10 @@ export default function PrintShopOrderPage() {
                     {couponMessage && <p className={`mt-2 text-sm ${couponError ? 'text-red-700' : 'text-emerald-800'}`} role={couponError ? 'alert' : 'status'}>{couponMessage}</p>}
                     {quote?.coupon && (
                       <p className="mt-2 text-xs text-blue-gray/60">
-                        {quote.coupon.discountType === 'percentage' ? `${quote.coupon.value}%` : formatEuroCents(quote.coupon.value)} di sconto su tutte le stampe. La spedizione è esclusa.
+                        {quote.coupon.discountType === 'percentage' ? `${quote.coupon.value}%` : formatEuroCents(quote.coupon.value)} di sconto{' '}
+                        {quote.coupon.scope === 'selected'
+                          ? `su: ${quote.items.filter((item) => quote.coupon?.eligibleSkus?.includes(item.sku)).map((item) => item.productName).join(', ')}`
+                          : 'su tutte le stampe'}. La spedizione è esclusa.
                       </p>
                     )}
                   </section>

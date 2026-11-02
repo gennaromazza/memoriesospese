@@ -142,6 +142,9 @@ export interface PrintShopAppliedCoupon {
   discountType: PrintShopCouponDiscountType;
   value: number;
   discountCents: number;
+  /** Missing scope on legacy coupons is interpreted as all formats. */
+  scope?: 'all' | 'selected';
+  eligibleSkus?: readonly string[];
 }
 
 /** Admin-facing coupon contract. Dates are ISO strings at the API boundary. */
@@ -158,13 +161,15 @@ export interface PrintShopCoupon {
   reservedCount: number;
   remainingUses: number | null;
   active: boolean;
+  scope: 'all' | 'selected';
+  eligibleSkus: readonly string[];
   createdAt?: string;
   updatedAt?: string;
 }
 
 export type PrintShopCouponInput = Pick<
   PrintShopCoupon,
-  'code' | 'discountType' | 'value' | 'startsAt' | 'endsAt' | 'maxUses' | 'active'
+  'code' | 'discountType' | 'value' | 'startsAt' | 'endsAt' | 'maxUses' | 'active' | 'scope' | 'eligibleSkus'
 >;
 
 export interface AppliedPrintTier {

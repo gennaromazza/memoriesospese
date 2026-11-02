@@ -432,6 +432,16 @@ export class PrintShopService {
     couponId?: string,
   ): Promise<Record<string, unknown>> {
     const coupon = normalizeCouponInput(input);
+    if (coupon.scope === 'selected') {
+      const catalogSkus = new Set((await this.loadCatalog()).map(product => product.sku));
+      if (coupon.eligibleSkus.some(sku => !catalogSkus.has(sku))) {
+        throw new PrintShopHttpError(
+          400,
+          'invalid_coupon_formats',
+          'Uno o più formati selezionati non sono più disponibili nello shop',
+        );
+      }
+    }
     const collection = this.deps.db.collection('printShopCoupons');
     const ref = couponId ? collection.doc(couponId) : collection.doc();
     const now = this.now();
@@ -440,9 +450,13 @@ export class PrintShopService {
     const editor = normalizeRequiredEmail(adminEmail);
 
     await this.deps.db.runTransaction(async (transaction: any) => {
-      const [existing, duplicates] = await Promise.all([
+      const [existing, duplicates, reservations] = await Promise.all([
         transaction.get(ref),
         transaction.get(collection.where('normalizedCode', '==', coupon.code).limit(2)),
+        transaction.get(
+          this.deps.db.collection('printShopCouponRedemptions')
+            .where('couponId', '==', ref.id),
+        ),
       ]);
       if (couponId && !existing.exists) {
         throw new PrintShopHttpError(404, 'coupon_not_found', 'Coupon non trovato');
@@ -451,11 +465,35 @@ export class PrintShopService {
         throw new PrintShopHttpError(409, 'coupon_code_conflict', 'Questo codice coupon è già in uso');
       }
       const previous = existing.data() || {};
+      const hasActiveReservations = reservations.docs.some((entry: any) =>
+        entry.data()?.state === 'reserved' &&
+        timestampMillis(entry.data()?.expiresAt) > now.toMillis(),
+      );
+      const termsChanged = existing.exists && (
+        normalizeCouponCode(previous.normalizedCode || previous.code) !== coupon.code ||
+        previous.discountType !== coupon.discountType ||
+        Number(previous.value) !== coupon.value ||
+        couponScope(previous) !== coupon.scope ||
+        couponEligibleSkus(previous).join('|') !== coupon.eligibleSkus.join('|') ||
+        timestampMillis(previous.startsAt) !== Date.parse(coupon.startsAt) ||
+        timestampMillis(previous.endsAt) !== Date.parse(coupon.endsAt) ||
+        (previous.maxUses == null ? null : Number(previous.maxUses)) !== coupon.maxUses ||
+        (previous.active === true) !== coupon.active
+      );
+      if (hasActiveReservations && termsChanged) {
+        throw new PrintShopHttpError(
+          409,
+          'coupon_has_active_checkouts',
+          'Questo coupon è in uso in un checkout aperto: attendi che il pagamento termini o scada prima di modificarlo',
+        );
+      }
       const value = {
         code: coupon.code,
         normalizedCode: coupon.code,
         discountType: coupon.discountType,
         value: coupon.value,
+        scope: coupon.scope,
+        eligibleSkus: coupon.eligibleSkus,
         startsAt,
         endsAt,
         maxUses: coupon.maxUses,
@@ -478,7 +516,7 @@ export class PrintShopService {
   private async couponForQuote(
     rawCode: string | undefined,
     orderId: string,
-    subtotalCents: number,
+    items: readonly PrintOrderItemSnapshot[],
     now: Timestamp,
   ): Promise<{ coupon?: PrintShopQuote['coupon']; couponId?: string }> {
     const code = normalizeCouponCode(rawCode);
@@ -489,6 +527,16 @@ export class PrintShopService {
     if (!doc) throw new PrintShopHttpError(400, 'coupon_invalid', 'Il codice coupon non è valido');
     const value = doc.data();
     validateCouponUsable(value, now.toMillis());
+    const scope = couponScope(value);
+    const eligibleSkus = couponEligibleSkus(value);
+    const eligibleSubtotalCents = couponEligibleSubtotal(value, items);
+    if (scope === 'selected' && eligibleSubtotalCents <= 0) {
+      throw new PrintShopHttpError(
+        409,
+        'coupon_not_applicable',
+        'Questo coupon non è applicabile ai formati presenti nel carrello',
+      );
+    }
     const redemption = await this.deps.db.collection('printShopCouponRedemptions')
       .doc(orderId).get();
     const ownActiveReservation = redemption.exists &&
@@ -512,9 +560,9 @@ export class PrintShopService {
     const discountType = value.discountType as PrintShopCouponDiscountType;
     const discountValue = Number(value.value);
     const discountCents = Math.min(
-      subtotalCents,
+      eligibleSubtotalCents,
       discountType === 'percentage'
-        ? Math.round(subtotalCents * discountValue / 100)
+        ? Math.round(eligibleSubtotalCents * discountValue / 100)
         : discountValue,
     );
     return {
@@ -524,6 +572,8 @@ export class PrintShopService {
         discountType,
         value: discountValue,
         discountCents,
+        scope,
+        eligibleSkus,
       },
     };
   }
@@ -572,6 +622,7 @@ export class PrintShopService {
       const sameActiveReservation = Boolean(
         previous?.state === 'reserved' &&
         previous.couponId === applied?.id &&
+        previous.quoteFingerprint === fingerprint &&
         timestampMillis(previous.expiresAt) > now.toMillis(),
       );
       let activeCount = reservations.docs.filter((entry: any) =>
@@ -583,7 +634,7 @@ export class PrintShopService {
         assertCouponMatchesSnapshot(
           couponDoc.data(),
           applied,
-          Number(order.totals?.subtotalCents || 0),
+          order,
         );
         const maximum = couponDoc.data()?.maxUses == null ? null : Number(couponDoc.data().maxUses);
         if (maximum !== null && Number(couponDoc.data()?.usedCount || 0) + activeCount > maximum) {
@@ -613,7 +664,7 @@ export class PrintShopService {
       }
       const coupon = couponDoc.data();
       validateCouponUsable(coupon, now.toMillis());
-      assertCouponMatchesSnapshot(coupon, applied, Number(order.totals?.subtotalCents || 0));
+      assertCouponMatchesSnapshot(coupon, applied, order);
       if (previous?.state === 'reserved' && previous.couponId === applied.id) {
         activeCount = Math.max(0, activeCount - 1);
       }
@@ -1180,7 +1231,7 @@ export class PrintShopService {
       throw error;
     }
     const now = this.now();
-    const applied = await this.couponForQuote(input.couponCode, orderId, quote.totals.subtotalCents, now);
+    const applied = await this.couponForQuote(input.couponCode, orderId, quote.items, now);
     const assets = await this.requireReadyAssets(orderId, quote.items);
     const qualityWarnings = calculateQualityWarnings(quote.items, assets, catalog);
     const shippingCents = method === 'shipping' ? shipping.priceCents : 0;
@@ -2229,7 +2280,7 @@ export class PrintShopService {
         }
         const currentCoupon = couponDoc.data();
         validateCouponUsable(currentCoupon, now.toMillis());
-        assertCouponMatchesSnapshot(currentCoupon, coupon, Number(data.totals?.subtotalCents || 0));
+        assertCouponMatchesSnapshot(currentCoupon, coupon, data);
         const activeReservations = (reservations?.docs || []).filter((entry: any) =>
           entry.data()?.state === 'reserved' &&
           timestampMillis(entry.data()?.expiresAt) > now.toMillis(),
@@ -2641,7 +2692,7 @@ export class PrintShopService {
           transaction.get(this.deps.db.collection('printShopCouponRedemptions')
             .where('couponId', '==', appliedCoupon.id)),
         ]);
-        validateCouponRedemptionForPayment(appliedCoupon, couponRedemptionDoc, couponDoc, order);
+        validateCouponRedemptionForPayment(appliedCoupon, couponRedemptionDoc, order);
       }
       validateCaptureAgainstOrder(orderId, order, capture, this.deps.paypal.config.merchantId);
       const filesUnavailable =
@@ -2662,18 +2713,20 @@ export class PrintShopService {
         return;
       }
       if (appliedCoupon?.id && couponRedemptionDoc?.data()?.state === 'reserved') {
-        const coupon = couponDoc.data();
-        const activeReservations = (couponReservations?.docs || []).filter((entry: any) =>
-          entry.data()?.state === 'reserved' &&
-          timestampMillis(entry.data()?.expiresAt) > now.toMillis(),
-        ).length;
-        const ownActiveReservation =
-          timestampMillis(couponRedemptionDoc.data()?.expiresAt) > now.toMillis() ? 1 : 0;
-        transaction.update(couponRef, {
-          usedCount: Number(coupon.usedCount || 0) + 1,
-          reservedCount: Math.max(0, activeReservations - ownActiveReservation),
-          updatedAt: now,
-        });
+        if (couponDoc?.exists) {
+          const coupon = couponDoc.data();
+          const activeReservations = (couponReservations?.docs || []).filter((entry: any) =>
+            entry.data()?.state === 'reserved' &&
+            timestampMillis(entry.data()?.expiresAt) > now.toMillis(),
+          ).length;
+          const ownActiveReservation =
+            timestampMillis(couponRedemptionDoc.data()?.expiresAt) > now.toMillis() ? 1 : 0;
+          transaction.update(couponRef, {
+            usedCount: Number(coupon.usedCount || 0) + 1,
+            reservedCount: Math.max(0, activeReservations - ownActiveReservation),
+            updatedAt: now,
+          });
+        }
         transaction.set(couponRedemptionRef, {
           ...couponRedemptionDoc.data(),
           state: 'redeemed',
@@ -5864,6 +5917,12 @@ function normalizeCouponInput(input: PrintShopCouponInput): PrintShopCouponInput
   const code = normalizeCouponCode(input.code);
   const startsAt = Date.parse(input.startsAt);
   const endsAt = Date.parse(input.endsAt);
+  const scope = input.scope === 'selected' ? 'selected' : 'all';
+  const eligibleSkus = [...new Set(
+    (Array.isArray(input.eligibleSkus) ? input.eligibleSkus : [])
+      .map(value => normalizeCatalogSku(value))
+      .filter(Boolean),
+  )].sort();
   if (!code || !Number.isFinite(startsAt) || !Number.isFinite(endsAt) || endsAt <= startsAt) {
     throw new PrintShopHttpError(400, 'invalid_coupon', 'I dati del coupon non sono validi');
   }
@@ -5875,9 +5934,21 @@ function normalizeCouponInput(input: PrintShopCouponInput): PrintShopCouponInput
   ) {
     throw new PrintShopHttpError(400, 'invalid_coupon', 'Valore o limite utilizzi del coupon non valido');
   }
+  if (
+    eligibleSkus.length > 100 ||
+    (scope === 'selected' && eligibleSkus.length === 0)
+  ) {
+    throw new PrintShopHttpError(
+      400,
+      'invalid_coupon_formats',
+      'Seleziona almeno un formato, oppure scegli tutto lo shop',
+    );
+  }
   return {
     ...input,
     code,
+    scope,
+    eligibleSkus: scope === 'selected' ? eligibleSkus : [],
     startsAt: new Date(startsAt).toISOString(),
     endsAt: new Date(endsAt).toISOString(),
   };
@@ -5897,6 +5968,8 @@ function couponForAdmin(id: string, value: any): Record<string, unknown> {
     code: String(value?.code || ''),
     discountType: value?.discountType,
     value: Number(value?.value || 0),
+    scope: couponScope(value),
+    eligibleSkus: couponEligibleSkus(value),
     startsAt: timestampToIso(value?.startsAt) || '',
     endsAt: timestampToIso(value?.endsAt) || '',
     maxUses,
@@ -5936,12 +6009,46 @@ function couponDiscountCents(coupon: any, subtotalCents: number): number {
   );
 }
 
-function assertCouponMatchesSnapshot(coupon: any, applied: any, subtotalCents: number): void {
+function couponScope(coupon: any): 'all' | 'selected' {
+  return coupon?.scope === 'selected' ? 'selected' : 'all';
+}
+
+function couponEligibleSkus(coupon: any): string[] {
+  if (couponScope(coupon) !== 'selected' || !Array.isArray(coupon?.eligibleSkus)) return [];
+  const normalized = coupon.eligibleSkus
+    .map((sku: unknown) => String(sku).trim())
+    .filter((sku: string) => sku.length > 0);
+  return [...new Set<string>(normalized)].sort();
+}
+
+function couponEligibleSubtotal(coupon: any, items: readonly any[]): number {
+  if (couponScope(coupon) !== 'selected') {
+    return items.reduce((sum, item) => sum + Math.max(0, Number(item.lineTotalCents) || 0), 0);
+  }
+  const eligible = new Set(couponEligibleSkus(coupon));
+  return items.reduce(
+    (sum, item) => eligible.has(String(item.sku || '').trim())
+      ? sum + Math.max(0, Number(item.lineTotalCents) || 0)
+      : sum,
+    0,
+  );
+}
+
+function assertCouponMatchesSnapshot(coupon: any, applied: any, order: any): void {
+  const scope = couponScope(coupon);
+  const appliedScope = couponScope(applied);
+  const eligibleSkus = couponEligibleSkus(coupon);
+  const appliedEligibleSkus = couponEligibleSkus(applied);
+  const items = order?.printShop?.items || [];
+  const eligibleSubtotalCents = couponEligibleSubtotal(coupon, items);
   if (
     normalizeCouponCode(coupon?.normalizedCode || coupon?.code) !== normalizeCouponCode(applied?.code) ||
     coupon?.discountType !== applied?.discountType ||
     Number(coupon?.value) !== Number(applied?.value) ||
-    couponDiscountCents(coupon, subtotalCents) !== Number(applied?.discountCents)
+    scope !== appliedScope ||
+    eligibleSkus.join('|') !== appliedEligibleSkus.join('|') ||
+    (scope === 'selected' && eligibleSubtotalCents <= 0) ||
+    couponDiscountCents(coupon, eligibleSubtotalCents) !== Number(applied?.discountCents)
   ) {
     throw new PrintShopHttpError(409, 'coupon_changed', 'Le condizioni del coupon sono cambiate: aggiorna il riepilogo');
   }
@@ -5959,7 +6066,7 @@ function validateCouponRedemptionForCapture(
     throw new PrintShopHttpError(409, 'coupon_invalid', 'Il coupon non è più disponibile');
   }
   validateCouponUsable(couponDoc.data(), nowMillis);
-  assertCouponMatchesSnapshot(couponDoc.data(), applied, Number(order.totals?.subtotalCents || 0));
+  assertCouponMatchesSnapshot(couponDoc.data(), applied, order);
   const redemption = redemptionDoc?.data();
   if (
     !redemptionDoc?.exists ||
@@ -5983,19 +6090,16 @@ function validateCouponRedemptionForCapture(
 function validateCouponRedemptionForPayment(
   applied: any,
   redemptionDoc: any,
-  couponDoc: any,
   order: any,
 ): void {
-  if (!couponDoc?.exists) {
-    throw new PrintShopHttpError(409, 'coupon_invalid', 'Il coupon associato all’ordine non è disponibile');
-  }
-  assertCouponMatchesSnapshot(couponDoc.data(), applied, Number(order.totals?.subtotalCents || 0));
   const redemption = redemptionDoc?.data();
   if (
     !redemptionDoc?.exists ||
     !['reserved', 'redeemed'].includes(redemption?.state) ||
     redemption?.couponId !== applied.id ||
-    redemption?.quoteFingerprint !== order.quoteFingerprint
+    redemption?.quoteFingerprint !== order.quoteFingerprint ||
+    normalizeCouponCode(redemption?.code) !== normalizeCouponCode(applied?.code) ||
+    Number(redemption?.discountCents) !== Number(applied?.discountCents)
   ) {
     throw new PrintShopHttpError(409, 'coupon_reservation_missing', 'Prenotazione coupon dell’ordine non trovata');
   }

@@ -9,15 +9,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import type { PrintShopCoupon, PrintShopCouponInput } from '@shared/print-shop-types';
+import type { PrintShopCatalogProduct, PrintShopCoupon, PrintShopCouponInput } from '@shared/print-shop-types';
 
 const queryKey = ['/api/print-shop/admin/coupons'] as const;
+const formatsQueryKey = ['/api/print-shop/coupon-formats'] as const;
 
 type CouponForm = {
   id?: string;
   code: string;
   discountType: 'percentage' | 'fixed';
   value: number;
+  scope: 'all' | 'selected';
+  eligibleSkus: string[];
   startsAt: string;
   endsAt: string;
   maxUses: string;
@@ -36,6 +39,8 @@ function emptyForm(): CouponForm {
     code: '',
     discountType: 'percentage',
     value: 10,
+    scope: 'all',
+    eligibleSkus: [],
     startsAt: localDateTime(start),
     endsAt: localDateTime(end),
     maxUses: '',
@@ -49,6 +54,8 @@ function editForm(coupon: PrintShopCoupon): CouponForm {
     code: coupon.code,
     discountType: coupon.discountType,
     value: coupon.discountType === 'fixed' ? coupon.value / 100 : coupon.value,
+    scope: coupon.scope || 'all',
+    eligibleSkus: [...(coupon.eligibleSkus || [])],
     startsAt: localDateTime(new Date(coupon.startsAt)),
     endsAt: localDateTime(new Date(coupon.endsAt)),
     maxUses: coupon.maxUses == null ? '' : String(coupon.maxUses),
@@ -63,6 +70,13 @@ async function readCoupons(): Promise<PrintShopCoupon[]> {
   return body.coupons;
 }
 
+async function readCouponFormats(): Promise<PrintShopCatalogProduct[]> {
+  const response = await apiRequest('GET', '/api/print-shop/catalog');
+  const body = await response.json() as { products?: PrintShopCatalogProduct[] };
+  if (!Array.isArray(body.products)) throw new Error('Formati dello shop non disponibili.');
+  return body.products.filter(product => product.attivo && product.sku);
+}
+
 function toInput(form: CouponForm): PrintShopCouponInput {
   return {
     code: form.code.trim().toUpperCase(),
@@ -70,6 +84,8 @@ function toInput(form: CouponForm): PrintShopCouponInput {
     value: form.discountType === 'fixed'
       ? Math.round((Number(String(form.value).replace(',', '.')) || 0) * 100)
       : Number(form.value),
+    scope: form.scope,
+    eligibleSkus: form.scope === 'selected' ? form.eligibleSkus : [],
     startsAt: new Date(form.startsAt).toISOString(),
     endsAt: new Date(form.endsAt).toISOString(),
     maxUses: form.maxUses.trim() ? Number(form.maxUses) : null,
@@ -90,6 +106,7 @@ export default function PrintShopCouponsManager() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const query = useQuery({ queryKey, queryFn: readCoupons, staleTime: 15_000 });
+  const formatsQuery = useQuery({ queryKey: formatsQueryKey, queryFn: readCouponFormats, staleTime: 60_000 });
   const [form, setForm] = useState<CouponForm | null>(null);
   const [formError, setFormError] = useState('');
 
@@ -135,8 +152,10 @@ export default function PrintShopCouponsManager() {
     if (form.discountType === 'fixed' && value > 1_000_000) result.push('L’importo fisso non può superare 10.000 €.');
     if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) result.push('La scadenza deve essere successiva all’inizio.');
     if (form.maxUses.trim() && (!Number.isInteger(Number(form.maxUses)) || Number(form.maxUses) < 1)) result.push('Il limite utilizzi deve essere un intero positivo o vuoto.');
+    if (form.scope === 'selected' && form.eligibleSkus.length === 0) result.push('Seleziona almeno un formato oppure scegli tutto lo shop.');
+    if (form.scope === 'selected' && formatsQuery.isError) result.push('Non riesco a caricare i formati dello shop.');
     return result;
-  }, [form]);
+  }, [form, formatsQuery.isError]);
 
   const startEdit = (coupon: PrintShopCoupon) => {
     setForm(editForm(coupon));
@@ -181,6 +200,7 @@ export default function PrintShopCouponsManager() {
                   </div>
                   <p className="mt-1 text-sm text-muted-foreground">
                     {coupon.discountType === 'percentage' ? `${coupon.value}% di sconto` : `${(coupon.value / 100).toFixed(2)} € di sconto`}
+                    {' · '}{coupon.scope === 'selected' ? `${coupon.eligibleSkus?.length || 0} formati selezionati` : 'tutti i formati'}
                     {' · '}{new Date(coupon.startsAt).toLocaleString('it-IT')} – {new Date(coupon.endsAt).toLocaleString('it-IT')}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
@@ -198,6 +218,8 @@ export default function PrintShopCouponsManager() {
                       code: coupon.code,
                       discountType: coupon.discountType,
                       value: coupon.value,
+                      scope: coupon.scope || 'all',
+                      eligibleSkus: coupon.eligibleSkus || [],
                       startsAt: coupon.startsAt,
                       endsAt: coupon.endsAt,
                       maxUses: coupon.maxUses,
@@ -237,6 +259,78 @@ export default function PrintShopCouponsManager() {
                   <option value="percentage">Percentuale</option>
                   <option value="fixed">Importo fisso</option>
                 </select>
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="print-coupon-scope">Formati inclusi</Label>
+                <select
+                  id="print-coupon-scope"
+                  value={form.scope}
+                  onChange={(event) => setForm({
+                    ...form,
+                    scope: event.target.value as CouponForm['scope'],
+                    eligibleSkus: event.target.value === 'all' ? [] : form.eligibleSkus,
+                  })}
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="all">Tutto lo shop stampe</option>
+                  <option value="selected">Solo formati selezionati</option>
+                </select>
+                {form.scope === 'selected' && (
+                  <fieldset className="max-h-64 space-y-2 overflow-y-auto rounded-lg border p-3">
+                    <legend className="px-1 text-sm font-medium">Seleziona i formati ammessi</legend>
+                    {formatsQuery.isLoading ? (
+                      <p className="text-sm text-muted-foreground">Caricamento formati…</p>
+                    ) : formatsQuery.isError ? (
+                      <p className="text-sm text-destructive" role="alert">Formati non disponibili. Riprova a caricare la pagina.</p>
+                    ) : (
+                      <>
+                        {form.eligibleSkus
+                          .filter((sku) => !formatsQuery.data?.some((product) => product.sku === sku))
+                          .map((sku) => (
+                            <label key={`unavailable-${sku}`} className="flex cursor-pointer items-start gap-3 rounded-md bg-amber-50 px-2 py-2 text-amber-900">
+                              <input
+                                type="checkbox"
+                                checked
+                                onChange={() => setForm({
+                                  ...form,
+                                  eligibleSkus: form.eligibleSkus.filter((eligibleSku) => eligibleSku !== sku),
+                                })}
+                                className="mt-1 h-4 w-4 accent-primary"
+                              />
+                              <span className="min-w-0 text-sm">
+                                {sku} · non più disponibile (togli la selezione per salvare)
+                              </span>
+                            </label>
+                          ))}
+                        {formatsQuery.data?.length ? formatsQuery.data.map((product) => {
+                          const checked = form.eligibleSkus.includes(product.sku);
+                          return (
+                            <label key={product.sku} className="flex cursor-pointer items-start gap-3 rounded-md px-2 py-2 hover:bg-muted/60">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(event) => setForm({
+                                  ...form,
+                                  eligibleSkus: event.target.checked
+                                    ? [...new Set([...form.eligibleSkus, product.sku])]
+                                    : form.eligibleSkus.filter((sku) => sku !== product.sku),
+                                })}
+                                className="mt-1 h-4 w-4 accent-primary"
+                              />
+                              <span className="min-w-0">
+                                <span className="block text-sm font-medium">{product.nome}</span>
+                                <span className="block text-xs text-muted-foreground">{product.sku} · {product.categoria}</span>
+                              </span>
+                            </label>
+                          );
+                        }) : (
+                          <p className="text-sm text-muted-foreground">Non ci sono formati acquistabili.</p>
+                        )}
+                      </>
+                    )}
+                  </fieldset>
+                )}
+                <p className="text-xs text-muted-foreground">Se lo sconto è fisso, si applica solo al subtotale dei formati selezionati; la spedizione resta esclusa.</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="print-coupon-value">{form.discountType === 'percentage' ? 'Percentuale (%)' : 'Importo (€)'}</Label>

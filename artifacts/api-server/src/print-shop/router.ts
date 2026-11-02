@@ -157,6 +157,8 @@ const printShopCouponSchema = z.object({
   code: z.string().trim().min(3).max(32),
   discountType: z.enum(['percentage', 'fixed']),
   value: z.number().int().positive().max(100_000_000),
+  scope: z.enum(['all', 'selected']),
+  eligibleSkus: z.array(z.string().trim().min(1).max(80)).max(100),
   startsAt: z.iso.datetime({ offset: true }),
   endsAt: z.iso.datetime({ offset: true }),
   maxUses: z.number().int().min(1).max(1_000_000).nullable(),
@@ -167,6 +169,9 @@ const printShopCouponSchema = z.object({
 ).refine(
   value => Date.parse(value.endsAt) > Date.parse(value.startsAt),
   { message: 'La scadenza deve essere successiva all’inizio', path: ['endsAt'] },
+).refine(
+  value => value.scope !== 'selected' || value.eligibleSkus.length > 0,
+  { message: 'Seleziona almeno un formato', path: ['eligibleSkus'] },
 );
 
 const shippingAdminSchema = z.object({
