@@ -16,6 +16,31 @@ export const GIFT_CARD_THEME_KEYS = [
 ] as const;
 export type GiftCardThemeKey = (typeof GIFT_CARD_THEME_KEYS)[number];
 
+/** Impaginazione della card nel catalogo pubblico; distinta dal tema colori. */
+export const GIFT_CARD_VISUAL_STYLE_KEYS = ['pacchetto', 'busta', 'cornice', 'premium'] as const;
+export type GiftCardVisualStyle = (typeof GIFT_CARD_VISUAL_STYLE_KEYS)[number];
+
+export const GIFT_CARD_VISUAL_STYLE_LABELS: Record<GiftCardVisualStyle, string> = {
+  pacchetto: 'Pacchetto regalo',
+  busta: 'Busta elegante',
+  cornice: 'Foto in cornice',
+  premium: 'Voucher premium',
+};
+
+export const GIFT_CARD_VISUAL_STYLE_DESCRIPTIONS: Record<GiftCardVisualStyle, string> = {
+  pacchetto: 'Una confezione con nastro e cartellino.',
+  busta: 'Una lettera da aprire.',
+  cornice: 'La fotografia come ricordo.',
+  premium: 'Una card sobria e raffinata.',
+};
+
+/** Le gift card create prima degli stili visivi usano il pacchetto regalo. */
+export function resolveGiftCardVisualStyle(value: unknown): GiftCardVisualStyle {
+  return (GIFT_CARD_VISUAL_STYLE_KEYS as readonly unknown[]).includes(value)
+    ? (value as GiftCardVisualStyle)
+    : 'pacchetto';
+}
+
 /**
  * Collega il tema stagionale di una campagna di prenotazione (campo
  * `temaStagionale`) al tema grafico della gift card. Le campagne senza tema
@@ -138,6 +163,8 @@ export interface GiftCardTypeDto {
   /** Prodotti del catalogo inclusi nel regalo (possono essere nessuno). */
   items: GiftCardItemInput[];
   theme: GiftCardThemeKey;
+  /** Aspetto della gift card nella vetrina online, indipendente dai colori. */
+  visualStyle: GiftCardVisualStyle;
   campaignId: string | null;
   validityMode: GiftCardValidityMode;
   /** Data di scadenza (YYYY-MM-DD) quando `validityMode` è `date`. */
@@ -305,6 +332,11 @@ export function validateGiftCardTypeInput(
     issues.push({ field: 'theme', message: 'Tema non valido' });
   }
 
+  const visualStyle = resolveGiftCardVisualStyle(raw.visualStyle);
+  if (raw.visualStyle !== undefined && visualStyle !== raw.visualStyle) {
+    issues.push({ field: 'visualStyle', message: 'Aspetto della card non valido' });
+  }
+
   const campaignId =
     typeof raw.campaignId === 'string' && raw.campaignId.trim() ? raw.campaignId.trim() : null;
 
@@ -343,6 +375,7 @@ export function validateGiftCardTypeInput(
       priceCents: priceCents as number,
       items,
       theme,
+      visualStyle,
       campaignId,
       validityMode,
       validityDate,
@@ -367,6 +400,7 @@ export interface GiftCardShopTypeDto {
   kind: GiftCardKind;
   priceCents: number;
   theme: GiftCardThemeKey;
+  visualStyle: GiftCardVisualStyle;
   /** Prodotti del catalogo inclusi, con foto e senza prezzo. */
   items: GiftCardItemDto[];
   /** Scadenza che avrà la card se comprata adesso. */

@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Pencil } from 'lucide-react';
 import {
   GIFT_CARD_THEME_KEYS,
+  GIFT_CARD_VISUAL_STYLE_LABELS,
   GIFT_CARD_TYPE_LINE2_MAX,
   GIFT_CARD_TYPE_TITLE_MAX,
   formatGiftCardPrice,
@@ -41,6 +43,7 @@ const EMPTY_TYPE: GiftCardTypeInput = {
   priceCents: 0,
   items: [],
   theme: 'classico',
+  visualStyle: 'pacchetto',
   campaignId: null,
   validityMode: 'none',
   validityDate: null,
@@ -164,29 +167,41 @@ export default function GiftCardTypesPanel() {
       <Card className="h-fit">
         <CardHeader><CardTitle className="text-base">Il tuo catalogo</CardTitle></CardHeader>
         <CardContent className="space-y-2">
-          {(types.data ?? []).map(type => (
-            <button
-              key={type.id}
-              type="button"
-              aria-pressed={selectedId === type.id}
-              onClick={() => select(type)}
-              className={`w-full rounded-lg border p-3 text-left transition ${selectedId === type.id ? 'border-primary ring-2 ring-primary' : 'hover:bg-muted/50'}`}
-            >
-              <span className="flex items-start justify-between gap-2">
-                <span className="text-sm font-semibold">{type.name}</span>
-                <span className="text-sm">{formatGiftCardPrice(type.priceCents)}</span>
-              </span>
-              <span className="mt-1 flex flex-wrap gap-1">
-                {type.active ? null : <Badge variant="outline">Nascosta</Badge>}
-                {type.sellInStudio ? <Badge variant="secondary">Studio</Badge> : null}
-                {type.sellOnline ? (
-                  onlineVisibility(type).visible
-                    ? <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100" title={onlineVisibility(type).reason}>Sul sito</Badge>
-                    : <Badge variant="outline" className="border-amber-400 text-amber-800" title={onlineVisibility(type).reason}>Sito: non visibile</Badge>
-                ) : null}
-              </span>
-            </button>
-          ))}
+          {(types.data ?? []).map(type => {
+            const selected = selectedId === type.id;
+            const visibility = onlineVisibility(type);
+            return (
+              <div key={type.id} className={`rounded-lg border p-2 transition ${selected ? 'border-primary ring-2 ring-primary' : 'hover:bg-muted/50'}`}>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => select(type)}
+                    className="min-w-0 flex-1 rounded-md p-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  >
+                    <span className="flex items-start justify-between gap-2">
+                      <span className="break-words text-sm font-semibold">{type.name}</span>
+                      <span className="shrink-0 text-sm">{formatGiftCardPrice(type.priceCents)}</span>
+                    </span>
+                  </button>
+                  <Button type="button" size="sm" variant={selected ? 'outline' : 'ghost'} onClick={() => select(type)} aria-label={`Modifica ${type.name}`}>
+                    <Pencil className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+                    Modifica
+                  </Button>
+                </div>
+                <span className="mt-1 flex flex-wrap gap-1">
+                  {type.active ? null : <Badge variant="outline">Nascosta</Badge>}
+                  <Badge variant="outline">{GIFT_CARD_VISUAL_STYLE_LABELS[type.visualStyle]}</Badge>
+                  {type.sellInStudio ? <Badge variant="secondary">Studio</Badge> : null}
+                  {type.sellOnline ? (
+                    visibility.visible
+                      ? <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100" title={visibility.reason}>Sul sito</Badge>
+                      : <Badge variant="outline" className="border-amber-400 text-amber-800" title={visibility.reason}>Sito: non visibile</Badge>
+                  ) : null}
+                </span>
+              </div>
+            );
+          })}
           {(types.data ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground">Non hai ancora nessun tipo. Segui i passaggi a destra: sarà il primo del catalogo.</p>
           ) : null}
@@ -214,7 +229,8 @@ export default function GiftCardTypesPanel() {
         <CardContent className="space-y-3">
           <GiftCardMini theme={draft.theme} name={draft.title || 'Titolo della card'} small={draft.line2} />
           <p className="text-xs text-muted-foreground">
-            {chosenCampaign ? `Tema suggerito dalla campagna ${chosenCampaign.nome}.` : 'Senza campagna puoi scegliere il tema che preferisci.'}
+            {`Stile vetrina: ${GIFT_CARD_VISUAL_STYLE_LABELS[draft.visualStyle]}. `}
+            {chosenCampaign ? `Tema suggerito dalla campagna ${chosenCampaign.nome}.` : 'Il tema grafico cambia i colori, non la confezione.'}
           </p>
         </CardContent>
       </Card>

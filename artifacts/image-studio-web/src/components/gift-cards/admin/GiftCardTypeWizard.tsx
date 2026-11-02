@@ -1,13 +1,17 @@
 import { useState, type ReactNode } from 'react';
-import { Check, Trash2 } from 'lucide-react';
+import { Check, Gift, Image, MailOpen, Ticket, Trash2 } from 'lucide-react';
 import {
   GIFT_CARD_THEME_KEYS,
+  GIFT_CARD_VISUAL_STYLE_DESCRIPTIONS,
+  GIFT_CARD_VISUAL_STYLE_KEYS,
+  GIFT_CARD_VISUAL_STYLE_LABELS,
   GIFT_CARD_TYPE_LINE2_MAX,
   GIFT_CARD_TYPE_TITLE_MAX,
   formatGiftCardPrice,
   giftCardThemeFromSeasonalTheme,
   type GiftCardThemeKey,
   type GiftCardTypeInput,
+  type GiftCardVisualStyle,
   type GiftCardValidityMode,
 } from '@shared/gift-card-types';
 import type { BookingCampaignFE } from '@shared/booking-types';
@@ -23,6 +27,12 @@ import GiftCardItemsEditor from './GiftCardItemsEditor';
 import { centsToEuros, eurosToCents, formatDay, onlineVisibility } from './giftCardAdminShared';
 
 const NO_CAMPAIGN = '__none__';
+const VISUAL_STYLE_ICONS = {
+  pacchetto: Gift,
+  busta: MailOpen,
+  cornice: Image,
+  premium: Ticket,
+} satisfies Record<GiftCardVisualStyle, typeof Gift>;
 
 const STEPS = [
   { id: 'regalo', label: 'Il regalo' },
@@ -184,6 +194,42 @@ export default function GiftCardTypeWizard({
             </Select>
             {error('theme')}
           </div>
+        </div>
+        <div className="space-y-2">
+          <div>
+            <Label>Aspetto nella vetrina</Label>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Scegli una presentazione diversa per ogni offerta. Il tema sopra cambia solo i colori.
+            </p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2" role="group" aria-label="Aspetto della gift card nella vetrina">
+            {GIFT_CARD_VISUAL_STYLE_KEYS.map(style => {
+              const Icon = VISUAL_STYLE_ICONS[style];
+              const selected = draft.visualStyle === style;
+              return (
+                <button
+                  key={style}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => patch({ visualStyle: style })}
+                  className={`flex min-h-16 items-start gap-3 rounded-lg border p-3 text-left transition ${
+                    selected ? 'border-primary bg-primary/5 ring-2 ring-primary' : 'hover:bg-muted/50'
+                  }`}
+                >
+                  <span className={`mt-0.5 flex h-9 w-9 flex-none items-center justify-center rounded-md ${
+                    selected ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                  }`} aria-hidden="true">
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold">{GIFT_CARD_VISUAL_STYLE_LABELS[style]}</span>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">{GIFT_CARD_VISUAL_STYLE_DESCRIPTIONS[style]}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          {error('visualStyle')}
         </div>
         <p className="text-xs text-muted-foreground">
           {chosenCampaign ? `Tema suggerito dalla campagna ${chosenCampaign.nome}: puoi cambiarlo.` : 'Senza campagna puoi scegliere il tema che preferisci. Vedi l\'anteprima a destra.'}

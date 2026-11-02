@@ -129,13 +129,17 @@ async function seedType(service: GiftCardService, extra: Record<string, unknown>
 describe('vetrina online', () => {
   it('mostra solo i tipi vendibili online e la configurazione PayPal', async () => {
     const { service, online } = setup();
-    const ok = await seedType(service);
+    const ok = await seedType(service, { visualStyle: 'cornice' });
     await seedType(service, { name: 'Solo studio', sellOnline: false });
     await seedType(service, { name: 'Nascosta', active: false });
     await seedType(service, { name: 'Chiusa', sellUntil: '2026-11-01' });
     const shop = await online.shop();
     expect(shop.types.map(type => type.id)).toEqual([ok.id]);
-    expect(shop.types[0]).toMatchObject({ priceCents: 3000, validUntil: '2026-12-31T22:59:59.999Z' });
+    expect(shop.types[0]).toMatchObject({
+      priceCents: 3000,
+      validUntil: '2026-12-31T22:59:59.999Z',
+      visualStyle: 'cornice',
+    });
     expect(shop.paypal).toEqual({ enabled: true, clientId: 'client123', environment: 'sandbox', currency: 'EUR' });
     expect(JSON.stringify(shop)).not.toContain('admin@studio.test');
   });

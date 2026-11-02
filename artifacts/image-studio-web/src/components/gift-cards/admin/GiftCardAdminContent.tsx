@@ -46,7 +46,12 @@ export default function GiftCardAdminContent() {
           <TabsTrigger value="emesse">Card emesse</TabsTrigger>
         </TabsList>
         <Suspense fallback={<Skeleton className="h-96 w-full" />}>
-          <TabsContent value="vendi"><GiftCardSellPanel onCreateType={() => setSection('tipi')} /></TabsContent>
+          <TabsContent value="vendi">
+            <GiftCardSellPanel
+              onCreateType={() => setSection('tipi')}
+              onManageTypes={() => setSection('tipi')}
+            />
+          </TabsContent>
           <TabsContent value="tipi"><GiftCardTypesPanel /></TabsContent>
           <TabsContent value="emesse"><GiftCardIssuedPanel /></TabsContent>
         </Suspense>

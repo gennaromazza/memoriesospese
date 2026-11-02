@@ -11,6 +11,7 @@ import {
   isIsoDay,
   isPlausibleEmail,
   normalizeGiftCardCode,
+  resolveGiftCardVisualStyle,
   validateGiftCardTypeInput,
   type GiftCardCampaignState,
   type GiftCardItemDto,
@@ -90,6 +91,7 @@ export function typeToDto(id: string, data: any): GiftCardTypeDto {
       ? data.items.map((item: any) => ({ productId: String(item.productId), quantity: Number(item.quantity) || 1 }))
       : [],
     theme: data.theme,
+    visualStyle: resolveGiftCardVisualStyle(data.visualStyle),
     campaignId: data.campaignId ?? null,
     validityMode: data.validityMode,
     validityDate: data.validityDate ?? null,
