@@ -49,12 +49,23 @@ export default function GiftCardItemsEditor({ items, onChange, onUseTotal }: Pro
           <ul className="space-y-2">
             {items.map(item => {
               const product = byId.get(item.productId);
+              const bundleContents = product?.isBundle
+                ? product.bundleItems?.map(bundleItem => `${bundleItem.quantita} × ${bundleItem.prodottoNome}`).join(' · ')
+                : '';
               return (
                 <li key={item.productId} className="flex flex-wrap items-center gap-3 rounded-md border bg-muted/40 p-2 text-sm">
                   {product?.immagini?.[0] ? <img src={product.immagini[0]} alt="" className="h-10 w-10 rounded object-cover" /> : <span className="h-10 w-10 rounded bg-muted" aria-hidden="true" />}
                   <span className="min-w-0 flex-1">
                     <span className="block font-medium">{product?.nome ?? 'Prodotto non più nel catalogo'}</span>
-                    {product ? <span className="block text-xs text-muted-foreground">{euro(product.prezzoFinale)} ciascuno · solo per te</span> : null}
+                    {product ? (
+                      <>
+                        <span className="block text-xs text-muted-foreground">{euro(product.prezzoFinale)} ciascuno · solo per te</span>
+                        <span className="mt-1 block whitespace-normal text-xs text-muted-foreground">
+                          {product.descrizione || 'Nessuna descrizione nel catalogo'}
+                        </span>
+                        {bundleContents ? <span className="mt-1 block line-clamp-2 text-xs text-muted-foreground">Include: {bundleContents}</span> : null}
+                      </>
+                    ) : null}
                   </span>
                   <Input
                     aria-label={`Quantità di ${product?.nome ?? 'prodotto'}`}
@@ -127,8 +138,16 @@ export default function GiftCardItemsEditor({ items, onChange, onUseTotal }: Pro
                       <span className="block truncate text-xs text-muted-foreground">
                         {categoryName.get(product.categoria) ?? product.categoria} · {euro(product.prezzoFinale)}
                       </span>
+                      <span className="mt-1 block whitespace-normal text-xs text-muted-foreground line-clamp-2">
+                        {product.descrizione || 'Nessuna descrizione nel catalogo'}
+                      </span>
+                      {product.isBundle && product.bundleItems?.length ? (
+                        <span className="mt-1 block text-xs text-muted-foreground line-clamp-2">
+                          Include: {product.bundleItems.map(item => `${item.quantita} × ${item.prodottoNome}`).join(' · ')}
+                        </span>
+                      ) : null}
                     </span>
-                    <Button type="button" size="sm" variant="outline" disabled={full} onClick={() => onChange([...items, { productId: product.id, quantity: 1 }])}>
+                    <Button type="button" size="sm" variant="outline" className="shrink-0" disabled={full} onClick={() => onChange([...items, { productId: product.id, quantity: 1 }])}>
                       <Plus className="mr-1 h-4 w-4" />Aggiungi
                     </Button>
                   </li>
