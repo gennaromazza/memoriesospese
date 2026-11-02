@@ -53,6 +53,12 @@ export default function GiftCardItemsEditor({ items, onChange, onEditProduct, on
               const bundleContents = product?.isBundle
                 ? product.bundleItems?.map(bundleItem => `${bundleItem.quantita} × ${bundleItem.prodottoNome}`).join(' · ')
                 : '';
+              const bundleProductsMissingDescription = product?.isBundle
+                ? (product.bundleItems ?? []).flatMap(bundleItem => {
+                    const bundleProduct = byId.get(bundleItem.prodottoId);
+                    return bundleProduct && !bundleProduct.descrizione?.trim() ? [bundleProduct] : [];
+                  })
+                : [];
               return (
                 <li key={item.productId} className="flex flex-wrap items-center gap-3 rounded-md border bg-muted/40 p-2 text-sm">
                   {product?.immagini?.[0] ? <img src={product.immagini[0]} alt="" className="h-10 w-10 rounded object-cover" /> : <span className="h-10 w-10 rounded bg-muted" aria-hidden="true" />}
@@ -72,6 +78,29 @@ export default function GiftCardItemsEditor({ items, onChange, onEditProduct, on
                               Correggi nel catalogo
                             </Button>
                           </span>
+                        ) : null}
+                        {bundleProductsMissingDescription.length ? (
+                          <div className="mt-2 space-y-2 text-xs text-amber-800" role="status">
+                            <p>Descrizione mancante per i prodotti inclusi nel bundle:</p>
+                            <ul className="space-y-1.5">
+                              {bundleProductsMissingDescription.map(bundleProduct => (
+                                <li key={bundleProduct.id} className="flex flex-wrap items-center gap-2">
+                                  <span>{bundleProduct.nome}</span>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 border-amber-400 px-2 text-amber-900 hover:bg-amber-50"
+                                    aria-label={`Completa descrizione di ${bundleProduct.nome} nel catalogo prodotti`}
+                                    onClick={() => onEditProduct(bundleProduct.id)}
+                                  >
+                                    <ExternalLink className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+                                    Correggi nel catalogo
+                                  </Button>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
                         ) : null}
                         {bundleContents ? <span className="mt-1 block line-clamp-2 text-xs text-muted-foreground">Include: {bundleContents}</span> : null}
                       </>

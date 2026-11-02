@@ -31,11 +31,26 @@ const product = {
   updatedAt: Timestamp.fromDate(new Date(0)),
 } as Product;
 
-function renderEditor(items: GiftCardItemInput[], currentProduct: Product = product) {
+const bundleComponent = (id: string, nome: string, descrizione: string) => ({
+  id,
+  nome,
+  descrizione,
+  prezzo: 20,
+  sconto: 0,
+  prezzoFinale: 20,
+  numeroFoto: 10,
+  categoria: 'stampe',
+  attivo: true,
+  immagini: [],
+  createdAt: Timestamp.fromDate(new Date(0)),
+  updatedAt: Timestamp.fromDate(new Date(0)),
+}) as Product;
+
+function renderEditor(items: GiftCardItemInput[], catalog: Product[] = [product]) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  queryClient.setQueryData(['gift-card-products'], [currentProduct]);
+  queryClient.setQueryData(['gift-card-products'], catalog);
 
   return renderToStaticMarkup(
     <QueryClientProvider client={queryClient}>
@@ -62,11 +77,41 @@ describe('prodotti associati alle gift card', () => {
 
   it('avvisa se un prodotto selezionato non ha descrizione e permette di aprirlo', () => {
     const productWithoutDescription = { ...product, descrizione: '  ' } as Product;
-    const html = renderEditor([{ productId: product.id, quantity: 1 }], productWithoutDescription);
+    const html = renderEditor([{ productId: product.id, quantity: 1 }], [productWithoutDescription]);
 
     expect(html).toContain('Descrizione del catalogo mancante: chi riceve la gift card vedrà solo il nome.');
     expect(html).toContain('Puoi aggiungerla nel catalogo prodotti.');
     expect(html).toContain('aria-label="Completa descrizione di Natale completo nel catalogo prodotti"');
     expect(html).toContain('Correggi nel catalogo');
+  });
+
+  it('avvisa per ogni componente senza descrizione e offre la modifica del singolo prodotto', () => {
+    const html = renderEditor(
+      [{ productId: product.id, quantity: 1 }],
+      [
+        product,
+        bundleComponent('shooting', 'Shooting', 'Sessione fotografica.'),
+        bundleComponent('album', 'Album', '  '),
+      ],
+    );
+
+    expect(html).toContain('Descrizione mancante per i prodotti inclusi nel bundle:');
+    expect(html).toContain('Album');
+    expect(html).toContain('aria-label="Completa descrizione di Album nel catalogo prodotti"');
+    expect(html).not.toContain('aria-label="Completa descrizione di Shooting nel catalogo prodotti"');
+  });
+
+  it('non mostra più l’avviso del componente quando la descrizione è stata salvata', () => {
+    const html = renderEditor(
+      [{ productId: product.id, quantity: 1 }],
+      [
+        product,
+        bundleComponent('shooting', 'Shooting', 'Sessione fotografica.'),
+        bundleComponent('album', 'Album', 'Album fotografico.'),
+      ],
+    );
+
+    expect(html).not.toContain('Descrizione mancante per i prodotti inclusi nel bundle:');
+    expect(html).not.toContain('aria-label="Completa descrizione di Album nel catalogo prodotti"');
   });
 });
