@@ -72,6 +72,7 @@ vi.mock("./calendar-engine/index.js", async () => {
 
 // Import AFTER mocks are registered.
 import { runVisioneAutoInviteCheck } from "./reminder-routes";
+import { getAllDayDatesInRange } from "./consultations/calendar-adapter.js";
 
 // ---------------------------------------------------------------------------
 // In-memory Firestore fake
@@ -578,6 +579,7 @@ describe("runVisioneAutoInviteCheck — dateFrom (giorni giusti)", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   // The job event is "today" (matured) under the frozen clock.
@@ -590,12 +592,58 @@ describe("runVisioneAutoInviteCheck — dateFrom (giorni giusti)", () => {
     };
   }
 
-  // Extract the dateFrom query param from the email HTML passed to sendGmailEmail.
-  function sentDateFrom(): string | null {
+  // Parse the actual booking link, so a missing/malformed link cannot pass
+  // an assertion that dateFrom was safely omitted.
+  function sentBookingLink(): URL {
+    expect(h.sendGmailEmail).toHaveBeenCalledTimes(1);
     const html: string = (h.sendGmailEmail as any).mock.calls[0][2];
-    const m = html.match(/dateFrom=(\d{4}-\d{2}-\d{2})/);
-    return m ? m[1] : null;
+    const hrefs = [...html.matchAll(/href="([^"]+)"/g)];
+    const bookingLink = hrefs
+      .map((match) => new URL(match[1].replace(/&amp;/g, "&")))
+      .find((url) => url.pathname === "/consulenze/matrimonio/tpl1/prenota");
+    expect(bookingLink).toBeDefined();
+    expect(bookingLink!.searchParams.get("jobId")).toBe("job1");
+    return bookingLink!;
   }
+
+  function sentDateFrom(): string | null {
+    return sentBookingLink().searchParams.get("dateFrom");
+  }
+
+  it.each([
+    {
+      name: "skips Sunday while counting postproduction days",
+      leadDays: 6,
+      allDayDates: [],
+      expected: "2026-06-23",
+    },
+    {
+      name: "moves a Sunday candidate to Monday after postproduction",
+      leadDays: 5,
+      allDayDates: [],
+      expected: "2026-06-22",
+    },
+    {
+      name: "skips consecutive all-day dates and the following Sunday",
+      leadDays: 3,
+      allDayDates: ["2026-06-19", "2026-06-20"],
+      expected: "2026-06-22",
+    },
+  ])("$name", async ({ leadDays, allDayDates, expected }) => {
+    h.allDayDates = new Set(allDayDates);
+    h.sendGmailEmail = vi.fn(async () => {});
+    const { db } = makeDb({
+      templates: [baseTemplate({ giorniPostproduzione: leadDays })],
+      jobs: [maturedJob()],
+      clienti,
+    });
+    h.db = db;
+
+    const result = await runVisioneAutoInviteCheck();
+
+    expect(result).toEqual({ checked: 1, sent: 1, skipped: 0, errors: [] });
+    expect(sentDateFrom()).toBe(expected);
+  });
 
   it("computes a dateFrom that skips all-day days (postproduction lead > 0)", async () => {
     // lead=1, no day-after rule. all-day on Tue 2026-06-16.
@@ -668,5 +716,33 @@ describe("runVisioneAutoInviteCheck — dateFrom (giorni giusti)", () => {
 
     expect(res.sent).toBe(1);
     expect(sentDateFrom()).toBeNull();
+  });
+
+  it("still sends a valid invite without dateFrom when the calendar lookup fails", async () => {
+    vi.mocked(getAllDayDatesInRange).mockRejectedValueOnce(new Error("Calendar unavailable"));
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+    h.sendGmailEmail = vi.fn(async () => {});
+    const { db, liveJobs, timelineAdds } = makeDb({
+      templates: [baseTemplate({ giorniPostproduzione: 2 })],
+      jobs: [maturedJob()],
+      clienti,
+    });
+    h.db = db;
+
+    const result = await runVisioneAutoInviteCheck();
+
+    expect(result).toEqual({ checked: 1, sent: 1, skipped: 0, errors: [] });
+    expect(sentBookingLink().searchParams.has("dateFrom")).toBe(false);
+    expect(warning).toHaveBeenCalledWith(
+      expect.stringContaining("dateFrom non calcolato per job job1: Calendar unavailable"),
+    );
+    expect(liveJobs.job1.visioneAutoInviteSentAt).toBeTruthy();
+    expect(timelineAdds).toHaveLength(1);
+
+    // The degraded send is still successful: a later scheduler tick must not
+    // send the first invite again just because its date hint was unavailable.
+    const nextRun = await runVisioneAutoInviteCheck();
+    expect(nextRun.sent).toBe(0);
+    expect(h.sendGmailEmail).toHaveBeenCalledTimes(1);
   });
 });
