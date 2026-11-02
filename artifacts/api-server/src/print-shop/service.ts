@@ -665,7 +665,11 @@ export class PrintShopService {
       const coupon = couponDoc.data();
       validateCouponUsable(coupon, now.toMillis());
       assertCouponMatchesSnapshot(coupon, applied, order);
-      if (previous?.state === 'reserved' && previous.couponId === applied.id) {
+      if (
+        previous?.state === 'reserved' &&
+        previous.couponId === applied.id &&
+        timestampMillis(previous.expiresAt) > now.toMillis()
+      ) {
         activeCount = Math.max(0, activeCount - 1);
       }
       const maximum = coupon.maxUses == null ? null : Number(coupon.maxUses);
@@ -6092,6 +6096,8 @@ function validateCouponRedemptionForPayment(
   redemptionDoc: any,
   order: any,
 ): void {
+  // PayPal has already captured the money. Validate the frozen reservation,
+  // not today's editable coupon terms; pre-capture validation happens earlier.
   const redemption = redemptionDoc?.data();
   if (
     !redemptionDoc?.exists ||

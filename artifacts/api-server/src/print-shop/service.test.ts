@@ -874,6 +874,37 @@ describe('print shop coupon quotes and payment reservations', () => {
     expect(f.db.value(`printShopCoupons/${coupon.id}`)).toMatchObject({ active: true });
   });
 
+  it('does not subtract an expired reservation from another checkout’s active usage', async () => {
+    const now = Date.UTC(2026, 0, 2);
+    const f = createService({ now: () => Timestamp.fromMillis(now) });
+    const orderId = 'coupon-expired-reservation';
+    seedCoupon(f.db, 'LASTUSE', { maxUses: 1, value: 10 });
+    seedProduct(f.db, product);
+    f.db.seed(`orders/${orderId}`, baseOrder());
+    seedReadyAsset(f.db, orderId, 'coupon-expired-asset');
+    const quote = await f.service.quote(identity, orderId, quoteInput('coupon-expired-asset', 'LASTUSE'));
+    f.db.seed(`printShopCouponRedemptions/${orderId}`, {
+      couponId: 'LASTUSE',
+      state: 'reserved',
+      quoteFingerprint: quote.quoteFingerprint,
+      expiresAt: Timestamp.fromMillis(now - 1),
+    });
+    f.db.seed('printShopCouponRedemptions/competing-checkout', {
+      couponId: 'LASTUSE',
+      state: 'reserved',
+      expiresAt: Timestamp.fromMillis(now + 60_000),
+    });
+
+    // Exercise the atomic capacity check after another checkout takes the last
+    // use between this order's quote and its reservation attempt.
+    await expect((f.service as any).reserveCouponForPayment(
+      identity, orderId, quote.quoteFingerprint, Timestamp.fromMillis(now),
+    )).rejects.toMatchObject({ code: 'coupon_exhausted' });
+    expect(f.db.value('printShopCouponRedemptions/competing-checkout')).toMatchObject({
+      state: 'reserved',
+    });
+  });
+
   it('releases a reserved coupon when an unpaid checkout is cancelled so another order can use it', async () => {
     const now = Date.UTC(2026, 0, 2);
     const f = createService({ now: () => Timestamp.fromMillis(now) });
