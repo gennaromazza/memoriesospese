@@ -104,3 +104,62 @@ test('completare una descrizione mantiene la gift card in bozza e permette di sa
   });
   expect(externalRequests).toEqual([]);
 });
+
+test('un errore nel salvataggio del prodotto mantiene intatta la bozza della gift card', async ({ page }) => {
+  const port = process.env.GIFT_CARD_DESCRIPTION_E2E_PORT ?? '4198';
+  const localOrigin = `http://127.0.0.1:${port}`;
+  const externalRequests: string[] = [];
+  await page.route('**/*', async route => {
+    const url = new URL(route.request().url());
+    if (url.origin !== localOrigin) {
+      if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') {
+        await route.abort();
+        return;
+      }
+      externalRequests.push(url.origin);
+      await route.abort();
+      return;
+    }
+    await route.continue();
+  });
+
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Nuovo tipo' }).click();
+  await page.getByLabel('Nome nel catalogo').fill('Regalo da conservare');
+  await page.getByLabel('Titolo sulla card').fill('Il mio regalo speciale');
+  await page.getByLabel('Cosa include, in parole tue').fill('Shooting con stampe incluse');
+  await page.getByRole('button', { name: 'Avanti' }).click();
+  await page.getByRole('button', { name: 'Aggiungi', exact: true }).click();
+  await expect(page.getByText(/Descrizione del catalogo mancante/)).toBeVisible();
+
+  await page.getByRole('button', {
+    name: 'Completa descrizione di Shooting test nel catalogo prodotti',
+  }).click();
+  const productDialog = page.getByRole('dialog', { name: 'Modifica Prodotto' });
+  await expect(productDialog).toBeVisible();
+  const unsavedDescription = 'Descrizione non ancora salvata';
+  await productDialog.getByTestId('input-product-description').fill(unsavedDescription);
+  await page.evaluate(() => {
+    (window as any).__giftCardDescriptionE2E.productUpdateError = 'Errore simulato nel catalogo';
+  });
+  await productDialog.getByTestId('button-save-product').click();
+
+  await expect(productDialog).toBeVisible();
+  await expect(productDialog.getByTestId('input-product-description')).toHaveValue(unsavedDescription);
+  await productDialog.getByTestId('button-cancel-product').click();
+  await expect(productDialog).toBeHidden();
+
+  await expect(page.getByText(/Descrizione del catalogo mancante/)).toBeVisible();
+  const chosenProducts = page.getByRole('region', { name: 'Nel regalo (1)' });
+  await expect(chosenProducts.getByLabel('Quantità di Shooting test')).toHaveValue('1');
+  await page.getByRole('button', { name: 'Il regalo' }).click();
+  await expect(page.getByLabel('Nome nel catalogo')).toHaveValue('Regalo da conservare');
+  await expect(page.getByLabel('Titolo sulla card')).toHaveValue('Il mio regalo speciale');
+  await expect(page.getByLabel('Cosa include, in parole tue')).toHaveValue('Shooting con stampe incluse');
+
+  const state = await page.evaluate(() => (window as any).__giftCardDescriptionE2E);
+  expect(state.products[0].descrizione).toBe('');
+  expect(state.productUpdates).toEqual([]);
+  expect(state.savedGiftCards).toEqual([]);
+  expect(externalRequests).toEqual([]);
+});

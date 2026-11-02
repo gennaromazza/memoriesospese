@@ -24,11 +24,13 @@ export const giftCardDescriptionState: {
   productUpdates: Array<{ productId: string; description: string }>;
   savedGiftCards: GiftCardTypeInput[];
   listTypesCalls: number;
+  productUpdateError: string | null;
 } = {
   products: [],
   productUpdates: [],
   savedGiftCards: [],
   listTypesCalls: 0,
+  productUpdateError: null,
 };
 
 const STORAGE_KEY = 'gift-card-description-e2e-persisted-state';
@@ -47,6 +49,7 @@ export function initializeGiftCardDescriptionState() {
     persistGiftCardDescriptionState();
   }
   giftCardDescriptionState.listTypesCalls = 0;
+  giftCardDescriptionState.productUpdateError = null;
   (window as any).__giftCardDescriptionE2E = giftCardDescriptionState;
 }
 

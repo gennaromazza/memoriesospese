@@ -18,6 +18,9 @@ export async function getAllProductsWithShopCosts(): Promise<Product[]> {
 }
 
 export async function updateProduct(productId: string, changes: InsertProduct): Promise<void> {
+  if (giftCardDescriptionState.productUpdateError) {
+    throw new Error(giftCardDescriptionState.productUpdateError);
+  }
   const product = giftCardDescriptionState.products.find(entry => entry.id === productId);
   if (!product) throw new Error(`Fixture prodotto non trovato: ${productId}`);
   Object.assign(product, structuredClone(changes));
