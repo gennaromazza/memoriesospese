@@ -5,6 +5,7 @@ export type SocialImageSource =
   | 'content-image'
   | 'selected-photo'
   | 'curated-static'
+  | 'section-fallback'
   | 'global-fallback';
 
 export interface SocialImageCandidate {
@@ -76,14 +77,14 @@ const GLOBAL_FALLBACK: ResolvedSocialImage = {
   source: 'global-fallback',
 };
 
-const STATIC_IMAGES: Record<string, SocialImageCandidate> = {
+export const STATIC_IMAGES: Record<string, SocialImageCandidate> = {
   '/': {
     ...GLOBAL_FALLBACK,
     alt: 'Sposi davanti a una villa durante un matrimonio in Campania',
     source: 'curated-static',
   },
   '/blog': {
-    url: '/assets/og-image.jpg',
+    url: '/images/social/blog.jpg',
     alt: 'Storie, consigli e fotografia di matrimonio dal blog Image Studio',
     width: 1200,
     height: 630,
@@ -99,7 +100,7 @@ const STATIC_IMAGES: Record<string, SocialImageCandidate> = {
     source: 'curated-static',
   },
   '/portfolio': {
-    url: '/1200x630px.jpg',
+    url: '/images/social/portfolio.jpg',
     alt: 'Portfolio di fotografia di matrimonio di Image Studio',
     width: 1200,
     height: 630,
@@ -155,7 +156,7 @@ const STATIC_IMAGES: Record<string, SocialImageCandidate> = {
     source: 'curated-static',
   },
   '/fotografo-aversa': {
-    url: '/assets/og-image.jpg',
+    url: '/images/social/fotografo-aversa.jpg',
     alt: 'Gennaro Mazzacane, fotografo professionista ad Aversa',
     width: 1200,
     height: 630,
@@ -171,19 +172,19 @@ const STATIC_IMAGES: Record<string, SocialImageCandidate> = {
     source: 'curated-static',
   },
   '/vision': {
-    url: '/assets/og-image.jpg',
-    alt: 'Film di matrimonio Image Vision ad Aversa, Napoli e Caserta',
+    url: '/images/image-vision-social.jpg',
+    alt: 'Image Vision di Image Studio: film di matrimonio raccontati con uno stile cinematografico',
     width: 1200,
     height: 630,
     type: 'image/jpeg',
     source: 'curated-static',
   },
   '/storie': {
-    url: '/images/couple-standing.png',
-    alt: 'La storia e la filosofia fotografica di Image Studio',
-    width: 1024,
-    height: 1024,
-    type: 'image/png',
+    url: '/images/social/storie.jpg',
+    alt: 'Gennaro Mazzacane con la sua fotocamera: la storia di Image Studio',
+    width: 1200,
+    height: 630,
+    type: 'image/jpeg',
     source: 'curated-static',
   },
   '/lasciati-trasportare': {
@@ -211,6 +212,67 @@ const STATIC_IMAGES: Record<string, SocialImageCandidate> = {
     source: 'curated-static',
   },
 };
+
+function socialCard(name: string, alt: string): SocialImageCandidate {
+  return {
+    url: `/images/social/${name}.jpg`, alt, width: 1200, height: 630,
+    type: 'image/jpeg', source: 'curated-static',
+  };
+}
+
+Object.assign(STATIC_IMAGES, {
+  '/regala': socialCard('regala', 'Gift card Image Studio: un regalo fotografico con sigillo e dedica personale'),
+  '/regala/come-funziona': socialCard('regala-come-funziona', 'Come funziona la gift card Image Studio: scegli, personalizza e consegna il regalo'),
+  '/portfolio/famiglia': socialCard('portfolio-famiglia', 'Portfolio famiglia Image Studio: fotografie e ricordi da conservare insieme'),
+  '/portfolio/altro': socialCard('portfolio-altro', 'Altri progetti fotografici nel portfolio Image Studio'),
+  '/online-shop': socialCard('online-shop', 'Shop Image Studio: stampe e regali personalizzati con le tue fotografie'),
+  '/privacy': socialCard('privacy', 'Image Studio: informativa sulla privacy e trattamento dei dati personali'),
+  '/cookie-policy': socialCard('cookie-policy', 'Image Studio: cookie e preferenze di navigazione'),
+  '/terms': socialCard('terms', 'Image Studio: condizioni di vendita e utilizzo dei servizi'),
+  '/gdpr': socialCard('gdpr', 'Image Studio: richieste di accesso, esportazione e cancellazione dei dati'),
+});
+
+const SECTION_IMAGES: Record<string, SocialImageCandidate> = {
+  '/blog/': socialCard('blog-articolo', 'Guide, consigli e storie di fotografia nel blog Image Studio'),
+  '/real-wedding/': socialCard('real-wedding', 'Real Wedding Image Studio: storie di matrimonio in Campania'),
+  '/prenota/': socialCard('prenotazione', 'Prenotazione di un servizio fotografico Image Studio'),
+  '/online-shop/categoria/': socialCard('shop-categoria', 'Prodotti fotografici personalizzati nel catalogo Image Studio'),
+};
+
+/** Resolve both the client and server image, including invalid/missing content covers. */
+export function pageSocialImage(path: string, candidates: SocialImageCandidate[] = []): ResolvedSocialImage {
+  const fallback = staticSocialImage(path);
+  return resolveSocialImage(candidates, fallback);
+}
+
+export function blogSocialImage(post: {
+  coverImage?: unknown; coverImageAlt?: string; title?: string; content?: unknown;
+  coverImageWidth?: number; coverImageHeight?: number; coverImageType?: string;
+}, contentImage?: SocialImageCandidate | null): ResolvedSocialImage {
+  const inline = contentImage || firstImageCandidateFromHtml(post.content, post.title || 'Articolo Image Studio');
+  return pageSocialImage('/blog/articolo', [
+    {
+      url: post.coverImage, alt: post.coverImageAlt || post.title,
+      width: post.coverImageWidth, height: post.coverImageHeight, type: post.coverImageType,
+      source: 'editorial-cover',
+    },
+    ...(inline ? [inline] : []),
+  ]);
+}
+
+export function weddingSocialImage(title: string, photos: { url?: unknown; alt?: string }[]): ResolvedSocialImage {
+  return pageSocialImage('/real-wedding/storia', photos.map((photo, index) => ({
+    url: photo.url,
+    alt: photo.alt || (index === 0 ? `Copertina del Real Wedding ${title}` : `${title} - fotografia ${index + 1}`),
+    source: 'selected-photo',
+  })));
+}
+
+export function shopCategorySocialImage(path: string, products: { nome: string; images: string[] }[]): ResolvedSocialImage {
+  return pageSocialImage(path, products.flatMap(product => product.images.map(url => ({
+    url, alt: product.nome, source: 'content-image' as const,
+  }))));
+}
 
 function isPrivateHostname(hostname: string): boolean {
   const lower = hostname.toLowerCase();
@@ -293,6 +355,8 @@ export function resolveSocialImage(
 
 export function staticSocialImage(pathOrUrl: string): ResolvedSocialImage {
   const pathname = new URL(canonicalUrl(pathOrUrl)).pathname.replace(/\/+$/, '') || '/';
+  const section = Object.entries(SECTION_IMAGES).find(([prefix]) => pathname.startsWith(prefix))?.[1];
+  if (section) return resolveSocialImage([{ ...section, source: 'section-fallback' }]);
   const candidate = STATIC_IMAGES[pathname]
     || (pathname.startsWith('/portfolio/') ? STATIC_IMAGES['/portfolio'] : undefined)
     || (pathname.startsWith('/prenota/') ? STATIC_IMAGES['/prenota'] : undefined)
@@ -312,10 +376,15 @@ export function firstImageCandidateFromHtml(
   alt: string,
 ): SocialImageCandidate | null {
   const content = String(html || '');
-  const htmlMatch = content.match(/<img\b[^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>/i);
-  const markdownMatch = content.match(/!\[[^\]]*]\((https?:\/\/[^)\s]+|\/[^)\s]+)\)/i);
-  const url = normalizePublicImageUrl(htmlMatch?.[1] || markdownMatch?.[1]);
-  return url ? { url, alt, source: 'content-image' } : null;
+  const matches = [
+    ...content.matchAll(/<img\b[^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>/gi),
+    ...content.matchAll(/!\[[^\]]*]\((https?:\/\/[^)\s]+|\/[^)\s]+)\)/gi),
+  ];
+  for (const match of matches) {
+    const url = normalizePublicImageUrl(match[1].replace(/&amp;/g, '&'));
+    if (url) return { url, alt, source: 'content-image' };
+  }
+  return null;
 }
 
 export function defaultSocialImage(): ResolvedSocialImage {

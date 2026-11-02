@@ -204,6 +204,7 @@ export default function BookingPage() {
     title: campaign ? `${campaign.nome} - Prenota il tuo shooting` : 'Prenota | Image Studio',
     description: campaign?.descrizione || 'Prenota il tuo servizio fotografico con Image Studio.',
     canonical: `/prenota/${code}`,
+    pending: isLoading,
     ogImage: campaign?.immaginePaginaBooking,
     ogImageAlt: campaign ? `Prenotazione ${campaign.nome}` : undefined,
     ogImageSource: 'editorial-cover',

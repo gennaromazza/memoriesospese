@@ -1,5 +1,6 @@
 import { SHOP_SEO, shopCategoryPath, shopCategorySeo } from '@shared/shop-landing-content';
 import { formatShopPrice, shopDayKey, type ShopCatalogDto, type ShopProductDto } from '@shared/shop-types';
+import { shopCategorySocialImage, type ResolvedSocialImage } from '@shared/social-metadata';
 
 /**
  * Dati dello shop per Google: elenco dei prodotti leggibile senza JavaScript e
@@ -105,6 +106,7 @@ export interface ShopCategoryPageSeo {
   title: string;
   description: string;
   canonical: string;
+  socialImage: ResolvedSocialImage;
   bodyContent: string;
   jsonLd: object[];
 }
@@ -119,6 +121,7 @@ export function buildShopCategoryPageMeta(catalog: ShopCatalogDto, value: string
     title: seo.title,
     description: seo.description,
     canonical,
+    socialImage: shopCategorySocialImage(canonical, scoped.products),
     bodyContent: `
         <h1>${escapeHtml(seo.h1)}: ${escapeHtml(seo.script)}</h1>
         <p>${escapeHtml(seo.lede)}</p>

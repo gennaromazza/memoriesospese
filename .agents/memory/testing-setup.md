@@ -45,6 +45,21 @@ account) → in test va sempre mockato. Pattern usato in `server/reminder-routes
 - Per testare la race query→lock: il fake fornisce uno `staleQuery` (snapshot della
   query) diverso dallo stato "live" letto dentro la transazione.
 
+## Contratti fra server Node e hook del frontend
+
+**Regola:** nei test Node che eseguono un hook di un altro artifact, importare il
+modulo DOM a runtime tramite un percorso assoluto e mockare React risolto dal
+frontend, non un generico import React del server.
+
+**Why:** l'import statico trascina i tipi DOM nel typecheck Node; con pnpm, il mock
+del React risolto dal server può non intercettare quello usato dal frontend e
+causare un falso «Invalid hook call». Gli import dinamici relativi a variabile
+possono inoltre essere risolti rispetto alla radice di Vitest anziché al test.
+
+**How to apply:** usare `fileURLToPath(new URL(..., import.meta.url))` per
+l'import dinamico nei test di contratto e risolvere esplicitamente il modulo
+React del frontend quando si sostituisce `useEffect`.
+
 ## Contesti browser Playwright separati
 
 **Regola:** ogni nuovo `BrowserContext` parte con storage e consenso cookie indipendenti. Sulle pagine pubbliche, chiudere il banner dei cookie prima di interagire con elementi sottostanti.

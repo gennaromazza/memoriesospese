@@ -14,6 +14,7 @@ import { isShopShippingByWeight, shopFreeShippingProgress, shopShippingPriceRang
 import { getWhatsAppLink } from '@shared/phone-utils';
 import { useStudio } from '@/context/StudioContext';
 import { useSEO } from '@/hooks/useSEO';
+import { shopCategorySocialImage } from '@shared/social-metadata';
 import { GiftCardAmbient } from '@/components/gift-cards/GiftCardArt';
 import { giftCardThemeVars } from '@/components/gift-cards/giftCardThemes';
 import { shopApi } from '@/features/shop/shop-api';
@@ -101,11 +102,21 @@ export default function ShopPage({ categoryValue }: { categoryValue?: string } =
   const pagePath = categoryValue ? shopCategoryPath(categoryValue) : SHOP_PATH;
   const categorySeo = currentCategory ? shopCategorySeo(currentCategory.nome) : null;
   const categoryMissing = Boolean(categoryValue && catalog && !currentCategory);
+  const categoryImage = categoryValue
+    ? shopCategorySocialImage(pagePath, sections.flatMap(section => section.products))
+    : undefined;
 
   useSEO({
     title: categorySeo?.title ?? SHOP_SEO.title,
     description: categorySeo?.description ?? SHOP_SEO.description,
     canonical: pagePath,
+    pending: Boolean(categoryValue && !catalog),
+    ogImage: categoryImage?.url,
+    ogImageAlt: categoryImage?.alt,
+    ogImageSource: categoryImage?.source,
+    ogImageWidth: categoryImage?.width,
+    ogImageHeight: categoryImage?.height,
+    ogImageType: categoryImage?.type,
     noindex: Boolean(catalog && (!catalog.enabled || categoryMissing)),
   });
 

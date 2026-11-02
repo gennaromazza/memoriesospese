@@ -139,24 +139,24 @@ describe('SEO prerender wedding-first', () => {
     expect(meta.bodyContent).toContain('alt="Gli sposi si abbracciano nel giardino"');
   });
 
-  it('uses the global fallback for a Real Wedding without public photos', () => {
+  it('uses the section fallback for a Real Wedding without public photos', () => {
     const meta = buildWeddingStoryPageMeta({
       slug: 'senza-foto',
       title: 'Un matrimonio senza foto pubbliche',
       excerpt: 'Una storia in attesa della selezione.',
     });
 
-    expect(meta.ogImage).toBe('https://imagestudiofotografico.com/1200x630px.jpg');
+    expect(meta.ogImage).toBe('https://imagestudiofotografico.com/images/social/real-wedding.jpg');
     expect(meta.bodyContent).not.toContain('<img');
   });
 
   it.each([
     ['/', '/1200x630px.jpg'],
-    ['/portfolio', '/1200x630px.jpg'],
-    ['/fotografo-aversa', '/assets/og-image.jpg'],
+    ['/portfolio', '/images/social/portfolio.jpg'],
+    ['/fotografo-aversa', '/images/social/fotografo-aversa.jpg'],
     ['/stampa-foto-aversa', '/images/print-service/printed-memories-table.jpg'],
     ['/vision', '/images/image-vision-social.jpg'],
-    ['/storie', '/images/couple-standing.png'],
+    ['/storie', '/images/social/storie.jpg'],
     ['/prenota', '/images/couple-heart-balloon.png'],
     ['/consulenze', '/images/couple-flower-bouquet.png'],
   ])('renders one complete social metadata set for %s', async (path, imagePath) => {

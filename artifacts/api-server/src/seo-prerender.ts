@@ -29,9 +29,12 @@ import {
   resolveSocialImage,
   staticPageMetadata,
   staticSocialImage,
+  blogSocialImage,
+  weddingSocialImage,
+  pageSocialImage,
   type ResolvedSocialImage,
   type SocialImageCandidate,
-} from '../shared/social-metadata';
+} from '@shared/social-metadata';
 import {
   GIFT_HOW_SECTIONS,
   GIFT_HOW_SEO,
@@ -603,7 +606,7 @@ async function getBookingCampaignMeta(path: string): Promise<PageMeta | null> {
       url: campaign.immaginePaginaBooking,
       alt: `Prenotazione ${name}`,
       source: 'editorial-cover',
-    }], staticSocialImage('/prenota')),
+    }], staticSocialImage(path)),
     bodyContent: `<h1>${escapeHtml(title)}</h1><p>${escapeHtml(description)}</p>`,
   };
 }
@@ -921,17 +924,10 @@ async function getBlogPostMeta(slug: string): Promise<PageMeta | null> {
       sourceText,
       await getPublishedWeddingStoryCandidates(),
     );
-    const socialImage = resolveSocialImage([
-      {
-        url: post.coverImage,
-        alt: post.coverImageAlt || post.title,
-        width: post.coverImageWidth,
-        height: post.coverImageHeight,
-        type: post.coverImageType || getBlogCoverImageFormatFromUrl(post.coverImage)?.contentType,
-        source: 'editorial-cover',
-      },
-      ...(contentImage ? [contentImage] : []),
-    ], defaultSocialImage());
+    const socialImage = blogSocialImage({
+      ...post,
+      coverImageType: post.coverImageType || getBlogCoverImageFormatFromUrl(post.coverImage)?.contentType,
+    }, contentImage ? { ...contentImage, alt: post.title } : null);
     const articleImage = socialImage.url;
 
     const blogPostingJsonLd = {
@@ -1137,13 +1133,7 @@ export function buildWeddingStoryPageMeta(
   const normalizedImages = images
     .map(image => typeof image === 'string' ? { url: image } : image)
     .filter(image => Boolean(image.url));
-  const socialImage = resolveSocialImage(normalizedImages.map((image, index) => ({
-    url: image.url,
-    alt: image.alt || (index === 0
-      ? `Copertina del Real Wedding ${story.title}`
-      : `${story.title} - fotografia ${index + 1}`),
-    source: 'selected-photo' as const,
-  })), defaultSocialImage());
+  const socialImage = weddingSocialImage(story.title, normalizedImages);
   const publicImages = normalizedImages
     .map(image => {
       const resolved = resolveSocialImage([{ url: image.url, alt: image.alt || story.title, source: 'selected-photo' }], { url: '' });
@@ -1205,6 +1195,15 @@ async function getWeddingStoryMeta(slug: string): Promise<PageMeta | null> {
   const photoDocuments = await Promise.all(photoIds.map(id => id.startsWith('legacy-')
     ? db.collection('galleries').doc(story.galleryId).collection('photos').doc(id.slice('legacy-'.length)).get()
     : db.collection('photos').doc(id).get()));
+  // The public API uses chapter titles when no editorial alt was saved.
+  // Resolve the same fallback here, without changing the gallery's photo order.
+  const gallery = photoIds.length
+    ? await db.collection('galleries').doc(story.galleryId).get()
+    : null;
+  const chapters = new Map<string, string>(
+    (Array.isArray(gallery?.data()?.chapters) ? gallery!.data()!.chapters : [])
+      .map((chapter: any) => [chapter.id, chapter.titolo || '']),
+  );
   const images = photoDocuments
     .map((document, index) => {
       if (!document.exists || (!photoIds[index].startsWith('legacy-') && document.data()?.galleryId !== story.galleryId)) return null;
@@ -1214,7 +1213,7 @@ async function getWeddingStoryMeta(slug: string): Promise<PageMeta | null> {
         : '';
       return {
         url: String(document.data()?.url || ''),
-        alt: alt || String(story.title || ''),
+        alt: alt || chapters.get(document.data()?.chapterId) || String(story.title || ''),
       };
     })
     .filter((image): image is { url: string; alt: string } => Boolean(image?.url));
@@ -1326,10 +1325,9 @@ function getPortfolioCategoryMeta(category: string): PageMeta | null {
 function renderSeoHtml(meta: PageMeta, indexHtml: string): string {
   const ogType = meta.ogType || 'website';
   const canonical = canonicalUrl(meta.canonical);
-  const socialImage = resolveSocialImage([
+  const socialImage = pageSocialImage(canonical, [
     ...(meta.socialImage ? [meta.socialImage] : []),
     ...(meta.ogImage ? [{ url: meta.ogImage, alt: meta.title, source: 'content-image' as const }] : []),
-    staticSocialImage(canonical),
   ]);
   const ogImage = socialImage.url;
 
