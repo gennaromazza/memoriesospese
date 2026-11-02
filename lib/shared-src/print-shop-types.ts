@@ -131,7 +131,41 @@ export interface PrintOrderItemInput {
 export interface PrintShopQuoteInput {
   items: readonly PrintOrderItemInput[];
   fulfillment?: { method: PrintShopDeliveryMethod };
+  couponCode?: string;
 }
+
+export type PrintShopCouponDiscountType = 'percentage' | 'fixed';
+
+/** Snapshot of the coupon applied to a server-calculated quote. */
+export interface PrintShopAppliedCoupon {
+  code: string;
+  discountType: PrintShopCouponDiscountType;
+  value: number;
+  discountCents: number;
+}
+
+/** Admin-facing coupon contract. Dates are ISO strings at the API boundary. */
+export interface PrintShopCoupon {
+  id: string;
+  code: string;
+  discountType: PrintShopCouponDiscountType;
+  /** Whole percentage points or fixed discount in cents. */
+  value: number;
+  startsAt: string;
+  endsAt: string;
+  maxUses: number | null;
+  usedCount: number;
+  reservedCount: number;
+  remainingUses: number | null;
+  active: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type PrintShopCouponInput = Pick<
+  PrintShopCoupon,
+  'code' | 'discountType' | 'value' | 'startsAt' | 'endsAt' | 'maxUses' | 'active'
+>;
 
 export interface AppliedPrintTier {
   minQuantity: number;
@@ -175,6 +209,7 @@ export interface PrintShopQuote {
     shippingCents?: number;
     totalCents: number;
   };
+  coupon?: PrintShopAppliedCoupon;
   /** Numero di file unici, anche se uno stesso asset appare in più righe. */
   assetCount: number;
   copyCount: number;

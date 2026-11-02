@@ -6,6 +6,7 @@ import type {
   PrintShopCatalogProduct,
   PrintShopBillingDetails,
   PrintShopDeliveryMethod,
+  PrintShopAppliedCoupon,
   PrintShopFulfillmentStatus,
   PrintShopPostalAddress,
   PrintShopPaymentStatus,
@@ -129,6 +130,7 @@ export interface PrintShopOrderListItem extends PrintShopDraftOrder {
     lowResolutionAccepted?: boolean;
     qualityWarnings?: readonly PrintQualityWarning[];
     customerNotes?: string;
+    coupon?: PrintShopAppliedCoupon;
   };
   assets?: PrintShopOwnerAsset[];
 }

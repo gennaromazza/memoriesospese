@@ -150,7 +150,24 @@ const quoteSchema = z.object({
   fulfillment: z.object({
     method: z.enum(['studio_pickup', 'shipping']),
   }).strict().optional(),
+  couponCode: z.string().trim().max(32).optional(),
 }).strict();
+
+const printShopCouponSchema = z.object({
+  code: z.string().trim().min(3).max(32),
+  discountType: z.enum(['percentage', 'fixed']),
+  value: z.number().int().positive().max(100_000_000),
+  startsAt: z.iso.datetime({ offset: true }),
+  endsAt: z.iso.datetime({ offset: true }),
+  maxUses: z.number().int().min(1).max(1_000_000).nullable(),
+  active: z.boolean(),
+}).strict().refine(
+  value => value.discountType !== 'percentage' || value.value <= 100,
+  { message: 'La percentuale non può superare il 100%', path: ['value'] },
+).refine(
+  value => Date.parse(value.endsAt) > Date.parse(value.startsAt),
+  { message: 'La scadenza deve essere successiva all’inizio', path: ['endsAt'] },
+);
 
 const shippingAdminSchema = z.object({
   enabled: z.boolean(),
@@ -178,6 +195,13 @@ const paypalCreateSchema = z.object({
   personalizedProductionAccepted: z.literal(true),
   expectedQuoteFingerprint: z.string().regex(/^[a-f0-9]{64}$/i),
   expectedTotalCents: z.number().int().positive(),
+}).strict();
+const zeroTotalOrderSchema = z.object({
+  termsAccepted: z.literal(true),
+  privacyAccepted: z.literal(true),
+  personalizedProductionAccepted: z.literal(true),
+  expectedQuoteFingerprint: z.string().regex(/^[a-f0-9]{64}$/i),
+  expectedTotalCents: z.literal(0),
 }).strict();
 const paypalCaptureSchema = z.object({
   paypalOrderId: z.string().trim().min(8).max(80).optional(),
@@ -443,6 +467,11 @@ export function createPrintShopRouter(
     res.json(await deps.service.createPaypalOrder(identity(req), req.params.orderId, input));
   }));
 
+  router.post('/orders/:orderId/free/complete', auth, customer, paymentLimiter, route(async (req: any, res) => {
+    const input = zeroTotalOrderSchema.parse(req.body);
+    res.json(await deps.service.completeZeroTotalOrder(identity(req), req.params.orderId, input));
+  }));
+
   router.post('/orders/:orderId/paypal/capture', auth, customer, paymentLimiter, route(async (req: any, res) => {
     const input = paypalCaptureSchema.parse(req.body || {});
     res.json(await deps.service.capturePaypalOrder(identity(req), req.params.orderId, input));
@@ -490,6 +519,28 @@ export function createPrintShopRouter(
     const input = shippingAdminSchema.parse(req.body);
     res.json({
       shipping: await deps.service.updateShippingConfiguration(input, req.user.email),
+    });
+  }));
+
+  router.get('/admin/coupons', auth, admin, route(async (_req, res) => {
+    res.json({ coupons: await deps.service.adminPrintShopCoupons() });
+  }));
+
+  router.post('/admin/coupons', auth, admin, route(async (req: any, res) => {
+    const input = printShopCouponSchema.parse(req.body);
+    res.status(201).json({
+      coupon: await deps.service.saveAdminPrintShopCoupon(input, req.user.email),
+    });
+  }));
+
+  router.patch('/admin/coupons/:couponId', auth, admin, route(async (req: any, res) => {
+    const input = printShopCouponSchema.parse(req.body);
+    res.json({
+      coupon: await deps.service.saveAdminPrintShopCoupon(
+        input,
+        req.user.email,
+        req.params.couponId,
+      ),
     });
   }));
 

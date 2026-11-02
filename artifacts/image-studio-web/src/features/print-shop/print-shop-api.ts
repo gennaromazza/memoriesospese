@@ -231,11 +231,16 @@ export const printShopApi = {
     orderId: string,
     items: PrintOrderItemInput[],
     method: PrintShopDeliveryMethod = 'studio_pickup',
+    couponCode?: string,
     signal?: AbortSignal,
   ): Promise<PrintShopQuote> {
     const response = await request<unknown>(`/orders/${encodeURIComponent(orderId)}/quote`, {
       method: 'POST',
-      body: JSON.stringify({ items, fulfillment: { method } }),
+      body: JSON.stringify({
+        items,
+        fulfillment: { method },
+        ...(couponCode?.trim() ? { couponCode: couponCode.trim() } : {}),
+      }),
       signal,
     });
     const unwrapped = unwrapResponseBody(response);
@@ -333,6 +338,30 @@ export const printShopApi = {
       : typeof unwrapped.id === 'string' ? unwrapped.id : '';
     if (!paypalOrderId) throw new PrintShopApiError('PayPal non ha restituito il codice di pagamento.', 502);
     return { paypalOrderId, orderId };
+  },
+
+  async completeZeroTotalOrder(
+    orderId: string,
+    legalConsents: PrintShopLegalConsents,
+    quote: PrintShopQuote,
+  ): Promise<{ orderId: string }> {
+    if (quote.totals.totalCents !== 0 || !quote.quoteFingerprint) {
+      throw new PrintShopApiError('Il riepilogo non è un ordine gratuito valido.', 409, 'INVALID_ZERO_TOTAL_QUOTE');
+    }
+    const response = await request<unknown>(`/orders/${encodeURIComponent(orderId)}/free/complete`, {
+      method: 'POST',
+      idempotencyKey: `free-complete-${orderId}-${quote.quoteFingerprint}`,
+      body: JSON.stringify({
+        ...legalConsents,
+        expectedQuoteFingerprint: quote.quoteFingerprint,
+        expectedTotalCents: 0,
+      }),
+    });
+    const unwrapped = unwrapResponseBody(response);
+    if (!isRecord(unwrapped) || unwrapped.orderId !== orderId) {
+      throw new PrintShopApiError('Conferma dell’ordine non valida.', 502, 'INVALID_FREE_ORDER_RESPONSE');
+    }
+    return { orderId };
   },
 
   async capturePaypalOrder(orderId: string, paypalOrderId: string): Promise<PaypalCaptureResult> {

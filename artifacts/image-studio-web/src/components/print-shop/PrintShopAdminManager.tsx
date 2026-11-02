@@ -1,14 +1,15 @@
 import { useState } from 'react';
-import { ClipboardList, Tags, Truck } from 'lucide-react';
+import { ClipboardList, Tags, Ticket, Truck } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import PrintShopCatalogManager from './PrintShopCatalogManager';
+import PrintShopCouponsManager from './PrintShopCouponsManager';
 import PrintShopOrdersManager from './PrintShopOrdersManager';
 import PrintShopShippingManager from './PrintShopShippingManager';
 
 export default function PrintShopAdminManager() {
   const [section, setSection] = useState(() =>
     new URLSearchParams(window.location.search).has('printOrderId') ? 'orders' :
-    ['orders', 'catalog', 'shipping'].includes(sessionStorage.getItem('printShopAdminSection') || '')
+    ['orders', 'catalog', 'shipping', 'coupons'].includes(sessionStorage.getItem('printShopAdminSection') || '')
       ? sessionStorage.getItem('printShopAdminSection')!
       : 'orders',
   );
@@ -28,6 +29,9 @@ export default function PrintShopAdminManager() {
         <TabsTrigger value="shipping" className="gap-2 rounded-lg px-4 py-2.5">
           <Truck className="h-4 w-4" aria-hidden="true" /> Spedizione
         </TabsTrigger>
+        <TabsTrigger value="coupons" className="gap-2 rounded-lg px-4 py-2.5">
+          <Ticket className="h-4 w-4" aria-hidden="true" /> Coupon
+        </TabsTrigger>
       </TabsList>
       <TabsContent value="orders" className="mt-0">
         <PrintShopOrdersManager />
@@ -37,6 +41,9 @@ export default function PrintShopAdminManager() {
       </TabsContent>
       <TabsContent value="shipping" className="mt-0">
         <PrintShopShippingManager />
+      </TabsContent>
+      <TabsContent value="coupons" className="mt-0">
+        <PrintShopCouponsManager />
       </TabsContent>
     </Tabs>
   );

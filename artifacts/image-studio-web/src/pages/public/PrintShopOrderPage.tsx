@@ -14,6 +14,7 @@ import {
   PackageCheck,
   ShieldCheck,
   ShoppingBag,
+  Ticket,
   Truck,
 } from 'lucide-react';
 import Navigation from '@/components/Navigation';
@@ -279,6 +280,11 @@ export default function PrintShopOrderPage() {
   const [draftResumeNotice, setDraftResumeNotice] = useState<string | null>(null);
   const [resumedPendingPayment, setResumedPendingPayment] = useState(false);
   const [quote, setQuote] = useState<PrintShopQuote | null>(null);
+  const [couponCode, setCouponCode] = useState('');
+  const [couponDraft, setCouponDraft] = useState('');
+  const [couponMessage, setCouponMessage] = useState('');
+  const [couponError, setCouponError] = useState(false);
+  const [zeroOrderSubmitting, setZeroOrderSubmitting] = useState(false);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
   const [contact, setContact] = useState<PrintShopContactDraft>({
@@ -350,6 +356,10 @@ export default function PrintShopOrderPage() {
     updatePhotos(() => []);
     setGroups([]);
     setQuote(null);
+    setCouponCode('');
+    setCouponDraft('');
+    setCouponMessage('');
+    setCouponError(false);
     setStep('upload');
     setPageError(null);
     setDraftResumeNotice(null);
@@ -433,6 +443,10 @@ export default function PrintShopOrderPage() {
         updatePhotos(() => restored.photos);
         setGroups(restored.groups);
         setQuote(pendingPayment ? restoredQuote : null);
+        const restoredCouponCode = savedOrder.printShop?.coupon?.code || '';
+        setCouponCode(restoredCouponCode);
+        setCouponDraft(restoredCouponCode);
+        setCouponMessage(restoredCouponCode ? `Coupon ${restoredCouponCode} incluso nel riepilogo salvato.` : '');
         setResumedPendingPayment(pendingPayment);
         setValidationIssues([]);
         setContact((current) => ({
@@ -833,6 +847,7 @@ export default function PrintShopOrderPage() {
         draftId,
         buildPrintOrderItems(groups, uploadedPhotos),
         deliveryMethod,
+        couponCode,
       );
       setQuote(serverQuote);
       setLowResolutionAccepted(false);
@@ -840,6 +855,36 @@ export default function PrintShopOrderPage() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error) {
       setPageError(readableError(error));
+    } finally {
+      setQuoteLoading(false);
+    }
+  };
+
+  const applyCoupon = async (code = couponDraft) => {
+    if (!orderId || !catalog || resumedPendingPayment) return;
+    setCouponMessage('');
+    setCouponError(false);
+    setPageError(null);
+    setQuoteLoading(true);
+    try {
+      const items = buildPrintOrderItems(groups, uploadedPhotos);
+      const normalizedCode = code.trim().toUpperCase();
+      const updatedQuote = await printShopApi.quoteOrder(
+        orderId,
+        items,
+        deliveryMethod,
+        normalizedCode,
+      );
+      setQuote(updatedQuote);
+      const appliedCode = updatedQuote.coupon?.code || '';
+      setCouponCode(appliedCode);
+      setCouponDraft(appliedCode);
+      setCouponMessage(appliedCode ? `Coupon ${appliedCode} applicato.` : 'Coupon rimosso.');
+      setCouponError(false);
+      resetCheckoutAcceptances();
+    } catch (error) {
+      setCouponMessage(readableError(error));
+      setCouponError(true);
     } finally {
       setQuoteLoading(false);
     }
@@ -861,6 +906,9 @@ export default function PrintShopOrderPage() {
       const restored = restorePrintDraft(refreshedOrder);
       setGroups(restored.groups);
       setQuote(refreshedQuote);
+      const restoredCouponCode = refreshedOrder.printShop?.coupon?.code || '';
+      setCouponCode(restoredCouponCode);
+      setCouponDraft(restoredCouponCode);
       setResumedPendingPayment(false);
       resetCheckoutAcceptances();
       setPageError('Il listino è cambiato: controlla il nuovo totale e accetta nuovamente le condizioni prima di pagare.');
@@ -868,10 +916,10 @@ export default function PrintShopOrderPage() {
       return;
     }
     const items = buildPrintOrderItems(groups, uploadedPhotos);
-    const freshQuote = await printShopApi.quoteOrder(orderId, items, deliveryMethod);
+    const freshQuote = await printShopApi.quoteOrder(orderId, items, deliveryMethod, couponCode);
     setQuote(freshQuote);
     resetCheckoutAcceptances();
-  }, [deliveryMethod, groups, orderId, resetCheckoutAcceptances, resumedPendingPayment, uploadedPhotos]);
+  }, [couponCode, deliveryMethod, groups, orderId, resetCheckoutAcceptances, resumedPendingPayment, uploadedPhotos]);
 
   const prepareOrderForPayment = useCallback(async (): Promise<PrintShopQuote> => {
     if (!orderId || !catalog || !quote) throw new Error('Ordine non pronto. Torna al passaggio precedente e riprova.');
@@ -897,25 +945,26 @@ export default function PrintShopOrderPage() {
         },
       } : {}),
     });
-    const freshQuote = await printShopApi.quoteOrder(orderId, items, deliveryMethod);
+    const freshQuote = await printShopApi.quoteOrder(orderId, items, deliveryMethod, couponCode);
     setQuote(freshQuote);
     if (!hasSamePaypalQuoteGuard(quote, freshQuote)) {
       resetCheckoutAcceptances();
       throw new PrintShopQuoteReviewRequiredError(true);
     }
     return freshQuote;
-  }, [catalog, contact, deliveryMethod, fiscalCode, groups, lowResolution, lowResolutionAccepted, orderId, quote, resetCheckoutAcceptances, residenceAddress, residenceSameAsShipping, resumedPendingPayment, shippingAddress, uploadedPhotos]);
+  }, [catalog, contact, couponCode, deliveryMethod, fiscalCode, groups, lowResolution, lowResolutionAccepted, orderId, quote, resetCheckoutAcceptances, residenceAddress, residenceSameAsShipping, resumedPendingPayment, shippingAddress, uploadedPhotos]);
 
-  const handleCaptured = (result: PaypalCaptureResult) => {
+  const handleOrderCompleted = (completedOrderId: string) => {
     if (user) {
       sessionStorage.removeItem(printShopDraftStorageKey(user.uid));
       sessionStorage.removeItem(printShopDraftRequestStorageKey(user.uid));
     }
     const params = new URLSearchParams({
-      orderId: result.orderId,
+      orderId: completedOrderId,
     });
     navigate(`/stampa-foto-aversa/ordine/conferma?${params.toString()}`);
   };
+  const handleCaptured = (result: PaypalCaptureResult) => handleOrderCompleted(result.orderId);
 
   const sellerDetails = resolveStudioLegalDetails(studioSettings);
   const shippingSelected = deliveryMethod === 'shipping';
@@ -955,6 +1004,34 @@ export default function PrintShopOrderPage() {
       target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       target?.querySelector<HTMLElement>('input:not([readonly])')?.focus({ preventScroll: true });
     }, 0);
+  };
+
+  const completeZeroTotalOrder = async () => {
+    if (!orderId) return;
+    setPaymentAttempted(true);
+    if (paymentRequirements.length > 0) {
+      showPaymentRequirements();
+      return;
+    }
+    setZeroOrderSubmitting(true);
+    setPageError(null);
+    try {
+      const freshQuote = await prepareOrderForPayment();
+      if (freshQuote.totals.totalCents !== 0) {
+        setPageError('Il totale è cambiato. Controlla il nuovo riepilogo prima di confermare.');
+        return;
+      }
+      const completed = await printShopApi.completeZeroTotalOrder(orderId, {
+        privacyAccepted,
+        termsAccepted,
+        personalizedProductionAccepted: customProductAccepted,
+      }, freshQuote);
+      handleOrderCompleted(completed.orderId);
+    } catch (error) {
+      setPageError(readableError(error));
+    } finally {
+      setZeroOrderSubmitting(false);
+    }
   };
 
   const displayedTotal = quoteTotal(quote, estimatedTotalCents);
@@ -1278,8 +1355,49 @@ export default function PrintShopOrderPage() {
                       );
                     })}
                   </div>
+                  <section className="mt-5 rounded-2xl border border-sage/20 bg-off-white/50 p-4" aria-labelledby="print-coupon-title">
+                    <h3 id="print-coupon-title" className="flex items-center gap-2 font-semibold text-blue-gray">
+                      <Ticket className="h-4 w-4 text-terracotta" aria-hidden="true" /> Codice sconto
+                    </h3>
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                      <Input
+                        value={couponDraft}
+                        onChange={(event) => setCouponDraft(event.target.value.toUpperCase())}
+                        maxLength={32}
+                        readOnly={resumedPendingPayment}
+                        placeholder="Inserisci il codice"
+                        aria-label="Codice sconto"
+                        className="h-11 rounded-xl font-mono uppercase"
+                      />
+                      {couponCode ? (
+                        <Button type="button" variant="outline" disabled={quoteLoading || resumedPendingPayment} onClick={() => {
+                          setCouponDraft('');
+                          void applyCoupon('');
+                        }} className="h-11 shrink-0 rounded-xl">
+                          Rimuovi
+                        </Button>
+                      ) : (
+                        <Button type="button" disabled={quoteLoading || resumedPendingPayment || !couponDraft.trim()} onClick={() => void applyCoupon()} className="h-11 shrink-0 rounded-xl">
+                          {quoteLoading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+                          Applica
+                        </Button>
+                      )}
+                    </div>
+                    {couponMessage && <p className={`mt-2 text-sm ${couponError ? 'text-red-700' : 'text-emerald-800'}`} role={couponError ? 'alert' : 'status'}>{couponMessage}</p>}
+                    {quote?.coupon && (
+                      <p className="mt-2 text-xs text-blue-gray/60">
+                        {quote.coupon.discountType === 'percentage' ? `${quote.coupon.value}%` : formatEuroCents(quote.coupon.value)} di sconto su tutte le stampe. La spedizione è esclusa.
+                      </p>
+                    )}
+                  </section>
                   <dl className="mt-5 space-y-3 border-t border-sage/15 pt-5 text-sm">
                     <div className="flex justify-between"><dt className="text-blue-gray/55">Subtotale</dt><dd>{formatEuroCents(quote?.totals.subtotalCents ?? displayedTotal)}</dd></div>
+                    {(quote?.totals.discountCents ?? 0) > 0 && (
+                      <div className="flex justify-between gap-3 text-emerald-800">
+                        <dt>Sconto {quote?.coupon ? `(${quote.coupon.code})` : ''}</dt>
+                        <dd className="font-semibold">−{formatEuroCents(quote?.totals.discountCents ?? 0)}</dd>
+                      </div>
+                    )}
                     <div className="flex justify-between gap-4">
                       <dt className="text-blue-gray/55">{shippingSelected ? 'Spedizione' : 'Ritiro in sede'} <span className="block text-xs">{shippingSelected ? `Consegna stimata in ${catalog?.shipping.estimatedMinDays ?? 2}–${catalog?.shipping.estimatedMaxDays ?? 5} giorni` : 'Nessun costo di consegna'}</span></dt>
                       <dd className={`font-semibold ${shippingSelected ? 'text-blue-gray' : 'text-emerald-700'}`}>{formatEuroCents(quote?.totals.shippingCents ?? (shippingSelected ? catalog?.shipping.priceCents ?? 0 : 0))}</dd>
@@ -1320,20 +1438,38 @@ export default function PrintShopOrderPage() {
                 {orderId && (
                   <section className="rounded-[2rem] border border-[#ffc439]/50 bg-white p-5 shadow-sm" aria-labelledby="payment-title">
                     <h2 id="payment-title" className="sr-only">Pagamento PayPal</h2>
-                    <PayPalCheckout
-                      orderId={orderId}
-                      enabled={canPay}
-                      legalConsents={{
-                        privacyAccepted,
-                        termsAccepted,
-                        personalizedProductionAccepted: customProductAccepted,
-                      }}
-                      prepareOrder={prepareOrderForPayment}
-                      onQuoteReviewRequired={refreshQuoteForReview}
-                      onCaptured={handleCaptured}
-                      disabledReasons={paymentRequirements}
-                      onShowRequirements={showPaymentRequirements}
-                    />
+                    {quote?.totals.totalCents === 0 && !resumedPendingPayment ? (
+                      <div className="space-y-3">
+                        <p className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900">
+                          Il coupon copre l’intero importo. Non è necessario effettuare un pagamento.
+                        </p>
+                        <Button
+                          type="button"
+                          onClick={() => void completeZeroTotalOrder()}
+                          disabled={zeroOrderSubmitting}
+                          className="h-12 w-full rounded-xl bg-dark-sage text-white hover:bg-dark-sage/90"
+                        >
+                          {zeroOrderSubmitting
+                            ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />Conferma in corso…</>
+                            : 'Conferma ordine senza pagamento'}
+                        </Button>
+                      </div>
+                    ) : (
+                      <PayPalCheckout
+                        orderId={orderId}
+                        enabled={canPay}
+                        legalConsents={{
+                          privacyAccepted,
+                          termsAccepted,
+                          personalizedProductionAccepted: customProductAccepted,
+                        }}
+                        prepareOrder={prepareOrderForPayment}
+                        onQuoteReviewRequired={refreshQuoteForReview}
+                        onCaptured={handleCaptured}
+                        disabledReasons={paymentRequirements}
+                        onShowRequirements={showPaymentRequirements}
+                      />
+                    )}
                   </section>
                 )}
 

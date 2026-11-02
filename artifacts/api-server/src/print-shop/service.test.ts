@@ -3,7 +3,7 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { createHash } from 'node:crypto';
 import sharp from 'sharp';
 import { POLAROID_SKU, PRINT_SHOP_CATALOG } from '@shared/print-shop-catalog';
-import { PRINT_SHOP_CATALOG_VERSION } from '@shared/print-shop-types';
+import { PRINT_SHOP_CATALOG_VERSION, type PrintShopQuote } from '@shared/print-shop-types';
 import { PRINT_SHOP_LEGAL_MANIFEST } from '../../shared/print-shop-legal.js';
 import {
   PrintShopHttpError,
@@ -118,6 +118,27 @@ function baseOrder(overrides: Record<string, any> = {}) {
 
 function seedProduct(db: FakeFirestore, product: any) {
   db.seed(`products/${product.id}`, { ...product, attivo: true });
+}
+
+function seedCoupon(
+  db: FakeFirestore,
+  id: string,
+  overrides: Record<string, any> = {},
+) {
+  const now = Date.UTC(2026, 0, 2);
+  db.seed(`printShopCoupons/${id}`, {
+    code: id.toUpperCase(),
+    normalizedCode: id.toUpperCase(),
+    discountType: 'percentage',
+    value: 10,
+    startsAt: Timestamp.fromMillis(now - 86_400_000),
+    endsAt: Timestamp.fromMillis(now + 7 * 86_400_000),
+    maxUses: null,
+    usedCount: 0,
+    reservedCount: 0,
+    active: true,
+    ...overrides,
+  });
 }
 
 function seedReadyAsset(
@@ -600,6 +621,302 @@ describe('Polaroid production composition', () => {
     expect(metadata.width).toBe(800);
     expect(metadata.height).toBeLessThanOrEqual(800);
     expect(preview.body.length).toBeLessThan(source.length);
+  });
+});
+
+describe('print shop coupon quotes and payment reservations', () => {
+  const product = PRINT_SHOP_CATALOG.find(item => item.printSpec.pricing.model === 'tiered')!;
+  const quoteInput = (
+    assetId: string,
+    couponCode: string,
+    method: 'studio_pickup' | 'shipping' = 'studio_pickup',
+  ) => ({
+    items: [{
+      sku: product.sku,
+      finish: product.printSpec.finishes[0],
+      fitMode: product.printSpec.fitModes[0],
+      assignments: [{ assetId, copies: 1 }],
+    }],
+    fulfillment: { method },
+    couponCode,
+  });
+
+  it('discounts prints only, caps fixed discounts at the subtotal, and never makes the total negative', async () => {
+    let clock = Date.UTC(2026, 0, 2);
+    const f = createService({ now: () => Timestamp.fromMillis(clock) });
+    const orderId = 'coupon-quote-order';
+    f.db.seed(`orders/${orderId}`, baseOrder());
+    seedProduct(f.db, product);
+    seedReadyAsset(f.db, orderId, 'coupon-asset');
+    f.db.seed('settings/printShop', {
+      shipping: { enabled: true, priceCents: 500, estimatedMinDays: 2, estimatedMaxDays: 5 },
+    });
+    seedCoupon(f.db, 'HALF', { value: 50 });
+
+    const percentQuote = await f.service.quote(identity, orderId, quoteInput('coupon-asset', 'half', 'shipping'));
+    expect(percentQuote.totals).toEqual({
+      subtotalCents: 70,
+      discountCents: 35,
+      shippingCents: 500,
+      totalCents: 535,
+    });
+    expect(percentQuote.coupon).toMatchObject({ code: 'HALF', discountType: 'percentage', discountCents: 35 });
+
+    seedCoupon(f.db, 'BIGFIXED', { discountType: 'fixed', value: 20_000 });
+    const fixedQuote = await f.service.quote(identity, orderId, quoteInput('coupon-asset', 'BIGFIXED', 'shipping'));
+    expect(fixedQuote.totals).toEqual({
+      subtotalCents: 70,
+      discountCents: 70,
+      shippingCents: 500,
+      totalCents: 500,
+    });
+
+    f.db.seed('settings/printShop', {
+      shipping: { enabled: true, priceCents: 0, estimatedMinDays: 2, estimatedMaxDays: 5 },
+    });
+    const zeroQuote = await f.service.quote(identity, orderId, {
+      ...quoteInput('coupon-asset', 'BIGFIXED'),
+      fulfillment: { method: 'studio_pickup' },
+    });
+    expect(zeroQuote.totals.totalCents).toBe(0);
+    expect(zeroQuote.totals.discountCents).toBe(zeroQuote.totals.subtotalCents);
+  });
+
+  it('reports unknown, disabled, expired, scheduled, and exhausted coupon codes', async () => {
+    const now = Date.UTC(2026, 0, 2);
+    const f = createService({ now: () => Timestamp.fromMillis(now) });
+    const orderId = 'coupon-invalid-order';
+    f.db.seed(`orders/${orderId}`, baseOrder());
+    seedProduct(f.db, product);
+    seedReadyAsset(f.db, orderId, 'coupon-invalid-asset');
+    const input = (code: string) => quoteInput('coupon-invalid-asset', code);
+
+    await expect(f.service.quote(identity, orderId, input('MISSING')))
+      .rejects.toMatchObject({ code: 'coupon_invalid' });
+    seedCoupon(f.db, 'OFF', { active: false });
+    await expect(f.service.quote(identity, orderId, input('OFF')))
+      .rejects.toMatchObject({ code: 'coupon_inactive' });
+    seedCoupon(f.db, 'OLD', { endsAt: Timestamp.fromMillis(now - 1) });
+    await expect(f.service.quote(identity, orderId, input('OLD')))
+      .rejects.toMatchObject({ code: 'coupon_expired' });
+    seedCoupon(f.db, 'LATER', { startsAt: Timestamp.fromMillis(now + 60_000) });
+    await expect(f.service.quote(identity, orderId, input('LATER')))
+      .rejects.toMatchObject({ code: 'coupon_not_started' });
+    seedCoupon(f.db, 'USED', { maxUses: 1, usedCount: 1 });
+    await expect(f.service.quote(identity, orderId, input('USED')))
+      .rejects.toMatchObject({ code: 'coupon_exhausted' });
+  });
+
+  it('reserves the last use atomically for only one concurrent checkout', async () => {
+    const now = Date.UTC(2026, 0, 2);
+    const f = createService({ now: () => Timestamp.fromMillis(now) });
+    seedCoupon(f.db, 'LASTONE', { maxUses: 1, value: 10 });
+    seedProduct(f.db, product);
+    const orders = ['coupon-race-one', 'coupon-race-two'];
+    const quotes: PrintShopQuote[] = [];
+    for (const [index, orderId] of orders.entries()) {
+      f.db.seed(`orders/${orderId}`, baseOrder({ orderNumber: `ST-RACE-${index}` }));
+      seedReadyAsset(f.db, orderId, `coupon-race-asset-${index}`);
+      quotes.push(await f.service.quote(
+        identity,
+        orderId,
+        quoteInput(`coupon-race-asset-${index}`, 'LASTONE'),
+      ));
+    }
+    const results = await Promise.allSettled(orders.map((orderId, index) =>
+      f.service.createPaypalOrder(identity, orderId, {
+        termsAccepted: true,
+        privacyAccepted: true,
+        personalizedProductionAccepted: true,
+        expectedQuoteFingerprint: quotes[index].quoteFingerprint!,
+        expectedTotalCents: quotes[index].totals.totalCents,
+      }),
+    ));
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+    expect(results.filter(result => result.status === 'rejected')).toHaveLength(1);
+    expect(f.db.countCollection('printShopCouponRedemptions')).toBe(1);
+    expect(f.db.value('printShopCoupons/LASTONE')).toMatchObject({ reservedCount: 1, usedCount: 0 });
+    expect(f.paypal.createOrder).toHaveBeenCalledTimes(1);
+  });
+
+  it('releases a reserved coupon when an unpaid checkout is cancelled so another order can use it', async () => {
+    const now = Date.UTC(2026, 0, 2);
+    const f = createService({ now: () => Timestamp.fromMillis(now) });
+    seedCoupon(f.db, 'RETRY', { maxUses: 1, value: 10 });
+    seedProduct(f.db, product);
+    const firstOrder = 'coupon-cancelled-checkout';
+    f.db.seed(`orders/${firstOrder}`, baseOrder());
+    seedReadyAsset(f.db, firstOrder, 'coupon-cancelled-asset');
+    await f.service.quote(identity, firstOrder, quoteInput('coupon-cancelled-asset', 'RETRY'));
+    await f.service.createPaypalOrder(identity, firstOrder, checkoutInput(f.db, firstOrder));
+    await f.service.cancelOwnerDraft(identity, firstOrder);
+    expect(f.db.value(`printShopCouponRedemptions/${firstOrder}`)).toMatchObject({ state: 'released' });
+    expect(f.db.value('printShopCoupons/RETRY')).toMatchObject({ usedCount: 0, reservedCount: 0 });
+
+    const retryOrder = 'coupon-retry-checkout';
+    f.db.seed(`orders/${retryOrder}`, baseOrder({ orderNumber: 'ST-COUPON-RETRY' }));
+    seedReadyAsset(f.db, retryOrder, 'coupon-retry-asset');
+    await f.service.quote(identity, retryOrder, quoteInput('coupon-retry-asset', 'RETRY'));
+    await expect(f.service.createPaypalOrder(identity, retryOrder, checkoutInput(f.db, retryOrder)))
+      .resolves.toMatchObject({ paypalOrderId: 'PAYPAL-ORDER-123' });
+    expect(f.db.value('printShopCoupons/RETRY')).toMatchObject({ usedCount: 0, reservedCount: 1 });
+  });
+
+  it('records a redemption against its paid order', async () => {
+    const now = Date.UTC(2026, 0, 2);
+    const f = createService({ now: () => Timestamp.fromMillis(now) });
+    const orderId = 'coupon-paid-order';
+    seedCoupon(f.db, 'PAYONCE', { maxUses: 1, value: 10 });
+    seedProduct(f.db, product);
+    f.db.seed(`orders/${orderId}`, baseOrder());
+    seedReadyAsset(f.db, orderId, 'coupon-paid-asset');
+    const quote = await f.service.quote(
+      identity,
+      orderId,
+      quoteInput('coupon-paid-asset', 'PAYONCE'),
+    );
+    await f.service.createPaypalOrder(identity, orderId, {
+      termsAccepted: true,
+      privacyAccepted: true,
+      personalizedProductionAccepted: true,
+      expectedQuoteFingerprint: quote.quoteFingerprint!,
+      expectedTotalCents: quote.totals.totalCents,
+    });
+    const payable = f.db.value(`orders/${orderId}`);
+    f.paypal.captureOrder.mockImplementation(async (paypalOrderId: string) => ({
+      id: paypalOrderId,
+      status: 'COMPLETED',
+      purchase_units: [{
+        custom_id: orderId,
+        invoice_id: payable.payment.invoiceId,
+        payments: {
+          captures: [{
+            id: 'CAPTURE-COUPON-PAID',
+            status: 'COMPLETED',
+            amount: {
+              currency_code: 'EUR',
+              value: (payable.totals.totalCents / 100).toFixed(2),
+            },
+          }],
+        },
+      }],
+    }));
+    await f.service.capturePaypalOrder(identity, orderId, {});
+    expect(f.db.value('printShopCouponRedemptions/coupon-paid-order')).toMatchObject({
+      orderId,
+      couponId: 'PAYONCE',
+      code: 'PAYONCE',
+      state: 'redeemed',
+      captureId: 'CAPTURE-COUPON-PAID',
+    });
+    expect(f.db.value('printShopCoupons/PAYONCE')).toMatchObject({ usedCount: 1, reservedCount: 0 });
+    expect(f.db.value(`orders/${orderId}`)).toMatchObject({
+      payment: { status: 'paid' },
+      printShop: { coupon: { code: 'PAYONCE' } },
+    });
+  });
+
+  it('blocks PayPal capture if an admin disables the coupon after checkout opens', async () => {
+    const now = Date.UTC(2026, 0, 2);
+    const f = createService({ now: () => Timestamp.fromMillis(now) });
+    const orderId = 'coupon-capture-recheck';
+    seedCoupon(f.db, 'RECHECK', { value: 10 });
+    seedProduct(f.db, product);
+    f.db.seed(`orders/${orderId}`, baseOrder());
+    seedReadyAsset(f.db, orderId, 'coupon-recheck-asset');
+    const quote = await f.service.quote(
+      identity,
+      orderId,
+      quoteInput('coupon-recheck-asset', 'RECHECK'),
+    );
+    await f.service.createPaypalOrder(identity, orderId, {
+      termsAccepted: true,
+      privacyAccepted: true,
+      personalizedProductionAccepted: true,
+      expectedQuoteFingerprint: quote.quoteFingerprint!,
+      expectedTotalCents: quote.totals.totalCents,
+    });
+    f.db.seed('printShopCoupons/RECHECK', {
+      ...f.db.value('printShopCoupons/RECHECK'),
+      active: false,
+    });
+    await expect(f.service.capturePaypalOrder(identity, orderId, {}))
+      .rejects.toMatchObject({ code: 'coupon_inactive' });
+    expect(f.paypal.captureOrder).not.toHaveBeenCalled();
+  });
+
+  it('completes a fully discounted order without attempting a zero-value PayPal payment', async () => {
+    const now = Date.UTC(2026, 0, 2);
+    const f = createService({ now: () => Timestamp.fromMillis(now) });
+    const orderId = 'coupon-zero-total-order';
+    seedCoupon(f.db, 'FREEPRINTS', { value: 100 });
+    seedProduct(f.db, product);
+    f.db.seed(`orders/${orderId}`, baseOrder());
+    seedReadyAsset(f.db, orderId, 'coupon-free-asset');
+    const quote = await f.service.quote(
+      identity,
+      orderId,
+      quoteInput('coupon-free-asset', 'FREEPRINTS'),
+    );
+    expect(quote.totals.totalCents).toBe(0);
+
+    const result = await f.service.completeZeroTotalOrder(identity, orderId, {
+      termsAccepted: true,
+      privacyAccepted: true,
+      personalizedProductionAccepted: true,
+      expectedQuoteFingerprint: quote.quoteFingerprint!,
+      expectedTotalCents: 0,
+    });
+    expect(result).toMatchObject({ success: true, orderId, status: 'paid' });
+    expect(f.paypal.createOrder).not.toHaveBeenCalled();
+    expect(f.db.value(`orders/${orderId}`)).toMatchObject({
+      payment: { status: 'paid', amountCents: 0, zeroTotal: true },
+      fulfillment: { status: 'submitted' },
+      printShop: { zeroTotalCouponCompleted: true },
+    });
+    expect(f.db.value('printShopCoupons/FREEPRINTS')).toMatchObject({ usedCount: 1 });
+    expect(f.db.value(`printShopCouponRedemptions/${orderId}`)).toMatchObject({
+      state: 'redeemed',
+      zeroTotal: true,
+      orderId,
+    });
+  });
+
+  it('creates and edits admin coupons with unique normalized codes and optional use limits', async () => {
+    const { service } = createService();
+    const input = {
+      code: 'SPRINGPRINT',
+      discountType: 'fixed' as const,
+      value: 500,
+      startsAt: '2026-01-01T00:00:00.000Z',
+      endsAt: '2026-02-01T00:00:00.000Z',
+      maxUses: 12,
+      active: true,
+    };
+    const created = await service.saveAdminPrintShopCoupon(input, 'ADMIN@example.com') as any;
+    expect(created).toMatchObject({
+      code: 'SPRINGPRINT',
+      discountType: 'fixed',
+      value: 500,
+      maxUses: 12,
+      active: true,
+    });
+    const updated = await service.saveAdminPrintShopCoupon(
+      { ...input, code: 'springprint', maxUses: null, active: false },
+      'admin@example.com',
+      created.id,
+    ) as any;
+    expect(updated).toMatchObject({
+      id: created.id,
+      code: 'SPRINGPRINT',
+      maxUses: null,
+      active: false,
+      usedCount: 0,
+    });
+    await expect(service.saveAdminPrintShopCoupon(
+      { ...input, code: 'SPRINGPRINT' },
+      'admin@example.com',
+    )).rejects.toMatchObject({ code: 'coupon_code_conflict' });
   });
 });
 

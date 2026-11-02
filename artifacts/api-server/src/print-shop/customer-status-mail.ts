@@ -116,11 +116,18 @@ export function customerNotificationCopy(kind: CustomerNotificationKind, order: 
       message: 'abbiamo riaperto il tuo ordine. È in attesa del pagamento o della successiva conferma dello studio: questa riapertura non avvia da sola la produzione.',
     },
   };
-  const copy = copies[kind];
+  const copy = kind === 'payment_confirmed' && order.payment?.zeroTotal === true
+    ? {
+        label: 'Ordine confermato con coupon',
+        message: 'il coupon ha coperto interamente il totale del tuo ordine. Non è stato necessario effettuare un pagamento e lo studio procederà con la verifica delle fotografie.',
+      }
+    : copies[kind];
   return {
     ...copy,
     subject: kind === 'payment_confirmed'
-      ? `Ordine ${order.orderNumber} ricevuto e pagato`
+      ? order.payment?.zeroTotal === true
+        ? `Ordine ${order.orderNumber} confermato con coupon`
+        : `Ordine ${order.orderNumber} ricevuto e pagato`
       : kind === 'ready_for_pickup'
         ? `Le tue stampe ${order.orderNumber} sono pronte per ${shipping ? 'la spedizione' : 'il ritiro'}`
         : `Ordine ${order.orderNumber} · ${copy.label}`,
