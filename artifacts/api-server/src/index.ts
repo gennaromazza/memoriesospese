@@ -20,6 +20,7 @@ import {
   stopEventSyncWorker,
 } from "./sync/event-sync-guard";
 import { cleanupDeviceEnrollments } from "./admin-security/admin-security-store";
+import { cleanupExpiredManualConsultationLocks } from "./consultation-routes";
 
 const rawPort = process.env["PORT"];
 
@@ -49,6 +50,7 @@ const runScheduledMaintenance = async () => {
     runShopMaintenance(),
     runFollowUpCheck(),
     cleanupDeviceEnrollments(),
+    cleanupExpiredManualConsultationLocks(),
   ];
   const results = await Promise.allSettled(jobs);
   results.forEach((result, index) => {
