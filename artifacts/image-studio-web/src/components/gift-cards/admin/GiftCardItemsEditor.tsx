@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Plus, Search, Trash2 } from 'lucide-react';
+import { ExternalLink, Plus, Search, Trash2 } from 'lucide-react';
 import { GIFT_CARD_MAX_ITEMS, GIFT_CARD_MAX_ITEM_QUANTITY, type GiftCardItemInput } from '@shared/gift-card-types';
 import { getAllProducts, useActiveProductCategories } from '@/lib/products';
 import { Button } from '@/components/ui/button';
@@ -16,12 +16,13 @@ const MAX_RESULTS = 30;
 interface Props {
   items: GiftCardItemInput[];
   onChange: (items: GiftCardItemInput[]) => void;
+  onEditProduct: (productId: string) => void;
   /** Propone il totale del catalogo (in centesimi) come prezzo del regalo. */
   onUseTotal: (cents: number) => void;
 }
 
 /** Sceglie dal catalogo centrale i prodotti inclusi nel regalo, con ricerca e categorie. Prezzi visibili solo qui, allo studio. */
-export default function GiftCardItemsEditor({ items, onChange, onUseTotal }: Props) {
+export default function GiftCardItemsEditor({ items, onChange, onEditProduct, onUseTotal }: Props) {
   const products = useQuery({ queryKey: ['gift-card-products'], queryFn: getAllProducts, staleTime: 60_000 });
   const categories = useActiveProductCategories();
   const [search, setSearch] = useState('');
@@ -61,8 +62,17 @@ export default function GiftCardItemsEditor({ items, onChange, onUseTotal }: Pro
                       <>
                         <span className="block text-xs text-muted-foreground">{euro(product.prezzoFinale)} ciascuno · solo per te</span>
                         <span className="mt-1 block whitespace-normal text-xs text-muted-foreground">
-                          {product.descrizione || 'Nessuna descrizione nel catalogo'}
+                          {product.descrizione?.trim() || 'Nessuna descrizione nel catalogo'}
                         </span>
+                        {!product.descrizione?.trim() ? (
+                          <span className="mt-2 flex flex-wrap items-center gap-2 text-xs text-amber-800" role="status">
+                            <span>Descrizione mancante: chi riceve la gift card vedrà solo il nome.</span>
+                            <Button type="button" size="sm" variant="outline" className="h-7 border-amber-400 px-2 text-amber-900 hover:bg-amber-50" aria-label={`Completa descrizione di ${product.nome}`} onClick={() => onEditProduct(product.id)}>
+                              <ExternalLink className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+                              Completa descrizione
+                            </Button>
+                          </span>
+                        ) : null}
                         {bundleContents ? <span className="mt-1 block line-clamp-2 text-xs text-muted-foreground">Include: {bundleContents}</span> : null}
                       </>
                     ) : null}

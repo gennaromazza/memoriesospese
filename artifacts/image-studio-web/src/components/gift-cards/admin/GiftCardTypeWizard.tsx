@@ -53,6 +53,7 @@ interface Props {
   campaignsFailed: boolean;
   saving: boolean;
   onSave: () => void;
+  onEditProduct: (productId: string) => void;
   /** Presente solo quando si modifica un tipo già salvato. */
   onDelete?: () => void;
 }
@@ -93,7 +94,7 @@ function Channel({ on, title, text, onToggle }: { on: boolean; title: string; te
 
 /** Creazione e modifica di un tipo di gift card, un passaggio alla volta. */
 export default function GiftCardTypeWizard({
-  isNew, draft, patch, priceText, setPriceText, fieldErrors, campaigns, campaignsFailed, saving, onSave, onDelete,
+  isNew, draft, patch, priceText, setPriceText, fieldErrors, campaigns, campaignsFailed, saving, onSave, onEditProduct, onDelete,
 }: Props) {
   const [step, setStep] = useState(0);
   const [tried, setTried] = useState(false);
@@ -159,7 +160,7 @@ export default function GiftCardTypeWizard({
     content = (
       <>
         <p className="text-sm text-muted-foreground">Collega i prodotti del tuo catalogo: chi riceve vede nome, descrizione e foto, mai il prezzo.</p>
-        <GiftCardItemsEditor items={draft.items} onChange={items => patch({ items })} onUseTotal={cents => setPriceText(centsToEuros(cents))} />
+        <GiftCardItemsEditor items={draft.items} onChange={items => patch({ items })} onEditProduct={onEditProduct} onUseTotal={cents => setPriceText(centsToEuros(cents))} />
         {error('items')}
         <div className="max-w-xs space-y-1.5">
           <Label htmlFor="gct-price">Prezzo di vendita del regalo (€)</Label>

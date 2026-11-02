@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil } from 'lucide-react';
 import {
@@ -16,6 +16,7 @@ import {
 } from '@shared/gift-card-types';
 import { getAllCampaigns } from '@/lib/booking-campaigns';
 import { giftCardsApi } from '@/features/gift-cards/gift-cards-api';
+import ProductsManager from '@/components/ProductsManager';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -69,6 +70,8 @@ export default function GiftCardTypesPanel() {
   const [priceText, setPriceText] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [productEditRequest, setProductEditRequest] = useState<{ productId: string; requestKey: number } | null>(null);
+  const productEditRequestKey = useRef(0);
 
   useEffect(() => {
     if (selectedId === null && types.data) {
@@ -96,6 +99,9 @@ export default function GiftCardTypesPanel() {
     setFieldErrors({});
   };
   const patch = (changes: Partial<GiftCardTypeInput>) => setDraft(current => ({ ...current, ...changes }));
+  const editProduct = (productId: string) => {
+    setProductEditRequest({ productId, requestKey: ++productEditRequestKey.current });
+  };
 
   const save = useMutation({
     mutationFn: async () => {
@@ -221,6 +227,7 @@ export default function GiftCardTypesPanel() {
         campaignsFailed={campaigns.isError}
         saving={save.isPending}
         onSave={() => save.mutate()}
+        onEditProduct={editProduct}
         onDelete={selectedId && selectedId !== 'new' ? () => setConfirmDelete(true) : undefined}
       />
 
@@ -251,6 +258,16 @@ export default function GiftCardTypesPanel() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {productEditRequest ? (
+        <div className="hidden">
+          <ProductsManager
+            key={productEditRequest.requestKey}
+            autoEditId={productEditRequest.productId}
+            onChanged={() => { void queryClient.invalidateQueries({ queryKey: ['gift-card-products'] }); }}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

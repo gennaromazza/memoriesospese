@@ -31,15 +31,15 @@ const product = {
   updatedAt: Timestamp.fromDate(new Date(0)),
 } as Product;
 
-function renderEditor(items: GiftCardItemInput[]) {
+function renderEditor(items: GiftCardItemInput[], currentProduct: Product = product) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  queryClient.setQueryData(['gift-card-products'], [product]);
+  queryClient.setQueryData(['gift-card-products'], [currentProduct]);
 
   return renderToStaticMarkup(
     <QueryClientProvider client={queryClient}>
-      <GiftCardItemsEditor items={items} onChange={() => undefined} onUseTotal={() => undefined} />
+      <GiftCardItemsEditor items={items} onChange={() => undefined} onEditProduct={() => undefined} onUseTotal={() => undefined} />
     </QueryClientProvider>,
   );
 }
@@ -57,5 +57,15 @@ describe('prodotti associati alle gift card', () => {
 
     expect(html).toContain('Shooting fotografico con ricordi stampati.');
     expect(html).toContain('Include: 1 × Shooting · 1 × Album');
+    expect(html).not.toContain('Descrizione mancante');
+  });
+
+  it('avvisa se un prodotto selezionato non ha descrizione e permette di aprirlo', () => {
+    const productWithoutDescription = { ...product, descrizione: '  ' } as Product;
+    const html = renderEditor([{ productId: product.id, quantity: 1 }], productWithoutDescription);
+
+    expect(html).toContain('Descrizione mancante: chi riceve la gift card vedrà solo il nome.');
+    expect(html).toContain('aria-label="Completa descrizione di Natale completo"');
+    expect(html).toContain('Completa descrizione');
   });
 });
