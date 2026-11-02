@@ -350,6 +350,8 @@ router.get('/notifications', authenticateFirebase, requireAdmin, async (req: any
         ? 'quote_signed'
         : data.type === 'photobook_approved' || data.type === 'photobook_changes'
         ? 'photobook'
+        : data.type === 'social_cover_unavailable'
+          ? 'social_cover_unavailable'
         : data.type === 'print_shop_order'
           ? 'print_shop_order'
           : data.type === 'shop_order'
@@ -369,6 +371,8 @@ router.get('/notifications', authenticateFirebase, requireAdmin, async (req: any
             ? `/admin/dashboard?printOrderId=${encodeURIComponent(resourceId)}`
             : type === 'shop_order'
               ? `/admin/dashboard?shopOrderId=${encodeURIComponent(resourceId)}`
+              : type === 'social_cover_unavailable'
+                ? String(data.deepLink || '/admin/dashboard')
               : '/admin/dashboard?tab=lavori'
       );
 
@@ -383,6 +387,8 @@ router.get('/notifications', authenticateFirebase, requireAdmin, async (req: any
               ? 'Nuovo ordine e-commerce'
               : type === 'shop_order'
                 ? 'Nuovo ordine shop online'
+                : type === 'social_cover_unavailable'
+                  ? 'Copertina social non raggiungibile'
                 : 'Preventivo Rapido'
         ),
         description: data.description || '',

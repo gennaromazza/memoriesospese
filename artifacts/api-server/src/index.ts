@@ -21,6 +21,7 @@ import {
 } from "./sync/event-sync-guard";
 import { cleanupDeviceEnrollments } from "./admin-security/admin-security-store";
 import { cleanupExpiredManualConsultationLocks } from "./consultation-routes";
+import { runSocialCoverHealthCheck } from "./social-cover-health";
 
 const rawPort = process.env["PORT"];
 
@@ -41,7 +42,7 @@ let cleanupInterval: NodeJS.Timeout | null = null;
 let reminderInterval: NodeJS.Timeout | null = null;
 
 const runScheduledMaintenance = async () => {
-  const jobs = [
+  const jobs: Promise<unknown>[] = [
     runReminderCheck(),
     runVisioneAutoInviteCheck(),
     runLabShipmentExpiryCheck(),
@@ -52,6 +53,15 @@ const runScheduledMaintenance = async () => {
     cleanupDeviceEnrollments(),
     cleanupExpiredManualConsultationLocks(),
   ];
+  if (process.env.NODE_ENV === "production") {
+    jobs.push(
+      runSocialCoverHealthCheck().then(result => {
+        if (result.checked > 0) {
+          logger.info(result, "Periodic social cover health check completed");
+        }
+      }),
+    );
+  }
   const results = await Promise.allSettled(jobs);
   results.forEach((result, index) => {
     if (result.status === "rejected") {

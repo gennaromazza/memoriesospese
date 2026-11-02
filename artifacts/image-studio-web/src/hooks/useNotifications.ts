@@ -16,7 +16,8 @@ export interface Notification {
     | 'info_form'
     | 'photobook'
     | 'print_shop_order'
-    | 'shop_order';
+    | 'shop_order'
+    | 'social_cover_unavailable';
   title: string;
   description: string;
   createdAt: Timestamp | null;

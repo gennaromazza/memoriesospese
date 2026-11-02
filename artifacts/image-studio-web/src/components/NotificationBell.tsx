@@ -1,5 +1,5 @@
 import React, { useMemo, useCallback } from 'react';
-import { Bell, Camera, MessageCircle, MessageSquare, CheckSquare, FileText, ClipboardList, BookOpen, ShoppingBag, X } from 'lucide-react';
+import { Bell, Camera, MessageCircle, MessageSquare, CheckSquare, FileText, ClipboardList, BookOpen, ShoppingBag, ImageOff, X } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { useNotifications, type Notification } from '@/hooks/useNotifications';
 import { useQueryClient } from '@tanstack/react-query';
@@ -37,6 +37,7 @@ export const NotificationBell = React.memo(function NotificationBell({ enabled =
       case 'photobook': return <BookOpen className="h-4 w-4" />;
       case 'print_shop_order':
       case 'shop_order': return <ShoppingBag className="h-4 w-4" />;
+      case 'social_cover_unavailable': return <ImageOff className="h-4 w-4" />;
       default: return <Bell className="h-4 w-4" />;
     }
   }, []);
