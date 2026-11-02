@@ -31,6 +31,8 @@ import {
   normalizeBlogSlug,
   writeBlogPostWithSlugReservation,
 } from '@/lib/blog-slugs';
+import { blogSocialImage } from '@shared/social-metadata';
+import SocialCardPreview from '@/components/admin/SocialCardPreview';
 
 const FALLBACK_AUTHOR = 'Gennaro Mazzacane';
 const SEO_CONTENT_LIMIT = 50000;
@@ -150,6 +152,13 @@ export default function BlogManager({
     author: 'Gennaro Mazzacane',
     metaTitle: '',
     metaDescription: ''
+  });
+  const socialImage = blogSocialImage({
+    title: formData.title,
+    coverImage: formData.coverImage,
+    coverImageAlt: formData.coverImageAlt,
+    coverImageType: coverImageType || undefined,
+    content: formData.content,
   });
 
   useEffect(() => {
@@ -1158,10 +1167,11 @@ export default function BlogManager({
             </DialogHeader>
 
             <Tabs defaultValue="content" className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
+              <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="content">Contenuto</TabsTrigger>
                 <TabsTrigger value="seo">SEO</TabsTrigger>
                 <TabsTrigger value="preview">Anteprima</TabsTrigger>
+                <TabsTrigger value="social">Social</TabsTrigger>
               </TabsList>
 
               <TabsContent value="content" className="space-y-4 py-4">
@@ -1503,6 +1513,16 @@ export default function BlogManager({
                     )}
                   </div>
                 </div>
+              </TabsContent>
+
+              <TabsContent value="social" className="py-4">
+                <SocialCardPreview
+                  image={socialImage}
+                  title={formData.metaTitle || `${formData.title} | Blog Image Studio`}
+                  description={formData.metaDescription || formData.excerpt || formData.title}
+                  url={`imagestudiofotografico.com/blog/${formData.slug || 'slug'}`}
+                  testId="blog-social-preview"
+                />
               </TabsContent>
             </Tabs>
 

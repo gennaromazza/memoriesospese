@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   canonicalUrl,
+  blogSocialImage,
   defaultSocialImage,
   firstImageCandidateFromHtml,
   normalizePublicImageUrl,
   resolveSocialImage,
   staticSocialImage,
+  weddingSocialImage,
 } from './social-metadata';
 
 describe('social metadata resolver', () => {
@@ -53,6 +55,62 @@ describe('social metadata resolver', () => {
     expect(firstImageCandidateFromHtml('<p>Testo</p><img src="/images/story.jpg" />', 'Storia'))
       .toMatchObject({ url: 'https://imagestudiofotografico.com/images/story.jpg' });
     expect(resolveSocialImage([])).toEqual(defaultSocialImage());
+  });
+
+  it('resolves blog social images from the cover, inline content, then section fallback', () => {
+    expect(blogSocialImage({
+      title: 'Storia',
+      coverImage: 'https://cdn.example/copertina.jpg',
+      coverImageAlt: 'La copertina',
+      content: '<img src="https://cdn.example/interna.jpg" alt="Foto interna">',
+    })).toMatchObject({
+      url: 'https://cdn.example/copertina.jpg',
+      alt: 'La copertina',
+      source: 'editorial-cover',
+    });
+
+    expect(blogSocialImage({
+      title: 'Storia',
+      coverImage: 'blob:copertina-non-valida',
+      content: '<img src="https://cdn.example/interna.jpg" alt="Foto interna">',
+    })).toMatchObject({
+      url: 'https://cdn.example/interna.jpg',
+      alt: 'Storia',
+      source: 'content-image',
+    });
+
+    expect(blogSocialImage({
+      title: 'Storia',
+      coverImage: 'blob:copertina-non-valida',
+      content: '<p>Nessuna immagine nel corpo</p>',
+    }).source).toBe('section-fallback');
+
+    expect(blogSocialImage({ title: 'Storia' }).source).toBe('section-fallback');
+  });
+
+  it('resolves wedding social images from the first valid selected photo or section fallback', () => {
+    expect(weddingSocialImage('Anna e Luca', [
+      { url: 'https://cdn.example/copertina.webp', alt: 'Copertina scelta' },
+      { url: 'https://cdn.example/altra.jpg', alt: 'Seconda foto' },
+    ])).toMatchObject({
+      url: 'https://cdn.example/copertina.webp',
+      alt: 'Copertina scelta',
+      source: 'selected-photo',
+    });
+
+    expect(weddingSocialImage('Anna e Luca', [
+      { url: 'blob:copertina-non-valida', alt: 'Copertina non valida' },
+      { url: 'https://cdn.example/altra.jpg', alt: 'Seconda foto' },
+    ])).toMatchObject({
+      url: 'https://cdn.example/altra.jpg',
+      alt: 'Seconda foto',
+      source: 'selected-photo',
+    });
+
+    expect(weddingSocialImage('Anna e Luca', [
+      { url: 'blob:copertina-non-valida' },
+    ]).source).toBe('section-fallback');
+    expect(weddingSocialImage('Anna e Luca', []).source).toBe('section-fallback');
   });
 
   it('assigns curated stable assets to important landing pages', () => {
