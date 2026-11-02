@@ -66,10 +66,10 @@ export default function GiftCardItemsEditor({ items, onChange, onEditProduct, on
                         </span>
                         {!product.descrizione?.trim() ? (
                           <span className="mt-2 flex flex-wrap items-center gap-2 text-xs text-amber-800" role="status">
-                            <span>Descrizione mancante: chi riceve la gift card vedrà solo il nome.</span>
-                            <Button type="button" size="sm" variant="outline" className="h-7 border-amber-400 px-2 text-amber-900 hover:bg-amber-50" aria-label={`Completa descrizione di ${product.nome}`} onClick={() => onEditProduct(product.id)}>
+                            <span>Descrizione del catalogo mancante: chi riceve la gift card vedrà solo il nome. Puoi aggiungerla nel catalogo prodotti.</span>
+                            <Button type="button" size="sm" variant="outline" className="h-7 border-amber-400 px-2 text-amber-900 hover:bg-amber-50" aria-label={`Completa descrizione di ${product.nome} nel catalogo prodotti`} onClick={() => onEditProduct(product.id)}>
                               <ExternalLink className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-                              Completa descrizione
+                              Correggi nel catalogo
                             </Button>
                           </span>
                         ) : null}

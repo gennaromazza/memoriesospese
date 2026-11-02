@@ -240,13 +240,15 @@ interface ProductsManagerProps {
   autoCreate?: boolean;
   /** Apre subito la modifica di questo prodotto. */
   autoEditId?: string;
+  /** Porta il focus sul campo descrizione quando si apre la modifica. */
+  autoFocusDescription?: boolean;
   /** Mostra e salva il costo gestionale riservato allo shop online. */
   showShopCost?: boolean;
   /** Chiamata dopo ogni salvataggio o eliminazione. */
   onChanged?: () => void;
 }
 
-export default function ProductsManager({ autoCreate, autoEditId, showShopCost = false, onChanged }: ProductsManagerProps = {}) {
+export default function ProductsManager({ autoCreate, autoEditId, autoFocusDescription = false, showShopCost = false, onChanged }: ProductsManagerProps = {}) {
   const autoOpened = useRef(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -1130,6 +1132,7 @@ export default function ProductsManager({ autoCreate, autoEditId, showShopCost =
                 onChange={e => setFormData({ ...formData, descrizione: e.target.value })}
                 placeholder="Descrizione dettagliata del prodotto..."
                 rows={3}
+                autoFocus={autoFocusDescription && Boolean(autoEditId)}
                 data-testid="input-product-description"
               />
             </div>

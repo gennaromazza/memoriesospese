@@ -64,8 +64,9 @@ describe('prodotti associati alle gift card', () => {
     const productWithoutDescription = { ...product, descrizione: '  ' } as Product;
     const html = renderEditor([{ productId: product.id, quantity: 1 }], productWithoutDescription);
 
-    expect(html).toContain('Descrizione mancante: chi riceve la gift card vedrà solo il nome.');
-    expect(html).toContain('aria-label="Completa descrizione di Natale completo"');
-    expect(html).toContain('Completa descrizione');
+    expect(html).toContain('Descrizione del catalogo mancante: chi riceve la gift card vedrà solo il nome.');
+    expect(html).toContain('Puoi aggiungerla nel catalogo prodotti.');
+    expect(html).toContain('aria-label="Completa descrizione di Natale completo nel catalogo prodotti"');
+    expect(html).toContain('Correggi nel catalogo');
   });
 });

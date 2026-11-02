@@ -264,6 +264,7 @@ export default function GiftCardTypesPanel() {
           <ProductsManager
             key={productEditRequest.requestKey}
             autoEditId={productEditRequest.productId}
+            autoFocusDescription
             onChanged={() => { void queryClient.invalidateQueries({ queryKey: ['gift-card-products'] }); }}
           />
         </div>
