@@ -52,13 +52,15 @@ describe('Real Wedding sitemap', () => {
 });
 
 describe('Static sitemap', () => {
-  it('publishes Image Experience but not its legacy campaign alias', () => {
+  it('publishes canonical destinations but no audited legacy aliases', () => {
     const xml = buildStaticSitemapEntries();
 
     expect(xml.match(/<loc>https:\/\/imagestudiofotografico\.com\/image-experience<\/loc>/g)?.length)
       .toBe(1);
-    expect(xml).not.toContain('https://imagestudiofotografico.com/esperienza');
-    expect(xml).not.toContain('https://imagestudiofotografico.com/esperienza/');
+    expect(xml).toContain('<loc>https://imagestudiofotografico.com/portfolio/matrimonio</loc>');
+    for (const alias of ['/esperienza', '/consultations', '/shop-natale', '/?p=']) {
+      expect(xml).not.toContain(`https://imagestudiofotografico.com${alias}`);
+    }
   });
 });
 

@@ -112,11 +112,11 @@ export default function BookingIndex() {
                       
                       {/* Immagine campagna */}
                       {campaign.immagineSlider && (
-                        <div className="w-full h-48 overflow-hidden bg-gray-100">
+                        <div className="aspect-video w-full overflow-hidden bg-gray-100">
                           <img
                             src={campaign.immagineSlider}
                             alt={campaign.nome}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            className="w-full h-full object-contain"
                             loading="lazy"
                             decoding="async"
                           />

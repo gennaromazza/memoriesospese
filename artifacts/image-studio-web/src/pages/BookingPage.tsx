@@ -492,11 +492,11 @@ export default function BookingPage() {
       <div className="max-w-4xl mx-auto space-y-8">
         {/* Hero Image (solo immagine, senza testo) */}
         {campaign.immaginePaginaBooking && (
-          <div className="relative w-full h-64 md:h-96 rounded-xl overflow-hidden shadow-xl mb-6 md:mb-8">
+          <div className="relative flex w-full justify-center overflow-hidden rounded-xl bg-sage/10 shadow-xl mb-6 md:mb-8">
             <img
               src={campaign.immaginePaginaBooking}
               alt={campaign.nome}
-              className="w-full h-full object-cover"
+              className="block h-auto max-h-[70vh] w-full object-contain"
             />
           </div>
         )}
@@ -966,7 +966,7 @@ export default function BookingPage() {
                                 {/* Immagine prodotto con carousel */}
                                 {product.immagini &&
                                 product.immagini.length > 0 ? (
-                                  <div className="relative w-full h-48 sm:h-52 bg-muted overflow-hidden rounded-t-lg group">
+                                  <div className="relative flex w-full h-48 sm:h-52 items-center justify-center bg-muted overflow-hidden rounded-t-lg group">
                                     <img
                                       src={
                                         product.immagini[
@@ -974,7 +974,7 @@ export default function BookingPage() {
                                         ]
                                       }
                                       alt={`${product.nome} - ${getProductImageIndex(product.id) + 1}`}
-                                      className="w-full h-full object-cover"
+                                      className="w-full h-full object-contain"
                                     />
 
                                     {/* Frecce navigazione carousel - visibili solo se più immagini */}
@@ -1406,7 +1406,7 @@ export default function BookingPage() {
                   <img
                     src={img}
                     alt={`Miniatura ${idx + 1}`}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-contain"
                   />
                 </button>
               ))}

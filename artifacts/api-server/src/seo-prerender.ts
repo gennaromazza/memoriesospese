@@ -428,12 +428,6 @@ function getStaticPageMeta(path: string): PageMeta | null {
         <p>Richiedi una consulenza gratuita per discutere del tuo matrimonio, evento o servizio fotografico. Ci incontriamo di persona ad Aversa o in videocall per capire le tue esigenze e creare il pacchetto perfetto per te.</p>
       `
     },
-    '/consultations': {
-      title: 'Consulenza Gratuita Fotografo Matrimoni | Image Studio',
-      description: 'Richiedi una consulenza gratuita e personalizzata con Image Studio, ad Aversa oppure online.',
-      canonical: `${BASE_URL}/consulenze`,
-      bodyContent: `<h1>Consulenze Image Studio</h1><p>Parliamo del tuo matrimonio, evento o servizio fotografico.</p>`
-    },
     '/lasciati-trasportare': {
       title: 'Lasciati Trasportare | E-book Fotografia Matrimonio | Image Studio',
       description: 'Scarica l\'e-book "Lasciati Trasportare" di Image Studio. La filosofia e l\'approccio emozionale alla fotografia matrimoniale di Gennaro Mazzacane.',
@@ -1511,34 +1505,6 @@ export function createSeoMiddleware(options: { indexHtmlPath?: string } = {}) {
     || path.resolve(process.cwd(), 'artifacts/image-studio-web/dist/public/index.html');
   return async (req: Request, res: Response, next: NextFunction) => {
     const path = normalizeClientPath(req.path);
-    const legacyWordPressId = Array.isArray(req.query?.p)
-      ? req.query.p[0]
-      : req.query?.p;
-
-    // I vecchi permalink WordPress `/?p=123` oggi risolverebbero sulla
-    // homepage e verrebbero segnalati da Search Console come duplicati.
-    // Non esiste più una pagina pubblica associata all'ID numerico: reindirizza
-    // quindi in modo permanente alla homepage canonica.
-    if (path === '/' && typeof legacyWordPressId === 'string' && /^\d+$/.test(legacyWordPressId)) {
-      res.status(301);
-      res.setHeader('Location', '/');
-      res.setHeader('Cache-Control', 'public, max-age=86400');
-      res.type('text/plain').send('Moved Permanently');
-      return;
-    }
-
-    // Lo shop prima stava su /shop-natale: i vecchi link (email, PayPal, condivisioni)
-    // continuano a funzionare e portano all'indirizzo nuovo, con lo stesso percorso e gli stessi parametri.
-    if (path === '/shop-natale' || path.startsWith('/shop-natale/')) {
-      const originalUrl = req.originalUrl || '';
-      const queryStart = originalUrl.indexOf('?');
-      const query = queryStart >= 0 ? originalUrl.slice(queryStart) : '';
-      res.status(301);
-      res.setHeader('Location', `/online-shop${path.slice('/shop-natale'.length)}${query}`);
-      res.setHeader('Cache-Control', 'public, max-age=86400');
-      res.type('text/plain').send('Moved Permanently');
-      return;
-    }
 
     // In development Vite serves these virtual modules after this middleware.
     // They are not application routes and must not be mistaken for 404s.
