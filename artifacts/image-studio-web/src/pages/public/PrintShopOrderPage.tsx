@@ -998,11 +998,22 @@ export default function PrintShopOrderPage() {
         ? 'print-shop-quality-warning'
         : missingConsents
           ? 'print-shop-payment-requirements'
-          : 'print-shop-payment-requirements';
+          : 'print-shop-payment';
     window.setTimeout(() => {
       const target = document.getElementById(targetId);
       target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       target?.querySelector<HTMLElement>('input:not([readonly])')?.focus({ preventScroll: true });
+    }, 0);
+  };
+  const goToPayment = () => {
+    if (!canPay) {
+      showPaymentRequirements();
+      return;
+    }
+    window.setTimeout(() => {
+      const target = document.getElementById('print-shop-payment');
+      target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      target?.focus({ preventScroll: true });
     }, 0);
   };
 
@@ -1320,6 +1331,17 @@ export default function PrintShopOrderPage() {
                   </div>
                 </section>
 
+                {orderId && (
+                  <Button
+                    type="button"
+                    onClick={goToPayment}
+                    className="h-12 w-full rounded-full bg-terracotta text-white hover:bg-terracotta/90 lg:hidden"
+                  >
+                    {canPay ? 'Vai al pagamento' : 'Vai ai dati da completare'}
+                    <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+                  </Button>
+                )}
+
                 {resumedPendingPayment ? (
                   <Link href="/stampa-foto-aversa/i-miei-ordini" className="inline-flex h-12 items-center gap-2 rounded-full border border-sage/30 bg-white px-6 text-sm font-semibold text-blue-gray hover:bg-sage/5">
                     <ArrowLeft aria-hidden="true" /> Gestisci o elimina la bozza
@@ -1390,6 +1412,7 @@ export default function PrintShopOrderPage() {
                         {quote.coupon.scope === 'selected'
                           ? `su: ${quote.items.filter((item) => quote.coupon?.eligibleSkus?.includes(item.sku)).map((item) => item.productName).join(', ')}`
                           : 'su tutte le stampe'}. La spedizione è esclusa.
+                      {quote.coupon.minPrintQuantity ? ` Minimo ${quote.coupon.minPrintQuantity} stampe.` : ''}
                       </p>
                     )}
                   </section>
@@ -1439,7 +1462,7 @@ export default function PrintShopOrderPage() {
                 </section>
 
                 {orderId && (
-                  <section className="rounded-[2rem] border border-[#ffc439]/50 bg-white p-5 shadow-sm" aria-labelledby="payment-title">
+                  <section id="print-shop-payment" tabIndex={-1} className="rounded-[2rem] border border-[#ffc439]/50 bg-white p-5 shadow-sm" aria-labelledby="payment-title">
                     <h2 id="payment-title" className="sr-only">Pagamento PayPal</h2>
                     {quote?.totals.totalCents === 0 && !resumedPendingPayment ? (
                       <div className="space-y-3">

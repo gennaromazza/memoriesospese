@@ -737,6 +737,52 @@ describe('print shop coupon quotes and payment reservations', () => {
     })).rejects.toMatchObject({ code: 'coupon_not_applicable' });
   });
 
+  it('requires the minimum number of copies among coupon-eligible formats', async () => {
+    const now = Date.UTC(2026, 0, 2);
+    const f = createService({ now: () => Timestamp.fromMillis(now) });
+    const orderId = 'coupon-minimum-copies-order';
+    f.db.seed(`orders/${orderId}`, baseOrder());
+    seedProduct(f.db, product);
+    seedProduct(f.db, secondProduct);
+    seedReadyAsset(f.db, orderId, 'coupon-minimum-copies-asset');
+    seedCoupon(f.db, 'MINCOPIES', {
+      scope: 'selected',
+      eligibleSkus: [product.sku],
+      minPrintQuantity: 3,
+    });
+    const input = {
+      items: [
+        {
+          sku: product.sku,
+          finish: product.printSpec.finishes[0],
+          fitMode: product.printSpec.fitModes[0],
+          assignments: [{ assetId: 'coupon-minimum-copies-asset', copies: 2 }],
+        },
+        {
+          sku: secondProduct.sku,
+          finish: secondProduct.printSpec.finishes[0],
+          fitMode: secondProduct.printSpec.fitModes[0],
+          assignments: [{ assetId: 'coupon-minimum-copies-asset', copies: 5 }],
+        },
+      ],
+      couponCode: 'MINCOPIES',
+    };
+
+    await expect(f.service.quote(identity, orderId, input))
+      .rejects.toMatchObject({
+        code: 'coupon_min_quantity_not_met',
+        message: expect.stringContaining('ne rientrano 2'),
+      });
+
+    input.items[0].assignments[0].copies = 3;
+    const quote = await f.service.quote(identity, orderId, input);
+    expect(quote.coupon).toMatchObject({
+      minPrintQuantity: 3,
+      scope: 'selected',
+      eligibleSkus: [product.sku],
+    });
+  });
+
   it('reports unknown, disabled, expired, scheduled, and exhausted coupon codes', async () => {
     const now = Date.UTC(2026, 0, 2);
     const f = createService({ now: () => Timestamp.fromMillis(now) });
@@ -1116,6 +1162,7 @@ describe('print shop coupon quotes and payment reservations', () => {
       value: 500,
       scope: 'all' as const,
       eligibleSkus: [],
+      minPrintQuantity: 4,
       startsAt: '2026-01-01T00:00:00.000Z',
       endsAt: '2026-02-01T00:00:00.000Z',
       maxUses: 12,
@@ -1126,6 +1173,7 @@ describe('print shop coupon quotes and payment reservations', () => {
       code: 'SPRINGPRINT',
       discountType: 'fixed',
       value: 500,
+      minPrintQuantity: 4,
       maxUses: 12,
       active: true,
     });

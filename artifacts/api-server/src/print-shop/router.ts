@@ -159,6 +159,7 @@ const printShopCouponSchema = z.object({
   value: z.number().int().positive().max(100_000_000),
   scope: z.enum(['all', 'selected']),
   eligibleSkus: z.array(z.string().trim().min(1).max(80)).max(100),
+  minPrintQuantity: z.number().int().min(0).max(100_000).default(0),
   startsAt: z.iso.datetime({ offset: true }),
   endsAt: z.iso.datetime({ offset: true }),
   maxUses: z.number().int().min(1).max(1_000_000).nullable(),

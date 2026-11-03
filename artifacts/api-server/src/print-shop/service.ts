@@ -475,6 +475,7 @@ export class PrintShopService {
         Number(previous.value) !== coupon.value ||
         couponScope(previous) !== coupon.scope ||
         couponEligibleSkus(previous).join('|') !== coupon.eligibleSkus.join('|') ||
+        couponMinPrintQuantity(previous) !== coupon.minPrintQuantity ||
         timestampMillis(previous.startsAt) !== Date.parse(coupon.startsAt) ||
         timestampMillis(previous.endsAt) !== Date.parse(coupon.endsAt) ||
         (previous.maxUses == null ? null : Number(previous.maxUses)) !== coupon.maxUses ||
@@ -494,6 +495,7 @@ export class PrintShopService {
         value: coupon.value,
         scope: coupon.scope,
         eligibleSkus: coupon.eligibleSkus,
+        minPrintQuantity: coupon.minPrintQuantity,
         startsAt,
         endsAt,
         maxUses: coupon.maxUses,
@@ -530,11 +532,20 @@ export class PrintShopService {
     const scope = couponScope(value);
     const eligibleSkus = couponEligibleSkus(value);
     const eligibleSubtotalCents = couponEligibleSubtotal(value, items);
+    const minPrintQuantity = couponMinPrintQuantity(value);
+    const eligiblePrintQuantity = couponEligiblePrintQuantity(value, items);
     if (scope === 'selected' && eligibleSubtotalCents <= 0) {
       throw new PrintShopHttpError(
         409,
         'coupon_not_applicable',
         'Questo coupon non è applicabile ai formati presenti nel carrello',
+      );
+    }
+    if (eligiblePrintQuantity < minPrintQuantity) {
+      throw new PrintShopHttpError(
+        409,
+        'coupon_min_quantity_not_met',
+        `Per applicare questo coupon servono almeno ${minPrintQuantity} stampe nei formati ammessi. Nel carrello ne rientrano ${eligiblePrintQuantity}.`,
       );
     }
     const redemption = await this.deps.db.collection('printShopCouponRedemptions')
@@ -572,6 +583,7 @@ export class PrintShopService {
         discountType,
         value: discountValue,
         discountCents,
+        minPrintQuantity,
         scope,
         eligibleSkus,
       },
@@ -5922,6 +5934,7 @@ function normalizeCouponInput(input: PrintShopCouponInput): PrintShopCouponInput
   const startsAt = Date.parse(input.startsAt);
   const endsAt = Date.parse(input.endsAt);
   const scope = input.scope === 'selected' ? 'selected' : 'all';
+  const minPrintQuantity = input.minPrintQuantity ?? 0;
   const eligibleSkus = [...new Set(
     (Array.isArray(input.eligibleSkus) ? input.eligibleSkus : [])
       .map(value => normalizeCatalogSku(value))
@@ -5934,6 +5947,7 @@ function normalizeCouponInput(input: PrintShopCouponInput): PrintShopCouponInput
     !Number.isSafeInteger(input.value) || input.value <= 0 ||
     (input.discountType === 'percentage' && input.value > 100) ||
     (input.discountType === 'fixed' && input.value > 100_000_000) ||
+    !Number.isSafeInteger(minPrintQuantity) || minPrintQuantity < 0 || minPrintQuantity > 100_000 ||
     (input.maxUses !== null && (!Number.isSafeInteger(input.maxUses) || input.maxUses < 1))
   ) {
     throw new PrintShopHttpError(400, 'invalid_coupon', 'Valore o limite utilizzi del coupon non valido');
@@ -5953,6 +5967,7 @@ function normalizeCouponInput(input: PrintShopCouponInput): PrintShopCouponInput
     code,
     scope,
     eligibleSkus: scope === 'selected' ? eligibleSkus : [],
+    minPrintQuantity,
     startsAt: new Date(startsAt).toISOString(),
     endsAt: new Date(endsAt).toISOString(),
   };
@@ -5974,6 +5989,7 @@ function couponForAdmin(id: string, value: any): Record<string, unknown> {
     value: Number(value?.value || 0),
     scope: couponScope(value),
     eligibleSkus: couponEligibleSkus(value),
+    minPrintQuantity: couponMinPrintQuantity(value),
     startsAt: timestampToIso(value?.startsAt) || '',
     endsAt: timestampToIso(value?.endsAt) || '',
     maxUses,
@@ -6038,6 +6054,31 @@ function couponEligibleSubtotal(coupon: any, items: readonly any[]): number {
   );
 }
 
+function couponMinPrintQuantity(coupon: any): number {
+  if (coupon?.minPrintQuantity == null) return 0;
+  const value = Number(coupon?.minPrintQuantity ?? 0);
+  if (!Number.isSafeInteger(value) || value < 0 || value > 100_000) {
+    throw new PrintShopHttpError(409, 'coupon_invalid', 'La soglia minima del coupon non è valida');
+  }
+  return value;
+}
+
+function couponEligiblePrintQuantity(coupon: any, items: readonly any[]): number {
+  const eligibleSkus = new Set(couponEligibleSkus(coupon));
+  return items.reduce((total, item) => {
+    if (couponScope(coupon) === 'selected' && !eligibleSkus.has(String(item.sku || '').trim())) {
+      return total;
+    }
+    const copies = Array.isArray(item.assignments)
+      ? item.assignments.reduce(
+        (sum: number, assignment: any) => sum + Math.max(0, Number(assignment.copies) || 0),
+        0,
+      )
+      : 0;
+    return total + copies;
+  }, 0);
+}
+
 function assertCouponMatchesSnapshot(coupon: any, applied: any, order: any): void {
   const scope = couponScope(coupon);
   const appliedScope = couponScope(applied);
@@ -6045,12 +6086,16 @@ function assertCouponMatchesSnapshot(coupon: any, applied: any, order: any): voi
   const appliedEligibleSkus = couponEligibleSkus(applied);
   const items = order?.printShop?.items || [];
   const eligibleSubtotalCents = couponEligibleSubtotal(coupon, items);
+  const minPrintQuantity = couponMinPrintQuantity(coupon);
+  const eligiblePrintQuantity = couponEligiblePrintQuantity(coupon, items);
   if (
     normalizeCouponCode(coupon?.normalizedCode || coupon?.code) !== normalizeCouponCode(applied?.code) ||
     coupon?.discountType !== applied?.discountType ||
     Number(coupon?.value) !== Number(applied?.value) ||
     scope !== appliedScope ||
     eligibleSkus.join('|') !== appliedEligibleSkus.join('|') ||
+    minPrintQuantity !== couponMinPrintQuantity(applied) ||
+    eligiblePrintQuantity < minPrintQuantity ||
     (scope === 'selected' && eligibleSubtotalCents <= 0) ||
     couponDiscountCents(coupon, eligibleSubtotalCents) !== Number(applied?.discountCents)
   ) {
@@ -6547,6 +6592,9 @@ function publicOwnerOrder(order: any, assets?: any[]): any {
           discountType: order.printShop.coupon.discountType,
           value: order.printShop.coupon.value,
           discountCents: order.printShop.coupon.discountCents,
+          minPrintQuantity: couponMinPrintQuantity(order.printShop.coupon),
+          scope: couponScope(order.printShop.coupon),
+          eligibleSkus: couponEligibleSkus(order.printShop.coupon),
         },
       } : {}),
       ...(order.printShop?.customerNotes

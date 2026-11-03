@@ -142,6 +142,8 @@ export interface PrintShopAppliedCoupon {
   discountType: PrintShopCouponDiscountType;
   value: number;
   discountCents: number;
+  /** Minimum number of eligible print copies required for the coupon. */
+  minPrintQuantity?: number;
   /** Missing scope on legacy coupons is interpreted as all formats. */
   scope?: 'all' | 'selected';
   eligibleSkus?: readonly string[];
@@ -163,13 +165,15 @@ export interface PrintShopCoupon {
   active: boolean;
   scope: 'all' | 'selected';
   eligibleSkus: readonly string[];
+  /** Missing value on legacy coupons means no minimum. */
+  minPrintQuantity?: number;
   createdAt?: string;
   updatedAt?: string;
 }
 
 export type PrintShopCouponInput = Pick<
   PrintShopCoupon,
-  'code' | 'discountType' | 'value' | 'startsAt' | 'endsAt' | 'maxUses' | 'active' | 'scope' | 'eligibleSkus'
+  'code' | 'discountType' | 'value' | 'startsAt' | 'endsAt' | 'maxUses' | 'active' | 'scope' | 'eligibleSkus' | 'minPrintQuantity'
 >;
 
 export interface AppliedPrintTier {
