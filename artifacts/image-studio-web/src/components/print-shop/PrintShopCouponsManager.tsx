@@ -17,7 +17,7 @@ const formatsQueryKey = ['/api/print-shop/coupon-formats'] as const;
 type CouponForm = {
   id?: string;
   code: string;
-  discountType: 'percentage' | 'fixed';
+  discountType: PrintShopCoupon['discountType'];
   value: number;
   scope: 'all' | 'selected';
   eligibleSkus: string[];
@@ -57,7 +57,7 @@ function editForm(coupon: PrintShopCoupon): CouponForm {
     id: coupon.id,
     code: coupon.code,
     discountType: coupon.discountType,
-    value: coupon.discountType === 'fixed' ? coupon.value / 100 : coupon.value,
+    value: coupon.discountType === 'percentage' ? coupon.value : coupon.value / 100,
     scope: coupon.scope || 'all',
     eligibleSkus: [...(coupon.eligibleSkus || [])],
     minPrintQuantity: coupon.minPrintQuantity ? String(coupon.minPrintQuantity) : '',
@@ -87,7 +87,7 @@ function toInput(form: CouponForm): PrintShopCouponInput {
   return {
     code: form.code.trim().toUpperCase(),
     discountType: form.discountType,
-    value: form.discountType === 'fixed'
+    value: form.discountType !== 'percentage'
       ? Math.round((Number(String(form.value).replace(',', '.')) || 0) * 100)
       : Number(form.value),
     scope: form.scope,
@@ -157,10 +157,15 @@ export default function PrintShopCouponsManager() {
     if (!/^[A-Z0-9_-]{3,32}$/.test(code)) result.push('Usa 3–32 lettere, numeri, trattini o trattini bassi.');
     if (!Number.isFinite(value) || value <= 0) result.push('Inserisci uno sconto maggiore di zero.');
     if (form.discountType === 'percentage' && (!Number.isInteger(value) || value > 100)) result.push('La percentuale deve essere un numero intero tra 1 e 100.');
-    if (form.discountType === 'fixed' && value > 1_000_000) result.push('L’importo fisso non può superare 10.000 €.');
+    if (form.discountType !== 'percentage' && value > 1_000_000) result.push('L’importo fisso non può superare 10.000 €.');
     if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) result.push('La scadenza deve essere successiva all’inizio.');
     if (form.maxUses.trim() && (!Number.isInteger(Number(form.maxUses)) || Number(form.maxUses) < 1)) result.push('Il limite utilizzi deve essere un intero positivo o vuoto.');
-    if (form.minPrintQuantity.trim() && (!Number.isInteger(Number(form.minPrintQuantity)) || Number(form.minPrintQuantity) < 1 || Number(form.minPrintQuantity) > 100_000)) result.push('Il minimo di stampe deve essere un numero intero tra 1 e 100.000, oppure vuoto.');
+    if (
+      (form.discountType === 'fixed_total' && !form.minPrintQuantity.trim()) ||
+      (form.minPrintQuantity.trim() && (!Number.isInteger(Number(form.minPrintQuantity)) || Number(form.minPrintQuantity) < 1 || Number(form.minPrintQuantity) > 100_000))
+    ) result.push(form.discountType === 'fixed_total'
+      ? 'Imposta la quantità esatta di stampe del pacchetto.'
+      : 'Il minimo di stampe deve essere un numero intero tra 1 e 100.000, oppure vuoto.');
     if (form.scope === 'selected' && form.eligibleSkus.length === 0) result.push('Seleziona almeno un formato oppure scegli tutto lo shop.');
     if (form.scope === 'selected' && formatsQuery.isError) result.push('Non riesco a caricare i formati dello shop.');
     return result;
@@ -209,9 +214,15 @@ export default function PrintShopCouponsManager() {
                     {coupon.showOnPromotionsPage && <Badge variant="outline">In pagina promozioni</Badge>}
                   </div>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {coupon.discountType === 'percentage' ? `${coupon.value}% di sconto` : `${(coupon.value / 100).toFixed(2)} € di sconto`}
+                    {coupon.discountType === 'percentage'
+                      ? `${coupon.value}% di sconto`
+                      : coupon.discountType === 'fixed_total'
+                        ? `${coupon.minPrintQuantity || 0} stampe a ${(coupon.value / 100).toFixed(2)} €`
+                        : `${(coupon.value / 100).toFixed(2)} € di sconto`}
                     {' · '}{coupon.scope === 'selected' ? `${coupon.eligibleSkus?.length || 0} formati selezionati` : 'tutti i formati'}
-                    {coupon.minPrintQuantity ? ` · minimo ${coupon.minPrintQuantity} copie` : ''}
+                    {coupon.minPrintQuantity
+                      ? ` · ${coupon.discountType === 'fixed_total' ? 'quantità esatta' : 'minimo'} ${coupon.minPrintQuantity} copie`
+                      : ''}
                     {' · '}{new Date(coupon.startsAt).toLocaleString('it-IT')} – {new Date(coupon.endsAt).toLocaleString('it-IT')}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
@@ -271,6 +282,7 @@ export default function PrintShopCouponsManager() {
                 <select id="print-coupon-discount-type" value={form.discountType} onChange={(event) => setForm({ ...form, discountType: event.target.value as CouponForm['discountType'], value: event.target.value === 'percentage' ? 10 : 5 })} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
                   <option value="percentage">Percentuale</option>
                   <option value="fixed">Importo fisso</option>
+                  <option value="fixed_total">Prezzo totale per quantità esatta</option>
                 </select>
               </div>
               <div className="space-y-2 sm:col-span-2">
@@ -346,18 +358,33 @@ export default function PrintShopCouponsManager() {
                 <p className="text-xs text-muted-foreground">Se lo sconto è fisso, si applica solo al subtotale dei formati selezionati; la spedizione resta esclusa.</p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="print-coupon-value">{form.discountType === 'percentage' ? 'Percentuale (%)' : 'Importo (€)'}</Label>
+                <Label htmlFor="print-coupon-value">
+                  {form.discountType === 'percentage'
+                    ? 'Percentuale (%)'
+                    : form.discountType === 'fixed_total'
+                      ? 'Prezzo totale del lotto (€)'
+                      : 'Importo fisso di sconto (€)'}
+                </Label>
                 <Input id="print-coupon-value" type="number" min={form.discountType === 'percentage' ? 1 : 0.01} max={form.discountType === 'percentage' ? 100 : 1_000_000} step={form.discountType === 'percentage' ? 1 : 0.01} value={form.value} onChange={(event) => setForm({ ...form, value: Number(event.target.value) })} />
+                {form.discountType === 'fixed_total' && (
+                  <p className="text-xs text-muted-foreground">
+                    È il totale dell’intero lotto. Il risparmio viene calcolato sul listino effettivo e mostrato al cliente nel riepilogo prima del pagamento.
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="print-coupon-max-uses">Numero massimo di utilizzi</Label>
                 <Input id="print-coupon-max-uses" type="number" min={1} step={1} value={form.maxUses} onChange={(event) => setForm({ ...form, maxUses: event.target.value })} placeholder="Nessun limite" />
               </div>
                 <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="print-coupon-min-prints">Numero minimo di copie</Label>
-                  <Input id="print-coupon-min-prints" type="number" min={1} max={100_000} step={1} value={form.minPrintQuantity} onChange={(event) => setForm({ ...form, minPrintQuantity: event.target.value })} placeholder="Nessun minimo" />
+                  <Label htmlFor="print-coupon-min-prints">
+                    {form.discountType === 'fixed_total' ? 'Numero esatto di stampe' : 'Numero minimo di copie'}
+                  </Label>
+                  <Input id="print-coupon-min-prints" type="number" min={1} max={100_000} step={1} value={form.minPrintQuantity} onChange={(event) => setForm({ ...form, minPrintQuantity: event.target.value })} placeholder={form.discountType === 'fixed_total' ? 'Es. 100' : 'Nessun minimo'} />
                   <p className="text-xs text-muted-foreground">
-                    Conta le copie ordinate, non le foto caricate. {form.scope === 'selected' ? 'Se hai scelto dei formati, contano solo quelli.' : 'Contano tutti i formati dello shop.'}
+                    {form.discountType === 'fixed_total'
+                      ? 'Per usare il prezzo pacchetto, il carrello deve contenere esattamente questa quantità totale, senza stampe aggiuntive; tutte devono rientrare nei formati inclusi.'
+                      : `Conta le copie ordinate, non le foto caricate. ${form.scope === 'selected' ? 'Se hai scelto dei formati, contano solo quelli.' : 'Contano tutti i formati dello shop.'}`}
                   </p>
                 </div>
               <div className="space-y-2">

@@ -1490,7 +1490,7 @@ export default function PrintShopOrderPage() {
                           onClick={() => returnToOrderEditing('configure')}
                           className="h-auto min-h-11 whitespace-normal rounded-xl border-terracotta/40 text-terracotta"
                         >
-                          Aggiungi stampe
+                          Modifica le stampe
                         </Button>
                         <Button
                           type="button"
@@ -1498,17 +1498,20 @@ export default function PrintShopOrderPage() {
                           onClick={() => returnToOrderEditing('upload')}
                           className="h-auto min-h-11 whitespace-normal rounded-xl"
                         >
-                          Aggiungi altre foto
+                          Torna alle foto
                         </Button>
                       </div>
                     )}
                     {quote?.coupon && (
                       <p className="mt-2 text-xs text-blue-gray/60">
-                        {quote.coupon.discountType === 'percentage' ? `${quote.coupon.value}%` : formatEuroCents(quote.coupon.value)} di sconto{' '}
-                        {quote.coupon.scope === 'selected'
-                          ? `su: ${quote.items.filter((item) => quote.coupon?.eligibleSkus?.includes(item.sku)).map((item) => item.productName).join(', ')}`
-                          : 'su tutte le stampe'}. La spedizione è esclusa.
-                      {quote.coupon.minPrintQuantity
+                        {quote.coupon.discountType === 'fixed_total'
+                          ? `Prezzo pacchetto ${formatEuroCents(quote.coupon.value)} per esattamente ${quote.coupon.minPrintQuantity} stampe totali.`
+                          : `${quote.coupon.discountType === 'percentage' ? `${quote.coupon.value}%` : formatEuroCents(quote.coupon.value)} di sconto ${
+                              quote.coupon.scope === 'selected'
+                                ? `su: ${quote.items.filter((item) => quote.coupon?.eligibleSkus?.includes(item.sku)).map((item) => item.productName).join(', ')}`
+                                : 'su tutte le stampe'
+                            }. La spedizione è esclusa.`}
+                      {quote.coupon.discountType !== 'fixed_total' && quote.coupon.minPrintQuantity
                         ? ` Per applicarlo servono almeno ${quote.coupon.minPrintQuantity} copie ${quote.coupon.scope === 'selected' ? 'nei formati selezionati' : 'in totale'}.`
                         : ''}
                       </p>
@@ -1518,7 +1521,7 @@ export default function PrintShopOrderPage() {
                     <div className="flex justify-between"><dt className="text-blue-gray/55">Subtotale</dt><dd>{formatEuroCents(quote?.totals.subtotalCents ?? displayedTotal)}</dd></div>
                     {(quote?.totals.discountCents ?? 0) > 0 && (
                       <div className="flex justify-between gap-3 text-emerald-800">
-                        <dt>Sconto {quote?.coupon ? `(${quote.coupon.code})` : ''}</dt>
+                        <dt>Risparmio totale {quote?.coupon ? `(${quote.coupon.code})` : ''}</dt>
                         <dd className="font-semibold">−{formatEuroCents(quote?.totals.discountCents ?? 0)}</dd>
                       </div>
                     )}

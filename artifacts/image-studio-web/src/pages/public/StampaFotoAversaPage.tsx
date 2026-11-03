@@ -64,6 +64,7 @@ import {
   verifiedCatalogPriceCents,
 } from '@/features/print-shop/public-catalog-view';
 import { POLAROID_SKU } from '@shared/print-shop-catalog';
+import { formatPrintPromotionOffer, printPromotionPath } from '@shared/print-shop-promotion';
 
 const BASE_URL = 'https://imagestudiofotografico.com';
 
@@ -80,9 +81,7 @@ function promotionExpiry(isoDate: string): string {
 }
 
 function promotionDiscount(promotion: PrintShopPublicPromotion): string {
-  return promotion.discountType === 'percentage'
-    ? `${promotion.value}%`
-    : formatCatalogEuro(promotion.value);
+  return formatPrintPromotionOffer(promotion);
 }
 
 const formatCards = [
@@ -495,14 +494,11 @@ export default function StampaFotoAversaPage() {
               </div>
               <div className="mt-8 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
                 {promotions.map((promotion) => {
-                  const firstEligibleSku = promotion.scope === 'selected'
-                    ? promotion.eligibleFormats[0]?.sku
-                    : undefined;
                   return (
                     <article key={promotion.code} className="flex flex-col rounded-3xl border border-white/20 bg-white p-6 text-blue-gray shadow-lg">
                       <p className="text-xs font-bold uppercase tracking-[0.16em] text-dark-sage">Promo stampe</p>
                       <h3 className="mt-2 text-2xl font-semibold text-terracotta">
-                        {promotionDiscount(promotion)} di sconto
+                        {promotionDiscount(promotion)}
                       </h3>
                       <p className="mt-3 text-sm text-blue-gray/70">
                         Codice <code className="rounded-lg bg-off-white px-2 py-1 font-mono font-bold text-blue-gray">{promotion.code}</code>
@@ -512,18 +508,20 @@ export default function StampaFotoAversaPage() {
                           ? `Valido su: ${promotion.eligibleFormats.map((format) => format.name).join(', ')}.`
                           : 'Valido su tutti i formati delle stampe.'}
                         {promotion.minPrintQuantity > 0
-                          ? ` Minimo ${promotion.minPrintQuantity} copie${promotion.scope === 'selected' ? ' tra i formati inclusi' : ''}.`
+                          ? promotion.discountType === 'fixed_total'
+                            ? ` Prezzo valido solo per esattamente ${promotion.minPrintQuantity} stampe totali, senza copie extra.`
+                            : ` Minimo ${promotion.minPrintQuantity} copie${promotion.scope === 'selected' ? ' tra i formati inclusi' : ''}.`
                           : ''}
                       </p>
                       <p className="mt-3 text-xs text-blue-gray/55">
                         Valido fino al {promotionExpiry(promotion.endsAt)}.
                       </p>
                       <Link
-                        href={printOrderHref(firstEligibleSku, promotion.code)}
+                        href={createUrl(printPromotionPath(promotion.code))}
                         onClick={() => trackOrderStart(`promo-${promotion.code}`)}
                         className="mt-6 inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-dark-sage px-5 text-sm font-bold text-white transition-colors hover:bg-blue-gray focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-terracotta focus-visible:ring-offset-2"
                       >
-                        {promotion.scope === 'selected' ? 'Scegli un formato incluso' : 'Scegli le stampe'}
+                        Scopri l’offerta
                         <ArrowRight className="h-4 w-4" aria-hidden="true" />
                       </Link>
                     </article>

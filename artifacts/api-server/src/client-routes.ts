@@ -112,6 +112,7 @@ export function isKnownClientPath(pathname: string): boolean {
   // Una pagina per ogni categoria dello shop: l'esistenza della categoria la decide il catalogo.
   if (shopCategoryValueFromPath(path) !== null) return true;
   if (/^\/portfolio\/[^/]+$/.test(path)) return PORTFOLIO_CATEGORIES.has(path.slice('/portfolio/'.length));
+  if (/^\/stampa-foto-aversa\/offerte\/[a-z0-9_-]{3,32}$/i.test(path)) return true;
   if (hasOneSegmentAfter('/real-wedding', path) || hasOneSegmentAfter('/blog', path)) return true;
   if (hasOneSegmentAfter('/prenota', path)) return true;
   if (hasOneSegmentAfter('/consulenze', path)) return true;

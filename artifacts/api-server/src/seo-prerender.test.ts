@@ -9,6 +9,7 @@ import { buildWeddingStoryPageMeta, createSeoMiddleware } from './seo-prerender'
 const indexHtmlPath = fileURLToPath(new URL('../../image-studio-web/index.html', import.meta.url));
 import { GIFT_SHOP_FAQS } from '@shared/gift-card-landing-content';
 import { SHOP_FAQS } from '@shared/shop-landing-content';
+import type { PrintShopPublicPromotion } from '@shared/print-shop-types';
 import {
   WEDDING_HOME_SEO,
   WEDDING_PORTFOLIO_SEO,
@@ -20,7 +21,10 @@ type RenderedResponse = {
   statusCode?: number;
 };
 
-async function renderForCrawler(path: string): Promise<{
+async function renderForCrawler(
+  path: string,
+  loadPrintPromotions?: () => Promise<PrintShopPublicPromotion[]>,
+): Promise<{
   response: RenderedResponse;
   next: ReturnType<typeof vi.fn>;
 }> {
@@ -40,7 +44,10 @@ async function renderForCrawler(path: string): Promise<{
   };
   const next = vi.fn();
 
-  await createSeoMiddleware({ indexHtmlPath })(
+  await createSeoMiddleware({
+    indexHtmlPath,
+    ...(loadPrintPromotions ? { loadPrintPromotions } : {}),
+  })(
     {
       path,
       query: {},
@@ -55,6 +62,46 @@ async function renderForCrawler(path: string): Promise<{
 
 describe('SEO prerender wedding-first', () => {
   beforeEach(() => mockCollection.mockReset());
+
+  it('renders a unique, indexable server page for an active print promotion', async () => {
+    const promotion: PrintShopPublicPromotion = {
+      code: 'PACK100',
+      discountType: 'fixed_total',
+      value: 2_500,
+      startsAt: '2026-11-01T00:00:00.000Z',
+      endsAt: '2026-12-01T23:59:59.000Z',
+      scope: 'all',
+      eligibleFormats: [],
+      minPrintQuantity: 100,
+    };
+    const { response, next } = await renderForCrawler(
+      '/stampa-foto-aversa/offerte/pack100',
+      async () => [promotion],
+    );
+
+    expect(next).not.toHaveBeenCalled();
+    expect(response.statusCode).toBeUndefined();
+    expect(response.body).toContain('rel="canonical" href="https://imagestudiofotografico.com/stampa-foto-aversa/offerte/pack100"');
+    expect(response.body).toContain('property="og:image" content="https://imagestudiofotografico.com/images/print-service/print-promotions-og.jpg"');
+    expect(response.body).toContain('property="og:image:width" content="1200"');
+    expect(response.body).toContain('property="og:image:height" content="630"');
+    expect(response.body).toContain('name="twitter:card" content="summary_large_image"');
+    expect(response.body).toContain('Offerta stampe fotografiche: 100 stampe a');
+    expect(response.body).toContain('priceValidUntil');
+    expect(response.body).toContain('data-seo-prerender="true"');
+  });
+
+  it('returns 404 instead of indexing an unavailable print promotion', async () => {
+    const { response, next } = await renderForCrawler(
+      '/stampa-foto-aversa/offerte/scaduto',
+      async () => [],
+    );
+
+    expect(next).not.toHaveBeenCalled();
+    expect(response.statusCode).toBe(404);
+    expect(response.headers['X-Robots-Tag']).toBe('noindex, nofollow');
+    expect(response.body).toBe('Not Found');
+  });
 
   it.each([
     ['/', WEDDING_HOME_SEO.title, 'Fotografo e videografo di matrimonio ad Aversa, Napoli e Caserta'],

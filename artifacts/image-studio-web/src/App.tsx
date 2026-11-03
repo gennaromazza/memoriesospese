@@ -61,6 +61,7 @@ const WeddingVideosPage = lazyWithRetry(() => import("./pages/public/WeddingVide
 const WeddingSeoPage = lazyWithRetry(() => import("./pages/public/WeddingSeoPage"));
 const FotografoAversaPage = lazyWithRetry(() => import("./pages/public/FotografoAversaPage"));
 const StampaFotoAversaPage = lazyWithRetry(() => import("./pages/public/StampaFotoAversaPage"));
+const PrintShopPromotionPage = lazyWithRetry(() => import("./pages/public/PrintShopPromotionPage"));
 const PrintShopOrderPage = lazyWithRetry(() => import("./pages/public/PrintShopOrderPage"));
 const PrintShopConfirmationPage = lazyWithRetry(() => import("./pages/public/PrintShopConfirmationPage"));
 const PrintShopOrdersPage = lazyWithRetry(() => import("./pages/public/PrintShopOrdersPage"));
@@ -187,6 +188,7 @@ function AppRoutes() {
         <Route path="/lasciati-trasportare" component={LasciatiTrasportarePage} />
         <Route path="/fotografo-aversa" component={FotografoAversaPage} />
         <Route path="/stampa-foto-aversa" component={StampaFotoAversaPage} />
+        <Route path="/stampa-foto-aversa/offerte/:code" component={PrintShopPromotionPage} />
         <Route path="/stampa-foto-aversa/ordine" component={PrintShopOrderPage} />
         <Route path="/stampa-foto-aversa/ordine/conferma" component={PrintShopConfirmationPage} />
         <Route path="/stampa-foto-aversa/i-miei-ordini" component={PrintShopOrdersPage} />

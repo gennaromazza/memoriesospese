@@ -48,6 +48,7 @@ export function preserveCouponCheckoutOnFailure(
     ...current,
     message,
     isError: true,
-    needsMorePrints: errorCode === 'coupon_min_quantity_not_met',
+    needsMorePrints: errorCode === 'coupon_min_quantity_not_met' ||
+      errorCode === 'coupon_exact_quantity_not_met',
   };
 }

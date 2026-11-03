@@ -2,6 +2,12 @@ import { db } from './firebase-admin';
 import { ShopService } from './shop/service';
 import { shopSitemapPaths } from './shop/seo';
 import { BlogPost, BlogPostStatus } from '@shared/schema';
+import {
+  PRINT_PROMOTION_OG_IMAGE,
+  printPromotionPath,
+} from '@shared/print-shop-promotion';
+import type { PrintShopPublicPromotion } from '@shared/print-shop-types';
+import { loadPublicPrintShopPromotions } from './print-shop/seo-promotions';
 
 interface BlogPostMedia {
   url: string;
@@ -71,6 +77,22 @@ export const STATIC_SITEMAP_PAGES: Array<{
   { path: '/privacy', changefreq: 'yearly', priority: '0.3', lastmod: '2026-10-10' },
   { path: '/terms', changefreq: 'yearly', priority: '0.3', lastmod: '2026-08-31' },
 ];
+
+export function buildPrintPromotionSitemapEntries(
+  promotions: readonly PrintShopPublicPromotion[],
+  baseUrl = 'https://imagestudiofotografico.com',
+): string {
+  return promotions.map(promotion => `  <url>
+    <loc>${escapeXml(`${baseUrl}${printPromotionPath(promotion.code)}`)}</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>${escapeXml(`${baseUrl}${PRINT_PROMOTION_OG_IMAGE}`)}</image:loc>
+      <image:title>${escapeXml(`Offerta stampe foto ${promotion.code}`)}</image:title>
+    </image:image>
+  </url>
+`).join('');
+}
 
 function escapeXml(value: unknown): string {
   return String(value ?? '')
@@ -256,6 +278,11 @@ export async function generateDynamicSitemap(): Promise<string> {
 
   sitemap += buildStaticSitemapEntries(baseUrl);
   sitemap += await buildShopCategorySitemapEntries(baseUrl);
+  try {
+    sitemap += buildPrintPromotionSitemapEntries(await loadPublicPrintShopPromotions(), baseUrl);
+  } catch (error) {
+    console.warn('[sitemap] promozioni stampe non lette:', error);
+  }
 
   sitemap += `
   <!-- Blog Posts Dinamici -->

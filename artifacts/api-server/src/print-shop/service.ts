@@ -456,7 +456,11 @@ export class PrintShopService {
           })
         : [];
       if (scope === 'selected' && eligibleFormats.length === 0) return [];
-      if (coupon.discountType !== 'percentage' && coupon.discountType !== 'fixed') return [];
+      if (
+        coupon.discountType !== 'percentage' &&
+        coupon.discountType !== 'fixed' &&
+        coupon.discountType !== 'fixed_total'
+      ) return [];
 
       return [{
         code: String(coupon.code || ''),
@@ -587,7 +591,23 @@ export class PrintShopService {
         'Questo coupon non è applicabile ai formati presenti nel carrello',
       );
     }
-    if (eligiblePrintQuantity < minPrintQuantity) {
+    const totalPrintQuantity = couponEligiblePrintQuantity({ scope: 'all' }, items);
+    if (value.discountType === 'fixed_total') {
+      if (eligiblePrintQuantity !== minPrintQuantity || totalPrintQuantity !== minPrintQuantity) {
+        throw new PrintShopHttpError(
+          409,
+          'coupon_exact_quantity_not_met',
+          `Il prezzo pacchetto vale solo per esattamente ${minPrintQuantity} stampe totali, tutte nei formati inclusi. Nel carrello ci sono ${totalPrintQuantity} stampe, di cui ${eligiblePrintQuantity} idonee.`,
+        );
+      }
+      if (eligibleSubtotalCents <= Number(value.value)) {
+        throw new PrintShopHttpError(
+          409,
+          'coupon_no_savings',
+          'Questo prezzo pacchetto non produce un risparmio sui formati presenti nel carrello.',
+        );
+      }
+    } else if (eligiblePrintQuantity < minPrintQuantity) {
       const quantityScope = scope === 'selected' ? 'nei formati selezionati' : 'in totale';
       throw new PrintShopHttpError(
         409,
@@ -617,11 +637,9 @@ export class PrintShopService {
     }
     const discountType = value.discountType as PrintShopCouponDiscountType;
     const discountValue = Number(value.value);
-    const discountCents = Math.min(
+    const discountCents = couponDiscountCents(
+      { discountType, value: discountValue },
       eligibleSubtotalCents,
-      discountType === 'percentage'
-        ? Math.round(eligibleSubtotalCents * discountValue / 100)
-        : discountValue,
     );
     return {
       couponId: doc.id,
@@ -5993,8 +6011,9 @@ function normalizeCouponInput(input: PrintShopCouponInput): PrintShopCouponInput
   if (
     !Number.isSafeInteger(input.value) || input.value <= 0 ||
     (input.discountType === 'percentage' && input.value > 100) ||
-    (input.discountType === 'fixed' && input.value > 100_000_000) ||
+    ((input.discountType === 'fixed' || input.discountType === 'fixed_total') && input.value > 100_000_000) ||
     !Number.isSafeInteger(minPrintQuantity) || minPrintQuantity < 0 || minPrintQuantity > 100_000 ||
+    (input.discountType === 'fixed_total' && minPrintQuantity < 1) ||
     (input.maxUses !== null && (!Number.isSafeInteger(input.maxUses) || input.maxUses < 1))
   ) {
     throw new PrintShopHttpError(400, 'invalid_coupon', 'Valore o limite utilizzi del coupon non valido');
@@ -6074,6 +6093,8 @@ function couponDiscountCents(coupon: any, subtotalCents: number): number {
     Math.max(0, subtotalCents),
     coupon.discountType === 'percentage'
       ? Math.round(subtotalCents * value / 100)
+      : coupon.discountType === 'fixed_total'
+        ? Math.max(0, subtotalCents - value)
       : value,
   );
 }
@@ -6137,6 +6158,10 @@ function assertCouponMatchesSnapshot(coupon: any, applied: any, order: any): voi
   const eligibleSubtotalCents = couponEligibleSubtotal(coupon, items);
   const minPrintQuantity = couponMinPrintQuantity(coupon);
   const eligiblePrintQuantity = couponEligiblePrintQuantity(coupon, items);
+  const totalPrintQuantity = couponEligiblePrintQuantity({ scope: 'all' }, items);
+  const quantityInvalid = coupon?.discountType === 'fixed_total'
+    ? eligiblePrintQuantity !== minPrintQuantity || totalPrintQuantity !== minPrintQuantity
+    : eligiblePrintQuantity < minPrintQuantity;
   if (
     normalizeCouponCode(coupon?.normalizedCode || coupon?.code) !== normalizeCouponCode(applied?.code) ||
     coupon?.discountType !== applied?.discountType ||
@@ -6144,7 +6169,7 @@ function assertCouponMatchesSnapshot(coupon: any, applied: any, order: any): voi
     scope !== appliedScope ||
     eligibleSkus.join('|') !== appliedEligibleSkus.join('|') ||
     minPrintQuantity !== couponMinPrintQuantity(applied) ||
-    eligiblePrintQuantity < minPrintQuantity ||
+    quantityInvalid ||
     (scope === 'selected' && eligibleSubtotalCents <= 0) ||
     couponDiscountCents(coupon, eligibleSubtotalCents) !== Number(applied?.discountCents)
   ) {

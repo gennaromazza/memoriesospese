@@ -900,6 +900,45 @@ describe('print shop coupon quotes and payment reservations', () => {
     expect(quote.totals.totalCents).toBe(quote.totals.subtotalCents - quote.totals.discountCents);
   });
 
+  it('applies a fixed package price only to exactly the configured total print quantity', async () => {
+    const now = Date.UTC(2026, 0, 2);
+    const f = createService({ now: () => Timestamp.fromMillis(now) });
+    const orderId = 'coupon-exact-package-order';
+    const assetId = 'coupon-exact-package-asset';
+    f.db.seed(`orders/${orderId}`, baseOrder());
+    seedProduct(f.db, product);
+    seedReadyAsset(f.db, orderId, assetId);
+    seedCoupon(f.db, 'PACK100', {
+      discountType: 'fixed_total',
+      value: 5,
+      minPrintQuantity: 3,
+    });
+    const makeInput = (copies: number) => ({
+      items: [{
+        sku: product.sku,
+        finish: product.printSpec.finishes[0],
+        fitMode: product.printSpec.fitModes[0],
+        assignments: [{ assetId, copies }],
+      }],
+      couponCode: 'PACK100',
+    });
+
+    await expect(f.service.quote(identity, orderId, makeInput(2)))
+      .rejects.toMatchObject({ code: 'coupon_exact_quantity_not_met' });
+    await expect(f.service.quote(identity, orderId, makeInput(4)))
+      .rejects.toMatchObject({ code: 'coupon_exact_quantity_not_met' });
+
+    const quote = await f.service.quote(identity, orderId, makeInput(3));
+    expect(quote.coupon).toMatchObject({
+      code: 'PACK100',
+      discountType: 'fixed_total',
+      value: 5,
+      minPrintQuantity: 3,
+    });
+    expect(quote.totals.discountCents).toBe(quote.totals.subtotalCents - 5);
+    expect(quote.totals.totalCents - quote.totals.shippingCents).toBe(5);
+  });
+
   it('reports unknown, disabled, expired, scheduled, and exhausted coupon codes', async () => {
     const now = Date.UTC(2026, 0, 2);
     const f = createService({ now: () => Timestamp.fromMillis(now) });

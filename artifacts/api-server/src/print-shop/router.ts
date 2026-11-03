@@ -155,7 +155,7 @@ const quoteSchema = z.object({
 
 const printShopCouponSchema = z.object({
   code: z.string().trim().min(3).max(32),
-  discountType: z.enum(['percentage', 'fixed']),
+  discountType: z.enum(['percentage', 'fixed', 'fixed_total']),
   value: z.number().int().positive().max(100_000_000),
   scope: z.enum(['all', 'selected']),
   eligibleSkus: z.array(z.string().trim().min(1).max(80)).max(100),
@@ -168,6 +168,9 @@ const printShopCouponSchema = z.object({
 }).strict().refine(
   value => value.discountType !== 'percentage' || value.value <= 100,
   { message: 'La percentuale non può superare il 100%', path: ['value'] },
+).refine(
+  value => value.discountType !== 'fixed_total' || value.minPrintQuantity >= 1,
+  { message: 'Imposta la quantità esatta di stampe del pacchetto', path: ['minPrintQuantity'] },
 ).refine(
   value => Date.parse(value.endsAt) > Date.parse(value.startsAt),
   { message: 'La scadenza deve essere successiva all’inizio', path: ['endsAt'] },

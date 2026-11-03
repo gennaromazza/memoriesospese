@@ -50,6 +50,14 @@ import {
   buildBlogContextualLinks,
   type BlogWeddingStoryCandidate,
 } from '../shared/blog-contextual-links';
+import {
+  formatPrintPromotionOffer,
+  PRINT_PROMOTION_OG_IMAGE,
+  PRINT_PROMOTION_ROUTE_PREFIX,
+  printPromotionPath,
+} from '@shared/print-shop-promotion';
+import type { PrintShopPublicPromotion } from '@shared/print-shop-types';
+import { loadPublicPrintShopPromotions } from './print-shop/seo-promotions';
 
 const BASE_URL = 'https://imagestudiofotografico.com';
 const OG_IMAGE = defaultSocialImage().url;
@@ -58,6 +66,7 @@ const OG_IMAGE = defaultSocialImage().url;
 const PRINT_SEO_FAQS = PRINT_FAQS.filter(faq => !faq.answer.includes('€'));
 const BLOG_LINK_CACHE_TTL_MS = 5 * 60 * 1000;
 let blogLinkCache: { expiresAt: number; docs: any[] } | null = null;
+const PRINT_PROMOTION_OG_URL = `${BASE_URL}${PRINT_PROMOTION_OG_IMAGE}`;
 
 function isNonPrerenderablePath(path: string): boolean {
   return (
@@ -1481,6 +1490,106 @@ const SHOP_SEO_CACHE_MS = 60 * 1000;
 let shopCatalogCache: { expiresAt: number; catalog: ShopCatalogDto } | null = null;
 const shopForSeo = new ShopService({ db });
 
+function promotionOrderUrl(promotion: PrintShopPublicPromotion): string {
+  const params = new URLSearchParams({ coupon: promotion.code });
+  if (promotion.scope === 'selected' && promotion.eligibleFormats.length === 1) {
+    params.set('sku', promotion.eligibleFormats[0].sku);
+  }
+  return `${BASE_URL}/stampa-foto-aversa/ordine?${params.toString()}`;
+}
+
+async function getPrintPromotionMeta(
+  slug: string,
+  loadPromotions: () => Promise<PrintShopPublicPromotion[]>,
+): Promise<PageMeta | null> {
+  if (!/^[a-z0-9_-]{3,32}$/i.test(slug)) return null;
+  const code = slug.toUpperCase();
+  const promotion = (await loadPromotions()).find(
+    entry => entry.code.toUpperCase() === code,
+  );
+  if (!promotion) return null;
+
+  const canonical = `${BASE_URL}${printPromotionPath(promotion.code)}`;
+  const offer = formatPrintPromotionOffer(promotion);
+  const title = `Stampe foto ad Aversa: ${code.slice(0, 12)} | ${offer}`.slice(0, 60);
+  const expiry = new Intl.DateTimeFormat('it-IT', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(new Date(promotion.endsAt));
+  const description = `${offer}. Usa il codice ${promotion.code} entro il ${expiry}. Il risparmio sul listino viene calcolato nel carrello prima del pagamento. Ordina online le stampe fotografiche.`;
+  const formats = promotion.scope === 'selected'
+    ? promotion.eligibleFormats.map(format => escapeHtml(format.name)).join(', ')
+    : 'tutti i formati disponibili nello shop';
+  const exactQuantityText = promotion.discountType === 'fixed_total'
+    ? `Il prezzo pacchetto vale esclusivamente per esattamente ${promotion.minPrintQuantity} stampe totali, tutte nei formati inclusi.`
+    : promotion.minPrintQuantity > 0
+      ? `Per applicare il coupon occorrono almeno ${promotion.minPrintQuantity} copie.`
+      : '';
+  const imageAlt = 'Stampe fotografiche di qualità pronte per conservare i tuoi ricordi';
+  const offerSchema: Record<string, unknown> = {
+    '@context': 'https://schema.org',
+    '@type': 'Offer',
+    name: offer,
+    description,
+    url: canonical,
+    priceCurrency: 'EUR',
+    availability: 'https://schema.org/InStock',
+    validFrom: promotion.startsAt,
+    priceValidUntil: promotion.endsAt.slice(0, 10),
+    seller: { '@type': 'Organization', name: 'Image Studio' },
+    ...(promotion.discountType === 'fixed_total'
+      ? {
+          price: (promotion.value / 100).toFixed(2),
+          eligibleQuantity: {
+            '@type': 'QuantitativeValue',
+            value: promotion.minPrintQuantity,
+            unitText: 'stampe',
+          },
+        }
+      : {}),
+  };
+  return {
+    title,
+    description,
+    canonical,
+    keywords: `stampe foto Aversa, coupon stampa foto, ${promotion.code}, promozioni stampe fotografiche`,
+    socialImage: {
+      url: PRINT_PROMOTION_OG_URL,
+      alt: imageAlt,
+      width: 1200,
+      height: 630,
+      type: 'image/jpeg',
+      source: 'curated-static',
+    },
+    bodyContent: `
+      <article>
+        <img src="${PRINT_PROMOTION_OG_URL}" alt="${imageAlt}" width="1200" height="630" fetchpriority="high" />
+        <h1>Offerta stampe fotografiche: ${escapeHtml(offer)}</h1>
+        <p>Usa il codice <strong>${escapeHtml(promotion.code)}</strong> per ordinare stampe fotografiche online ad Aversa.</p>
+        <p>Formati validi: ${formats}.</p>
+        ${exactQuantityText ? `<p>${escapeHtml(exactQuantityText)}</p>` : ''}
+        <p>Il risparmio viene calcolato sul prezzo normale dei formati scelti e mostrato nel riepilogo prima del pagamento.</p>
+        <p>Offerta valida fino al ${escapeHtml(expiry)}, salvo esaurimento degli utilizzi disponibili.</p>
+        <p><a href="${escapeHtml(promotionOrderUrl(promotion))}">Scegli le stampe e applica il codice ${escapeHtml(promotion.code)}</a></p>
+        <p><a href="${BASE_URL}/stampa-foto-aversa">Scopri tutti i formati di stampa foto</a></p>
+      </article>
+    `,
+    jsonLd: [
+      offerSchema,
+      {
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'Home', item: `${BASE_URL}/` },
+          { '@type': 'ListItem', position: 2, name: 'Stampa foto ad Aversa', item: `${BASE_URL}/stampa-foto-aversa` },
+          { '@type': 'ListItem', position: 3, name: `Offerta ${promotion.code}`, item: canonical },
+        ],
+      },
+    ],
+  };
+}
+
 /**
  * Vetrina di Natale per Google: testi fissi più, se lo shop è aperto, l'elenco dei
  * prodotti con prezzo e i dati strutturati. Se il catalogo non si legge, la pagina
@@ -1519,7 +1628,10 @@ async function getShopPageMeta(): Promise<PageMeta | null> {
   }
 }
 
-export function createSeoMiddleware(options: { indexHtmlPath?: string } = {}) {
+export function createSeoMiddleware(options: {
+  indexHtmlPath?: string;
+  loadPrintPromotions?: () => Promise<PrintShopPublicPromotion[]>;
+} = {}) {
   const indexHtmlPath = options.indexHtmlPath
     || path.resolve(process.cwd(), 'artifacts/image-studio-web/dist/public/index.html');
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -1551,7 +1663,18 @@ export function createSeoMiddleware(options: { indexHtmlPath?: string } = {}) {
     try {
       let meta: PageMeta | null = null;
 
-      if (path.startsWith('/real-wedding/') && path !== '/real-wedding') {
+      if (path.startsWith(`${PRINT_PROMOTION_ROUTE_PREFIX}/`)) {
+        const slug = path.slice(PRINT_PROMOTION_ROUTE_PREFIX.length + 1);
+        meta = await getPrintPromotionMeta(
+          slug,
+          options.loadPrintPromotions || loadPublicPrintShopPromotions,
+        );
+        if (!meta) {
+          res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+          res.status(404).type('text/plain').send('Not Found');
+          return;
+        }
+      } else if (path.startsWith('/real-wedding/') && path !== '/real-wedding') {
         const slug = path.replace('/real-wedding/', '');
         if (!await hasWeddingStory(slug)) {
           res.setHeader('X-Robots-Tag', 'noindex, nofollow');

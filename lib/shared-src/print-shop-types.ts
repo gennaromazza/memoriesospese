@@ -134,7 +134,7 @@ export interface PrintShopQuoteInput {
   couponCode?: string;
 }
 
-export type PrintShopCouponDiscountType = 'percentage' | 'fixed';
+export type PrintShopCouponDiscountType = 'percentage' | 'fixed' | 'fixed_total';
 
 /** Snapshot of the coupon applied to a server-calculated quote. */
 export interface PrintShopAppliedCoupon {
@@ -142,7 +142,7 @@ export interface PrintShopAppliedCoupon {
   discountType: PrintShopCouponDiscountType;
   value: number;
   discountCents: number;
-  /** Minimum number of eligible print copies required for the coupon. */
+  /** Minimum copies required, or exact package quantity for fixed_total coupons. */
   minPrintQuantity?: number;
   /** Missing scope on legacy coupons is interpreted as all formats. */
   scope?: 'all' | 'selected';
@@ -154,7 +154,7 @@ export interface PrintShopCoupon {
   id: string;
   code: string;
   discountType: PrintShopCouponDiscountType;
-  /** Whole percentage points or fixed discount in cents. */
+  /** Percentage points, fixed discount in cents, or fixed package total in cents. */
   value: number;
   startsAt: string;
   endsAt: string;
@@ -182,7 +182,7 @@ export type PrintShopCouponInput = Pick<
 export interface PrintShopPublicPromotion {
   code: string;
   discountType: PrintShopCouponDiscountType;
-  /** Whole percentage points or fixed discount in cents. */
+  /** Percentage points, fixed discount in cents, or fixed package total in cents. */
   value: number;
   startsAt: string;
   endsAt: string;
