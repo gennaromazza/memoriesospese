@@ -33,3 +33,10 @@ Quando gli ordini si chiudono (ultimo giorno scaduto) la pagina resta online con
 
 ## Indirizzo dello shop
 Lo shop sta su `/online-shop` (nome e indirizzo neutri, non legati al Natale). Il vecchio `/shop-natale` e tutti i suoi sotto-indirizzi (categorie, ordine, conferma, «I miei ordini») rispondono con un reindirizzamento permanente (301) al nuovo, con gli stessi parametri: i link già inviati per email continuano a funzionare.
+
+## Verifica anteprima social (3 novembre 2026)
+
+- La risposta pubblica di `https://imagestudiofotografico.com/online-shop` e del dominio Replit, anche con user-agent browser, Facebook, LinkedIn e X, restituisce i meta della home: titolo «Fotografo Matrimoni Aversa, Napoli e Caserta | Image Studio», descrizione della home e immagine `https://imagestudiofotografico.com/1200x630px.jpg`. Canonical punta anch'esso alla home.
+- OpenGraph.xyz mostra la stessa scheda della home. Il titolo, la descrizione e l'immagine attesi per lo shop nel codice sono «Shop online con le tue foto, Aversa | Image Studio», la descrizione dello shop e `https://imagestudiofotografico.com/images/social/online-shop-natale.jpg`.
+- Il Facebook Sharing Debugger richiede l'accesso a Facebook; il LinkedIn Post Inspector non è consultabile da questo ambiente (403). Non è stata richiesta l'invalidazione di cache: prima va corretta la risposta HTTP pubblica, altrimenti i crawler ricacheranno i meta della home.
+- `SHOP_INDEXABLE` non è stato modificato durante il controllo. La sitemap pubblica corrente non contiene `/online-shop` né `/regala`.
