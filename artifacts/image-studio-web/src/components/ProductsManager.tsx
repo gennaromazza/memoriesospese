@@ -10,6 +10,8 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import imageCompression from 'browser-image-compression';
 import { storage, auth } from '@/lib/firebase';
+import { AdminPasskeyClient, type AdminSecurityStatus } from '@/lib/admin-passkey';
+import { getProductSaveErrorMessage, isProductWritePermissionDenied } from '@/lib/product-save-errors';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import {
   DndContext,
@@ -802,9 +804,18 @@ export default function ProductsManager({ autoCreate, autoEditId, autoFocusDescr
       onChanged?.();
     } catch (error) {
       console.error('Errore salvataggio prodotto:', error);
+      let securityStatus: Pick<AdminSecurityStatus, 'passkeyRequired' | 'verified'> | undefined;
+      let securityStatusError: unknown;
+      if (isProductWritePermissionDenied(error)) {
+        try {
+          securityStatus = await AdminPasskeyClient.getStatus();
+        } catch (statusError) {
+          securityStatusError = statusError;
+        }
+      }
       toast({
         title: 'Errore',
-        description: 'Impossibile salvare il prodotto',
+        description: getProductSaveErrorMessage(error, securityStatus, securityStatusError),
         variant: 'destructive',
       });
     } finally {

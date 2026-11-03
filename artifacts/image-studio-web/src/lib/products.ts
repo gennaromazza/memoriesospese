@@ -30,9 +30,20 @@ import {
   reorderProductCategories,
   toggleProductCategoryStatus
 } from './product-categories';
+import { isPrintShopManagedProduct } from '@/features/print-shop/product-channel-guard';
 
 const PRODUCTS_COLLECTION = 'products';
 const SHOP_PRODUCT_COSTS_COLLECTION = 'shopProductCosts';
+
+function assertClientManagedProduct(product: unknown): void {
+  if (!product || typeof product !== 'object') return;
+  if (isPrintShopManagedProduct(product as { salesChannels?: unknown })) {
+    throw Object.assign(
+      new Error('I prodotti del catalogo stampe si gestiscono dall’editor shop dedicato.'),
+      { code: 'print_shop_route_required' },
+    );
+  }
+}
 
 function assertValidShopProductCost(value: unknown): asserts value is number | undefined {
   if (value !== undefined && (typeof value !== 'number' || !Number.isFinite(value) || value < 0)) {
@@ -95,6 +106,7 @@ export async function getProductById(id: string): Promise<Product | null> {
  * Crea un nuovo prodotto
  */
 export async function createProduct(data: InsertProduct): Promise<string> {
+  assertClientManagedProduct(data);
   const { costoUnitario, ...productFields } = data;
   assertValidShopProductCost(costoUnitario);
   // Calcola prezzo finale
@@ -225,6 +237,7 @@ async function renameBenefitProductNameInRules(oldName: string, newName: string)
  * solo se la cascade riesce, procede con il rename del prodotto in Firestore.
  */
 export async function updateProduct(id: string, data: Partial<InsertProduct>): Promise<void> {
+  assertClientManagedProduct(data);
   const docRef = doc(db, PRODUCTS_COLLECTION, id);
   const hasShopCost = Object.prototype.hasOwnProperty.call(data, 'costoUnitario');
   const { costoUnitario, ...productFields } = data;
@@ -232,7 +245,10 @@ export async function updateProduct(id: string, data: Partial<InsertProduct>): P
 
   // Leggi sempre il doc corrente: serve per prezzo/sconto E per rilevare cambio nome
   const currentDoc = await getDoc(docRef);
-  const currentData = currentDoc.exists() ? currentDoc.data() as { nome?: string; prezzo?: number; sconto?: number } : null;
+  const currentData = currentDoc.exists()
+    ? currentDoc.data() as { nome?: string; prezzo?: number; sconto?: number; salesChannels?: unknown }
+    : null;
+  assertClientManagedProduct(currentData);
 
   // Se il nome cambia, esegui la cascade PRIMA di aggiornare il prodotto.
   // In caso di errore nella cascade, l'eccezione si propaga e il prodotto non viene rinominato.

@@ -56,6 +56,35 @@ async function setState(state: Record<string, unknown>) {
 }
 
 describe('admin passkey claim in Firestore rules', () => {
+  it('consente prodotti ordinari solo agli admin verificati e nega i formati print_shop al client', async () => {
+    const verified = adminWith(valid());
+    await assertSucceeds(setDoc(doc(verified, 'products', 'album'), {
+      nome: 'Album',
+      prezzo: 120,
+      sconto: 0,
+      prezzoFinale: 120,
+      salesChannels: ['admin'],
+    }));
+    await assertFails(setDoc(doc(verified, 'products', 'formato-shop'), {
+      nome: 'Formato stampe',
+      salesChannels: ['admin', 'print_shop'],
+    }));
+
+    const unverifiedAdmin = adminWith({});
+    await assertFails(setDoc(doc(unverifiedAdmin, 'products', 'album-non-verificato'), {
+      nome: 'Album',
+      prezzo: 120,
+      salesChannels: ['admin'],
+    }));
+
+    const customer = env.authenticatedContext('customer-uid', { email: 'cliente@example.com' }).firestore();
+    await assertFails(setDoc(doc(customer, 'products', 'album-cliente'), {
+      nome: 'Album',
+      prezzo: 120,
+      salesChannels: ['admin'],
+    }));
+  });
+
   it('tiene i costi unitari dello shop privati e lascia i prodotti pubblici leggibili', async () => {
     await env.withSecurityRulesDisabled(async (context) => {
       await setDoc(doc(context.firestore(), 'products', 'tazza'), { nome: 'Tazza' });

@@ -103,6 +103,27 @@ describe('costo riservato dei prodotti shop', () => {
     expect(firestoreMock.batchCommit).toHaveBeenCalledOnce();
   });
 
+  it('crea un prodotto ordinario direttamente senza includere costi o canali riservati', async () => {
+    const id = await createProduct(newProduct({ costoUnitario: undefined }));
+
+    expect(id).toBe('legacy-new-product');
+    expect(firestoreMock.addDoc).toHaveBeenCalledOnce();
+    const [, productData] = firestoreMock.addDoc.mock.calls[0];
+    expect(productData).toMatchObject({ nome: 'Tazza di Natale', prezzoFinale: 18 });
+    expect(productData).not.toHaveProperty('costoUnitario');
+    expect(productData).not.toHaveProperty('salesChannels');
+    expect(firestoreMock.writeBatch).not.toHaveBeenCalled();
+  });
+
+  it('non instrada prodotti gestiti dallo shop alle scritture client', async () => {
+    await expect(createProduct(newProduct({
+      salesChannels: ['admin', 'print_shop'],
+    }))).rejects.toMatchObject({ code: 'print_shop_route_required' });
+
+    expect(firestoreMock.addDoc).not.toHaveBeenCalled();
+    expect(firestoreMock.writeBatch).not.toHaveBeenCalled();
+  });
+
   it('aggiorna o rimuove il costo senza scriverlo nel documento pubblico del prodotto', async () => {
     await updateProduct('p1', { costoUnitario: 0 });
     const [, productData] = firestoreMock.batchUpdate.mock.calls[0];
@@ -131,5 +152,17 @@ describe('costo riservato dei prodotti shop', () => {
     await deleteProduct('p1');
     expect(firestoreMock.batchDelete).toHaveBeenCalledWith({ id: 'p1', path: 'products/p1' });
     expect(firestoreMock.batchDelete).toHaveBeenCalledWith({ id: 'p1', path: 'shopProductCosts/p1' });
+  });
+
+  it('non aggiorna direttamente un prodotto già gestito dal catalogo stampe', async () => {
+    firestoreMock.getDoc.mockResolvedValue({
+      exists: () => true,
+      data: () => ({ nome: 'Formato', salesChannels: ['admin', 'print_shop'] }),
+    });
+
+    await expect(updateProduct('print-format', { nome: 'Formato modificato' }))
+      .rejects.toMatchObject({ code: 'print_shop_route_required' });
+    expect(firestoreMock.updateDoc).not.toHaveBeenCalled();
+    expect(firestoreMock.batchUpdate).not.toHaveBeenCalled();
   });
 });
