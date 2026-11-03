@@ -716,6 +716,67 @@ describe('print shop coupon quotes and payment reservations', () => {
     expect(shippingQuote.quoteFingerprint).not.toBe(pickupQuote.quoteFingerprint);
   });
 
+  it('resumes a pending PayPal order with its saved coupon and totals after current terms and prices change', async () => {
+    const now = Date.UTC(2026, 0, 2);
+    const f = createService({ now: () => Timestamp.fromMillis(now) });
+    const draft = await f.service.createDraft(identity, {});
+    const assetId = 'coupon-resume-asset';
+    seedProduct(f.db, product);
+    seedReadyAsset(f.db, draft.id, assetId);
+    const storagePath = f.db.value(`orders/${draft.id}/assets/${assetId}`).storagePath;
+    f.storage.put(storagePath, Buffer.from('saved image'));
+    seedCoupon(f.db, 'RESUME25', { value: 10 });
+
+    const quote = await f.service.quote(identity, draft.id, quoteInput(assetId, 'RESUME25'));
+    await f.service.createPaypalOrder(identity, draft.id, {
+      termsAccepted: true,
+      privacyAccepted: true,
+      personalizedProductionAccepted: true,
+      expectedQuoteFingerprint: quote.quoteFingerprint!,
+      expectedTotalCents: quote.totals.totalCents,
+    });
+    expect(f.db.value(`orders/${draft.id}`)).toMatchObject({
+      fulfillment: { status: 'awaiting_payment' },
+      payment: { status: 'pending' },
+    });
+
+    // Simula un cambiamento delle condizioni correnti: la ripresa deve restituire
+    // lo snapshot già salvato, non ricalcolare il riepilogo col coupon/listino attuali.
+    seedCoupon(f.db, 'RESUME25', { active: false, value: 90 });
+    seedProduct(f.db, {
+      ...product,
+      catalogVersion: product.catalogVersion + 1,
+      printSpec: {
+        ...product.printSpec,
+        pricing: {
+          ...product.printSpec.pricing,
+          tiers: [{ minQuantity: 1, unitPriceCents: 7000 }],
+        },
+      },
+    });
+
+    const resumed = await f.service.resumeOwnerOrder(identity, draft.id);
+    expect(resumed).toMatchObject({
+      id: draft.id,
+      catalogVersion: quote.catalogVersion,
+      quoteFingerprint: quote.quoteFingerprint,
+      fulfillment: { status: 'awaiting_payment' },
+      payment: { status: 'pending' },
+      totals: quote.totals,
+      printShop: {
+        coupon: {
+          code: 'RESUME25',
+          value: 10,
+          discountCents: quote.coupon?.discountCents,
+        },
+        items: quote.items,
+      },
+    });
+    expect(resumed.totals).toEqual(quote.totals);
+    expect(resumed.printShop.coupon.code).toBe(quote.coupon?.code);
+    expect(resumed.printShop.coupon.discountCents).toBe(quote.totals.discountCents);
+  });
+
   it('applies a format-specific coupon only to selected SKUs', async () => {
     const now = Date.UTC(2026, 0, 2);
     const f = createService({ now: () => Timestamp.fromMillis(now) });
