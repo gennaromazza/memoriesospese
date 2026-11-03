@@ -16,7 +16,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
-import { Send, Mail, Users, CheckCircle, XCircle, Loader2, AlertCircle, Eye, Search, Save, FileText, Trash2, Play } from 'lucide-react';
+import { Send, Mail, Users, CheckCircle, XCircle, Loader2, AlertCircle, Eye, Search, Save, FileText, Trash2, Play, CalendarDays, Filter } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -64,11 +64,28 @@ interface EmailTemplate {
   updatedAt: any;
 }
 
+interface BookingCampaignFilter {
+  value: string;
+  label: string;
+  endDate: string | null;
+  recipientsCount: number;
+}
+
+function emailSelectionKey(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+function formatCampaignDate(date: string | null | undefined): string {
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return 'Data non disponibile';
+  const [year, month, day] = date.split('-');
+  return `${day}/${month}/${year}`;
+}
+
 export default function BulkEmailSender() {
   const { toast } = useToast();
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
-  const [filter, setFilter] = useState<string>('all');
+  const [selectedFilters, setSelectedFilters] = useState<string[]>(['all']);
   const [senderEmail, setSenderEmail] = useState('');
   const [consentConfirmed, setConsentConfirmed] = useState(false);
   const [selectedRecipients, setSelectedRecipients] = useState<Set<string>>(new Set());
@@ -109,17 +126,27 @@ export default function BulkEmailSender() {
   }, [senderEmail, verifiedSendingDomains]);
 
   // Query destinatari disponibili
-  const { data: recipientsData, isLoading: recipientsLoading } = useQuery({
-    queryKey: ['/api/bulk-email/recipients', filter],
+  const recipientsFilterKey = selectedFilters.slice().sort().join('|');
+  const { data: recipientsData, isLoading: recipientsLoading, error: recipientsError } = useQuery<{
+    recipients: BulkEmailRecipient[];
+    total: number;
+    duplicatesRemoved?: number;
+    unlinkedBookingContacts?: number;
+  }>({
+    queryKey: ['/api/bulk-email/recipients', recipientsFilterKey],
     queryFn: async () => {
-      const params = filter !== 'all' ? `?filter=${filter}` : '';
-      const response = await apiRequest('GET', `/api/bulk-email/recipients${params}`);
+      const params = new URLSearchParams();
+      selectedFilters.forEach((value) => params.append('filters', value));
+      const response = await apiRequest('GET', `/api/bulk-email/recipients?${params.toString()}`);
       if (!response.ok) throw new Error('Errore caricamento destinatari');
       return response.json();
-    }
+    },
+    enabled: selectedFilters.length > 0,
   });
 
   const recipients: BulkEmailRecipient[] = recipientsData?.recipients || [];
+  const duplicatesRemoved = recipientsData?.duplicatesRemoved || 0;
+  const unlinkedBookingContacts = recipientsData?.unlinkedBookingContacts || 0;
 
   // Query job attivo (polling ogni 2 secondi se in progress)
   const { data: activeJobData } = useQuery({
@@ -166,17 +193,30 @@ export default function BulkEmailSender() {
   const templates: EmailTemplate[] = templatesData?.templates || [];
 
   // Query filtri disponibili (anni dinamici + tipi lavoro)
-  const { data: filtersData } = useQuery<{ filters: { value: string; label: string }[]; jobTypeFilters: { value: string; label: string }[] }>({
+  const { data: filtersData } = useQuery<{
+    filters: { value: string; label: string }[];
+    jobTypeFilters: { value: string; label: string }[];
+    bookingCampaignFilters: BookingCampaignFilter[];
+  }>({
     queryKey: ['/api/bulk-email/filters'],
     queryFn: async () => {
       const response = await apiRequest('GET', '/api/bulk-email/filters');
-      if (!response.ok) return { filters: [], jobTypeFilters: [] };
+      if (!response.ok) return { filters: [], jobTypeFilters: [], bookingCampaignFilters: [] };
       return response.json();
     },
   });
 
   const yearFilters = filtersData?.filters || [];
   const jobTypeFilters = filtersData?.jobTypeFilters || [];
+  const bookingCampaignFilters = filtersData?.bookingCampaignFilters || [];
+
+  const toggleRecipientFilter = (value: string) => {
+    setSelectedFilters((current) => current.includes(value)
+      ? current.filter((item) => item !== value)
+      : [...current, value]);
+    setSelectedRecipients(new Set());
+    setSelectAll(false);
+  };
 
   // Filtra destinatari per ricerca
   const filteredRecipients = useMemo(() => {
@@ -194,7 +234,7 @@ export default function BulkEmailSender() {
   const sendMutation = useMutation({
     mutationFn: async () => {
       const selectedList = Array.from(selectedRecipients)
-        .map(email => recipients.find(r => r.email === email))
+        .map(email => recipients.find(r => emailSelectionKey(r.email) === email))
         .filter(Boolean);
 
       if (selectedList.length === 0) {
@@ -238,20 +278,23 @@ export default function BulkEmailSender() {
     }
   });
 
-  // Toggle seleziona tutti (usa filteredRecipients)
+  // Seleziona/deseleziona i risultati visibili senza perdere la selezione fuori ricerca.
   const handleSelectAll = () => {
-    if (selectAll) {
-      setSelectedRecipients(new Set());
-    } else {
-      setSelectedRecipients(new Set(filteredRecipients.map(r => r.email)));
-    }
-    setSelectAll(!selectAll);
+    const visibleEmails = filteredRecipients.map((recipient) => emailSelectionKey(recipient.email));
+    const allVisibleSelected = visibleEmails.length > 0 &&
+      visibleEmails.every((email) => selectedRecipients.has(email));
+    setSelectedRecipients((current) => {
+      const next = new Set(current);
+      if (allVisibleSelected) visibleEmails.forEach((email) => next.delete(email));
+      else visibleEmails.forEach((email) => next.add(email));
+      return next;
+    });
   };
 
   // Aggiorna selectAll quando cambiano i filteredRecipients
   useEffect(() => {
     if (filteredRecipients.length > 0) {
-      const allSelected = filteredRecipients.every(r => selectedRecipients.has(r.email));
+      const allSelected = filteredRecipients.every(r => selectedRecipients.has(emailSelectionKey(r.email)));
       setSelectAll(allSelected);
     } else {
       setSelectAll(false);
@@ -367,14 +410,14 @@ export default function BulkEmailSender() {
 
   // Toggle singolo destinatario
   const handleToggleRecipient = (email: string) => {
+    const key = emailSelectionKey(email);
     const newSet = new Set(selectedRecipients);
-    if (newSet.has(email)) {
-      newSet.delete(email);
+    if (newSet.has(key)) {
+      newSet.delete(key);
     } else {
-      newSet.add(email);
+      newSet.add(key);
     }
     setSelectedRecipients(newSet);
-    setSelectAll(newSet.size === recipients.length);
   };
 
   // Template email esempio
@@ -401,34 +444,102 @@ export default function BulkEmailSender() {
 <p style="margin-top: 30px;">A presto,<br><strong>Gennaro Mazzacane</strong></p>`);
   };
 
+  const renderAudienceFilter = (
+    value: string,
+    label: string,
+    description: string,
+    count?: number,
+  ) => {
+    const id = `audience-${value.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+    return (
+      <div
+        key={value}
+        className="flex min-w-0 items-start gap-2 rounded-lg border border-stone-200 bg-white px-3 py-2.5 transition-colors hover:border-teal-300 hover:bg-teal-50/40"
+      >
+        <Checkbox
+          id={id}
+          checked={selectedFilters.includes(value)}
+          onCheckedChange={() => toggleRecipientFilter(value)}
+          data-testid={`checkbox-${id}`}
+          disabled={count === 0}
+          className="mt-0.5"
+        />
+        <Label htmlFor={id} className="flex min-w-0 flex-1 cursor-pointer items-start justify-between gap-2">
+          <span className="min-w-0">
+            <span className="block text-sm font-medium leading-5 text-stone-800">{label}</span>
+            <span className="mt-0.5 block text-xs leading-4 text-stone-500">{description}</span>
+          </span>
+          {typeof count === "number" && (
+            <Badge variant="secondary" className="shrink-0 rounded-full bg-stone-100 text-stone-600">
+              {count}
+            </Badge>
+          )}
+        </Label>
+      </div>
+    );
+  };
+
   return (
-    <div className="container mx-auto p-6 max-w-7xl">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">📧 Invio Email Massivo</h1>
-        <p className="text-muted-foreground">
-          Crea campagne tramite Resend Marketing; Gmail resta separato per le email operative.
-        </p>
+    <div className="mx-auto w-full max-w-[1440px] space-y-6 px-3 py-5 sm:px-6">
+      <header className="flex flex-col gap-4 rounded-2xl border border-stone-200 bg-gradient-to-r from-stone-50 to-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6">
+        <div>
+          <div className="mb-2 flex items-center gap-2 text-sm font-medium text-teal-800">
+            <Mail className="h-4 w-4" />
+            Comunicazione clienti
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight text-stone-900 sm:text-3xl">
+            Invio email marketing
+          </h1>
+          <p className="mt-1 max-w-2xl text-sm text-stone-600">
+            Prepara una campagna, componi il pubblico e controlla i destinatari prima di affidarla a Resend.
+          </p>
+        </div>
+        <Badge
+          variant={resendStatus?.connected ? "default" : "destructive"}
+          className="w-fit rounded-full px-3 py-1"
+          data-testid="status-resend-connection"
+        >
+          {resendStatusLoading ? "Verifica Resend…" : resendStatus?.connected ? "Resend collegato" : "Resend non disponibile"}
+        </Badge>
+      </header>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="flex items-center gap-3 rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
+          <div className="rounded-lg bg-amber-50 p-2 text-amber-800"><Mail className="h-4 w-4" /></div>
+          <div><p className="text-xs font-semibold uppercase tracking-wide text-stone-500">01 · Messaggio</p><p className="text-sm text-stone-700">Oggetto e contenuto</p></div>
+        </div>
+        <div className="flex items-center gap-3 rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
+          <div className="rounded-lg bg-teal-50 p-2 text-teal-800"><Users className="h-4 w-4" /></div>
+          <div><p className="text-xs font-semibold uppercase tracking-wide text-stone-500">02 · Destinatari</p><p className="text-sm text-stone-700">{recipients.length} contatti unici disponibili</p></div>
+        </div>
+        <div className="flex items-center gap-3 rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
+          <div className="rounded-lg bg-sky-50 p-2 text-sky-800"><CheckCircle className="h-4 w-4" /></div>
+          <div><p className="text-xs font-semibold uppercase tracking-wide text-stone-500">03 · Revisione</p><p className="text-sm text-stone-700">Anteprima e conferma prima dell’invio</p></div>
+        </div>
       </div>
 
-      <Tabs defaultValue="compose" className="space-y-6">
-        <TabsList>
+      <Tabs defaultValue="compose" className="space-y-5">
+        <TabsList className="grid h-auto w-full grid-cols-2 rounded-xl bg-stone-100 p-1 sm:w-fit">
           <TabsTrigger value="compose">
             <Mail className="h-4 w-4 mr-2" />
-            Componi Email
+            Nuovo invio
           </TabsTrigger>
           <TabsTrigger value="jobs">
             <Loader2 className="h-4 w-4 mr-2" />
-            Jobs Attivi ({allJobs.length})
+            Invii e attività ({allJobs.length})
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="compose" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <TabsContent value="compose" className="space-y-5">
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-5">
             {/* Editor Email */}
-            <div className="lg:col-span-2 space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>✍️ Componi Messaggio</CardTitle>
+            <div className="space-y-5 lg:col-span-3">
+              <Card className="overflow-hidden rounded-2xl border-stone-200 shadow-sm">
+                <CardHeader className="border-b border-stone-100 bg-stone-50/70">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Mail className="h-5 w-5 text-teal-800" />
+                    Componi il messaggio
+                  </CardTitle>
                   <CardDescription>
                     Usa <code className="bg-muted px-1">{`{nome}`}</code>, <code className="bg-muted px-1">{`{cognome}`}</code>, <code className="bg-muted px-1">{`{nome_completo}`}</code> per personalizzare
                   </CardDescription>
@@ -477,8 +588,8 @@ export default function BulkEmailSender() {
                       placeholder="Inserisci il corpo dell'email qui (HTML supportato)..."
                       value={body}
                       onChange={(e) => setBody(e.target.value)}
-                      rows={16}
-                      className="font-mono text-sm"
+                      rows={13}
+                      className="min-h-64 resize-y font-mono text-sm"
                       data-testid="textarea-email-body"
                     />
                   </div>
@@ -548,17 +659,14 @@ export default function BulkEmailSender() {
             </div>
 
             {/* Selezione Destinatari */}
-            <div className="space-y-6">
-              <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+            <div className="space-y-5 lg:col-span-2">
+              <Card className="overflow-hidden rounded-2xl border-sky-200 bg-gradient-to-br from-sky-50 to-white shadow-sm">
                 <CardContent className="py-4">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <Mail className="h-5 w-5 text-blue-600" />
-                      <span className="font-semibold text-blue-900">Resend Marketing</span>
+                      <span className="font-semibold text-blue-900">Configurazione Resend Marketing</span>
                     </div>
-                    <Badge variant={resendStatus?.connected ? "default" : "destructive"}>
-                      {resendStatusLoading ? "Verifica…" : resendStatus?.connected ? "Collegato" : "Non disponibile"}
-                    </Badge>
                   </div>
                   {verifiedSendingDomains.length > 0 ? (
                     <p className="text-xs text-muted-foreground">
@@ -579,52 +687,113 @@ export default function BulkEmailSender() {
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Users className="h-5 w-5" />
-                    Destinatari ({selectedRecipients.size})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label htmlFor="filter">Filtra Clienti</Label>
-                    <Select value={filter} onValueChange={(v) => { setFilter(v); setSelectedRecipients(new Set()); }}>
-                      <SelectTrigger id="filter" data-testid="select-recipient-filter">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent position="popper" sideOffset={4} className="z-[9999] max-h-[400px]">
-                        <SelectItem value="all">📋 Tutti i clienti</SelectItem>
-                        
-                        {/* Filtri Speciali */}
-                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
-                          🎯 Filtri Speciali
-                        </div>
-                        <SelectItem value="preventivi_non_firmati">Preventivi Non Firmati (Upsell)</SelectItem>
-                        
-                        {/* Tipi Lavoro */}
-                        {jobTypeFilters.length > 0 && (
-                          <>
-                            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
-                              📷 Per Tipo Lavoro
-                            </div>
-                            {jobTypeFilters.map((f: { value: string; label: string }) => (
-                              <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
-                            ))}
-                          </>
-                        )}
-                        
-                        {/* Per Anno */}
-                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
-                          📅 Per Anno
-                        </div>
-                        <SelectItem value="anno_corrente">Anno corrente</SelectItem>
-                        {yearFilters.map((f: { value: string; label: string }) => (
-                          <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+              <Card className="overflow-hidden rounded-2xl border-stone-200 shadow-sm">
+                <CardHeader className="border-b border-stone-100 bg-stone-50/70 pb-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <CardTitle className="flex items-center gap-2 text-lg">
+                        <Users className="h-5 w-5 text-teal-800" />
+                        Destinatari
+                      </CardTitle>
+                      <CardDescription className="mt-1">
+                        {selectedRecipients.size} selezionati · {recipients.length} email uniche
+                      </CardDescription>
+                    </div>
+                    <Badge variant="outline" className="shrink-0 rounded-full bg-white px-3">
+                      {recipients.length}
+                    </Badge>
                   </div>
+                </CardHeader>
+                <CardContent className="space-y-4 p-4 sm:p-5">
+                  <div className="flex items-start gap-2">
+                    <Filter className="mt-0.5 h-4 w-4 text-stone-500" />
+                    <div>
+                      <Label className="text-sm font-semibold text-stone-800">Componi il pubblico</Label>
+                      <p className="mt-0.5 text-xs text-stone-500">
+                        Seleziona uno o più gruppi: i contatti vengono uniti e le email duplicate eliminate.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {renderAudienceFilter("all", "Tutti i clienti", "Anagrafica clienti")}
+                    {renderAudienceFilter(
+                      "preventivi_non_firmati",
+                      "Preventivi non firmati",
+                      "Per un messaggio di ricontatto",
+                    )}
+                  </div>
+
+                  <details className="rounded-xl border border-stone-200 bg-stone-50/60 p-3">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-semibold text-stone-700">
+                      <span className="flex items-center gap-2"><Users className="h-4 w-4" /> Per tipo di lavoro</span>
+                      <Badge variant="secondary">{jobTypeFilters.length}</Badge>
+                    </summary>
+                    <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      {jobTypeFilters.length > 0
+                        ? jobTypeFilters.map((filterOption) => renderAudienceFilter(
+                            filterOption.value,
+                            filterOption.label,
+                            "Clienti con un lavoro di questo tipo",
+                          ))
+                        : <p className="text-xs text-stone-500">Nessun tipo di lavoro disponibile.</p>}
+                    </div>
+                  </details>
+
+                  <details className="rounded-xl border border-stone-200 bg-stone-50/60 p-3">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-semibold text-stone-700">
+                      <span className="flex items-center gap-2"><CalendarDays className="h-4 w-4" /> Per anno</span>
+                      <Badge variant="secondary">{yearFilters.length + 1}</Badge>
+                    </summary>
+                    <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      {renderAudienceFilter("anno_corrente", "Anno corrente", "Clienti dell’anno in corso")}
+                      {yearFilters.map((filterOption) => renderAudienceFilter(
+                        filterOption.value,
+                        filterOption.label,
+                        "Clienti associati a questo anno",
+                      ))}
+                    </div>
+                  </details>
+
+                  <details open className="rounded-xl border border-teal-200 bg-teal-50/40 p-3">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-semibold text-teal-900">
+                      <span className="flex items-center gap-2"><CalendarDays className="h-4 w-4" /> Campagne di prenotazione concluse</span>
+                      <Badge variant="secondary" className="bg-white text-teal-800">{bookingCampaignFilters.length}</Badge>
+                    </summary>
+                    <p className="mb-3 mt-1 text-xs text-teal-800/75">
+                      Includono le prenotazioni non annullate delle campagne con data di fine passata.
+                    </p>
+                    <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
+                      {bookingCampaignFilters.length > 0
+                        ? bookingCampaignFilters.map((campaign) => renderAudienceFilter(
+                            campaign.value,
+                            campaign.label,
+                            `Conclusa il ${formatCampaignDate(campaign.endDate)}`,
+                            campaign.recipientsCount,
+                          ))
+                        : <p className="rounded-lg border border-dashed border-teal-200 bg-white/70 p-3 text-xs text-stone-500">
+                            Non ci sono campagne di prenotazione concluse.
+                          </p>}
+                    </div>
+                  </details>
+
+                  <div className="rounded-lg border border-blue-100 bg-blue-50/70 p-3 text-xs text-blue-900">
+                    L’elenco mostra un solo contatto per indirizzo email, anche se compare in più gruppi.
+                    {duplicatesRemoved > 0 && (
+                      <span className="ml-1 font-semibold">
+                        {duplicatesRemoved} {duplicatesRemoved === 1 ? "duplicato eliminato" : "duplicati eliminati"}.
+                      </span>
+                    )}
+                  </div>
+
+                  {unlinkedBookingContacts > 0 && (
+                    <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900" data-testid="warning-unlinked-booking-contacts">
+                      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                      <span>
+                        {unlinkedBookingContacts} {unlinkedBookingContacts === 1 ? "prenotazione non è stata inclusa" : "prenotazioni non sono state incluse"} perché non è stata trovata una scheda cliente collegata.
+                      </span>
+                    </div>
+                  )}
 
                   {/* Ricerca Destinatari */}
                   <div className="relative">
@@ -633,12 +802,22 @@ export default function BulkEmailSender() {
                       placeholder="Cerca per nome o email..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10"
+                      className="h-10 rounded-lg bg-white pl-10"
                       data-testid="input-search-recipients"
                     />
                   </div>
 
-                  {recipientsLoading ? (
+                  {recipientsError instanceof Error ? (
+                    <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert" data-testid="error-loading-recipients">
+                      {recipientsError.message || "Errore nel caricamento dei destinatari."}
+                    </div>
+                  ) : selectedFilters.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-stone-300 bg-stone-50 p-6 text-center">
+                      <Users className="mx-auto mb-2 h-6 w-6 text-stone-400" />
+                      <p className="text-sm font-medium text-stone-700">Seleziona almeno un gruppo</p>
+                      <p className="mt-1 text-xs text-stone-500">I destinatari appariranno qui, senza duplicati.</p>
+                    </div>
+                  ) : recipientsLoading ? (
                     <div className="text-center py-8">
                       <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
                       <p className="text-sm text-muted-foreground">Caricamento...</p>
@@ -652,8 +831,8 @@ export default function BulkEmailSender() {
                           id="select-all"
                           data-testid="checkbox-select-all"
                         />
-                        <Label htmlFor="select-all" className="cursor-pointer font-semibold">
-                          Seleziona tutti ({filteredRecipients.length})
+                        <Label htmlFor="select-all" className="cursor-pointer text-sm font-semibold">
+                          Seleziona tutti i visibili ({filteredRecipients.length})
                         </Label>
                         {searchQuery && (
                           <Badge variant="outline" className="ml-auto">
@@ -662,7 +841,7 @@ export default function BulkEmailSender() {
                         )}
                       </div>
 
-                      <ScrollArea className="h-[350px]">
+                      <ScrollArea className="h-72 pr-3">
                         <div className="space-y-2">
                           {filteredRecipients.length === 0 ? (
                             <div className="text-center py-8 text-muted-foreground">
@@ -675,7 +854,7 @@ export default function BulkEmailSender() {
                                 className="flex items-start gap-2 p-2 rounded hover:bg-muted/50"
                               >
                                 <Checkbox
-                                  checked={selectedRecipients.has(recipient.email)}
+                                  checked={selectedRecipients.has(emailSelectionKey(recipient.email))}
                                   onCheckedChange={() => handleToggleRecipient(recipient.email)}
                                   id={`recipient-${recipient.email}`}
                                   data-testid={`checkbox-recipient-${recipient.email}`}
