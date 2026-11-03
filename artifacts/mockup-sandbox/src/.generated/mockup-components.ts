@@ -11,10 +11,10 @@ export const modules: ModuleMap = {
   "./components/mockups/gift-card-packaging/PhotoFrame.tsx": () => import("../components/mockups/gift-card-packaging/PhotoFrame.tsx"),
   "./components/mockups/gift-card-packaging/PremiumVoucher.tsx": () => import("../components/mockups/gift-card-packaging/PremiumVoucher.tsx"),
   "./components/mockups/image-vision-browse/Browse.tsx": () => import("../components/mockups/image-vision-browse/Browse.tsx"),
-  "./components/mockups/image-vision-style/BlueRefined.tsx": () => import("../components/mockups/image-vision-style/BlueRefined.tsx"),
-  "./components/mockups/image-vision-style/Current.tsx": () => import("../components/mockups/image-vision-style/Current.tsx"),
   "./components/mockups/jobs-manager-list/Current.tsx": () => import("../components/mockups/jobs-manager-list/Current.tsx"),
   "./components/mockups/jobs-manager-list/Proposal.tsx": () => import("../components/mockups/jobs-manager-list/Proposal.tsx"),
   "./components/mockups/photobooks-dashboard/Current.tsx": () => import("../components/mockups/photobooks-dashboard/Current.tsx"),
-  "./components/mockups/photobooks-dashboard/Proposal.tsx": () => import("../components/mockups/photobooks-dashboard/Proposal.tsx")
+  "./components/mockups/photobooks-dashboard/Proposal.tsx": () => import("../components/mockups/photobooks-dashboard/Proposal.tsx"),
+  "./components/mockups/image-vision-style/BlueRefined.tsx": () => import("../components/mockups/image-vision-style/BlueRefined.tsx"),
+  "./components/mockups/image-vision-style/Current.tsx": () => import("../components/mockups/image-vision-style/Current.tsx")
 };
