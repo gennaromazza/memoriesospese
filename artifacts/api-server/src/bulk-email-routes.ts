@@ -16,12 +16,16 @@ import {
   validateMarketingSender,
 } from "./resend-marketing.js";
 import {
+  buildBookingMarketingCandidates,
+  bookingRecipientCandidate,
   campaignEndDateInRome,
+  countUniqueBookingMarketingEmails,
   dedupeMarketingRecipients,
   isBookingCampaignEnded,
   isEligibleBookingForMarketing,
   normalizeMarketingEmail,
   parseMarketingRecipientFilters,
+  prepareMarketingSendAudience,
   type BulkEmailRecipient,
   type BulkEmailRecipientCandidate,
 } from "./bulk-email-audience.js";
@@ -174,26 +178,21 @@ async function loadCampaignRecipientCandidates(
     }
   }
 
-  const candidates: BulkEmailRecipientCandidate[] = [];
-  let unlinkedBookingContacts = 0;
-
-  for (const booking of bookings) {
-    const email = normalizeMarketingEmail(booking.data.cliente?.email);
-    if (!email) continue;
+  const bookingSources = bookings.map((booking) => {
+    const email = normalizeMarketingEmail(booking.data.cliente?.email)!;
     const linkedDocument =
       clientDocuments.get(booking.data.clienteId) ||
       clientByBookingId.get(booking.id) ||
       clientByEmail.get(email);
 
-    if (!linkedDocument?.exists || !normalizeMarketingEmail(linkedDocument.data()?.email)) {
-      unlinkedBookingContacts += 1;
-      continue;
-    }
+    return {
+      status: booking.data.stato,
+      contact: booking.data.cliente || {},
+      linkedClient: linkedDocument?.exists ? clientDocumentToCandidate(linkedDocument) : undefined,
+    };
+  });
 
-    candidates.push(clientDocumentToCandidate(linkedDocument));
-  }
-
-  return { candidates, unlinkedBookingContacts };
+  return buildBookingMarketingCandidates(bookingSources);
 }
 
 async function getRecipientsForFilters(filters: string[]): Promise<{
@@ -346,9 +345,9 @@ interface BulkEmailJob {
 let dispatcherRunning = false;
 let dispatcherInterval: NodeJS.Timeout | null = null;
 
-// ============================================================================
+// ---------------------------------------------------------------------------
 // CORE LOGIC: CLEANUP & DISPATCHER
-// ============================================================================
+// ---------------------------------------------------------------------------
 
 /**
  * Cleanup Jobs Stale
@@ -488,9 +487,9 @@ export function stopBulkEmailDispatcher() {
   }
 }
 
-// ============================================================================
+// ---------------------------------------------------------------------------
 // CORE LOGIC: SENDING ENGINE (Optimized)
-// ============================================================================
+// ---------------------------------------------------------------------------
 
 async function sendBulkEmails(jobId: string, quotaDate: string) {
   const jobRef = db.collection("bulkEmailJobs").doc(jobId);
@@ -791,9 +790,9 @@ async function releaseQuotaAtomic(
   }
 }
 
-// ============================================================================
+// ---------------------------------------------------------------------------
 // API ROUTES
-// ============================================================================
+// ---------------------------------------------------------------------------
 
 // GET Quota giornaliera
 router.get("/quota", authenticateFirebase, requireAdmin, async (req: any, res: Response) => {
@@ -877,58 +876,60 @@ router.post("/send-resend", authenticateFirebase, requireAdmin, async (req: any,
       return res.status(400).json({ success: false, error: senderError });
     }
 
-    const requestedRecipients = new Map<string, { clientId: string }>();
+    const requestedCandidates: BulkEmailRecipientCandidate[] = [];
     for (const recipient of recipients) {
-      const email = typeof recipient?.email === "string"
-        ? recipient.email.trim().toLowerCase()
-        : "";
+      const email = normalizeMarketingEmail(recipient?.email);
       const clientId = typeof recipient?.clientId === "string"
         ? recipient.clientId.trim()
         : "";
-      if (!email || !clientId || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      if (!email) {
         return res.status(400).json({
           success: false,
           error: "La lista contiene un contatto non valido. Ricarica i destinatari e riprova.",
         });
       }
-      requestedRecipients.set(email, { clientId });
-    }
-
-    const entries = Array.from(requestedRecipients.entries());
-    const refs = entries.map(([, recipient]) => db.collection("clienti").doc(recipient.clientId));
-    const clientDocs: any[] = [];
-    for (let offset = 0; offset < refs.length; offset += 250) {
-      clientDocs.push(...await db.getAll(...refs.slice(offset, offset + 250)));
-    }
-    const recipientsByEmail = new Map<string, BulkEmailRecipient>();
-    for (let i = 0; i < entries.length; i++) {
-      const [email, requested] = entries[i];
-      const clientDoc = clientDocs[i];
-      if (!clientDoc?.exists) {
-        return res.status(400).json({
-          success: false,
-          error: "Uno o più contatti non sono più disponibili. Ricarica la lista e riprova.",
-        });
-      }
-      const clientData = clientDoc.data() || {};
-      const storedEmail = typeof clientData.email === "string"
-        ? clientData.email.trim().toLowerCase()
-        : "";
-      if (storedEmail !== email) {
-        return res.status(400).json({
-          success: false,
-          error: "I dati dei destinatari sono cambiati. Ricarica la lista prima di inviare.",
-        });
-      }
-      recipientsByEmail.set(email, {
+      requestedCandidates.push({
         email,
-        nome: typeof clientData.nome === "string" ? clientData.nome : "",
-        cognome: typeof clientData.cognome === "string" ? clientData.cognome : "",
-        clientId: clientDoc.id,
+        nome: recipient?.nome,
+        cognome: recipient?.cognome,
+        ...(clientId ? { clientId } : {}),
       });
     }
 
-    const normalizedRecipients = Array.from(recipientsByEmail.values());
+    const uniqueRequestedRecipients = dedupeMarketingRecipients(requestedCandidates).recipients;
+    const clientDocuments = await loadClientDocumentsByIds(
+      uniqueRequestedRecipients.flatMap((recipient) =>
+        typeof recipient.clientId === "string" ? [recipient.clientId] : [],
+      ),
+    );
+    let recipientDataChanged = false;
+    const hydratedCandidates = uniqueRequestedRecipients.map((recipient) => {
+      const clientId = typeof recipient.clientId === "string" ? recipient.clientId : "";
+      const clientDocument = clientDocuments.get(clientId);
+      if (!clientDocument?.exists) {
+        // Contatti presi dallo snapshot di una prenotazione possono non avere
+        // più una scheda cliente: email e nome dello snapshot restano validi.
+        return bookingRecipientCandidate(recipient);
+      }
+
+      const linkedClient = clientDocumentToCandidate(clientDocument);
+      const storedEmail = normalizeMarketingEmail(linkedClient.email);
+      const requestedEmail = normalizeMarketingEmail(recipient.email);
+      if (storedEmail && requestedEmail && storedEmail !== requestedEmail) {
+        recipientDataChanged = true;
+      }
+      return bookingRecipientCandidate(recipient, linkedClient);
+    });
+
+    if (recipientDataChanged) {
+      return res.status(400).json({
+        success: false,
+        error: "I dati dei destinatari sono cambiati. Ricarica la lista prima di inviare.",
+      });
+    }
+
+    const marketingAudience = prepareMarketingSendAudience(hydratedCandidates);
+    const normalizedRecipients = marketingAudience.recipients;
     const today = getTodayRome();
     const jobRef = db.collection("bulkEmailJobs").doc();
     const job: BulkEmailJob = {
@@ -936,7 +937,7 @@ router.post("/send-resend", authenticateFirebase, requireAdmin, async (req: any,
       subject: subject.trim(),
       body,
       recipients: normalizedRecipients,
-      totalRecipients: normalizedRecipients.length,
+      totalRecipients: marketingAudience.totalRecipients,
       quotaReserved: 0,
       quotaConsumed: 0,
       quotaDate: today,
@@ -959,8 +960,8 @@ router.post("/send-resend", authenticateFirebase, requireAdmin, async (req: any,
     res.json({
       success: true,
       jobId: jobRef.id,
-      jobs: [{ id: jobRef.id, status: job.status, recipients: normalizedRecipients.length }],
-      message: `Campagna Resend in coda per ${normalizedRecipients.length} destinatari.`,
+      jobs: [{ id: jobRef.id, status: job.status, recipients: marketingAudience.totalRecipients }],
+      message: `Campagna Resend in coda per ${marketingAudience.totalRecipients} destinatari.`,
     });
   } catch (error: any) {
     res.status(500).json({
@@ -996,9 +997,9 @@ router.post("/quota/reset", authenticateFirebase, requireAdmin, async (req: any,
   }
 });
 
-// ============================================================================
+// ---------------------------------------------------------------------------
 // TEMPLATE EMAIL ROUTES
-// ============================================================================
+// ---------------------------------------------------------------------------
 
 // GET Lista template email
 router.get("/templates", authenticateFirebase, requireAdmin, async (req: any, res: Response) => {
@@ -1079,9 +1080,9 @@ router.delete("/templates/:id", authenticateFirebase, requireAdmin, async (req: 
   }
 });
 
-// ============================================================================
+// ---------------------------------------------------------------------------
 // FILTER ROUTES
-// ============================================================================
+// ---------------------------------------------------------------------------
 
 // GET Filtri disponibili (anni dinamici + tipi lavoro dai jobs)
 router.get("/filters", authenticateFirebase, requireAdmin, async (req: any, res: Response) => {
@@ -1153,18 +1154,18 @@ router.get("/filters", authenticateFirebase, requireAdmin, async (req: any, res:
     const endedCampaigns = await loadEndedBookingCampaigns();
     const campaignBookings = await loadBookingsByCampaignIds(endedCampaigns.map(campaign => campaign.id));
     const bookingCampaignFilters = endedCampaigns.map((campaign) => {
-      const uniqueEmails = new Set<string>();
-      for (const booking of campaignBookings.get(campaign.id) || []) {
-        if (!isEligibleBookingForMarketing(booking.data.stato)) continue;
-        const email = normalizeMarketingEmail(booking.data.cliente?.email);
-        if (email) uniqueEmails.add(email);
-      }
+      const recipientsCount = countUniqueBookingMarketingEmails(
+        (campaignBookings.get(campaign.id) || []).map(({ data }) => ({
+          status: data.stato,
+          email: data.cliente?.email,
+        })),
+      );
 
       return {
         value: `campagna_${campaign.id}`,
         label: campaign.label,
         endDate: campaign.endDate.toISODate(),
-        recipientsCount: uniqueEmails.size,
+        recipientsCount,
       };
     });
 
@@ -1181,18 +1182,171 @@ router.get("/filters", authenticateFirebase, requireAdmin, async (req: any, res:
 
 router.get("/recipients", authenticateFirebase, requireAdmin, async (req: any, res: Response): Promise<HttpHandlerResult> => {
   try {
-    const rawFilters = req.query.filters ?? req.query.filter ?? "all";
-    const filters = parseMarketingRecipientFilters(rawFilters);
-    const result = await getRecipientsForFilters(filters);
+    const { filter } = req.query;
 
-    res.json({
-      success: true,
-      recipients: result.recipients,
-      total: result.recipients.length,
-      uniqueTotal: result.recipients.length,
-      duplicatesRemoved: result.duplicatesRemoved,
-      unlinkedBookingContacts: result.unlinkedBookingContacts,
+    // Nuovo formato multi-filtro: unisce le fonti e deduplica le email in modo case-insensitive.
+    // La query storica `filter=...` resta supportata per i client precedenti.
+    if (req.query.filters !== undefined) {
+      const filters = parseMarketingRecipientFilters(req.query.filters);
+      const result = await getRecipientsForFilters(filters);
+      res.json({
+        success: true,
+        recipients: result.recipients,
+        total: result.recipients.length,
+        uniqueTotal: result.recipients.length,
+        duplicatesRemoved: result.duplicatesRemoved,
+        unlinkedBookingContacts: result.unlinkedBookingContacts,
+      });
+      return;
+    }
+
+    const recipients: BulkEmailRecipient[] = [];
+    const emailsAdded = new Set<string>();
+
+    // Filtro speciale: Preventivi Non Firmati (per upsell)
+    // Target: Jobs con preventivo creato ma non firmato, escludendo jobs completati/contrattualizzati
+    if (filter === "preventivi_non_firmati") {
+      const jobsSnapshot = await db.collection("jobs")
+        .where("quoteId", "!=", null)
+        .limit(500)
+        .get();
+      
+      // Raccogli tutti i clientId unici per batch load
+      const clientIds = new Set<string>();
+      const jobsWithUnsignedQuotes: Array<{ clienteId: string }> = [];
+      
+      for (const jobDoc of jobsSnapshot.docs) {
+        const jobData = jobDoc.data();
+        
+        // Escludi jobs completati o con contratto firmato
+        const isCompleted = jobData.status === 'completed' || jobData.status === 'cancelled';
+        const hasSignedQuote = jobData.quoteSignedAt || jobData.quoteStatus === 'signed' || jobData.quoteStatus === 'accepted';
+        const hasContract = jobData.contractSignedAt;
+        
+        // Include solo jobs con preventivo non firmato e non completati
+        if (!isCompleted && !hasSignedQuote && !hasContract && jobData.clienteId) {
+          clientIds.add(jobData.clienteId);
+          jobsWithUnsignedQuotes.push({ clienteId: jobData.clienteId });
+        }
+      }
+      
+      // Batch load clienti (max 30 per batch con Firestore 'in' query)
+      const clientIdArray = Array.from(clientIds);
+      const clientsMap = new Map<string, any>();
+      
+      for (let i = 0; i < clientIdArray.length; i += 30) {
+        const batch = clientIdArray.slice(i, i + 30);
+        if (batch.length === 0) continue;
+        
+        const clientsSnapshot = await db.collection("clienti")
+          .where("__name__", "in", batch)
+          .get();
+        
+        clientsSnapshot.forEach(doc => {
+          clientsMap.set(doc.id, { id: doc.id, ...doc.data() });
+        });
+      }
+      
+      // Costruisci lista destinatari senza duplicati
+      for (const job of jobsWithUnsignedQuotes) {
+        const clientData = clientsMap.get(job.clienteId);
+        if (clientData?.email && !emailsAdded.has(clientData.email)) {
+          emailsAdded.add(clientData.email);
+          recipients.push({
+            email: clientData.email,
+            nome: clientData.nome || "",
+            cognome: clientData.cognome || "",
+            clientId: clientData.id,
+          });
+        }
+      }
+      
+      return res.json({ success: true, recipients, total: recipients.length });
+    }
+
+    // Filtro per tipo lavoro (cerca jobs e poi clienti associati)
+    if (filter && filter.toString().startsWith("tipo_")) {
+      const jobType = filter.toString().replace("tipo_", "");
+      
+      const jobsSnapshot = await db.collection("jobs")
+        .where("jobType", "==", jobType)
+        .limit(500)
+        .get();
+      
+      // Raccogli tutti i clientIds unici
+      const clientIds = new Set<string>();
+      
+      for (const jobDoc of jobsSnapshot.docs) {
+        const jobData = jobDoc.data();
+        const ids: string[] = Array.isArray(jobData.clientiIds) ? jobData.clientiIds : [];
+        if (ids.length === 0 && jobData.clienteId) {
+          ids.push(jobData.clienteId);
+        }
+        ids.forEach((id: string) => clientIds.add(id));
+      }
+      
+      // Batch load clienti (max 30 per batch)
+      const clientIdArray = Array.from(clientIds);
+      const clientsMap = new Map<string, any>();
+      
+      for (let i = 0; i < clientIdArray.length; i += 30) {
+        const batch = clientIdArray.slice(i, i + 30);
+        if (batch.length === 0) continue;
+        
+        const clientsSnapshot = await db.collection("clienti")
+          .where("__name__", "in", batch)
+          .get();
+        
+        clientsSnapshot.forEach(doc => {
+          clientsMap.set(doc.id, { id: doc.id, ...doc.data() });
+        });
+      }
+      
+      // Costruisci lista destinatari senza duplicati
+      for (const clientId of clientIds) {
+        const clientData = clientsMap.get(clientId);
+        if (clientData?.email && !emailsAdded.has(clientData.email)) {
+          emailsAdded.add(clientData.email);
+          recipients.push({
+            email: clientData.email,
+            nome: clientData.nome || "",
+            cognome: clientData.cognome || "",
+            clientId: clientData.id,
+          });
+        }
+      }
+      
+      return res.json({ success: true, recipients, total: recipients.length });
+    }
+
+    // Filtri standard per anno
+    // CRITICAL: Use Luxon for correct timezone handling (uses top-level import)
+    let query: any = db.collection("clienti");
+
+    if (filter === "anno_corrente") {
+      const currentYear = DateTime.now().setZone('Europe/Rome').year;
+      query = query.where("anno", "==", currentYear);
+    } else if (filter && filter.toString().startsWith("anno_")) {
+      const year = parseInt(filter.toString().replace("anno_", ""));
+      query = query.where("anno", "==", year);
+    }
+
+    const snapshot = await query.get();
+
+    snapshot.forEach((doc: any) => {
+      const data = doc.data();
+      if (data.email && !emailsAdded.has(data.email)) {
+        emailsAdded.add(data.email);
+        recipients.push({
+          email: data.email,
+          nome: data.nome || "",
+          cognome: data.cognome || "",
+          clientId: doc.id,
+        });
+      }
     });
+
+    res.json({ success: true, recipients, total: recipients.length });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -1579,9 +1733,9 @@ router.post("/jobs/:jobId/retry-failed", authenticateFirebase, requireAdmin, asy
   }
 });
 
-// ============================================================================
+// ---------------------------------------------------------------------------
 // EMAIL HELPER
-// ============================================================================
+// ---------------------------------------------------------------------------
 
 async function sendSingleEmail(
   recipient: BulkEmailRecipient,

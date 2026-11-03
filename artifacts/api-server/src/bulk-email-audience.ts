@@ -14,10 +14,70 @@ export interface BulkEmailRecipientCandidate {
   clientId?: unknown;
 }
 
+export interface BookingMarketingContact {
+  email?: unknown;
+  nome?: unknown;
+  cognome?: unknown;
+}
+
+export interface BookingMarketingCandidateSource {
+  status: unknown;
+  contact: BookingMarketingContact;
+  linkedClient?: BulkEmailRecipientCandidate;
+}
+
 export function normalizeMarketingEmail(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const email = value.trim().toLowerCase();
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null;
+}
+
+export function bookingRecipientCandidate(
+  bookingContact: BookingMarketingContact,
+  linkedClient?: BulkEmailRecipientCandidate,
+): BulkEmailRecipientCandidate {
+  const linkedEmail = normalizeMarketingEmail(linkedClient?.email);
+  return {
+    email: linkedEmail || normalizeMarketingEmail(bookingContact.email),
+    nome: typeof linkedClient?.nome === "string" && linkedClient.nome.trim()
+      ? linkedClient.nome
+      : bookingContact.nome,
+    cognome: typeof linkedClient?.cognome === "string" && linkedClient.cognome.trim()
+      ? linkedClient.cognome
+      : bookingContact.cognome,
+    ...(typeof linkedClient?.clientId === "string" && linkedClient.clientId.trim()
+      ? { clientId: linkedClient.clientId }
+      : {}),
+  };
+}
+
+export function buildBookingMarketingCandidates(
+  sources: BookingMarketingCandidateSource[],
+): { candidates: BulkEmailRecipientCandidate[]; unlinkedBookingContacts: number } {
+  const candidates: BulkEmailRecipientCandidate[] = [];
+  let unlinkedBookingContacts = 0;
+
+  for (const source of sources) {
+    if (!isEligibleBookingForMarketing(source.status) || !normalizeMarketingEmail(source.contact.email)) {
+      continue;
+    }
+    if (!source.linkedClient) unlinkedBookingContacts += 1;
+    candidates.push(bookingRecipientCandidate(source.contact, source.linkedClient));
+  }
+
+  return { candidates, unlinkedBookingContacts };
+}
+
+export function countUniqueBookingMarketingEmails(
+  bookings: Array<{ status: unknown; email: unknown }>,
+): number {
+  const emails = new Set<string>();
+  for (const booking of bookings) {
+    if (!isEligibleBookingForMarketing(booking.status)) continue;
+    const email = normalizeMarketingEmail(booking.email);
+    if (email) emails.add(email);
+  }
+  return emails.size;
 }
 
 export function parseMarketingRecipientFilters(raw: unknown): string[] {
@@ -72,6 +132,13 @@ export function dedupeMarketingRecipients(
     recipients: Array.from(recipientsByEmail.values()),
     duplicatesRemoved,
   };
+}
+
+export function prepareMarketingSendAudience(
+  candidates: BulkEmailRecipientCandidate[],
+): { recipients: BulkEmailRecipient[]; totalRecipients: number } {
+  const recipients = dedupeMarketingRecipients(candidates).recipients;
+  return { recipients, totalRecipients: recipients.length };
 }
 
 export function campaignEndDateInRome(value: unknown): DateTime | null {

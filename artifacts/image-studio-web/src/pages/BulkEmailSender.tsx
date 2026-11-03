@@ -790,7 +790,7 @@ export default function BulkEmailSender() {
                     <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900" data-testid="warning-unlinked-booking-contacts">
                       <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                       <span>
-                        {unlinkedBookingContacts} {unlinkedBookingContacts === 1 ? "prenotazione non è stata inclusa" : "prenotazioni non sono state incluse"} perché non è stata trovata una scheda cliente collegata.
+                        {unlinkedBookingContacts} {unlinkedBookingContacts === 1 ? "prenotazione usa" : "prenotazioni usano"} i dati dello snapshot, perché non è stata trovata una scheda cliente collegata.
                       </span>
                     </div>
                   )}
