@@ -163,6 +163,8 @@ export interface PrintShopCoupon {
   reservedCount: number;
   remainingUses: number | null;
   active: boolean;
+  /** Coupon visibility on the public print promotions area; missing on legacy docs means hidden. */
+  showOnPromotionsPage: boolean;
   scope: 'all' | 'selected';
   eligibleSkus: readonly string[];
   /** Missing value on legacy coupons means no minimum. */
@@ -173,8 +175,21 @@ export interface PrintShopCoupon {
 
 export type PrintShopCouponInput = Pick<
   PrintShopCoupon,
-  'code' | 'discountType' | 'value' | 'startsAt' | 'endsAt' | 'maxUses' | 'active' | 'scope' | 'eligibleSkus' | 'minPrintQuantity'
+  'code' | 'discountType' | 'value' | 'startsAt' | 'endsAt' | 'maxUses' | 'active' | 'showOnPromotionsPage' | 'scope' | 'eligibleSkus' | 'minPrintQuantity'
 >;
+
+/** Public, safe-to-display fields for an explicitly promoted print coupon. */
+export interface PrintShopPublicPromotion {
+  code: string;
+  discountType: PrintShopCouponDiscountType;
+  /** Whole percentage points or fixed discount in cents. */
+  value: number;
+  startsAt: string;
+  endsAt: string;
+  scope: 'all' | 'selected';
+  eligibleFormats: readonly { sku: string; name: string }[];
+  minPrintQuantity: number;
+}
 
 export interface AppliedPrintTier {
   minQuantity: number;

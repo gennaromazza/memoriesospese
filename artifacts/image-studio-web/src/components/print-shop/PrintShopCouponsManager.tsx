@@ -26,6 +26,7 @@ type CouponForm = {
   endsAt: string;
   maxUses: string;
   active: boolean;
+  showOnPromotionsPage: boolean;
 };
 
 function localDateTime(value: Date): string {
@@ -47,6 +48,7 @@ function emptyForm(): CouponForm {
     endsAt: localDateTime(end),
     maxUses: '',
     active: true,
+    showOnPromotionsPage: false,
   };
 }
 
@@ -63,6 +65,7 @@ function editForm(coupon: PrintShopCoupon): CouponForm {
     endsAt: localDateTime(new Date(coupon.endsAt)),
     maxUses: coupon.maxUses == null ? '' : String(coupon.maxUses),
     active: coupon.active,
+    showOnPromotionsPage: coupon.showOnPromotionsPage,
   };
 }
 
@@ -94,6 +97,7 @@ function toInput(form: CouponForm): PrintShopCouponInput {
     endsAt: new Date(form.endsAt).toISOString(),
     maxUses: form.maxUses.trim() ? Number(form.maxUses) : null,
     active: form.active,
+    showOnPromotionsPage: form.showOnPromotionsPage,
   };
 }
 
@@ -202,6 +206,7 @@ export default function PrintShopCouponsManager() {
                   <div className="flex flex-wrap items-center gap-2">
                     <strong className="font-mono text-base">{coupon.code}</strong>
                     <Badge variant={status.variant}>{status.label}</Badge>
+                    {coupon.showOnPromotionsPage && <Badge variant="outline">In pagina promozioni</Badge>}
                   </div>
                   <p className="mt-1 text-sm text-muted-foreground">
                     {coupon.discountType === 'percentage' ? `${coupon.value}% di sconto` : `${(coupon.value / 100).toFixed(2)} € di sconto`}
@@ -231,6 +236,7 @@ export default function PrintShopCouponsManager() {
                       endsAt: coupon.endsAt,
                       maxUses: coupon.maxUses,
                       active,
+                      showOnPromotionsPage: coupon.showOnPromotionsPage,
                     },
                   })}
                 />
@@ -362,6 +368,19 @@ export default function PrintShopCouponsManager() {
                 <Label htmlFor="print-coupon-ends">Valido fino a</Label>
                 <Input id="print-coupon-ends" type="datetime-local" value={form.endsAt} onChange={(event) => setForm({ ...form, endsAt: event.target.value })} />
               </div>
+            </div>
+            <div className="flex items-center justify-between gap-5 rounded-xl border border-terracotta/20 bg-terracotta/5 p-4">
+              <div>
+                <Label htmlFor="print-coupon-promotions">Mostra nella pagina promozioni</Label>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Pubblica codice e condizioni su “Stampa foto ad Aversa” solo mentre il coupon è valido e disponibile.
+                </p>
+              </div>
+              <Switch
+                id="print-coupon-promotions"
+                checked={form.showOnPromotionsPage}
+                onCheckedChange={(showOnPromotionsPage) => setForm({ ...form, showOnPromotionsPage })}
+              />
             </div>
             <div className="flex items-center justify-between gap-5 rounded-xl border p-4">
               <div><Label htmlFor="print-coupon-active">Coupon attivo</Label><p className="mt-1 text-sm text-muted-foreground">Quando è disattivato, non può essere applicato al checkout.</p></div>

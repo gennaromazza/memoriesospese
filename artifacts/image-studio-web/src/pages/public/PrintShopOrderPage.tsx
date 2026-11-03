@@ -111,6 +111,15 @@ function blankPostalAddress(): PrintShopPostalAddress {
   return { street: '', houseNumber: '', postalCode: '', city: '', province: '', country: 'IT' };
 }
 
+function readPrintOrderLinkSelection(): { sku: string; coupon: string } {
+  if (typeof window === 'undefined') return { sku: '', coupon: '' };
+  const params = new URLSearchParams(window.location.search);
+  return {
+    sku: params.get('sku')?.trim() || '',
+    coupon: params.get('coupon')?.trim().toUpperCase().slice(0, 32) || '',
+  };
+}
+
 function postalAddressComplete(address: PrintShopPostalAddress): boolean {
   return Boolean(
     address.street.trim() &&
@@ -273,6 +282,7 @@ export default function PrintShopOrderPage() {
   });
   const uploadControllersRef = useRef(new Map<string, AbortController>());
   const mountedRef = useRef(true);
+  const [orderLinkSelection] = useState(readPrintOrderLinkSelection);
   const [groups, setGroups] = useState<PrintGroupDraft[]>([]);
   const [validationIssues, setValidationIssues] = useState<PrintGroupIssue[]>([]);
   const [fileErrors, setFileErrors] = useState<string[]>([]);
@@ -287,7 +297,7 @@ export default function PrintShopOrderPage() {
   const [resumedPendingPayment, setResumedPendingPayment] = useState(false);
   const [quote, setQuote] = useState<PrintShopQuote | null>(null);
   const [couponCode, setCouponCode] = useState('');
-  const [couponDraft, setCouponDraft] = useState('');
+  const [couponDraft, setCouponDraft] = useState(orderLinkSelection.coupon);
   const [couponMessage, setCouponMessage] = useState('');
   const [couponError, setCouponError] = useState(false);
   const [couponNeedsMorePrints, setCouponNeedsMorePrints] = useState(false);
@@ -365,7 +375,7 @@ export default function PrintShopOrderPage() {
     setGroups([]);
     setQuote(null);
     setCouponCode('');
-    setCouponDraft('');
+    setCouponDraft(orderLinkSelection.coupon);
     setCouponMessage('');
     setCouponError(false);
     setCouponNeedsMorePrints(false);
@@ -455,7 +465,7 @@ export default function PrintShopOrderPage() {
         setQuote(pendingPayment ? restoredQuote : null);
         const restoredCouponCode = savedOrder.printShop?.coupon?.code || '';
         setCouponCode(restoredCouponCode);
-        setCouponDraft(restoredCouponCode);
+        setCouponDraft(restoredCouponCode || orderLinkSelection.coupon);
         setCouponMessage(restoredCouponCode ? `Coupon ${restoredCouponCode} incluso nel riepilogo salvato.` : '');
         setResumedPendingPayment(pendingPayment);
         setValidationIssues([]);
@@ -830,7 +840,10 @@ export default function PrintShopOrderPage() {
       setPageError('Il listino non è disponibile. Riprova tra poco.');
       return;
     }
-    if (groups.length === 0) setGroups([createInitialGroup(catalog.products[0].sku, uploadedPhotos)]);
+    if (groups.length === 0) {
+      const requestedProduct = catalog.products.find((product) => product.sku === orderLinkSelection.sku);
+      setGroups([createInitialGroup(requestedProduct?.sku ?? catalog.products[0].sku, uploadedPhotos)]);
+    }
     setValidationIssues([]);
     setStep('configure');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -948,7 +961,7 @@ export default function PrintShopOrderPage() {
       setQuote(refreshedQuote);
       const restoredCouponCode = refreshedOrder.printShop?.coupon?.code || '';
       setCouponCode(restoredCouponCode);
-      setCouponDraft(restoredCouponCode);
+      setCouponDraft(restoredCouponCode || orderLinkSelection.coupon);
       setResumedPendingPayment(false);
       resetCheckoutAcceptances();
       setPageError('Il listino è cambiato: controlla il nuovo totale e accetta nuovamente le condizioni prima di pagare.');

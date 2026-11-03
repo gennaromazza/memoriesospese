@@ -243,6 +243,22 @@ test("checkout mobile prioritizes the photo-quality warning before consents and 
   expect(unexpectedApiRequests).toEqual([]);
 });
 
+test("promotion links prefill their coupon code in checkout", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript((draftId) => {
+    sessionStorage.setItem("print-shop-draft:fixture-user", draftId);
+  }, orderId);
+  const { unexpectedApiRequests } = await setup(page);
+  await page.goto("/?view=order&legalFixture=1&coupon=TEST25");
+
+  await expect(page.getByRole("heading", { name: "Come vuoi stampare le foto?" })).toBeVisible();
+  await page.getByRole("button", { name: /Spedizione a domicilio/ }).click();
+  await page.getByRole("button", { name: "Controlla l’ordine" }).click();
+  await expect(page.getByRole("heading", { name: "I tuoi dati di contatto" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Codice sconto" })).toHaveValue("TEST25");
+  expect(unexpectedApiRequests).toEqual([]);
+});
+
 test("removing a coupon restores the checkout code, discount, and total", async ({ page }) => {
   await page.addInitScript((draftId) => {
     sessionStorage.setItem("print-shop-draft:fixture-user", draftId);

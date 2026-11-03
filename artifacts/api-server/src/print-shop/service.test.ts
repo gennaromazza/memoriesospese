@@ -137,6 +137,7 @@ function seedCoupon(
     usedCount: 0,
     reservedCount: 0,
     active: true,
+    showOnPromotionsPage: false,
     ...overrides,
   });
 }
@@ -1040,6 +1041,7 @@ describe('print shop coupon quotes and payment reservations', () => {
       endsAt: '2026-02-01T00:00:00.000Z',
       maxUses: 5,
       active: true,
+      showOnPromotionsPage: false,
     };
     const coupon = await f.service.saveAdminPrintShopCoupon(input, 'admin@example.com') as any;
     seedProduct(f.db, product);
@@ -1309,6 +1311,7 @@ describe('print shop coupon quotes and payment reservations', () => {
       endsAt: '2026-02-01T00:00:00.000Z',
       maxUses: 12,
       active: true,
+      showOnPromotionsPage: true,
     };
     const created = await service.saveAdminPrintShopCoupon(input, 'ADMIN@example.com') as any;
     expect(created).toMatchObject({
@@ -1318,6 +1321,7 @@ describe('print shop coupon quotes and payment reservations', () => {
       minPrintQuantity: 4,
       maxUses: 12,
       active: true,
+      showOnPromotionsPage: true,
     });
     const updated = await service.saveAdminPrintShopCoupon(
       { ...input, code: 'springprint', maxUses: null, active: false },
@@ -1335,6 +1339,56 @@ describe('print shop coupon quotes and payment reservations', () => {
       { ...input, code: 'SPRINGPRINT' },
       'admin@example.com',
     )).rejects.toMatchObject({ code: 'coupon_code_conflict' });
+  });
+
+  it('returns only explicitly published, currently usable print promotions with public-safe fields', async () => {
+    const now = Date.UTC(2026, 0, 2);
+    const f = createService({ now: () => Timestamp.fromMillis(now) });
+    seedProduct(f.db, product);
+    seedCoupon(f.db, 'PUBLICSELECTED', {
+      showOnPromotionsPage: true,
+      scope: 'selected',
+      eligibleSkus: [product.sku],
+      minPrintQuantity: 3,
+    });
+    seedCoupon(f.db, 'PUBLICALL', { showOnPromotionsPage: true });
+    seedCoupon(f.db, 'PRIVATE', { showOnPromotionsPage: false });
+    seedCoupon(f.db, 'EXPIRED', {
+      showOnPromotionsPage: true,
+      endsAt: Timestamp.fromMillis(now - 1),
+    });
+    seedCoupon(f.db, 'INACTIVE', { showOnPromotionsPage: true, active: false });
+    seedCoupon(f.db, 'EXHAUSTED', {
+      showOnPromotionsPage: true,
+      maxUses: 1,
+      usedCount: 1,
+    });
+
+    const promotions = await f.service.publicPrintShopPromotions();
+    expect(promotions).toEqual([
+      {
+        code: 'PUBLICALL',
+        discountType: 'percentage',
+        value: 10,
+        startsAt: new Date(now - 86_400_000).toISOString(),
+        endsAt: new Date(now + 7 * 86_400_000).toISOString(),
+        scope: 'all',
+        eligibleFormats: [],
+        minPrintQuantity: 0,
+      },
+      {
+        code: 'PUBLICSELECTED',
+        discountType: 'percentage',
+        value: 10,
+        startsAt: new Date(now - 86_400_000).toISOString(),
+        endsAt: new Date(now + 7 * 86_400_000).toISOString(),
+        scope: 'selected',
+        eligibleFormats: [{ sku: product.sku, name: product.nome }],
+        minPrintQuantity: 3,
+      },
+    ]);
+    expect(promotions[0]).not.toHaveProperty('remainingUses');
+    expect(promotions[0]).not.toHaveProperty('maxUses');
   });
 });
 

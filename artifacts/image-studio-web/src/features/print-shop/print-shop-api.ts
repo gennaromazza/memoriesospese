@@ -1,6 +1,11 @@
 import { auth } from '@/lib/firebase';
 import { createUrl } from '@/lib/basePath';
-import type { PrintOrderItemInput, PrintShopDeliveryMethod, PrintShopQuote } from '@shared/print-shop-types';
+import type {
+  PrintOrderItemInput,
+  PrintShopDeliveryMethod,
+  PrintShopPublicPromotion,
+  PrintShopQuote,
+} from '@shared/print-shop-types';
 import type {
   FinalizedPrintAsset,
   PaypalCaptureResult,
@@ -171,6 +176,15 @@ export const printShopApi = {
   async getCatalog(signal?: AbortSignal): Promise<PrintShopCatalogPayload> {
     const response = await request<unknown>('/catalog', { authenticated: false, signal });
     return normalizeCatalog(response);
+  },
+
+  async getPublicPromotions(signal?: AbortSignal): Promise<PrintShopPublicPromotion[]> {
+    const response = await request<unknown>('/promotions', { authenticated: false, signal });
+    const unwrapped = unwrapResponseBody(response);
+    if (!isRecord(unwrapped) || !Array.isArray(unwrapped.promotions)) {
+      throw new PrintShopApiError('Le promozioni non sono disponibili.', 502, 'INVALID_RESPONSE');
+    }
+    return unwrapped.promotions as PrintShopPublicPromotion[];
   },
 
   async createDraft(idempotencyKey: string): Promise<PrintShopDraftOrder> {

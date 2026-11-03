@@ -32,6 +32,7 @@ import {
   type PrintShopQuoteInput,
   type PrintShopCouponInput,
   type PrintShopCouponDiscountType,
+  type PrintShopPublicPromotion,
   type PrintShopShippingConfig,
 } from '@shared/print-shop-types';
 import {
@@ -426,6 +427,50 @@ export class PrintShopService {
     return coupons.sort((a: any, b: any) => String(a.code).localeCompare(String(b.code)));
   }
 
+  async publicPrintShopPromotions(): Promise<PrintShopPublicPromotion[]> {
+    const nowMillis = this.now().toMillis();
+    const candidates = (await this.adminPrintShopCoupons()).filter((coupon) => {
+      const startsAt = Date.parse(String(coupon.startsAt || ''));
+      const endsAt = Date.parse(String(coupon.endsAt || ''));
+      return coupon.showOnPromotionsPage === true &&
+        coupon.active === true &&
+        Number.isFinite(startsAt) &&
+        Number.isFinite(endsAt) &&
+        startsAt <= nowMillis &&
+        endsAt >= nowMillis &&
+        coupon.remainingUses !== 0;
+    });
+    if (candidates.length === 0) return [];
+
+    const selectedSkus = new Set(
+      candidates.flatMap((coupon) => couponScope(coupon) === 'selected' ? couponEligibleSkus(coupon) : []),
+    );
+    const catalog = selectedSkus.size > 0 ? await this.loadCatalog() : [];
+
+    return candidates.flatMap((coupon): PrintShopPublicPromotion[] => {
+      const scope = couponScope(coupon);
+      const eligibleFormats = scope === 'selected'
+        ? couponEligibleSkus(coupon).flatMap((sku) => {
+            const product = catalog.find((candidate) => candidate.sku === sku);
+            return product ? [{ sku, name: product.nome }] : [];
+          })
+        : [];
+      if (scope === 'selected' && eligibleFormats.length === 0) return [];
+      if (coupon.discountType !== 'percentage' && coupon.discountType !== 'fixed') return [];
+
+      return [{
+        code: String(coupon.code || ''),
+        discountType: coupon.discountType,
+        value: Number(coupon.value || 0),
+        startsAt: String(coupon.startsAt || ''),
+        endsAt: String(coupon.endsAt || ''),
+        scope,
+        eligibleFormats,
+        minPrintQuantity: couponMinPrintQuantity(coupon),
+      }];
+    });
+  }
+
   async saveAdminPrintShopCoupon(
     input: PrintShopCouponInput,
     adminEmail: string,
@@ -502,6 +547,7 @@ export class PrintShopService {
         usedCount: Number.isSafeInteger(previous.usedCount) ? previous.usedCount : 0,
         reservedCount: Number.isSafeInteger(previous.reservedCount) ? previous.reservedCount : 0,
         active: coupon.active,
+        showOnPromotionsPage: coupon.showOnPromotionsPage,
         ...(existing.exists
           ? { createdAt: previous.createdAt || now }
           : { createdAt: now, createdBy: editor }),
@@ -5969,6 +6015,7 @@ function normalizeCouponInput(input: PrintShopCouponInput): PrintShopCouponInput
     scope,
     eligibleSkus: scope === 'selected' ? eligibleSkus : [],
     minPrintQuantity,
+    showOnPromotionsPage: input.showOnPromotionsPage === true,
     startsAt: new Date(startsAt).toISOString(),
     endsAt: new Date(endsAt).toISOString(),
   };
@@ -5998,6 +6045,7 @@ function couponForAdmin(id: string, value: any): Record<string, unknown> {
     reservedCount,
     remainingUses: maxUses === null ? null : Math.max(0, maxUses - usedCount - reservedCount),
     active: value?.active === true,
+    showOnPromotionsPage: value?.showOnPromotionsPage === true,
     ...(timestampToIso(value?.createdAt) ? { createdAt: timestampToIso(value.createdAt) } : {}),
     ...(timestampToIso(value?.updatedAt) ? { updatedAt: timestampToIso(value.updatedAt) } : {}),
   };

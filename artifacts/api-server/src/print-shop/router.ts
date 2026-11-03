@@ -164,6 +164,7 @@ const printShopCouponSchema = z.object({
   endsAt: z.iso.datetime({ offset: true }),
   maxUses: z.number().int().min(1).max(1_000_000).nullable(),
   active: z.boolean(),
+  showOnPromotionsPage: z.boolean().default(false),
 }).strict().refine(
   value => value.discountType !== 'percentage' || value.value <= 100,
   { message: 'La percentuale non può superare il 100%', path: ['value'] },
@@ -330,6 +331,10 @@ export function createPrintShopRouter(
 
   router.get('/catalog', route(async (_req, res) => {
     res.json(await deps.service.publicCatalog());
+  }));
+
+  router.get('/promotions', route(async (_req, res) => {
+    res.json({ promotions: await deps.service.publicPrintShopPromotions() });
   }));
 
   router.get('/paypal/config', (_req, res) => {
