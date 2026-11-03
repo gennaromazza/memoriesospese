@@ -101,7 +101,10 @@ export default function BulkEmailSender() {
 
   useEffect(() => {
     if (!senderEmail && verifiedSendingDomains.length > 0) {
-      setSenderEmail(`newsletter@${verifiedSendingDomains[0].name}`);
+      const preferredDomain = verifiedSendingDomains.find(
+        (domain) => domain.name === 'imagestudiofotografico.com',
+      );
+      setSenderEmail(`newsletter@${(preferredDomain || verifiedSendingDomains[0]).name}`);
     }
   }, [senderEmail, verifiedSendingDomains]);
 
