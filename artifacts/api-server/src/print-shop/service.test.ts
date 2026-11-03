@@ -685,6 +685,37 @@ describe('print shop coupon quotes and payment reservations', () => {
     expect(zeroQuote.totals.discountCents).toBe(zeroQuote.totals.subtotalCents);
   });
 
+  it('keeps the coupon discount stable when delivery changes and recalculates shipping', async () => {
+    const now = Date.UTC(2026, 0, 2);
+    const f = createService({ now: () => Timestamp.fromMillis(now) });
+    const orderId = 'coupon-delivery-change-order';
+    f.db.seed(`orders/${orderId}`, baseOrder());
+    seedProduct(f.db, product);
+    seedReadyAsset(f.db, orderId, 'coupon-delivery-change-asset');
+    f.db.seed('settings/printShop', {
+      shipping: { enabled: true, priceCents: 500, estimatedMinDays: 2, estimatedMaxDays: 5 },
+    });
+    seedCoupon(f.db, 'DELIVERYHALF', { value: 50 });
+
+    const shippingQuote = await f.service.quote(
+      identity,
+      orderId,
+      quoteInput('coupon-delivery-change-asset', 'DELIVERYHALF', 'shipping'),
+    );
+    const pickupQuote = await f.service.quote(
+      identity,
+      orderId,
+      quoteInput('coupon-delivery-change-asset', 'DELIVERYHALF', 'studio_pickup'),
+    );
+
+    expect(pickupQuote.coupon?.discountCents).toBe(shippingQuote.coupon?.discountCents);
+    expect(pickupQuote.totals.discountCents).toBe(shippingQuote.totals.discountCents);
+    expect(shippingQuote.totals.shippingCents).toBe(500);
+    expect(pickupQuote.totals.shippingCents).toBe(0);
+    expect(shippingQuote.totals.totalCents - pickupQuote.totals.totalCents).toBe(500);
+    expect(shippingQuote.quoteFingerprint).not.toBe(pickupQuote.quoteFingerprint);
+  });
+
   it('applies a format-specific coupon only to selected SKUs', async () => {
     const now = Date.UTC(2026, 0, 2);
     const f = createService({ now: () => Timestamp.fromMillis(now) });

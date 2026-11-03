@@ -284,6 +284,8 @@ export default function PrintShopOrderPage() {
   const [couponDraft, setCouponDraft] = useState('');
   const [couponMessage, setCouponMessage] = useState('');
   const [couponError, setCouponError] = useState(false);
+  const [couponNeedsMorePrints, setCouponNeedsMorePrints] = useState(false);
+  const [retryCouponAfterEditing, setRetryCouponAfterEditing] = useState(false);
   const [zeroOrderSubmitting, setZeroOrderSubmitting] = useState(false);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
@@ -360,6 +362,8 @@ export default function PrintShopOrderPage() {
     setCouponDraft('');
     setCouponMessage('');
     setCouponError(false);
+    setCouponNeedsMorePrints(false);
+    setRetryCouponAfterEditing(false);
     setStep('upload');
     setPageError(null);
     setDraftResumeNotice(null);
@@ -843,13 +847,23 @@ export default function PrintShopOrderPage() {
     setQuoteLoading(true);
     try {
       const draftId = await ensureDraft();
+      const couponToApply = couponCode || (retryCouponAfterEditing ? couponDraft : '');
       const serverQuote = await printShopApi.quoteOrder(
         draftId,
         buildPrintOrderItems(groups, uploadedPhotos),
         deliveryMethod,
-        couponCode,
+        couponToApply,
       );
       setQuote(serverQuote);
+      if (retryCouponAfterEditing) {
+        const appliedCode = serverQuote.coupon?.code || '';
+        setCouponCode(appliedCode);
+        setCouponDraft(appliedCode);
+        setCouponMessage(appliedCode ? `Coupon ${appliedCode} applicato.` : '');
+        setCouponError(false);
+        setCouponNeedsMorePrints(false);
+        setRetryCouponAfterEditing(false);
+      }
       setLowResolutionAccepted(false);
       setStep('checkout');
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -864,6 +878,8 @@ export default function PrintShopOrderPage() {
     if (!orderId || !catalog || resumedPendingPayment) return;
     setCouponMessage('');
     setCouponError(false);
+    setCouponNeedsMorePrints(false);
+    setRetryCouponAfterEditing(false);
     setPageError(null);
     setQuoteLoading(true);
     try {
@@ -881,13 +897,25 @@ export default function PrintShopOrderPage() {
       setCouponDraft(appliedCode);
       setCouponMessage(appliedCode ? `Coupon ${appliedCode} applicato.` : 'Coupon rimosso.');
       setCouponError(false);
+      setCouponNeedsMorePrints(false);
       resetCheckoutAcceptances();
     } catch (error) {
       setCouponMessage(readableError(error));
       setCouponError(true);
+      setCouponNeedsMorePrints(
+        error instanceof PrintShopApiError && error.code === 'coupon_min_quantity_not_met',
+      );
     } finally {
       setQuoteLoading(false);
     }
+  };
+
+  const returnToOrderEditing = (targetStep: 'upload' | 'configure') => {
+    setRetryCouponAfterEditing(Boolean(couponDraft.trim()));
+    setPageError(null);
+    setQuote(null);
+    setStep(targetStep);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const resetCheckoutAcceptances = useCallback(() => {
@@ -1208,9 +1236,13 @@ export default function PrintShopOrderPage() {
                   <div className="flex justify-between gap-3"><dt className="text-blue-gray/55">Stampe</dt><dd className="font-semibold">{groups.reduce((sum, group) => sum + groupCopyCount(group), 0)}</dd></div>
                   <div className="flex justify-between gap-3"><dt className="text-blue-gray/55">Consegna</dt><dd className="font-semibold">{deliveryMethod === 'shipping' ? 'Spedizione' : 'Ritiro'}</dd></div>
                 </dl>
-                <div className="mt-5 border-t border-sage/15 pt-5">
-                  <div className="flex items-end justify-between gap-3"><span className="text-sm text-blue-gray/55">Totale stimato</span><strong className="text-2xl text-terracotta">{formatEuroCents(estimatedTotalCents)}</strong></div>
-                  <p className="mt-2 text-xs leading-relaxed text-blue-gray/45">Il server controllerà prezzi e scaglioni prima del pagamento.</p>
+                  <div className="mt-5 border-t border-sage/15 pt-5">
+                    <div className="flex items-end justify-between gap-3"><span className="text-sm text-blue-gray/55">Totale stimato{couponCode ? ' prima dello sconto' : ''}</span><strong className="text-2xl text-terracotta">{formatEuroCents(estimatedTotalCents)}</strong></div>
+                    <p className="mt-2 text-xs leading-relaxed text-blue-gray/45">
+                      {couponCode
+                        ? `Il coupon ${couponCode} verrà ricalcolato sul totale delle stampe; la consegna è aggiornata in questa stima.`
+                        : 'Il server controllerà prezzi e scaglioni prima del pagamento.'}
+                    </p>
                 </div>
                 <WhatsAppHelp orderNumber={null} className="mt-5 border-t border-sage/15 pt-4" />
               </aside>
@@ -1384,7 +1416,13 @@ export default function PrintShopOrderPage() {
                     <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                       <Input
                         value={couponDraft}
-                        onChange={(event) => setCouponDraft(event.target.value.toUpperCase())}
+                        onChange={(event) => {
+                          setCouponDraft(event.target.value.toUpperCase());
+                          setCouponMessage('');
+                          setCouponError(false);
+                          setCouponNeedsMorePrints(false);
+                          setRetryCouponAfterEditing(false);
+                        }}
                         maxLength={32}
                         readOnly={resumedPendingPayment}
                         placeholder="Inserisci il codice"
@@ -1406,6 +1444,26 @@ export default function PrintShopOrderPage() {
                       )}
                     </div>
                     {couponMessage && <p className={`mt-2 text-sm ${couponError ? 'text-red-700' : 'text-emerald-800'}`} role={couponError ? 'alert' : 'status'}>{couponMessage}</p>}
+                    {couponError && couponNeedsMorePrints && (
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => returnToOrderEditing('configure')}
+                          className="h-auto min-h-11 whitespace-normal rounded-xl border-terracotta/40 text-terracotta"
+                        >
+                          Aggiungi stampe
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => returnToOrderEditing('upload')}
+                          className="h-auto min-h-11 whitespace-normal rounded-xl"
+                        >
+                          Aggiungi altre foto
+                        </Button>
+                      </div>
+                    )}
                     {quote?.coupon && (
                       <p className="mt-2 text-xs text-blue-gray/60">
                         {quote.coupon.discountType === 'percentage' ? `${quote.coupon.value}%` : formatEuroCents(quote.coupon.value)} di sconto{' '}
