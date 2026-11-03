@@ -563,6 +563,34 @@ describe('vetrina shop /online-shop', () => {
       expect(html).not.toContain('noindex');
     });
   });
+
+  it('non indicizza la vetrina se il catalogo è spento o non disponibile', async () => {
+    await withFlag('true', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(Date.now() + 61_000);
+      mockCollection.mockImplementation((name: string) => {
+        if (name === 'settings') {
+          return {
+            doc: () => ({
+              get: async () => ({
+                exists: true,
+                data: () => ({ enabled: false, ordersOpen: false, categoryValues: [] }),
+              }),
+            }),
+          };
+        }
+        throw new Error(`Unexpected collection: ${name}`);
+      });
+
+      try {
+        const { response } = await renderForCrawler('/online-shop');
+        expect(response.headers['X-Robots-Tag']).toContain('noindex');
+        expect(response.body).toContain('<meta name="robots" content="noindex,nofollow,noarchive"');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
 });
 
 describe('pagina «Come funziona» delle gift card', () => {

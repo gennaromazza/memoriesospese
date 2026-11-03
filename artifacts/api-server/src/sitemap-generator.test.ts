@@ -5,9 +5,11 @@ vi.mock('./firebase-admin', () => ({ db: {} }));
 import {
   BLOG_SEO_RENDERING_LASTMOD,
   blogSitemapLastModifiedDate,
+  buildShopCategorySitemapEntries,
   buildStaticSitemapEntries,
   buildWeddingSitemapEntries,
 } from './sitemap-generator';
+import { ShopService } from './shop/service';
 
 describe('Blog sitemap', () => {
   it('signals the latest real article or shared SEO rendering update', () => {
@@ -76,9 +78,48 @@ describe('Sitemap della vetrina shop', () => {
     expect(buildStaticSitemapEntries('https://example.test')).not.toContain('/online-shop');
   });
 
-  it('la elenca quando viene aperta a Google', () => {
+  it('non include lo shop staticamente: serve verificare il catalogo attivo', () => {
     process.env.SHOP_INDEXABLE = 'true';
-    expect(buildStaticSitemapEntries('https://example.test')).toContain('<loc>https://example.test/online-shop</loc>');
+    expect(buildStaticSitemapEntries('https://example.test')).not.toContain('/online-shop');
+  });
+
+  it('include vetrina e sole categorie con prodotti vendibili', async () => {
+    process.env.SHOP_INDEXABLE = 'true';
+    vi.spyOn(ShopService.prototype, 'publicCatalog').mockResolvedValue({
+      enabled: true,
+      orderingOpen: true,
+      lastOrderDate: null,
+      currency: 'EUR',
+      shipping: {} as any,
+      photoWaitDays: 7,
+      categories: [
+        { value: 'natale', nome: 'Natale' },
+        { value: 'vuota', nome: 'Vuota' },
+      ],
+      products: [{ id: 'p1', categoria: 'natale' }],
+    } as any);
+
+    const xml = await buildShopCategorySitemapEntries('https://example.test');
+
+    expect(xml).toContain('<loc>https://example.test/online-shop</loc>');
+    expect(xml).toContain('<loc>https://example.test/online-shop/categoria/natale</loc>');
+    expect(xml).not.toContain('/categoria/vuota');
+  });
+
+  it('esclude vetrina e categorie quando shop o catalogo sono spenti', async () => {
+    process.env.SHOP_INDEXABLE = 'true';
+    vi.spyOn(ShopService.prototype, 'publicCatalog').mockResolvedValue({
+      enabled: false,
+      orderingOpen: false,
+      lastOrderDate: null,
+      currency: 'EUR',
+      shipping: {} as any,
+      photoWaitDays: 7,
+      categories: [],
+      products: [],
+    } as any);
+
+    expect(await buildShopCategorySitemapEntries('https://example.test')).toBe('');
   });
 });
 

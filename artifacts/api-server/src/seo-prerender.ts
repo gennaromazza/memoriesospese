@@ -1504,7 +1504,9 @@ async function getShopPageMeta(): Promise<PageMeta | null> {
   try {
     const catalog = await getShopCatalogForSeo();
     const products = shopProductsBody(catalog);
-    if (!products) return base;
+    if (!catalog.enabled || catalog.products.length === 0 || !products) {
+      return { ...base, noindex: true };
+    }
     const baseLd = Array.isArray(base.jsonLd) ? base.jsonLd : base.jsonLd ? [base.jsonLd] : [];
     return {
       ...base,
@@ -1512,8 +1514,8 @@ async function getShopPageMeta(): Promise<PageMeta | null> {
       jsonLd: [...baseLd, ...shopProductsJsonLd(catalog, new Date())],
     };
   } catch (error) {
-    logger.warn({ err: error }, 'Catalogo shop non letto per la pagina SEO: uso i testi fissi');
-    return base;
+    logger.warn({ err: error }, 'Catalogo shop non letto per la pagina SEO: la pagina resta noindex');
+    return { ...base, noindex: true };
   }
 }
 
@@ -1600,6 +1602,9 @@ export function createSeoMiddleware(options: { indexHtmlPath?: string } = {}) {
       // Every recognized public route gets route-specific Open Graph metadata,
       // even if a new page has not yet received a curated SEO entry.
       meta ||= fallbackPublicPageMeta(path);
+      if (meta.noindex) {
+        res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+      }
 
       let indexHtml = readFileSync(indexHtmlPath, 'utf-8');
 

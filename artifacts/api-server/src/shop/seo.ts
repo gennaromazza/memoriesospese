@@ -143,10 +143,11 @@ export function buildShopCategoryPageMeta(catalog: ShopCatalogDto, value: string
   };
 }
 
-/** Indirizzi delle categorie da mettere nella mappa del sito: solo quelle con almeno un prodotto, a vetrina accesa. */
-export function shopCategorySitemapPaths(catalog: ShopCatalogDto): string[] {
-  if (!catalog.enabled) return [];
-  return catalog.categories
+/** Indirizzi dello shop da mettere nella mappa: vetrina attiva e solo categorie con prodotti vendibili. */
+export function shopSitemapPaths(catalog: ShopCatalogDto): string[] {
+  if (!catalog.enabled || catalog.products.length === 0) return [];
+  const categories = catalog.categories
     .filter(category => catalog.products.some(product => product.categoria === category.value))
     .map(category => shopCategoryPath(category.value));
+  return ['/online-shop', ...categories];
 }
