@@ -42,14 +42,31 @@ function fakeDatabase() {
       const data = documents.get(`${collectionName}/${id}`);
       return { exists: Boolean(data), data: () => data };
     },
+    update: async (data: Record<string, any>) => {
+      const key = `${collectionName}/${id}`;
+      documents.set(key, { ...(documents.get(key) || {}), ...data });
+    },
     set: async (data: Record<string, any>, options?: { merge?: boolean }) => {
       const key = `${collectionName}/${id}`;
       documents.set(key, options?.merge ? { ...(documents.get(key) || {}), ...data } : data);
     },
   });
+  const collection = (name: string) => ({
+    doc: (id: string) => reference(name, id),
+    where: (field: string, operator: string, value: unknown) => ({
+      get: async () => ({
+        docs: [...documents.entries()]
+          .filter(([key, data]) => key.startsWith(`${name}/`) && operator === '==' && data[field] === value)
+          .map(([key, data]) => ({
+            data: () => data,
+            ref: reference(name, key.slice(name.length + 1)),
+          })),
+      }),
+    }),
+  });
   return {
     documents,
-    collection: (name: string) => ({ doc: (id: string) => reference(name, id) }),
+    collection,
     runTransaction: async (callback: (transaction: any) => Promise<any>) => callback({
       get: async (ref: ReturnType<typeof reference>) => {
         const data = documents.get(ref.key);
@@ -97,6 +114,11 @@ describe('social cover health checker', () => {
     expect(brokenAgain).toMatchObject({ checked: 1, unavailable: 1, newFailures: 1 });
     expect(mocks.alert).toHaveBeenCalledTimes(2);
     expect([...database.documents.values()].filter(value => value.type === 'social_cover_unavailable')).toHaveLength(2);
+    const socialNotifications = [...database.documents.values()]
+      .filter(value => value.type === 'social_cover_unavailable');
+    expect(socialNotifications.filter(value => value.isResolved === true)).toHaveLength(1);
+    expect(socialNotifications.find(value => value.isResolved === true)).toMatchObject({ isRead: true });
+    expect(socialNotifications.filter(value => value.isResolved !== true)).toHaveLength(1);
     expect([...database.documents.values()].find(value => value.key === 'article:post-1')).toMatchObject({
       isBroken: true,
       reason: 'Risposta HTTP 404',

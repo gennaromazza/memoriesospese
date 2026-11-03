@@ -343,6 +343,7 @@ router.get('/notifications', authenticateFirebase, requireAdmin, async (req: any
 
     adminNotifSnap.docs.forEach(doc => {
       const data = doc.data();
+      if (data.isResolved === true) return;
       const createdDate = data.createdAt?.toDate ? data.createdAt.toDate() : null;
       if (!createdDate || createdDate < sevenDaysAgo) return;
 

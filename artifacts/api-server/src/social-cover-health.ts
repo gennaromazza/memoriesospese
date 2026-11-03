@@ -388,6 +388,27 @@ function buildAdminEmail(failures: Array<SocialCoverCandidate & { reason: string
   </div>`;
 }
 
+async function resolveSocialCoverNotifications(
+  database: any,
+  relatedDocId: string,
+  resolvedAt: number,
+): Promise<number> {
+  const snapshot = await database.collection('adminNotifications')
+    .where('relatedDocId', '==', relatedDocId)
+    .get();
+  const unresolved = snapshot.docs.filter((document: any) => {
+    const data = document.data();
+    return data.type === 'social_cover_unavailable' && data.isResolved !== true;
+  });
+
+  await Promise.all(unresolved.map((document: any) => document.ref.update({
+    isRead: true,
+    isResolved: true,
+    resolvedAt: new Date(resolvedAt),
+  })));
+  return unresolved.length;
+}
+
 async function notifyAdmin(failures: Array<SocialCoverCandidate & { reason: string }>): Promise<void> {
   if (!failures.length) return;
   const subject = `Copertine social non raggiungibili (${failures.length})`;
@@ -453,11 +474,13 @@ async function performSocialCoverHealthCheck(deps: SocialCoverHealthDeps = {}): 
       const itemRef = database.collection(HEALTH_COLLECTION).doc(itemHash);
       const notificationRef = database.collection('adminNotifications')
         .doc(`social-cover-${itemHash}-${checkedAt}`);
-      const becameBroken = await database.runTransaction(async (transaction: any) => {
+      const transition = await database.runTransaction(async (transaction: any) => {
         const previous = await transaction.get(itemRef);
         const previousData = previous.exists ? previous.data() : {};
         const alreadyBroken = previousData?.urlHash === hash(candidate.imageUrl) && previousData?.isBroken === true;
         const isBroken = outcome !== null;
+        const shouldResolveNotifications = !isBroken
+          && (previousData?.isBroken === true || !previousData?.lastHealthyAt);
         transaction.set(itemRef, {
           key: candidate.key,
           kind: candidate.kind,
@@ -467,6 +490,7 @@ async function performSocialCoverHealthCheck(deps: SocialCoverHealthDeps = {}): 
           urlHash: hash(candidate.imageUrl),
           isBroken,
           reason: outcome || null,
+          lastHealthyAt: isBroken ? null : new Date(checkedAt),
           checkedAt: new Date(checkedAt),
         });
         if (isBroken && !alreadyBroken) {
@@ -477,14 +501,23 @@ async function performSocialCoverHealthCheck(deps: SocialCoverHealthDeps = {}): 
             relatedDocId: candidate.key,
             relatedDocType: candidate.kind,
             isRead: false,
+            isResolved: false,
             createdAt: new Date(checkedAt),
             deepLink: candidate.pageUrl,
             safeImageUrl: safeUrlForDisplay(candidate.imageUrl),
           });
         }
-        return isBroken && !alreadyBroken;
+        return {
+          becameBroken: isBroken && !alreadyBroken,
+          shouldResolveNotifications,
+        };
       });
-      if (becameBroken && outcome) newFailures.push({ ...candidate, reason: outcome });
+      if (transition.shouldResolveNotifications) {
+        await resolveSocialCoverNotifications(database, candidate.key, checkedAt).catch(error => {
+          logger.warn({ err: error, key: candidate.key }, 'Unable to resolve recovered social cover notifications');
+        });
+      }
+      if (transition.becameBroken && outcome) newFailures.push({ ...candidate, reason: outcome });
     }));
   }
 
