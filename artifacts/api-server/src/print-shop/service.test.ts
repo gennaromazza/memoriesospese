@@ -644,7 +644,7 @@ describe('print shop coupon quotes and payment reservations', () => {
     couponCode,
   });
 
-  it('discounts prints only, caps fixed discounts at the subtotal, and never makes the total negative', async () => {
+  it('replaces an active coupon instead of stacking it and caps fixed discounts at the subtotal', async () => {
     let clock = Date.UTC(2026, 0, 2);
     const f = createService({ now: () => Timestamp.fromMillis(clock) });
     const orderId = 'coupon-quote-order';
@@ -664,6 +664,24 @@ describe('print shop coupon quotes and payment reservations', () => {
       totalCents: 535,
     });
     expect(percentQuote.coupon).toMatchObject({ code: 'HALF', discountType: 'percentage', discountCents: 35 });
+
+    seedCoupon(f.db, 'NEXT20', { value: 20 });
+    const replacementQuote = await f.service.quote(
+      identity,
+      orderId,
+      quoteInput('coupon-asset', 'NEXT20', 'shipping'),
+    );
+    expect(replacementQuote.coupon).toMatchObject({ code: 'NEXT20', discountCents: 14 });
+    expect(replacementQuote.totals).toEqual({
+      subtotalCents: 70,
+      discountCents: 14,
+      shippingCents: 500,
+      totalCents: 556,
+    });
+    const persistedReplacement = f.db.value(`orders/${orderId}`);
+    expect(persistedReplacement.printShop.requestedCouponCode).toBe('NEXT20');
+    expect(persistedReplacement.printShop.coupon.code).toBe('NEXT20');
+    expect(persistedReplacement.totals).toEqual(replacementQuote.totals);
 
     seedCoupon(f.db, 'BIGFIXED', { discountType: 'fixed', value: 20_000 });
     const fixedQuote = await f.service.quote(identity, orderId, quoteInput('coupon-asset', 'BIGFIXED', 'shipping'));

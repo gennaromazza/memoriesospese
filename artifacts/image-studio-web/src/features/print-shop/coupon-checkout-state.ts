@@ -12,8 +12,31 @@ export interface CouponCheckoutFailure extends CouponCheckoutSnapshot {
   needsMorePrints: boolean;
 }
 
+export interface CouponCheckoutSuccess extends CouponCheckoutSnapshot {
+  message: string;
+  isError: false;
+  needsMorePrints: false;
+}
+
 export function couponDraftDiffersFromApplied(appliedCode: string, draft: string): boolean {
   return Boolean(appliedCode) && draft.trim().toUpperCase() !== appliedCode.trim().toUpperCase();
+}
+
+export function applyCouponQuote(
+  current: CouponCheckoutSnapshot,
+  serverQuote: PrintShopQuote,
+): CouponCheckoutSuccess {
+  const appliedCode = serverQuote.coupon?.code || '';
+
+  return {
+    ...current,
+    quote: serverQuote,
+    couponCode: appliedCode,
+    couponDraft: appliedCode,
+    message: appliedCode ? `Coupon ${appliedCode} applicato.` : 'Coupon rimosso.',
+    isError: false,
+    needsMorePrints: false,
+  };
 }
 
 export function preserveCouponCheckoutOnFailure(

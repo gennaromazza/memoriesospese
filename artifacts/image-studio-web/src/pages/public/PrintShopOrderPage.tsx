@@ -43,6 +43,7 @@ import { PolaroidPreview, PrintGroupsEditor } from '@/features/print-shop/PrintG
 import { inspectJpegFile } from '@/features/print-shop/print-shop-files';
 import { PrintShopApiError, printShopApi } from '@/features/print-shop/print-shop-api';
 import {
+  applyCouponQuote,
   couponDraftDiffersFromApplied,
   preserveCouponCheckoutOnFailure,
 } from '@/features/print-shop/coupon-checkout-state';
@@ -896,13 +897,13 @@ export default function PrintShopOrderPage() {
         deliveryMethod,
         normalizedCode,
       );
-      setQuote(updatedQuote);
-      const appliedCode = updatedQuote.coupon?.code || '';
-      setCouponCode(appliedCode);
-      setCouponDraft(appliedCode);
-      setCouponMessage(appliedCode ? `Coupon ${appliedCode} applicato.` : 'Coupon rimosso.');
-      setCouponError(false);
-      setCouponNeedsMorePrints(false);
+      const next = applyCouponQuote({ quote, couponCode, couponDraft }, updatedQuote);
+      setQuote(next.quote);
+      setCouponCode(next.couponCode);
+      setCouponDraft(next.couponDraft);
+      setCouponMessage(next.message);
+      setCouponError(next.isError);
+      setCouponNeedsMorePrints(next.needsMorePrints);
       resetCheckoutAcceptances();
     } catch (error) {
       const failure = preserveCouponCheckoutOnFailure(

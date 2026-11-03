@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { PrintShopQuote } from '@shared/print-shop-types';
 import {
+  applyCouponQuote,
   couponDraftDiffersFromApplied,
   preserveCouponCheckoutOnFailure,
 } from './coupon-checkout-state';
@@ -67,6 +68,42 @@ describe('print shop coupon checkout state', () => {
     expect(couponDraftDiffersFromApplied('SAVE10', ' BADCODE ')).toBe(true);
     expect(couponDraftDiffersFromApplied('save10', ' SAVE10 ')).toBe(false);
     expect(couponDraftDiffersFromApplied('', 'BADCODE')).toBe(false);
+  });
+
+  it('replaces the active coupon state with the server quote instead of adding discounts', () => {
+    const previousQuote = quote();
+    const replacementQuote: PrintShopQuote = {
+      ...previousQuote,
+      totals: {
+        subtotalCents: 2000,
+        discountCents: 400,
+        shippingCents: 500,
+        totalCents: 2100,
+      },
+      coupon: {
+        code: 'NEXT20',
+        discountType: 'percentage',
+        value: 20,
+        discountCents: 400,
+        scope: 'all',
+        eligibleSkus: [],
+      },
+      quoteFingerprint: 'e'.repeat(64),
+    };
+
+    const next = applyCouponQuote({
+      quote: previousQuote,
+      couponCode: 'SAVE10',
+      couponDraft: 'NEXT20',
+    }, replacementQuote);
+
+    expect(next.quote).toBe(replacementQuote);
+    expect(next.couponCode).toBe('NEXT20');
+    expect(next.couponDraft).toBe('NEXT20');
+    expect(next.quote?.totals.discountCents).toBe(400);
+    expect(next.quote?.totals.totalCents).toBe(2100);
+    expect(next.message).toBe('Coupon NEXT20 applicato.');
+    expect(next.isError).toBe(false);
   });
 
   it('keeps the minimum-print recovery state specific to its server error', () => {
