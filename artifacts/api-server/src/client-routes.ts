@@ -1,6 +1,6 @@
 import { shopCategoryValueFromPath } from '@shared/shop-landing-content';
 
-const PUBLIC_STATIC_PATHS = new Set([
+export const PUBLIC_STATIC_PATHS = new Set([
   '/',
   '/portfolio',
   '/storie',
@@ -18,6 +18,7 @@ const PUBLIC_STATIC_PATHS = new Set([
   '/terms',
   '/prenota',
   '/consulenze',
+  '/consultations',
   '/regala',
   '/regala/come-funziona',
   '/online-shop',

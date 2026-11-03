@@ -221,7 +221,7 @@ function socialCard(name: string, alt: string): SocialImageCandidate {
 }
 
 Object.assign(STATIC_IMAGES, {
-  '/regala': socialCard('regala', 'Gift card Image Studio: un regalo fotografico con sigillo e dedica personale'),
+  '/regala': socialCard('gift-card-natale', 'Gift card fotografica natalizia di Image Studio, con un orsetto e un nastro rosso'),
   '/regala/come-funziona': socialCard('regala-come-funziona', 'Come funziona la gift card Image Studio: scegli, personalizza e consegna il regalo'),
   '/portfolio/famiglia': socialCard('portfolio-famiglia', 'Portfolio famiglia Image Studio: fotografie e ricordi da conservare insieme'),
   '/portfolio/altro': socialCard('portfolio-altro', 'Altri progetti fotografici nel portfolio Image Studio'),

@@ -24,4 +24,10 @@ describe('errore salvataggio prodotto', () => {
     const shopError = Object.assign(new Error('Apri editor shop'), { code: 'print_shop_route_required' });
     expect(getProductSaveErrorMessage(shopError)).toBe('Apri editor shop');
   });
+
+  it('mostra il codice e il dettaglio degli errori non ancora classificati', () => {
+    const error = Object.assign(new Error('Invalid field value.'), { code: 'invalid-argument' });
+    expect(getProductSaveErrorMessage(error))
+      .toBe('Impossibile salvare il prodotto. Dettaglio: codice invalid-argument — Invalid field value.');
+  });
 });

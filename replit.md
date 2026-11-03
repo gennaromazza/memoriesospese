@@ -32,6 +32,12 @@ _Populate as you build — non-obvious choices a reader couldn't infer from the 
 
 - Image Vision è l'area video dedicata agli sposi: mostra i film di matrimonio e porta alla raccolta video completa.
 
+## SEO e condivisione social
+
+- Ogni pagina pubblica, nuova o modificata, deve avere Open Graph completo e specifico: titolo, descrizione, URL canonico, immagine pertinente e testo alternativo. I tag devono essere presenti nell'HTML iniziale generato dal server e restare coerenti con quelli impostati dal client.
+- Quando si aggiunge una route pubblica, aggiornare il prerender SEO, l'inventario delle immagini in `lib/shared-src/social-metadata.ts` e il test `social-metadata.contract.test.ts`.
+- Le pagine private, con token o dati cliente restano `noindex`; i metadati non devono esporre informazioni personali o contenuti riservati.
+
 ## User preferences
 
 - Nella homepage pubblica, alternare fondi pieni della palette October Mist tra le sezioni ed evitare i gradienti.

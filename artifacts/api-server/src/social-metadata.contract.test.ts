@@ -9,6 +9,7 @@ import {
   STATIC_IMAGES, blogSocialImage, defaultSocialImage, pageSocialImage,
   shopCategorySocialImage, staticSocialImage, weddingSocialImage,
 } from '@shared/social-metadata';
+import { isPrivateClientPath, PUBLIC_STATIC_PATHS } from './client-routes';
 
 const { collection } = vi.hoisted(() => ({ collection: vi.fn() }));
 vi.mock('./firebase-admin', () => ({ db: { collection } }));
@@ -32,6 +33,10 @@ const paths = [
   '/privacy', '/cookie-policy', '/terms', '/gdpr',
 ];
 const dynamicPaths = ['/blog/prova', '/real-wedding/prova', '/prenota/prova', '/online-shop/categoria/prova'];
+const REQUIRED_SOCIAL_META = [
+  'og:title', 'og:description', 'og:type', 'og:url', 'og:image', 'og:image:alt',
+  'twitter:card', 'twitter:title', 'twitter:description', 'twitter:image', 'twitter:image:alt',
+];
 
 async function render(path: string) {
   let html = '';
@@ -43,6 +48,12 @@ async function render(path: string) {
   await createSeoMiddleware({ indexHtmlPath })({ path, headers: {}, query: {} } as any, res, next);
   expect(next).not.toHaveBeenCalled();
   expect(res.status).not.toHaveBeenCalled();
+  for (const key of REQUIRED_SOCIAL_META) {
+    const tags = [...html.matchAll(new RegExp(`<meta\\b[^>]*(?:property|name)=["']${key}["'][^>]*>`, 'gi'))];
+    expect(tags, `${path}: deve esserci un solo meta ${key}`).toHaveLength(1);
+    const content = tags[0][0].match(/\bcontent=["']([^"']*)["']/i)?.[1];
+    expect(content?.trim(), `${path}: ${key} non deve essere vuoto`).toBeTruthy();
+  }
   return html;
 }
 
@@ -105,6 +116,16 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 describe('public social image inventory', () => {
+  it('prerenders a complete Open Graph card for every public static route', async () => {
+    const routes = new Set([...paths, ...PUBLIC_STATIC_PATHS]);
+    for (const path of routes) {
+      if (!isPrivateClientPath(path)) await render(path);
+    }
+
+    const guestPage = await render('/ospiti');
+    expect(guestPage).toContain('<meta name="robots" content="noindex,nofollow,noarchive"');
+  });
+
   it('maps every included static page to a distinct image URL and distinct bytes', async () => {
     expect(Object.keys(STATIC_IMAGES).sort()).toEqual([...paths].sort());
     const images = paths.map(staticSocialImage);

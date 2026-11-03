@@ -92,6 +92,7 @@ interface PageMeta {
   title: string;
   description: string;
   canonical: string;
+  noindex?: boolean;
   ogType?: string;
   keywords?: string;
   ogImage?: string;
@@ -471,6 +472,7 @@ function getStaticPageMeta(path: string): PageMeta | null {
       title: 'Area Ospiti | Image Studio',
       description: 'Scopri i servizi Image Studio dedicati agli ospiti e accedi rapidamente ai contatti dello studio.',
       canonical: `${BASE_URL}/ospiti`,
+      noindex: true,
       bodyContent: `<h1>Area Ospiti Image Studio</h1><p>Informazioni e contatti utili per gli ospiti degli eventi fotografati da Image Studio.</p>`
     },
     '/regala': {
@@ -579,9 +581,26 @@ function getStaticPageMeta(path: string): PageMeta | null {
     }
   };
 
-  const page = pages[path];
+  const page = pages[path] || (path === '/consultations' ? pages['/consulenze'] : undefined);
   const sharedPage = staticPageMetadata(path);
   return page ? { ...page, ...(sharedPage || {}) } : null;
+}
+
+function fallbackPublicPageMeta(path: string): PageMeta {
+  const label = path.split('/').filter(Boolean)
+    .map(segment => segment.replace(/[-_]+/g, ' '))
+    .join(' · ') || 'Image Studio';
+  const socialImage = staticSocialImage(path);
+
+  return {
+    title: `${label} | Image Studio`,
+    description: `Scopri ${label.toLowerCase()} di Image Studio: fotografia e servizi fotografici ad Aversa, Napoli, Caserta e in Campania.`,
+    canonical: `${BASE_URL}${path}`,
+    socialImage: {
+      ...socialImage,
+      alt: `Anteprima ${label} di Image Studio`,
+    },
+  };
 }
 
 async function getBookingCampaignMeta(path: string): Promise<PageMeta | null> {
@@ -1413,7 +1432,7 @@ function renderSeoHtml(meta: PageMeta, indexHtml: string): string {
   const seoHead = `
     <title>${escapeHtml(meta.title)}</title>
     <meta name="description" content="${escapeHtml(meta.description)}" />
-    <meta name="robots" content="index,follow,max-image-preview:large" />
+    <meta name="robots" content="${meta.noindex ? 'noindex,nofollow,noarchive' : 'index,follow,max-image-preview:large'}" />
     ${meta.keywords ? `<meta name="keywords" content="${escapeHtml(meta.keywords)}" />` : ''}
     <link rel="canonical" href="${escapeHtml(canonical)}" />
     <meta property="og:title" content="${escapeHtml(meta.title)}" />
@@ -1575,9 +1594,9 @@ export function createSeoMiddleware(options: { indexHtmlPath?: string } = {}) {
         return;
       }
 
-      if (!meta) {
-        return next();
-      }
+      // Every recognized public route gets route-specific Open Graph metadata,
+      // even if a new page has not yet received a curated SEO entry.
+      meta ||= fallbackPublicPageMeta(path);
 
       let indexHtml = readFileSync(indexHtmlPath, 'utf-8');
 

@@ -10,6 +10,12 @@ function errorStatus(error: unknown): number | undefined {
   return typeof error.status === 'number' ? error.status : undefined;
 }
 
+function errorMessage(error: unknown): string | undefined {
+  if (typeof error === 'string') return error.trim() || undefined;
+  if (typeof error !== 'object' || error === null || !('message' in error)) return undefined;
+  return typeof error.message === 'string' ? error.message.trim() || undefined : undefined;
+}
+
 export function isProductWritePermissionDenied(error: unknown): boolean {
   const code = errorCode(error);
   return code === 'permission-denied' || code === 'firestore/permission-denied';
@@ -43,5 +49,11 @@ export function getProductSaveErrorMessage(
     return 'Firestore ha rifiutato il salvataggio. Controlla di essere nella sessione amministratore; se la verifica passkey è scaduta, rinnovala da Sicurezza e riprova.';
   }
 
-  return 'Impossibile salvare il prodotto. Riprova; se il problema continua, controlla la connessione e la sessione amministratore.';
+  const details = [
+    code ? `codice ${code}` : undefined,
+    errorMessage(error)?.slice(0, 240),
+  ].filter(Boolean).join(' — ');
+  return details
+    ? `Impossibile salvare il prodotto. Dettaglio: ${details}`
+    : 'Impossibile salvare il prodotto. Riprova; se il problema continua, controlla la connessione e la sessione amministratore.';
 }
