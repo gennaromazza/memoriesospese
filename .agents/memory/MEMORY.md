@@ -66,3 +66,4 @@
 - [Fotolibri e invio stampa](photobook-print-dispatch.md) — blocco, trasferimento ed email sono stati distinti; invii dall’esito ambiguo richiedono verifica esplicita, mai retry automatico.
 - [Costo prodotti shop e privacy](shop-product-cost-privacy.md) — i costi unitari restano in dati admin-only, mai nei prodotti pubblici o nelle risposte cliente.
 - [Coupon e incassi confermati](print-coupon-payment-safety.md) — validare prima dell’incasso; dopo la conferma del provider riconciliare la prenotazione congelata, non le condizioni attuali.
+- [Consenso marketing e disiscrizioni](marketing-consent.md) — il titolare dichiara il consenso dei clienti; non riattivare chi si è disiscritto e richiedere conferma per la lista selezionata.

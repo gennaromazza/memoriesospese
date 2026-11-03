@@ -130,14 +130,14 @@ export default function BulkEmailSender() {
     enabled: !!activeJobId,
     refetchInterval: (query) => {
       const job = query.state.data?.job as BulkEmailJob | undefined;
-      return job?.status === 'in_progress' ? 2000 : false;
+      return job && ['queued', 'in_progress'].includes(job.status) ? 2000 : false;
     }
   });
 
   const activeJob: BulkEmailJob | null = activeJobData?.job || null;
 
   // Query tutti i job (polling solo se c'è un job attivo)
-  const hasActiveJob = !!activeJobId;
+  const hasActiveJob = !!activeJobId && (!activeJob || ['queued', 'in_progress'].includes(activeJob.status));
   const { data: jobsData } = useQuery<{ jobs: BulkEmailJob[] }>({
     queryKey: ['/api/bulk-email/jobs'],
     queryFn: async () => {
@@ -825,20 +825,6 @@ export default function BulkEmailSender() {
                             La presa in carico non equivale alla consegna finale. Consulta lo stato della campagna su Resend.
                           </div>
                         )}
-                        {activeJob.provider === 'resend' && activeJob.status === 'failed' && (
-                          <Button
-                            className="w-full bg-amber-600 hover:bg-amber-700"
-                            onClick={() => retryFailedMutation.mutate(activeJob.id)}
-                            disabled={retryFailedMutation.isPending}
-                          >
-                            {retryFailedMutation.isPending ? (
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            ) : (
-                              <Send className="h-4 w-4 mr-2" />
-                            )}
-                            Riprendi controllo sicuro Resend
-                          </Button>
-                        )}
                         {activeJob.provider !== 'resend' && activeJob.failedCount > 0 && (
                           <div className="text-sm mt-1">
                             {activeJob.failedCount} email non sono state consegnate
@@ -879,7 +865,17 @@ export default function BulkEmailSender() {
                     {activeJob.status !== 'in_progress' && (
                       <div className="space-y-2 mt-4">
                         {/* Pulsante riprova email fallite */}
-                        {activeJob.failedCount > 0 && (
+                        {activeJob.provider === 'resend' && activeJob.status === 'failed' && (
+                          <Button
+                            className="w-full bg-amber-600 hover:bg-amber-700"
+                            onClick={() => retryFailedMutation.mutate(activeJob.id)}
+                            disabled={retryFailedMutation.isPending}
+                          >
+                            {retryFailedMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                            Riprendi controllo sicuro Resend
+                          </Button>
+                        )}
+                        {activeJob.provider !== 'resend' && activeJob.failedCount > 0 && (
                           <Button 
                             className="w-full bg-amber-600 hover:bg-amber-700"
                             onClick={() => retryFailedMutation.mutate(activeJob.id)}
