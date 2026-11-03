@@ -55,7 +55,7 @@ function isGiftShopHidden(path: string): boolean {
 }
 
 /** La vetrina dello shop si apre a Google solo con SHOP_INDEXABLE=true: fino ad allora resta raggiungibile ma non indicizzata. */
-function isShopHidden(path: string): boolean {
+export function isShopHidden(path: string): boolean {
   return (path === '/online-shop' || shopCategoryValueFromPath(path) !== null) && process.env.SHOP_INDEXABLE !== 'true';
 }
 

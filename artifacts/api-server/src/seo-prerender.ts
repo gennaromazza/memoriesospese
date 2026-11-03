@@ -20,6 +20,7 @@ import {
 import {
   isKnownClientPath,
   isPrivateClientPath,
+  isShopHidden,
   normalizeClientPath,
 } from './client-routes';
 import {
@@ -1536,7 +1537,9 @@ export function createSeoMiddleware(options: { indexHtmlPath?: string } = {}) {
 
     if (isPrivateClientPath(path)) {
       res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
-      return next();
+      // Lo shop resta escluso dall'indice finché SHOP_INDEXABLE non è attivo,
+      // ma è una pagina pubblica condivisibile: serve comunque i suoi meta OG.
+      if (!isShopHidden(path)) return next();
     }
 
     if (isNonPrerenderablePath(path)) {

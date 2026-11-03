@@ -489,11 +489,63 @@ describe('vetrina shop /online-shop', () => {
     }
   }
 
-  it('finché non è aperta a Google resta nascosta con noindex', async () => {
+  it('finché non è aperta a Google resta noindex ma fornisce i meta social già nel primo HTML', async () => {
     await withFlag(undefined, async () => {
       const { response, next } = await renderForCrawler('/online-shop');
       expect(response.headers['X-Robots-Tag']).toContain('noindex');
-      expect(next).toHaveBeenCalled();
+      expect(next).not.toHaveBeenCalled();
+      expect(response.body).toContain('<title>Shop online con le tue foto, Aversa | Image Studio</title>');
+      expect(response.body).toContain('<link rel="canonical" href="https://imagestudiofotografico.com/online-shop"');
+      expect(response.body).toContain('<meta property="og:title" content="Shop online con le tue foto, Aversa | Image Studio"');
+      expect(response.body).toContain('https://imagestudiofotografico.com/images/social/online-shop-natale.jpg');
+    });
+  });
+
+  it('mantiene i meta della categoria shop nel primo HTML anche quando resta noindex', async () => {
+    await withFlag(undefined, async () => {
+      const docsByCollection: Record<string, Array<{ id: string; data: () => Record<string, unknown> }>> = {
+        productCategories: [{
+          id: 'category-regali',
+          data: () => ({ value: 'regali', nome: 'Regali', attivo: true, displayOrder: 1 }),
+        }],
+        products: [{
+          id: 'product-tazza',
+          data: () => ({
+            nome: 'Tazza personalizzata',
+            descrizione: 'Una tazza con la tua fotografia',
+            prezzo: 15,
+            sconto: 0,
+            numeroFoto: 1,
+            categoria: 'regali',
+            attivo: true,
+            immagini: ['https://cdn.example/tazza.jpg'],
+          }),
+        }],
+      };
+      mockCollection.mockImplementation((name: string) => {
+        if (name === 'settings') {
+          return {
+            doc: () => ({
+              get: async () => ({
+                exists: true,
+                data: () => ({ enabled: true, ordersOpen: true, categoryValues: ['regali'] }),
+              }),
+            }),
+          };
+        }
+        const chain: any = {
+          where: () => chain,
+          get: async () => ({ docs: docsByCollection[name] || [] }),
+        };
+        return chain;
+      });
+
+      const { response, next } = await renderForCrawler('/online-shop/categoria/regali');
+      expect(response.headers['X-Robots-Tag']).toContain('noindex');
+      expect(next).not.toHaveBeenCalled();
+      expect(response.body).toContain('https://imagestudiofotografico.com/online-shop/categoria/regali');
+      expect(response.body).toContain('Tazza personalizzata');
+      expect(response.body).not.toContain(`<title>${WEDDING_HOME_SEO.title}</title>`);
     });
   });
 
