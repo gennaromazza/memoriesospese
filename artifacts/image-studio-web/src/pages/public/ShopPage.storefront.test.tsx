@@ -18,6 +18,7 @@ vi.mock('wouter', async () => {
 vi.mock('@/hooks/useSEO', () => ({ useSEO: () => undefined }));
 vi.mock('@/components/gift-cards/GiftCardArt', () => ({ GiftCardAmbient: () => null }));
 vi.mock('@/features/shop/shop-api', () => ({ shopApi: { getCatalog: vi.fn() } }));
+vi.mock('@/hooks/usePrintShopAvailable', () => ({ usePrintShopAvailable: () => true }));
 
 const product = (patch: Partial<ShopProductDto> = {}): ShopProductDto => ({
   id: 'p1',
@@ -66,7 +67,7 @@ describe('uscite verso il sito', () => {
       const html = renderPage(data);
       expect(html).toContain('Navigazione dello shop');
       expect(html).toMatch(/<a [^>]*href="\/"[^>]*>.*?Torna al sito/s);
-      expect(html).toContain('Stampale nel formato che preferisci');
+    expect(html).toContain('Stampale nel formato che preferisci');
       expect(html).toContain('href="/stampa-foto-aversa"');
       expect(html).toContain('Carica i tuoi scatti, scegli formato e finitura e ordinali online.');
       expect(html).toContain('Vedi formati e prezzi');
@@ -92,6 +93,8 @@ describe('uscite verso il sito', () => {
     const closed = renderToStaticMarkup(<ShopTopBar cartCount={0} showCart={false} showOrders />);
     expect(closed).not.toContain('/online-shop/ordine');
     expect(closed).toContain('Torna al sito');
+    const unavailable = renderToStaticMarkup(<ShopTopBar cartCount={0} showCart={false} showOrders={false} showPrintShop={false} />);
+    expect(unavailable).not.toContain('/stampa-foto-aversa');
   });
 
   it('c\'è un collegamento per saltare ai prodotti, solo se ci sono', () => {
@@ -233,10 +236,19 @@ describe('pagine per categoria', () => {
     expect(html).toContain('Tazza rossa');
   });
 
-  it("con una sola categoria non mostra l'elenco né i titoli", () => {
+  it('rende visibile anche una categoria stagionale unica purché abbia prodotti attivi', () => {
     const html = renderPage(catalog());
-    expect(html).not.toContain('Categorie dello shop');
-    expect(html).not.toContain('/online-shop/categoria/');
+    expect(html).toContain('aria-label="Categorie dello shop"');
+    expect(html).toContain('href="/online-shop/categoria/natale"');
+    expect(html).toContain('Natale <span>(1)</span>');
+    expect(renderPage(catalog({ products: [], categories: [] }))).not.toContain('href="/online-shop/categoria/natale"');
+  });
+
+  it('rende navigabile una categoria anche quando è l’unica disponibile', () => {
+    const html = renderPage(catalog());
+    expect(html).toContain('aria-label="Categorie dello shop"');
+    expect(html).toContain('href="/online-shop/categoria/natale"');
+    expect(html).toContain('Natale <span>(1)</span>');
   });
 
   it('la pagina di una categoria mostra solo i suoi prodotti, con titolo e percorso propri', () => {

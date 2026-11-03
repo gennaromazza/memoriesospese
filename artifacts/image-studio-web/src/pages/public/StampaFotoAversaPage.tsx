@@ -13,6 +13,7 @@ import {
   MessageCircle,
   Phone,
   Search,
+  ShoppingBag,
   ShoppingCart,
   SlidersHorizontal,
   Ticket,
@@ -48,6 +49,7 @@ import {
   countPrintFormats,
 } from '@shared/print-service-content';
 import { printShopApi } from '@/features/print-shop/print-shop-api';
+import { useShopAvailable } from '@/hooks/useShopAvailable';
 import type { PrintShopCatalogPayload } from '@/features/print-shop/types';
 import type { PrintShopPublicPromotion } from '@shared/print-shop-types';
 import {
@@ -199,6 +201,7 @@ function PriceFormatDisclosure({ row, orderHref, onOrderClick }: PriceBreakdownP
 
 export default function StampaFotoAversaPage() {
   const { studioSettings } = useStudio();
+  const shopAvailable = useShopAvailable();
   const [formatQuery, setFormatQuery] = useState('');
   const [catalog, setCatalog] = useState<PrintShopCatalogPayload | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(true);
@@ -416,6 +419,14 @@ export default function StampaFotoAversaPage() {
                     <ArrowDown className="ml-2 h-5 w-5" />
                   </Button>
                 </a>
+                {shopAvailable && (
+                  <Link href={createUrl('/online-shop')}>
+                    <Button variant="outline" className="w-full rounded-full border-white/40 bg-white/5 px-7 py-6 text-base text-white hover:bg-white/15 hover:text-white sm:w-auto">
+                      <ShoppingBag className="mr-2 h-5 w-5" />
+                      Regali personalizzati
+                    </Button>
+                  </Link>
+                )}
               </div>
 
               <div className="mt-10 flex flex-wrap gap-x-7 gap-y-3 text-sm text-white/70">
