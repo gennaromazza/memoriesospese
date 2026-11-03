@@ -34,7 +34,16 @@ const quote = {
   qualityWarnings: [],
 };
 
-async function setup(page: Page) {
+async function setup(
+  page: Page,
+  qualityWarnings: Array<{
+    assetId: string;
+    sku: string;
+    effectiveDpi: number;
+    warningBelowDpi: number;
+    targetDpi: number;
+  }> = [],
+) {
   const unexpectedApiRequests: string[] = [];
   const quoteRequests: Array<{ couponCode?: string }> = [];
   const origin = "http://127.0.0.1:4192";
@@ -97,13 +106,14 @@ async function setup(page: Page) {
       const requestBody = route.request().postDataJSON() as { couponCode?: string };
       quoteRequests.push(requestBody);
       const hasCoupon = requestBody.couponCode === "TEST25";
+      const checkoutQuote = { ...quote, qualityWarnings };
       const updatedQuote = hasCoupon
         ? {
-            ...quote,
+            ...checkoutQuote,
             coupon: { code: "TEST25", discountType: "percentage", value: 25, scope: "all" },
-            totals: { ...quote.totals, discountCents: 25, totalCents: 425 },
+            totals: { ...checkoutQuote.totals, discountCents: 25, totalCents: 425 },
           }
-        : quote;
+        : checkoutQuote;
       return respond({ quote: updatedQuote });
     }
     if (path === `/api/print-shop/orders/${orderId}/assets/${assetId}/preview` && method === "GET") {
@@ -172,6 +182,64 @@ test("checkout mobile jumps to the next required section and desktop keeps its s
     .toBe("sticky");
   await expect.poll(() => stickySummary.evaluate((element) => getComputedStyle(element).top))
     .toBe("96px");
+  expect(unexpectedApiRequests).toEqual([]);
+});
+
+test("checkout mobile prioritizes the photo-quality warning before consents and payment", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript((draftId) => {
+    sessionStorage.setItem("print-shop-draft:fixture-user", draftId);
+    (window as any).__checkoutScrollTargets = [];
+    Element.prototype.scrollIntoView = function () {
+      (window as any).__checkoutScrollTargets.push((this as HTMLElement).id);
+    };
+  }, orderId);
+  const { unexpectedApiRequests } = await setup(page, [{
+    assetId,
+    sku: product.sku,
+    effectiveDpi: 120,
+    warningBelowDpi: 150,
+    targetDpi: 300,
+  }]);
+  await page.goto("/?view=order&legalFixture=1");
+
+  await expect(page.getByRole("heading", { name: "Come vuoi stampare le foto?" })).toBeVisible();
+  await page.getByRole("button", { name: /Spedizione a domicilio/ }).click();
+  await page.getByRole("button", { name: "Controlla l’ordine" }).click();
+  await expect(page.getByRole("heading", { name: "I tuoi dati di contatto" })).toBeVisible();
+
+  const mobileJump = page.getByRole("button", { name: /Vai ai dati da completare|Vai al pagamento/ });
+  await page.locator("#print-shop-phone").fill("3331234567");
+  await mobileJump.click();
+  await expect.poll(() => page.evaluate(() => (window as any).__checkoutScrollTargets.at(-1)))
+    .toBe("print-shop-shipping-details");
+
+  const address = page.locator("#print-shop-shipping-details");
+  await address.locator("#print-shipping-street").fill("Via Roma");
+  await address.getByLabel(/Numero civico/).fill("10");
+  await address.getByLabel(/CAP/).fill("81031");
+  await address.getByLabel(/Città/).fill("Aversa");
+  await address.getByLabel(/Provincia/).fill("CE");
+  await address.locator("#print-fiscal-code").fill("RSSMRA85M01H501Q");
+  await mobileJump.click();
+  await expect.poll(() => page.evaluate(() => (window as any).__checkoutScrollTargets.at(-1)))
+    .toBe("print-shop-quality-warning");
+  await expect(page.getByRole("heading", { name: "Alcune foto potrebbero risultare meno nitide" }))
+    .toBeVisible();
+
+  await page.getByLabel(/Ho visto l’avviso e desidero continuare/).check();
+  await mobileJump.click();
+  await expect.poll(() => page.evaluate(() => (window as any).__checkoutScrollTargets.at(-1)))
+    .toBe("print-shop-payment-requirements");
+
+  const consents = page.locator("#print-shop-payment-requirements").getByRole("checkbox");
+  await consents.nth(0).check();
+  await consents.nth(1).check();
+  await consents.nth(2).check();
+  await expect(mobileJump).toHaveText(/Vai al pagamento/);
+  await mobileJump.click();
+  await expect.poll(() => page.evaluate(() => (window as any).__checkoutScrollTargets.at(-1)))
+    .toBe("print-shop-payment");
   expect(unexpectedApiRequests).toEqual([]);
 });
 
