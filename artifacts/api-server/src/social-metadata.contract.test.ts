@@ -9,7 +9,8 @@ import {
   STATIC_IMAGES, blogSocialImage, defaultSocialImage, pageSocialImage,
   shopCategorySocialImage, staticSocialImage, weddingSocialImage,
 } from '@shared/social-metadata';
-import { isPrivateClientPath, PUBLIC_STATIC_PATHS } from './client-routes';
+import { isKnownClientPath, isPrivateClientPath, PUBLIC_STATIC_PATHS } from './client-routes';
+import { WEDDING_HOME_SEO } from '../shared/public-seo-content';
 
 const { collection } = vi.hoisted(() => ({ collection: vi.fn() }));
 vi.mock('./firebase-admin', () => ({ db: { collection } }));
@@ -23,6 +24,26 @@ import { buildShopCategoryPageMeta } from './shop/seo';
 
 const publicDir = fileURLToPath(new URL('../../image-studio-web/public/', import.meta.url));
 const indexHtmlPath = fileURLToPath(new URL('../../image-studio-web/index.html', import.meta.url));
+const clientAppPath = fileURLToPath(new URL('../../image-studio-web/src/App.tsx', import.meta.url));
+const clientAppSource = await readFile(clientAppPath, 'utf-8');
+const CLIENT_ROUTE_PATTERNS = [...clientAppSource.matchAll(/<Route\b[^>]*\bpath=["']([^"']+)["']/gs)]
+  .map((match) => match[1]);
+const ROUTE_PARAMETER_SAMPLES: Record<string, string> = {
+  action: 'confirm',
+  assignmentId: 'route-test',
+  categoria: 'matrimonio',
+  code: 'route-test',
+  galleryId: 'route-test',
+  id: 'route-test',
+  jobId: 'route-test',
+  slug: 'route-test',
+  tipo: 'matrimonio',
+  token: 'route-test-private-token',
+  value: 'regali',
+};
+const CANONICAL_ROUTE_ALIASES: Record<string, string> = {
+  '/consultations': '/consulenze',
+};
 const paths = [
   '/', '/portfolio', '/portfolio/matrimonio', '/portfolio/battesimo',
   '/portfolio/comunione', '/portfolio/cresima', '/portfolio/evento',
@@ -38,6 +59,14 @@ const REQUIRED_SOCIAL_META = [
   'twitter:card', 'twitter:title', 'twitter:description', 'twitter:image', 'twitter:image:alt',
 ];
 
+function concreteClientPath(pattern: string): string {
+  return pattern.replace(/:([A-Za-z][A-Za-z0-9_]*)/g, (_match, name: string) => ROUTE_PARAMETER_SAMPLES[name] || 'route-test');
+}
+
+function shouldNeverBeIndexedClientPath(path: string): boolean {
+  return /^\/(?:admin(?:\/|$)|profile$|quote-management-demo$|special-gallery$|accesso-galleria$|negozi$|consultations\/book$|consulenze\/[^/]+(?:\/|$)|gallery\/[^/]+$|view\/[^/]+$|quote\/[^/]+$|preventivo-rapido\/[^/]+$|fotolibro\/[^/]+(?:\/|$)|q\/[^/]+$|modulo\/[^/]+$|regalo\/[^/]+$|collaboratori\/(?:assignment\/[^/]+\/[^/]+|dashboard\/[^/]+)$|stampa-foto-aversa\/(?:ordine(?:\/|$)|i-miei-ordini$)|online-shop\/(?:condizioni$|ordine(?:\/|$)|i-miei-ordini$)|request-password(?:\/[^/]+)?$|password-result\/[^/]+$)/.test(path);
+}
+
 async function render(path: string) {
   let html = '';
   const res: any = {
@@ -48,6 +77,37 @@ async function render(path: string) {
   await createSeoMiddleware({ indexHtmlPath })({ path, headers: {}, query: {} } as any, res, next);
   expect(next).not.toHaveBeenCalled();
   expect(res.status).not.toHaveBeenCalled();
+  const titles = [...html.matchAll(/<title\b[^>]*>([\s\S]*?)<\/title>/gi)];
+  expect(titles, `${path}: deve esserci un solo title`).toHaveLength(1);
+  expect(titles[0][1].trim(), `${path}: title non deve essere vuoto`).toBeTruthy();
+  if (path !== '/') {
+    expect(titles[0][1].trim(), `${path}: non deve riusare il title della home`).not.toBe(WEDDING_HOME_SEO.title);
+  }
+  const descriptions = [...html.matchAll(/<meta\b(?=[^>]*\bname=["']description["'])[^>]*>/gi)];
+  expect(descriptions, `${path}: deve esserci una sola description`).toHaveLength(1);
+  const description = descriptions[0][0].match(/\bcontent=["']([^"']*)["']/i)?.[1]?.trim();
+  expect(description, `${path}: description non deve essere vuota`).toBeTruthy();
+  if (path !== '/') {
+    expect(description, `${path}: non deve riusare la description della home`).not.toBe(WEDDING_HOME_SEO.description);
+  }
+  const canonicals = [...html.matchAll(/<link\b(?=[^>]*\brel=["']canonical["'])[^>]*>/gi)];
+  expect(canonicals, `${path}: deve esserci un solo canonical`).toHaveLength(1);
+  const canonical = canonicals[0][0].match(/\bhref=["']([^"']*)["']/i)?.[1];
+  expect(canonical, `${path}: canonical non deve essere vuoto`).toBeTruthy();
+  const canonicalPath = new URL(canonical!).pathname;
+  if (path !== '/') {
+    expect(canonicalPath, `${path}: canonical deve essere specifico della pagina, non della home`).not.toBe('/');
+  }
+  expect(canonicalPath, `${path}: canonical deve essere coerente con la route o con un alias esplicito`)
+    .toBe(CANONICAL_ROUTE_ALIASES[path] || path);
+  const robots = [...html.matchAll(/<meta\b(?=[^>]*\bname=["']robots["'])[^>]*>/gi)];
+  expect(robots, `${path}: deve essere presente la direttiva robots`).toHaveLength(1);
+  const robotsContent = robots[0][0].match(/\bcontent=["']([^"']*)["']/i)?.[1] || '';
+  if (path === '/ospiti') {
+    expect(robotsContent).toMatch(/noindex/i);
+  } else {
+    expect(robotsContent).not.toMatch(/noindex/i);
+  }
   for (const key of REQUIRED_SOCIAL_META) {
     const tags = [...html.matchAll(new RegExp(`<meta\\b[^>]*(?:property|name)=["']${key}["'][^>]*>`, 'gi'))];
     expect(tags, `${path}: deve esserci un solo meta ${key}`).toHaveLength(1);
@@ -55,6 +115,22 @@ async function render(path: string) {
     expect(content?.trim(), `${path}: ${key} non deve essere vuoto`).toBeTruthy();
   }
   return html;
+}
+
+async function expectPrivateRouteNotIndexed(path: string) {
+  const headers = new Map<string, string>();
+  let body = '';
+  const res: any = {
+    setHeader: (name: string, value: string) => headers.set(name.toLowerCase(), value),
+    status: vi.fn(() => res),
+    type: vi.fn(() => res),
+    send: (value: string) => { body = value; },
+  };
+  const next = vi.fn();
+  await createSeoMiddleware({ indexHtmlPath })({ path, headers: {}, query: {} } as any, res, next);
+  expect(headers.get('x-robots-tag'), `${path}: deve essere esclusa dall'indicizzazione`).toMatch(/noindex/i);
+  expect(next, `${path}: i contenuti privati devono restare al di fuori del prerender SEO`).toHaveBeenCalledOnce();
+  expect(body, `${path}: il prerender non deve esporre dati o contenuti riservati`).toBe('');
 }
 
 function headDom(html: string) {
@@ -116,8 +192,66 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 describe('public social image inventory', () => {
+  it('recognizes every route declared by the client and keeps private routes out of SEO prerendering', async () => {
+    expect(CLIENT_ROUTE_PATTERNS.length).toBeGreaterThan(0);
+    for (const pattern of CLIENT_ROUTE_PATTERNS) {
+      const path = concreteClientPath(pattern);
+      expect(isKnownClientPath(path), `La route client ${pattern} non è riconosciuta dal server (${path})`).toBe(true);
+      const expectedPrivate = shouldNeverBeIndexedClientPath(path);
+      if (expectedPrivate) {
+        expect(isPrivateClientPath(path), `La route riservata ${pattern} deve essere marcata privata dal server`).toBe(true);
+      }
+      if (expectedPrivate || isPrivateClientPath(path)) {
+        await expectPrivateRouteNotIndexed(path);
+      }
+    }
+  });
+
+  it('prerenders complete metadata for an indexable shop category from its public catalog', async () => {
+    collection.mockImplementation((name: string) => {
+      if (name === 'settings') {
+        return {
+          doc: () => ({
+            get: async () => ({
+              exists: true,
+              data: () => ({ enabled: true, ordersOpen: true, categoryValues: ['regali'] }),
+            }),
+          }),
+        };
+      }
+      const docsByCollection: Record<string, Array<{ id: string; data: () => Record<string, unknown> }>> = {
+        productCategories: [{
+          id: 'category-regali',
+          data: () => ({ value: 'regali', nome: 'Regali', attivo: true, displayOrder: 1 }),
+        }],
+        products: [{
+          id: 'product-tazza',
+          data: () => ({
+            nome: 'Tazza personalizzata',
+            descrizione: 'Una tazza con la tua fotografia',
+            prezzo: 15,
+            sconto: 0,
+            numeroFoto: 1,
+            categoria: 'regali',
+            attivo: true,
+            immagini: ['https://cdn.example/tazza.jpg'],
+          }),
+        }],
+      };
+      const chain: any = {
+        where: () => chain,
+        get: async () => ({ docs: docsByCollection[name] || [], empty: !(docsByCollection[name]?.length) }),
+      };
+      return chain;
+    });
+
+    const html = await render('/online-shop/categoria/regali');
+    expect(html).toContain('Tazza personalizzata');
+  });
+
   it('prerenders a complete Open Graph card for every public static route', async () => {
-    const routes = new Set([...paths, ...PUBLIC_STATIC_PATHS]);
+    const clientStaticRoutes = CLIENT_ROUTE_PATTERNS.filter(path => !path.includes(':'));
+    const routes = new Set([...paths, ...PUBLIC_STATIC_PATHS, ...clientStaticRoutes]);
     for (const path of routes) {
       if (!isPrivateClientPath(path)) await render(path);
     }
@@ -125,7 +259,6 @@ describe('public social image inventory', () => {
     const guestPage = await render('/ospiti');
     expect(guestPage).toContain('<meta name="robots" content="noindex,nofollow,noarchive"');
   });
-
   it('maps every included static page to a distinct image URL and distinct bytes', async () => {
     expect(Object.keys(STATIC_IMAGES).sort()).toEqual([...paths].sort());
     const images = paths.map(staticSocialImage);

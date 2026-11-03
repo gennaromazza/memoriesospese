@@ -83,3 +83,11 @@ React del frontend quando si sostituisce `useEffect`.
 **Why:** una fixture iniziale o il precedente stato del form possono far sembrare corretto il caricamento senza dimostrare che il documento persistito venga davvero letto; rimuovere soltanto una query con osservatori ancora montati non equivale a una nuova sessione dell’editor.
 
 **How to apply:** mantieni le dipendenze ausiliarie isolate, ma al secondo caricamento lascia che il componente legga il documento dall’emulatore. Verifica valori modificati che differiscono dalla fixture originale.
+
+## Cache condivisa nei test SEO
+
+**Regola:** i test che esercitano più pagine SEO nello stesso processo devono impostare i dati del catalogo prima del primo render, oppure isolare esplicitamente la cache del modulo.
+
+**Why:** la cache del catalogo shop sopravvive tra le richieste e non viene azzerata quando cambia il mock Firestore; un render precedente della vetrina vuota può far risultare inesistente una categoria fixture in un test successivo.
+
+**How to apply:** eseguire il caso categoria prima dei render che caricano la vetrina senza fixture, o isolare il modulo/cache; cambiare solo il mock non garantisce una nuova lettura.
