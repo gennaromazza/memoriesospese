@@ -225,7 +225,7 @@ Object.assign(STATIC_IMAGES, {
   '/regala/come-funziona': socialCard('regala-come-funziona', 'Come funziona la gift card Image Studio: scegli, personalizza e consegna il regalo'),
   '/portfolio/famiglia': socialCard('portfolio-famiglia', 'Portfolio famiglia Image Studio: fotografie e ricordi da conservare insieme'),
   '/portfolio/altro': socialCard('portfolio-altro', 'Altri progetti fotografici nel portfolio Image Studio'),
-  '/online-shop': socialCard('online-shop', 'Shop Image Studio: stampe e regali personalizzati con le tue fotografie'),
+  '/online-shop': socialCard('online-shop-natale', 'Shopping natalizio di Image Studio con idee regalo e fotografie personalizzate'),
   '/privacy': socialCard('privacy', 'Image Studio: informativa sulla privacy e trattamento dei dati personali'),
   '/cookie-policy': socialCard('cookie-policy', 'Image Studio: cookie e preferenze di navigazione'),
   '/terms': socialCard('terms', 'Image Studio: condizioni di vendita e utilizzo dei servizi'),
