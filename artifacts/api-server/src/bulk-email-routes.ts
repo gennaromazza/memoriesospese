@@ -16,6 +16,10 @@ import {
   validateMarketingSender,
 } from "./resend-marketing.js";
 import {
+  appendBulkEmailFooter,
+  BulkEmailFooterConfigurationError,
+} from "./bulk-email-footer.js";
+import {
   buildBookingMarketingCandidates,
   bookingRecipientCandidate,
   campaignEndDateInRome,
@@ -41,6 +45,11 @@ function getTodayRome(): string {
 const router = Router();
 
 const ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
+
+async function appendConfiguredStudioFooter(body: string): Promise<string> {
+  const snapshot = await db.collection("settings").doc("studio").get();
+  return appendBulkEmailFooter(body, snapshot.exists ? snapshot.data() ?? {} : {});
+}
 
 interface EndedBookingCampaign {
   id: string;
@@ -506,7 +515,14 @@ async function sendBulkEmails(jobId: string, quotaDate: string) {
 
     const recipients = jobData?.recipients || [];
     const subject = jobData?.subject;
-    const body = jobData?.body;
+    const storedBody = jobData?.body;
+    if (typeof storedBody !== "string") {
+      throw new Error("Il contenuto dell’email non è valido.");
+    }
+    const body = await appendConfiguredStudioFooter(storedBody);
+    if (body !== storedBody) {
+      await jobRef.update({ body, lastHeartbeatAt: nowRomeDate() });
+    }
 
     if (jobData?.provider === "resend") {
       const result = await submitResendBroadcast({
@@ -876,6 +892,7 @@ router.post("/send-resend", authenticateFirebase, requireAdmin, async (req: any,
       return res.status(400).json({ success: false, error: senderError });
     }
 
+    const outgoingBody = await appendConfiguredStudioFooter(body);
     const requestedCandidates: BulkEmailRecipientCandidate[] = [];
     for (const recipient of recipients) {
       const email = normalizeMarketingEmail(recipient?.email);
@@ -935,7 +952,7 @@ router.post("/send-resend", authenticateFirebase, requireAdmin, async (req: any,
     const job: BulkEmailJob = {
       id: jobRef.id,
       subject: subject.trim(),
-      body,
+      body: outgoingBody,
       recipients: normalizedRecipients,
       totalRecipients: marketingAudience.totalRecipients,
       quotaReserved: 0,
@@ -964,7 +981,7 @@ router.post("/send-resend", authenticateFirebase, requireAdmin, async (req: any,
       message: `Campagna Resend in coda per ${marketingAudience.totalRecipients} destinatari.`,
     });
   } catch (error: any) {
-    res.status(500).json({
+    res.status(error instanceof BulkEmailFooterConfigurationError ? 400 : 500).json({
       success: false,
       error: typeof error?.message === "string" ? error.message : "Impossibile preparare la campagna Resend.",
     });
@@ -1356,9 +1373,10 @@ router.post("/send", authenticateFirebase, requireAdmin, async (req: any, res: R
   try {
     const { subject, body, recipients, senderId } = req.body;
 
-    if (!subject || !body || !recipients || recipients.length === 0) {
+    if (!subject || typeof body !== "string" || !body.trim() || !recipients || recipients.length === 0) {
       return res.status(400).json({ success: false, error: "Dati mancanti" });
     }
+    const outgoingBody = await appendConfiguredStudioFooter(body);
 
     const today = getTodayRome();
     const quotaRef = db.collection("emailQuota").doc(today);
@@ -1393,7 +1411,7 @@ router.post("/send", authenticateFirebase, requireAdmin, async (req: any, res: R
       const job: BulkEmailJob = {
         id: jobRef.id,
         subject,
-        body,
+        body: outgoingBody,
         recipients,
         totalRecipients: recipients.length,
         quotaReserved: recipients.length,
@@ -1414,6 +1432,10 @@ router.post("/send", authenticateFirebase, requireAdmin, async (req: any, res: R
 
     res.json({ success: true, jobId: result.jobId, message: "Job in coda" });
   } catch (error: any) {
+    if (error instanceof BulkEmailFooterConfigurationError) {
+      res.status(400).json({ success: false, error: error.message });
+      return;
+    }
     console.error("❌ Errore POST /send:", error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -1424,9 +1446,10 @@ router.post("/send-split", authenticateFirebase, requireAdmin, async (req: any, 
   try {
     const { subject, body, recipients, senderId } = req.body;
 
-    if (!subject || !body || !recipients || recipients.length === 0) {
+    if (!subject || typeof body !== "string" || !body.trim() || !recipients || recipients.length === 0) {
       return res.status(400).json({ success: false, error: "Dati mancanti" });
     }
+    const outgoingBody = await appendConfiguredStudioFooter(body);
 
     const today = getTodayRome();
     const quotaRef = db.collection("emailQuota").doc(today);
@@ -1464,7 +1487,7 @@ router.post("/send-split", authenticateFirebase, requireAdmin, async (req: any, 
       const job: BulkEmailJob = {
         id: jobRef.id,
         subject,
-        body,
+        body: outgoingBody,
         recipients: chunk,
         totalRecipients: chunk.length,
         quotaReserved: isFirst ? chunk.length : 0,
@@ -1504,6 +1527,10 @@ router.post("/send-split", authenticateFirebase, requireAdmin, async (req: any, 
         : "Job in coda"
     });
   } catch (error: any) {
+    if (error instanceof BulkEmailFooterConfigurationError) {
+      res.status(400).json({ success: false, error: error.message });
+      return;
+    }
     console.error("❌ Errore POST /send-split:", error);
     res.status(500).json({ success: false, error: error.message });
   }

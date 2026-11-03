@@ -42,3 +42,17 @@ mtime_ms = 1792056777127
 storage_uri = "gcs://replit-rams-assets-spock/rams/assets/repl:65b2695f-b200-424b-9509-5c251e0658fe/c68df27d-4c7c-4370-ba4e-0f1819503ff5/53a08368-5a42-4b6a-95df-527e227ab99a"
 storage_version_token = "1792056792908566"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "D-9wgFt4z_Uew2m7QnXN6"
+uri = "file://attached_assets/image-studio-bimi-draft.svg"
+type = "image"
+title = "Logo Image Studio · bozza SVG BIMI"
+description = "Vettorializzazione quadrata 512×512 del logo fornito. È una bozza da validare con il certificato BIMI; non è stata pubblicata e non sono stati modificati i DNS."
+logical_id = "5975cff3-ffc9-4ed3-82be-71cc7d99a1e9"
+content_hash = "sha256:3be544fe4395da3f837dc1f63ee032e5539aa372106ea5c5333ae3258e2d8eed"
+size = 5843
+mtime_ms = 1793729382989
+storage_uri = "gcs://replit-rams-assets-spock/rams/assets/repl:65b2695f-b200-424b-9509-5c251e0658fe/5975cff3-ffc9-4ed3-82be-71cc7d99a1e9/bb4f1ff1-4411-4208-995f-cd2827e5eddc"
+storage_version_token = "1793729437021681"
+content_type = "image/svg+xml"

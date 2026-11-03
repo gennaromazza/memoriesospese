@@ -19,6 +19,7 @@ import { apiRequest, queryClient } from '@/lib/queryClient';
 import { Send, Mail, Users, CheckCircle, XCircle, Loader2, AlertCircle, Eye, Search, Save, FileText, Trash2, Play, CalendarDays, Filter } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useStudio } from '@/context/StudioContext';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -83,6 +84,7 @@ function formatCampaignDate(date: string | null | undefined): string {
 
 export default function BulkEmailSender() {
   const { toast } = useToast();
+  const { studioSettings, loading: studioSettingsLoading } = useStudio();
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [selectedFilters, setSelectedFilters] = useState<string[]>(['all']);
@@ -115,6 +117,7 @@ export default function BulkEmailSender() {
   });
 
   const verifiedSendingDomains = resendStatus?.verifiedSendingDomains || [];
+  const hasStudioContact = Boolean(studioSettings.email.trim() || studioSettings.phone.trim());
 
   useEffect(() => {
     if (!senderEmail && verifiedSendingDomains.length > 0) {
@@ -243,6 +246,9 @@ export default function BulkEmailSender() {
 
       if (!subject.trim() || !body.trim() || !senderEmail.trim()) {
         throw new Error('Mittente, oggetto e corpo email sono obbligatori');
+      }
+      if (!hasStudioContact) {
+        throw new Error('Configura almeno un’email o un telefono in Impostazioni > Studio prima di inviare.');
       }
 
       const response = await apiRequest('POST', '/api/bulk-email/send-resend', {
@@ -567,7 +573,7 @@ export default function BulkEmailSender() {
                       data-testid="input-sender-email"
                     />
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Deve appartenere a un dominio verificato in Resend. Le risposte arriveranno alla casella dello studio.
+                      Deve appartenere a un dominio verificato in Resend. Ogni invio includerà il footer automatico con i recapiti dello studio.
                     </p>
                   </div>
 
@@ -592,6 +598,27 @@ export default function BulkEmailSender() {
                       className="min-h-64 resize-y font-mono text-sm"
                       data-testid="textarea-email-body"
                     />
+                    <div
+                      className={`mt-3 rounded-lg border p-3 text-xs ${
+                        studioSettingsLoading || hasStudioContact
+                          ? 'border-teal-200 bg-teal-50 text-teal-900'
+                          : 'border-amber-300 bg-amber-50 text-amber-900'
+                      }`}
+                      role="status"
+                      data-testid="notice-automatic-email-footer"
+                    >
+                      <p className="font-semibold">
+                        {studioSettingsLoading
+                          ? 'Caricamento dei recapiti dello studio…'
+                          : hasStudioContact
+                            ? 'Footer automatico incluso in ogni invio'
+                            : 'Completa i recapiti dello studio'}
+                      </p>
+                      <p className="mt-1">
+                        Ogni email avviserà il cliente di non rispondere direttamente e mostrerà i recapiti salvati in Impostazioni dello studio.
+                        {!studioSettingsLoading && !hasStudioContact && ' Inserisci almeno email o telefono per abilitare l’invio.'}
+                      </p>
+                    </div>
                   </div>
 
                   <div className="flex flex-wrap gap-2">
@@ -650,6 +677,24 @@ export default function BulkEmailSender() {
                                           .replace(/\{nome_completo\}/g, '<span class="bg-yellow-100">Mario Rossi</span>')
                             }} 
                           />
+                            <div className="mt-8 border-t border-stone-200 pt-4 text-xs leading-relaxed text-stone-600" data-testid="preview-automatic-email-footer">
+                              <p className="font-semibold text-stone-800">Comunicazione automatica</p>
+                              <p className="mt-1">
+                                Ti chiediamo di non rispondere direttamente a questa email. Per informazioni o assistenza, contatta {studioSettings.name.trim() || 'lo studio'} tramite i recapiti qui sotto.
+                              </p>
+                              <div className="mt-2 space-y-1">
+                                {studioSettings.email.trim() && (
+                                  <p><a className="text-teal-800 underline" href={`mailto:${encodeURIComponent(studioSettings.email.trim())}`}>{studioSettings.email.trim()}</a></p>
+                                )}
+                                {studioSettings.phone.trim() && (
+                                  <p><a className="text-teal-800 underline" href={`tel:${studioSettings.phone.trim().replace(/[^\d+]/g, '')}`}>{studioSettings.phone.trim()}</a></p>
+                                )}
+                                {studioSettings.address.trim() && <p>{studioSettings.address.trim()}</p>}
+                                {!studioSettings.email.trim() && !studioSettings.phone.trim() && (
+                                  <p className="text-amber-700">Aggiungi email o telefono in Impostazioni dello studio.</p>
+                                )}
+                              </div>
+                            </div>
                         </div>
                       </CardContent>
                     </Card>
@@ -889,6 +934,8 @@ export default function BulkEmailSender() {
                       !subject.trim() ||
                       !body.trim() ||
                       !senderEmail.trim() ||
+                      studioSettingsLoading ||
+                      !hasStudioContact ||
                       !resendStatus?.connected ||
                       verifiedSendingDomains.length === 0
                     }
