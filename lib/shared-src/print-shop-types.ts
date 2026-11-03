@@ -167,7 +167,7 @@ export interface PrintShopCoupon {
   showOnPromotionsPage: boolean;
   scope: 'all' | 'selected';
   eligibleSkus: readonly string[];
-  /** Missing value on legacy coupons means no minimum. */
+  /** Minimum copies required, or exact package quantity for fixed_total coupons. */
   minPrintQuantity?: number;
   createdAt?: string;
   updatedAt?: string;

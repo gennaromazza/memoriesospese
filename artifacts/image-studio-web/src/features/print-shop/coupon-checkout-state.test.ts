@@ -112,6 +112,10 @@ describe('print shop coupon checkout state', () => {
       preserveCouponCheckoutOnFailure(state, 'Servono altre copie', 'coupon_min_quantity_not_met')
         .needsMorePrints,
     ).toBe(true);
+    expect(
+      preserveCouponCheckoutOnFailure(state, 'Quantità non valida', 'coupon_exact_quantity_not_met')
+        .needsMorePrints,
+    ).toBe(true);
     expect(preserveCouponCheckoutOnFailure(state, 'Codice non valido', 'coupon_invalid').needsMorePrints)
       .toBe(false);
   });

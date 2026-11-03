@@ -5,6 +5,7 @@ vi.mock('./firebase-admin', () => ({ db: {} }));
 import {
   BLOG_SEO_RENDERING_LASTMOD,
   blogSitemapLastModifiedDate,
+  buildPrintPromotionSitemapEntries,
   buildShopCategorySitemapEntries,
   buildStaticSitemapEntries,
   buildWeddingSitemapEntries,
@@ -63,6 +64,25 @@ describe('Static sitemap', () => {
     for (const alias of ['/esperienza', '/consultations', '/shop-natale', '/?p=']) {
       expect(xml).not.toContain(`https://imagestudiofotografico.com${alias}`);
     }
+  });
+});
+
+describe('Sitemap promozioni stampe', () => {
+  it('pubblica le offerte attive con una immagine social dedicata', () => {
+    const xml = buildPrintPromotionSitemapEntries([{
+      code: 'PACK100',
+      discountType: 'fixed_total',
+      value: 2_500,
+      startsAt: '2026-11-01T00:00:00.000Z',
+      endsAt: '2026-12-01T23:59:59.000Z',
+      scope: 'all',
+      eligibleFormats: [],
+      minPrintQuantity: 100,
+    }], 'https://example.test');
+
+    expect(xml).toContain('<loc>https://example.test/stampa-foto-aversa/offerte/pack100</loc>');
+    expect(xml).toContain('https://example.test/images/print-service/print-promotions-og.jpg');
+    expect(xml).toContain('Offerta stampe foto PACK100');
   });
 });
 

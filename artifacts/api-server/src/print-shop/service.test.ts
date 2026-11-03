@@ -936,7 +936,7 @@ describe('print shop coupon quotes and payment reservations', () => {
       minPrintQuantity: 3,
     });
     expect(quote.totals.discountCents).toBe(quote.totals.subtotalCents - 5);
-    expect(quote.totals.totalCents - quote.totals.shippingCents).toBe(5);
+    expect(quote.totals.totalCents - (quote.totals.shippingCents ?? 0)).toBe(5);
   });
 
   it('reports unknown, disabled, expired, scheduled, and exhausted coupon codes', async () => {
