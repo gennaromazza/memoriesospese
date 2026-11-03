@@ -845,6 +845,32 @@ describe('print shop coupon quotes and payment reservations', () => {
       .rejects.toMatchObject({ code: 'coupon_exhausted' });
   });
 
+  it('preserves the applied coupon and total when a replacement coupon is invalid', async () => {
+    const now = Date.UTC(2026, 0, 2);
+    const f = createService({ now: () => Timestamp.fromMillis(now) });
+    const orderId = 'coupon-invalid-does-not-change-total';
+    const assetId = 'coupon-invalid-does-not-change-asset';
+    f.db.seed(`orders/${orderId}`, baseOrder());
+    seedProduct(f.db, product);
+    seedReadyAsset(f.db, orderId, assetId);
+    seedCoupon(f.db, 'SAVE10');
+
+    await f.service.quote(identity, orderId, quoteInput(assetId, 'SAVE10'));
+    const before = f.db.value(`orders/${orderId}`);
+    const savedTotals = { ...before.totals };
+    const savedCoupon = { ...before.printShop.coupon };
+    const savedFingerprint = before.quoteFingerprint;
+
+    await expect(f.service.quote(identity, orderId, quoteInput(assetId, 'NOTVALID')))
+      .rejects.toMatchObject({ code: 'coupon_invalid' });
+
+    const after = f.db.value(`orders/${orderId}`);
+    expect(after.totals).toEqual(savedTotals);
+    expect(after.printShop.coupon).toEqual(savedCoupon);
+    expect(after.printShop.requestedCouponCode).toBe('SAVE10');
+    expect(after.quoteFingerprint).toBe(savedFingerprint);
+  });
+
   it('reserves the last use atomically for only one concurrent checkout', async () => {
     const now = Date.UTC(2026, 0, 2);
     const f = createService({ now: () => Timestamp.fromMillis(now) });

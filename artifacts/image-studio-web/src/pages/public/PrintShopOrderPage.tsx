@@ -38,9 +38,14 @@ import { PhotoUploadQueue } from '@/features/print-shop/PhotoUploadQueue';
 import { WhatsAppHelp } from '@/features/print-shop/WhatsAppHelp';
 import { PayPalCheckout } from '@/features/print-shop/PayPalCheckout';
 import { PrintShopAuthGate } from '@/features/print-shop/PrintShopAuthGate';
+import { PrintShopCouponFeedback } from '@/features/print-shop/PrintShopCouponFeedback';
 import { PolaroidPreview, PrintGroupsEditor } from '@/features/print-shop/PrintGroupEditor';
 import { inspectJpegFile } from '@/features/print-shop/print-shop-files';
 import { PrintShopApiError, printShopApi } from '@/features/print-shop/print-shop-api';
+import {
+  couponDraftDiffersFromApplied,
+  preserveCouponCheckoutOnFailure,
+} from '@/features/print-shop/coupon-checkout-state';
 import {
   hasSamePaypalQuoteGuard,
   PrintShopQuoteReviewRequiredError,
@@ -847,7 +852,7 @@ export default function PrintShopOrderPage() {
     setQuoteLoading(true);
     try {
       const draftId = await ensureDraft();
-      const couponToApply = couponCode || (retryCouponAfterEditing ? couponDraft : '');
+      const couponToApply = retryCouponAfterEditing ? couponDraft : couponCode;
       const serverQuote = await printShopApi.quoteOrder(
         draftId,
         buildPrintOrderItems(groups, uploadedPhotos),
@@ -900,11 +905,17 @@ export default function PrintShopOrderPage() {
       setCouponNeedsMorePrints(false);
       resetCheckoutAcceptances();
     } catch (error) {
-      setCouponMessage(readableError(error));
-      setCouponError(true);
-      setCouponNeedsMorePrints(
-        error instanceof PrintShopApiError && error.code === 'coupon_min_quantity_not_met',
+      const failure = preserveCouponCheckoutOnFailure(
+        { quote, couponCode, couponDraft },
+        readableError(error),
+        error instanceof PrintShopApiError ? error.code : undefined,
       );
+      setQuote(failure.quote);
+      setCouponCode(failure.couponCode);
+      setCouponDraft(failure.couponDraft);
+      setCouponMessage(failure.message);
+      setCouponError(failure.isError);
+      setCouponNeedsMorePrints(failure.needsMorePrints);
     } finally {
       setQuoteLoading(false);
     }
@@ -1429,7 +1440,20 @@ export default function PrintShopOrderPage() {
                         aria-label="Codice sconto"
                         className="h-11 rounded-xl font-mono uppercase"
                       />
-                      {couponCode ? (
+                      {couponCode && couponDraftDiffersFromApplied(couponCode, couponDraft) ? (
+                        <>
+                          <Button type="button" disabled={quoteLoading || resumedPendingPayment || !couponDraft.trim()} onClick={() => void applyCoupon()} className="h-11 shrink-0 rounded-xl">
+                            {quoteLoading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+                            Applica
+                          </Button>
+                          <Button type="button" variant="outline" disabled={quoteLoading || resumedPendingPayment} onClick={() => {
+                            setCouponDraft('');
+                            void applyCoupon('');
+                          }} className="h-11 shrink-0 rounded-xl">
+                            Rimuovi
+                          </Button>
+                        </>
+                      ) : couponCode ? (
                         <Button type="button" variant="outline" disabled={quoteLoading || resumedPendingPayment} onClick={() => {
                           setCouponDraft('');
                           void applyCoupon('');
@@ -1443,7 +1467,7 @@ export default function PrintShopOrderPage() {
                         </Button>
                       )}
                     </div>
-                    {couponMessage && <p className={`mt-2 text-sm ${couponError ? 'text-red-700' : 'text-emerald-800'}`} role={couponError ? 'alert' : 'status'}>{couponMessage}</p>}
+                    <PrintShopCouponFeedback message={couponMessage} isError={couponError} />
                     {couponError && couponNeedsMorePrints && (
                       <div className="mt-3 grid gap-2 sm:grid-cols-2">
                         <Button
