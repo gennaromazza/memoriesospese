@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DateTime } from "luxon";
+import { BookingStato } from "../shared/states.js";
 import {
   buildBookingMarketingCandidates,
   bookingRecipientCandidate,
@@ -117,12 +118,12 @@ describe("bulk email audience helpers", () => {
   });
 
   it("includes active and completed bookings but excludes cancelled states", () => {
-    expect(isEligibleBookingForMarketing("in_attesa")).toBe(true);
-    expect(isEligibleBookingForMarketing("confermata")).toBe(true);
-    expect(isEligibleBookingForMarketing("completata")).toBe(true);
-    expect(isEligibleBookingForMarketing("annullata")).toBe(false);
-    expect(isEligibleBookingForMarketing("cancellation_pending")).toBe(false);
-    expect(isEligibleBookingForMarketing("cancellata")).toBe(false);
+    expect(isEligibleBookingForMarketing(BookingStato.IN_ATTESA)).toBe(true);
+    expect(isEligibleBookingForMarketing(BookingStato.CONFERMATA)).toBe(true);
+    expect(isEligibleBookingForMarketing(BookingStato.COMPLETATA)).toBe(true);
+    expect(isEligibleBookingForMarketing(BookingStato.ANNULLATA)).toBe(false);
+    expect(isEligibleBookingForMarketing(BookingStato.CANCELLATION_PENDING)).toBe(false);
+    expect(isEligibleBookingForMarketing(BookingStato.CANCELLATA)).toBe(false);
     expect(isEligibleBookingForMarketing(undefined)).toBe(false);
   });
 

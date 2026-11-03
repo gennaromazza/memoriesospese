@@ -1,4 +1,5 @@
 import { DateTime } from "luxon";
+import { BookingStato } from "../shared/states.js";
 
 export interface BulkEmailRecipient {
   email: string;
@@ -92,9 +93,15 @@ export function parseMarketingRecipientFilters(raw: unknown): string[] {
 }
 
 export function isEligibleBookingForMarketing(status: unknown): boolean {
-  return ["in_attesa", "confermata", "completata"].includes(
-    typeof status === "string" ? status.trim().toLowerCase() : "",
-  );
+  const normalizedStatus = typeof status === "string"
+    ? status.trim().toLowerCase()
+    : "";
+  const eligibleStatuses: readonly string[] = [
+    BookingStato.IN_ATTESA,
+    BookingStato.CONFERMATA,
+    BookingStato.COMPLETATA,
+  ];
+  return eligibleStatuses.includes(normalizedStatus);
 }
 
 export function dedupeMarketingRecipients(
