@@ -771,16 +771,22 @@ describe('print shop coupon quotes and payment reservations', () => {
     await expect(f.service.quote(identity, orderId, input))
       .rejects.toMatchObject({
         code: 'coupon_min_quantity_not_met',
-        message: expect.stringContaining('ne rientrano 2'),
+        message: 'Per applicare questo coupon servono almeno 3 copie nei formati selezionati. Nel carrello ne hai 2.',
       });
 
     input.items[0].assignments[0].copies = 3;
     const quote = await f.service.quote(identity, orderId, input);
+    const eligibleSubtotalCents = quote.items
+      .filter(item => item.sku === product.sku)
+      .reduce((total, item) => total + item.lineTotalCents, 0);
     expect(quote.coupon).toMatchObject({
       minPrintQuantity: 3,
       scope: 'selected',
       eligibleSkus: [product.sku],
     });
+    expect(quote.coupon?.discountCents).toBe(Math.round(eligibleSubtotalCents / 10));
+    expect(quote.totals.discountCents).toBe(quote.coupon?.discountCents);
+    expect(quote.totals.totalCents).toBe(quote.totals.subtotalCents - quote.totals.discountCents);
   });
 
   it('reports unknown, disabled, expired, scheduled, and exhausted coupon codes', async () => {

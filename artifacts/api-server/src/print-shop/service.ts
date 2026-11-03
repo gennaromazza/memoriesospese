@@ -542,10 +542,11 @@ export class PrintShopService {
       );
     }
     if (eligiblePrintQuantity < minPrintQuantity) {
+      const quantityScope = scope === 'selected' ? 'nei formati selezionati' : 'in totale';
       throw new PrintShopHttpError(
         409,
         'coupon_min_quantity_not_met',
-        `Per applicare questo coupon servono almeno ${minPrintQuantity} stampe nei formati ammessi. Nel carrello ne rientrano ${eligiblePrintQuantity}.`,
+        `Per applicare questo coupon servono almeno ${minPrintQuantity} copie ${quantityScope}. Nel carrello ne hai ${eligiblePrintQuantity}.`,
       );
     }
     const redemption = await this.deps.db.collection('printShopCouponRedemptions')

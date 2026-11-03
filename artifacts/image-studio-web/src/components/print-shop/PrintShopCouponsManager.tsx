@@ -206,7 +206,7 @@ export default function PrintShopCouponsManager() {
                   <p className="mt-1 text-sm text-muted-foreground">
                     {coupon.discountType === 'percentage' ? `${coupon.value}% di sconto` : `${(coupon.value / 100).toFixed(2)} € di sconto`}
                     {' · '}{coupon.scope === 'selected' ? `${coupon.eligibleSkus?.length || 0} formati selezionati` : 'tutti i formati'}
-                    {coupon.minPrintQuantity ? ` · minimo ${coupon.minPrintQuantity} stampe` : ''}
+                    {coupon.minPrintQuantity ? ` · minimo ${coupon.minPrintQuantity} copie` : ''}
                     {' · '}{new Date(coupon.startsAt).toLocaleString('it-IT')} – {new Date(coupon.endsAt).toLocaleString('it-IT')}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
@@ -348,7 +348,7 @@ export default function PrintShopCouponsManager() {
                 <Input id="print-coupon-max-uses" type="number" min={1} step={1} value={form.maxUses} onChange={(event) => setForm({ ...form, maxUses: event.target.value })} placeholder="Nessun limite" />
               </div>
                 <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="print-coupon-min-prints">Numero minimo di stampe</Label>
+                  <Label htmlFor="print-coupon-min-prints">Numero minimo di copie</Label>
                   <Input id="print-coupon-min-prints" type="number" min={1} max={100_000} step={1} value={form.minPrintQuantity} onChange={(event) => setForm({ ...form, minPrintQuantity: event.target.value })} placeholder="Nessun minimo" />
                   <p className="text-xs text-muted-foreground">
                     Conta le copie ordinate, non le foto caricate. {form.scope === 'selected' ? 'Se hai scelto dei formati, contano solo quelli.' : 'Contano tutti i formati dello shop.'}

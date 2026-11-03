@@ -1412,7 +1412,9 @@ export default function PrintShopOrderPage() {
                         {quote.coupon.scope === 'selected'
                           ? `su: ${quote.items.filter((item) => quote.coupon?.eligibleSkus?.includes(item.sku)).map((item) => item.productName).join(', ')}`
                           : 'su tutte le stampe'}. La spedizione è esclusa.
-                      {quote.coupon.minPrintQuantity ? ` Minimo ${quote.coupon.minPrintQuantity} stampe.` : ''}
+                      {quote.coupon.minPrintQuantity
+                        ? ` Per applicarlo servono almeno ${quote.coupon.minPrintQuantity} copie ${quote.coupon.scope === 'selected' ? 'nei formati selezionati' : 'in totale'}.`
+                        : ''}
                       </p>
                     )}
                   </section>
