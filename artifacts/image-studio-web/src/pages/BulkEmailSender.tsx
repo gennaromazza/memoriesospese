@@ -16,7 +16,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
-import { Send, Mail, Users, CheckCircle, XCircle, Loader2, AlertCircle, Eye, Search, Gauge, Save, FileText, Trash2, Play } from 'lucide-react';
+import { Send, Mail, Users, CheckCircle, XCircle, Loader2, AlertCircle, Eye, Search, Save, FileText, Trash2, Play } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -48,6 +48,11 @@ interface BulkEmailJob {
   errors: Array<{ email: string; error: string }>;
   createdAt: any;
   completedAt?: any;
+  provider?: 'gmail' | 'resend';
+  providerStatus?: string;
+  progressStage?: string;
+  preparedCount?: number;
+  excludedCount?: number;
 }
 
 interface EmailTemplate {
@@ -59,22 +64,46 @@ interface EmailTemplate {
   updatedAt: any;
 }
 
-const DAILY_LIMIT = 400;
-
 export default function BulkEmailSender() {
   const { toast } = useToast();
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [filter, setFilter] = useState<string>('all');
+  const [senderEmail, setSenderEmail] = useState('');
+  const [consentConfirmed, setConsentConfirmed] = useState(false);
   const [selectedRecipients, setSelectedRecipients] = useState<Set<string>>(new Set());
   const [selectAll, setSelectAll] = useState(false);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [showSplitDialog, setShowSplitDialog] = useState(false);
   const [templateName, setTemplateName] = useState('');
   const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+
+  const { data: resendStatus, isLoading: resendStatusLoading, error: resendStatusError } = useQuery<{
+    success: boolean;
+    connected: boolean;
+    verifiedSendingDomains: Array<{ id: string; name: string; status: string }>;
+  }>({
+    queryKey: ['/api/bulk-email/resend-status'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/bulk-email/resend-status');
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Collegamento Resend non disponibile');
+      }
+      return data;
+    },
+    retry: false,
+  });
+
+  const verifiedSendingDomains = resendStatus?.verifiedSendingDomains || [];
+
+  useEffect(() => {
+    if (!senderEmail && verifiedSendingDomains.length > 0) {
+      setSenderEmail(`newsletter@${verifiedSendingDomains[0].name}`);
+    }
+  }, [senderEmail, verifiedSendingDomains]);
 
   // Query destinatari disponibili
   const { data: recipientsData, isLoading: recipientsLoading } = useQuery({
@@ -122,19 +151,6 @@ export default function BulkEmailSender() {
 
   const allJobs: BulkEmailJob[] = jobsData?.jobs || [];
 
-  // Query quota giornaliera
-  const { data: quotaData } = useQuery<{ quota: { sent: number; reserved: number; limit: number; remaining: number } }>({
-    queryKey: ['/api/bulk-email/quota'],
-    queryFn: async () => {
-      const response = await apiRequest('GET', '/api/bulk-email/quota');
-      if (!response.ok) return { quota: { sent: 0, reserved: 0, limit: 400, remaining: 400 } };
-      return response.json();
-    },
-    refetchInterval: 30000
-  });
-
-  const quota = quotaData?.quota || { sent: 0, reserved: 0, limit: 400, remaining: 400 };
-
   // Query template email salvati
   const { data: templatesData } = useQuery<{ templates: EmailTemplate[] }>({
     queryKey: ['/api/bulk-email/templates'],
@@ -171,24 +187,7 @@ export default function BulkEmailSender() {
     );
   }, [recipients, searchQuery]);
 
-  // Calcola info split per la modale
-  const splitInfo = useMemo(() => {
-    const count = selectedRecipients.size;
-    if (count <= DAILY_LIMIT) {
-      return { needsSplit: false, jobs: 1, distribution: [count] };
-    }
-    const jobs = Math.ceil(count / DAILY_LIMIT);
-    const distribution: number[] = [];
-    let remaining = count;
-    for (let i = 0; i < jobs; i++) {
-      const chunk = Math.min(remaining, DAILY_LIMIT);
-      distribution.push(chunk);
-      remaining -= chunk;
-    }
-    return { needsSplit: true, jobs, distribution };
-  }, [selectedRecipients.size]);
-
-  // Mutation invio email (supporta split automatico)
+  // Mutation per creare una campagna Resend Marketing.
   const sendMutation = useMutation({
     mutationFn: async () => {
       const selectedList = Array.from(selectedRecipients)
@@ -199,28 +198,32 @@ export default function BulkEmailSender() {
         throw new Error('Seleziona almeno un destinatario');
       }
 
-      if (!subject.trim() || !body.trim()) {
-        throw new Error('Oggetto e corpo email sono obbligatori');
+      if (!subject.trim() || !body.trim() || !senderEmail.trim()) {
+        throw new Error('Mittente, oggetto e corpo email sono obbligatori');
       }
 
-      const response = await apiRequest('POST', '/api/bulk-email/send-split', {
+      const response = await apiRequest('POST', '/api/bulk-email/send-resend', {
         subject,
         body,
+        senderEmail,
         recipients: selectedList,
-        senderId: 'admin'
+        senderId: 'admin',
+        confirmMarketingConsent: true,
       });
-      return response.json();
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Impossibile avviare la campagna');
+      }
+      return data;
     },
     onSuccess: (data) => {
-      const jobCount = data.jobs?.length || 1;
       toast({
-        title: '✅ Invio avviato!',
-        description: jobCount > 1 
-          ? `Creati ${jobCount} job: il primo parte subito, gli altri sono programmati`
-          : `Invio di ${selectedRecipients.size} email in corso...`
+        title: 'Campagna Resend avviata',
+        description: `Resend sta preparando ${selectedRecipients.size} destinatari.`,
       });
       setActiveJobId(data.jobs?.[0]?.id || data.jobId);
-      setShowSplitDialog(false);
+      setConsentConfirmed(false);
+      setShowConfirmDialog(false);
       queryClient.invalidateQueries({ queryKey: ['/api/bulk-email/jobs'] });
     },
     onError: (error: any) => {
@@ -257,12 +260,13 @@ export default function BulkEmailSender() {
     if (activeJob && (activeJob.status === 'completed' || activeJob.status === 'failed')) {
       // Invalida la lista job per aggiornare lo storico e resetta subito
       queryClient.invalidateQueries({ queryKey: ['/api/bulk-email/jobs'] });
-      setActiveJobId(null);
+      if (activeJob.provider !== 'resend') setActiveJobId(null);
     }
   }, [activeJob?.status]);
 
   // Conferma invio
   const handleConfirmSend = () => {
+    if (!consentConfirmed) return;
     setShowConfirmDialog(false);
     sendMutation.mutate();
   };
@@ -333,12 +337,18 @@ export default function BulkEmailSender() {
   const retryFailedMutation = useMutation({
     mutationFn: async (jobId: string) => {
       const response = await apiRequest('POST', `/api/bulk-email/jobs/${jobId}/retry-failed`, {});
-      return response.json();
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Impossibile riprendere il job');
+      }
+      return data;
     },
     onSuccess: (data) => {
       toast({
-        title: '🔄 Nuovo invio avviato!',
-        description: `Riprovando ${data.recipientsCount} email fallite...`
+        title: data.resumed ? 'Ripresa Resend avviata' : 'Nuovo invio avviato',
+        description: data.resumed
+          ? 'Verifico lo stato della campagna esistente senza creare un invio duplicato.'
+          : `Riprovando ${data.recipientsCount} email fallite...`
       });
       setActiveJobId(data.jobId);
       queryClient.invalidateQueries({ queryKey: ['/api/bulk-email/jobs'] });
@@ -393,7 +403,7 @@ export default function BulkEmailSender() {
       <div className="mb-6">
         <h1 className="text-3xl font-bold mb-2">📧 Invio Email Massivo</h1>
         <p className="text-muted-foreground">
-          Sistema di invio massivo per comunicazioni ai clienti (max 400 email/giorno)
+          Crea campagne tramite Resend Marketing; Gmail resta separato per le email operative.
         </p>
       </div>
 
@@ -430,6 +440,21 @@ export default function BulkEmailSender() {
                       onChange={(e) => setSubject(e.target.value)}
                       data-testid="input-email-subject"
                     />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="sender-email">Indirizzo mittente</Label>
+                    <Input
+                      id="sender-email"
+                      type="email"
+                      placeholder="newsletter@gennaromazzacane.it"
+                      value={senderEmail}
+                      onChange={(e) => setSenderEmail(e.target.value)}
+                      data-testid="input-sender-email"
+                    />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Deve appartenere a un dominio verificato in Resend. Le risposte arriveranno alla casella dello studio.
+                    </p>
                   </div>
 
                   <div>
@@ -521,26 +546,33 @@ export default function BulkEmailSender() {
 
             {/* Selezione Destinatari */}
             <div className="space-y-6">
-              {/* Quota Giornaliera */}
               <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
                 <CardContent className="py-4">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <Gauge className="h-5 w-5 text-blue-600" />
-                      <span className="font-semibold text-blue-900">Quota Giornaliera</span>
+                      <Mail className="h-5 w-5 text-blue-600" />
+                      <span className="font-semibold text-blue-900">Resend Marketing</span>
                     </div>
-                    <Badge variant={quota.remaining > 500 ? "default" : quota.remaining > 100 ? "secondary" : "destructive"}>
-                      {quota.remaining} rimanenti
+                    <Badge variant={resendStatus?.connected ? "default" : "destructive"}>
+                      {resendStatusLoading ? "Verifica…" : resendStatus?.connected ? "Collegato" : "Non disponibile"}
                     </Badge>
                   </div>
-                  <Progress 
-                    value={((quota.sent + quota.reserved) / quota.limit) * 100} 
-                    className="h-2"
-                  />
-                  <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                    <span>{quota.sent} inviate + {quota.reserved} riservate</span>
-                    <span>Max {quota.limit}/giorno</span>
-                  </div>
+                  {verifiedSendingDomains.length > 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      Domini mittente verificati: {verifiedSendingDomains.map((domain) => domain.name).join(', ')}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      {resendStatusLoading
+                        ? "Controllo il collegamento e i domini…"
+                        : resendStatusError instanceof Error
+                          ? resendStatusError.message
+                          : "Verifica un dominio mittente in Resend per iniziare."}
+                    </p>
+                  )}
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Resend gestisce le disiscrizioni. La campagna non usa la quota Gmail giornaliera.
+                  </p>
                 </CardContent>
               </Card>
 
@@ -665,32 +697,33 @@ export default function BulkEmailSender() {
                   <Button
                     className="w-full"
                     size="lg"
-                    onClick={() => splitInfo.needsSplit ? setShowSplitDialog(true) : setShowConfirmDialog(true)}
-                    disabled={sendMutation.isPending || selectedRecipients.size === 0 || !subject.trim() || !body.trim()}
+                    onClick={() => {
+                      setConsentConfirmed(false);
+                      setShowConfirmDialog(true);
+                    }}
+                    disabled={
+                      sendMutation.isPending ||
+                      selectedRecipients.size === 0 ||
+                      !subject.trim() ||
+                      !body.trim() ||
+                      !senderEmail.trim() ||
+                      !resendStatus?.connected ||
+                      verifiedSendingDomains.length === 0
+                    }
                     data-testid="button-send-bulk-email"
                   >
                     {sendMutation.isPending ? (
                       <>
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Invio in corso...
+                        Preparazione in corso...
                       </>
                     ) : (
                       <>
                         <Send className="h-4 w-4 mr-2" />
-                        Invia a {selectedRecipients.size} destinatari
+                        Crea campagna per {selectedRecipients.size}
                       </>
                     )}
                   </Button>
-
-                  {selectedRecipients.size > quota.remaining && (
-                    <div className="flex items-start gap-2 p-3 bg-destructive/10 rounded-lg">
-                      <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
-                      <p className="text-sm text-destructive">
-                        <strong>Quota insufficiente!</strong><br />
-                        Hai selezionato {selectedRecipients.size} destinatari ma ne puoi inviare solo {quota.remaining} oggi.
-                      </p>
-                    </div>
-                  )}
                 </CardContent>
               </Card>
 
@@ -714,27 +747,41 @@ export default function BulkEmailSender() {
                       {activeJob.status === 'completed' && <CheckCircle className="h-6 w-6 text-green-600" />}
                       {activeJob.status === 'failed' && <XCircle className="h-6 w-6 text-destructive" />}
                       <span className="text-lg">
-                        {activeJob.status === 'in_progress' ? 'Invio in corso...' : 
-                         activeJob.status === 'completed' ? 'Invio completato!' : 'Invio fallito'}
+                        {activeJob.status === 'in_progress'
+                          ? (activeJob.provider === 'resend' ? 'Preparazione campagna…' : 'Invio in corso...')
+                          : activeJob.status === 'completed'
+                            ? (activeJob.provider === 'resend' ? 'Campagna affidata a Resend' : 'Invio completato!')
+                            : 'Invio fallito'}
                       </span>
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
+                    {activeJob.provider === 'resend' && activeJob.progressStage && activeJob.status === 'in_progress' && (
+                      <p className="text-sm text-muted-foreground">{activeJob.progressStage}</p>
+                    )}
                     {/* Barra progresso grande */}
                     <div>
                       <div className="flex justify-between items-end mb-2">
                         <div className="text-3xl font-bold text-blue-700">
-                          {Math.round((activeJob.sentCount / activeJob.totalRecipients) * 100)}%
+                          {Math.round((((activeJob.provider === 'resend' && activeJob.status === 'in_progress')
+                            ? (activeJob.preparedCount || 0)
+                            : activeJob.sentCount) / activeJob.totalRecipients) * 100)}%
                         </div>
                         <div className="text-right">
                           <div className="text-lg font-semibold">
-                            {activeJob.sentCount} / {activeJob.totalRecipients}
+                            {(activeJob.provider === 'resend' && activeJob.status === 'in_progress')
+                              ? (activeJob.preparedCount || 0)
+                              : activeJob.sentCount} / {activeJob.totalRecipients}
                           </div>
-                          <div className="text-xs text-muted-foreground">email elaborate</div>
+                          <div className="text-xs text-muted-foreground">
+                            {activeJob.provider === 'resend' && activeJob.status === 'in_progress' ? 'contatti preparati' : 'destinatari'}
+                          </div>
                         </div>
                       </div>
                       <Progress 
-                        value={(activeJob.sentCount / activeJob.totalRecipients) * 100} 
+                        value={(((activeJob.provider === 'resend' && activeJob.status === 'in_progress')
+                          ? (activeJob.preparedCount || 0)
+                          : activeJob.sentCount) / activeJob.totalRecipients) * 100}
                         className="h-4"
                       />
                     </div>
@@ -744,12 +791,18 @@ export default function BulkEmailSender() {
                       <div className="bg-green-100 rounded-lg p-3 text-center">
                         <CheckCircle className="h-5 w-5 text-green-600 mx-auto mb-1" />
                         <div className="text-2xl font-bold text-green-700">{activeJob.sentCount}</div>
-                        <div className="text-xs text-green-600">Inviate con successo</div>
+                        <div className="text-xs text-green-600">
+                          {activeJob.provider === 'resend' ? 'Affidate a Resend' : 'Inviate con successo'}
+                        </div>
                       </div>
                       <div className="bg-red-100 rounded-lg p-3 text-center">
                         <XCircle className="h-5 w-5 text-red-600 mx-auto mb-1" />
-                        <div className="text-2xl font-bold text-red-700">{activeJob.failedCount}</div>
-                        <div className="text-xs text-red-600">Non inviate</div>
+                        <div className="text-2xl font-bold text-red-700">
+                          {activeJob.provider === 'resend' ? (activeJob.excludedCount || 0) : activeJob.failedCount}
+                        </div>
+                        <div className="text-xs text-red-600">
+                          {activeJob.provider === 'resend' ? 'Esclusi (disiscritti)' : 'Non inviate'}
+                        </div>
                       </div>
                     </div>
 
@@ -763,9 +816,30 @@ export default function BulkEmailSender() {
                             : 'bg-red-100 text-red-800'
                       }`}>
                         <div className="text-lg font-semibold">
-                          Tasso di successo: {Math.round((activeJob.sentCount / activeJob.totalRecipients) * 100)}%
+                          {activeJob.provider === 'resend'
+                            ? `Resend ha preso in carico ${activeJob.sentCount} destinatari`
+                            : `Tasso di successo: ${Math.round((activeJob.sentCount / activeJob.totalRecipients) * 100)}%`}
                         </div>
-                        {activeJob.failedCount > 0 && (
+                        {activeJob.provider === 'resend' && (
+                          <div className="text-sm mt-1">
+                            La presa in carico non equivale alla consegna finale. Consulta lo stato della campagna su Resend.
+                          </div>
+                        )}
+                        {activeJob.provider === 'resend' && activeJob.status === 'failed' && (
+                          <Button
+                            className="w-full bg-amber-600 hover:bg-amber-700"
+                            onClick={() => retryFailedMutation.mutate(activeJob.id)}
+                            disabled={retryFailedMutation.isPending}
+                          >
+                            {retryFailedMutation.isPending ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <Send className="h-4 w-4 mr-2" />
+                            )}
+                            Riprendi controllo sicuro Resend
+                          </Button>
+                        )}
+                        {activeJob.provider !== 'resend' && activeJob.failedCount > 0 && (
                           <div className="text-sm mt-1">
                             {activeJob.failedCount} email non sono state consegnate
                           </div>
@@ -876,7 +950,8 @@ export default function BulkEmailSender() {
                           {job.status === 'scheduled' ? '⏰ Programmato' : 
                            job.status === 'queued' ? '🔄 In coda' :
                            job.status === 'in_progress' ? '📤 In corso' :
-                           job.status === 'completed' ? '✅ Completato' :
+                           job.status === 'completed'
+                             ? (job.provider === 'resend' ? '✅ Affidata a Resend' : '✅ Completato') :
                            job.status}
                         </Badge>
                       </div>
@@ -915,7 +990,18 @@ export default function BulkEmailSender() {
                             Avvia
                           </Button>
                         )}
-                        {job.failedCount > 0 && job.status === 'completed' && (
+                        {job.provider === 'resend' && job.status === 'failed' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-amber-600 border-amber-300 hover:bg-amber-50"
+                            onClick={() => retryFailedMutation.mutate(job.id)}
+                            disabled={retryFailedMutation.isPending}
+                          >
+                            Riprendi Resend
+                          </Button>
+                        )}
+                        {job.provider !== 'resend' && job.failedCount > 0 && job.status === 'completed' && (
                           <Button 
                             size="sm"
                             variant="outline"
@@ -942,11 +1028,11 @@ export default function BulkEmailSender() {
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <Mail className="h-5 w-5 text-blue-600" />
-              Conferma Invio Email Massivo
+              Conferma Campagna Resend
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-4">
-                <p>Stai per inviare un'email a <strong>{selectedRecipients.size}</strong> destinatari.</p>
+                <p>Stai per affidare a Resend Marketing una campagna per <strong>{selectedRecipients.size}</strong> destinatari.</p>
                 
                 <div className="bg-muted p-3 rounded-lg space-y-2">
                   <div className="flex justify-between text-sm">
@@ -958,14 +1044,26 @@ export default function BulkEmailSender() {
                     <span className="font-medium">{selectedRecipients.size}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Quota rimanente dopo invio:</span>
-                    <span className="font-medium">{quota.remaining - selectedRecipients.size}</span>
+                    <span className="text-muted-foreground">Mittente:</span>
+                    <span className="font-medium">{senderEmail}</span>
                   </div>
                 </div>
 
                 <div className="text-sm text-amber-600 flex items-start gap-2">
                   <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                  <span>Questa azione non può essere annullata. Verifica che i destinatari e il contenuto siano corretti.</span>
+                  <span>Una volta avviata, la campagna non può essere annullata dall’app. I contatti già disiscritti saranno esclusi.</span>
+                </div>
+
+                <div className="flex items-start gap-2 rounded-md border p-3">
+                  <Checkbox
+                    id="confirm-marketing-consent"
+                    checked={consentConfirmed}
+                    onCheckedChange={(checked) => setConsentConfirmed(checked === true)}
+                    data-testid="checkbox-marketing-consent"
+                  />
+                  <Label htmlFor="confirm-marketing-consent" className="cursor-pointer text-sm leading-5">
+                    Confermo che i destinatari selezionati hanno dato il consenso alle comunicazioni promozionali.
+                  </Label>
                 </div>
               </div>
             </AlertDialogDescription>
@@ -975,74 +1073,14 @@ export default function BulkEmailSender() {
             <AlertDialogAction 
               onClick={handleConfirmSend}
               className="bg-blue-600 hover:bg-blue-700"
-            >
-              <Send className="h-4 w-4 mr-2" />
-              Conferma Invio
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Dialog Split Automatico */}
-      <AlertDialog open={showSplitDialog} onOpenChange={setShowSplitDialog}>
-        <AlertDialogContent className="max-w-md">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <Mail className="h-5 w-5 text-amber-600" />
-              Invio Diviso in Più Giorni
-            </AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-4">
-                <p>
-                  Hai selezionato <strong>{selectedRecipients.size}</strong> destinatari, 
-                  che superano il limite giornaliero di <strong>{DAILY_LIMIT}</strong> email.
-                </p>
-                
-                <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg">
-                  <p className="font-semibold text-amber-800 mb-3">
-                    📬 Le email saranno divise in {splitInfo.jobs} invii:
-                  </p>
-                  <div className="space-y-2">
-                    {splitInfo.distribution.map((count, idx) => (
-                      <div key={idx} className="flex items-center justify-between text-sm">
-                        <span className="flex items-center gap-2">
-                          {idx === 0 ? (
-                            <Badge className="bg-green-600">Oggi</Badge>
-                          ) : (
-                            <Badge variant="outline">Giorno {idx + 1}</Badge>
-                          )}
-                          <span>{count} email</span>
-                        </span>
-                        {idx === 0 ? (
-                          <span className="text-green-600 text-xs">Parte subito</span>
-                        ) : (
-                          <span className="text-muted-foreground text-xs">Clicca per avviare</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <p className="text-sm text-muted-foreground">
-                  Il primo invio parte subito. Gli altri job saranno creati in stato "Programmato" 
-                  e potrai avviarli cliccando il pulsante "Avvia" quando vorrai.
-                </p>
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={() => sendMutation.mutate()}
-              className="bg-amber-600 hover:bg-amber-700"
-              disabled={sendMutation.isPending}
+              disabled={!consentConfirmed || sendMutation.isPending}
             >
               {sendMutation.isPending ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
                 <Send className="h-4 w-4 mr-2" />
               )}
-              Crea {splitInfo.jobs} Job
+              Affida a Resend
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

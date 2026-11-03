@@ -10,6 +10,11 @@ import { sendGmailEmail, authenticateFirebase } from "./email-routes.js";
 import { FieldValue } from "firebase-admin/firestore";
 import { DateTime } from "luxon";
 import { nowRomeDate } from "./utils/timezone.js";
+import {
+  getResendMarketingStatus,
+  submitResendBroadcast,
+  validateMarketingSender,
+} from "./resend-marketing.js";
 
 /**
  * Ottiene la data di oggi in formato YYYY-MM-DD usando Europe/Rome
@@ -69,6 +74,15 @@ interface BulkEmailJob {
   retryOf?: string;
   batchIndex?: number;
   totalBatches?: number;
+  provider?: "gmail" | "resend";
+  senderEmail?: string;
+  providerTopicId?: string;
+  providerSegmentId?: string;
+  providerBroadcastId?: string;
+  providerStatus?: string;
+  preparedCount?: number;
+  excludedCount?: number;
+  progressStage?: string;
 }
 
 // --- VARIABILI GLOBALI ---
@@ -237,6 +251,46 @@ async function sendBulkEmails(jobId: string, quotaDate: string) {
     const recipients = jobData?.recipients || [];
     const subject = jobData?.subject;
     const body = jobData?.body;
+
+    if (jobData?.provider === "resend") {
+      const result = await submitResendBroadcast({
+        jobId,
+        senderEmail: jobData.senderEmail,
+        subject,
+        body,
+        recipients,
+        existing: {
+          providerTopicId: jobData.providerTopicId,
+          providerSegmentId: jobData.providerSegmentId,
+          providerBroadcastId: jobData.providerBroadcastId,
+          providerStatus: jobData.providerStatus,
+          preparedCount: jobData.preparedCount,
+          excludedCount: jobData.excludedCount,
+          progressStage: jobData.progressStage,
+        },
+        onProgress: async (progress) => {
+          await jobRef.update({
+            ...progress,
+            lastHeartbeatAt: nowRomeDate(),
+          });
+        },
+      });
+
+      await jobRef.update({
+        status: "completed",
+        provider: "resend",
+        providerBroadcastId: result.broadcastId,
+        providerStatus: result.providerStatus,
+        progressStage: "Campagna affidata a Resend",
+        preparedCount: result.eligibleCount,
+        excludedCount: result.excludedCount,
+        sentCount: result.eligibleCount,
+        failedCount: 0,
+        completedAt: nowRomeDate(),
+        lastHeartbeatAt: nowRomeDate(),
+      });
+      return;
+    }
 
     // --- LOOP SEQUENZIALE: 1 EMAIL/SECONDO ---
     // Niente chunking, niente parallelismo - invio strettamente sequenziale
@@ -508,6 +562,154 @@ router.get("/quota", authenticateFirebase, requireAdmin, async (req: any, res: R
     });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.get("/resend-status", authenticateFirebase, requireAdmin, async (_req: any, res: Response) => {
+  try {
+    const status = await getResendMarketingStatus();
+    res.json({ success: true, ...status });
+  } catch {
+    res.status(503).json({
+      success: false,
+      connected: false,
+      error: "Resend non è disponibile. Controlla il collegamento API.",
+    });
+  }
+});
+
+router.post("/send-resend", authenticateFirebase, requireAdmin, async (req: any, res: Response): Promise<HttpHandlerResult> => {
+  try {
+    const { subject, body, recipients, senderId, senderEmail, confirmMarketingConsent } = req.body;
+
+    if (
+      typeof subject !== "string" ||
+      !subject.trim() ||
+      typeof body !== "string" ||
+      !body.trim() ||
+      !Array.isArray(recipients) ||
+      recipients.length === 0
+    ) {
+      return res.status(400).json({ success: false, error: "Oggetto, messaggio e destinatari sono obbligatori." });
+    }
+    if (subject.length > 200 || body.length > 250_000) {
+      return res.status(400).json({
+        success: false,
+        error: "L'oggetto o il messaggio supera la dimensione consentita.",
+      });
+    }
+    if (recipients.length > 5000) {
+      return res.status(400).json({ success: false, error: "La campagna supera il limite di 5.000 destinatari." });
+    }
+    if (confirmMarketingConsent !== true) {
+      return res.status(400).json({
+        success: false,
+        error: "Conferma che i destinatari selezionati hanno dato il consenso alle comunicazioni promozionali.",
+      });
+    }
+
+    const resendStatus = await getResendMarketingStatus();
+    const senderError = validateMarketingSender(
+      typeof senderEmail === "string" ? senderEmail : "",
+      resendStatus.verifiedSendingDomains.map((domain) => ({
+        ...domain,
+        sendingEnabled: true,
+      })),
+    );
+    if (senderError) {
+      return res.status(400).json({ success: false, error: senderError });
+    }
+
+    const requestedRecipients = new Map<string, { clientId: string }>();
+    for (const recipient of recipients) {
+      const email = typeof recipient?.email === "string"
+        ? recipient.email.trim().toLowerCase()
+        : "";
+      const clientId = typeof recipient?.clientId === "string"
+        ? recipient.clientId.trim()
+        : "";
+      if (!email || !clientId || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.status(400).json({
+          success: false,
+          error: "La lista contiene un contatto non valido. Ricarica i destinatari e riprova.",
+        });
+      }
+      requestedRecipients.set(email, { clientId });
+    }
+
+    const entries = Array.from(requestedRecipients.entries());
+    const refs = entries.map(([, recipient]) => db.collection("clienti").doc(recipient.clientId));
+    const clientDocs: any[] = [];
+    for (let offset = 0; offset < refs.length; offset += 250) {
+      clientDocs.push(...await db.getAll(...refs.slice(offset, offset + 250)));
+    }
+    const recipientsByEmail = new Map<string, BulkEmailRecipient>();
+    for (let i = 0; i < entries.length; i++) {
+      const [email, requested] = entries[i];
+      const clientDoc = clientDocs[i];
+      if (!clientDoc?.exists) {
+        return res.status(400).json({
+          success: false,
+          error: "Uno o più contatti non sono più disponibili. Ricarica la lista e riprova.",
+        });
+      }
+      const clientData = clientDoc.data() || {};
+      const storedEmail = typeof clientData.email === "string"
+        ? clientData.email.trim().toLowerCase()
+        : "";
+      if (storedEmail !== email) {
+        return res.status(400).json({
+          success: false,
+          error: "I dati dei destinatari sono cambiati. Ricarica la lista prima di inviare.",
+        });
+      }
+      recipientsByEmail.set(email, {
+        email,
+        nome: typeof clientData.nome === "string" ? clientData.nome : "",
+        cognome: typeof clientData.cognome === "string" ? clientData.cognome : "",
+        clientId: clientDoc.id,
+      });
+    }
+
+    const normalizedRecipients = Array.from(recipientsByEmail.values());
+    const today = getTodayRome();
+    const jobRef = db.collection("bulkEmailJobs").doc();
+    const job: BulkEmailJob = {
+      id: jobRef.id,
+      subject: subject.trim(),
+      body,
+      recipients: normalizedRecipients,
+      totalRecipients: normalizedRecipients.length,
+      quotaReserved: 0,
+      quotaConsumed: 0,
+      quotaDate: today,
+      sentCount: 0,
+      failedCount: 0,
+      status: "queued",
+      errors: [],
+      createdAt: nowRomeDate(),
+      lastHeartbeatAt: nowRomeDate(),
+      createdBy: senderId || req.user?.email || "admin",
+      provider: "resend",
+      senderEmail: senderEmail.trim().toLowerCase(),
+      providerStatus: "preparing",
+      preparedCount: 0,
+      excludedCount: 0,
+      progressStage: "In attesa di Resend",
+    };
+
+    await jobRef.set(job);
+    res.json({
+      success: true,
+      jobId: jobRef.id,
+      jobs: [{ id: jobRef.id, status: job.status, recipients: normalizedRecipients.length }],
+      message: `Campagna Resend in coda per ${normalizedRecipients.length} destinatari.`,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: typeof error?.message === "string" ? error.message : "Impossibile preparare la campagna Resend.",
+    });
   }
 });
 
@@ -1118,6 +1320,43 @@ router.post("/jobs/:jobId/retry-failed", authenticateFirebase, requireAdmin, asy
     }
     
     const originalJob = originalJobDoc.data();
+    if (originalJob?.provider === "resend") {
+      if (originalJob.status !== "failed") {
+        return res.status(409).json({
+          success: false,
+          error: "Puoi riprendere una campagna Resend solo dopo un errore.",
+        });
+      }
+
+      const originalJobRef = db.collection("bulkEmailJobs").doc(jobId);
+      await db.runTransaction(async (transaction) => {
+        const currentDoc = await transaction.get(originalJobRef);
+        const currentJob = currentDoc.data();
+        if (!currentDoc.exists || currentJob?.provider !== "resend") {
+          throw new Error("La campagna Resend non è più disponibile.");
+        }
+        if (currentJob.status !== "failed") {
+          throw new Error("La campagna è già stata ripresa o è in esecuzione.");
+        }
+
+        transaction.update(originalJobRef, {
+          status: "queued",
+          failedCount: 0,
+          errors: [],
+          completedAt: FieldValue.delete(),
+          progressStage: "Ripresa sicura della campagna Resend",
+          lastHeartbeatAt: nowRomeDate(),
+        });
+      });
+
+      return res.json({
+        success: true,
+        jobId,
+        recipientsCount: originalJob.totalRecipients || 0,
+        resumed: true,
+        message: "Campagna Resend rimessa in coda; lo stato esistente verrà verificato prima di qualsiasi invio.",
+      });
+    }
     const errors = originalJob?.errors || [];
     
     if (errors.length === 0) {
