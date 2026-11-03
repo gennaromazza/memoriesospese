@@ -36,6 +36,7 @@ const quote = {
 
 async function setup(page: Page) {
   const unexpectedApiRequests: string[] = [];
+  const quoteRequests: Array<{ couponCode?: string }> = [];
   const origin = "http://127.0.0.1:4192";
   const order = {
     id: orderId,
@@ -93,7 +94,17 @@ async function setup(page: Page) {
       return respond({ order });
     }
     if (path === `/api/print-shop/orders/${orderId}/quote` && method === "POST") {
-      return respond({ quote });
+      const requestBody = route.request().postDataJSON() as { couponCode?: string };
+      quoteRequests.push(requestBody);
+      const hasCoupon = requestBody.couponCode === "TEST25";
+      const updatedQuote = hasCoupon
+        ? {
+            ...quote,
+            coupon: { code: "TEST25", discountType: "percentage", value: 25, scope: "all" },
+            totals: { ...quote.totals, discountCents: 25, totalCents: 425 },
+          }
+        : quote;
+      return respond({ quote: updatedQuote });
     }
     if (path === `/api/print-shop/orders/${orderId}/assets/${assetId}/preview` && method === "GET") {
       return route.fulfill({ status: 404, body: "Preview intentionally unavailable in this test." });
@@ -101,7 +112,7 @@ async function setup(page: Page) {
     unexpectedApiRequests.push(`${method} ${path}`);
     return respond({ message: "Unexpected fixture request." }, 404);
   });
-  return { unexpectedApiRequests };
+  return { unexpectedApiRequests, quoteRequests };
 }
 
 test("checkout mobile jumps to the next required section and desktop keeps its sticky summary", async ({ page }) => {
@@ -161,5 +172,39 @@ test("checkout mobile jumps to the next required section and desktop keeps its s
     .toBe("sticky");
   await expect.poll(() => stickySummary.evaluate((element) => getComputedStyle(element).top))
     .toBe("96px");
+  expect(unexpectedApiRequests).toEqual([]);
+});
+
+test("removing a coupon restores the checkout code, discount, and total", async ({ page }) => {
+  await page.addInitScript((draftId) => {
+    sessionStorage.setItem("print-shop-draft:fixture-user", draftId);
+  }, orderId);
+  const { unexpectedApiRequests, quoteRequests } = await setup(page);
+  await page.goto("/?view=order&legalFixture=1");
+
+  await expect(page.getByRole("heading", { name: "Come vuoi stampare le foto?" })).toBeVisible();
+  await page.getByRole("button", { name: /Spedizione a domicilio/ }).click();
+  await page.getByRole("button", { name: "Controlla l’ordine" }).click();
+
+  const summary = page.getByRole("region", { name: "Il tuo ordine" });
+  const total = summary.locator("dl > div").filter({ hasText: "Totale da pagare" }).locator("dd");
+  await expect(total).toContainText("4,50");
+
+  await summary.getByRole("textbox", { name: "Codice sconto" }).fill("test25");
+  await summary.getByRole("button", { name: "Applica" }).click();
+  await expect(summary.getByRole("status")).toHaveText("Coupon TEST25 applicato.");
+  await expect(summary.getByRole("textbox", { name: "Codice sconto" })).toHaveValue("TEST25");
+  await expect(summary.getByText("Sconto (TEST25)", { exact: true })).toBeVisible();
+  await expect(summary.getByText("−0,25 €")).toBeVisible();
+  await expect(total).toContainText("4,25");
+
+  await summary.getByRole("button", { name: "Rimuovi" }).click();
+  await expect(summary.getByRole("status")).toHaveText("Coupon rimosso.");
+  await expect(summary.getByRole("textbox", { name: "Codice sconto" })).toHaveValue("");
+  await expect(summary.getByRole("button", { name: "Applica" })).toBeDisabled();
+  await expect(summary.getByText("Sconto (TEST25)", { exact: true })).toHaveCount(0);
+  await expect(summary.getByText("−0,25 €")).toHaveCount(0);
+  await expect(total).toContainText("4,50");
+  expect(quoteRequests.map((request) => request.couponCode)).toEqual([undefined, "TEST25", undefined]);
   expect(unexpectedApiRequests).toEqual([]);
 });
