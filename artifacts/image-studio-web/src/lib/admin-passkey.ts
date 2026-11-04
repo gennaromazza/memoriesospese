@@ -102,11 +102,23 @@ export function isAdminPasskeyVerificationRequired(status: AdminSecurityStatus):
  * deve nascondere la possibilità di autorizzare un dispositivo nuovo.
  */
 export function canOfferDeviceEnrollment(status: AdminSecurityStatus, currentRpId: string): boolean {
-  return (
-    status.passkeyRequired &&
-    currentRpId === 'imagestudiofotografico.com' &&
-    status.passkeys.some((passkey) => passkey.rpId === 'imagestudiofotografico.com')
-  );
+  return getDeviceEnrollmentUnavailableReason(status, currentRpId) === null;
+}
+
+export function getDeviceEnrollmentUnavailableReason(
+  status: AdminSecurityStatus,
+  currentRpId: string,
+): string | null {
+  if (!status.passkeyRequired) {
+    return 'Per associare un nuovo dispositivo con il QR, attiva prima l’obbligo passkey nelle impostazioni di Sicurezza.';
+  }
+  if (currentRpId !== 'imagestudiofotografico.com') {
+    return 'Il QR di associazione è disponibile solo sul sito ufficiale. Apri imagestudiofotografico.com sul dispositivo da associare.';
+  }
+  if (!status.passkeys.some((passkey) => passkey.rpId === 'imagestudiofotografico.com')) {
+    return 'Serve una passkey già registrata sul sito ufficiale e disponibile su un dispositivo fidato. Se non puoi usarla, accedi con un codice di recupero e registra una passkey.';
+  }
+  return null;
 }
 
 export function isAdminPasskeyLocked(status: AdminSecurityStatus): boolean {

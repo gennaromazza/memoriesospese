@@ -21,7 +21,7 @@ import {
   AdminPasskeyRefreshError,
   AdminSecurityError,
   DEVICE_ENROLLMENT_TIMEOUT_MS,
-  canOfferDeviceEnrollment,
+  getDeviceEnrollmentUnavailableReason,
   type DeviceEnrollmentHandoff,
   type DeviceEnrollmentStatus,
   hasPreviewHandoffTimedOut,
@@ -162,8 +162,8 @@ function PasskeySetupReminder({ enrolled }: { enrolled: boolean }) {
       <ShieldAlert className="h-4 w-4 shrink-0" />
       <span>
         {enrolled
-          ? 'Hai una passkey ma non è ancora obbligatoria: attivala per proteggere il pannello anche in caso di password compromessa.'
-          : 'Il pannello è protetto solo dalla password. Configura una passkey (impronta, volto o PIN del dispositivo).'}
+          ? 'Hai una passkey, ma l’obbligo non è attivo. Per associare un nuovo dispositivo tramite QR, attiva l’obbligo passkey in Sicurezza.'
+          : 'Il pannello è protetto solo dalla password. Registra una passkey in Sicurezza; il QR per un nuovo dispositivo richiede poi l’obbligo attivo e una passkey già registrata.'}
       </span>
       <Button size="sm" variant="outline" onClick={() => navigate(createUrl('/admin/sicurezza'))} data-testid="button-open-security">
         Configura
@@ -203,7 +203,8 @@ function DeviceEnrollmentRequestPanel({
   const [registered, setRegistered] = useState(false);
   const deadlineRef = useRef<number | null>(null);
 
-  const eligible = canOfferDeviceEnrollment(status, currentRpId);
+  const unavailableReason = getDeviceEnrollmentUnavailableReason(status, currentRpId);
+  const eligible = unavailableReason === null;
 
   useEffect(() => {
     if (!handoff) return;
@@ -328,7 +329,18 @@ function DeviceEnrollmentRequestPanel({
     }
   };
 
-  if (!eligible) return null;
+  if (!eligible) {
+    return (
+      <section
+        className="rounded-md border border-amber-200 bg-amber-50 p-3"
+        role="status"
+        data-testid="panel-device-enrollment-unavailable"
+      >
+        <p className="text-sm font-medium text-amber-900">QR non disponibile in questa sessione</p>
+        <p className="mt-1 text-xs text-amber-800">{unavailableReason}</p>
+      </section>
+    );
+  }
 
   return (
     <section

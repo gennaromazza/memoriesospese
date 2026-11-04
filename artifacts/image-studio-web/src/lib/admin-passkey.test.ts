@@ -19,6 +19,7 @@ import {
   AdminPasskeyRefreshError,
   AdminSecurityError,
   canOfferDeviceEnrollment,
+  getDeviceEnrollmentUnavailableReason,
   type AdminSecurityStatus,
 } from './admin-passkey';
 
@@ -62,6 +63,21 @@ describe('autorizzazione QR per nuovo dispositivo', () => {
 
   it('non espone la registrazione QR dalla Preview o da un altro dominio', () => {
     expect(canOfferDeviceEnrollment(baseStatus, 'preview.replit.dev')).toBe(false);
+  });
+
+  it('spiega perché il QR non è disponibile e indica un percorso sicuro', () => {
+    expect(getDeviceEnrollmentUnavailableReason(baseStatus, 'imagestudiofotografico.com')).toBeNull();
+    expect(getDeviceEnrollmentUnavailableReason(baseStatus, 'preview.replit.dev')).toContain(
+      'solo sul sito ufficiale',
+    );
+    expect(getDeviceEnrollmentUnavailableReason(
+      { ...baseStatus, passkeys: [] },
+      'imagestudiofotografico.com',
+    )).toContain('codice di recupero');
+    expect(getDeviceEnrollmentUnavailableReason(
+      { ...baseStatus, passkeyRequired: false },
+      'imagestudiofotografico.com',
+    )).toContain('attiva prima l’obbligo passkey');
   });
 });
 
