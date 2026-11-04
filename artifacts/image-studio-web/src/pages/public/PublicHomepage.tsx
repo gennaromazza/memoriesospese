@@ -377,7 +377,7 @@ export default function PublicHomepage() {
                 </Link>
               </div>
             </div>
-            <div className="relative isolate mx-auto h-[280px] w-full min-w-0 max-w-full overflow-hidden rounded-xl shadow-lg sm:h-[400px] sm:rounded-2xl sm:shadow-2xl md:mx-0 md:h-[500px] md:animate-slide-up">
+            <div className="relative isolate mx-auto aspect-[3/2] w-full min-w-0 max-w-full overflow-hidden rounded-xl shadow-lg sm:rounded-2xl sm:shadow-2xl md:mx-0 md:animate-slide-up">
               <HeroSlideshow />
             </div>
           </div>
