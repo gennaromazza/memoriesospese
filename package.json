@@ -17,7 +17,7 @@
     "test:collaborator-products": "playwright test --config artifacts/image-studio-web/playwright.collaborator-products.config.ts",
     "test:quick-quote-preview": "playwright test --config artifacts/image-studio-web/playwright.quick-quote-preview.config.ts",
     "test:admin-passkey": "playwright test --config artifacts/image-studio-web/playwright.admin-passkey.config.ts",
-    "test:admin-passkey-enrollment": "firebase emulators:exec --project wedding-gallery-397b6 --config firebase.admin-passkey-e2e.json --only auth,firestore \"pnpm exec playwright test --config artifacts/image-studio-web/playwright.admin-passkey-enrollment.config.ts\"",
+    "test:admin-passkey-enrollment": "node scripts/test-admin-passkey-enrollment.mjs",
     "test:admin-react": "playwright test --config artifacts/image-studio-web/playwright.admin-passkey.config.ts --grep \"admin dashboard React smoke\"",
     "test:desktop-gallery-jobs": "playwright test --config artifacts/image-studio-desktop/tests/job-flow/playwright.config.ts"
   },

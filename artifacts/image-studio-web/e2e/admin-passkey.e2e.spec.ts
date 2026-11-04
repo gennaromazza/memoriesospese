@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { chromium, expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { createLocalProductionOrigin } from "./local-production-origin";
 
 const adminEmail = "gennaro.mazzacane@gmail.com";
 const projectId = "wedding-gallery-397b6";
@@ -401,6 +402,291 @@ test("device enrollment QR resumes on its approval page after admin login", asyn
   } finally {
     await context.close();
     await browser.close();
+  }
+});
+
+test("device enrollment QR registers a new device without transferring admin access", async () => {
+  test.setTimeout(120_000);
+  requireLoopbackEndpoint(baseURL, "ADMIN_PASSKEY_E2E_BASE_URL");
+  requireLoopbackEndpoint(authEmulator, "ADMIN_PASSKEY_E2E_AUTH_EMULATOR");
+  requireLoopbackEndpoint(firestoreEmulator, "ADMIN_PASSKEY_E2E_FIRESTORE_EMULATOR");
+  await resetDisposableEmulators();
+
+  const password = `Test-${randomBytes(18).toString("hex")}!`;
+  await seedDisposableAdmin(password);
+
+  const enrollmentId = randomBytes(32).toString("base64url");
+  const deviceLabel = "Portatile nuovo";
+  let trustedCredentialId = "";
+  let passkeys: Array<{
+    id: string;
+    label: string;
+    rpId: string;
+    deviceType: string;
+    backedUp: boolean;
+    createdAt: number;
+    lastUsedAt: number | null;
+  }> = [];
+  let passkeyRequired = false;
+  let enrollmentStatus: "pending" | "approved" | "registered" = "pending";
+  let approvalUrl = "";
+  let verifierFromNewDevice = "";
+  let approvalVerificationCount = 0;
+  let newDeviceAuthenticationCount = 0;
+  const expiresAt = Date.now() + 10 * 60_000;
+
+  const localOrigin = await createLocalProductionOrigin();
+  const systemChromiumPath =
+    process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ?? "/repl/tools/bin/chromium";
+  const browser = await chromium.launch({
+    headless: true,
+    ...(existsSync(systemChromiumPath) ? { executablePath: systemChromiumPath } : {}),
+    args: [
+      "--no-sandbox",
+      "--allow-running-insecure-content",
+      "--host-resolver-rules=MAP imagestudiofotografico.com 127.0.0.1",
+    ],
+  });
+  const contextA = await browser.newContext({ ignoreHTTPSErrors: true });
+  const contextB = await browser.newContext({ ignoreHTTPSErrors: true });
+  const allowOnlyLocalTraffic = async (context: BrowserContext) => {
+    await context.route("**/*", async (route) => {
+      const url = new URL(route.request().url());
+      const localOriginRequest =
+        url.hostname === "imagestudiofotografico.com" &&
+        Number(url.port) === localOrigin.port;
+      if (
+        localOriginRequest ||
+        url.hostname === "127.0.0.1" ||
+        url.hostname === "localhost" ||
+        url.hostname === "::1"
+      ) {
+        await route.continue();
+      } else {
+        await route.abort("blockedbyclient");
+      }
+    });
+  };
+  await Promise.all([allowOnlyLocalTraffic(contextA), allowOnlyLocalTraffic(contextB)]);
+
+  const statusResponse = () => ({
+    passkeyRequired,
+    passkeys,
+    recoveryCodesRemaining: 5,
+    recoveryCodesGeneratedAt: Date.now(),
+    lockedUntil: null,
+    verified: false,
+    activationReady: true,
+    verifiedUntil: null,
+    expectedClaim: null,
+  });
+  const json = (route: Parameters<Parameters<BrowserContext["route"]>[1]>[0], body: unknown) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(body),
+    });
+  const authenticationOptions = {
+    challenge: randomBytes(32).toString("base64url"),
+    rpId: "imagestudiofotografico.com",
+    allowCredentials: () => [{
+      id: trustedCredentialId,
+      type: "public-key",
+      transports: ["internal"],
+    }],
+    timeout: 60_000,
+    userVerification: "required",
+  };
+  const makeRegistrationOptions = (excludeCredentialId?: string) => ({
+    challenge: randomBytes(32).toString("base64url"),
+    rp: { name: "Image Studio", id: "imagestudiofotografico.com" },
+    user: {
+      id: randomBytes(16).toString("base64url"),
+      name: adminEmail,
+      displayName: "Amministratore Image Studio",
+    },
+    pubKeyCredParams: [
+      { type: "public-key", alg: -7 },
+      { type: "public-key", alg: -257 },
+    ],
+    timeout: 60_000,
+    attestation: "none",
+    authenticatorSelection: {
+      residentKey: "preferred",
+      userVerification: "required",
+    },
+    excludeCredentials: excludeCredentialId
+      ? [{ id: excludeCredentialId, type: "public-key", transports: ["internal"] }]
+      : [],
+  });
+
+  await contextA.route("**/api/admin/security/**", async (route) => {
+    const { pathname } = new URL(route.request().url());
+    if (pathname === "/api/admin/security/status") {
+      return json(route, statusResponse());
+    }
+    if (pathname === "/api/admin/security/registration/options") {
+      return json(route, makeRegistrationOptions());
+    }
+    if (pathname === "/api/admin/security/registration/verify") {
+      const body = route.request().postDataJSON() as {
+        label?: string;
+        response?: { id?: string };
+      };
+      expect(body.response?.id).toMatch(/^[A-Za-z0-9_-]+$/);
+      trustedCredentialId = body.response!.id!;
+      const trustedPasskey = {
+        id: trustedCredentialId,
+        label: body.label ?? "Telefono fidato",
+        rpId: "imagestudiofotografico.com",
+        deviceType: "singleDevice",
+        backedUp: false,
+        createdAt: Date.now(),
+        lastUsedAt: null,
+      };
+      passkeys = [trustedPasskey];
+      return json(route, { passkey: trustedPasskey });
+    }
+    if (pathname.endsWith(`/device-enrollment/${enrollmentId}/approval-info`)) {
+      return json(route, { status: enrollmentStatus, deviceLabel, expiresAt });
+    }
+    if (pathname.endsWith(`/device-enrollment/${enrollmentId}/authentication/options`)) {
+      return json(route, {
+        ...authenticationOptions,
+        allowCredentials: authenticationOptions.allowCredentials(),
+      });
+    }
+    if (pathname.endsWith(`/device-enrollment/${enrollmentId}/authentication/verify`)) {
+      const body = route.request().postDataJSON() as {
+        response?: { id?: string };
+      };
+      expect(body.response?.id).toBe(trustedCredentialId);
+      approvalVerificationCount += 1;
+      enrollmentStatus = "approved";
+      return json(route, { approvedAt: Date.now() });
+    }
+    return json(route, { error: `Unexpected trusted-device request: ${pathname}` });
+  });
+
+  await contextB.route("**/api/admin/security/**", async (route) => {
+    const { pathname } = new URL(route.request().url());
+    if (pathname === "/api/admin/security/status") {
+      return json(route, statusResponse());
+    }
+    if (pathname === "/api/admin/security/device-enrollment/start") {
+      const body = route.request().postDataJSON() as {
+        verifierHash?: string;
+        deviceLabel?: string;
+      };
+      expect(body.verifierHash).toMatch(/^[A-Za-z0-9_-]{43}$/);
+      expect(body.deviceLabel).toBe(deviceLabel);
+      approvalUrl =
+        `https://imagestudiofotografico.com/admin/authorize-device?deviceEnrollment=${enrollmentId}`;
+      return json(route, { enrollmentId, approvalUrl, expiresAt });
+    }
+    if (pathname.endsWith(`/device-enrollment/${enrollmentId}/status`)) {
+      const body = route.request().postDataJSON() as { verifier?: string };
+      expect(body.verifier).toMatch(/^[A-Za-z0-9_-]{43}$/);
+      verifierFromNewDevice = body.verifier!;
+      return json(route, { status: enrollmentStatus, deviceLabel, expiresAt });
+    }
+    if (pathname.endsWith(`/device-enrollment/${enrollmentId}/registration/options`)) {
+      const body = route.request().postDataJSON() as { verifier?: string };
+      expect(body.verifier).toBe(verifierFromNewDevice);
+      expect(enrollmentStatus).toBe("approved");
+      return json(route, makeRegistrationOptions(trustedCredentialId));
+    }
+    if (pathname.endsWith(`/device-enrollment/${enrollmentId}/registration/verify`)) {
+      const body = route.request().postDataJSON() as {
+        verifier?: string;
+        response?: { id?: string };
+      };
+      expect(body.verifier).toBe(verifierFromNewDevice);
+      expect(body.response?.id).toMatch(/^[A-Za-z0-9_-]+$/);
+      const newPasskey = {
+        ...passkeys[0],
+        id: body.response!.id!,
+        label: deviceLabel,
+        createdAt: Date.now(),
+      };
+      passkeys = [...passkeys, newPasskey];
+      enrollmentStatus = "registered";
+      return json(route, { passkey: newPasskey });
+    }
+    if (pathname === "/api/admin/security/authentication/options" ||
+        pathname === "/api/admin/security/authentication/verify") {
+      newDeviceAuthenticationCount += 1;
+      return json(route, { error: "The new device must explicitly verify its own passkey." });
+    }
+    return json(route, { error: `Unexpected new-device request: ${pathname}` });
+  });
+
+  try {
+    const pageA = await contextA.newPage();
+    const pageB = await contextB.newPage();
+    await addVirtualAuthenticator(contextA, pageA);
+    await addVirtualAuthenticator(contextB, pageB);
+
+    await Promise.all([
+      pageA.goto(`${localOrigin.origin}/admin`),
+      pageB.goto(`${localOrigin.origin}/admin`),
+    ]);
+    await Promise.all([
+      signInInBrowser(pageA, adminEmail, password),
+      signInInBrowser(pageB, adminEmail, password),
+    ]);
+
+    await pageA.goto(`${localOrigin.origin}/admin/sicurezza`);
+    await pageA.getByTestId("input-passkey-label").fill("Telefono fidato");
+    await pageA.getByTestId("button-register-passkey").click();
+    await expect(pageA.locator('[data-testid^="row-passkey-"]').first()).toContainText(
+      "Telefono fidato",
+    );
+    expect(passkeys).toHaveLength(1);
+    passkeyRequired = true;
+    expect(passkeyRequired).toBe(true);
+
+    await pageB.goto(`${localOrigin.origin}/admin/dashboard`);
+    await expect(pageB.getByRole("heading", { name: "Verifica passkey" })).toBeVisible();
+    await expect(pageB.getByTestId("panel-device-enrollment")).toBeVisible();
+    await pageB.getByTestId("input-device-enrollment-label").fill(deviceLabel);
+    await pageB.getByTestId("button-start-device-enrollment").click();
+    await expect(pageB.getByTestId("qr-device-enrollment")).toBeVisible();
+
+    const parsedApprovalUrl = new URL(approvalUrl);
+    expect(parsedApprovalUrl.origin).toBe("https://imagestudiofotografico.com");
+    expect(parsedApprovalUrl.pathname).toBe("/admin/authorize-device");
+    expect(parsedApprovalUrl.searchParams.get("deviceEnrollment")).toBe(enrollmentId);
+    expect([...parsedApprovalUrl.searchParams.keys()]).toEqual(["deviceEnrollment"]);
+
+    // Il QR punta al dominio ufficiale; il test sostituisce solo la porta per
+    // servire in locale la stessa origine sicura e non contattare la produzione.
+    parsedApprovalUrl.port = String(localOrigin.port);
+    await pageA.goto(parsedApprovalUrl.toString());
+    await expect(pageA.getByRole("heading", { name: "Autorizza un nuovo dispositivo" })).toBeVisible();
+    await expect(pageA.getByText(deviceLabel)).toBeVisible();
+    await pageA.getByRole("button", { name: "Approva e verifica con passkey" }).click();
+    await expect(pageA.getByText(/Autorizzazione completata/)).toBeVisible();
+    expect(approvalVerificationCount).toBe(1);
+
+    await expect(pageB.getByTestId("button-register-approved-device")).toBeVisible({
+      timeout: 10_000,
+    });
+    await pageB.getByTestId("button-register-approved-device").click();
+    await expect(pageB.getByText(/Passkey aggiunta/)).toBeVisible();
+
+    // L’approvazione non trasferisce la sessione e la sola registrazione non
+    // sblocca il pannello: sul dispositivo nuovo resta richiesta la verifica.
+    await expect(pageB.getByRole("heading", { name: "Verifica passkey" })).toBeVisible();
+    await expect(pageB.getByTestId("button-verify-passkey")).toBeVisible();
+    await expect(pageB.getByTestId("button-register-approved-device")).toHaveCount(0);
+    expect(newDeviceAuthenticationCount).toBe(0);
+    expect(enrollmentStatus).toBe("registered");
+    expect(passkeys).toHaveLength(2);
+  } finally {
+    await Promise.allSettled([contextA.close(), contextB.close()]);
+    await browser.close().catch(() => undefined);
+    await localOrigin.close();
   }
 });
 
