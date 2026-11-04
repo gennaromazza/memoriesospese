@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
+import {restoreQuadrobookFabrics} from './fabric-restoration.js';
 
 /*
  * Scatola · Album, quadro e cornice.
@@ -729,7 +730,7 @@ if (embedded) {
     const cfg = data.configuration;
     if (cfg && cfg.modelId === 'scatola-cornice') {
       if (offer.cover.mode === 'choice' && ['photo', 'graphic'].includes(cfg.coverLayout)) coverChoice = cfg.coverLayout;
-      await setFabric(cfg.materialId, ['box', 'album']);
+      await restoreQuadrobookFabrics(cfg, setFabric);
     } else if (allowedMaterials && chosen.box && !allowedMaterials.has(chosen.box.id)) {
       const first = variants.find(v => allowedMaterials.has(v.id));
       if (first) await setFabric(first.id, ['box', 'album']);
