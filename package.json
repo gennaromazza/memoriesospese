@@ -18,6 +18,7 @@
     "test:quick-quote-preview": "playwright test --config artifacts/image-studio-web/playwright.quick-quote-preview.config.ts",
     "test:admin-passkey": "playwright test --config artifacts/image-studio-web/playwright.admin-passkey.config.ts",
     "test:admin-passkey-enrollment": "node scripts/test-admin-passkey-enrollment.mjs",
+    "test:admin-passkey-firestore-race": "firebase emulators:exec --only firestore --project demo-admin-passkey-race --config firebase.admin-passkey-e2e.json 'env -u FIREBASE_ADMIN_CREDENTIALS ADMIN_SECURITY_FIRESTORE_EMULATOR_TEST=1 GCLOUD_PROJECT=demo-admin-passkey-race GOOGLE_CLOUD_PROJECT=demo-admin-passkey-race pnpm --filter @workspace/api-server exec vitest run --config vitest.config.ts src/admin-security/admin-security-firestore-emulator.test.ts'",
     "test:admin-react": "playwright test --config artifacts/image-studio-web/playwright.admin-passkey.config.ts --grep \"admin dashboard React smoke\"",
     "test:desktop-gallery-jobs": "playwright test --config artifacts/image-studio-desktop/tests/job-flow/playwright.config.ts"
   },
