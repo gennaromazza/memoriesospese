@@ -644,6 +644,18 @@ describe('autorizzazione QR per una nuova passkey', () => {
       { method: 'POST', headers: { Authorization: 'Bearer wrong-admin' } },
     );
     expect(wrongAccountRetry.status).toBe(404);
+    const wrongAccountBody = await json(wrongAccountRetry);
+    expect(wrongAccountBody).toEqual({
+      error: 'Richiesta non valida o scaduta',
+      code: 'device_enrollment_not_found',
+    });
+    expect(wrongAccountBody).not.toHaveProperty('deviceLabel');
+
+    const wrongAccountApproval = await call(
+      `/api/admin/security/device-enrollment/${request.enrollmentId}/authentication/options`,
+      { method: 'POST', headers: { Authorization: 'Bearer wrong-admin' } },
+    );
+    expect(wrongAccountApproval.status).toBe(404);
 
     h.tokenAuthTimes.set('trusted-device', h.authTime + 60);
     h.webauthn = true;
@@ -756,6 +768,19 @@ describe('autorizzazione QR per una nuova passkey', () => {
       { method: 'POST', body: JSON.stringify({ verifier }) },
     );
     expect((await json(status)).status).toBe('expired');
+    const approvalInfo = await call(
+      `/api/admin/security/device-enrollment/${started.enrollmentId}/approval-info`,
+      { method: 'POST' },
+    );
+    expect(await json(approvalInfo)).toMatchObject({
+      status: 'expired',
+      deviceLabel: 'Portatile',
+    });
+    const approvalOptions = await call(
+      `/api/admin/security/device-enrollment/${started.enrollmentId}/authentication/options`,
+      { method: 'POST' },
+    );
+    expect(approvalOptions.status).toBe(404);
     const registration = await call(
       `/api/admin/security/device-enrollment/${started.enrollmentId}/registration/options`,
       { method: 'POST', body: JSON.stringify({ verifier }) },
@@ -778,6 +803,11 @@ describe('autorizzazione QR per una nuova passkey', () => {
       { method: 'POST', body: JSON.stringify({ verifier }) },
     );
     expect((await json(rejectedStatus)).status).toBe('rejected');
+    const rejectedApprovalOptions = await call(
+      `/api/admin/security/device-enrollment/${started.enrollmentId}/authentication/options`,
+      { method: 'POST' },
+    );
+    expect(rejectedApprovalOptions.status).toBe(404);
 
     const another = await json(await startRequest());
     const cancelled = await call(
@@ -792,6 +822,19 @@ describe('autorizzazione QR per una nuova passkey', () => {
       { method: 'POST', body: JSON.stringify({ verifier }) },
     );
     expect((await json(cancelledStatus)).status).toBe('cancelled');
+    const cancelledApprovalInfo = await call(
+      `/api/admin/security/device-enrollment/${another.enrollmentId}/approval-info`,
+      { method: 'POST' },
+    );
+    expect(await json(cancelledApprovalInfo)).toMatchObject({
+      status: 'cancelled',
+      deviceLabel: 'Portatile',
+    });
+    const cancelledApprovalOptions = await call(
+      `/api/admin/security/device-enrollment/${another.enrollmentId}/authentication/options`,
+      { method: 'POST' },
+    );
+    expect(cancelledApprovalOptions.status).toBe(404);
   });
 });
 

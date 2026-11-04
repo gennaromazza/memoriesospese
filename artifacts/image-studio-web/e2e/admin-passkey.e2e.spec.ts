@@ -294,6 +294,116 @@ test("account dashboard link opens the passkey guard on desktop and mobile", asy
   }
 });
 
+test("device enrollment QR resumes on its approval page after admin login", async () => {
+  test.setTimeout(60_000);
+  requireLoopbackEndpoint(baseURL, "ADMIN_PASSKEY_E2E_BASE_URL");
+  requireLoopbackEndpoint(authEmulator, "ADMIN_PASSKEY_E2E_AUTH_EMULATOR");
+  requireLoopbackEndpoint(firestoreEmulator, "ADMIN_PASSKEY_E2E_FIRESTORE_EMULATOR");
+  await resetDisposableEmulators();
+
+  const password = `Test-${randomBytes(18).toString("hex")}!`;
+  await seedDisposableAdmin(password);
+  const enrollmentId = "Q".repeat(43);
+  const deviceLabel = "Telefono appena associato";
+  let approvalStatus: "pending" | "expired" | "cancelled" = "pending";
+
+  const systemChromiumPath =
+    process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ?? "/repl/tools/bin/chromium";
+  const browser = await chromium.launch({
+    headless: true,
+    ...(existsSync(systemChromiumPath) ? { executablePath: systemChromiumPath } : {}),
+    args: ["--no-sandbox"],
+  });
+  const context = await browser.newContext();
+  await context.route("**/*", async (route) => {
+    const { hostname } = new URL(route.request().url());
+    if (hostname === "127.0.0.1" || hostname === "localhost") {
+      await route.continue();
+    } else {
+      await route.abort("blockedbyclient");
+    }
+  });
+  await context.route("**/api/admin/security/**", async (route) => {
+    const { pathname } = new URL(route.request().url());
+    if (pathname === "/api/admin/security/status") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          passkeyRequired: true,
+          passkeys: [],
+          recoveryCodesRemaining: 0,
+          recoveryCodesGeneratedAt: null,
+          lockedUntil: null,
+          verified: false,
+          activationReady: false,
+          verifiedUntil: null,
+          expectedClaim: null,
+        }),
+      });
+      return;
+    }
+    if (pathname.endsWith(`/device-enrollment/${enrollmentId}/approval-info`)) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          status: approvalStatus,
+          deviceLabel,
+          expiresAt: Date.now() + 5 * 60_000,
+        }),
+      });
+      return;
+    }
+    if (pathname.endsWith(`/device-enrollment/${enrollmentId}/reject`)) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ rejected: true }),
+      });
+      return;
+    }
+    await route.continue();
+  });
+
+  try {
+    const page = await context.newPage();
+    await page.goto(localUrl(`/admin/authorize-device?deviceEnrollment=${enrollmentId}`));
+    await expect(page).toHaveURL(
+      new RegExp(`/admin\\?deviceEnrollment=${enrollmentId}$`),
+    );
+    const necessaryCookies = page.getByRole("button", { name: "Solo Necessari" });
+    if (await necessaryCookies.isVisible().catch(() => false)) {
+      await necessaryCookies.click();
+    }
+    await page.getByLabel("Email").fill(adminEmail);
+    await page.getByRole("textbox", { name: "Password" }).fill(password);
+    await page.getByRole("button", { name: "Accedi" }).click();
+
+    await expect(page).toHaveURL(
+      new RegExp(`/admin/authorize-device\\?deviceEnrollment=${enrollmentId}$`),
+    );
+    await expect(page.getByText(deviceLabel)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Approva e verifica con passkey" })).toBeVisible();
+    await page.getByRole("button", { name: "Rifiuta richiesta" }).click();
+    await expect(page.getByText(/Richiesta rifiutata/)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Approva e verifica con passkey" })).toHaveCount(0);
+
+    approvalStatus = "expired";
+    await page.reload();
+    await expect(page.getByText(/Questo QR è scaduto/)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Approva e verifica con passkey" })).toHaveCount(0);
+
+    approvalStatus = "cancelled";
+    await page.reload();
+    await expect(page.getByText(/Richiesta annullata/)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Approva e verifica con passkey" })).toHaveCount(0);
+  } finally {
+    await context.close();
+    await browser.close();
+  }
+});
+
 test("admin passkey sessions: enroll, enforce, verify, and revoke across sessions", async () => {
   test.setTimeout(180_000);
   requireLoopbackEndpoint(baseURL, "ADMIN_PASSKEY_E2E_BASE_URL");

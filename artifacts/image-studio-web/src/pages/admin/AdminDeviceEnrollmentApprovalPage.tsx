@@ -33,7 +33,7 @@ export default function AdminDeviceEnrollmentApprovalPage() {
         if (cancelled) return;
         setError(
           cause instanceof AdminSecurityError && cause.status === 404
-            ? 'Richiesta non trovata. Accedi con lo stesso account amministratore che ha mostrato il QR, oppure chiedi un nuovo QR.'
+            ? 'Richiesta non valida o non più disponibile. Accedi con l’account amministratore autorizzato oppure genera un nuovo QR.'
             : cause instanceof Error
               ? cause.message
               : 'Non è stato possibile caricare la richiesta.',
@@ -56,6 +56,7 @@ export default function AdminDeviceEnrollmentApprovalPage() {
       setFinished('approved');
       setInfo((current) => current ? { ...current, status: 'approved' } : current);
     } catch (cause) {
+      if (await refreshAfterUnavailableMutation(cause)) return;
       setError(
         cause instanceof Error && cause.name === 'NotAllowedError'
           ? 'Verifica annullata sul dispositivo. Nessuna passkey è stata autorizzata.'
@@ -77,10 +78,34 @@ export default function AdminDeviceEnrollmentApprovalPage() {
       setFinished('rejected');
       setInfo((current) => current ? { ...current, status: 'rejected' } : current);
     } catch (cause) {
+      if (await refreshAfterUnavailableMutation(cause)) return;
       setError(cause instanceof Error ? cause.message : 'Non è stato possibile rifiutare la richiesta.');
     } finally {
       setBusy(false);
     }
+  };
+
+  const refreshAfterUnavailableMutation = async (cause: unknown): Promise<boolean> => {
+    if (!(cause instanceof AdminSecurityError) || ![404, 409, 410].includes(cause.status)) {
+      return false;
+    }
+    try {
+      const latest = await AdminPasskeyClient.getDeviceEnrollmentApprovalInfo(enrollmentId!);
+      setInfo(latest);
+      setFinished(null);
+      setError(
+        latest.status === 'pending'
+          ? 'La richiesta è cambiata. Controlla lo stato aggiornato prima di riprovare.'
+          : null,
+      );
+    } catch {
+      // Se l'account non è il proprietario o la richiesta è stata rimossa,
+      // elimina anche i dettagli già caricati.
+      setInfo(null);
+      setFinished(null);
+      setError('Richiesta non valida o non più disponibile. Accedi con l’account amministratore autorizzato.');
+    }
+    return true;
   };
 
   const pending = info?.status === 'pending' && !finished;
@@ -150,7 +175,11 @@ export default function AdminDeviceEnrollmentApprovalPage() {
           )}
           {info && (info.status === 'registered' || info.status === 'cancelled' || info.status === 'rejected') && !finished && (
             <p className="text-sm text-blue-gray text-center" role="status">
-              Questa richiesta non è più attiva. Se serve, genera un nuovo QR.
+              {info.status === 'cancelled'
+                ? 'Richiesta annullata. Non può essere approvata; genera un nuovo QR se serve.'
+                : info.status === 'rejected'
+                  ? 'Richiesta rifiutata. Non può essere approvata; genera un nuovo QR se serve.'
+                  : 'La registrazione è già stata completata. Questa richiesta non può essere approvata di nuovo.'}
             </p>
           )}
 
