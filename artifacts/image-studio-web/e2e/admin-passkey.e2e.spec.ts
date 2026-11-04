@@ -67,6 +67,18 @@ async function seedDisposableAdmin(password: string): Promise<string> {
   return seedDisposableUser(adminEmail, password);
 }
 
+function firebaseUidFromIdToken(idToken: string): string {
+  const encodedClaims = idToken.split(".")[1];
+  if (!encodedClaims) throw new Error("Auth emulator returned an invalid ID token");
+  const claims = JSON.parse(Buffer.from(encodedClaims, "base64url").toString("utf8")) as {
+    sub?: string;
+    user_id?: string;
+  };
+  const uid = claims.user_id ?? claims.sub;
+  if (!uid) throw new Error("Auth emulator ID token did not contain a UID");
+  return uid;
+}
+
 async function signInInBrowser(
   page: Page,
   email: string,
@@ -402,6 +414,279 @@ test("device enrollment QR resumes on its approval page after admin login", asyn
   } finally {
     await context.close();
     await browser.close();
+  }
+});
+
+test("a different emulator account cannot approve or register another account's QR", async () => {
+  test.setTimeout(90_000);
+  requireLoopbackEndpoint(baseURL, "ADMIN_PASSKEY_E2E_BASE_URL");
+  requireLoopbackEndpoint(authEmulator, "ADMIN_PASSKEY_E2E_AUTH_EMULATOR");
+  requireLoopbackEndpoint(firestoreEmulator, "ADMIN_PASSKEY_E2E_FIRESTORE_EMULATOR");
+  await resetDisposableEmulators();
+
+  const passwordA = `Test-${randomBytes(18).toString("hex")}!`;
+  const passwordB = `Test-${randomBytes(18).toString("hex")}!`;
+  const otherEmail = `other-admin-${randomBytes(12).toString("hex")}@example.invalid`;
+  const uidA = firebaseUidFromIdToken(await seedDisposableAdmin(passwordA));
+  const uidB = firebaseUidFromIdToken(await seedDisposableUser(otherEmail, passwordB));
+  const enrollmentId = randomBytes(32).toString("base64url");
+  const deviceLabel = "Portatile dell'account A";
+  const expiresAt = Date.now() + 10 * 60_000;
+  const enrollment = { status: "pending", deviceLabel, expiresAt };
+  const passkeysByUid = new Map([
+    [uidA, new Set(["account-a-trusted-passkey"])],
+    [uidB, new Set<string>()],
+  ]);
+  const requests = {
+    approvalInfoFromB: 0,
+    approvalOptionsFromB: 0,
+    approvalVerifyFromB: 0,
+    registrationOptionsFromB: 0,
+    registrationVerifyFromB: 0,
+  };
+
+  const localOrigin = await createLocalProductionOrigin();
+  const systemChromiumPath =
+    process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ?? "/repl/tools/bin/chromium";
+  const browser = await chromium.launch({
+    headless: true,
+    ...(existsSync(systemChromiumPath) ? { executablePath: systemChromiumPath } : {}),
+    args: [
+      "--no-sandbox",
+      "--allow-running-insecure-content",
+      "--host-resolver-rules=MAP imagestudiofotografico.com 127.0.0.1",
+    ],
+  });
+  const contextA = await browser.newContext({ ignoreHTTPSErrors: true });
+  const contextB = await browser.newContext({ ignoreHTTPSErrors: true });
+  const json = (route: Parameters<Parameters<BrowserContext["route"]>[1]>[0], body: unknown, status = 200) =>
+    route.fulfill({
+      status,
+      contentType: "application/json",
+      body: JSON.stringify(body),
+    });
+  const routeEnrollmentApi = async (
+    route: Parameters<Parameters<BrowserContext["route"]>[1]>[0],
+  ) => {
+    const { pathname } = new URL(route.request().url());
+    const token = route.request().headers().authorization?.replace(/^Bearer\s+/i, "");
+    const uid = token ? firebaseUidFromIdToken(token) : null;
+
+    if (pathname === "/api/admin/security/device-enrollment/start") {
+      if (uid !== uidA) {
+        return json(route, {
+          error: "Richiesta non valida o scaduta",
+          code: "device_enrollment_not_found",
+        }, 404);
+      }
+      return json(route, {
+        enrollmentId,
+        approvalUrl:
+          `https://imagestudiofotografico.com/admin/authorize-device?deviceEnrollment=${enrollmentId}`,
+        expiresAt,
+      });
+    }
+    if (pathname.endsWith(`/device-enrollment/${enrollmentId}/approval-info`)) {
+      if (uid === uidB) requests.approvalInfoFromB += 1;
+      if (uid !== uidA) {
+        return json(route, {
+          error: "Richiesta non valida o scaduta",
+          code: "device_enrollment_not_found",
+        }, 404);
+      }
+      return json(route, enrollment);
+    }
+    if (pathname.endsWith(`/device-enrollment/${enrollmentId}/authentication/options`)) {
+      if (uid === uidB) requests.approvalOptionsFromB += 1;
+      if (uid !== uidA || !passkeysByUid.get(uid)?.size) {
+        return json(route, {
+          error: "Richiesta non valida o scaduta",
+          code: "device_enrollment_not_found",
+        }, 404);
+      }
+      return json(route, {
+        challenge: randomBytes(32).toString("base64url"),
+        rpId: "imagestudiofotografico.com",
+        allowCredentials: [{
+          id: "account-a-trusted-passkey",
+          type: "public-key",
+          transports: ["internal"],
+        }],
+        timeout: 60_000,
+        userVerification: "required",
+      });
+    }
+    if (pathname.endsWith(`/device-enrollment/${enrollmentId}/authentication/verify`)) {
+      if (uid === uidB) requests.approvalVerifyFromB += 1;
+      if (uid !== uidA) {
+        return json(route, {
+          error: "Richiesta non valida o scaduta",
+          code: "device_enrollment_not_found",
+        }, 404);
+      }
+      enrollment.status = "approved";
+      return json(route, { approvedAt: Date.now() });
+    }
+    if (pathname.endsWith(`/device-enrollment/${enrollmentId}/registration/options`)) {
+      if (uid === uidB) requests.registrationOptionsFromB += 1;
+      return json(route, {
+        error: "Richiesta non valida o scaduta",
+        code: "device_enrollment_not_found",
+      }, 404);
+    }
+    if (pathname.endsWith(`/device-enrollment/${enrollmentId}/registration/verify`)) {
+      if (uid === uidB) requests.registrationVerifyFromB += 1;
+      return json(route, {
+        error: "Richiesta non valida o scaduta",
+        code: "device_enrollment_not_found",
+      }, 404);
+    }
+    return route.continue();
+  };
+  for (const context of [contextA, contextB]) {
+    await context.route("**/*", async (route) => {
+      const url = new URL(route.request().url());
+      const localOriginRequest =
+        url.hostname === "imagestudiofotografico.com" &&
+        Number(url.port) === localOrigin.port;
+      if (
+        localOriginRequest ||
+        url.hostname === "127.0.0.1" ||
+        url.hostname === "localhost" ||
+        url.hostname === "::1"
+      ) {
+        await route.continue();
+      } else {
+        await route.abort("blockedbyclient");
+      }
+    });
+    await context.route("**/api/admin/security/**", routeEnrollmentApi);
+  }
+
+  try {
+    const pageA = await contextA.newPage();
+    const pageB = await contextB.newPage();
+    await Promise.all([
+      pageA.goto(`${localOrigin.origin}/`),
+      pageB.goto(`${localOrigin.origin}/`),
+    ]);
+    await Promise.all([
+      signInInBrowser(pageA, adminEmail, passwordA),
+      signInInBrowser(pageB, otherEmail, passwordB),
+    ]);
+    const { cdp: cdpB, authenticatorId: authenticatorIdB } =
+      await addVirtualAuthenticator(contextB, pageB);
+    const credentialB = await pageB.evaluate(async (email) => {
+      const credential = await navigator.credentials.create({
+        publicKey: {
+          challenge: crypto.getRandomValues(new Uint8Array(32)),
+          rp: { id: "imagestudiofotografico.com", name: "Image Studio" },
+          user: {
+            id: crypto.getRandomValues(new Uint8Array(16)),
+            name: email,
+            displayName: "Secondo account",
+          },
+          pubKeyCredParams: [
+            { type: "public-key", alg: -7 },
+            { type: "public-key", alg: -257 },
+          ],
+          timeout: 60_000,
+          authenticatorSelection: {
+            residentKey: "preferred",
+            userVerification: "required",
+          },
+        },
+      });
+      if (!(credential instanceof PublicKeyCredential)) {
+        throw new Error("Could not create the second account's virtual passkey");
+      }
+      return credential.id;
+    }, otherEmail);
+    passkeysByUid.get(uidB)!.add(credentialB);
+    const credentialsBeforeAttempt = await cdpB.send("WebAuthn.getCredentials", {
+      authenticatorId: authenticatorIdB,
+    });
+    expect(credentialsBeforeAttempt.credentials.map((credential: { credentialId: string }) =>
+      Buffer.from(credential.credentialId, "base64").toString("base64url"),
+    )).toEqual([credentialB]);
+
+    const started = await pageA.evaluate(async () => {
+      const moduleUrl = new URL("/src/lib/admin-passkey.ts", window.location.origin).href;
+      const { AdminPasskeyClient } = await import(/* @vite-ignore */ moduleUrl);
+      return AdminPasskeyClient.startDeviceEnrollment("Portatile dell'account A");
+    });
+    expect(started.uid).toBe(uidA);
+    expect(started.enrollmentId).toBe(enrollmentId);
+    expect(passkeysByUid.get(uidA)).toEqual(new Set(["account-a-trusted-passkey"]));
+
+    const otherAccountAttempt = await pageB.evaluate(async (id) => {
+      const moduleUrl = new URL("/src/lib/admin-passkey.ts", window.location.origin).href;
+      const firebaseUrl = new URL("/src/lib/firebase.ts", window.location.origin).href;
+      const [{ AdminPasskeyClient }, { auth }] = await Promise.all([
+        import(/* @vite-ignore */ moduleUrl),
+        import(/* @vite-ignore */ firebaseUrl),
+      ]);
+      const outcomes = [];
+      for (const action of [
+        () => AdminPasskeyClient.getDeviceEnrollmentApprovalInfo(id),
+        () => AdminPasskeyClient.approveDeviceEnrollment(id),
+      ]) {
+        try {
+          await action();
+          outcomes.push({ rejected: false });
+        } catch (error) {
+          const cause = error as { status?: number; code?: string; message?: string };
+          outcomes.push({
+            rejected: true,
+            status: cause.status,
+            code: cause.code,
+            message: cause.message,
+          });
+        }
+      }
+      const token = await auth.currentUser?.getIdTokenResult(true);
+      return {
+        uid: auth.currentUser?.uid,
+        outcomes,
+        adminPasskeyClaim: token?.claims.apk ?? null,
+      };
+    }, enrollmentId);
+
+    expect(otherAccountAttempt.uid).toBe(uidB);
+    expect(otherAccountAttempt.outcomes).toEqual([
+      {
+        rejected: true,
+        status: 404,
+        code: "device_enrollment_not_found",
+        message: "Richiesta non valida o scaduta",
+      },
+      {
+        rejected: true,
+        status: 404,
+        code: "device_enrollment_not_found",
+        message: "Richiesta non valida o scaduta",
+      },
+    ]);
+    expect(requests).toEqual({
+      approvalInfoFromB: 1,
+      approvalOptionsFromB: 1,
+      approvalVerifyFromB: 0,
+      registrationOptionsFromB: 0,
+      registrationVerifyFromB: 0,
+    });
+    expect(enrollment.status).toBe("pending");
+    expect([...passkeysByUid.get(uidB)!]).toEqual([credentialB]);
+    const credentialsAfterAttempt = await cdpB.send("WebAuthn.getCredentials", {
+      authenticatorId: authenticatorIdB,
+    });
+    expect(credentialsAfterAttempt.credentials.map((credential: { credentialId: string }) =>
+      Buffer.from(credential.credentialId, "base64").toString("base64url"),
+    )).toEqual([credentialB]);
+    expect(otherAccountAttempt.adminPasskeyClaim).toBeNull();
+  } finally {
+    await Promise.allSettled([contextA.close(), contextB.close()]);
+    await browser.close().catch(() => undefined);
+    await localOrigin.close();
   }
 });
 

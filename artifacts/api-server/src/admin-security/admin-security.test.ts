@@ -10,12 +10,14 @@ const h = vi.hoisted(() => {
   const tokenAuthTimes = new Map<string, number>();
   const tokenClaims = new Map<string, Record<string, any>>();
   const tokenUids = new Map<string, string>();
+  const tokenEmails = new Map<string, string>();
   return {
     docs,
     claims,
     tokenAuthTimes,
     tokenClaims,
     tokenUids,
+    tokenEmails,
     email: 'gennaro.mazzacane@gmail.com',
     uid: 'admin-uid',
     authTime: 1_700_000_000,
@@ -92,7 +94,7 @@ vi.mock('firebase-admin/auth', () => ({
       if (token === 'bad') throw new Error('invalid');
       return {
         uid: h.tokenUids.get(token) ?? h.uid,
-        email: h.email,
+        email: h.tokenEmails.get(token) ?? h.email,
         auth_time: h.tokenAuthTimes.get(token) ?? h.authTime,
         ...h.claimsOnToken,
         ...(h.tokenClaims.get(token) ?? {}),
@@ -139,6 +141,7 @@ beforeEach(() => {
   h.tokenAuthTimes.clear();
   h.tokenClaims.clear();
   h.tokenUids.clear();
+  h.tokenEmails.clear();
   h.createdCustomToken = null;
   h.revoked = 0;
   h.webauthn = false;
@@ -719,6 +722,67 @@ describe('autorizzazione QR per una nuova passkey', () => {
       { method: 'POST', body: JSON.stringify({ verifier }) },
     );
     expect(replay.status).toBe(409);
+  });
+
+  it('rifiuta l’approvazione QR da un altro account amministratore', async () => {
+    await seedTrustedPasskey();
+
+    const otherUid = 'another-admin-uid';
+    const otherCredentialId = 'other-admin-credential';
+    h.tokenUids.set('other-admin', otherUid);
+    h.tokenEmails.set('other-admin', h.email);
+    await store.savePasskey(otherUid, {
+      id: otherCredentialId,
+      publicKey: 'BAUG',
+      counter: 0,
+      transports: ['internal'],
+      rpId: 'imagestudiofotografico.com',
+      label: 'Telefono altro admin',
+      deviceType: 'multiDevice',
+      backedUp: true,
+      createdAt: Date.now(),
+      lastUsedAt: null,
+    });
+    await store.updateState(otherUid, { passkeyRequired: true });
+
+    const started = await json(await startRequest());
+    const approvalOptions = await call(
+      `/api/admin/security/device-enrollment/${started.enrollmentId}/authentication/options`,
+      { method: 'POST', headers: { Authorization: 'Bearer other-admin' } },
+    );
+    expect(approvalOptions.status).toBe(404);
+    expect(await json(approvalOptions)).toEqual({
+      error: 'Richiesta non valida o scaduta',
+      code: 'device_enrollment_not_found',
+    });
+
+    const approvalInfo = await call(
+      `/api/admin/security/device-enrollment/${started.enrollmentId}/approval-info`,
+      { method: 'POST', headers: { Authorization: 'Bearer other-admin' } },
+    );
+    expect(approvalInfo.status).toBe(404);
+    expect(await json(approvalInfo)).not.toHaveProperty('deviceLabel');
+
+    const registrationOptions = await call(
+      `/api/admin/security/device-enrollment/${started.enrollmentId}/registration/options`,
+      {
+        method: 'POST',
+        headers: { Authorization: 'Bearer other-admin' },
+        body: JSON.stringify({ verifier }),
+      },
+    );
+    expect(registrationOptions.status).toBe(404);
+
+    expect((await store.listPasskeys(otherUid)).map((passkey) => passkey.id))
+      .toEqual([otherCredentialId]);
+    expect((await store.getPasskey(h.uid, 'cred-1'))).toBeNull();
+    expect(h.docs.get(`adminSecurity/${h.uid}/deviceEnrollments/${started.enrollmentId}`))
+      .toMatchObject({ status: 'pending', approvedByCredentialId: null });
+    expect(h.claims.get(otherUid)?.apk).toBeUndefined();
+    expect(h.createdCustomToken).toBeNull();
+    expect((await call('/api/admin-only', {
+      headers: { Authorization: 'Bearer other-admin' },
+    })).status).toBe(403);
   });
 
   it('non accetta segreti diversi, richieste non approvate o origini Preview', async () => {
