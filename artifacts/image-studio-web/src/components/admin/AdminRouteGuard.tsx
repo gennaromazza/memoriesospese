@@ -218,7 +218,7 @@ function DeviceEnrollmentRequestPanel({
       if (performance.now() >= deadline) {
         setRequestStatus('expired');
         setHandoff(null);
-        setError('La richiesta è scaduta. Creane una nuova.');
+        setError(null);
         deadlineRef.current = null;
         return;
       }
@@ -235,13 +235,11 @@ function DeviceEnrollmentRequestPanel({
         }
         if (result.status === 'expired' || result.status === 'rejected' || result.status === 'cancelled') {
           setHandoff(null);
-          setError(
-            result.status === 'expired'
-              ? 'La richiesta è scaduta. Creane una nuova.'
-              : result.status === 'rejected'
-                ? 'La richiesta è stata rifiutata dal dispositivo autorizzato.'
-                : 'La richiesta è stata annullata.',
-          );
+          setError(result.status === 'expired'
+            ? null
+            : result.status === 'rejected'
+              ? 'La richiesta è stata rifiutata dal dispositivo autorizzato.'
+              : 'La richiesta è stata annullata.');
           deadlineRef.current = null;
           return;
         }
@@ -359,6 +357,11 @@ function DeviceEnrollmentRequestPanel({
       </div>
 
       {error && <p className="text-sm text-amber-800" role="status" data-testid="text-device-enrollment-error">{error}</p>}
+      {!handoff && requestStatus === 'expired' && (
+        <p className="text-sm text-amber-800" role="status" data-testid="text-device-enrollment-expired">
+          La richiesta QR è scaduta. Genera un nuovo QR per continuare.
+        </p>
+      )}
       {notice && <p className="text-sm text-blue-gray" role="status">{notice}</p>}
 
       {!handoff && !registered && (
@@ -383,7 +386,11 @@ function DeviceEnrollmentRequestPanel({
             data-testid="button-start-device-enrollment"
           >
             <QrCode className="h-4 w-4 mr-2" />
-            {working ? 'Preparo il QR…' : 'Mostra il QR di autorizzazione'}
+            {working
+              ? 'Preparo il QR…'
+              : requestStatus === 'expired'
+                ? 'Genera un nuovo QR'
+                : 'Mostra il QR di autorizzazione'}
           </Button>
         </div>
       )}

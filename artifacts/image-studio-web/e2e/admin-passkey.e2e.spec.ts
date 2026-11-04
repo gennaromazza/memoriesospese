@@ -701,6 +701,7 @@ test("device enrollment QR registers a new device without transferring admin acc
   await seedDisposableAdmin(password);
 
   const enrollmentId = randomBytes(32).toString("base64url");
+  const replacementEnrollmentId = randomBytes(32).toString("base64url");
   const deviceLabel = "Portatile nuovo";
   let trustedCredentialId = "";
   let passkeys: Array<{
@@ -714,10 +715,13 @@ test("device enrollment QR registers a new device without transferring admin acc
   }> = [];
   let passkeyRequired = false;
   let enrollmentStatus: "pending" | "approved" | "registered" = "pending";
+  let replacementEnrollmentStatus: "pending" | "approved" | "registered" = "pending";
   let approvalUrl = "";
   let verifierFromNewDevice = "";
   let approvalVerificationCount = 0;
+  let staleApprovalOptionsAttempts = 0;
   let newDeviceAuthenticationCount = 0;
+  let enrollmentStartCount = 0;
   const expiresAt = Date.now() + 10 * 60_000;
 
   const localOrigin = await createLocalProductionOrigin();
@@ -836,18 +840,39 @@ test("device enrollment QR registers a new device without transferring admin acc
       return json(route, { status: enrollmentStatus, deviceLabel, expiresAt });
     }
     if (pathname.endsWith(`/device-enrollment/${enrollmentId}/authentication/options`)) {
+      if (enrollmentStatus === "expired") {
+        staleApprovalOptionsAttempts += 1;
+        return route.fulfill({
+          status: 404,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "Richiesta non valida o scaduta", code: "device_enrollment_not_found" }),
+        });
+      }
       return json(route, {
         ...authenticationOptions,
         allowCredentials: authenticationOptions.allowCredentials(),
       });
     }
-    if (pathname.endsWith(`/device-enrollment/${enrollmentId}/authentication/verify`)) {
+    if (pathname.endsWith(`/device-enrollment/${replacementEnrollmentId}/approval-info`)) {
+      return json(route, {
+        status: replacementEnrollmentStatus,
+        deviceLabel,
+        expiresAt: Date.now() + 10 * 60_000,
+      });
+    }
+    if (pathname.endsWith(`/device-enrollment/${replacementEnrollmentId}/authentication/options`)) {
+      return json(route, {
+        ...authenticationOptions,
+        allowCredentials: authenticationOptions.allowCredentials(),
+      });
+    }
+    if (pathname.endsWith(`/device-enrollment/${replacementEnrollmentId}/authentication/verify`)) {
       const body = route.request().postDataJSON() as {
         response?: { id?: string };
       };
       expect(body.response?.id).toBe(trustedCredentialId);
       approvalVerificationCount += 1;
-      enrollmentStatus = "approved";
+      replacementEnrollmentStatus = "approved";
       return json(route, { approvedAt: Date.now() });
     }
     return json(route, { error: `Unexpected trusted-device request: ${pathname}` });
@@ -865,9 +890,15 @@ test("device enrollment QR registers a new device without transferring admin acc
       };
       expect(body.verifierHash).toMatch(/^[A-Za-z0-9_-]{43}$/);
       expect(body.deviceLabel).toBe(deviceLabel);
+      enrollmentStartCount += 1;
+      const activeEnrollmentId = enrollmentStartCount === 1 ? enrollmentId : replacementEnrollmentId;
       approvalUrl =
-        `https://imagestudiofotografico.com/admin/authorize-device?deviceEnrollment=${enrollmentId}`;
-      return json(route, { enrollmentId, approvalUrl, expiresAt });
+        `https://imagestudiofotografico.com/admin/authorize-device?deviceEnrollment=${activeEnrollmentId}`;
+      return json(route, {
+        enrollmentId: activeEnrollmentId,
+        approvalUrl,
+        expiresAt: Date.now() + 10 * 60_000,
+      });
     }
     if (pathname.endsWith(`/device-enrollment/${enrollmentId}/status`)) {
       const body = route.request().postDataJSON() as { verifier?: string };
@@ -875,13 +906,23 @@ test("device enrollment QR registers a new device without transferring admin acc
       verifierFromNewDevice = body.verifier!;
       return json(route, { status: enrollmentStatus, deviceLabel, expiresAt });
     }
-    if (pathname.endsWith(`/device-enrollment/${enrollmentId}/registration/options`)) {
+    if (pathname.endsWith(`/device-enrollment/${replacementEnrollmentId}/status`)) {
+      const body = route.request().postDataJSON() as { verifier?: string };
+      expect(body.verifier).toMatch(/^[A-Za-z0-9_-]{43}$/);
+      verifierFromNewDevice = body.verifier!;
+      return json(route, {
+        status: replacementEnrollmentStatus,
+        deviceLabel,
+        expiresAt: Date.now() + 10 * 60_000,
+      });
+    }
+    if (pathname.endsWith(`/device-enrollment/${replacementEnrollmentId}/registration/options`)) {
       const body = route.request().postDataJSON() as { verifier?: string };
       expect(body.verifier).toBe(verifierFromNewDevice);
-      expect(enrollmentStatus).toBe("approved");
+      expect(replacementEnrollmentStatus).toBe("approved");
       return json(route, makeRegistrationOptions(trustedCredentialId));
     }
-    if (pathname.endsWith(`/device-enrollment/${enrollmentId}/registration/verify`)) {
+    if (pathname.endsWith(`/device-enrollment/${replacementEnrollmentId}/registration/verify`)) {
       const body = route.request().postDataJSON() as {
         verifier?: string;
         response?: { id?: string };
@@ -895,7 +936,7 @@ test("device enrollment QR registers a new device without transferring admin acc
         createdAt: Date.now(),
       };
       passkeys = [...passkeys, newPasskey];
-      enrollmentStatus = "registered";
+      replacementEnrollmentStatus = "registered";
       return json(route, { passkey: newPasskey });
     }
     if (pathname === "/api/admin/security/authentication/options" ||
@@ -937,11 +978,41 @@ test("device enrollment QR registers a new device without transferring admin acc
     await pageB.getByTestId("input-device-enrollment-label").fill(deviceLabel);
     await pageB.getByTestId("button-start-device-enrollment").click();
     await expect(pageB.getByTestId("qr-device-enrollment")).toBeVisible();
+    const firstQrMarkup = await pageB.getByTestId("qr-device-enrollment").innerHTML();
+    expect(enrollmentStartCount).toBe(1);
+
+    enrollmentStatus = "expired";
+    await expect(pageB.getByTestId("text-device-enrollment-expired")).toBeVisible();
+    await expect(pageB.getByRole("button", { name: "Genera un nuovo QR" })).toBeEnabled();
+    await expect(pageB.getByTestId("qr-device-enrollment")).toHaveCount(0);
+    await pageB.getByRole("button", { name: "Genera un nuovo QR" }).click();
+    await expect(pageB.getByTestId("qr-device-enrollment")).toBeVisible();
+    expect(enrollmentStartCount).toBe(2);
+    expect(await pageB.getByTestId("qr-device-enrollment").innerHTML()).not.toBe(firstQrMarkup);
+
+    const expiredApprovalUrl = new URL(
+      `https://imagestudiofotografico.com/admin/authorize-device?deviceEnrollment=${enrollmentId}`,
+    );
+    expect(expiredApprovalUrl.origin).toBe("https://imagestudiofotografico.com");
+    expect(expiredApprovalUrl.pathname).toBe("/admin/authorize-device");
+    expect(expiredApprovalUrl.searchParams.get("deviceEnrollment")).toBe(enrollmentId);
+    expiredApprovalUrl.port = String(localOrigin.port);
+    await pageA.goto(expiredApprovalUrl.toString());
+    await expect(pageA.getByText(/Questo QR è scaduto/)).toBeVisible();
+    await expect(pageA.getByRole("button", { name: "Approva e verifica con passkey" })).toHaveCount(0);
+    const staleApprovalResponse = await pageA.evaluate(async (id) => {
+      const response = await fetch(`/api/admin/security/device-enrollment/${id}/authentication/options`, {
+        method: "POST",
+      });
+      return response.status;
+    }, enrollmentId);
+    expect(staleApprovalResponse).toBe(404);
+    expect(staleApprovalOptionsAttempts).toBe(1);
 
     const parsedApprovalUrl = new URL(approvalUrl);
     expect(parsedApprovalUrl.origin).toBe("https://imagestudiofotografico.com");
     expect(parsedApprovalUrl.pathname).toBe("/admin/authorize-device");
-    expect(parsedApprovalUrl.searchParams.get("deviceEnrollment")).toBe(enrollmentId);
+    expect(parsedApprovalUrl.searchParams.get("deviceEnrollment")).toBe(replacementEnrollmentId);
     expect([...parsedApprovalUrl.searchParams.keys()]).toEqual(["deviceEnrollment"]);
 
     // Il QR punta al dominio ufficiale; il test sostituisce solo la porta per
@@ -966,7 +1037,7 @@ test("device enrollment QR registers a new device without transferring admin acc
     await expect(pageB.getByTestId("button-verify-passkey")).toBeVisible();
     await expect(pageB.getByTestId("button-register-approved-device")).toHaveCount(0);
     expect(newDeviceAuthenticationCount).toBe(0);
-    expect(enrollmentStatus).toBe("registered");
+    expect(replacementEnrollmentStatus).toBe("registered");
     expect(passkeys).toHaveLength(2);
   } finally {
     await Promise.allSettled([contextA.close(), contextB.close()]);
