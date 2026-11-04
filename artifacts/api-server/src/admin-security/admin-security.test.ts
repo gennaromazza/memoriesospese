@@ -25,6 +25,8 @@ const h = vi.hoisted(() => {
     claimsOnToken: {} as Record<string, any>,
     webauthn: false,
     beforeAuthenticationVerification: null as null | (() => Promise<void>),
+    beforeRegistrationVerification: null as null | (() => Promise<void>),
+    beforeEventWrite: null as null | ((data: any) => Promise<void>),
     transactionTail: Promise.resolve() as Promise<void>,
     enrollmentReadBarrier: null as null | {
       path: string;
@@ -40,15 +42,18 @@ vi.mock('@simplewebauthn/server', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@simplewebauthn/server')>();
   return {
     ...actual,
-    verifyRegistrationResponse: async (...args: Parameters<typeof actual.verifyRegistrationResponse>) =>
-      h.webauthn ? {
+    verifyRegistrationResponse: async (...args: Parameters<typeof actual.verifyRegistrationResponse>) => {
+      if (!h.webauthn) return actual.verifyRegistrationResponse(...args);
+      await h.beforeRegistrationVerification?.();
+      return {
         verified: true,
         registrationInfo: {
           credential: { id: 'cred-1', publicKey: new Uint8Array([1, 2, 3]), counter: 0, transports: [] },
           credentialDeviceType: 'multiDevice',
           credentialBackedUp: true,
         },
-      } : actual.verifyRegistrationResponse(...args),
+      };
+    },
     verifyAuthenticationResponse: async (...args: Parameters<typeof actual.verifyAuthenticationResponse>) => {
       if (!h.webauthn) return actual.verifyAuthenticationResponse(...args);
       await h.beforeAuthenticationVerification?.();
@@ -84,7 +89,10 @@ function makeDoc(path: string) {
 function makeCollection(path: string) {
   return {
     doc: (id: string) => makeDoc(`${path}/${id}`),
-    add: async (data: any) => { h.docs.set(`${path}/${Math.random()}`, data); },
+    add: async (data: any) => {
+      await h.beforeEventWrite?.(data);
+      h.docs.set(`${path}/${Math.random()}`, data);
+    },
     get: async () => ({
       docs: [...h.docs.entries()]
         .filter(([k]) => k.startsWith(`${path}/`) && !k.slice(path.length + 1).includes('/'))
@@ -177,6 +185,8 @@ beforeEach(() => {
   h.revoked = 0;
   h.webauthn = false;
   h.beforeAuthenticationVerification = null;
+  h.beforeRegistrationVerification = null;
+  h.beforeEventWrite = null;
   h.transactionTail = Promise.resolve();
   h.enrollmentReadBarrier = null;
   h.authTime = 1_700_000_000;
@@ -658,6 +668,30 @@ describe('autorizzazione QR per una nuova passkey', () => {
     });
   }
 
+  async function prepareApprovedEnrollment() {
+    const started = await json(await startRequest());
+    h.webauthn = true;
+    const approvalOptions = await call(
+      `/api/admin/security/device-enrollment/${started.enrollmentId}/authentication/options`,
+      { method: 'POST' },
+    );
+    expect(approvalOptions.status).toBe(200);
+    const approval = await call(
+      `/api/admin/security/device-enrollment/${started.enrollmentId}/authentication/verify`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ response: { id: 'old-device-credential' } }),
+      },
+    );
+    expect(approval.status).toBe(200);
+    const registrationOptions = await call(
+      `/api/admin/security/device-enrollment/${started.enrollmentId}/registration/options`,
+      { method: 'POST', body: JSON.stringify({ verifier }) },
+    );
+    expect(registrationOptions.status).toBe(200);
+    return started.enrollmentId as string;
+  }
+
   it('richiede l’approvazione WebAuthn sul dispositivo fidato e autorizza solo la registrazione', async () => {
     await seedTrustedPasskey();
     const started = await startRequest();
@@ -827,6 +861,97 @@ describe('autorizzazione QR per una nuova passkey', () => {
       status: 'registered',
       registrationChallenge: null,
     });
+  });
+
+  it('se l’annullamento vince durante la verifica WebAuthn non salva la nuova passkey', async () => {
+    await seedTrustedPasskey();
+    const enrollmentId = await prepareApprovedEnrollment();
+
+    let enteredVerification!: () => void;
+    const verificationStarted = new Promise<void>((resolve) => { enteredVerification = resolve; });
+    let releaseVerification!: () => void;
+    const verificationGate = new Promise<void>((resolve) => { releaseVerification = resolve; });
+    h.beforeRegistrationVerification = async () => {
+      enteredVerification();
+      await verificationGate;
+    };
+
+    const registrationPromise = call(
+      `/api/admin/security/device-enrollment/${enrollmentId}/registration/verify`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ verifier, response: { id: 'new-device-credential' } }),
+      },
+    );
+    await verificationStarted;
+
+    try {
+      const cancellation = await call(
+        `/api/admin/security/device-enrollment/${enrollmentId}/cancel`,
+        { method: 'POST', body: JSON.stringify({ verifier }) },
+      );
+      expect(cancellation.status).toBe(200);
+    } finally {
+      releaseVerification();
+    }
+    const registration = await registrationPromise;
+    expect(registration.status).toBe(409);
+    expect((await json(registration)).code).toBe('device_enrollment_not_ready');
+
+    expect((await store.listPasskeys(h.uid)).map(({ id }) => id)).toEqual([
+      'old-device-credential',
+    ]);
+    expect(h.docs.get(`adminSecurity/${h.uid}/deviceEnrollments/${enrollmentId}`)).toMatchObject({
+      status: 'cancelled',
+      registrationChallenge: null,
+    });
+  });
+
+  it('se la registrazione vince, l’annullamento non cancella lo stato né la passkey', async () => {
+    await seedTrustedPasskey();
+    const enrollmentId = await prepareApprovedEnrollment();
+
+    let eventWriteStarted!: () => void;
+    const registeredEventStarted = new Promise<void>((resolve) => { eventWriteStarted = resolve; });
+    let releaseEventWrite!: () => void;
+    const eventWriteGate = new Promise<void>((resolve) => { releaseEventWrite = resolve; });
+    h.beforeEventWrite = async (data) => {
+      if (data.type === 'passkey_registered') {
+        eventWriteStarted();
+        await eventWriteGate;
+      }
+    };
+
+    const registrationPromise = call(
+      `/api/admin/security/device-enrollment/${enrollmentId}/registration/verify`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ verifier, response: { id: 'new-device-credential' } }),
+      },
+    );
+    await registeredEventStarted;
+
+    try {
+      const cancellation = await call(
+        `/api/admin/security/device-enrollment/${enrollmentId}/cancel`,
+        { method: 'POST', body: JSON.stringify({ verifier }) },
+      );
+      expect(cancellation.status).toBe(409);
+      expect((await json(cancellation)).code).toBe('device_enrollment_not_cancellable');
+
+      expect((await store.listPasskeys(h.uid)).map(({ id }) => id).sort()).toEqual([
+        'cred-1',
+        'old-device-credential',
+      ]);
+      expect(h.docs.get(`adminSecurity/${h.uid}/deviceEnrollments/${enrollmentId}`)).toMatchObject({
+        status: 'registered',
+        registrationChallenge: null,
+      });
+    } finally {
+      releaseEventWrite();
+    }
+    const registration = await registrationPromise;
+    expect(registration.status).toBe(200);
   });
 
   it('non approva il QR né ripristina la passkey se questa viene revocata durante la verifica', async () => {
