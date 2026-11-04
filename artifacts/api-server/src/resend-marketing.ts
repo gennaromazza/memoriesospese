@@ -322,7 +322,7 @@ async function syncRecipient(
         email,
         first_name: recipient.nome || undefined,
         last_name: recipient.cognome || undefined,
-        segments: [segmentId],
+        segments: [{ id: segmentId }],
         topics: [{ id: topicId, subscription: "opt_in" }],
       },
     });

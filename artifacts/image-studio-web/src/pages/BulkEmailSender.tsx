@@ -16,6 +16,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
+import { toggleMarketingAudienceFilter } from '@/lib/marketing-audience-selection';
 import { Send, Mail, Users, CheckCircle, XCircle, Loader2, AlertCircle, Eye, Search, Save, FileText, Trash2, Play, CalendarDays, Filter } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -87,7 +88,7 @@ export default function BulkEmailSender() {
   const { studioSettings, loading: studioSettingsLoading } = useStudio();
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
-  const [selectedFilters, setSelectedFilters] = useState<string[]>(['all']);
+  const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
   const [senderEmail, setSenderEmail] = useState('');
   const [consentConfirmed, setConsentConfirmed] = useState(false);
   const [selectedRecipients, setSelectedRecipients] = useState<Set<string>>(new Set());
@@ -212,13 +213,22 @@ export default function BulkEmailSender() {
   const yearFilters = filtersData?.filters || [];
   const jobTypeFilters = filtersData?.jobTypeFilters || [];
   const bookingCampaignFilters = filtersData?.bookingCampaignFilters || [];
+  const audienceFilterLabels = new Map([
+    ["all", "Tutti i clienti"],
+    ["preventivi_non_firmati", "Preventivi non firmati"],
+    ["anno_corrente", "Anno corrente"],
+    ...yearFilters.map(({ value, label }) => [value, label]),
+    ...jobTypeFilters.map(({ value, label }) => [value, label]),
+    ...bookingCampaignFilters.map(({ value, label }) => [value, label]),
+  ] as [string, string][]);
+  const activeAudienceLabels = selectedFilters.map((value) => audienceFilterLabels.get(value) || value);
 
   const toggleRecipientFilter = (value: string) => {
-    setSelectedFilters((current) => current.includes(value)
-      ? current.filter((item) => item !== value)
-      : [...current, value]);
+    setSelectedFilters((current) => toggleMarketingAudienceFilter(current, value));
     setSelectedRecipients(new Set());
     setSelectAll(false);
+    setConsentConfirmed(false);
+    setShowConfirmDialog(false);
   };
 
   // Filtra destinatari per ricerca
@@ -258,6 +268,7 @@ export default function BulkEmailSender() {
         recipients: selectedList,
         senderId: 'admin',
         confirmMarketingConsent: true,
+        audienceFilters: selectedFilters,
       });
       const data = await response.json();
       if (!response.ok || !data.success) {
@@ -413,6 +424,13 @@ export default function BulkEmailSender() {
       });
     }
   });
+
+  const resumeResendJob = (job: BulkEmailJob) => {
+    if (window.confirm(
+      `Questa ripresa usa i ${job.totalRecipients} destinatari originali, NON i filtri attualmente selezionati. ` +
+      "Per cambiare pubblico, annulla e crea una nuova campagna dall’editor. Vuoi riprendere la lista originale?",
+    )) retryFailedMutation.mutate(job.id);
+  };
 
   // Toggle singolo destinatario
   const handleToggleRecipient = (email: string) => {
@@ -756,6 +774,7 @@ export default function BulkEmailSender() {
                       <Label className="text-sm font-semibold text-stone-800">Componi il pubblico</Label>
                       <p className="mt-0.5 text-xs text-stone-500">
                         Seleziona uno o più gruppi: i contatti vengono uniti e le email duplicate eliminate.
+                        “Tutti i clienti” è alternativo ai gruppi specifici, non si aggiunge ad essi.
                       </p>
                     </div>
                   </div>
@@ -768,6 +787,23 @@ export default function BulkEmailSender() {
                       "Per un messaggio di ricontatto",
                     )}
                   </div>
+
+                  {selectedFilters.length > 0 && (
+                    <div className="rounded-lg border border-teal-200 bg-teal-50 p-3 text-sm" data-testid="active-audience-groups">
+                      <p className="mb-2 font-semibold text-teal-900">Gruppi attivi ({selectedFilters.length})</p>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedFilters.map((value) => (
+                          <Button key={value} type="button" variant="outline" size="sm"
+                            className="h-auto max-w-full whitespace-normal text-left"
+                            onClick={() => toggleRecipientFilter(value)}
+                            aria-label={`Rimuovi ${audienceFilterLabels.get(value) || value}`}>
+                            {audienceFilterLabels.get(value) || value} ×
+                          </Button>
+                        ))}
+                      </div>
+                      <p className="mt-2 text-xs text-teal-900">Solo i destinatari di questi gruppi sono inclusi. Clicca un gruppo per rimuoverlo.</p>
+                    </div>
+                  )}
 
                   <details className="rounded-xl border border-stone-200 bg-stone-50/60 p-3">
                     <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-semibold text-stone-700">
@@ -1097,11 +1133,11 @@ export default function BulkEmailSender() {
                         {activeJob.provider === 'resend' && activeJob.status === 'failed' && (
                           <Button
                             className="w-full bg-amber-600 hover:bg-amber-700"
-                            onClick={() => retryFailedMutation.mutate(activeJob.id)}
+                            onClick={() => resumeResendJob(activeJob)}
                             disabled={retryFailedMutation.isPending}
                           >
                             {retryFailedMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                            Riprendi controllo sicuro Resend
+                            Riprendi lista originale ({activeJob.totalRecipients})
                           </Button>
                         )}
                         {activeJob.provider !== 'resend' && activeJob.failedCount > 0 && (
@@ -1220,10 +1256,10 @@ export default function BulkEmailSender() {
                             size="sm"
                             variant="outline"
                             className="text-amber-600 border-amber-300 hover:bg-amber-50"
-                            onClick={() => retryFailedMutation.mutate(job.id)}
+                            onClick={() => resumeResendJob(job)}
                             disabled={retryFailedMutation.isPending}
                           >
-                            Riprendi Resend
+                            Riprendi lista originale ({job.totalRecipients})
                           </Button>
                         )}
                         {job.provider !== 'resend' && job.failedCount > 0 && job.status === 'completed' && (
@@ -1258,6 +1294,7 @@ export default function BulkEmailSender() {
             <AlertDialogDescription asChild>
               <div className="space-y-4">
                 <p>Stai per affidare a Resend Marketing una campagna per <strong>{selectedRecipients.size}</strong> destinatari.</p>
+                <p><strong>Gruppi di provenienza:</strong> {activeAudienceLabels.join(", ")}</p>
                 
                 <div className="bg-muted p-3 rounded-lg space-y-2">
                   <div className="flex justify-between text-sm">

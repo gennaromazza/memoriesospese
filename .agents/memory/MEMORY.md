@@ -70,3 +70,4 @@
 - [Consenso marketing e disiscrizioni](marketing-consent.md) — il titolare dichiara il consenso dei clienti; non riattivare chi si è disiscritto e richiedere conferma per la lista selezionata.
 - [Footer invii email marketing](marketing-email-footer.md) — ogni invio massivo dichiara che è automatico e mostra i recapiti salvati dello studio.
 - [Destinatari marketing dalle prenotazioni](bulk-email-booking-snapshots.md) — usare lo snapshot valido se manca la scheda cliente; escludere prenotazioni annullate e deduplicare email normalizzate.
+- [Resend e schemi dei contatti](resend-contact-schema.md) — verificare le strutture annidate nella documentazione API corrente: i riepiloghi del connettore possono essere obsoleti.

@@ -852,7 +852,7 @@ router.get("/resend-status", authenticateFirebase, requireAdmin, async (_req: an
 
 router.post("/send-resend", authenticateFirebase, requireAdmin, async (req: any, res: Response): Promise<HttpHandlerResult> => {
   try {
-    const { subject, body, recipients, senderId, senderEmail, confirmMarketingConsent } = req.body;
+    const { subject, body, recipients, senderId, senderEmail, confirmMarketingConsent, audienceFilters } = req.body;
 
     if (
       typeof subject !== "string" ||
@@ -877,6 +877,23 @@ router.post("/send-resend", authenticateFirebase, requireAdmin, async (req: any,
       return res.status(400).json({
         success: false,
         error: "Conferma che i destinatari selezionati hanno dato il consenso alle comunicazioni promozionali.",
+      });
+    }
+
+    const selectedAudienceFilters = parseMarketingRecipientFilters(audienceFilters);
+    if (selectedAudienceFilters.length === 0 ||
+        (selectedAudienceFilters.includes("all") && selectedAudienceFilters.length > 1)) {
+      return res.status(400).json({
+        success: false,
+        error: "Seleziona il pubblico prima di inviare. Tutti i clienti non può essere combinato con gruppi specifici.",
+      });
+    }
+    const allowedAudience = await getRecipientsForFilters(selectedAudienceFilters);
+    const allowedEmails = new Set(allowedAudience.recipients.map((recipient) => recipient.email));
+    if (recipients.some((recipient: any) => !allowedEmails.has(normalizeMarketingEmail(recipient?.email) || ""))) {
+      return res.status(400).json({
+        success: false,
+        error: "La lista non corrisponde ai gruppi selezionati. Ricarica i destinatari e conferma il nuovo conteggio.",
       });
     }
 

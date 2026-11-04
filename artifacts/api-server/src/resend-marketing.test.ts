@@ -89,7 +89,16 @@ describe("Resend marketing helpers", () => {
     expect(result).toMatchObject({ eligibleCount: 1, excludedCount: 1, broadcastId: "broadcast" });
     const createdContacts = proxy.mock.calls.filter(([, path, options]) => path === "/contacts" && options.method === "POST");
     expect(createdContacts).toHaveLength(1);
-    expect(JSON.parse(createdContacts[0][2].body).email).toBe("new@example.com");
+    expect(JSON.parse(createdContacts[0][2].body)).toMatchObject({
+      email: "new@example.com",
+      segments: [{ id: "segment" }],
+    });
+    // Resend rejects string entries with "expected object, received string".
+    for (const [, , options] of createdContacts) {
+      expect(JSON.parse(options.body).segments.every(
+        (segment: unknown) => typeof segment === "object" && segment !== null && "id" in segment,
+      )).toBe(true);
+    }
     const broadcast = proxy.mock.calls.find(([, path]) => path === "/broadcasts");
     expect(JSON.parse(broadcast![2].body)).toMatchObject({ segment_id: "segment", topic_id: "topic", send: false });
     expect(proxy.mock.calls.filter(([, path]) => path.endsWith("/send"))).toHaveLength(1);
