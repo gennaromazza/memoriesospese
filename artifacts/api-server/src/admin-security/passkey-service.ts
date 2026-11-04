@@ -34,6 +34,7 @@ import {
   consumeRecoveryCode,
   consumeDesktopHandoffChallenge,
   consumeDeviceEnrollmentChallenge,
+  approveDeviceEnrollment,
   commitDeviceEnrollmentPasskey,
   createDeviceEnrollment,
   getDeviceEnrollment,
@@ -50,7 +51,7 @@ import {
   loadState,
   recordEvent,
   savePasskey,
-  updatePasskey,
+  updatePasskeyIfExists,
   updateState,
   type AdminSecurityState,
   type ActivationProof,
@@ -725,10 +726,10 @@ export async function finishDeviceEnrollmentApproval(
     throw new PasskeyError(400, 'challenge_expired', 'La verifica è scaduta: riapri il QR e riprova');
   }
   const passkey = await verifyAuthenticationAssertion(identity, rp, response, challenge, state, now);
-  const approved = await transitionDeviceEnrollment(
+  const approved = await approveDeviceEnrollment(
     identity.uid,
     enrollmentId,
-    'pending',
+    passkey.id,
     {
       status: 'approved',
       expiresAt: now + CHALLENGE_TTL_MS,
@@ -1031,10 +1032,15 @@ async function verifyAuthenticationAssertion(
     throw new PasskeyError(400, 'verification_failed', 'Verifica passkey non riuscita');
   }
 
-  await updatePasskey(identity.uid, passkey.id, {
+  const passkeyUpdated = await updatePasskeyIfExists(identity.uid, passkey.id, {
     counter: verification.authenticationInfo.newCounter,
     lastUsedAt: now,
   });
+  if (!passkeyUpdated) {
+    await registerFailure(identity.uid, state, now, 'unknown_credential');
+    await recordEvent(identity.uid, 'passkey_verification_failed', { reason: 'unknown_credential' });
+    throw new PasskeyError(400, 'unknown_credential', 'Passkey non riconosciuta');
+  }
   await updateState(identity.uid, { failedAttempts: 0 });
   await recordEvent(identity.uid, 'passkey_verified', { credentialId: passkey.id });
   return passkey;

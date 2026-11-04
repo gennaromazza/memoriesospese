@@ -24,6 +24,7 @@ const h = vi.hoisted(() => {
     revoked: 0,
     claimsOnToken: {} as Record<string, any>,
     webauthn: false,
+    beforeAuthenticationVerification: null as null | (() => Promise<void>),
     transactionTail: Promise.resolve() as Promise<void>,
     enrollmentReadBarrier: null as null | {
       path: string;
@@ -48,8 +49,11 @@ vi.mock('@simplewebauthn/server', async (importOriginal) => {
           credentialBackedUp: true,
         },
       } : actual.verifyRegistrationResponse(...args),
-    verifyAuthenticationResponse: async (...args: Parameters<typeof actual.verifyAuthenticationResponse>) =>
-      h.webauthn ? { verified: true, authenticationInfo: { newCounter: 1 } } : actual.verifyAuthenticationResponse(...args),
+    verifyAuthenticationResponse: async (...args: Parameters<typeof actual.verifyAuthenticationResponse>) => {
+      if (!h.webauthn) return actual.verifyAuthenticationResponse(...args);
+      await h.beforeAuthenticationVerification?.();
+      return { verified: true, authenticationInfo: { newCounter: 1 } };
+    },
   };
 });
 
@@ -172,6 +176,7 @@ beforeEach(() => {
   h.createdCustomToken = null;
   h.revoked = 0;
   h.webauthn = false;
+  h.beforeAuthenticationVerification = null;
   h.transactionTail = Promise.resolve();
   h.enrollmentReadBarrier = null;
   h.authTime = 1_700_000_000;
@@ -822,6 +827,81 @@ describe('autorizzazione QR per una nuova passkey', () => {
       status: 'registered',
       registrationChallenge: null,
     });
+  });
+
+  it('non approva il QR né ripristina la passkey se questa viene revocata durante la verifica', async () => {
+    await seedTrustedPasskey();
+    await store.savePasskey(h.uid, {
+      id: 'backup-device-credential',
+      publicKey: 'BAUG',
+      counter: 0,
+      transports: ['internal'],
+      rpId: 'imagestudiofotografico.com',
+      label: 'Telefono',
+      deviceType: 'multiDevice',
+      backedUp: true,
+      createdAt: Date.now(),
+      lastUsedAt: null,
+    });
+    h.webauthn = true;
+
+    const started = await startRequest();
+    expect(started.status).toBe(200);
+    const request = await json(started);
+    const approvalOptions = await call(
+      `/api/admin/security/device-enrollment/${request.enrollmentId}/authentication/options`,
+      { method: 'POST' },
+    );
+    expect(approvalOptions.status).toBe(200);
+
+    let enteredVerification!: () => void;
+    const verificationStarted = new Promise<void>((resolve) => { enteredVerification = resolve; });
+    let releaseVerification!: () => void;
+    const verificationGate = new Promise<void>((resolve) => { releaseVerification = resolve; });
+    h.beforeAuthenticationVerification = async () => {
+      enteredVerification();
+      await verificationGate;
+    };
+
+    const verificationPromise = call(
+      `/api/admin/security/device-enrollment/${request.enrollmentId}/authentication/verify`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ response: { id: 'old-device-credential' } }),
+      },
+    );
+    await verificationStarted;
+    await service.revokePasskey(
+      { uid: h.uid, email: h.email, authTime: h.authTime },
+      'old-device-credential',
+    );
+    releaseVerification();
+
+    const verification = await verificationPromise;
+    expect(verification.status).toBe(400);
+    expect((await json(verification)).code).toBe('unknown_credential');
+    expect(await store.getPasskey(h.uid, 'old-device-credential')).toBeNull();
+    expect((await store.listPasskeys(h.uid)).map(({ id }) => id)).toEqual([
+      'backup-device-credential',
+    ]);
+
+    const enrollment = h.docs.get(
+      `adminSecurity/${h.uid}/deviceEnrollments/${request.enrollmentId}`,
+    );
+    expect(enrollment).toMatchObject({
+      status: 'pending',
+      approvedAt: null,
+      approvedByCredentialId: null,
+    });
+    const requesterStatus = await call(
+      `/api/admin/security/device-enrollment/${request.enrollmentId}/status`,
+      { method: 'POST', body: JSON.stringify({ verifier }) },
+    );
+    expect(await json(requesterStatus)).toMatchObject({
+      status: 'pending',
+      deviceLabel: 'Portatile',
+    });
+    expect(await store.getPasskey(h.uid, 'cred-1')).toBeNull();
   });
 
   it('rifiuta l’approvazione QR da un altro account amministratore', async () => {

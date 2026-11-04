@@ -408,6 +408,37 @@ export async function transitionDeviceEnrollment(
   });
 }
 
+export async function approveDeviceEnrollment(
+  uid: string,
+  enrollmentId: string,
+  credentialId: string,
+  patch: Partial<DeviceEnrollmentRequest>,
+  now: number,
+): Promise<DeviceEnrollmentRequest | null> {
+  return db.runTransaction(async (tx) => {
+    const enrollmentRef = deviceEnrollmentDoc(uid, enrollmentId);
+    const passkeyRef = stateDoc(uid).collection('passkeys').doc(credentialId);
+    const [enrollmentSnap, passkeySnap] = await Promise.all([
+      tx.get(enrollmentRef),
+      tx.get(passkeyRef),
+    ]);
+    if (!enrollmentSnap.exists || !passkeySnap.exists) return null;
+
+    const request = { uid, ...(enrollmentSnap.data() as Omit<DeviceEnrollmentRequest, 'uid'>) };
+    if (request.status !== 'pending' || request.expiresAt <= now) return null;
+
+    tx.set(
+      enrollmentRef,
+      {
+        ...patch,
+        ...(isTerminalDeviceEnrollmentStatus(patch.status) ? { terminalAt: now } : {}),
+      },
+      { merge: true },
+    );
+    return request;
+  });
+}
+
 export async function commitDeviceEnrollmentPasskey(
   uid: string,
   enrollmentId: string,
@@ -531,12 +562,18 @@ export async function savePasskey(uid: string, passkey: StoredPasskey): Promise<
   await stateDoc(uid).collection('passkeys').doc(id).set(data);
 }
 
-export async function updatePasskey(
+export async function updatePasskeyIfExists(
   uid: string,
   credentialId: string,
   patch: Partial<Omit<StoredPasskey, 'id'>>,
-): Promise<void> {
-  await stateDoc(uid).collection('passkeys').doc(credentialId).set(patch, { merge: true });
+): Promise<boolean> {
+  return db.runTransaction(async (tx) => {
+    const ref = stateDoc(uid).collection('passkeys').doc(credentialId);
+    const snap = await tx.get(ref);
+    if (!snap.exists) return false;
+    tx.set(ref, patch, { merge: true });
+    return true;
+  });
 }
 
 export async function deletePasskey(uid: string, credentialId: string): Promise<void> {
