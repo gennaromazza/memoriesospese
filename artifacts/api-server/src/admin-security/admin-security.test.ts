@@ -24,6 +24,13 @@ const h = vi.hoisted(() => {
     revoked: 0,
     claimsOnToken: {} as Record<string, any>,
     webauthn: false,
+    transactionTail: Promise.resolve() as Promise<void>,
+    enrollmentReadBarrier: null as null | {
+      path: string;
+      reads: number;
+      promise: Promise<void>;
+      release: () => void;
+    },
     createdCustomToken: null as { uid: string; claims: Record<string, unknown> } | null,
   };
 });
@@ -49,7 +56,19 @@ vi.mock('@simplewebauthn/server', async (importOriginal) => {
 function makeDoc(path: string) {
   return {
     id: path.split('/').pop()!,
-    get: async () => ({ exists: h.docs.has(path), data: () => h.docs.get(path), id: path.split('/').pop() }),
+    get: async () => {
+      const barrier = h.enrollmentReadBarrier;
+      if (barrier?.path === path && barrier.reads < 2) {
+        barrier.reads += 1;
+        if (barrier.reads === 2) barrier.release();
+        await barrier.promise;
+      }
+      return {
+        exists: h.docs.has(path),
+        data: () => h.docs.get(path),
+        id: path.split('/').pop(),
+      };
+    },
     set: async (data: any, opts?: { merge?: boolean }) => {
       const prev = opts?.merge ? h.docs.get(path) ?? {} : {};
       h.docs.set(path, { ...prev, ...data });
@@ -74,15 +93,23 @@ vi.mock('../firebase-admin.js', () => ({
   db: {
     collection: (name: string) => makeCollection(name),
     runTransaction: async (fn: (tx: any) => Promise<unknown>) => {
-      const writes: Array<() => Promise<void>> = [];
-      const tx = {
-        get: (ref: any) => ref.get(),
-        set: (ref: any, data: any, opts?: any) => { writes.push(() => ref.set(data, opts)); },
-        delete: (ref: any) => { writes.push(() => ref.delete()); },
-      };
-      const result = await fn(tx);
-      for (const w of writes) await w();
-      return result;
+      const previous = h.transactionTail;
+      let release: () => void = () => undefined;
+      h.transactionTail = new Promise<void>((resolve) => { release = resolve; });
+      await previous;
+      try {
+        const writes: Array<() => Promise<void>> = [];
+        const tx = {
+          get: (ref: any) => ref.get(),
+          set: (ref: any, data: any, opts?: any) => { writes.push(() => ref.set(data, opts)); },
+          delete: (ref: any) => { writes.push(() => ref.delete()); },
+        };
+        const result = await fn(tx);
+        for (const w of writes) await w();
+        return result;
+      } finally {
+        release();
+      }
     },
   },
   FieldValue: { serverTimestamp: () => 'ts' },
@@ -145,6 +172,8 @@ beforeEach(() => {
   h.createdCustomToken = null;
   h.revoked = 0;
   h.webauthn = false;
+  h.transactionTail = Promise.resolve();
+  h.enrollmentReadBarrier = null;
   h.authTime = 1_700_000_000;
   h.email = 'gennaro.mazzacane@gmail.com';
 });
@@ -722,6 +751,77 @@ describe('autorizzazione QR per una nuova passkey', () => {
       { method: 'POST', body: JSON.stringify({ verifier }) },
     );
     expect(replay.status).toBe(409);
+  });
+
+  it('consente una sola registrazione se due verifiche dello stesso QR arrivano insieme', async () => {
+    await seedTrustedPasskey();
+    h.webauthn = true;
+
+    const started = await startRequest();
+    expect(started.status).toBe(200);
+    const request = await json(started);
+    const approvalOptions = await call(
+      `/api/admin/security/device-enrollment/${request.enrollmentId}/authentication/options`,
+      { method: 'POST' },
+    );
+    expect(approvalOptions.status).toBe(200);
+    const approval = await call(
+      `/api/admin/security/device-enrollment/${request.enrollmentId}/authentication/verify`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ response: { id: 'old-device-credential' } }),
+      },
+    );
+    expect(approval.status).toBe(200);
+
+    const registrationOptions = await call(
+      `/api/admin/security/device-enrollment/${request.enrollmentId}/registration/options`,
+      { method: 'POST', body: JSON.stringify({ verifier }) },
+    );
+    expect(registrationOptions.status).toBe(200);
+
+    const registrationUrl =
+      `/api/admin/security/device-enrollment/${request.enrollmentId}/registration/verify`;
+    const registrationBody = JSON.stringify({
+      verifier,
+      response: { id: 'racing-new-device-credential' },
+    });
+    let releaseEnrollmentReads: () => void = () => undefined;
+    const bothEnrollmentReads = new Promise<void>((resolve) => {
+      releaseEnrollmentReads = resolve;
+    });
+    h.enrollmentReadBarrier = {
+      path: `adminSecurity/${h.uid}/deviceEnrollments/${request.enrollmentId}`,
+      reads: 0,
+      promise: bothEnrollmentReads,
+      release: releaseEnrollmentReads,
+    };
+    let attempts: Response[];
+    try {
+      attempts = await Promise.all([
+        call(registrationUrl, { method: 'POST', body: registrationBody }),
+        call(registrationUrl, { method: 'POST', body: registrationBody }),
+      ]);
+    } finally {
+      h.enrollmentReadBarrier = null;
+    }
+
+    expect(attempts!.map((response) => response.status).sort()).toEqual([200, 400]);
+    const results = await Promise.all(attempts!.map(json));
+    expect(results.filter((result) => result.passkey)).toHaveLength(1);
+    expect(results.find((result) => result.code)?.code).toBe('challenge_expired');
+
+    const accountPasskeys = await store.listPasskeys(h.uid);
+    expect(accountPasskeys.map((passkey) => passkey.id).sort()).toEqual([
+      'cred-1',
+      'old-device-credential',
+    ]);
+    expect(h.docs.get(
+      `adminSecurity/${h.uid}/deviceEnrollments/${request.enrollmentId}`,
+    )).toMatchObject({
+      status: 'registered',
+      registrationChallenge: null,
+    });
   });
 
   it('rifiuta l’approvazione QR da un altro account amministratore', async () => {
