@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './adminCatalogBundleItem';
+export * from './adminCatalogProductInput';
+export * from './adminCatalogProductResult';
 export * from './campaignImageUploadResult';
 export * from './customerNotificationKind';
 export * from './customerOrderNotificationResendInput';

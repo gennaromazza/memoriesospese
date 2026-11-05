@@ -20,6 +20,8 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AdminCatalogProductInput,
+  AdminCatalogProductResult,
   CampaignImageUploadResult,
   CustomerNotificationKind,
   CustomerOrderNotificationResendInput,
@@ -55,6 +57,183 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getCreateAdminCatalogProductUrl = () => {
+
+
+
+
+  return `/api/shop/admin/catalog-products`
+}
+
+/**
+ * @summary Create a catalog product and its private cost atomically
+ */
+export const createAdminCatalogProduct = async (adminCatalogProductInput: AdminCatalogProductInput, options?: Parameters<typeof customFetch>[1]): Promise<AdminCatalogProductResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<AdminCatalogProductResult>(getCreateAdminCatalogProductUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(adminCatalogProductInput)
+  }
+);}
+
+
+
+
+
+export const getCreateAdminCatalogProductMutationKey = () => ['createAdminCatalogProduct'] as const;
+
+export const getCreateAdminCatalogProductMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminCatalogProduct>>, TError,CreateAdminCatalogProductMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAdminCatalogProduct>>, TError,CreateAdminCatalogProductMutationVariables, TContext> => {
+
+const mutationKey = getCreateAdminCatalogProductMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAdminCatalogProduct>>, CreateAdminCatalogProductMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createAdminCatalogProduct(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateAdminCatalogProductMutationResult = NonNullable<Awaited<ReturnType<typeof createAdminCatalogProduct>>>
+    export type CreateAdminCatalogProductMutationBody = BodyType<AdminCatalogProductInput>
+    export type CreateAdminCatalogProductMutationError = ErrorType<void>
+    export type CreateAdminCatalogProductMutationVariables = {data: BodyType<AdminCatalogProductInput>}
+
+    /**
+ * @summary Create a catalog product and its private cost atomically
+ */
+export const useCreateAdminCatalogProduct = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminCatalogProduct>>, TError,CreateAdminCatalogProductMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createAdminCatalogProduct>>,
+        TError,
+        CreateAdminCatalogProductMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateAdminCatalogProductMutationOptions(options));
+    }
+
+export const getUpdateAdminCatalogProductUrl = (id: string,) => {
+
+
+
+
+  return `/api/shop/admin/catalog-products/${id}`
+}
+
+/**
+ * @summary Update catalog fields and private cost atomically
+ */
+export const updateAdminCatalogProduct = async (id: string,
+    adminCatalogProductInput: AdminCatalogProductInput, options?: Parameters<typeof customFetch>[1]): Promise<AdminCatalogProductResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<AdminCatalogProductResult>(getUpdateAdminCatalogProductUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(adminCatalogProductInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateAdminCatalogProductMutationKey = () => ['updateAdminCatalogProduct'] as const;
+
+export const getUpdateAdminCatalogProductMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminCatalogProduct>>, TError,UpdateAdminCatalogProductMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAdminCatalogProduct>>, TError,UpdateAdminCatalogProductMutationVariables, TContext> => {
+
+const mutationKey = getUpdateAdminCatalogProductMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAdminCatalogProduct>>, UpdateAdminCatalogProductMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateAdminCatalogProduct(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAdminCatalogProductMutationResult = NonNullable<Awaited<ReturnType<typeof updateAdminCatalogProduct>>>
+    export type UpdateAdminCatalogProductMutationBody = BodyType<AdminCatalogProductInput>
+    export type UpdateAdminCatalogProductMutationError = ErrorType<void>
+    export type UpdateAdminCatalogProductMutationVariables = {id: string;data: BodyType<AdminCatalogProductInput>}
+
+    /**
+ * @summary Update catalog fields and private cost atomically
+ */
+export const useUpdateAdminCatalogProduct = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminCatalogProduct>>, TError,UpdateAdminCatalogProductMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateAdminCatalogProduct>>,
+        TError,
+        UpdateAdminCatalogProductMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateAdminCatalogProductMutationOptions(options));
+    }
 
 export const getUploadBookingCampaignImageUrl = (campaignId: string,
     imageKind: 'slider' | 'booking',) => {

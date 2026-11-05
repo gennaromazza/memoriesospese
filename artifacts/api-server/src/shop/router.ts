@@ -267,6 +267,18 @@ export function createShopRouter(
     res.json({ costs: await deps.service.adminProductCosts() });
   }));
 
+  router.post('/admin/catalog-products', auth, admin, handle(async (req, res) => {
+    setSensitiveHeaders(res);
+    const id = await deps.service.saveCatalogProduct(req.body);
+    res.status(201).json({ id });
+  }));
+
+  router.patch('/admin/catalog-products/:id', auth, admin, handle(async (req, res) => {
+    setSensitiveHeaders(res);
+    const id = await deps.service.saveCatalogProduct(req.body, String(req.params.id));
+    res.json({ id });
+  }));
+
   router.put('/admin/settings', auth, admin, handle(async (req, res) => {
     const input = settingsSchema.parse(req.body);
     const settings = await deps.service.updateSettings(input);

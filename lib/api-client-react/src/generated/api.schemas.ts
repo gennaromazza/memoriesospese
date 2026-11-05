@@ -5,6 +5,52 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface AdminCatalogProductResult {
+  id: string;
+}
+
+export interface AdminCatalogBundleItem {
+  prodottoId: string;
+  prodottoNome: string;
+  prodottoCategoria?: string;
+  /** @minimum 1 */
+  quantita: number;
+  /** @minimum 0 */
+  numeroFoto: number;
+}
+
+/**
+ * Fields to save; creation requires name, description, price, discount, photo count, category and active flag. Omitted cost is unchanged, null removes it.
+ */
+export interface AdminCatalogProductInput {
+  nome?: string;
+  descrizione?: string;
+  /** @minimum 0 */
+  prezzo?: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  sconto?: number;
+  /** @minimum 0 */
+  numeroFoto?: number;
+  categoria?: string;
+  attivo?: boolean;
+  /** @maxItems 5 */
+  immagini?: string[];
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  costoUnitario?: number | null;
+  /** @minimum 0 */
+  pesoGrammi?: number;
+  isBundle?: boolean;
+  fotoCondivise?: boolean;
+  prodottoSorgenteFotoId?: string;
+  bundleItems?: AdminCatalogBundleItem[];
+}
+
 export interface CampaignImageUploadResult {
   downloadUrl: string;
   storagePath: string;

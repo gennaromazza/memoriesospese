@@ -7,18 +7,17 @@ import {
   doc,
   getDocs,
   getDoc,
-  addDoc,
   updateDoc,
   deleteDoc,
   query,
   orderBy,
   Timestamp,
-  serverTimestamp,
   writeBatch,
 } from 'firebase/firestore';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
-import { shopApi } from '@/features/shop/shop-api';
+import { shopApi, shopRequest } from '@/features/shop/shop-api';
+import type { AdminCatalogProductResult } from '@workspace/api-client-react';
 import type { Product, InsertProduct, ProductCategory } from '@shared/booking-types';
 import type { BenefitRule } from '@shared/quote-benefits';
 import {
@@ -107,35 +106,11 @@ export async function getProductById(id: string): Promise<Product | null> {
  */
 export async function createProduct(data: InsertProduct): Promise<string> {
   assertClientManagedProduct(data);
-  const { costoUnitario, ...productFields } = data;
-  assertValidShopProductCost(costoUnitario);
-  // Calcola prezzo finale
-  const prezzoFinale = data.prezzo - (data.prezzo * data.sconto / 100);
-  const productData = {
-    ...productFields,
-    immagini: data.immagini || [], // Array vuoto se non fornito
-    prezzoFinale,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  };
-
-  if (costoUnitario === undefined) {
-    const docRef = await addDoc(collection(db, PRODUCTS_COLLECTION), productData);
-    return docRef.id;
-  }
-
-  // Il documento products è pubblico in Firestore per le prenotazioni:
-  // scrivi il costo in una raccolta admin-only, in modo atomico col prodotto.
-  const productRef = doc(collection(db, PRODUCTS_COLLECTION));
-  const batch = writeBatch(db);
-  batch.set(productRef, productData);
-  batch.set(doc(db, SHOP_PRODUCT_COSTS_COLLECTION, productRef.id), {
-    costoUnitario,
-    updatedAt: serverTimestamp(),
+  assertValidShopProductCost(data.costoUnitario);
+  const result = await shopRequest<AdminCatalogProductResult>('/admin/catalog-products', {
+    method: 'POST', body: JSON.stringify(data),
   });
-  await batch.commit();
-  
-  return productRef.id;
+  return result.id;
 }
 
 const BENEFIT_RULES_BATCH_SIZE = 499; // Firestore batch limit is 500 ops
@@ -256,31 +231,13 @@ export async function updateProduct(id: string, data: Partial<InsertProduct>): P
     await renameBenefitProductNameInRules(currentData.nome, data.nome);
   }
 
-  const updateData: Record<string, unknown> = {
-    ...productFields,
-    updatedAt: serverTimestamp(),
-  };
-
-  if (data.prezzo !== undefined || data.sconto !== undefined) {
-    const prezzo = data.prezzo ?? currentData?.prezzo ?? 0;
-    const sconto = data.sconto ?? currentData?.sconto ?? 0;
-    updateData.prezzoFinale = prezzo - (prezzo * sconto / 100);
-  }
-
-  if (hasShopCost) {
-    const batch = writeBatch(db);
-    batch.update(docRef, updateData);
-    const costRef = doc(db, SHOP_PRODUCT_COSTS_COLLECTION, id);
-    if (costoUnitario === undefined) {
-      batch.delete(costRef);
-    } else {
-      batch.set(costRef, { costoUnitario, updatedAt: serverTimestamp() });
-    }
-    await batch.commit();
-    return;
-  }
-
-  await updateDoc(docRef, updateData);
+  await shopRequest(`/admin/catalog-products/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      ...productFields,
+      ...(hasShopCost ? { costoUnitario: costoUnitario ?? null } : {}),
+    }),
+  });
 }
 
 /**

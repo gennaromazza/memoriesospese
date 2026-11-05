@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { getProductSaveErrorMessage, isProductWritePermissionDenied } from './product-save-errors';
 
 describe('errore salvataggio prodotto', () => {
+  it('spiega la passkey scaduta anche quando il rifiuto arriva dall’API', () => {
+    expect(getProductSaveErrorMessage({ code: 'admin_passkey_required' })).toMatch(/dati inseriti restano nel modulo/i);
+  });
   it('riconosce il rifiuto Firestore e segnala il rinnovo della passkey quando serve', () => {
     const error = Object.assign(new Error('Missing or insufficient permissions.'), { code: 'permission-denied' });
     expect(isProductWritePermissionDenied(error)).toBe(true);

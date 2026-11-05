@@ -33,11 +33,12 @@ const firestoreMock = vi.hoisted(() => {
 
 const shopApiMock = vi.hoisted(() => ({
   getAdminProductCosts: vi.fn(),
+  shopRequest: vi.fn(),
 }));
 
 vi.mock('firebase/firestore', () => firestoreMock);
 vi.mock('@/lib/firebase', () => ({ db: firestoreMock.db }));
-vi.mock('@/features/shop/shop-api', () => ({ shopApi: shopApiMock }));
+vi.mock('@/features/shop/shop-api', () => ({ shopApi: shopApiMock, shopRequest: shopApiMock.shopRequest }));
 vi.mock('./product-categories', () => ({
   getProductCategories: vi.fn(),
   getActiveProductCategories: vi.fn(),
@@ -86,30 +87,26 @@ describe('costo riservato dei prodotti shop', () => {
       throw new Error(`Unexpected collection: ${ref.path}`);
     });
     shopApiMock.getAdminProductCosts.mockResolvedValue([{ productId: 'legacy', costoUnitario: 8.25 }]);
+    shopApiMock.shopRequest.mockResolvedValue({ id: 'new-product' });
   });
 
   it('salva il prodotto e il costo in documenti separati nella stessa scrittura', async () => {
     const id = await createProduct(newProduct({ costoUnitario: 8.5 }));
 
     expect(id).toBe('new-product');
-    expect(firestoreMock.batchSet).toHaveBeenCalledTimes(2);
-    const [productRef, productData] = firestoreMock.batchSet.mock.calls[0];
-    expect(productRef.path).toBe('products/new-product');
-    expect(productData).not.toHaveProperty('costoUnitario');
-    expect(firestoreMock.batchSet.mock.calls[1]).toMatchObject([
-      { path: 'shopProductCosts/new-product' },
-      { costoUnitario: 8.5 },
-    ]);
-    expect(firestoreMock.batchCommit).toHaveBeenCalledOnce();
+    expect(shopApiMock.shopRequest).toHaveBeenCalledWith('/admin/catalog-products', {
+      method: 'POST', body: JSON.stringify(newProduct({ costoUnitario: 8.5 })),
+    });
+    expect(firestoreMock.batchCommit).not.toHaveBeenCalled();
   });
 
-  it('crea un prodotto ordinario direttamente senza includere costi o canali riservati', async () => {
+  it('crea anche il prodotto senza costo tramite API amministrativa', async () => {
     const id = await createProduct(newProduct({ costoUnitario: undefined }));
 
-    expect(id).toBe('legacy-new-product');
-    expect(firestoreMock.addDoc).toHaveBeenCalledOnce();
-    const [, productData] = firestoreMock.addDoc.mock.calls[0];
-    expect(productData).toMatchObject({ nome: 'Tazza di Natale', prezzoFinale: 18 });
+    expect(id).toBe('new-product');
+    expect(firestoreMock.addDoc).not.toHaveBeenCalled();
+    const productData = JSON.parse(shopApiMock.shopRequest.mock.calls[0][1].body);
+    expect(productData).toMatchObject({ nome: 'Tazza di Natale', prezzo: 20 });
     expect(productData).not.toHaveProperty('costoUnitario');
     expect(productData).not.toHaveProperty('salesChannels');
     expect(firestoreMock.writeBatch).not.toHaveBeenCalled();
@@ -126,15 +123,14 @@ describe('costo riservato dei prodotti shop', () => {
 
   it('aggiorna o rimuove il costo senza scriverlo nel documento pubblico del prodotto', async () => {
     await updateProduct('p1', { costoUnitario: 0 });
-    const [, productData] = firestoreMock.batchUpdate.mock.calls[0];
-    expect(productData).not.toHaveProperty('costoUnitario');
-    expect(firestoreMock.batchSet).toHaveBeenCalledWith(
-      { id: 'p1', path: 'shopProductCosts/p1' },
-      expect.objectContaining({ costoUnitario: 0 }),
-    );
+    expect(shopApiMock.shopRequest).toHaveBeenLastCalledWith('/admin/catalog-products/p1', {
+      method: 'PATCH', body: JSON.stringify({ costoUnitario: 0 }),
+    });
 
     await updateProduct('p1', { costoUnitario: undefined });
-    expect(firestoreMock.batchDelete).toHaveBeenCalledWith({ id: 'p1', path: 'shopProductCosts/p1' });
+    expect(shopApiMock.shopRequest).toHaveBeenLastCalledWith('/admin/catalog-products/p1', {
+      method: 'PATCH', body: JSON.stringify({ costoUnitario: null }),
+    });
   });
 
   it('rifiuta costi negativi e carica i costi solo tramite la funzione admin dedicata', async () => {

@@ -15,6 +15,64 @@ tags:
   - name: booking-campaigns
     description: Booking campaign administration
 paths:
+  /shop/admin/catalog-products:
+    post:
+      operationId: createAdminCatalogProduct
+      tags: [shop]
+      summary: Create a catalog product and its private cost atomically
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminCatalogProductInput"
+      responses:
+        "201":
+          description: Product created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminCatalogProductResult"
+        "400":
+          description: Invalid product fields
+        "403":
+          description: Administrator or passkey verification required
+  /shop/admin/catalog-products/{id}:
+    patch:
+      operationId: updateAdminCatalogProduct
+      tags: [shop]
+      summary: Update catalog fields and private cost atomically
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminCatalogProductInput"
+      responses:
+        "200":
+          description: Product updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminCatalogProductResult"
+        "400":
+          description: Invalid product fields
+        "403":
+          description: Administrator or passkey verification required
+        "404":
+          description: Product not found
+        "409":
+          description: Use the dedicated print catalog editor
   /admin/campaigns/{campaignId}/images/{imageKind}:
     post:
       operationId: uploadBookingCampaignImage
@@ -172,6 +230,73 @@ components:
       scheme: bearer
       bearerFormat: Firebase ID token
   schemas:
+    AdminCatalogProductResult:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+    AdminCatalogProductInput:
+      type: object
+      description: Fields to save; creation requires name, description, price, discount, photo count, category and active flag. Omitted cost is unchanged, null removes it.
+      additionalProperties: false
+      properties:
+        nome:
+          type: string
+        descrizione:
+          type: string
+        prezzo:
+          type: number
+          minimum: 0
+        sconto:
+          type: number
+          minimum: 0
+          maximum: 100
+        numeroFoto:
+          type: integer
+          minimum: 0
+        categoria:
+          type: string
+        attivo:
+          type: boolean
+        immagini:
+          type: array
+          maxItems: 5
+          items:
+            type: string
+        costoUnitario:
+          type: [number, "null"]
+          minimum: 0
+        pesoGrammi:
+          type: integer
+          minimum: 0
+        isBundle:
+          type: boolean
+        fotoCondivise:
+          type: boolean
+        prodottoSorgenteFotoId:
+          type: string
+        bundleItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminCatalogBundleItem"
+    AdminCatalogBundleItem:
+      type: object
+      additionalProperties: false
+      required: [prodottoId, prodottoNome, quantita, numeroFoto]
+      properties:
+        prodottoId:
+          type: string
+        prodottoNome:
+          type: string
+        prodottoCategoria:
+          type: string
+        quantita:
+          type: integer
+          minimum: 1
+        numeroFoto:
+          type: integer
+          minimum: 0
     CampaignImageUploadResult:
       type: object
       required: [downloadUrl, storagePath]

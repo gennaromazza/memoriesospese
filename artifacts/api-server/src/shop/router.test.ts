@@ -171,6 +171,22 @@ describe('catalogo e impostazioni', () => {
     });
   });
 
+  it('salva i prodotti solo come amministratore e mantiene privato il costo', async () => {
+    const { call, db } = await start();
+    const body = { nome: 'Cornice', descrizione: '', prezzo: 20, sconto: 0, numeroFoto: 1, categoria: 'natale', attivo: true, costoUnitario: 10 };
+    expect((await call('/admin/catalog-products', { json: body })).status).toBe(401);
+    expect((await call('/admin/catalog-products', { as: 'cliente@example.com', json: body })).status).toBe(403);
+    const created = await call('/admin/catalog-products', { as: 'admin@studio.test', json: body });
+    expect(created.status).toBe(201);
+    const { id } = await json(created);
+    expect((await db.collection('products').doc(id).get()).data()).not.toHaveProperty('costoUnitario');
+    const updated = await call(`/admin/catalog-products/${id}`, { method: 'PATCH', as: 'admin@studio.test', json: { prezzo: 25 } });
+    expect(updated.status).toBe(200);
+    expect((await db.collection('products').doc(id).get()).data()).toMatchObject({ prezzoFinale: 25 });
+    expect((await call(`/admin/catalog-products/${id}`, { method: 'PATCH', as: 'cliente@example.com', json: { prezzo: 1 } })).status).toBe(403);
+    expect((await call('/admin/catalog-products', { as: 'admin@studio.test', json: { ...body, sconto: 101 } })).status).toBe(400);
+  });
+
   it('salva le impostazioni e rifiuta quelle non valide', async () => {
     const { call } = await start();
     const put = (body: unknown) => call('/admin/settings', { method: 'PUT', as: 'admin@studio.test', json: body });

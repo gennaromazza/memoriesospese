@@ -9,6 +9,108 @@ import * as zod from 'zod';
 
 
 /**
+ * @summary Create a catalog product and its private cost atomically
+ */
+export const createAdminCatalogProductBodyPrezzoMin = 0;
+
+export const createAdminCatalogProductBodyScontoMin = 0;
+export const createAdminCatalogProductBodyScontoMax = 100;
+
+export const createAdminCatalogProductBodyNumeroFotoMin = 0;
+
+export const createAdminCatalogProductBodyImmaginiMax = 5;
+
+export const createAdminCatalogProductBodyCostoUnitarioMin = 0;
+
+export const createAdminCatalogProductBodyPesoGrammiMin = 0;
+
+
+export const createAdminCatalogProductBodyBundleItemsItemNumeroFotoMin = 0;
+
+
+
+export const CreateAdminCatalogProductBody = zod.object({
+  "nome": zod.string().optional(),
+  "descrizione": zod.string().optional(),
+  "prezzo": zod.number().min(createAdminCatalogProductBodyPrezzoMin).optional(),
+  "sconto": zod.number().min(createAdminCatalogProductBodyScontoMin).max(createAdminCatalogProductBodyScontoMax).optional(),
+  "numeroFoto": zod.number().int().min(createAdminCatalogProductBodyNumeroFotoMin).optional(),
+  "categoria": zod.string().optional(),
+  "attivo": zod.boolean().optional(),
+  "immagini": zod.array(zod.string()).max(createAdminCatalogProductBodyImmaginiMax).optional(),
+  "costoUnitario": zod.number().min(createAdminCatalogProductBodyCostoUnitarioMin).nullish(),
+  "pesoGrammi": zod.number().int().min(createAdminCatalogProductBodyPesoGrammiMin).optional(),
+  "isBundle": zod.boolean().optional(),
+  "fotoCondivise": zod.boolean().optional(),
+  "prodottoSorgenteFotoId": zod.string().optional(),
+  "bundleItems": zod.array(zod.object({
+  "prodottoId": zod.string(),
+  "prodottoNome": zod.string(),
+  "prodottoCategoria": zod.string().optional(),
+  "quantita": zod.number().int().min(1),
+  "numeroFoto": zod.number().int().min(createAdminCatalogProductBodyBundleItemsItemNumeroFotoMin)
+})).optional()
+}).describe('Fields to save; creation requires name, description, price, discount, photo count, category and active flag. Omitted cost is unchanged, null removes it.')
+
+export const CreateAdminCatalogProductResponse = zod.object({
+  "id": zod.string()
+})
+
+
+/**
+ * @summary Update catalog fields and private cost atomically
+ */
+export const UpdateAdminCatalogProductParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const updateAdminCatalogProductBodyPrezzoMin = 0;
+
+export const updateAdminCatalogProductBodyScontoMin = 0;
+export const updateAdminCatalogProductBodyScontoMax = 100;
+
+export const updateAdminCatalogProductBodyNumeroFotoMin = 0;
+
+export const updateAdminCatalogProductBodyImmaginiMax = 5;
+
+export const updateAdminCatalogProductBodyCostoUnitarioMin = 0;
+
+export const updateAdminCatalogProductBodyPesoGrammiMin = 0;
+
+
+export const updateAdminCatalogProductBodyBundleItemsItemNumeroFotoMin = 0;
+
+
+
+export const UpdateAdminCatalogProductBody = zod.object({
+  "nome": zod.string().optional(),
+  "descrizione": zod.string().optional(),
+  "prezzo": zod.number().min(updateAdminCatalogProductBodyPrezzoMin).optional(),
+  "sconto": zod.number().min(updateAdminCatalogProductBodyScontoMin).max(updateAdminCatalogProductBodyScontoMax).optional(),
+  "numeroFoto": zod.number().int().min(updateAdminCatalogProductBodyNumeroFotoMin).optional(),
+  "categoria": zod.string().optional(),
+  "attivo": zod.boolean().optional(),
+  "immagini": zod.array(zod.string()).max(updateAdminCatalogProductBodyImmaginiMax).optional(),
+  "costoUnitario": zod.number().min(updateAdminCatalogProductBodyCostoUnitarioMin).nullish(),
+  "pesoGrammi": zod.number().int().min(updateAdminCatalogProductBodyPesoGrammiMin).optional(),
+  "isBundle": zod.boolean().optional(),
+  "fotoCondivise": zod.boolean().optional(),
+  "prodottoSorgenteFotoId": zod.string().optional(),
+  "bundleItems": zod.array(zod.object({
+  "prodottoId": zod.string(),
+  "prodottoNome": zod.string(),
+  "prodottoCategoria": zod.string().optional(),
+  "quantita": zod.number().int().min(1),
+  "numeroFoto": zod.number().int().min(updateAdminCatalogProductBodyBundleItemsItemNumeroFotoMin)
+})).optional()
+}).describe('Fields to save; creation requires name, description, price, discount, photo count, category and active flag. Omitted cost is unchanged, null removes it.')
+
+export const UpdateAdminCatalogProductResponse = zod.object({
+  "id": zod.string()
+})
+
+
+/**
  * Admin-only binary image upload for the homepage slider or booking page. Accepts JPEG, PNG, or WebP images up to 5 MB.
  * @summary Upload a booking campaign cover image
  */

@@ -27,6 +27,9 @@ export function getProductSaveErrorMessage(
   securityStatusError?: unknown,
 ): string {
   const code = errorCode(error);
+  if (code === 'admin_passkey_required') {
+    return 'La verifica passkey è scaduta. I dati inseriti restano nel modulo: rinnova la verifica in Sicurezza e riprova a salvare.';
+  }
   if (code === 'print_shop_route_required') {
     return error instanceof Error ? error.message : 'Gestisci questo formato dall’editor dedicato del catalogo stampe.';
   }
