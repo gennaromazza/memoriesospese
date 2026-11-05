@@ -38,6 +38,7 @@ import {
   type Lab,
   type LabShipment,
 } from '@shared/lab-types';
+import { filterPhotobookSections } from './photobook-list-filter';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -158,6 +159,7 @@ export default function PhotobooksManager({
   const [gallerySearch, setGallerySearch] = useState('');
   const [bookSearch, setBookSearch] = useState('');
   const [bookFilter, setBookFilter] = useState<'all' | 'attention' | 'approved'>('all');
+  const [archiveSearchDismissed, setArchiveSearchDismissed] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Photobook | null>(null);
   const [lockTarget, setLockTarget] = useState<Photobook | null>(null);
 
@@ -424,32 +426,17 @@ export default function PhotobooksManager({
     g.name.toLowerCase().includes(gallerySearch.trim().toLowerCase()),
   );
 
-  const activeBooks = books.filter((b) => !b.locked);
-  const archivedBooks = books.filter((b) => b.locked);
-  const isStandaloneBook = (book: Photobook) => !book.jobId && !book.galleryId;
-  const activeLinkedBooks = activeBooks.filter((book) => !isStandaloneBook(book));
-  const activeStandaloneBooks = activeBooks.filter(isStandaloneBook);
-  const archivedLinkedBooks = archivedBooks.filter((book) => !isStandaloneBook(book));
-  const archivedStandaloneBooks = archivedBooks.filter(isStandaloneBook);
-  const searchTerm = bookSearch.trim().toLocaleLowerCase();
-  const matchesBookFilter = (book: Photobook) => {
-    const matchesSearch = !searchTerm || [
-      book.name,
-      book.clientName || '',
-      book.galleryName || '',
-      book.galleryId || '',
-      book.jobId || '',
-    ].some((value) => value.toLocaleLowerCase().includes(searchTerm));
-    const pending = pendingByBook.get(book.id) || 0;
-    const approved = book.approval?.version === book.currentVersion;
-    const matchesStatus =
-      bookFilter === 'all' ||
-      (bookFilter === 'attention' && pending > 0) ||
-      (bookFilter === 'approved' && approved);
-    return matchesSearch && matchesStatus;
-  };
-  const visibleLinkedBooks = activeLinkedBooks.filter(matchesBookFilter);
-  const visibleStandaloneBooks = activeStandaloneBooks.filter(matchesBookFilter);
+  const {
+    activeBooks,
+    archivedBooks,
+    visibleLinkedBooks,
+    visibleStandaloneBooks,
+    visibleArchivedLinkedBooks,
+    visibleArchivedStandaloneBooks,
+    hasArchivedSearchMatches,
+  } = filterPhotobookSections(books, bookSearch, bookFilter, pendingByBook);
+  const archivedSearchExpanded = hasArchivedSearchMatches && !archiveSearchDismissed;
+  const isArchivedExpanded = showArchived || archivedSearchExpanded;
   const approvedCount = activeBooks.filter((book) => book.approval?.version === book.currentVersion).length;
 
   const renderBook = (book: Photobook) => {
@@ -656,15 +643,21 @@ export default function PhotobooksManager({
             <Search className="h-4 w-4" aria-hidden="true" />
             <Input
               value={bookSearch}
-              onChange={(event) => setBookSearch(event.target.value)}
+              onChange={(event) => {
+                setBookSearch(event.target.value);
+                setArchiveSearchDismissed(false);
+              }}
               placeholder="Cerca album, cliente o galleria"
               aria-label="Cerca fotolibri"
             />
-            {bookSearch && <button type="button" onClick={() => setBookSearch('')} aria-label="Cancella ricerca"><X className="h-4 w-4" /></button>}
+            {bookSearch && <button type="button" onClick={() => { setBookSearch(''); setArchiveSearchDismissed(false); }} aria-label="Cancella ricerca"><X className="h-4 w-4" /></button>}
           </label>
           <div className="pb-filter">
             <Filter className="h-4 w-4" aria-hidden="true" />
-            <Select value={bookFilter} onValueChange={(value) => setBookFilter(value as typeof bookFilter)}>
+            <Select value={bookFilter} onValueChange={(value) => {
+              setBookFilter(value as typeof bookFilter);
+              setArchiveSearchDismissed(false);
+            }}>
               <SelectTrigger aria-label="Filtra fotolibri"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tutti gli stati</SelectItem>
@@ -712,38 +705,48 @@ export default function PhotobooksManager({
             <section className="pb-print-queue" data-testid="section-archived-photobooks">
               <button
                 type="button"
-                onClick={() => setShowArchived((v) => !v)}
+                onClick={() => {
+                  if (isArchivedExpanded) {
+                    setShowArchived(false);
+                    if (archivedSearchExpanded) setArchiveSearchDismissed(true);
+                  } else {
+                    setShowArchived(true);
+                  }
+                }}
                 className="pb-queue-toggle"
-                aria-expanded={showArchived}
+                aria-expanded={isArchivedExpanded}
                 data-testid="button-toggle-archived"
               >
-                {showArchived ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                {isArchivedExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                 <span className="pb-queue-icon"><Printer className="h-4 w-4" /></span>
                 <span className="pb-queue-title"><strong>Coda di stampa</strong><small>Album con modifiche bloccate</small></span>
                 <span className="pb-queue-count">{archivedBooks.length}</span>
               </button>
-              {showArchived && (
+              {isArchivedExpanded && (
                 <div className="pb-queue-content">
                   <p className="pb-queue-note">
                     Il blocco impedisce al cliente di modificare l’album, ma non conferma che
                     l’email sia stata inviata. Se non risulta ancora inviata, controlla lo stato
                     e completa l’invio dal riquadro “Spedizione laboratorio”.
                   </p>
-                  {archivedLinkedBooks.length > 0 && (
+                  {visibleArchivedLinkedBooks.length > 0 && (
                     <section className="pb-archived-group" data-testid="section-archived-linked-photobooks">
                       <h4>Collegati</h4>
                       <div className="pb-book-list">
-                        {archivedLinkedBooks.map(renderBook)}
+                        {visibleArchivedLinkedBooks.map(renderBook)}
                       </div>
                     </section>
                   )}
-                  {archivedStandaloneBooks.length > 0 && (
+                  {visibleArchivedStandaloneBooks.length > 0 && (
                     <section className="pb-archived-group" data-testid="section-archived-standalone-photobooks">
                       <h4>Autonomi</h4>
                       <div className="pb-book-list">
-                        {archivedStandaloneBooks.map(renderBook)}
+                        {visibleArchivedStandaloneBooks.map(renderBook)}
                       </div>
                     </section>
+                  )}
+                  {visibleArchivedLinkedBooks.length === 0 && visibleArchivedStandaloneBooks.length === 0 && (
+                    <p className="pb-section-empty">Nessun fotolibro in coda corrisponde ai filtri.</p>
                   )}
                 </div>
               )}

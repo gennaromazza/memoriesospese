@@ -9,6 +9,12 @@ Il blocco delle modifiche di un fotolibro non equivale all’invio al laboratori
 
 **How to apply:** Mantenere separati gli stati di blocco, trasferimento file ed email. Non richiedere associazioni fittizie a lavori o gallerie per completare il percorso autonomo.
 
+La ricerca dei fotolibri deve includere anche la coda di stampa: quando una ricerca trova un album bloccato, rendere visibile la coda e filtrarla con gli stessi termini e stato.
+
+**Why:** Una ricerca limitata agli album attivi fa sembrare scomparsi gli album bloccati anche se sono correttamente conservati in coda.
+
+**How to apply:** Trattare album attivi e in coda come un unico insieme ricercabile, mantenendo visibile la distinzione tra le sezioni e consentendo di richiudere la coda.
+
 Un errore dopo aver invocato il trasporto email può avere esito ambiguo: non ritentare automaticamente e non sbloccare silenziosamente l’invio. Lo studio deve verificarne l’esito prima di autorizzare un nuovo tentativo.
 
 **Why:** L’errore potrebbe avvenire dopo la consegna effettiva; un retry automatico rischia un doppio ordine al laboratorio.
