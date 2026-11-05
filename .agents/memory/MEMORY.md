@@ -71,3 +71,4 @@
 - [Footer invii email marketing](marketing-email-footer.md) — ogni invio massivo dichiara che è automatico e mostra i recapiti salvati dello studio.
 - [Destinatari marketing dalle prenotazioni](bulk-email-booking-snapshots.md) — usare lo snapshot valido se manca la scheda cliente; escludere prenotazioni annullate e deduplicare email normalizzate.
 - [Resend e schemi dei contatti](resend-contact-schema.md) — verificare le strutture annidate nella documentazione API corrente: i riepiloghi del connettore possono essere obsoleti.
+- [Continuità del carrello shop](shop-cart-continuity.md) — uscire dal checkout non conclude l’acquisto: rendere raggiungibile la bozza senza duplicare gli articoli.

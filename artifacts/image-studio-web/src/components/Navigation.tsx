@@ -11,6 +11,7 @@ import { getDiscoverGroups, getHeaderItems, getMobileItems } from "@/config/navi
 import { useGiftShopAvailable } from "@/hooks/useGiftShopAvailable";
 import { useShopAvailable } from "@/hooks/useShopAvailable";
 import { usePrintShopAvailable } from "@/hooks/usePrintShopAvailable";
+import { ShopCartLink } from "@/features/shop/ShopCartLink";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -111,6 +112,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
               </Link>
             </div>
             <div className="ml-3 flex min-w-0 items-center justify-end gap-2 md:ml-6 md:gap-3">
+              <ShopCartLink />
               <span className="hidden sm:inline-block px-3 py-1.5 rounded-full text-blue-gray bg-sage/10 text-sm font-medium">
                 Galleria di <span>{galleryOwner}</span>
               </span>
@@ -194,6 +196,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
 
           {/* Desktop nav */}
           <div className="hidden md:flex md:items-center md:gap-1">
+            <ShopCartLink />
             {headerItems.filter(i => !i.highlight).map((item) => {
               const className = "relative text-[15px] font-medium text-blue-gray/85 hover:text-sage px-3.5 py-2 rounded-full transition-colors duration-200";
 
@@ -323,6 +326,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
 
           {/* Mobile burger */}
           <div className="md:hidden flex items-center gap-1.5">
+            <ShopCartLink />
             {!authLoading && (user ? (
               <button
                 type="button"

@@ -34,6 +34,7 @@ import {
   freeShippingMessage,
 } from '@/features/shop/shop-storefront';
 import { useShopCart } from '@/features/shop/useShopCart';
+import { useShopCartStatus } from '@/features/shop/useShopCartStatus';
 import '@/components/gift-cards/gift-cards.css';
 import '@/features/shop/shop-storefront.css';
 
@@ -80,6 +81,7 @@ export default function ShopPage({ categoryValue }: { categoryValue?: string } =
   const catalog = catalogQuery.data;
   const printShopAvailable = usePrintShopAvailable();
   const { cart, count: cartCount, add } = useShopCart();
+  const cartStatus = useShopCartStatus();
   const [flash, setFlash] = useState<Flash | null>(null);
 
   // Il messaggio "aggiunto" sparisce da solo.
@@ -278,11 +280,18 @@ export default function ShopPage({ categoryValue }: { categoryValue?: string } =
         </a>
       ) : null}
       <ShopTopBar
-        cartCount={catalog ? summary.count : cartCount}
-        showCart={Boolean(catalog?.enabled && catalog.orderingOpen)}
+        cartCount={cartStatus.count || (catalog ? summary.count : cartCount)}
+        showCart={Boolean(cartStatus.count || cartStatus.hasDraft || (catalog?.enabled && catalog.orderingOpen))}
         showOrders={Boolean(catalog?.enabled)}
         showPrintShop={printShopAvailable}
       />
+      {cartStatus.hasDraft ? (
+        <div className="mx-auto my-4 max-w-5xl px-4">
+          <Link href={ORDER_PATH} className="block rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm font-semibold text-green-950">
+            Hai un ordine da completare. I tuoi articoli e le foto già caricate sono nella bozza: riprendi il carrello →
+          </Link>
+        </div>
+      ) : null}
       <div className="gcx-scene-inner gcx-shop">
         {categoryValue ? (
           <nav className="gcx-shop-crumbs" aria-label="Percorso">
