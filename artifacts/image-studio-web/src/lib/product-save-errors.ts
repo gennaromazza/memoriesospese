@@ -21,13 +21,17 @@ export function isProductWritePermissionDenied(error: unknown): boolean {
   return code === 'permission-denied' || code === 'firestore/permission-denied';
 }
 
+export function isAdminPasskeyRefreshRequired(error: unknown): boolean {
+  return errorCode(error) === 'admin_passkey_required';
+}
+
 export function getProductSaveErrorMessage(
   error: unknown,
   securityStatus?: Pick<AdminSecurityStatus, 'passkeyRequired' | 'verified'>,
   securityStatusError?: unknown,
 ): string {
   const code = errorCode(error);
-  if (code === 'admin_passkey_required') {
+  if (isAdminPasskeyRefreshRequired(error)) {
     return 'La verifica passkey è scaduta. I dati inseriti restano nel modulo: rinnova la verifica in Sicurezza e riprova a salvare.';
   }
   if (code === 'print_shop_route_required') {

@@ -11,7 +11,8 @@ import { useToast } from '@/hooks/use-toast';
 import imageCompression from 'browser-image-compression';
 import { storage, auth } from '@/lib/firebase';
 import { AdminPasskeyClient, type AdminSecurityStatus } from '@/lib/admin-passkey';
-import { getProductSaveErrorMessage, isProductWritePermissionDenied } from '@/lib/product-save-errors';
+import { getProductSaveErrorMessage, isAdminPasskeyRefreshRequired, isProductWritePermissionDenied } from '@/lib/product-save-errors';
+import { ProductPasskeyRecovery } from '@/components/ProductPasskeyRecovery';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import {
   DndContext,
@@ -267,6 +268,8 @@ export default function ProductsManager({ autoCreate, autoEditId, autoFocusDescr
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [isSyncingBundles, setIsSyncingBundles] = useState(false);
   const [shopCostInput, setShopCostInput] = useState('');
+  const [passkeyRecoveryRequired, setPasskeyRecoveryRequired] = useState(false);
+  const [passkeyRecoveryAttempt, setPasskeyRecoveryAttempt] = useState(0);
   
   // Form state
   const [formData, setFormData] = useState<InsertProduct>({
@@ -417,6 +420,7 @@ export default function ProductsManager({ autoCreate, autoEditId, autoFocusDescr
   }
 
   function openCreateDialog() {
+    setPasskeyRecoveryRequired(false);
     setEditingProduct(null);
     setShopCostInput('');
     setFormData({
@@ -441,6 +445,7 @@ export default function ProductsManager({ autoCreate, autoEditId, autoFocusDescr
   }
 
   function openEditDialog(product: Product) {
+    setPasskeyRecoveryRequired(false);
     setEditingProduct(product);
     setShopCostInput(
       typeof product.costoUnitario === 'number' && Number.isFinite(product.costoUnitario)
@@ -804,6 +809,16 @@ export default function ProductsManager({ autoCreate, autoEditId, autoFocusDescr
       onChanged?.();
     } catch (error) {
       console.error('Errore salvataggio prodotto:', error);
+      if (isAdminPasskeyRefreshRequired(error)) {
+        setPasskeyRecoveryRequired(true);
+        setPasskeyRecoveryAttempt((attempt) => attempt + 1);
+        toast({
+          title: 'Verifica di sicurezza scaduta',
+          description: 'I dati del prodotto restano aperti nel modulo. Verifica di nuovo la passkey, poi premi Salva Modifiche.',
+          variant: 'destructive',
+        });
+        return;
+      }
       let securityStatus: Pick<AdminSecurityStatus, 'passkeyRequired' | 'verified'> | undefined;
       let securityStatusError: unknown;
       if (isProductWritePermissionDenied(error)) {
@@ -1088,6 +1103,10 @@ export default function ProductsManager({ autoCreate, autoEditId, autoFocusDescr
                 : 'Crea un nuovo prodotto fotografico'}
             </DialogDescription>
           </DialogHeader>
+
+          {passkeyRecoveryRequired ? (
+            <ProductPasskeyRecovery key={passkeyRecoveryAttempt} />
+          ) : null}
 
           <div className="space-y-4 py-4">
             {/* Nome */}
