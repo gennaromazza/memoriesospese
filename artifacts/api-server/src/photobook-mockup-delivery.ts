@@ -6,6 +6,7 @@ import { uploadStreamToDriveFolder, findMatchingShipmentFile } from './google-dr
 import { hasValidLabDpa } from './lab-dpa.js';
 import type { SavedMockup } from '../shared/mockup-types.js';
 import { buildMockupPackage, MOCKUP_PACKAGE_VERSION, type MockupPackageFile } from './photobook-mockup-package.js';
+import { permitsMockupAttachmentState, permitsMockupDeliveryRecovery } from './photobook-delivery-recovery.js';
 
 export class MockupDeliveryError extends Error { constructor(public status: number, message: string) { super(message); } }
 
@@ -40,8 +41,11 @@ async function validateRecoveryContext(book: DocumentSnapshot, version: number, 
   const shipmentDoc = await shipmentRef.get();
   const shipment = shipmentDoc.data();
   if (!shipmentDoc.exists || !shipment?.driveFolderId || shipment.sourceType !== 'photobook' || shipment.photobookId !== book.id
-    || shipment.jobId !== book.data()?.jobId || shipment.labId !== saved.option.labId || shipment.status !== 'da_inviare'
-    || shipment.sentAt || shipment.deletedFromDrive || shipment.mockupDispatching || shipment.pageTransfer?.status === 'running'
+    || shipment.jobId !== book.data()?.jobId || shipment.labId !== saved.option.labId
+    || !permitsMockupAttachmentState(shipment, attachment.afterDispatch === true)
+    || shipment.deletedFromDrive || shipment.mockupDispatching || shipment.pageTransfer?.status === 'running'
+    || (attachment.afterDispatch && book.data()?.labShipmentId !== attachment.shipmentId)
+    || (attachment.afterDispatch && !permitsMockupDeliveryRecovery(book.id, book.data(), version, shipment, saved.option.labId))
     || (attachment.driveFolderId && attachment.driveFolderId !== shipment.driveFolderId)) {
     throw new MockupDeliveryError(409, 'La spedizione è cambiata: verifica manualmente prima di proseguire');
   }
@@ -82,8 +86,11 @@ async function finalizeAttachment(book: DocumentSnapshot, version: number, revis
       || freshBook.data()?.currentVersion !== version || freshBook.data()?.jobId !== data.jobId
       || data.mockupTransfer?.claim !== attachment.claim
       || data.driveFolderId !== attachment.driveFolderId || data.labId !== saved.option!.labId
-      || data.sourceType !== 'photobook' || data.photobookId !== book.id || data.status !== 'da_inviare'
-      || data.sentAt || data.deletedFromDrive || data.mockupDispatching || data.pageTransfer?.status === 'running'
+      || data.sourceType !== 'photobook' || data.photobookId !== book.id
+      || (attachment.afterDispatch && freshBook.data()?.labShipmentId !== shipmentRef.id)
+      || !permitsMockupAttachmentState(data, attachment.afterDispatch === true)
+      || (attachment.afterDispatch && !permitsMockupDeliveryRecovery(book.id, freshBook.data(), version, data, saved.option!.labId))
+      || data.deletedFromDrive || data.mockupDispatching || data.pageTransfer?.status === 'running'
       || !labDoc.exists || labDoc.data()?.attivo === false || !hasValidLabDpa(labDoc.data()!)) {
       throw new MockupDeliveryError(409, 'Destinazione, laboratorio o autorizzazione cambiati durante il trasferimento');
     }
@@ -180,7 +187,10 @@ export async function resumeMockupAttachment(book: DocumentSnapshot, version: nu
     if (!bookDoc.exists || bookDoc.data()?.currentVersion !== version || !saved || saved.revision !== revision || saved.status !== 'confirmed'
       || !saved.option || !shipment || shipment.sourceType !== 'photobook' || shipment.photobookId !== book.id
       || shipment.jobId !== bookDoc.data()?.jobId || shipment.labId !== saved.option.labId || !shipment.driveFolderId
-      || (attachment.driveFolderId && shipment.driveFolderId !== attachment.driveFolderId) || shipment.status !== 'da_inviare' || shipment.sentAt
+      || (attachment.driveFolderId && shipment.driveFolderId !== attachment.driveFolderId)
+      || !permitsMockupAttachmentState(shipment, attachment.afterDispatch === true)
+      || (attachment.afterDispatch && (bookDoc.data()?.labShipmentId !== attachment.shipmentId
+        || !permitsMockupDeliveryRecovery(book.id, bookDoc.data(), version, shipment, saved.option.labId)))
       || shipment.deletedFromDrive || shipment.mockupDispatching || shipment.pageTransfer?.status === 'running'
       || shipment.mockupTransfer?.claim !== attachment.claim || shipment.mockupTransfer?.status !== 'needs_review'
       || !labDoc?.exists || labDoc.data()?.attivo === false || !hasValidLabDpa(labDoc.data()!)) {
@@ -235,7 +245,7 @@ export async function resumeMockupAttachment(book: DocumentSnapshot, version: nu
 }
 
 /** First-time copy. Any uncertain Drive response requires reconciliation, never an automatic retry. */
-export async function attachConfirmedMockup(book: DocumentSnapshot, version: number, revision: number) {
+export async function attachConfirmedMockup(book: DocumentSnapshot, version: number, revision: number, afterDispatch = false) {
   const claim = randomUUID();
   const source = book.ref.collection('mockups').doc(`v${version}`);
   const attachmentRef = book.ref.collection('mockupAttachments').doc(`v${version}-r${revision}`);
@@ -256,10 +266,14 @@ export async function attachConfirmedMockup(book: DocumentSnapshot, version: num
     const upgradeLegacy = previous.data()?.status === 'attached' && previous.data()?.shipmentId === shipmentId;
     if (previous.exists && !retryPreflight && !upgradeLegacy) throw new MockupDeliveryError(409, 'Esiste già un tentativo per questa revisione. Verifica la cartella Drive prima di ripetere: nessun duplicato è stato creato.');
     if (shipment!.mockupDispatching || shipment!.mockupTransfer?.status === 'uploading' || (shipment!.mockupTransfer?.status === 'needs_review' && !(retryPreflight && shipment!.mockupTransfer?.claim === previous.data()?.claim))) throw new MockupDeliveryError(409, 'Spedizione occupata da un trasferimento o invio da verificare');
-    if (shipment!.status !== 'da_inviare' || shipment!.sentAt || shipment!.deletedFromDrive || !shipment!.driveFolderId || shipment!.pageTransfer?.status === 'running') throw new MockupDeliveryError(409, 'Attendi il trasferimento delle pagine; la spedizione deve essere ancora da inviare');
+    if (!permitsMockupAttachmentState(shipment, afterDispatch)
+      || (afterDispatch && !permitsMockupDeliveryRecovery(book.id, fresh.data(), version, shipment, saved.option.labId))
+      || shipment!.deletedFromDrive || !shipment!.driveFolderId || shipment!.pageTransfer?.status === 'running') {
+      throw new MockupDeliveryError(409, 'Spedizione non disponibile per questo allegato: non verranno modificati file o inviate email.');
+    }
     const lab = await tx.get(db.collection('labs').doc(saved.option.labId));
     if (!lab.exists || lab.data()!.attivo === false || !hasValidLabDpa(lab.data()!)) throw new MockupDeliveryError(409, 'Verifica laboratorio attivo e accordo DPA firmato prima di allegare fotografie');
-    const attachment = { status: 'uploading', claim, shipmentId, driveFolderId: shipment!.driveFolderId, version, revision, labId: saved.option.labId, startedAt: new Date().toISOString() };
+    const attachment = { status: 'uploading', claim, shipmentId, driveFolderId: shipment!.driveFolderId, version, revision, labId: saved.option.labId, afterDispatch, startedAt: new Date().toISOString() };
     tx.set(attachmentRef, attachment);
     tx.update(shipmentRef, { mockupTransfer: { status: 'uploading', claim, revision } });
     return { done: false as const, attachment, saved, shipmentRef, folderId: shipment!.driveFolderId as string,

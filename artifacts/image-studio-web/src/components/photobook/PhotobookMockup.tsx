@@ -177,8 +177,10 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     queryFn: async () => token ? getPhotobookGalleryPhotosByToken(token) : { photos: await listPhotobookGalleryPhotos(photobookId), chapters: [] },
   });
   const editable = !readOnly && !assignmentRefreshError && state.data?.editable === true;
-  const selectedOption = optionFor(state.data?.offer || null, selection);
   const saved = state.data?.saved;
+  const deliveryRecovery = !token && state.data?.deliveryRecoveryAvailable === true;
+  const recoveryAfterDispatch = deliveryRecovery && state.data?.deliveryRecoveryAfterDispatch === true;
+  const selectedOption = deliveryRecovery ? saved?.option : optionFor(state.data?.offer || null, selection);
   dirtyContext.current = { saved: saved ?? null, selection, editable };
   const fixedModel = state.data?.modelMode === 'fixed';
   const shouldPromptForModel = !!token && editable && needsClientModelChoice(state.data) && !selectedOption;
@@ -188,7 +190,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   const renderer = MOCKUP_RENDERERS.find(r => r.id === presentation.rendererId);
   const recoveryOption = selectedOption || (fixedModel ? state.data?.offer?.options[0] : undefined);
   const staleRendererSave = !!saved && !!recoveryOption && saved.configuration.modelId !== recoveryOption.rendererId;
-  const rendererRecoveryPlan = !token && saved && recoveryOption
+  const rendererRecoveryPlan = !token && !deliveryRecovery && saved && recoveryOption
     && (staleFixedSave
       || staleRendererSave
       || saved.option?.id !== recoveryOption.id
@@ -944,12 +946,12 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       if (path === '/reconcile-attachment' || path === '/resume-attachment') {
         recoveryResult = await response.json();
         setAttachmentRecovery(recoveryResult);
-      } else if (path === '/attach') {
+      } else if (path === '/attach' || path === '/attach-delivered') {
         setAttachmentRecovery(null);
       }
       const fresh = await state.refetch({ throwOnError: true }); revision.current = fresh.data?.saved?.revision || revision.current;
       const recovery = recoveryResult;
-      setMessage(notificationWarning || (path === '/attach' || path === '/reconcile-attachment' || path === '/resume-attachment'
+      setMessage(notificationWarning || (path === '/attach' || path === '/attach-delivered' || path === '/reconcile-attachment' || path === '/resume-attachment'
         ? recovery?.status === 'needs_review'
           ? recovery.canResume ? 'Allegati verificati: puoi completare solo i file mancanti. Nessuna email inviata.' : 'Verifica Drive non conclusiva: controlla manualmente i file ambigui. Nessuna email inviata.'
           : 'Pacchetto mockup completo nella cartella Drive. Nessuna email inviata.'
@@ -959,6 +961,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   }
   async function confirm() {
     if (!saved || dirty || !ready) return;
+    if (deliveryRecovery && !window.confirm('Confermi la copia già salvata per il laboratorio? L’album resterà bloccato. Non verranno modificati i file su Drive né inviate email.')) return;
     setBusy(true); setMessage('Preparazione delle otto viste e conferma…');
     try {
       const exported = await new Promise<unknown>((resolve, reject) => {
@@ -972,12 +975,14 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       const result = exported as { previews: unknown; configuration: unknown };
       const renderedConfiguration = mockupConfigurationSchema.parse(result.configuration);
       if (stableSerialize(renderedConfiguration) !== stableSerialize(saved.configuration)) throw new Error('Le viste non corrispondono al mockup salvato. Salva le modifiche prima di confermare.');
-      const response = await request('/confirm', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: JSON.stringify({ revision: saved.revision, previews: result.previews, configuration: renderedConfiguration }) });
+      const response = await request(deliveryRecovery ? '/confirm-for-delivery' : '/confirm', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: JSON.stringify({ revision: saved.revision, previews: result.previews, configuration: renderedConfiguration }) });
       const confirmed: SavedMockup & { notificationWarning?: string; notificationState?: string } = await response.json();
       recordSaved(confirmed);
       await queryClient.invalidateQueries({ queryKey: ['/api/photobooks', photobookId] });
       const fresh = await state.refetch({ throwOnError: true }); revision.current = fresh.data?.saved?.revision || revision.current;
-      setMessage(confirmed.notificationWarning || 'Mockup confermato. Le viste e la configurazione sono conservate in questa revisione e puoi condividere il link anche prima dell’approvazione delle pagine.');
+      setMessage(confirmed.notificationWarning || (deliveryRecovery
+        ? 'Copia salvata confermata per il laboratorio. Ora puoi aggiungere il pacchetto alla cartella Drive esistente. Nessuna email inviata; l’album resta bloccato.'
+        : 'Mockup confermato. Le viste e la configurazione sono conservate in questa revisione e puoi condividere il link anche prima dell’approvazione delle pagine.'));
     } catch (error) { setMessage((error as Error).message); }
     finally { setBusy(false); }
   }
@@ -1139,7 +1144,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
         ? draftBackCover !== 'photo' || backPhotoPresent
         : true;
   const nextAllowed = ready && !renderBusy && !busy && (step === 1 ? (!state.data?.offer || !!selectedOption || !editable) : photoStepValid || !editable);
-  const confirmBlock = !editable ? 'Versione in sola lettura: la conferma non è disponibile.'
+  const confirmBlock = !editable && !deliveryRecovery ? 'Versione in sola lettura: la conferma non è disponibile.'
     : !rendererRecoveryComplete ? 'Completa il recupero della bozza e conferma le nuove scelte prima di proseguire.'
     : !saved ? 'Non c’è ancora una proposta salvata. Attendi il cliente oppure preparala dalla scheda Bozza.'
     : dirty ? 'Ci sono modifiche non salvate: salva la revisione prima di confermarla.'
@@ -1564,18 +1569,22 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
           <h3 className="font-semibold">Controlla la proposta e scegli come proseguire</h3>
           {confirmBlock && <p className="text-sm" role="status">{confirmBlock}</p>}
           <div className="flex flex-wrap gap-2">
-            <Button className="w-full" disabled={busy || !!confirmBlock} onClick={confirm}>Conferma mockup</Button>
+            {deliveryRecovery && <p className="text-sm text-amber-800">Recupero della copia già salvata per il laboratorio. Non modifica pagine o personalizzazioni e non invia email.</p>}
+            <Button className="w-full" disabled={busy || !!confirmBlock} onClick={confirm}>{deliveryRecovery ? 'Conferma copia per laboratorio' : 'Conferma mockup'}</Button>
             {state.data?.mockupPath !== 'studio' && <Button className="w-full" variant="outline" disabled={!editable || busy || dirty || !saved} onClick={() => setAskingChanges(!askingChanges)}>Richiedi modifiche al cliente</Button>}
           </div>
           {askingChanges && state.data?.mockupPath !== 'studio' && <div className="rounded border p-3 space-y-3"><label className="block text-sm">Cosa deve correggere il cliente?<textarea className="block border rounded p-2 w-full mt-2" rows={3} maxLength={2000} value={note} onChange={e => setNote(e.target.value)} /></label><p className="text-xs text-muted-foreground">Il messaggio sarà visibile nel suo link e inviato via email.</p><Button disabled={!editable || busy || dirty || !saved || !note.trim()} onClick={() => action('/request-changes')}>Invia richiesta di modifiche</Button></div>}
           {saved?.status === 'confirmed' && <div className="space-y-2">
             <MockupLabMaterialsNotice photobookId={photobookId} payload={state.data!} />
-            <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => downloadReport(saved.revision)}>Scarica conferma</Button><Button disabled={readOnly || busy || dirty} onClick={() => action('/attach')}>Allega materiali ora su Drive</Button></div>
+            <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => downloadReport(saved.revision)}>Scarica conferma</Button><Button disabled={(readOnly && !deliveryRecovery) || busy || dirty} onClick={() => {
+              if (deliveryRecovery && !window.confirm('Aggiungere il pacchetto mockup alla cartella Drive della spedizione? I file esistenti saranno conservati e non partirà alcuna email.')) return;
+              void action(recoveryAfterDispatch ? '/attach-delivered' : '/attach');
+            }}>{recoveryAfterDispatch ? 'Aggiungi mockup alla spedizione inviata' : 'Allega materiali ora su Drive'}</Button></div>
           </div>}
           <details className="border-t pt-3"><summary className="cursor-pointer text-sm font-medium py-2">Storico revisioni e verifiche</summary><div className="flex flex-wrap gap-2 py-2">
             <Button variant="outline" disabled={busy} onClick={async () => { try { setHistory(await (await request('/history')).json()); } catch (error) { setMessage((error as Error).message); } }}>Storico revisioni</Button>
             {saved?.status === 'confirmed' && <Button variant="outline" disabled={busy || dirty} onClick={() => action('/reconcile-attachment')}>Verifica allegato Drive dopo un errore</Button>}
-             {saved?.status === 'confirmed' && attachmentRecovery?.canResume && <Button data-testid="button-resume-mockup-attachments" disabled={readOnly || busy || dirty} onClick={() => action('/resume-attachment')}>Completa solo i file mancanti</Button>}
+             {saved?.status === 'confirmed' && attachmentRecovery?.canResume && <Button data-testid="button-resume-mockup-attachments" disabled={(readOnly && !deliveryRecovery) || busy || dirty} onClick={() => action('/resume-attachment')}>Completa solo i file mancanti</Button>}
           </div>
            {attachmentRecovery?.fileProgress && <div className="space-y-1 rounded border p-3 text-sm" data-testid="status-mockup-attachment-recovery">
              <p className="font-medium">Esito verifica pacchetto</p>

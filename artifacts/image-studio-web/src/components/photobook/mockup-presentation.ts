@@ -24,6 +24,14 @@ export function needsClientModelChoice(payload: MockupPayload | undefined): bool
 /** La proposta corrente prevale sulle bozze di un modello ritirato. */
 export function mockupPresentation(payload: MockupPayload | undefined, selection?: MockupSelection, override?: string | null) {
   const saved = payload?.saved;
+  if (payload?.deliveryRecoveryAvailable && saved) {
+    const known = MOCKUP_RENDERERS.some(renderer => renderer.id === saved.configuration.modelId);
+    return {
+      staleFixedSave: false, savedRendererUnsupported: !known, savedRendererUnavailable: !known,
+      title: saved.option?.name || 'Mockup salvato per il laboratorio',
+      rendererId: known ? saved.configuration.modelId : undefined,
+    };
+  }
   const fixed = payload?.modelMode === 'fixed';
   const staleFixedSave = fixed && !!saved && !!payload?.offer && !optionFor(payload.offer, saved.selection);
   const option = optionFor(payload?.offer || null, selection);
@@ -55,6 +63,7 @@ export function mockupPresentation(payload: MockupPayload | undefined, selection
 
 /** An unambiguous fixed offer is already selected, on both desktop and mobile. */
 export function initialMockupSelection(payload: MockupPayload | undefined): MockupSelection | undefined {
+  if (payload?.deliveryRecoveryAvailable) return payload.saved?.selection;
   const offer = payload?.offer;
   const mode = payload?.modelMode ?? offer?.mode ?? (offer?.options.length === 1 ? 'fixed' : offer?.options.length ? 'choice' : undefined);
   if (mode === 'fixed') {

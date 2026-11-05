@@ -84,6 +84,9 @@ export async function photobookShipmentReadiness(tx: any, db: any, shipment: any
   const version = shipment.photobookVersion ?? book.currentVersion;
   if (version !== book.currentVersion) return 'La spedizione contiene una versione precedente: trasferisci le pagine della versione corrente.';
   const mockup = (await tx.get(bookDoc.ref.collection('mockups').doc(`v${version}`))).data();
+  if (mockup && mockup.status !== 'confirmed') {
+    return 'Il mockup della versione corrente non è confermato. Salva e conferma la bozza prima di inviare al laboratorio.';
+  }
   if (mockup?.status === 'confirmed') {
     const snapshot = shipment.mockupSnapshot;
     if (shipment.mockupTransfer?.status !== 'attached' || snapshot?.version !== version || snapshot?.revision !== mockup.revision || snapshot?.packageVersion !== 2) {

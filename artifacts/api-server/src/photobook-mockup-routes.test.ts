@@ -349,6 +349,51 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     h.docs.set('labs/lab', { nome: 'Laboratorio scelto', attivo: true, mockupCatalog: { revision: 1, materials: [{ id: material.id, label: 'Tessuto scelto', supplierCode: 'LAB-01' }], models } });
     return fetch(`${base}/admin/offer`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: 0, savedRevision: 0, mode, selections }) });
   }
+  it('conferma la configurazione identica anche se Firestore riordina le proprietà', async () => {
+    expect((await publish(base)).status).toBe(200);
+    expect((await save(base, { revision: 0, configuration, selection, offerRevision: 1 })).status).toBe(200);
+    const saved = h.docs.get('photobooks/book/mockups/v1');
+    saved.configuration = Object.fromEntries(Object.entries(saved.configuration).reverse());
+    saved.configuration.crop = { y: .5, x: .5, zoom: 1 };
+    const image = await sharp({ create: { width: 24, height: 24, channels: 3, background: '#708090' } }).jpeg().toBuffer();
+    const response = await fetch(`${base}/admin/confirm`, {
+      method: 'POST', headers: { 'Content-Type': 'application/octet-stream' },
+      body: JSON.stringify({ revision: 1, configuration, previews: Array.from({ length: 8 }, () => ({ label: 'Vista', image: `data:image/jpeg;base64,${image.toString('base64')}` })) }),
+    });
+    expect(response.status).toBe(200);
+    expect((await response.json()).status).toBe('confirmed');
+  });
+
+  it.each(['inviato', 'da_inviare'])('recupera solo la copia salvata per %s senza sbloccare o inviare email', async status => {
+    expect((await publish(base)).status).toBe(200);
+    expect((await save(base, { revision: 0, configuration, selection, offerRevision: 1 })).status).toBe(200);
+    Object.assign(h.docs.get('photobooks/book'), { locked: true, labShipmentId: 'shipment' });
+    h.docs.set('labShipments/shipment', {
+      sourceType: 'photobook', photobookId: 'book', photobookVersion: 1, jobId: 'job',
+      labId: 'lab', driveFolderId: 'folder', status, ...(status === 'inviato' ? { sentAt: 'already-sent' } : {}),
+    });
+    const image = await sharp({ create: { width: 24, height: 24, channels: 3, background: '#708090' } }).jpeg().toBuffer();
+    const body = { revision: 1, configuration, previews: Array.from({ length: 8 }, () => ({ label: 'Vista', image: `data:image/jpeg;base64,${image.toString('base64')}` })) };
+    const confirm = (path: string, payload = body) => fetch(`${base}${path}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: JSON.stringify(payload),
+    });
+    expect((await fetch(`${base}/admin`).then(r => r.json())).deliveryRecoveryAvailable).toBe(true);
+    expect((await confirm('/admin/confirm')).status).toBe(409);
+    expect((await confirm('/client/confirm-for-delivery')).status).toBe(409);
+    expect((await confirm('/admin/confirm-for-delivery', { ...body, configuration: { ...configuration, topText: 'Diverso' } })).status).toBe(409);
+    h.docs.get('labShipments/shipment').status = 'in_stampa';
+    expect((await confirm('/admin/confirm-for-delivery')).status).toBe(409);
+    h.docs.get('labShipments/shipment').status = status;
+    const result = await confirm('/admin/confirm-for-delivery');
+    expect(result.status).toBe(200);
+    expect((await result.json()).status).toBe('confirmed');
+    expect(h.docs.get('photobooks/book').locked).toBe(true);
+    expect(h.docs.get('labShipments/shipment').status).toBe(status);
+    expect(h.docs.get('labShipments/shipment').sentAt).toBe(status === 'inviato' ? 'already-sent' : undefined);
+    expect(notifyClient).not.toHaveBeenCalled();
+    expect(notifySubmission).not.toHaveBeenCalled();
+  });
+
   it('isola due sessioni admin: rifiuta la proposta obsoleta e accetta la revisione ricaricata', async () => {
     h.docs.get('photobooks/book').jobId = 'job';
     const secondModelId = '66666666-6666-4666-8666-666666666666';

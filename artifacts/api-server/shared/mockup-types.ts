@@ -150,6 +150,9 @@ export interface SavedMockup {
 }
 export interface MockupPayload {
   version: number;
+  /** Admin-only recovery: confirm the saved copy without unlocking a sent book. */
+  deliveryRecoveryAvailable?: boolean;
+  deliveryRecoveryAfterDispatch?: boolean;
   mockupPath?: 'client' | 'studio';
   notificationState?: string;
   editable: boolean;

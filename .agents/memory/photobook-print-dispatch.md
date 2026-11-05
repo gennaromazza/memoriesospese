@@ -3,6 +3,12 @@ name: Fotolibri e invio stampa
 description: Distinzione operativa tra blocco delle modifiche, preparazione file ed email al laboratorio.
 ---
 
+Il recupero di un mockup mancante dopo l’invio richiede la conferma manuale della copia già salvata: non equivale ad autorizzare modifiche dell’album o un secondo invio email.
+
+**Why:** Lo studio deve poter consegnare il riepilogo omesso senza cambiare ciò che è già stato affidato al laboratorio.
+
+**How to apply:** Conservare il blocco del fotolibro, la cartella, gli originali e la data dell’invio; rifiutare il recupero se il laboratorio ha già avviato la stampa o la destinazione è cambiata.
+
 Il blocco delle modifiche di un fotolibro non equivale all’invio al laboratorio. Anche i fotolibri autonomi devono restare ritrovabili nella coda stampa dopo navigazione e aggiornamento pagina.
 
 **Why:** Lo studio ha percepito come scomparso un fotolibro spostato tra quelli bloccati; preparazione dei file ed email sono azioni distinte e non vanno presentate come un unico invio completato.

@@ -58,6 +58,49 @@ describe('Allegato mockup confermato nella spedizione esistente', () => {
       : { doc: (id: string) => ref(`${name}/${id}`) } };
     return photobookShipmentReadiness({ get: (document: any) => document.get() }, dbMock, h.docs.get('labShipments/shipment'));
   };
+  it('blocca l’invio quando esiste una bozza non confermata, ma conserva il percorso legacy senza mockup', async () => {
+    h.docs.get('photobooks/book/mockups/v1').status = 'draft';
+    expect(await readiness()).toMatch(/non è confermato/i);
+    h.docs.delete('photobooks/book/mockups/v1');
+    expect(await readiness()).toBeNull();
+  });
+  it('aggiunge il pacchetto a una spedizione già inviata solo con il recupero esplicito', async () => {
+    h.docs.get('photobooks/book').locked = true;
+    Object.assign(h.docs.get('labShipments/shipment'), { status: 'inviato', sentAt: 'original-send-date' });
+    await expect(attach()).rejects.toMatchObject({ status: 409 });
+    const book = await ref('photobooks/book').get();
+    await attachConfirmedMockup(book, 1, 3, true);
+    await attachConfirmedMockup(book, 1, 3, true);
+    expect(h.uploads).toHaveLength(2);
+    expect(h.docs.get('labShipments/shipment')).toMatchObject({ status: 'inviato', sentAt: 'original-send-date' });
+    expect(h.docs.get('labShipments/shipment').files[0].driveFileId).toBe('original-page');
+    expect(h.docs.get('photobooks/book').locked).toBe(true);
+  });
+  it.each([{ status: 'in_stampa' }, { photobookVersion: 2 }, { mockupSnapshot: { revision: 2 } }, { labId: 'other' }])('rifiuta il recupero su una destinazione non più compatibile %j', async change => {
+    h.docs.get('photobooks/book').locked = true;
+    Object.assign(h.docs.get('labShipments/shipment'), { status: 'inviato', sentAt: 'original-send-date' }, change);
+    await expect(attachConfirmedMockup(await ref('photobooks/book').get(), 1, 3, true)).rejects.toMatchObject({ status: 409 });
+    expect(h.uploads).toHaveLength(0);
+  });
+  it('non registra il recupero se cambia la spedizione collegata durante il trasferimento', async () => {
+    h.docs.get('photobooks/book').locked = true;
+    Object.assign(h.docs.get('labShipments/shipment'), { status: 'inviato', sentAt: 'original-send-date' });
+    h.afterUpload = () => { h.docs.get('photobooks/book').labShipmentId = 'other-shipment'; };
+    await expect(attachConfirmedMockup(await ref('photobooks/book').get(), 1, 3, true)).rejects.toMatchObject({ status: 409 });
+    expect(h.docs.get('labShipments/shipment').mockupSnapshot).toBeUndefined();
+  });
+  it('riconcilia un recupero post-invio ambiguo senza duplicare HTML o reinviare email', async () => {
+    h.docs.get('photobooks/book').locked = true;
+    Object.assign(h.docs.get('labShipments/shipment'), { status: 'inviato', sentAt: 'original-send-date' });
+    h.failUpload = true;
+    await expect(attachConfirmedMockup(await ref('photobooks/book').get(), 1, 3, true)).rejects.toThrow('incerta');
+    const checked = await reconcileMockupAttachment(await ref('photobooks/book').get(), 1, 3);
+    expect(checked).toMatchObject({ status: 'needs_review', canResume: true });
+    h.failUpload = false;
+    await resumeMockupAttachment(await ref('photobooks/book').get(), 1, 3);
+    expect(h.uploads.filter(name => name.endsWith('.html'))).toHaveLength(1);
+    expect(h.docs.get('labShipments/shipment')).toMatchObject({ status: 'inviato', sentAt: 'original-send-date' });
+  });
   it('allega la copia confermata una sola volta, preserva gli originali e non invia email', async () => {
     await attach(); await attach();
     expect(h.uploads).toEqual(['MOCKUP-book-v1-r3.html', 'MOCKUP-book-v1-r3-MATERIALI.txt']);

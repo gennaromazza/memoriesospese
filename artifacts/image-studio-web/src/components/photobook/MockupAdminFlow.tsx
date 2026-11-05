@@ -156,7 +156,9 @@ export default function MockupAdminFlow({ photobookId, version, currentVersion, 
           <p className="text-sm">Email: {emailStatus}</p>
           {emailNote && <p className="text-sm text-amber-700">{emailNote}</p>}
           <div className="flex flex-wrap gap-2">
-            {studio && saved && saved.status !== 'confirmed' && <Button variant="outline" className="min-h-11" disabled={readOnly} onClick={() => openMockupTab(photobookId, 'review')}>Verifica e conferma</Button>}
+            {saved && state.data?.deliveryRecoveryAvailable
+              ? <Button variant="outline" className="min-h-11" onClick={() => openMockupTab(photobookId, 'review')}>Recupera mockup per laboratorio</Button>
+              : studio && saved && saved.status !== 'confirmed' && <Button variant="outline" className="min-h-11" disabled={readOnly} onClick={() => openMockupTab(photobookId, 'review')}>Verifica e conferma</Button>}
             {emailActions}
             {clientLink && saved?.status === 'confirmed' && version === currentVersion && (
               <CopyFeedbackButton text={`${clientLink}/mockup?version=${version}`} label="Copia link mockup" testId="button-copy-mockup-link" />

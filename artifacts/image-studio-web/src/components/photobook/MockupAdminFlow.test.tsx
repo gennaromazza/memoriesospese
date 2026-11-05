@@ -5,6 +5,7 @@ import type { MockupPayload } from '@shared/mockup-types';
 
 vi.mock('@/lib/firebase', () => ({ auth: { authStateReady: async () => undefined, currentUser: null } }));
 vi.mock('@/lib/config', () => ({ createUrl: (p: string) => p }));
+vi.mock('./MockupLabMaterialsNotice', () => ({ default: () => null }));
 import MockupAdminFlow, { MockupStatusLine } from './MockupAdminFlow';
 
 const render = (props: Partial<Parameters<typeof MockupAdminFlow>[0]> = {}, savedStatus?: string, stateData?: Partial<MockupPayload>) => {
@@ -78,6 +79,13 @@ describe('MockupAdminFlow', () => {
     expect(steps[1]).toContain('Prepara la bozza');
     expect(steps[1]).toContain('Le foto della bozza si scelgono dalla galleria o si caricano nel passaggio successivo');
     expect(steps[0]!.indexOf('Cambia modello')).toBeLessThan(steps[1]!.indexOf('Prepara la bozza'));
+  });
+  it('rende raggiungibile il recupero senza abilitare la modifica del libro bloccato', () => {
+    const html = render({ readOnly: true }, undefined, {
+      deliveryRecoveryAvailable: true, saved: { status: 'draft', revision: 1 },
+    } as unknown as Partial<MockupPayload>);
+    expect(html).toContain('Recupera mockup per laboratorio');
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Modifica la bozza/);
   });
   it('indica la verifica dopo aver salvato una bozza', () => {
     const state = {

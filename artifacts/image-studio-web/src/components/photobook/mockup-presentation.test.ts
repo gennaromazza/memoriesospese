@@ -12,6 +12,18 @@ describe('modello mostrato nel link cliente', () => {
     expect(shouldStartClientMockupIn3d({ confirmedOnly: true, mobile: true, choosing: true })).toBe(false);
   });
 
+  it('nel recupero conserva il modello salvato senza migrare alla proposta attuale', () => {
+    const selection = { labId: 'old-lab', modelId: 'old-model' };
+    const payload = {
+      deliveryRecoveryAvailable: true, modelMode: 'fixed',
+      offer: { options: [plaza] },
+      saved: { selection, configuration: { modelId: MOCKUP_MODEL.id }, option: { name: 'Modello salvato' } },
+    } as unknown as MockupPayload;
+    expect(mockupPresentation(payload, { labId: plaza.labId, modelId: plaza.id })).toMatchObject({
+      rendererId: MOCKUP_MODEL.id, staleFixedSave: false, title: 'Modello salvato',
+    });
+    expect(initialMockupSelection(payload)).toEqual(selection);
+  });
   it('non risolve un renderer mentre i dati non sono ancora caricati', () => {
     expect(mockupPresentation(undefined)).toMatchObject({ title: 'Scegli un modello', rendererId: undefined, savedRendererUnavailable: false });
   });

@@ -32,6 +32,12 @@ describe('Feedback allegati dopo la conferma mockup', () => {
     expect(html).toContain('File non disponibile');
     expect(html).not.toContain('Materiali mockup allegati alla spedizione');
   });
+  it('nel recupero richiede l’azione manuale e non promette un nuovo invio automatico', () => {
+    const html = renderToStaticMarkup(<MockupLabMaterialsNotice photobookId="book" payload={{ ...payload, deliveryRecoveryAvailable: true }} />);
+    expect(html).toContain('Recupera mockup per laboratorio');
+    expect(html).toContain('non viene reinviata alcuna email');
+    expect(html).not.toContain('vengono allegati automaticamente');
+  });
   it('non mostra il feedback per una bozza non confermata', () => {
     expect(renderToStaticMarkup(<MockupLabMaterialsNotice photobookId="book" payload={{ ...payload, saved: { ...payload.saved!, status: 'draft' } }} />)).toBe('');
   });

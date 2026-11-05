@@ -10,6 +10,8 @@ import { uidRateLimiter } from './print-shop/rate-limit.js';
 import { mockupAssetIds, mockupConfigurationSchema, mockupEditable, mockupGraphicAssetIds, type MockupPhoto, type SavedMockup } from '../shared/mockup-types.js';
 import { boxCoverGraphicId, catalogAllowedForLab, optionAllowsBoxSetup, optionAllowsMaterials, labMockupCatalogSchema, mockupOfferInputSchema, mockupSelectionSchema, mockupWorkflowInputSchema, optionFor, rendererNeedsSetup, setupFitsRenderer, type MockupOffer, type MockupOption, type MockupOfferMode } from '../shared/mockup-workflow.js';
 import { buildMockupReport, mockupConfirmSchema } from './mockup-report.js';
+import { isDeepStrictEqual } from 'node:util';
+import { permitsMockupDeliveryRecovery } from './photobook-delivery-recovery.js';
 
 class MockupError extends Error { constructor(public status: number, message: string) { super(message); } }
 const versionSchema = z.coerce.number().int().min(1).max(9999);
@@ -158,7 +160,7 @@ export function createPhotobookMockupRouter(
       res.locals.book = book;
       res.locals.version = version;
       if (req.method !== 'GET') {
-        const deliveryOnly = isAdmin && version === data.currentVersion && ['/attach', '/reconcile-attachment', '/resume-attachment'].includes(req.path);
+        const deliveryOnly = isAdmin && version === data.currentVersion && ['/attach', '/attach-delivered', '/confirm-for-delivery', '/reconcile-attachment', '/resume-attachment'].includes(req.path);
         const approvalOnly = !isAdmin && req.method === 'POST' && req.path === '/approve' && canApproveBook(data, version);
         if (!canEditBook(data, version) && !deliveryOnly && !approvalOnly) throw new MockupError(409,
           !data.locked && needsPageApproval(data, version)
@@ -202,7 +204,10 @@ export function createPhotobookMockupRouter(
       const labAttachment = isAdmin && data?.status === 'confirmed'
         ? { status: attachment?.status === 'attached' && attachment.packageVersion !== 2 ? 'pending' : attachment?.status || 'pending', ...(attachment?.message ? { message: attachment.message } : {}) }
         : undefined;
-      res.json({ version, mockupPath: root.mockupPath, notificationState, ...(labAttachment ? { labAttachment } : {}), clientApprovalAllowed: !isAdmin && canApproveBook(root, version) && data?.status === 'confirmed', editable: canEditBook(root, version) && !(modelMode === 'fixed' && !offer), enabled: isAdmin || saved.exists || !!offer, approvalRequired: needsPageApproval(root, version), saved: data || null, offer, modelMode, modelSelection, offerError: modelMode === 'fixed' && !offer ? 'Il modello fisso non è più disponibile. Lo studio deve ripubblicare la proposta.' : null, offerInherited: modelMode === 'fixed' && !offerDoc.exists });
+      const deliveryShipment = isAdmin && root.locked && root.labShipmentId && data
+        ? (await db.collection('labShipments').doc(root.labShipmentId).get()).data() : undefined;
+      const deliveryRecoveryAvailable = !!deliveryShipment && permitsMockupDeliveryRecovery(book.id, root, version, deliveryShipment);
+      res.json({ version, mockupPath: root.mockupPath, notificationState, ...(labAttachment ? { labAttachment } : {}), ...(isAdmin ? { deliveryRecoveryAvailable, deliveryRecoveryAfterDispatch: deliveryRecoveryAvailable && deliveryShipment.status === 'inviato' } : {}), clientApprovalAllowed: !isAdmin && canApproveBook(root, version) && data?.status === 'confirmed', editable: canEditBook(root, version) && !(modelMode === 'fixed' && !offer), enabled: isAdmin || saved.exists || !!offer, approvalRequired: needsPageApproval(root, version), saved: data || null, offer, modelMode, modelSelection, offerError: modelMode === 'fixed' && !offer ? 'Il modello fisso non è più disponibile. Lo studio deve ripubblicare la proposta.' : null, offerInherited: modelMode === 'fixed' && !offerDoc.exists });
     } catch (error) { next(error); }
   });
 
@@ -376,23 +381,32 @@ export function createPhotobookMockupRouter(
     } catch (error) { next(error); }
   });
 
-  router.post('/confirm', express.raw({ type: 'application/octet-stream', limit: '16mb' }), async (req, res, next): Promise<HttpHandlerResult> => {
+  router.post(['/confirm', '/confirm-for-delivery'], express.raw({ type: 'application/octet-stream', limit: '16mb' }), async (req, res, next): Promise<HttpHandlerResult> => {
     try {
       if (!isAdmin) throw new MockupError(403, 'Solo lo studio può confermare');
       const input = mockupConfirmSchema.parse(Buffer.isBuffer(req.body) ? JSON.parse(req.body.toString('utf8')) : req.body);
       const book = res.locals.book as DocumentSnapshot;
       const version = res.locals.version as number;
+      const deliveryRecovery = req.path === '/confirm-for-delivery';
       const ref = book.ref.collection('mockups').doc(`v${version}`);
       const initial = (await ref.get()).data() as SavedMockup | undefined;
       if (!initial || initial.revision !== input.revision || initial.status === 'confirmed') throw new MockupError(409, 'Ricarica la proposta prima di confermare');
-      if (JSON.stringify(input.configuration) !== JSON.stringify(initial.configuration)) throw new MockupError(409, 'Le viste non corrispondono alla configurazione salvata');
+      if (!isDeepStrictEqual(input.configuration, initial.configuration)) throw new MockupError(409, 'Le viste non corrispondono alla configurazione salvata');
       const offerDoc = await book.ref.collection('mockupOffers').doc(`v${version}`).get();
       const offer = await effectiveOffer(book, version, offerDoc);
-      const option = optionFor(offer || null, initial.selection);
+      const option = deliveryRecovery ? initial.option : optionFor(offer || null, initial.selection);
       if (!option || !optionAllowsMaterials(option, initial.configuration) || !optionAllowsBoxSetup(option, initial.configuration)) throw new MockupError(409, 'Salva prima un modello e un rivestimento inclusi nella proposta');
+      if (deliveryRecovery) {
+        const shipment = book.data()?.labShipmentId
+          ? (await db.collection('labShipments').doc(book.data()!.labShipmentId).get()).data() : undefined;
+        if (!permitsMockupDeliveryRecovery(book.id, book.data(), version, shipment, option.labId)) {
+          throw new MockupError(409, 'Il recupero è consentito solo per il mockup salvato di una spedizione in coda o inviata, non ancora in stampa.');
+        }
+      }
       const now = new Date().toISOString();
       const reportPath = `photobook-mockups/${book.id}/v${version}/confirmed-${randomUUID()}.html`;
-      const confirmed: SavedMockup = { ...initial, option, revision: initial.revision + 1, status: 'confirmed', confirmedAt: now, updatedAt: now, updatedBy: 'studio', reportPath };
+      const confirmed: SavedMockup = { ...initial, option, revision: initial.revision + 1, status: 'confirmed', confirmedAt: now, updatedAt: now, updatedBy: 'studio', reportPath,
+        ...(deliveryRecovery ? { deliveryRecovery: { shipmentId: book.data()!.labShipmentId, confirmedAt: now } } : {}) };
       let report: Buffer;
       try { report = await buildMockupReport(confirmed, input.previews); }
       catch { throw new MockupError(400, 'Viste non leggibili: riapri il mockup e riprova la conferma'); }
@@ -400,10 +414,18 @@ export function createPhotobookMockupRouter(
       await file.save(report, { metadata: { contentType: 'text/html', cacheControl: 'private, no-store' } });
       try {
         await db.runTransaction(async tx => {
-          const freshBook = await guardCurrent(tx, book, version);
+          const freshBook = deliveryRecovery ? await tx.get(book.ref) : await guardCurrent(tx, book, version);
+          if (deliveryRecovery) {
+            const shipment = freshBook.data()?.labShipmentId
+              ? (await tx.get(db.collection('labShipments').doc(freshBook.data()!.labShipmentId))).data() : undefined;
+            if (freshBook.data()?.labShipmentId !== book.data()?.labShipmentId
+              || !permitsMockupDeliveryRecovery(book.id, freshBook.data(), version, shipment, option.labId)) {
+              throw new MockupError(409, 'La spedizione è cambiata durante la conferma: nessun recupero applicato.');
+            }
+          }
           const fresh = await tx.get(ref);
           const freshOffer = await effectiveOfferInTransaction(tx, book, version, fresh.data()!, await tx.get(offerDoc.ref));
-          if (fresh.data()?.revision !== input.revision || freshOffer?.revision !== offer?.revision) throw new MockupError(409, 'Proposta cambiata durante la conferma: ricarica e riprova');
+          if (fresh.data()?.revision !== input.revision || (!deliveryRecovery && freshOffer?.revision !== offer?.revision)) throw new MockupError(409, 'Proposta cambiata durante la conferma: ricarica e riprova');
           tx.set(book.ref.collection('mockupHistory').doc(`v${version}-r${initial.revision}`), initial);
           tx.set(ref, confirmed);
         });
@@ -415,14 +437,14 @@ export function createPhotobookMockupRouter(
       }
       const freshBook = await book.ref.get();
       const freshBookData = freshBook.data() || {};
-      if (notifyClient && freshBookData.mockupPath !== 'client') {
+      if (!deliveryRecovery && notifyClient && freshBookData.mockupPath !== 'client') {
         try { await notifyClient(book, confirmed, 'confirmed'); }
         catch {
           console.warn('[photobook-mockup] Esito email conferma al cliente non confermato');
           return res.json({ ...confirmed, notificationWarning: 'Il mockup è confermato, ma l’esito dell’email al cliente non è confermato. Avvisalo manualmente senza ripetere la conferma.' });
         }
       }
-      const notificationBook = notifyClient && freshBookData.mockupPath !== 'client'
+      const notificationBook = !deliveryRecovery && notifyClient && freshBookData.mockupPath !== 'client'
         ? await book.ref.get()
         : freshBook;
       const notificationState = notificationBook.data()?.mockupPath === 'client'
@@ -455,12 +477,12 @@ export function createPhotobookMockupRouter(
       res.type('text/html').send(buffer);
     } catch (error) { next(error); }
   });
-  router.post('/attach', async (req, res, next) => {
+  router.post(['/attach', '/attach-delivered'], async (req, res, next) => {
     try {
       if (!isAdmin) throw new MockupError(403, 'Solo lo studio può allegare alla spedizione');
       const { revision } = mockupWorkflowInputSchema.parse(req.body);
       const { attachConfirmedMockup, MockupDeliveryError } = await import('./photobook-mockup-delivery.js');
-      try { res.json(await attachConfirmedMockup(res.locals.book as DocumentSnapshot, res.locals.version, revision)); }
+      try { res.json(await attachConfirmedMockup(res.locals.book as DocumentSnapshot, res.locals.version, revision, req.path === '/attach-delivered')); }
       catch (error) { if (error instanceof MockupDeliveryError) throw new MockupError(error.status, error.message); throw error; }
     } catch (error) { next(error); }
   });
