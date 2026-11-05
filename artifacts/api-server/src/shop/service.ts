@@ -1,6 +1,10 @@
 import type { ShopCatalogDto, ShopSettings } from '@shared/shop-types';
 import { buildShopCatalog, normalizeShopSettings, type ShopDocument } from './catalog.js';
-import { saveCatalogProduct } from './catalog-product-write.js';
+import {
+  deleteCatalogProduct,
+  reorderCatalogProducts,
+  saveCatalogProduct,
+} from './catalog-product-write.js';
 
 export const SHOP_SETTINGS_PATH = { collection: 'settings', doc: 'shop' } as const;
 
@@ -14,6 +18,14 @@ export class ShopService {
 
   async saveCatalogProduct(input: unknown, id?: string): Promise<string> {
     return saveCatalogProduct(this.deps.db, input, id);
+  }
+
+  async deleteCatalogProduct(id: unknown): Promise<void> {
+    return deleteCatalogProduct(this.deps.db, id);
+  }
+
+  async reorderCatalogProducts(input: unknown): Promise<number> {
+    return reorderCatalogProducts(this.deps.db, input, this.now());
   }
 
   protected now(): Date {

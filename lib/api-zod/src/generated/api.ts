@@ -111,6 +111,42 @@ export const UpdateAdminCatalogProductResponse = zod.object({
 
 
 /**
+ * @summary Delete an ordinary catalog product and its private cost atomically
+ */
+export const DeleteAdminCatalogProductParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const DeleteAdminCatalogProductResponse = zod.object({
+  "id": zod.string()
+})
+
+
+/**
+ * @summary Reorder ordinary catalog products atomically
+ */
+export const reorderAdminCatalogProductsBodyIdsItemMax = 200;
+
+
+export const reorderAdminCatalogProductsBodyIdsItemRegExp = new RegExp('^[^/]+$');
+export const reorderAdminCatalogProductsBodyIdsMax = 500;
+
+
+
+export const ReorderAdminCatalogProductsBody = zod.object({
+  "ids": zod.array(zod.string().min(1).max(reorderAdminCatalogProductsBodyIdsItemMax).regex(reorderAdminCatalogProductsBodyIdsItemRegExp)).max(reorderAdminCatalogProductsBodyIdsMax)
+})
+
+export const reorderAdminCatalogProductsResponseUpdatedMin = 0;
+
+
+
+export const ReorderAdminCatalogProductsResponse = zod.object({
+  "updated": zod.number().int().min(reorderAdminCatalogProductsResponseUpdatedMin)
+})
+
+
+/**
  * Admin-only binary image upload for the homepage slider or booking page. Accepts JPEG, PNG, or WebP images up to 5 MB.
  * @summary Upload a booking campaign cover image
  */

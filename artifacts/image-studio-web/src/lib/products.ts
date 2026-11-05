@@ -11,7 +11,6 @@ import {
   deleteDoc,
   query,
   orderBy,
-  Timestamp,
   writeBatch,
 } from 'firebase/firestore';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -32,7 +31,6 @@ import {
 import { isPrintShopManagedProduct } from '@/features/print-shop/product-channel-guard';
 
 const PRODUCTS_COLLECTION = 'products';
-const SHOP_PRODUCT_COSTS_COLLECTION = 'shopProductCosts';
 
 function assertClientManagedProduct(product: unknown): void {
   if (!product || typeof product !== 'object') return;
@@ -244,11 +242,9 @@ export async function updateProduct(id: string, data: Partial<InsertProduct>): P
  * Elimina un prodotto
  */
 export async function deleteProduct(id: string): Promise<void> {
-  const docRef = doc(db, PRODUCTS_COLLECTION, id);
-  const batch = writeBatch(db);
-  batch.delete(docRef);
-  batch.delete(doc(db, SHOP_PRODUCT_COSTS_COLLECTION, id));
-  await batch.commit();
+  await shopRequest(`/admin/catalog-products/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
 }
 
 /**
@@ -264,18 +260,10 @@ export async function getActiveProducts(): Promise<Product[]> {
  * @param reorderedIds Array di product IDs nell'ordine desiderato
  */
 export async function reorderProducts(reorderedIds: string[]): Promise<void> {
-  const batch = writeBatch(db);
-  const now = Timestamp.now();
-  
-  reorderedIds.forEach((id, index) => {
-    const docRef = doc(db, PRODUCTS_COLLECTION, id);
-    batch.update(docRef, {
-      displayOrder: index + 1,
-      updatedAt: now
-    });
+  await shopRequest('/admin/catalog-products/reorder', {
+    method: 'PUT',
+    body: JSON.stringify({ ids: reorderedIds }),
   });
-  
-  await batch.commit();
 }
 
 /**

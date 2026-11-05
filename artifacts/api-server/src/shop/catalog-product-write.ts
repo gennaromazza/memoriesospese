@@ -26,6 +26,15 @@ export const catalogProductInput = z.object({
   prodottoSorgenteFotoId: z.string().max(200).optional(),
 }).strict();
 
+const catalogProductIdSchema = z.string().trim().min(1).max(200).refine(id => !id.includes('/'));
+const reorderCatalogProductsInput = z.object({
+  ids: z.array(catalogProductIdSchema).max(500),
+}).strict().superRefine(({ ids }, context) => {
+  if (new Set(ids).size !== ids.length) {
+    context.addIssue({ code: 'custom', path: ['ids'], message: 'Gli identificativi prodotto devono essere univoci' });
+  }
+});
+
 /** Il costo non entra mai nel documento pubblico; commit unico anche con regole client obsolete. */
 export async function saveCatalogProduct(db: any, input: unknown, id?: string): Promise<string> {
   if (id !== undefined && (!id || id.includes('/') || id.length > 200)) {
@@ -56,4 +65,46 @@ export async function saveCatalogProduct(db: any, input: unknown, id?: string): 
     }
   });
   return ref.id;
+}
+
+/** Rimuove prodotto e costo riservato nella stessa transazione. */
+export async function deleteCatalogProduct(db: any, rawId: unknown): Promise<void> {
+  const id = catalogProductIdSchema.parse(rawId);
+  const productRef = db.collection('products').doc(id);
+  const costRef = db.collection('shopProductCosts').doc(id);
+  await db.runTransaction(async (tx: any) => {
+    const snapshot = await tx.get(productRef);
+    if (!snapshot.exists) {
+      throw new CommerceHttpError(404, 'product_not_found', 'Prodotto non trovato');
+    }
+    const product = snapshot.data();
+    if (Array.isArray(product?.salesChannels) && product.salesChannels.includes('print_shop')) {
+      throw new CommerceHttpError(409, 'print_shop_route_required', 'Gestisci questo formato dall’editor del catalogo stampe.');
+    }
+    tx.delete(productRef);
+    tx.delete(costRef);
+  });
+}
+
+/** Riordina solo prodotti ordinari; tutte le letture precedono le scritture atomiche. */
+export async function reorderCatalogProducts(db: any, input: unknown, now = new Date()): Promise<number> {
+  const { ids } = reorderCatalogProductsInput.parse(input);
+  const refs = ids.map(id => db.collection('products').doc(id));
+  await db.runTransaction(async (tx: any) => {
+    const snapshots = await Promise.all(refs.map(ref => tx.get(ref)));
+    for (let index = 0; index < snapshots.length; index += 1) {
+      const snapshot = snapshots[index];
+      if (!snapshot.exists) {
+        throw new CommerceHttpError(404, 'product_not_found', 'Uno o più prodotti non sono stati trovati');
+      }
+      const product = snapshot.data();
+      if (Array.isArray(product?.salesChannels) && product.salesChannels.includes('print_shop')) {
+        throw new CommerceHttpError(409, 'print_shop_route_required', 'Gestisci questo formato dall’editor del catalogo stampe.');
+      }
+    }
+    refs.forEach((ref, index) => {
+      tx.update(ref, { displayOrder: index + 1, updatedAt: now });
+    });
+  });
+  return ids.length;
 }

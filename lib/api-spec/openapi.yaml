@@ -73,6 +73,59 @@ paths:
           description: Product not found
         "409":
           description: Use the dedicated print catalog editor
+    delete:
+      operationId: deleteAdminCatalogProduct
+      tags: [shop]
+      summary: Delete an ordinary catalog product and its private cost atomically
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Product and private cost deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminCatalogProductResult"
+        "403":
+          description: Administrator or passkey verification required
+        "404":
+          description: Product not found
+        "409":
+          description: Use the dedicated print catalog editor
+  /shop/admin/catalog-products/reorder:
+    put:
+      operationId: reorderAdminCatalogProducts
+      tags: [shop]
+      summary: Reorder ordinary catalog products atomically
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminCatalogProductReorder"
+      responses:
+        "200":
+          description: Products reordered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminCatalogProductReorderResult"
+        "400":
+          description: Invalid product list
+        "403":
+          description: Administrator or passkey verification required
+        "404":
+          description: Product not found
+        "409":
+          description: Use the dedicated print catalog editor
   /admin/campaigns/{campaignId}/images/{imageKind}:
     post:
       operationId: uploadBookingCampaignImage
@@ -236,6 +289,27 @@ components:
       properties:
         id:
           type: string
+    AdminCatalogProductReorder:
+      type: object
+      additionalProperties: false
+      required: [ids]
+      properties:
+        ids:
+          type: array
+          maxItems: 500
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+            maxLength: 200
+            pattern: '^[^/]+$'
+    AdminCatalogProductReorderResult:
+      type: object
+      required: [updated]
+      properties:
+        updated:
+          type: integer
+          minimum: 0
     AdminCatalogProductInput:
       type: object
       description: Fields to save; creation requires name, description, price, discount, photo count, category and active flag. Omitted cost is unchanged, null removes it.

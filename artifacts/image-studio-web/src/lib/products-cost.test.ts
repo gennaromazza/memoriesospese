@@ -49,7 +49,7 @@ vi.mock('./product-categories', () => ({
   toggleProductCategoryStatus: vi.fn(),
 }));
 
-import { createProduct, deleteProduct, getAllProducts, getAllProductsWithShopCosts, updateProduct } from './products';
+import { createProduct, deleteProduct, getAllProducts, getAllProductsWithShopCosts, reorderProducts, updateProduct } from './products';
 
 function newProduct(patch: Record<string, unknown> = {}) {
   return {
@@ -144,10 +144,19 @@ describe('costo riservato dei prodotti shop', () => {
     expect(adminProducts[0]).toMatchObject({ id: 'legacy', costoUnitario: 8.25 });
   });
 
-  it('elimina anche il documento privato del costo quando si rimuove il prodotto', async () => {
+  it('elimina il prodotto tramite API amministrativa', async () => {
     await deleteProduct('p1');
-    expect(firestoreMock.batchDelete).toHaveBeenCalledWith({ id: 'p1', path: 'products/p1' });
-    expect(firestoreMock.batchDelete).toHaveBeenCalledWith({ id: 'p1', path: 'shopProductCosts/p1' });
+    expect(shopApiMock.shopRequest).toHaveBeenCalledWith('/admin/catalog-products/p1', { method: 'DELETE' });
+    expect(firestoreMock.writeBatch).not.toHaveBeenCalled();
+  });
+
+  it('riordina i prodotti solo tramite API amministrativa', async () => {
+    await reorderProducts(['p2', 'p1']);
+    expect(shopApiMock.shopRequest).toHaveBeenCalledWith('/admin/catalog-products/reorder', {
+      method: 'PUT',
+      body: JSON.stringify({ ids: ['p2', 'p1'] }),
+    });
+    expect(firestoreMock.writeBatch).not.toHaveBeenCalled();
   });
 
   it('non aggiorna direttamente un prodotto già gestito dal catalogo stampe', async () => {

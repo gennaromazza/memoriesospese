@@ -9,6 +9,21 @@ export interface AdminCatalogProductResult {
   id: string;
 }
 
+export interface AdminCatalogProductReorder {
+  /**
+     * @maxItems 500
+     * @items.minLength 1
+     * @items.maxLength 200
+     * @items.pattern ^[^/]+$
+     */
+  ids: string[];
+}
+
+export interface AdminCatalogProductReorderResult {
+  /** @minimum 0 */
+  updated: number;
+}
+
 export interface AdminCatalogBundleItem {
   prodottoId: string;
   prodottoNome: string;

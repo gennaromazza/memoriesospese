@@ -8,6 +8,8 @@
 
 export * from './adminCatalogBundleItem';
 export * from './adminCatalogProductInput';
+export * from './adminCatalogProductReorder';
+export * from './adminCatalogProductReorderResult';
 export * from './adminCatalogProductResult';
 export * from './campaignImageUploadResult';
 export * from './customerNotificationKind';

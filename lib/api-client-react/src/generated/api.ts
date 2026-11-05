@@ -21,6 +21,8 @@ import type {
 
 import type {
   AdminCatalogProductInput,
+  AdminCatalogProductReorder,
+  AdminCatalogProductReorderResult,
   AdminCatalogProductResult,
   CampaignImageUploadResult,
   CustomerNotificationKind,
@@ -233,6 +235,168 @@ export const useUpdateAdminCatalogProduct = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getUpdateAdminCatalogProductMutationOptions(options));
+    }
+
+export const getDeleteAdminCatalogProductUrl = (id: string,) => {
+
+
+
+
+  return `/api/shop/admin/catalog-products/${id}`
+}
+
+/**
+ * @summary Delete an ordinary catalog product and its private cost atomically
+ */
+export const deleteAdminCatalogProduct = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<AdminCatalogProductResult> => {
+
+  return customFetch<AdminCatalogProductResult>(getDeleteAdminCatalogProductUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteAdminCatalogProductMutationKey = () => ['deleteAdminCatalogProduct'] as const;
+
+export const getDeleteAdminCatalogProductMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminCatalogProduct>>, TError,DeleteAdminCatalogProductMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteAdminCatalogProduct>>, TError,DeleteAdminCatalogProductMutationVariables, TContext> => {
+
+const mutationKey = getDeleteAdminCatalogProductMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAdminCatalogProduct>>, DeleteAdminCatalogProductMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteAdminCatalogProduct(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteAdminCatalogProductMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAdminCatalogProduct>>>
+
+    export type DeleteAdminCatalogProductMutationError = ErrorType<void>
+    export type DeleteAdminCatalogProductMutationVariables = {id: string}
+
+    /**
+ * @summary Delete an ordinary catalog product and its private cost atomically
+ */
+export const useDeleteAdminCatalogProduct = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminCatalogProduct>>, TError,DeleteAdminCatalogProductMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteAdminCatalogProduct>>,
+        TError,
+        DeleteAdminCatalogProductMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteAdminCatalogProductMutationOptions(options));
+    }
+
+export const getReorderAdminCatalogProductsUrl = () => {
+
+
+
+
+  return `/api/shop/admin/catalog-products/reorder`
+}
+
+/**
+ * @summary Reorder ordinary catalog products atomically
+ */
+export const reorderAdminCatalogProducts = async (adminCatalogProductReorder: AdminCatalogProductReorder, options?: Parameters<typeof customFetch>[1]): Promise<AdminCatalogProductReorderResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<AdminCatalogProductReorderResult>(getReorderAdminCatalogProductsUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(adminCatalogProductReorder)
+  }
+);}
+
+
+
+
+
+export const getReorderAdminCatalogProductsMutationKey = () => ['reorderAdminCatalogProducts'] as const;
+
+export const getReorderAdminCatalogProductsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reorderAdminCatalogProducts>>, TError,ReorderAdminCatalogProductsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reorderAdminCatalogProducts>>, TError,ReorderAdminCatalogProductsMutationVariables, TContext> => {
+
+const mutationKey = getReorderAdminCatalogProductsMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reorderAdminCatalogProducts>>, ReorderAdminCatalogProductsMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  reorderAdminCatalogProducts(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReorderAdminCatalogProductsMutationResult = NonNullable<Awaited<ReturnType<typeof reorderAdminCatalogProducts>>>
+    export type ReorderAdminCatalogProductsMutationBody = BodyType<AdminCatalogProductReorder>
+    export type ReorderAdminCatalogProductsMutationError = ErrorType<void>
+    export type ReorderAdminCatalogProductsMutationVariables = {data: BodyType<AdminCatalogProductReorder>}
+
+    /**
+ * @summary Reorder ordinary catalog products atomically
+ */
+export const useReorderAdminCatalogProducts = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reorderAdminCatalogProducts>>, TError,ReorderAdminCatalogProductsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reorderAdminCatalogProducts>>,
+        TError,
+        ReorderAdminCatalogProductsMutationVariables,
+        TContext
+      > => {
+      return useMutation(getReorderAdminCatalogProductsMutationOptions(options));
     }
 
 export const getUploadBookingCampaignImageUrl = (campaignId: string,

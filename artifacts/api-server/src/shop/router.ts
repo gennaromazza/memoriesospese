@@ -120,6 +120,9 @@ const adminStatusSchema = z.object({
 const adminNotesSchema = z.object({ note: z.string().max(2000) }).strict();
 const adminRejectPhotoSchema = z.object({ reason: z.string().trim().min(1).max(300) }).strict();
 const adminResendSchema = z.object({ kind: z.enum(SHOP_RESENDABLE_MAILS) });
+const reorderCatalogProductsSchema = z.object({
+  ids: z.array(z.string()).max(500),
+}).strict();
 
 const asciiName = (value: string) => value.replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^\.+/, '').slice(0, 120) || 'file';
 
@@ -277,6 +280,19 @@ export function createShopRouter(
     setSensitiveHeaders(res);
     const id = await deps.service.saveCatalogProduct(req.body, String(req.params.id));
     res.json({ id });
+  }));
+
+  router.delete('/admin/catalog-products/:id', auth, admin, handle(async (req, res) => {
+    setSensitiveHeaders(res);
+    await deps.service.deleteCatalogProduct(String(req.params.id));
+    res.json({ id: String(req.params.id) });
+  }));
+
+  router.put('/admin/catalog-products/reorder', auth, admin, handle(async (req, res) => {
+    setSensitiveHeaders(res);
+    const input = reorderCatalogProductsSchema.parse(req.body);
+    const updated = await deps.service.reorderCatalogProducts(input);
+    res.json({ updated });
   }));
 
   router.put('/admin/settings', auth, admin, handle(async (req, res) => {
