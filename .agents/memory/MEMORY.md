@@ -49,6 +49,7 @@
 - [Audience e collegamento Image Vision](image-vision-audience.md) — per gli sposi; film associati in automatico via galleria→job→Real Wedding, con estratto e link all'articolo.
 - [Passkey in Preview](passkey-preview-handoff.md) — non indebolire MFA in produzione: autorizzare la Preview con una verifica temporanea sul dominio WebAuthn ufficiale.
 - [QR passkey enrollment](device-passkey-enrollment.md) — il QR autorizza una sola credenziale; nei test di concorrenza sincronizzare le letture prima delle transazioni Firestore.
+- [Dispositivi admin ricordati](remembered-admin-devices.md) — fiducia esplicita per 30 giorni sui browser personali; passkey fresca per dispositivi nuovi e modifiche alla sicurezza.
 - [Lead separati dai lavori](jobs-list-leads-separation.md) — lead non firmati nella scheda Lead; conteggi e lista lavori restano dedicati ai lavori firmati.
 - [Studio settings as the source](studio-settings-source.md) — quote colors and studio footer come from saved Admin Studio settings, not template overrides or code fallbacks.
 - [Navigazione admin globale](admin-navigation-sidebar.md) — usare una sidebar condivisa in tutte le pagine admin, mantenendo invariati gruppi, destinazioni e permessi esistenti.
