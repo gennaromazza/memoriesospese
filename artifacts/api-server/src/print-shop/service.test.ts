@@ -2061,6 +2061,8 @@ describe('PrintShopService notifications and retention', () => {
     expect(send.mock.calls[0][2]).toContain('IMAGE STUDIO');
     expect(send.mock.calls[0][2]).toContain('#708594');
     expect(send.mock.calls[0][2]).toContain('PAGAMENTO CONFERMATO');
+    expect(send.mock.calls[0][2]).toContain('Totale pagato');
+    expect(send.mock.calls[0][2]).toContain('10,00');
     expect(db.value('orders/order_notify').notifications.paymentConfirmed.status).toBe('sent');
   });
 
@@ -2953,9 +2955,37 @@ describe('PrintShopService laboratory safety', () => {
 
     const archive = await service.archiveData('order_lab_files');
     expect(archive.assets.map(asset => asset.id)).toEqual(['asset_used']);
+    expect(archive.manifestJson).toEqual({
+      order: {
+        orderNumber: 'ST-2026-TEST0001',
+        assetCount: 1,
+        copyCount: 1,
+      },
+      rows: expect.arrayContaining([
+        expect.objectContaining({
+          orderNumber: 'ST-2026-TEST0001',
+          sku: expect.any(String),
+          assetId: 'asset_used',
+          copies: 1,
+        }),
+      ]),
+    });
+    const archiveManifestJson = JSON.stringify(archive.manifestJson);
+    expect(archiveManifestJson).not.toContain('customer');
+    expect(archiveManifestJson).not.toContain('Mario Rossi');
+    expect(archiveManifestJson).not.toContain(identity.email);
+    expect(archiveManifestJson).not.toContain('totals');
+    expect(archiveManifestJson).not.toContain('98765');
+    expect(archiveManifestJson).not.toContain('payment');
+    expect(archiveManifestJson).not.toContain('fulfillment');
     expect(archive.manifestHtml).toContain('Distinta di stampa');
     expect(archive.manifestHtml).not.toContain('987,65');
     expect(archive.manifestHtml).not.toContain('€');
+    const adminOrder = await service.adminOrder('order_lab_files');
+    expect(adminOrder).toMatchObject({
+      totals: { subtotalCents: 98765, totalCents: 98765 },
+      payment: { status: 'paid' },
+    });
     await service.transferLabShipment('shipment_files');
     expect(drive.createShipmentFolder.mock.calls[0][1]).toBe('ST-2026-TEST0001');
     expect(drive.createShipmentFolder.mock.calls[0][2]).toMatchObject({

@@ -4326,7 +4326,15 @@ export class PrintShopService {
         `Il file ordinato ${unavailableId} non è disponibile per l’archivio`,
       );
     }
-    const manifestJson = await this.manifest(orderId);
+    const productionManifest = await this.manifest(orderId);
+    const manifestJson = {
+      order: {
+        orderNumber: productionManifest.order.orderNumber,
+        assetCount: productionManifest.order.assetCount,
+        copyCount: productionManifest.order.copyCount,
+      },
+      rows: productionManifest.rows,
+    };
     const manifestHtml = await this.manifestHtml(orderId);
     const files: Array<{ asset: any; assignment: any; body?: Buffer; fileName: string; kind: 'original' | 'composed' }> = [];
     for (const item of order.printShop?.items || []) {
