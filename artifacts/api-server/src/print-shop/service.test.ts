@@ -3190,7 +3190,13 @@ describe('PrintShopService laboratory safety', () => {
     db.seed('orders/order_dpa', baseOrder({
       payment: { method: 'paypal', status: 'paid' },
       fulfillment: { method: 'studio_pickup', status: 'ready_to_print' },
-      printShop: { ...baseOrder().printShop, items: [snapshotItem(['asset_dpa'])] },
+      printShop: {
+        ...baseOrder().printShop,
+        items: [
+          snapshotItem(['asset_dpa']),
+          { ...snapshotItem(['asset_dpa']), sku: POLAROID_SKU },
+        ],
+      },
     }));
     db.seed('labs/lab_dpa', {
       nome: 'Lab senza accordo',
@@ -3226,11 +3232,13 @@ describe('PrintShopService laboratory safety', () => {
       dataProcessingAgreementSignedAt: Timestamp.now(),
       dataProcessingAgreementReference: 'DPA-COMPLETO',
     });
-    await expect(service.createLabShipment(
+    const created = await service.createLabShipment(
       'order_dpa',
       { labId: 'lab_dpa' },
       'admin@example.com',
-    )).resolves.toMatchObject({ labId: 'lab_dpa', reused: false });
+    );
+    expect(created).toMatchObject({ labId: 'lab_dpa', reused: false });
     expect(db.countCollection('labShipments')).toBe(1);
+    expect(created.transfer.total).toBe(2);
   });
 });

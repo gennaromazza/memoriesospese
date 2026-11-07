@@ -28,16 +28,24 @@ afterEach(async () => {
 
 async function harness() {
   const service: any = {
+    listLabShipments: vi.fn(async () => [{ id: 'shipment', transfer: { status: 'failed' } }]),
+    createLabShipment: vi.fn(async () => ({
+      id: 'shipment',
+      reused: false,
+      transfer: { status: 'pending' },
+    })),
     acceptDraftManually: vi.fn(async () => ({ fulfillment: { status: 'awaiting_payment' } })),
     authorizeDeferredPayment: vi.fn(async () => ({ payment: { status: 'deferred' } })),
     restoreDeferredCandidate: vi.fn(async () => ({ payment: { status: 'pending' } })),
     collectDeferredPayment: vi.fn(async () => ({ payment: { status: 'paid' } })),
     resendCustomerNotification: vi.fn(async () => ({ sent: true, skipped: false })),
   };
+  const scheduleBackground = vi.fn();
   const app = express();
   app.use(express.json());
   app.use('/api/print-shop', createPrintShopRouter({
     service, storage: {}, adminEmails: ['admin@example.test'],
+    scheduleBackground,
     authenticate(req: any, res, next) {
       const role = req.get('x-test-role');
       if (!role) { res.sendStatus(401); return; }
@@ -49,11 +57,14 @@ async function harness() {
   servers.push(server);
   await new Promise<void>(resolve => server.once('listening', resolve));
   const port = (server.address() as { port: number }).port;
-  return { service, post: (action: string, role: string | null, data: unknown) => fetch(
-    `http://127.0.0.1:${port}/api/print-shop/admin/orders/test/${action}`, {
+  const post = (path: string, role: string | null, data: unknown) => fetch(
+    `http://127.0.0.1:${port}/api/print-shop/admin/orders/test/${path}`, {
       method: 'POST', headers: { 'content-type': 'application/json', ...(role ? { 'x-test-role': role } : {}) },
       body: JSON.stringify(data),
     },
+  );
+  return { service, scheduleBackground, post, transfer: (shipmentId: string, role: string | null) => post(
+    `lab-shipments/${shipmentId}/transfer`, role, {},
   ) };
 }
 
@@ -116,5 +127,69 @@ describe('Deferred payment route boundaries', () => {
       'manual_acceptance',
       'admin@example.test',
     );
+  });
+});
+
+describe('Print shop lab transfer retry route', () => {
+  it('starts a new transfer once but does not requeue a reused transfer already in progress', async () => {
+    const h = await harness();
+    const created = await h.post('lab-shipments', 'admin', { labId: 'lab' });
+    expect(created.status).toBe(202);
+    expect(h.scheduleBackground).toHaveBeenCalledTimes(1);
+
+    const reused = await harness();
+    reused.service.createLabShipment.mockResolvedValue({
+      id: 'shipment',
+      reused: true,
+      transfer: { status: 'running' },
+    });
+    const response = await reused.post('lab-shipments', 'admin', { labId: 'lab' });
+    expect(response.status).toBe(202);
+    expect(reused.scheduleBackground).not.toHaveBeenCalled();
+  });
+
+  it('requeues a failed reused transfer for recovery', async () => {
+    const h = await harness();
+    h.service.createLabShipment.mockResolvedValue({
+      id: 'shipment',
+      reused: true,
+      transfer: { status: 'failed' },
+    });
+    expect((await h.post('lab-shipments', 'admin', { labId: 'lab' })).status).toBe(202);
+    expect(h.scheduleBackground).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['failed', 'partial'])('queues one safe retry for a %s transfer', async status => {
+    const h = await harness();
+    h.service.listLabShipments.mockResolvedValue([{ id: 'shipment', transfer: { status } }]);
+
+    const response = await h.transfer('shipment', 'admin');
+
+    expect(response.status).toBe(202);
+    expect(await response.json()).toMatchObject({ shipmentId: 'shipment', status: 'queued' });
+    expect(h.scheduleBackground).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['pending', 'running'])('does not queue another attempt while transfer is %s', async status => {
+    const h = await harness();
+    h.service.listLabShipments.mockResolvedValue([{ id: 'shipment', transfer: { status } }]);
+
+    const response = await h.transfer('shipment', 'admin');
+
+    expect(response.status).toBe(409);
+    expect(h.scheduleBackground).not.toHaveBeenCalled();
+  });
+
+  it('does not duplicate a completed transfer and rejects missing shipments', async () => {
+    const h = await harness();
+    h.service.listLabShipments.mockResolvedValue([{ id: 'shipment', transfer: { status: 'completed' } }]);
+    const complete = await h.transfer('shipment', 'admin');
+    expect(complete.status).toBe(200);
+    expect(await complete.json()).toMatchObject({ status: 'completed' });
+    expect(h.scheduleBackground).not.toHaveBeenCalled();
+
+    h.service.listLabShipments.mockResolvedValue([]);
+    expect((await h.transfer('missing', 'admin')).status).toBe(404);
+    expect(h.scheduleBackground).not.toHaveBeenCalled();
   });
 });

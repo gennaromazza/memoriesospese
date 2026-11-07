@@ -24,10 +24,11 @@ import { polaroidCropStyle } from '@/features/print-shop/polaroid-crop';
 import { printOrderPhone, printOrderWhatsAppLink } from '@shared/print-order-contact';
 import { getAllLabs } from '@/lib/labs';
 import { eligiblePrintShopLabs, isLabDpaSigned } from '@/features/print-shop/lab-dpa';
+import { labTransferDisplay } from '@/features/print-shop/lab-transfer-display';
 import { DeferredPaymentPanel } from './DeferredPaymentPanel';
 import { printPaymentAmounts, printPaymentStatusLabel, printPaymentStatusTone } from '@/features/print-shop/order-display';
 import { useToast } from '@/hooks/use-toast';
-import type { Lab, LabShipment } from '@shared/lab-types';
+import { LAB_SHIPMENT_STATUS_LABELS, type Lab, type LabShipment } from '@shared/lab-types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -347,6 +348,7 @@ export default function PrintShopOrdersManager() {
   const [selectedShipmentId, setSelectedShipmentId] = useState('');
   const [supplierCost, setSupplierCost] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [retryQueuedAt, setRetryQueuedAt] = useState<Record<string, number>>({});
 
   useEffect(() => {
     const handleNotificationNavigation = (event: Event) => {
@@ -394,11 +396,37 @@ export default function PrintShopOrdersManager() {
   const shipmentsQuery = useQuery<{ shipments: LabShipment[] }>({
     queryKey: ['/api/print-shop/admin/orders', selectedOrderId, 'lab-shipments'],
     enabled: !!selectedOrderId,
+    refetchInterval: (query) => {
+      const shipments = query.state.data?.shipments || [];
+      const hasActiveTransfer = shipments.some((shipment) =>
+        ['pending', 'running'].includes(shipment.transfer?.status || ''),
+      );
+      return hasActiveTransfer || Object.keys(retryQueuedAt).length > 0 ? 2_000 : false;
+    },
     queryFn: async () => {
       const response = await apiRequest('GET', `/api/print-shop/admin/orders/${selectedOrderId}/lab-shipments`);
       return response.json();
     },
   });
+
+  useEffect(() => {
+    const queuedIds = Object.keys(retryQueuedAt);
+    if (!queuedIds.length) return;
+    const shipments = shipmentsQuery.data?.shipments || [];
+    const now = Date.now();
+    const next = { ...retryQueuedAt };
+    for (const shipmentId of queuedIds) {
+      const shipment = shipments.find((entry) => entry.id === shipmentId);
+      const status = shipment?.transfer?.status;
+      const finishedAt = convertFirestoreTimestamp(shipment?.transfer?.finishedAt)?.getTime();
+      const attemptFailed = (status === 'failed' || status === 'partial') &&
+        typeof finishedAt === 'number' && finishedAt >= next[shipmentId];
+      if (status === 'running' || status === 'completed' || attemptFailed || now - next[shipmentId] >= 30_000) {
+        delete next[shipmentId];
+      }
+    }
+    if (Object.keys(next).length !== queuedIds.length) setRetryQueuedAt(next);
+  }, [retryQueuedAt, shipmentsQuery.data]);
 
   const labsQuery = useQuery<Lab[]>({
     queryKey: ['/api/labs', 'active'],
@@ -533,6 +561,35 @@ export default function PrintShopOrdersManager() {
       toast({ title: 'Ordine inviato al laboratorio', description: 'Il link è stato inviato e lo storico è aggiornato.' });
     },
     onError: (error: Error) => toast({ title: 'Invio non riuscito', description: error.message, variant: 'destructive' }),
+  });
+
+  const retryShipmentTransferMutation = useMutation({
+    mutationFn: async (shipmentId: string) => {
+      if (!selectedOrderId) throw new Error('Ordine non selezionato');
+      const response = await apiRequest(
+        'POST',
+        `/api/print-shop/admin/orders/${selectedOrderId}/lab-shipments/${shipmentId}/transfer`,
+        {},
+      );
+      return response.json() as Promise<{ shipmentId: string; status: string }>;
+    },
+    onSuccess: async (result, shipmentId) => {
+      if (result.status === 'queued') {
+        setRetryQueuedAt((current) => ({ ...current, [shipmentId]: Date.now() }));
+      }
+      await shipmentsQuery.refetch();
+      toast({
+        title: result.status === 'completed' ? 'Trasferimento già completato' : 'Nuovo tentativo avviato',
+        description: result.status === 'completed'
+          ? 'I file sono già disponibili nella cartella del laboratorio.'
+          : 'Controlla qui l’avanzamento; il pulsante si riattiverà solo dopo l’esito del tentativo.',
+      });
+    },
+    onError: (error: Error) => toast({
+      title: 'Nuovo tentativo non avviato',
+      description: error.message,
+      variant: 'destructive',
+    }),
   });
 
   const supplierCostMutation = useMutation({
@@ -850,13 +907,55 @@ export default function PrintShopOrdersManager() {
                 ) : (
                   <div className="space-y-2">
                     {shipments.map((shipment) => {
-                      const transferStatus = (shipment as LabShipment & { transfer?: { status?: string } }).transfer?.status || shipment.pageTransfer?.status;
-                      const canSend = transferStatus === 'completed';
+                      const transferData = shipment.transfer || shipment.pageTransfer;
+                      const transferView = labTransferDisplay(transferData ? {
+                        status: transferData.status,
+                        total: transferData.total,
+                        transferred: transferData.transferred,
+                        lastError: shipment.transfer?.lastError || shipment.pageTransfer?.error,
+                        failed: transferData.failed,
+                      } : undefined);
+                      const retryPending = !!retryQueuedAt[shipment.id];
+                      const retryBusy = retryShipmentTransferMutation.isPending &&
+                        retryShipmentTransferMutation.variables === shipment.id;
+                      const canSend = shipment.transfer?.status === 'completed';
                       return (
                         <div key={shipment.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3 text-sm">
-                          <div>
+                          <div className="min-w-0 flex-1">
                             <p className="font-medium">{shipment.labNome || 'Laboratorio da assegnare'}</p>
-                            <p className="text-stone-500">{shipment.status} · trasferimento {transferStatus || 'preparato'}</p>
+                            <p className="text-stone-500">{LAB_SHIPMENT_STATUS_LABELS[shipment.status]}</p>
+                            <p className="mt-1 font-medium text-stone-800">
+                              {retryPending ? 'Nuovo tentativo in attesa di avvio' : transferView.label}
+                            </p>
+                            {transferData && (
+                              <div className="mt-2 max-w-md">
+                                <div className="mb-1 flex items-center justify-between gap-3 text-xs text-stone-600">
+                                  <span>{transferView.transferred} di {transferView.total} file trasferiti</span>
+                                  <span>{transferView.percent}%</span>
+                                </div>
+                                <div
+                                  role="progressbar"
+                                  aria-label={`Avanzamento trasferimento per ${shipment.labNome || 'il laboratorio'}`}
+                                  aria-valuemin={0}
+                                  aria-valuemax={100}
+                                  aria-valuenow={transferView.percent}
+                                  className="h-2 overflow-hidden rounded-full bg-stone-200"
+                                >
+                                  <div
+                                    className={`h-full rounded-full transition-[width] ${
+                                      transferView.error ? 'bg-red-500' :
+                                        transferView.percent === 100 ? 'bg-emerald-600' : 'bg-sky-600'
+                                    }`}
+                                    style={{ width: `${transferView.percent}%` }}
+                                  />
+                                </div>
+                              </div>
+                            )}
+                            {transferView.error && (
+                              <p className="mt-2 break-words text-xs text-red-700" role="alert">
+                                Dettaglio: {transferView.error}
+                              </p>
+                            )}
                             <p className="mt-1 text-xs text-stone-500">Costo: {typeof shipment.costoImporto === 'number' ? new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(shipment.costoImporto) : 'da inserire'}</p>
                           </div>
                           <div className="flex flex-wrap gap-2">
@@ -867,8 +966,21 @@ export default function PrintShopOrdersManager() {
                             }}>
                               <WalletCards className="mr-2 h-4 w-4" />Costo
                             </Button>
+                            {transferView.canRetry && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={retryPending || retryBusy || retryShipmentTransferMutation.isPending}
+                                onClick={() => retryShipmentTransferMutation.mutate(shipment.id)}
+                              >
+                                {retryBusy || retryPending
+                                  ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  : <RefreshCw className="mr-2 h-4 w-4" />}
+                                {retryPending ? 'Tentativo in avvio' : 'Riprova trasferimento'}
+                              </Button>
+                            )}
                             {shipment.status === 'da_inviare' && (
-                              <Button size="sm" disabled={!canSend || sendShipmentMutation.isPending} onClick={() => sendShipmentMutation.mutate(shipment.id)}>
+                              <Button size="sm" disabled={!canSend || retryPending || sendShipmentMutation.isPending} onClick={() => sendShipmentMutation.mutate(shipment.id)}>
                                 <Send className="mr-2 h-4 w-4" />Invia link
                               </Button>
                             )}

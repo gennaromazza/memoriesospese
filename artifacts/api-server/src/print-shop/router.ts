@@ -715,7 +715,11 @@ export function createPrintShopRouter(
       input,
       req.user.email,
     );
-    if (shipment.transfer?.status !== 'completed') {
+    const transferStatus = shipment.transfer?.status;
+    const isFirstTransfer = !shipment.reused && transferStatus !== 'completed';
+    const isRetryableReusedTransfer = shipment.reused &&
+      (transferStatus === 'failed' || transferStatus === 'partial');
+    if (isFirstTransfer || isRetryableReusedTransfer) {
       deps.scheduleBackground(() => deps.service.transferLabShipment(shipment.id));
     }
     res.status(202).json({
@@ -727,8 +731,20 @@ export function createPrintShopRouter(
 
   router.post('/admin/orders/:orderId/lab-shipments/:shipmentId/transfer', auth, admin, route(async (req, res) => {
     const shipments = await deps.service.listLabShipments(req.params.orderId);
-    if (!shipments.some(shipment => shipment.id === req.params.shipmentId)) {
+    const shipment = shipments.find((entry: any) => entry.id === req.params.shipmentId);
+    if (!shipment) {
       throw new PrintShopHttpError(404, 'shipment_not_found', 'Spedizione non trovata');
+    }
+    const status = shipment.transfer?.status;
+    if (status === 'running' || status === 'pending') {
+      throw new PrintShopHttpError(409, 'transfer_running', 'Il trasferimento è già in attesa o in corso');
+    }
+    if (status === 'completed') {
+      res.json({ shipmentId: req.params.shipmentId, status: 'completed' });
+      return;
+    }
+    if (status !== 'failed' && status !== 'partial') {
+      throw new PrintShopHttpError(409, 'transfer_not_retryable', 'Questo trasferimento non può essere ripetuto nello stato attuale');
     }
     deps.scheduleBackground(() => deps.service.transferLabShipment(req.params.shipmentId));
     res.status(202).json({ shipmentId: req.params.shipmentId, status: 'queued' });

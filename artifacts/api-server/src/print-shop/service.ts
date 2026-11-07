@@ -4442,7 +4442,7 @@ export class PrintShopService {
         expiresAt,
         transfer: {
           status: 'pending',
-          total: referencedIds.length,
+          total: printShopTransferEntryKeys(freshOrder.printShop?.items || []).length,
           transferred: 0,
           failed: [],
         },
@@ -4604,6 +4604,11 @@ export class PrintShopService {
           assignment: { ...assignment, sku: item.sku },
         })),
       );
+      const transferTotal = new Set(transferEntries.map((entry: any) =>
+        `${entry.asset?.id || entry.assignment.assetId}:${isComposedSku(entry.assignment.sku)
+          ? JSON.stringify(entry.assignment.composition || {})
+          : 'original'}`,
+      )).size;
       for (const [index, entry] of transferEntries.entries()) {
         const asset = entry.asset;
         const assignment = entry.assignment;
@@ -4664,8 +4669,8 @@ export class PrintShopService {
           driveFolderId: folderId,
           shareableLink: shareableLink || null,
           'transfer.status': 'completed',
-          'transfer.total': transferEntries.length,
-          'transfer.transferred': transferEntries.length,
+          'transfer.total': transferTotal,
+          'transfer.transferred': transferTotal,
           'transfer.failed': [],
           'transfer.finishedAt': finishedAt,
           'transfer.heartbeatAt': finishedAt,
@@ -6374,6 +6379,16 @@ function compatibilityProducts(items: readonly PrintOrderItemSnapshot[]): any[] 
 
 function isComposedSku(sku: unknown): boolean {
   return String(sku || '').trim().toUpperCase() === POLAROID_SKU;
+}
+
+function printShopTransferEntryKeys(items: any[]): string[] {
+  return [...new Set(items.flatMap((item: any) =>
+    (item.assignments || []).map((assignment: any) =>
+      `${assignment.assetId}:${isComposedSku(item.sku)
+        ? JSON.stringify(assignment.composition || {})
+        : 'original'}`,
+    ),
+  ))];
 }
 
 function findOrderAssignment(order: any, assetId: string): any | undefined {
