@@ -2476,15 +2476,46 @@ describe('PrintShopService privacy, quotas and abuse guardrails', () => {
   it('creates a self-contained HTML manifest readable in a browser', async () => {
     const { db, service } = createService();
     db.seed('orders/order_html', baseOrder({
-      printShop: { ...baseOrder().printShop, items: [snapshotItem(['asset_html'])] },
+      totals: { subtotalCents: 12345, discountCents: 0, totalCents: 12345 },
+      payment: { method: 'paypal', status: 'paid' },
+      printShop: {
+        ...baseOrder().printShop,
+        assetCount: 1,
+        copyCount: 3,
+        items: [{
+          ...snapshotItem(['asset_html']),
+          assignments: [{ assetId: 'asset_html', copies: 3 }],
+          copyCount: 3,
+        }],
+      },
     }));
-    seedReadyAsset(db, 'order_html', 'asset_html', { originalName: '<foto & prova>.jpg' });
+    seedReadyAsset(db, 'order_html', 'asset_html', {
+      originalName: '<foto & prova>.jpg',
+      widthPx: 2400,
+      heightPx: 3600,
+    });
     const html = await service.manifestHtml('order_html');
     expect(html).toContain('<!doctype html>');
     expect(html).toContain('Distinta di stampa');
+    expect(html).toContain('Ordine ST-2026-TEST0001');
     expect(html).toContain('&lt;foto &amp; prova&gt;.jpg');
+    expect(html).toContain('Formato');
+    expect(html).toContain('Opaca');
     expect(html).toContain('Foto intera con bordo bianco');
+    expect(html).toContain('class="copies">3</td>');
+    expect(html).toContain('2400 × 3600 px');
+    expect(html).not.toContain('Totale ordine');
+    expect(html).not.toContain('123,45');
+    expect(html).not.toContain('€');
     expect(html).not.toContain('<foto & prova>');
+
+    expect(await service.adminOrders()).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'order_html',
+        totals: { subtotalCents: 12345, discountCents: 0, totalCents: 12345 },
+        payment: expect.objectContaining({ status: 'paid' }),
+      }),
+    ]));
   });
 
   it('hides admin-deleted orders while retaining paid financial records', async () => {
@@ -2882,6 +2913,7 @@ describe('PrintShopService laboratory safety', () => {
     };
     const { db, storage, service } = createService({ drive });
     db.seed('orders/order_lab_files', baseOrder({
+      totals: { subtotalCents: 98765, discountCents: 0, totalCents: 98765 },
       payment: { method: 'paypal', status: 'paid' },
       fulfillment: { method: 'studio_pickup', status: 'ready_to_print' },
       printShop: {
@@ -2922,6 +2954,8 @@ describe('PrintShopService laboratory safety', () => {
     const archive = await service.archiveData('order_lab_files');
     expect(archive.assets.map(asset => asset.id)).toEqual(['asset_used']);
     expect(archive.manifestHtml).toContain('Distinta di stampa');
+    expect(archive.manifestHtml).not.toContain('987,65');
+    expect(archive.manifestHtml).not.toContain('€');
     await service.transferLabShipment('shipment_files');
     expect(drive.createShipmentFolder.mock.calls[0][1]).toBe('ST-2026-TEST0001');
     expect(drive.createShipmentFolder.mock.calls[0][2]).toMatchObject({
@@ -2929,7 +2963,11 @@ describe('PrintShopService laboratory safety', () => {
     });
     expect(db.value('labShipments/shipment_files').expiresAt).toBeTruthy();
     expect(uploads).toHaveLength(2);
-    expect(uploads.some(upload => upload.name.endsWith('-distinta.html'))).toBe(true);
+    const uploadedManifest = uploads.find(upload => upload.name.endsWith('-distinta.html'));
+    expect(uploadedManifest).toBeDefined();
+    expect(uploadedManifest!.body.toString('utf8')).toContain('Distinta di stampa');
+    expect(uploadedManifest!.body.toString('utf8')).not.toContain('987,65');
+    expect(uploadedManifest!.body.toString('utf8')).not.toContain('€');
     expect(uploads.some(upload => upload.name.includes('asset_used'))).toBe(true);
     expect(uploads.some(upload => upload.name.includes('asset_unused'))).toBe(false);
     expect(db.value('labShipments/shipment_files').files
