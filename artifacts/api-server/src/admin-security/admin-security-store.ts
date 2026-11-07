@@ -18,6 +18,7 @@ export const LOCKOUT_MS = 15 * 60 * 1000;
 export const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 export const RECOVERY_CODE_COUNT = 8;
 export const DEVICE_ENROLLMENT_RETENTION_MS = 24 * 60 * 60 * 1000;
+export const REMEMBERED_DEVICE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 export type ChallengeKind = 'registration' | 'authentication';
 
@@ -92,12 +93,23 @@ export interface RecoveryCodeRecord {
 export interface AdminSecurityState {
   passkeyRequired: boolean;
   verificationsValidAfter: number;
+  rememberedDevicesValidAfter: number;
   failedAttempts: number;
   lockedUntil: number | null;
   challenge: PendingChallenge | null;
   activationProof: ActivationProof | null;
   recoveryCodes: RecoveryCodeRecord[];
   recoveryCodesGeneratedAt: number | null;
+}
+
+export interface RememberedDevice {
+  id: string;
+  label: string;
+  secretHash: string;
+  createdAt: number;
+  expiresAt: number;
+  lastUsedAt: number | null;
+  revokedAt: number | null;
 }
 
 export interface StoredPasskey {
@@ -135,6 +147,7 @@ const COLLECTION = 'adminSecurity';
 const defaultState = (): AdminSecurityState => ({
   passkeyRequired: false,
   verificationsValidAfter: 0,
+  rememberedDevicesValidAfter: 0,
   failedAttempts: 0,
   lockedUntil: null,
   challenge: null,
@@ -155,6 +168,10 @@ function deviceEnrollmentDoc(uid: string, enrollmentId: string) {
   return stateDoc(uid).collection('deviceEnrollments').doc(enrollmentId);
 }
 
+function rememberedDeviceDoc(uid: string, deviceId: string) {
+  return stateDoc(uid).collection('rememberedDevices').doc(deviceId);
+}
+
 function normalizeState(data: FirebaseFirestore.DocumentData | undefined): AdminSecurityState {
   const base = defaultState();
   if (!data) return base;
@@ -162,6 +179,8 @@ function normalizeState(data: FirebaseFirestore.DocumentData | undefined): Admin
     passkeyRequired: data.passkeyRequired === true,
     verificationsValidAfter:
       typeof data.verificationsValidAfter === 'number' ? data.verificationsValidAfter : 0,
+    rememberedDevicesValidAfter:
+      typeof data.rememberedDevicesValidAfter === 'number' ? data.rememberedDevicesValidAfter : 0,
     failedAttempts: typeof data.failedAttempts === 'number' ? data.failedAttempts : 0,
     lockedUntil: typeof data.lockedUntil === 'number' ? data.lockedUntil : null,
     challenge:
@@ -199,6 +218,7 @@ export async function loadState(uid: string): Promise<AdminSecurityState> {
 export interface GuardSnapshot {
   passkeyRequired: boolean;
   verificationsValidAfter: number;
+  rememberedDevicesValidAfter: number;
 }
 
 export async function loadGuardSnapshot(uid: string, _now = Date.now()): Promise<GuardSnapshot> {
@@ -206,6 +226,7 @@ export async function loadGuardSnapshot(uid: string, _now = Date.now()): Promise
   return {
     passkeyRequired: state.passkeyRequired,
     verificationsValidAfter: state.verificationsValidAfter,
+    rememberedDevicesValidAfter: state.rememberedDevicesValidAfter,
   };
 }
 
@@ -252,6 +273,66 @@ export async function consumeRecoveryCode(uid: string, hash: string, now: number
 
 export async function updateState(uid: string, patch: Partial<AdminSecurityState>): Promise<void> {
   await stateDoc(uid).set({ ...patch, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+}
+
+export async function createRememberedDevice(
+  uid: string,
+  device: RememberedDevice,
+): Promise<void> {
+  const { id, ...data } = device;
+  await rememberedDeviceDoc(uid, id).set(data);
+}
+
+export async function getRememberedDevice(
+  uid: string,
+  deviceId: string,
+): Promise<RememberedDevice | null> {
+  const snap = await rememberedDeviceDoc(uid, deviceId).get();
+  if (!snap.exists) return null;
+  return { id: snap.id, ...(snap.data() as Omit<RememberedDevice, 'id'>) };
+}
+
+export async function listRememberedDevices(uid: string): Promise<RememberedDevice[]> {
+  const snap = await stateDoc(uid).collection('rememberedDevices').get();
+  return snap.docs
+    .map((document) => ({ id: document.id, ...(document.data() as Omit<RememberedDevice, 'id'>) }))
+    .sort((a, b) => b.createdAt - a.createdAt);
+}
+
+export async function touchRememberedDevice(
+  uid: string,
+  deviceId: string,
+  now: number,
+): Promise<boolean> {
+  return db.runTransaction(async (tx) => {
+    const ref = rememberedDeviceDoc(uid, deviceId);
+    const snap = await tx.get(ref);
+    if (!snap.exists) return false;
+    const device = snap.data() as Omit<RememberedDevice, 'id'>;
+    if (device.revokedAt !== null || device.expiresAt <= now) return false;
+    tx.set(ref, { lastUsedAt: now }, { merge: true });
+    return true;
+  });
+}
+
+export async function revokeRememberedDevice(
+  uid: string,
+  deviceId: string,
+  now: number,
+): Promise<boolean> {
+  return db.runTransaction(async (tx) => {
+    const ref = rememberedDeviceDoc(uid, deviceId);
+    const snap = await tx.get(ref);
+    if (!snap.exists) return false;
+    const device = snap.data() as Omit<RememberedDevice, 'id'>;
+    if (device.revokedAt !== null) return true;
+    tx.set(ref, { revokedAt: now }, { merge: true });
+    return true;
+  });
+}
+
+export async function revokeAllRememberedDevices(uid: string, now: number): Promise<void> {
+  await updateState(uid, { rememberedDevicesValidAfter: now + 1 });
 }
 
 export async function createDesktopHandoff(

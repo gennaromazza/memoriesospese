@@ -32,12 +32,18 @@ import {
   finishDesktopHandoffAuthentication,
   finishRegistration,
   finalizeDesktopHandoff,
+  forgetAllRememberedDevices,
+  forgetRememberedDevice,
   getCurrentPasskeyClaim,
   getDeviceEnrollmentApprovalInfo,
   getDeviceEnrollmentStatus,
+  hasFreshPasskeyProof,
+  listRememberedDeviceSummaries,
   redeemRecoveryCode,
+  rememberVerifiedDevice,
   regenerateRecoveryCodes,
   rejectDeviceEnrollment,
+  restoreRememberedDevice,
   revokePasskey,
   setEnforcement,
   startAuthentication,
@@ -59,6 +65,9 @@ const router = express.Router();
 const handoffIdSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
 const deviceEnrollmentIdSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
 const verifierSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
+const rememberedDeviceIdSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
+const REMEMBERED_DEVICE_COOKIE = '__Host-admin-device';
+const REMEMBERED_DEVICE_COOKIE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
 const verifierHashSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
 // Queste route servono a ottenere la verifica: il gate centrale di
 // `authenticateFirebase` non deve bloccarle.
@@ -105,6 +114,35 @@ function handoffVerifierMatches(expectedHash: string, verifier: string): boolean
   return expected.length === actualBytes.length && timingSafeEqual(expected, actualBytes);
 }
 
+function readRememberedDeviceCookie(req: Request): string | undefined {
+  const cookieHeader = req.headers.cookie;
+  if (!cookieHeader) return undefined;
+  for (const entry of cookieHeader.split(';')) {
+    const separator = entry.indexOf('=');
+    if (separator < 0 || entry.slice(0, separator).trim() !== REMEMBERED_DEVICE_COOKIE) continue;
+    try {
+      return decodeURIComponent(entry.slice(separator + 1).trim());
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
+function setRememberedDeviceCookie(res: Response, value: string) {
+  res.setHeader(
+    'Set-Cookie',
+    `${REMEMBERED_DEVICE_COOKIE}=${encodeURIComponent(value)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${REMEMBERED_DEVICE_COOKIE_MAX_AGE_SECONDS}`,
+  );
+}
+
+function clearRememberedDeviceCookie(res: Response) {
+  res.setHeader(
+    'Set-Cookie',
+    `${REMEMBERED_DEVICE_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`,
+  );
+}
+
 function desktopHandoffClaim(req: Request): { id: string; nonce: string } | null {
   const user = (req as any).user as AuthenticatedUser;
   const claim = user.claims?.adminDesktopHandoff;
@@ -147,10 +185,16 @@ const deviceEnrollmentRegistrationVerifySchema = z.object({
  */
 async function requireVerifiedWhenEnforced(req: Request, res: Response, next: NextFunction) {
   try {
-    const evaluation = await evaluateAdminPasskey((req as any).user as AuthenticatedUser);
-    if (evaluation.passkeyRequired && !evaluation.verified) {      res.status(403).json({
-        error: 'Verifica passkey richiesta per modificare le impostazioni di sicurezza',
-        code: ADMIN_PASSKEY_REQUIRED_CODE,
+    const user = (req as any).user as AuthenticatedUser;
+    const state = await loadState(user.uid);
+    const passkeys = await listPasskeys(user.uid);
+    if (!state.passkeyRequired && passkeys.length === 0) return next();
+    const identity = identityOf(req, res);
+    if (!identity) return;
+    if (!hasFreshPasskeyProof(state, identity, readAdminPasskeyClaim(user.claims), req.headers.origin)) {
+      res.status(403).json({
+        error: 'Verifica di nuovo la passkey prima di modificare le impostazioni di sicurezza',
+        code: 'fresh_passkey_required',
       });
       return;
     }
@@ -166,10 +210,13 @@ async function requireVerifiedForAdditionalPasskey(req: Request, res: Response, 
     const user = (req as any).user as AuthenticatedUser;
     const existing = await listPasskeys(user.uid);
     if (existing.length === 0) return next();
-    const evaluation = await evaluateAdminPasskey(user);
-    if (!evaluation.verified) {      res.status(403).json({
-        error: 'Verifica la passkey esistente prima di aggiungerne un’altra',
-        code: ADMIN_PASSKEY_REQUIRED_CODE,
+    const state = await loadState(user.uid);
+    const identity = identityOf(req, res);
+    if (!identity) return;
+    if (!hasFreshPasskeyProof(state, identity, readAdminPasskeyClaim(user.claims), req.headers.origin)) {
+      res.status(403).json({
+        error: 'Verifica di nuovo una passkey esistente prima di aggiungerne un’altra',
+        code: 'fresh_passkey_required',
       });
       return;
     }
@@ -192,18 +239,86 @@ router.get('/status', async (req, res) => {
     const user = (req as any).user as AuthenticatedUser;
     const identity = identityOf(req, res);
     if (!identity) return;
-    const [summary, evaluation, expectedClaim] = await Promise.all([
+    const [summary, evaluation, expectedClaim, rememberedDevices] = await Promise.all([
       describeSecurity(user.uid, identity, readAdminPasskeyClaim(user.claims), statusOrigin(req)),
       evaluateAdminPasskey(user),
       getCurrentPasskeyClaim(user.uid),
+      listRememberedDeviceSummaries(user.uid),
     ]);
     res.json({
       ...summary,
       activationReady: summary.activationReady && evaluation.verified,
       verified: evaluation.verified,
       verifiedUntil: evaluation.verifiedUntil,
+      rememberedDeviceId: evaluation.rememberedDeviceId,
+      rememberedDevices,
       expectedClaim,
     });
+  } catch (error) {
+    handleError(error, req, res);
+  }
+});
+
+router.post('/devices/restore', async (req, res) => {
+  const rp = relyingPartyOf(req, res);
+  if (!rp) return;
+  if (!isProductionPasskeyOrigin(rp.origin)) {
+    res.status(400).json({ error: 'La fiducia dispositivo è disponibile solo sul sito ufficiale', code: 'origin_not_allowed' });
+    return;
+  }
+  const identity = identityOf(req, res);
+  if (!identity) return;
+  try {
+    const result = await restoreRememberedDevice(
+      identity,
+      readRememberedDeviceCookie(req),
+      (req as any).user?.claims,
+    );
+    if (!result.valid) {
+      if (readRememberedDeviceCookie(req)) clearRememberedDeviceCookie(res);
+      res.json({ restored: false });
+      return;
+    }
+    res.json({
+      restored: true,
+      deviceId: result.id,
+      expiresAt: result.expiresAt,
+      ...(result.customToken ? { customToken: result.customToken } : {}),
+    });
+  } catch (error) {
+    handleError(error, req, res);
+  }
+});
+
+router.delete('/devices/:deviceId', requireVerifiedWhenEnforced, async (req, res) => {
+  const deviceId = rememberedDeviceIdSchema.safeParse(req.params.deviceId);
+  if (!deviceId.success) {
+    res.status(404).json({ error: 'Dispositivo non trovato', code: 'remembered_device_not_found' });
+    return;
+  }
+  const identity = identityOf(req, res);
+  if (!identity) return;
+  try {
+    const revoked = await forgetRememberedDevice(identity.uid, deviceId.data);
+    if (!revoked) {
+      res.status(404).json({ error: 'Dispositivo non trovato', code: 'remembered_device_not_found' });
+      return;
+    }
+    const cookie = readRememberedDeviceCookie(req);
+    if (cookie?.startsWith(`${deviceId.data}.`)) clearRememberedDeviceCookie(res);
+    res.json({ success: true });
+  } catch (error) {
+    handleError(error, req, res);
+  }
+});
+
+router.post('/devices/revoke-all', requireVerifiedWhenEnforced, async (req, res) => {
+  const identity = identityOf(req, res);
+  if (!identity) return;
+  try {
+    await forgetAllRememberedDevices(identity.uid);
+    clearRememberedDeviceCookie(res);
+    res.json({ success: true });
   } catch (error) {
     handleError(error, req, res);
   }
@@ -304,7 +419,7 @@ router.post('/device-enrollment/:enrollmentId/cancel', async (req, res) => {
   }
 });
 
-router.post('/device-enrollment/:enrollmentId/reject', async (req, res) => {
+router.post('/device-enrollment/:enrollmentId/reject', requireVerifiedWhenEnforced, async (req, res) => {
   const enrollmentId = deviceEnrollmentIdOf(req, res);
   if (!enrollmentId) return;
   const rp = relyingPartyOf(req, res);
@@ -662,6 +777,8 @@ router.post('/authentication/options', async (req, res) => {
 
 const authenticationVerifySchema = z.object({
   response: z.object({ id: z.string().min(1) }).passthrough(),
+  rememberDevice: z.boolean().optional().default(false),
+  deviceLabel: z.string().trim().max(60).optional().default(''),
 });
 
 router.post('/authentication/verify', async (req, res) => {
@@ -675,7 +792,23 @@ router.post('/authentication/verify', async (req, res) => {
   if (!identity) return;
   try {
     const claim = await finishAuthentication(identity, rp, parsed.data.response as any);
-    res.json({ verifiedUntil: claim.exp, expectedClaim: claim });
+    if (!parsed.data.rememberDevice) {
+      res.json({ verifiedUntil: claim.exp, expectedClaim: claim });
+      return;
+    }
+    const remembered = await rememberVerifiedDevice(
+      identity,
+      claim,
+      rp.origin,
+      parsed.data.deviceLabel,
+    );
+    setRememberedDeviceCookie(res, remembered.cookieValue);
+    res.json({
+      verifiedUntil: claim.exp,
+      expectedClaim: claim,
+      rememberedDevice: { id: remembered.id, expiresAt: remembered.expiresAt },
+      customToken: remembered.customToken,
+    });
   } catch (error) {
     handleError(error, req, res);
   }

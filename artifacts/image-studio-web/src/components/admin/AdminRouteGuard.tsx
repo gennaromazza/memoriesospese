@@ -10,7 +10,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocation } from 'wouter';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { signOut } from 'firebase/auth';
+import { onIdTokenChanged, signOut } from 'firebase/auth';
 import { Fingerprint, KeyRound, LogOut, QrCode, RefreshCw, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { auth } from '@/lib/firebase';
@@ -65,7 +65,19 @@ function Spinner({ label }: { label: string }) {
 export function AdminRouteGuard({ children }: { children: ReactNode }) {
   const { user, isLoading: authLoading, isAdmin } = useFirebaseAuth();
   const [location, navigate] = useLocation();
-  const status = useAdminSecurityStatus(!authLoading && !!user && isAdmin);
+  const [deviceTrustCheck, setDeviceTrustCheck] = useState<{
+    uid: string;
+    state: 'checking' | 'ready' | 'error';
+    error?: string;
+  } | null>(null);
+  const trustRestoreInFlight = useRef(false);
+  const status = useAdminSecurityStatus(
+    !authLoading &&
+      !!user &&
+      isAdmin &&
+      deviceTrustCheck?.uid === user.uid &&
+      deviceTrustCheck.state === 'ready',
+  );
   const desktopHandoffId = new URLSearchParams(window.location.search).get('desktopHandoff');
   const validDesktopHandoff =
     typeof desktopHandoffId === 'string' && /^[A-Za-z0-9_-]{43}$/.test(desktopHandoffId);
@@ -74,6 +86,39 @@ export function AdminRouteGuard({ children }: { children: ReactNode }) {
     location === '/admin/authorize-device' &&
     typeof deviceEnrollmentId === 'string' &&
     /^[A-Za-z0-9_-]{43}$/.test(deviceEnrollmentId);
+
+  useEffect(() => {
+    if (authLoading || !user || !isAdmin) {
+      setDeviceTrustCheck(null);
+      return;
+    }
+    const uid = user.uid;
+    let active = true;
+    setDeviceTrustCheck({ uid, state: 'checking' });
+    const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
+      if (!active || !firebaseUser || firebaseUser.uid !== uid || trustRestoreInFlight.current) return;
+      trustRestoreInFlight.current = true;
+      setDeviceTrustCheck({ uid, state: 'checking' });
+      try {
+        await AdminPasskeyClient.restoreRememberedDevice();
+        if (active) setDeviceTrustCheck({ uid, state: 'ready' });
+      } catch (error) {
+        if (active) {
+          setDeviceTrustCheck({
+            uid,
+            state: 'error',
+            error: error instanceof Error ? error.message : 'Ripristino del dispositivo non riuscito.',
+          });
+        }
+      } finally {
+        trustRestoreInFlight.current = false;
+      }
+    });
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [authLoading, user?.uid, isAdmin]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -100,6 +145,28 @@ export function AdminRouteGuard({ children }: { children: ReactNode }) {
 
   if (authLoading || !user || !isAdmin) {
     return <Spinner label="Verifica autenticazione..." />;
+  }
+
+  if (deviceTrustCheck?.uid !== user.uid || deviceTrustCheck.state === 'checking') {
+    return <Spinner label="Controllo del dispositivo personale..." />;
+  }
+
+  if (deviceTrustCheck.state === 'error') {
+    return (
+      <StatusUnavailable
+        message={deviceTrustCheck.error ?? 'Ripristino del dispositivo non riuscito.'}
+        onRetry={() => {
+          setDeviceTrustCheck({ uid: user.uid, state: 'checking' });
+          void AdminPasskeyClient.restoreRememberedDevice()
+            .then(() => setDeviceTrustCheck({ uid: user.uid, state: 'ready' }))
+            .catch((error) => setDeviceTrustCheck({
+              uid: user.uid,
+              state: 'error',
+              error: error instanceof Error ? error.message : 'Ripristino del dispositivo non riuscito.',
+            }));
+        }}
+      />
+    );
   }
 
   if (status.isPending) {
@@ -468,6 +535,8 @@ export function AdminPasskeyVerification({ status }: { status: AdminSecurityStat
   const previewHandoffDeadline = useRef<number | null>(null);
   const [startingPreviewHandoff, setStartingPreviewHandoff] = useState(false);
   const [previewHandoffError, setPreviewHandoffError] = useState<string | null>(null);
+  const [rememberThisDevice, setRememberThisDevice] = useState(false);
+  const [rememberDeviceLabel, setRememberDeviceLabel] = useState('Browser personale');
   const supportsPasskeys = AdminPasskeyClient.supportsPasskeys();
   const locked = isAdminPasskeyLocked(status);
   const hostname = window.location.hostname.toLowerCase();
@@ -757,15 +826,49 @@ export function AdminPasskeyVerification({ status }: { status: AdminSecurityStat
               />
 
               {hasPasskeyForCurrentRp && (
-                <Button
-                  className="w-full"
-                  disabled={busy || needsSessionRefresh || locked || !supportsPasskeys}
-                  onClick={() => void finish(() => AdminPasskeyClient.verify())}
-                  data-testid="button-verify-passkey"
-                >
-                  <ShieldCheck className="h-4 w-4 mr-2" />
-                  {busy ? 'Verifica in corso…' : 'Verifica con passkey'}
-                </Button>
+                <>
+                  {status.passkeyRequired && currentRpId === 'imagestudiofotografico.com' && (
+                    <div className="rounded-md border border-sage/30 bg-sage/5 p-3 space-y-2">
+                      <label className="flex items-start gap-2 text-sm text-charcoal">
+                        <input
+                          type="checkbox"
+                          checked={rememberThisDevice}
+                          onChange={(event) => setRememberThisDevice(event.target.checked)}
+                          data-testid="checkbox-remember-device"
+                        />
+                        <span>
+                          Ricorda questo dispositivo per 30 giorni
+                          <span className="block text-xs text-blue-gray">
+                            Attivalo solo su un browser personale, mai su un computer condiviso.
+                          </span>
+                        </span>
+                      </label>
+                      {rememberThisDevice && (
+                        <Input
+                          value={rememberDeviceLabel}
+                          onChange={(event) => setRememberDeviceLabel(event.target.value)}
+                          placeholder="Nome del dispositivo"
+                          maxLength={60}
+                          aria-label="Nome del browser personale"
+                          data-testid="input-remember-device-label"
+                        />
+                      )}
+                    </div>
+                  )}
+                  <Button
+                    className="w-full"
+                    disabled={busy || needsSessionRefresh || locked || !supportsPasskeys || (rememberThisDevice && !rememberDeviceLabel.trim())}
+                    onClick={() => void finish(() => AdminPasskeyClient.verify(
+                      rememberThisDevice
+                        ? { rememberDevice: true, deviceLabel: rememberDeviceLabel.trim() }
+                        : undefined,
+                    ))}
+                    data-testid="button-verify-passkey"
+                  >
+                    <ShieldCheck className="h-4 w-4 mr-2" />
+                    {busy ? 'Verifica in corso…' : 'Verifica con passkey'}
+                  </Button>
+                </>
               )}
               <Button
                 variant="ghost"

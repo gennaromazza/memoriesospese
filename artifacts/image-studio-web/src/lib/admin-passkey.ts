@@ -32,6 +32,8 @@ export interface AdminPasskeySummary {
 export interface AdminSecurityStatus {
   passkeyRequired: boolean;
   passkeys: AdminPasskeySummary[];
+  rememberedDevices: RememberedDeviceSummary[];
+  rememberedDeviceId: string | null;
   recoveryCodesRemaining: number;
   recoveryCodesGeneratedAt: number | null;
   lockedUntil: number | null;
@@ -39,6 +41,16 @@ export interface AdminSecurityStatus {
   activationReady: boolean;
   verifiedUntil: number | null;
   expectedClaim: ExpectedAdminPasskeyClaim | null;
+}
+
+export interface RememberedDeviceSummary {
+  id: string;
+  label: string;
+  createdAt: number;
+  expiresAt: number;
+  lastUsedAt: number | null;
+  revokedAt: number | null;
+  status: 'active' | 'expired' | 'revoked';
 }
 
 export interface AdminPasskeyClaim {
@@ -261,18 +273,75 @@ export const AdminPasskeyClient = {
     return result.passkey;
   },
 
-  async verify(): Promise<number> {
+  async verify(options?: { rememberDevice?: boolean; deviceLabel?: string }): Promise<number> {
     const optionsJSON = await securityRequest<Parameters<typeof startAuthentication>[0]['optionsJSON']>(
       '/authentication/options',
       { method: 'POST' },
     );
     const response = await startAuthentication({ optionsJSON });
-    const result = await securityRequest<{ verifiedUntil: number; expectedClaim: ExpectedAdminPasskeyClaim }>('/authentication/verify', {
+    const result = await securityRequest<{
+      verifiedUntil: number;
+      expectedClaim: ExpectedAdminPasskeyClaim;
+      customToken?: string;
+      rememberedDevice?: { id: string; expiresAt: number };
+    }>('/authentication/verify', {
       method: 'POST',
-      body: JSON.stringify({ response }),
+      body: JSON.stringify({
+        response,
+        ...(options?.rememberDevice ? {
+          rememberDevice: true,
+          deviceLabel: options.deviceLabel ?? 'Browser personale',
+        } : {}),
+      }),
     });
-    await refreshClaims(result.expectedClaim);
+    if (result.customToken && result.rememberedDevice) {
+      const currentUid = auth.currentUser?.uid;
+      const signedIn = await signInWithCustomToken(auth, result.customToken);
+      if (!currentUid || signedIn.user.uid !== currentUid) {
+        throw new Error('La sessione del dispositivo non corrisponde all’account amministratore.');
+      }
+      const token = await signedIn.user.getIdTokenResult(true);
+      const trust = token.claims.adminDeviceTrust;
+      if (!trust || typeof trust !== 'object' || (trust as Record<string, unknown>).id !== result.rememberedDevice.id) {
+        throw new Error('La sessione non ha ricevuto la fiducia del dispositivo. Ricarica la pagina per riprovare.');
+      }
+    } else {
+      await refreshClaims(result.expectedClaim);
+    }
     return result.verifiedUntil;
+  },
+
+  async restoreRememberedDevice(): Promise<boolean> {
+    const currentUid = auth.currentUser?.uid;
+    if (!currentUid) throw new AdminSecurityError(401, 'unauthenticated', 'Sessione scaduta: accedi di nuovo');
+    const result = await securityRequest<{ restored: boolean; customToken?: string }>('/devices/restore', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+    if (result.customToken) {
+      const signedIn = await signInWithCustomToken(auth, result.customToken);
+      if (signedIn.user.uid !== currentUid) {
+        throw new Error('Il dispositivo ricordato appartiene a un altro account.');
+      }
+      const token = await signedIn.user.getIdTokenResult(true);
+      if (!token.claims.adminDeviceTrust || typeof token.claims.adminDeviceTrust !== 'object') {
+        throw new Error('Non è stato possibile ripristinare la fiducia del dispositivo.');
+      }
+    }
+    return result.restored;
+  },
+
+  forgetRememberedDevice(deviceId: string): Promise<void> {
+    return securityRequest<{ success: boolean }>(`/devices/${encodeURIComponent(deviceId)}`, {
+      method: 'DELETE',
+    }).then(() => undefined);
+  },
+
+  forgetAllRememberedDevices(): Promise<void> {
+    return securityRequest<{ success: boolean }>('/devices/revoke-all', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }).then(() => undefined);
   },
 
   async verifyForDesktopHandoff(handoffId: string): Promise<void> {

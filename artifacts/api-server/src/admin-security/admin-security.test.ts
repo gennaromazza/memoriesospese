@@ -516,6 +516,14 @@ describe('route di sicurezza', () => {
     expect(h.claims.get(h.uid)?.apk).toBeUndefined();
     expect((await json(await call('/api/admin/security/status'))).activationReady).toBe(false);
 
+    await call('/api/admin/security/authentication/options', { method: 'POST' });
+    res = await call('/api/admin/security/authentication/verify', {
+      method: 'POST',
+      body: JSON.stringify({ response: { id: 'cred-1' } }),
+    });
+    expect(res.status).toBe(200);
+    h.claimsOnToken = { ...h.claims.get(h.uid) };
+
     const codesRes = await call('/api/admin/security/recovery-codes', { method: 'POST' });
     const { codes } = await json(codesRes);
     expect(codes).toHaveLength(8);
@@ -556,6 +564,7 @@ describe('route di sicurezza', () => {
     h.authTime += 10;
     res = await call('/api/admin/security/enforcement', { method: 'POST', body: JSON.stringify({ required: true }) });
     expect(res.status).toBe(403);
+    expect((await json(res)).code).toBe('fresh_passkey_required');
     h.authTime -= 10;
 
     res = await call('/api/admin/security/enforcement', { method: 'POST', body: JSON.stringify({ required: true }) });
@@ -596,7 +605,14 @@ describe('route di sicurezza', () => {
       label: 'Telefono', deviceType: 'multiDevice', backedUp: true, createdAt: 1, lastUsedAt: null,
     });
     await store.updateState(h.uid, { passkeyRequired: true });
-    h.claimsOnToken = { apk: { req: true, exp: Date.now() + 60_000, at: Date.now(), sat: h.authTime } };
+    h.webauthn = true;
+    await call('/api/admin/security/authentication/options', { method: 'POST' });
+    const freshVerification = await call('/api/admin/security/authentication/verify', {
+      method: 'POST',
+      body: JSON.stringify({ response: { id: 'cred-1' } }),
+    });
+    expect(freshVerification.status).toBe(200);
+    h.claimsOnToken = { ...h.claims.get(h.uid) };
     let res = await call('/api/admin/security/passkeys/cred-1', { method: 'DELETE' });
     expect(res.status).toBe(409);
 
@@ -638,6 +654,148 @@ describe('PasskeyError e claim', () => {
     const stored = h.docs.get(`adminSecurity/${h.uid}`)?.recoveryCodes as { hash: string }[];
     expect(stored.map((c) => c.hash)).not.toContain(codes[0]);
     expect(stored[0].hash).toBe(store.hashRecoveryCode(codes[0].toLowerCase()));
+  });
+});
+
+describe('dispositivi amministrativi ricordati', () => {
+  async function registerRememberedSession(token: string, authTime: number, label: string) {
+    h.tokenAuthTimes.set(token, authTime);
+    const options = await call('/api/admin/security/authentication/options', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(options.status).toBe(200);
+    const verified = await call('/api/admin/security/authentication/verify', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        response: { id: 'remembered-credential' },
+        rememberDevice: true,
+        deviceLabel: label,
+      }),
+    });
+    expect(verified.status).toBe(200);
+    const body = await json(verified);
+    const cookie = verified.headers.get('set-cookie');
+    expect(cookie).toContain('__Host-admin-device=');
+    expect(cookie).toContain('HttpOnly; Secure; SameSite=Lax; Max-Age=2592000');
+    return { id: body.rememberedDevice.id as string, cookie: cookie!.split(';')[0].split('=')[1] };
+  }
+
+  it('mantiene due browser indipendenti e blocca subito i token dopo revoca o reset', async () => {
+    h.webauthn = true;
+    await store.savePasskey(h.uid, {
+      id: 'remembered-credential',
+      publicKey: 'AQID',
+      counter: 0,
+      transports: ['internal'],
+      rpId: 'imagestudiofotografico.com',
+      label: 'Telefono',
+      deviceType: 'multiDevice',
+      backedUp: true,
+      createdAt: 1,
+      lastUsedAt: null,
+    });
+    await store.updateState(h.uid, { passkeyRequired: true, verificationsValidAfter: 1000 });
+
+    const first = await registerRememberedSession('first-login', h.authTime, 'Portatile');
+    const second = await registerRememberedSession('second-login', h.authTime + 10, 'Computer studio');
+
+    const firstClaims = { adminDeviceTrust: { id: first.id } };
+    const secondClaims = { adminDeviceTrust: { id: second.id } };
+    h.tokenClaims.set('first-browser', firstClaims);
+    h.tokenAuthTimes.set('first-browser', h.authTime + 20);
+    h.tokenClaims.set('second-browser', secondClaims);
+    h.tokenAuthTimes.set('second-browser', h.authTime + 30);
+    h.tokenAuthTimes.set('fresh-restore-session', h.authTime + 40);
+    expect((await call('/api/admin-only', { headers: { Authorization: 'Bearer first-browser' } })).status).toBe(200);
+    expect((await call('/api/admin-only', { headers: { Authorization: 'Bearer second-browser' } })).status).toBe(200);
+
+    const restore = await call('/api/admin/security/devices/restore', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer fresh-restore-session',
+        Cookie: `__Host-admin-device=${first.cookie}`,
+      },
+      body: '{}',
+    });
+    expect(await json(restore)).toMatchObject({ restored: true, deviceId: first.id, customToken: 'minted-custom-token' });
+    expect(h.createdCustomToken?.claims).toEqual({ adminDeviceTrust: { id: first.id } });
+
+    h.tokenUids.set('wrong-account-session', 'other-admin');
+    const wrongAccount = await call('/api/admin/security/devices/restore', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer wrong-account-session',
+        Cookie: `__Host-admin-device=${first.cookie}`,
+      },
+      body: '{}',
+    });
+    expect(await json(wrongAccount)).toEqual({ restored: false });
+    expect(wrongAccount.headers.get('set-cookie')).toContain('Max-Age=0');
+
+    await store.revokeRememberedDevice(h.uid, first.id, Date.now());
+    expect((await call('/api/admin-only', { headers: { Authorization: 'Bearer first-browser' } })).status).toBe(403);
+    expect((await call('/api/admin-only', { headers: { Authorization: 'Bearer second-browser' } })).status).toBe(200);
+
+    await store.revokeAllRememberedDevices(h.uid, Date.now());
+    expect((await call('/api/admin-only', { headers: { Authorization: 'Bearer second-browser' } })).status).toBe(403);
+  });
+
+  it('rifiuta la fiducia senza prova fresca e non accetta cookie assenti, alterati o scaduti', async () => {
+    h.webauthn = true;
+    await store.savePasskey(h.uid, {
+      id: 'remembered-credential',
+      publicKey: 'AQID',
+      counter: 0,
+      transports: [],
+      rpId: 'imagestudiofotografico.com',
+      label: 'Telefono',
+      deviceType: 'multiDevice',
+      backedUp: true,
+      createdAt: 1,
+      lastUsedAt: null,
+    });
+    await store.updateState(h.uid, { passkeyRequired: true, verificationsValidAfter: 1000 });
+    const device = await registerRememberedSession('remembered-login', h.authTime, 'Portatile');
+
+    const untrustedOperation = await call('/api/admin/security/devices/revoke-all', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer remembered-login',
+        Cookie: `__Host-admin-device=${device.cookie}`,
+      },
+      body: '{}',
+    });
+    expect(untrustedOperation.status).toBe(403);
+    expect((await json(untrustedOperation)).code).toBe('fresh_passkey_required');
+
+    const absentCookie = await call('/api/admin/security/devices/restore', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer remembered-login' },
+      body: '{}',
+    });
+    expect(await json(absentCookie)).toEqual({ restored: false });
+
+    const alteredCookie = await call('/api/admin/security/devices/restore', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer remembered-login', Cookie: `__Host-admin-device=${device.id}.${'x'.repeat(43)}` },
+      body: '{}',
+    });
+    expect(await json(alteredCookie)).toEqual({ restored: false });
+
+    const recordPath = `adminSecurity/${h.uid}/rememberedDevices/${device.id}`;
+    h.docs.set(recordPath, { ...h.docs.get(recordPath), expiresAt: Date.now() - 1 });
+    const expiredCookie = await call('/api/admin/security/devices/restore', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer remembered-login', Cookie: `__Host-admin-device=${device.cookie}` },
+      body: '{}',
+    });
+    expect(await json(expiredCookie)).toEqual({ restored: false });
+    h.tokenClaims.set('expired-browser', { adminDeviceTrust: { id: device.id } });
+    expect((await call('/api/admin-only', {
+      headers: { Authorization: 'Bearer expired-browser' },
+    })).status).toBe(403);
   });
 });
 
@@ -1160,6 +1318,14 @@ describe('autorizzazione QR per una nuova passkey', () => {
   it('consente al proprietario di annullare e al dispositivo fidato di rifiutare una richiesta', async () => {
     await seedTrustedPasskey();
     const started = await json(await startRequest());
+    h.webauthn = true;
+    await call('/api/admin/security/authentication/options', { method: 'POST' });
+    const freshVerification = await call('/api/admin/security/authentication/verify', {
+      method: 'POST',
+      body: JSON.stringify({ response: { id: 'old-device-credential' } }),
+    });
+    expect(freshVerification.status).toBe(200);
+    h.claimsOnToken = { ...h.claims.get(h.uid) };
     const rejected = await call(
       `/api/admin/security/device-enrollment/${started.enrollmentId}/reject`,
       { method: 'POST' },

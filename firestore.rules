@@ -47,8 +47,24 @@ service cloud.firestore {
         request.auth.token.apk.get('sat', -1) == request.auth.token.auth_time;
     }
 
+    function adminRememberedDevicePath() {
+      return /databases/$(database)/documents/adminSecurity/$(request.auth.uid)/rememberedDevices/$(request.auth.token.adminDeviceTrust.get('id', ''));
+    }
+
+    function adminRememberedDeviceVerified() {
+      return 'adminDeviceTrust' in request.auth.token &&
+        request.auth.token.adminDeviceTrust is map &&
+        request.auth.token.adminDeviceTrust.get('id', '') is string &&
+        request.auth.token.adminDeviceTrust.get('id', '').matches('^[A-Za-z0-9_-]{43}$') &&
+        exists(adminRememberedDevicePath()) &&
+        get(adminRememberedDevicePath()).data.get('revokedAt', null) == null &&
+        get(adminRememberedDevicePath()).data.get('expiresAt', 0) > request.time.toMillis() &&
+        get(adminRememberedDevicePath()).data.get('createdAt', 0) >
+          get(adminSecurityPath()).data.get('rememberedDevicesValidAfter', 0);
+    }
+
     function adminPasskeySatisfied() {
-      return !adminPasskeyRequired() || adminPasskeyVerified();
+      return !adminPasskeyRequired() || adminPasskeyVerified() || adminRememberedDeviceVerified();
     }
 
     // Gli ordini storici non hanno `orderType`: Map.get mantiene compatibili

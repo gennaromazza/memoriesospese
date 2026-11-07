@@ -7,7 +7,7 @@
  * vengono salvate esclusivamente chiavi pubbliche e hash dei codici di recupero.
  */
 
-import { createHash, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { getAuth } from 'firebase-admin/auth';
 import {
   generateAuthenticationOptions,
@@ -23,6 +23,7 @@ import {
 import { isoBase64URL } from '@simplewebauthn/server/helpers';
 import {
   ADMIN_PASSKEY_CLAIM,
+  readAdminDeviceTrustClaim,
   readAdminPasskeyClaim,
   type AdminPasskeyClaim,
 } from './admin-identity.js';
@@ -30,8 +31,10 @@ import {
   CHALLENGE_TTL_MS,
   LOCKOUT_MS,
   MAX_FAILED_ATTEMPTS,
+  REMEMBERED_DEVICE_TTL_MS,
   consumePendingChallenge,
   consumeRecoveryCode,
+  createRememberedDevice as createRememberedDeviceRecord,
   consumeDesktopHandoffChallenge,
   consumeDeviceEnrollmentChallenge,
   approveDeviceEnrollment,
@@ -46,19 +49,25 @@ import {
   deletePasskey,
   generateRecoveryCodes,
   getPasskey,
+  getRememberedDevice,
   hashRecoveryCode,
   listPasskeys,
+  listRememberedDevices,
   loadState,
   recordEvent,
   savePasskey,
   updatePasskeyIfExists,
   updateState,
+  revokeAllRememberedDevices,
+  revokeRememberedDevice,
+  touchRememberedDevice,
   type AdminSecurityState,
   type ActivationProof,
   type ChallengeKind,
   type DeviceEnrollmentRequest,
   type DeviceEnrollmentStatus,
   type DesktopHandoffChallenge,
+  type RememberedDevice,
   type StoredPasskey,
 } from './admin-security-store.js';
 import { isProductionPasskeyOrigin, rpIdForOrigin, type ResolvedRelyingParty } from './passkey-origins.js';
@@ -145,6 +154,107 @@ export function activationProofIsValid(
     typeof claim.exp === 'number' && claim.exp > now;
 }
 
+export function hasFreshPasskeyProof(
+  state: AdminSecurityState,
+  identity: AdminIdentity,
+  claim: AdminPasskeyClaim | null,
+  origin: string | undefined,
+  now = Date.now(),
+): boolean {
+  return activationProofIsValid(state.activationProof, identity, claim, origin, now);
+}
+
+export async function rememberVerifiedDevice(
+  identity: AdminIdentity,
+  claim: AdminPasskeyClaim | null,
+  origin: string | undefined,
+  label: string,
+  now = Date.now(),
+): Promise<{ id: string; cookieValue: string; expiresAt: number; customToken: string }> {
+  if (!origin || !isProductionPasskeyOrigin(origin)) {
+    throw new PasskeyError(400, 'origin_not_allowed', 'Puoi ricordare il dispositivo solo dal sito ufficiale');
+  }
+  const state = await loadState(identity.uid);
+  if (!state.passkeyRequired) {
+    throw new PasskeyError(409, 'passkey_not_required', 'Attiva la verifica passkey prima di ricordare un dispositivo');
+  }
+  if (!hasFreshPasskeyProof(state, identity, claim, origin, now)) {
+    throw new PasskeyError(403, 'fresh_passkey_required', 'Verifica di nuovo la passkey prima di ricordare questo dispositivo');
+  }
+
+  const id = randomBytes(32).toString('base64url');
+  const secret = randomBytes(32).toString('base64url');
+  const expiresAt = now + REMEMBERED_DEVICE_TTL_MS;
+  await createRememberedDeviceRecord(identity.uid, {
+    id,
+    label: sanitizeLabel(label) || 'Browser personale',
+    secretHash: createHash('sha256').update(secret).digest('base64url'),
+    createdAt: now,
+    expiresAt,
+    lastUsedAt: now,
+    revokedAt: null,
+  });
+  const customToken = await getAuth().createCustomToken(identity.uid, {
+    adminDeviceTrust: { id },
+  });
+  return { id, cookieValue: `${id}.${secret}`, expiresAt, customToken };
+}
+
+export async function restoreRememberedDevice(
+  identity: AdminIdentity,
+  cookieValue: string | undefined,
+  tokenClaims: Record<string, unknown> | undefined,
+  now = Date.now(),
+): Promise<{ valid: false } | { valid: true; id: string; expiresAt: number; customToken?: string }> {
+  if (!cookieValue || cookieValue.length > 100) return { valid: false };
+  const match = /^([A-Za-z0-9_-]{43})\.([A-Za-z0-9_-]{43})$/.exec(cookieValue);
+  if (!match) return { valid: false };
+  const [, id, secret] = match;
+  const [device, state] = await Promise.all([
+    getRememberedDevice(identity.uid, id),
+    loadState(identity.uid),
+  ]);
+  if (
+    !device ||
+    device.revokedAt != null ||
+    device.expiresAt <= now ||
+    device.createdAt <= state.rememberedDevicesValidAfter
+  ) {
+    return { valid: false };
+  }
+  const actualHash = Buffer.from(createHash('sha256').update(secret).digest('base64url'));
+  const expectedHash = Buffer.from(device.secretHash);
+  if (actualHash.length !== expectedHash.length || !timingSafeEqual(actualHash, expectedHash)) {
+    return { valid: false };
+  }
+  if (!(await touchRememberedDevice(identity.uid, id, now))) return { valid: false };
+  const currentTrust = readAdminDeviceTrustClaim(tokenClaims);
+  const customToken = currentTrust?.id === id
+    ? undefined
+    : await getAuth().createCustomToken(identity.uid, { adminDeviceTrust: { id } });
+  return { valid: true, id, expiresAt: device.expiresAt, customToken };
+}
+
+export async function listRememberedDeviceSummaries(uid: string, now = Date.now()) {
+  const [devices, state] = await Promise.all([listRememberedDevices(uid), loadState(uid)]);
+  return devices.map(({ secretHash: _secretHash, ...device }) => ({
+    ...device,
+    status: device.revokedAt != null
+      ? 'revoked' as const
+      : device.expiresAt <= now || device.createdAt <= state.rememberedDevicesValidAfter
+        ? 'expired' as const
+        : 'active' as const,
+  }));
+}
+
+export async function forgetRememberedDevice(uid: string, deviceId: string, now = Date.now()) {
+  return revokeRememberedDevice(uid, deviceId, now);
+}
+
+export async function forgetAllRememberedDevices(uid: string, now = Date.now()) {
+  await revokeAllRememberedDevices(uid, now);
+}
+
 // ---- Claims Firebase ----------------------------------------------------
 
 async function writeClaim(uid: string, claim: AdminPasskeyClaim | null): Promise<void> {
@@ -199,7 +309,10 @@ async function grantVerification(
  */
 async function invalidateAllVerifications(uid: string, required: boolean, now: number) {
   const verificationsValidAfter = now + 1;
-  await updateState(uid, { verificationsValidAfter });
+  await updateState(uid, {
+    verificationsValidAfter,
+    rememberedDevicesValidAfter: now + 1,
+  });
   const invalidClaim = required ? { req: true, exp: 0, at: 0, sat: 0 } : null;
   await writeClaim(uid, invalidClaim);
   return invalidClaim;
@@ -949,7 +1062,10 @@ export async function setEnforcement(
       );
     }
   }
-  await updateState(identity.uid, { passkeyRequired: required });
+  await updateState(identity.uid, {
+    passkeyRequired: required,
+    rememberedDevicesValidAfter: now + 1,
+  });
   await recordEvent(identity.uid, required ? 'enforcement_enabled' : 'enforcement_disabled', {});
   if (required) {
     // Attivazione: solo la sessione che attiva (già verificata) resta valida;

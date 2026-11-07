@@ -55,6 +55,20 @@ async function setState(state: Record<string, unknown>) {
   });
 }
 
+async function seedRememberedDevice(id: string, values: Record<string, unknown> = {}) {
+  await env.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'adminSecurity', 'admin-uid', 'rememberedDevices', id), {
+      label: 'Browser test',
+      secretHash: 'not-used-by-rules',
+      createdAt: Date.now() - 1000,
+      expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
+      lastUsedAt: Date.now(),
+      revokedAt: null,
+      ...values,
+    });
+  });
+}
+
 describe('admin passkey claim in Firestore rules', () => {
   it('consente prodotti ordinari solo agli admin verificati e nega i formati print_shop al client', async () => {
     const verified = adminWith(valid());
@@ -141,6 +155,50 @@ describe('admin passkey claim in Firestore rules', () => {
   it('allows admin access with a current passkey verification', async () => {
     await assertSucceeds(getDoc(doc(adminWith(valid()), ...secretPath)));
     await assertSucceeds(setDoc(doc(adminWith(valid()), ...secretPath), { password: 'y' }));
+  });
+
+  it('allows independent remembered browser claims only while their server records are active', async () => {
+    const firstId = 'A'.repeat(43);
+    const secondId = 'B'.repeat(43);
+    await setState({ passkeyRequired: true, verificationsValidAfter: 1000, rememberedDevicesValidAfter: 1000 });
+    await Promise.all([seedRememberedDevice(firstId), seedRememberedDevice(secondId)]);
+
+    // Two browser sessions carry different signed custom-token claims and remain valid concurrently.
+    await assertSucceeds(getDoc(doc(adminWith({ adminDeviceTrust: { id: firstId } }), ...secretPath)));
+    await assertSucceeds(getDoc(doc(adminWith({ adminDeviceTrust: { id: secondId } }), ...secretPath)));
+
+    const noRecord = adminWith({ adminDeviceTrust: { id: 'C'.repeat(43) } });
+    await assertFails(getDoc(doc(noRecord, ...secretPath)));
+    const malformedId = adminWith({ adminDeviceTrust: { id: '../admin-uid' } });
+    await assertFails(getDoc(doc(malformedId, ...secretPath)));
+
+    await seedRememberedDevice('D'.repeat(43), { expiresAt: Date.now() - 1 });
+    await assertFails(getDoc(doc(adminWith({ adminDeviceTrust: { id: 'D'.repeat(43) } }), ...secretPath)));
+    await seedRememberedDevice('E'.repeat(43), { revokedAt: Date.now() });
+    await assertFails(getDoc(doc(adminWith({ adminDeviceTrust: { id: 'E'.repeat(43) } }), ...secretPath)));
+  });
+
+  it('revokes remembered sessions immediately through the per-device record or account reset marker', async () => {
+    const deviceId = 'F'.repeat(43);
+    await setState({ passkeyRequired: true, verificationsValidAfter: 1000, rememberedDevicesValidAfter: 1000 });
+    await seedRememberedDevice(deviceId);
+    const remembered = adminWith({ adminDeviceTrust: { id: deviceId } });
+    await assertSucceeds(getDoc(doc(remembered, ...secretPath)));
+
+    await env.withSecurityRulesDisabled(async (context) => {
+      await updateDoc(doc(context.firestore(), 'adminSecurity', 'admin-uid', 'rememberedDevices', deviceId), {
+        revokedAt: Date.now(),
+      });
+    });
+    await assertFails(getDoc(doc(remembered, ...secretPath)));
+
+    await seedRememberedDevice(deviceId, { createdAt: Date.now() - 1000, revokedAt: null });
+    await env.withSecurityRulesDisabled(async (context) => {
+      await updateDoc(doc(context.firestore(), 'adminSecurity', 'admin-uid'), {
+        rememberedDevicesValidAfter: Date.now(),
+      });
+    });
+    await assertFails(getDoc(doc(remembered, ...secretPath)));
   });
 
   it('also closes owner/signed-in write paths for the unverified admin', async () => {
