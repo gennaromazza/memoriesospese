@@ -768,6 +768,8 @@ test("device enrollment QR registers a new device without transferring admin acc
     activationReady: true,
     verifiedUntil: null,
     expectedClaim: null,
+    rememberedDeviceId: null,
+    rememberedDevices: [],
   });
   const json = (route: Parameters<Parameters<BrowserContext["route"]>[1]>[0], body: unknown) =>
     route.fulfill({

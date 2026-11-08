@@ -537,7 +537,7 @@ describe('route di sicurezza', () => {
     expect(recovery.expectedClaim).toMatchObject({ req: false, sat: h.authTime });
     h.claimsOnToken = { ...h.claims.get(h.uid) };
     res = await call('/api/admin/security/enforcement', { method: 'POST', body: JSON.stringify({ required: true }) });
-    expect((await json(res)).code).toBe('authentication_required_for_enforcement');
+    expect((await json(res)).code).toBe('fresh_passkey_required');
 
     await call('/api/admin/security/authentication/options', { method: 'POST' });
     res = await call('/api/admin/security/authentication/verify', {
@@ -560,7 +560,7 @@ describe('route di sicurezza', () => {
       method: 'POST', headers: { Origin: 'https://preview.replit.dev' },
       body: JSON.stringify({ required: true }),
     });
-    expect((await json(res)).code).toBe('authentication_required_for_enforcement');
+    expect((await json(res)).code).toBe('fresh_passkey_required');
     h.authTime += 10;
     res = await call('/api/admin/security/enforcement', { method: 'POST', body: JSON.stringify({ required: true }) });
     expect(res.status).toBe(403);
