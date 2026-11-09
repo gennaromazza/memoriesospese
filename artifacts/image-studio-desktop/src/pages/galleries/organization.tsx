@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useCreateChapter, useDeletePhoto, useGalleryChapters, useGalleryOrganization, useGalleryPhotos, type Chapter, type Photo, type Gallery } from '../../lib/api-hooks';
 import { fetchApi } from '../../lib/api';
-import { mergePhotoSelection, photoSelectionRange } from '../../lib/gallery-photo-selection';
+import { assignPhotoIdsInBatches, mergePhotoSelection, photoSelectionRange } from '../../lib/gallery-photo-selection';
 
 const notifyError = (error: Error) => window.alert(`Operazione non riuscita: ${error.message}`);
 type Position = { x: number; y: number };
@@ -138,6 +138,9 @@ export function PhotosTab({ galleryId }: { galleryId: string }) {
   const visible = photos.filter(p => (filter === 'all' || (filter === 'unassigned' ? unassigned(p) : p.chapterId === filter)) &&
     (p.name || '').toLowerCase().includes(search.toLowerCase()));
   const displayedPhotos = visible.slice(0, page);
+  const selectAllLabel = filter !== 'all' && filter !== 'unassigned'
+    ? `Seleziona tutte le foto del capitolo (${visible.length})`
+    : `Seleziona tutti i risultati (${visible.length})`;
   useEffect(() => { setPage(48); setSelected([]); setRangeAnchorId(null); }, [filter, search]);
   useEffect(() => {
     setSelected(current => current.filter(id => photos.some(p => p.id === id)));
@@ -163,12 +166,24 @@ export function PhotosTab({ galleryId }: { galleryId: string }) {
     [ids[index], ids[index + direction]] = [ids[index + direction], ids[index]];
     void act(org.reorder.mutateAsync({ chapterIds: ids }), 'Ordine dei capitoli salvato.');
   };
-  const assign = (chapterId: string | null) => {
-    if (!selected.length) return;
-    void act(org.assign.mutateAsync({ photoIds: selected, chapterId }).then(() => {
+  const assign = async (chapterId: string | null) => {
+    const photoIds = [...selected];
+    if (!photoIds.length || org.assign.isPending) return;
+    let assignedCount = 0;
+    try {
+      await assignPhotoIdsInBatches(photoIds, chapterId, async batch => {
+        await org.assign.mutateAsync(batch);
+        assignedCount += batch.photoIds.length;
+      });
       setSelected([]);
       setRangeAnchorId(null);
-    }), `${selected.length} foto spostate.`);
+      window.alert(`${assignedCount} foto spostate.`);
+    } catch (e) {
+      const error = e as Error;
+      notifyError(new Error(assignedCount
+        ? `${error.message}. Sono già state spostate ${assignedCount} foto; puoi ripetere l’operazione per completare le altre.`
+        : error.message));
+    }
   };
   const selectPhoto = (photoId: string, shiftKey: boolean) => {
     const visibleIds = displayedPhotos.map(photo => photo.id);
@@ -232,16 +247,20 @@ export function PhotosTab({ galleryId }: { galleryId: string }) {
     </div>
     <div className="bg-card border rounded-xl p-4 flex flex-wrap items-center gap-3">
       <span className="text-sm">{selected.length} selezionate</span>
-        <Button variant="outline" size="sm" onClick={() => {
+      <Button variant="outline" size="sm" disabled={org.assign.isPending || !visible.length} onClick={() => {
+        setSelected(visible.map(p => p.id));
+        setRangeAnchorId(null);
+      }}>{selectAllLabel}</Button>
+      <Button variant="outline" size="sm" disabled={org.assign.isPending || !displayedPhotos.length} onClick={() => {
           setSelected(displayedPhotos.map(p => p.id));
           setRangeAnchorId(null);
-        }}>Seleziona foto visibili</Button>
-        <Button variant="outline" size="sm" onClick={() => {
+        }}>Seleziona foto mostrate ({displayedPhotos.length})</Button>
+        <Button variant="outline" size="sm" disabled={org.assign.isPending || !selected.length} onClick={() => {
           setSelected([]);
           setRangeAnchorId(null);
         }}>Deseleziona</Button>
       <select aria-label="Sposta foto selezionate" className="border rounded-md p-2 bg-background" value="" disabled={!selected.length || org.assign.isPending}
-        onChange={e => assign(e.target.value === 'unassigned' ? null : e.target.value)}>
+        onChange={e => void assign(e.target.value === 'unassigned' ? null : e.target.value)}>
         <option value="">Sposta in...</option><option value="unassigned">Senza capitolo</option>
         {ordered.map(c => <option key={c.id} value={c.id}>{c.titolo || (c as any).title || (c as any).name}</option>)}
       </select>
@@ -252,7 +271,7 @@ export function PhotosTab({ galleryId }: { galleryId: string }) {
     {!visible.length ? <p className="bg-card border rounded-xl p-10 text-center text-muted-foreground">Nessuna foto trovata. Carica delle foto o modifica la ricerca.</p> :
       <><div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-3">
         {displayedPhotos.map(p => <div key={p.id} className={`bg-card border-2 rounded-lg overflow-hidden ${selected.includes(p.id) ? 'border-primary' : 'border-border'}`}>
-          <button className="aspect-square w-full" onClick={event => selectPhoto(p.id, event.shiftKey)}
+          <button className="aspect-square w-full" disabled={org.assign.isPending} onClick={event => selectPhoto(p.id, event.shiftKey)}
             aria-label={`Seleziona ${p.name}`} aria-pressed={selected.includes(p.id)}>
             <img loading="lazy" src={p.thumbnailUrl || p.url} alt={p.name} className="w-full h-full object-cover" />
           </button>

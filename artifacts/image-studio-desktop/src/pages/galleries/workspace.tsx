@@ -251,19 +251,19 @@ function SettingsTab({ gallery, updateGallery }: { gallery: any, updateGallery: 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2 col-span-2">
             <Label htmlFor="gallery-name">Nome galleria</Label>
-            <Input id="gallery-name" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+            <Input id="gallery-name" value={formData.name} onChange={e => setFormData(current => ({ ...current, name: e.target.value }))} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="gallery-event-date">Data evento</Label>
-            <Input id="gallery-event-date" type="date" value={formData.eventDate} onChange={e => setFormData({ ...formData, eventDate: e.target.value })} />
+            <Input id="gallery-event-date" type="date" value={formData.eventDate} onChange={e => setFormData(current => ({ ...current, eventDate: e.target.value }))} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="gallery-location">Luogo</Label>
-            <Input id="gallery-location" value={formData.location} onChange={e => setFormData({ ...formData, location: e.target.value })} />
+            <Input id="gallery-location" value={formData.location} onChange={e => setFormData(current => ({ ...current, location: e.target.value }))} />
           </div>
           <div className="space-y-2 col-span-2">
             <Label htmlFor="gallery-description">Descrizione</Label>
-            <Input id="gallery-description" value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} />
+            <Input id="gallery-description" value={formData.description} onChange={e => setFormData(current => ({ ...current, description: e.target.value }))} />
           </div>
         </div>
         <div className="border-t border-border pt-4">
@@ -343,6 +343,7 @@ function SelectionTab({ gallery }: { gallery: any }) {
   const configure = useConfigureSelection(galleryId);
   const unlock = useUnlockSelection(galleryId);
   const reset = useResetSelection(galleryId);
+  const selectionFormDirty = useRef(false);
   
   const [formData, setFormData] = useState({
     enabled: selection?.enabled ?? gallery.selectionMode !== undefined,
@@ -352,8 +353,13 @@ function SelectionTab({ gallery }: { gallery: any }) {
     deadline: selection?.deadline ? new Date(selection.deadline).toISOString().split('T')[0] : ''
   });
   const [productRequirements, setProductRequirements] = useState<Array<{ prodottoId: string; prodottoNome: string; prodottoNumeroFoto: number }>>([]);
+  const updateFormData = (updates: Partial<typeof formData>) => {
+    selectionFormDirty.current = true;
+    setFormData(current => ({ ...current, ...updates }));
+  };
+  useEffect(() => { selectionFormDirty.current = false; }, [galleryId]);
   useEffect(() => {
-    if (!selection) return;
+    if (!selection || selectionFormDirty.current) return;
     setFormData({
       enabled: selection.enabled ?? true,
       unlimited: selection.unlimited ?? false,
@@ -363,6 +369,7 @@ function SelectionTab({ gallery }: { gallery: any }) {
     });
   }, [galleryId, selection?.mode, selection?.requiredCount, selection?.deadline, selection?.enabled, selection?.unlimited]);
   useEffect(() => {
+    if (selectionFormDirty.current) return;
     const source = selection?.productRequirements || selection?.products || gallery.productRequirements || [];
     setProductRequirements(source.map((product: any) => ({
       prodottoId: product.prodottoId || product.id || '',
@@ -372,7 +379,10 @@ function SelectionTab({ gallery }: { gallery: any }) {
   }, [galleryId, selection?.productRequirements, selection?.products, gallery.productRequirements]);
 
   const handleSave = () => {
-    configure.mutate({ ...formData, productRequirements }, { onSuccess: () => window.alert('Selezione salvata.'), onError: (e: Error) => window.alert(`Salvataggio non riuscito: ${e.message}`) });
+    configure.mutate({ ...formData, productRequirements }, {
+      onSuccess: () => { selectionFormDirty.current = false; window.alert('Selezione salvata.'); },
+      onError: (e: Error) => window.alert(`Salvataggio non riuscito: ${e.message}`)
+    });
   };
 
   if (isLoading) return <div className="p-8 text-muted-foreground">Caricamento dati di selezione...</div>;
@@ -383,27 +393,27 @@ function SelectionTab({ gallery }: { gallery: any }) {
         <h3 className="font-medium text-foreground text-lg mb-4">Configurazione Selezione</h3>
         <div className="grid grid-cols-2 gap-4">
           <div className="col-span-2 flex items-center gap-2">
-            <input id="selection-enabled" type="checkbox" checked={formData.enabled} onChange={e => setFormData({ ...formData, enabled: e.target.checked })} />
+            <input id="selection-enabled" type="checkbox" checked={formData.enabled} onChange={e => updateFormData({ enabled: e.target.checked })} />
             <Label htmlFor="selection-enabled">Abilita selezione cliente</Label>
           </div>
           <div className="space-y-2">
             <Label>Modalità Selezione</Label>
-            <select className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" value={formData.mode} onChange={e => setFormData({ ...formData, mode: e.target.value as 'like'|'dislike' })}>
+            <select className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" value={formData.mode} onChange={e => updateFormData({ mode: e.target.value as 'like'|'dislike' })}>
               <option value="like">Mi piace</option>
               <option value="dislike">Non mi piace</option>
             </select>
           </div>
           <div className="space-y-2">
             <Label>Numero Foto Richieste</Label>
-            <Input type="number" min={0} disabled={formData.unlimited} value={formData.requiredCount} onChange={e => setFormData({ ...formData, requiredCount: parseInt(e.target.value, 10) || 0 })} />
+            <Input type="number" min={0} disabled={formData.unlimited} value={formData.requiredCount} onChange={e => updateFormData({ requiredCount: parseInt(e.target.value, 10) || 0 })} />
           </div>
           <div className="col-span-2 flex items-center gap-2">
-            <input id="selection-unlimited" type="checkbox" checked={formData.unlimited} onChange={e => setFormData({ ...formData, unlimited: e.target.checked, requiredCount: e.target.checked ? 0 : formData.requiredCount })} />
+            <input id="selection-unlimited" type="checkbox" checked={formData.unlimited} onChange={e => updateFormData({ unlimited: e.target.checked, requiredCount: e.target.checked ? 0 : formData.requiredCount })} />
             <Label htmlFor="selection-unlimited">Selezione libera (senza limite)</Label>
           </div>
           <div className="space-y-2">
             <Label>Scadenza (Opzionale)</Label>
-            <Input type="date" value={formData.deadline} onChange={e => setFormData({ ...formData, deadline: e.target.value })} />
+            <Input type="date" value={formData.deadline} onChange={e => updateFormData({ deadline: e.target.value })} />
           </div>
         </div>
         <Button onClick={handleSave} disabled={configure.isPending}>
@@ -418,14 +428,23 @@ function SelectionTab({ gallery }: { gallery: any }) {
           {productRequirements.map((product, index) => (
             <div key={`${product.prodottoId || 'custom'}-${index}`} className="grid grid-cols-[1fr_120px_auto] gap-2 items-center">
               <span className="text-sm truncate">{product.prodottoNome}</span>
-              <Input type="number" min={0} value={product.prodottoNumeroFoto} onChange={e => setProductRequirements(rows => rows.map((row, i) => i === index ? { ...row, prodottoNumeroFoto: Math.max(0, Number(e.target.value) || 0) } : row))} aria-label={`Foto per ${product.prodottoNome}`} />
-              <Button type="button" variant="ghost" size="sm" onClick={() => setProductRequirements(rows => rows.filter((_, i) => i !== index))}>Rimuovi</Button>
+              <Input type="number" min={0} value={product.prodottoNumeroFoto} onChange={e => {
+                selectionFormDirty.current = true;
+                setProductRequirements(rows => rows.map((row, i) => i === index ? { ...row, prodottoNumeroFoto: Math.max(0, Number(e.target.value) || 0) } : row));
+              }} aria-label={`Foto per ${product.prodottoNome}`} />
+              <Button type="button" variant="ghost" size="sm" onClick={() => {
+                selectionFormDirty.current = true;
+                setProductRequirements(rows => rows.filter((_, i) => i !== index));
+              }}>Rimuovi</Button>
             </div>
           ))}
           <div className="flex gap-2">
             <select className="flex-1 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm" value="" onChange={e => {
               const selected = catalogProducts.find((product: any) => product.id === e.target.value);
-              if (selected && !productRequirements.some(product => product.prodottoId === selected.id)) setProductRequirements(rows => [...rows, { prodottoId: selected.id, prodottoNome: selected.name || selected.nome || selected.title || selected.id, prodottoNumeroFoto: Number(selected.numeroFoto || selected.photoCount || 0) }]);
+               if (selected && !productRequirements.some(product => product.prodottoId === selected.id)) {
+                 selectionFormDirty.current = true;
+                 setProductRequirements(rows => [...rows, { prodottoId: selected.id, prodottoNome: selected.name || selected.nome || selected.title || selected.id, prodottoNumeroFoto: Number(selected.numeroFoto || selected.photoCount || 0) }]);
+               }
             }}>
               <option value="">Aggiungi prodotto dal catalogo…</option>
               {catalogProducts.filter((product: any) => !productRequirements.some(current => current.prodottoId === product.id)).map((product: any) => <option key={product.id} value={product.id}>{product.name || product.nome || product.title || product.id}</option>)}

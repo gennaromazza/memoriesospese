@@ -557,8 +557,10 @@ router.delete("/galleries/:galleryId/photos/:photoId", async (req, res) => {
 // Assign only photos owned by this gallery. Legacy subcollection IDs are scoped to the gallery.
 router.post("/galleries/:galleryId/photos/assign", async (req, res) => {
   const ids = req.body?.photoIds, chapterId = req.body?.chapterId;
+  const positionOffset = req.body?.positionOffset ?? 0;
   if (!Array.isArray(ids) || ids.length < 1 || ids.length > 450 || new Set(ids).size !== ids.length ||
-      ids.some((id: any) => !validId(id)) || !(chapterId === null || validId(chapterId)))
+      ids.some((id: any) => !validId(id)) || !(chapterId === null || validId(chapterId)) ||
+      !Number.isSafeInteger(positionOffset) || positionOffset < 0 || positionOffset > 1_000_000)
     return res.status(400).json({ error: "Foto o capitolo non validi" });
   const gallery = await galleryRef(req.params.galleryId).get();
   if (!gallery.exists) return res.status(404).json({ error: "Galleria non trovata" });
@@ -571,7 +573,7 @@ router.post("/galleries/:galleryId/photos/assign", async (req, res) => {
   if (snaps.some((s: any, i: number) => !s.exists || (!ids[i].startsWith("legacy-") && s.data()?.galleryId !== req.params.galleryId)))
     return res.status(404).json({ error: "Una o più foto non appartengono alla galleria" });
   const batch = db.batch();
-  snaps.forEach((s: any, i: number) => batch.update(s.ref, { chapterId, chapterPosition: i, updatedAt: FieldValue.serverTimestamp() }));
+  snaps.forEach((s: any, i: number) => batch.update(s.ref, { chapterId, chapterPosition: positionOffset + i, updatedAt: FieldValue.serverTimestamp() }));
   const affected = new Set(ids);
   const chapters = chaptersOf(gallery.data());
   if (chapters.some((c: any) => affected.has(c.coverPhotoId) && c.id !== chapterId))
