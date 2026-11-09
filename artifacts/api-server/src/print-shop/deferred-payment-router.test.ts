@@ -8,6 +8,7 @@ vi.mock('../google-drive.js', () => ({
   createShipmentFolder: vi.fn(), deleteDriveFile: vi.fn(), findShipmentFolderByShipmentId: vi.fn(),
   findOrCreateLabParentFolder: vi.fn(), revokeShipmentFolderPermission: vi.fn(),
   shareShipmentFolderWithUser: vi.fn(), uploadStreamToDriveFolder: vi.fn(),
+  findDriveFilesInFolder: vi.fn(),
 }));
 vi.mock('./auth.js', () => ({
   authenticatePrintShop: (_req: any, _res: any, next: any) => next(),

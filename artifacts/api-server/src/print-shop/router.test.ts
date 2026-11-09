@@ -15,6 +15,7 @@ vi.mock('../google-drive.js', () => ({
   createShipmentFolder: vi.fn(), deleteDriveFile: vi.fn(), findShipmentFolderByShipmentId: vi.fn(),
   findOrCreateLabParentFolder: vi.fn(), revokeShipmentFolderPermission: vi.fn(),
   shareShipmentFolderWithUser: vi.fn(), uploadStreamToDriveFolder: vi.fn(),
+  findDriveFilesInFolder: vi.fn(),
 }));
 vi.mock('./paypal-orders.js', async actual => ({
   ...await actual<any>(), loadPayPalOrdersConfig: () => ({ environment: 'sandbox' }),

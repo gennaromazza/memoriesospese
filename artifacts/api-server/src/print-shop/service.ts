@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Readable } from 'node:stream';
 import sharp from 'sharp';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
@@ -79,6 +79,9 @@ export interface PrintShopIdentity {
 }
 
 export interface PrintShopDriveAdapter {
+  findDriveFilesInFolder?(
+    folderId: string, fileName: string,
+  ): Promise<Array<{ fileId: string; webViewLink?: string; size?: number }>>;
   findOrCreateLabParentFolder(): Promise<string>;
   createShipmentFolder(
     parentId: string,
@@ -4372,6 +4375,18 @@ export class PrintShopService {
       .get();
     return snapshot.docs
       .map((doc: any) => ({ id: doc.id, ...doc.data() }))
+      .map((shipment: any) => {
+        const heartbeat = timestampMillis(shipment.transfer?.heartbeatAt || shipment.createdAt);
+        const stalled = ['pending', 'running'].includes(shipment.transfer?.status) &&
+          heartbeat > 0 && heartbeat < Date.now() - 15 * 60 * 1000;
+        return stalled ? {
+          ...shipment,
+          transfer: {
+            ...shipment.transfer, status: 'partial',
+            lastError: 'Trasferimento interrotto: puoi riprendere i file mancanti senza creare un nuovo invio.',
+          },
+        } : shipment;
+      })
       .sort((a: any, b: any) => timestampMillis(b.createdAt) - timestampMillis(a.createdAt));
   }
 
@@ -4474,6 +4489,7 @@ export class PrintShopService {
       throw new PrintShopHttpError(503, 'drive_unavailable', 'Google Drive non configurato');
     }
     const shipmentRef = this.deps.db.collection('labShipments').doc(shipmentId);
+    const runId = randomUUID();
     const now = this.now();
     let shipment: any;
     let order: any;
@@ -4510,6 +4526,7 @@ export class PrintShopService {
       shipment = { ...shipment, expiresAt: transferExpiresAt };
       transaction.update(shipmentRef, {
         'transfer.status': 'running',
+        'transfer.runId': runId,
         'transfer.startedAt': shipment.transfer?.startedAt || now,
         'transfer.heartbeatAt': now,
         'transfer.lastError': FieldValue.delete(),
@@ -4518,6 +4535,15 @@ export class PrintShopService {
       });
     });
     if (shipment.transfer?.status === 'completed') return;
+    const updateOwned = async (values: Record<string, any>) => {
+      await this.deps.db.runTransaction(async (transaction: any) => {
+        const current = await transaction.get(shipmentRef);
+        if (current.data()?.transfer?.runId !== runId) {
+          throw new PrintShopHttpError(409, 'transfer_superseded', 'Un altro processo ha ripreso il trasferimento.');
+        }
+        transaction.update(shipmentRef, values);
+      });
+    };
     try {
       const assets = await this.listAssets(shipment.orderId);
       const referencedIds = referencedAssetIds(order);
@@ -4556,7 +4582,7 @@ export class PrintShopService {
         folderId = folder.folderId;
         shareableLink = folder.webViewLink;
         try {
-          await shipmentRef.update({
+          await updateOwned({
             driveFolderId: folderId,
             shareableLink: shareableLink || null,
             expiresAt: shipment.expiresAt,
@@ -4580,7 +4606,13 @@ export class PrintShopService {
 
       if (!files.some(file => file.kind === 'manifest')) {
         const html = await this.manifestHtml(shipment.orderId);
-        const uploaded = await this.deps.drive.uploadStreamToDriveFolder(
+        const recovered = await this.deps.drive.findDriveFilesInFolder?.(
+          folderId, `${order.orderNumber}-distinta.html`,
+        );
+        if (recovered && recovered.length > 1) {
+          throw new Error('Più distinte omonime su Drive: verifica la cartella prima di riprendere.');
+        }
+        const uploaded = recovered?.[0] || await this.deps.drive.uploadStreamToDriveFolder(
           folderId,
           `${order.orderNumber}-distinta.html`,
           'text/html',
@@ -4590,7 +4622,7 @@ export class PrintShopService {
           kind: 'manifest',
           driveFileId: uploaded.fileId,
           name: `${order.orderNumber}-distinta.html`,
-          size: uploaded.size,
+          size: uploaded.size || Buffer.byteLength(html, 'utf8'),
           mimeType: 'text/html',
           ...(uploaded.webViewLink ? { webViewLink: uploaded.webViewLink } : {}),
           uploadedAt: this.now(),
@@ -4621,17 +4653,20 @@ export class PrintShopService {
           file.transferKey === transferKey ||
           (!file.transferKey && !composed && file.assetId === asset.id),
         )) continue;
-        const source = composed
-          ? Readable.from([composed])
-          : this.deps.storage.bucket().file(asset.storagePath).createReadStream();
         const fileName = `${String(index + 1).padStart(4, '0')}_${sanitizeFileName(
           composed ? `${asset.id}-polaroid.jpg` : `${asset.id}_${asset.originalName || 'foto.jpg'}`,
         )}`;
-        const uploaded = await this.deps.drive.uploadStreamToDriveFolder(
+        const recovered = await this.deps.drive.findDriveFilesInFolder?.(folderId, fileName);
+        if (recovered && recovered.length > 1) {
+          throw new Error('Più file omonimi su Drive: verifica la cartella prima di riprendere.');
+        }
+        await updateOwned({ 'transfer.heartbeatAt': this.now() });
+        const uploaded = recovered?.[0] || await this.deps.drive.uploadStreamToDriveFolder(
           folderId,
           fileName,
           'image/jpeg',
-          source,
+          composed ? Readable.from([composed])
+            : this.deps.storage.bucket().file(asset.storagePath).createReadStream(),
         );
         files.push({
           kind: composed ? 'composed' : 'original',
@@ -4639,13 +4674,13 @@ export class PrintShopService {
           transferKey,
           driveFileId: uploaded.fileId,
           name: fileName,
-          size: uploaded.size,
+          size: uploaded.size || 0,
           mimeType: 'image/jpeg',
           ...(uploaded.webViewLink ? { webViewLink: uploaded.webViewLink } : {}),
           uploadedAt: this.now(),
         });
         transferred++;
-        await shipmentRef.update({
+        await updateOwned({
           files,
           'transfer.transferred': transferred,
           'transfer.heartbeatAt': this.now(),
@@ -4653,6 +4688,10 @@ export class PrintShopService {
         });
       }
       await this.deps.db.runTransaction(async (transaction: any) => {
+        const currentShipmentDoc = await transaction.get(shipmentRef);
+        if (currentShipmentDoc.data()?.transfer?.runId !== runId) {
+          throw new PrintShopHttpError(409, 'transfer_superseded', 'Trasferimento ripreso da un altro processo.');
+        }
         const currentOrderDoc = await transaction.get(
           this.deps.db.collection('orders').doc(shipment.orderId),
         );
@@ -4678,7 +4717,8 @@ export class PrintShopService {
         });
       });
     } catch (error: any) {
-      await shipmentRef.update({
+      if (error?.code === 'transfer_superseded') throw error;
+      await updateOwned({
         'transfer.status': 'failed',
         'transfer.lastError': String(error?.message || error).slice(0, 500),
         'transfer.finishedAt': this.now(),

@@ -8,7 +8,7 @@
  */
 
 import { Readable } from 'stream';
-import { boundedDriveRequest } from './drive-request.js';
+import { boundedDriveRequest, driveSessionRequest } from './drive-request.js';
 
 export interface DriveConnectionStatus {
   connected: boolean;
@@ -505,7 +505,7 @@ export async function uploadStreamToDriveFolder(
     buffer.length,
   );
 
-  const put = await fetch(sessionUri, {
+  const put = await driveSessionRequest(sessionUri, {
     method: 'PUT',
     headers: {
       'Content-Type': mimeType || 'application/octet-stream',

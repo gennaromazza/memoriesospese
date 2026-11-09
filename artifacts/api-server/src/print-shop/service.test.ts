@@ -14,6 +14,106 @@ import { FakeFirestore, FakeStorage } from './test-fakes.js';
 
 const identity = { uid: 'user_one', email: 'cliente@example.com' };
 
+describe('Interrupted print transfer recovery', () => {
+  function recoveryFixture() {
+    const drive = {
+      findOrCreateLabParentFolder: vi.fn(),
+      createShipmentFolder: vi.fn(),
+      findDriveFilesInFolder: vi.fn(async (_folder: string, _name: string): Promise<any[]> => []),
+      uploadStreamToDriveFolder: vi.fn(async (_folder: string, name: string, _mime: string, body: any) => {
+        for await (const _chunk of body) { /* consume fake storage stream */ }
+        return { fileId: `remote-${name}`, size: 4 };
+      }),
+    };
+    const fixture = createService({ drive });
+    fixture.db.seed('orders/recovery_order', baseOrder({
+      payment: { method: 'paypal', status: 'paid' },
+      fulfillment: { method: 'studio_pickup', status: 'ready_to_print' },
+      printShop: { ...baseOrder().printShop, items: [snapshotItem(['asset_one', 'asset_two'])] },
+    }));
+    for (const id of ['asset_one', 'asset_two']) {
+      seedReadyAsset(fixture.db, 'recovery_order', id);
+      fixture.storage.put(fixture.db.value(`orders/recovery_order/assets/${id}`).storagePath, Buffer.from('jpeg'));
+    }
+    fixture.db.seed('labs/recovery_lab', {
+      attivo: true, dataProcessingAgreementStatus: 'signed',
+      dataProcessingAgreementSignedAt: Timestamp.now(), dataProcessingAgreementReference: 'test',
+    });
+    fixture.db.seed('labShipments/recovery_shipment', {
+      sourceType: 'print_shop', orderId: 'recovery_order', labId: 'recovery_lab',
+      status: 'da_inviare', driveFolderId: 'existing-folder',
+      createdAt: Timestamp.fromMillis(Date.now() - 3_600_000),
+      transfer: {
+        status: 'running', transferred: 1, total: 2,
+        heartbeatAt: Timestamp.fromMillis(Date.now() - 3_600_000),
+      },
+      files: [
+        { kind: 'manifest', name: 'existing-distinta.html', driveFileId: 'manifest' },
+        { kind: 'original', assetId: 'asset_one', transferKey: 'asset_one:original', driveFileId: 'already-copied' },
+      ],
+    });
+    return { ...fixture, drive };
+  }
+
+  it('exposes stale running transfers as retryable without changing the stored lease', async () => {
+    const { service, db } = recoveryFixture();
+    expect((await service.listLabShipments('recovery_order'))[0].transfer).toMatchObject({
+      status: 'partial', transferred: 1, total: 2,
+    });
+    expect(db.value('labShipments/recovery_shipment').transfer.status).toBe('running');
+    await db.collection('labShipments').doc('recovery_shipment').update({ 'transfer.heartbeatAt': Timestamp.now() });
+    expect((await service.listLabShipments('recovery_order'))[0].transfer.status).toBe('running');
+    await expect(service.transferLabShipment('recovery_shipment')).rejects.toMatchObject({ code: 'transfer_running' });
+  });
+
+  it('preserves the existing folder and files and uploads only the missing photo', async () => {
+    const { service, db, drive } = recoveryFixture();
+    await service.transferLabShipment('recovery_shipment');
+    expect(drive.createShipmentFolder).not.toHaveBeenCalled();
+    expect(drive.uploadStreamToDriveFolder).toHaveBeenCalledTimes(1);
+    expect(drive.uploadStreamToDriveFolder.mock.calls[0][1]).toContain('asset_two');
+    expect(db.value('labShipments/recovery_shipment').files[1].driveFileId).toBe('already-copied');
+    expect(db.value('labShipments/recovery_shipment').transfer).toMatchObject({
+      status: 'completed', transferred: 2, total: 2,
+    });
+  });
+
+  it('reconciles an upload committed on Drive but not recorded locally', async () => {
+    const { service, db, drive } = recoveryFixture();
+    drive.findDriveFilesInFolder.mockResolvedValue([{ fileId: 'unrecorded-remote', size: 4 }]);
+    await service.transferLabShipment('recovery_shipment');
+    expect(drive.uploadStreamToDriveFolder).not.toHaveBeenCalled();
+    expect(db.value('labShipments/recovery_shipment').files.at(-1).driveFileId).toBe('unrecorded-remote');
+  });
+
+  it('stops on ambiguous remote matches without uploading or deleting anything', async () => {
+    const { service, db, drive } = recoveryFixture();
+    drive.findDriveFilesInFolder.mockResolvedValue([{ fileId: 'one' }, { fileId: 'two' }]);
+    await expect(service.transferLabShipment('recovery_shipment')).rejects.toThrow('Più file omonimi');
+    expect(drive.uploadStreamToDriveFolder).not.toHaveBeenCalled();
+    expect(db.value('labShipments/recovery_shipment').transfer.status).toBe('failed');
+  });
+
+  it('fails closed if Drive reconciliation is unavailable', async () => {
+    const { service, drive } = recoveryFixture();
+    drive.findDriveFilesInFolder.mockRejectedValue(new Error('Drive unavailable'));
+    await expect(service.transferLabShipment('recovery_shipment')).rejects.toThrow('Drive unavailable');
+    expect(drive.uploadStreamToDriveFolder).not.toHaveBeenCalled();
+  });
+
+  it('does not overwrite a newer worker lease after ownership is lost', async () => {
+    const { service, db, drive } = recoveryFixture();
+    drive.findDriveFilesInFolder.mockImplementation(async () => {
+      await db.collection('labShipments').doc('recovery_shipment').update({ 'transfer.runId': 'new-worker' });
+      return [];
+    });
+    await expect(service.transferLabShipment('recovery_shipment')).rejects.toMatchObject({ code: 'transfer_superseded' });
+    expect(drive.uploadStreamToDriveFolder).not.toHaveBeenCalled();
+    expect(db.value('labShipments/recovery_shipment').transfer.runId).toBe('new-worker');
+    expect(db.value('labShipments/recovery_shipment').transfer.status).toBe('running');
+  });
+});
+
 function paypalFake() {
   return {
     config: {

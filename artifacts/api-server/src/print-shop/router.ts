@@ -14,6 +14,7 @@ import {
   revokeShipmentFolderPermission,
   shareShipmentFolderWithUser,
   uploadStreamToDriveFolder,
+  findDriveFilesInFolder,
 } from '../google-drive.js';
 import {
   PayPalOrdersClient,
@@ -58,6 +59,7 @@ export const printShopService = new PrintShopService({
     findShipmentFolderByShipmentId,
     deleteDriveFile,
     uploadStreamToDriveFolder,
+    findDriveFilesInFolder,
   },
   mail: {
     async send(to, subject, html, logInfo) {
