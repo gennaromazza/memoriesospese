@@ -456,7 +456,7 @@ export default function PrintShopOrdersManager() {
       await invalidateOrder();
       setStatusDialogOpen(false);
       setStatusNote('');
-      toast({ title: 'Stato aggiornato', description: STATUS_LABELS[nextStatus] });
+      toast({ title: 'Stato aggiornato', description: statusLabel(nextStatus, selectedOrder?.fulfillment?.method === 'shipping') });
     },
     onError: (error: Error) => toast({ title: 'Aggiornamento non riuscito', description: error.message, variant: 'destructive' }),
   });
@@ -557,7 +557,7 @@ export default function PrintShopOrdersManager() {
       return response.json();
     },
     onSuccess: async () => {
-      await shipmentsQuery.refetch();
+      await Promise.all([shipmentsQuery.refetch(), invalidateOrder()]);
       toast({ title: 'Ordine inviato al laboratorio', description: 'Il link è stato inviato e lo storico è aggiornato.' });
     },
     onError: (error: Error) => toast({ title: 'Invio non riuscito', description: error.message, variant: 'destructive' }),
@@ -1001,14 +1001,25 @@ export default function PrintShopOrdersManager() {
                     <Trash2 className="mr-2 h-4 w-4" />Elimina dal pannello
                   </Button>
                 </div>
-                {availableNextStatuses.length > 0 && (
-                  <Button onClick={() => {
-                    setNextStatus(availableNextStatuses[0]);
-                    setStatusDialogOpen(true);
-                  }}>
-                    <PackageCheck className="mr-2 h-4 w-4" />Aggiorna stato
-                  </Button>
-                )}
+                <div className="flex flex-wrap gap-2">
+                  {availableNextStatuses.includes('ready_for_pickup') && (
+                    <Button onClick={() => {
+                      setNextStatus('ready_for_pickup');
+                      setStatusDialogOpen(true);
+                    }}>
+                      <PackageCheck className="mr-2 h-4 w-4" />
+                      {statusLabel('ready_for_pickup', selectedOrder.fulfillment?.method === 'shipping')}
+                    </Button>
+                  )}
+                  {availableNextStatuses.length > 0 && (
+                    <Button variant="outline" onClick={() => {
+                      setNextStatus(availableNextStatuses[0]);
+                      setStatusDialogOpen(true);
+                    }}>
+                      <PackageCheck className="mr-2 h-4 w-4" />Aggiorna stato
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -1037,7 +1048,7 @@ export default function PrintShopOrdersManager() {
 
       <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Aggiorna produzione</DialogTitle><DialogDescription>La modifica sarà visibile anche al cliente.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>Aggiorna produzione</DialogTitle><DialogDescription>La modifica sarà visibile anche al cliente. Quando segni l’ordine pronto, il sistema tenta di inviare al cliente l’email di avviso per il ritiro o la spedizione.</DialogDescription></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2"><Label>Nuovo stato</Label><Select value={nextStatus} onValueChange={(value) => setNextStatus(value as FulfillmentStatus)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{availableNextStatuses.map((status) => <SelectItem key={status} value={status}>{statusLabel(status, selectedOrder?.fulfillment?.method === 'shipping')}</SelectItem>)}</SelectContent></Select></div>
             <div className="space-y-2"><Label htmlFor="print-status-note">Nota interna</Label><Textarea id="print-status-note" value={statusNote} onChange={(event) => setStatusNote(event.target.value)} placeholder="Facoltativa" /></div>
