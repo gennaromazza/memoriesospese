@@ -17,3 +17,11 @@ The credential used for approval must still exist when its assertion is persiste
 **Why:** The Firestore server client can hold document locks during a transaction. A test barrier inside `transaction.get()` can prevent the second transaction from reaching the barrier and deadlock instead of exercising Firestore's retry/serialization behavior.
 
 **How to apply:** Use a dedicated `demo-*` project, a loopback `FIRESTORE_EMULATOR_HOST`, and no production credentials. Let both requests observe the approved enrollment, then allow the real emulator transactions to race; assert one registration succeeds and the other cannot change the stored keys.
+
+## Virtual authenticator counters across browser contexts
+
+**Rule:** When copying a Chromium virtual-authenticator credential into another context, fetch the credential again after the source authenticator's last assertion.
+
+**Why:** `WebAuthn.getCredentials` returns a snapshot of the signature counter. Copying an earlier snapshot after the original authenticator has already signed assertions makes the new context's counter stale and the server correctly rejects its assertion.
+
+**How to apply:** In multi-context passkey E2E tests, use the refreshed `getCredentials` result when calling `WebAuthn.addCredential`; do not reuse the registration-time snapshot after the source has verified.

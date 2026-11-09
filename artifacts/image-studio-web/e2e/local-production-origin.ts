@@ -16,7 +16,10 @@ const testHostname = "imagestudiofotografico.com";
  * Serve the local Vite app on a secure origin with the production RP hostname.
  * The browser maps this hostname to loopback; no production host is contacted.
  */
-export async function createLocalProductionOrigin(upstreamPort = 4179): Promise<{
+export async function createLocalProductionOrigin(
+  upstreamPort = 4179,
+  listenPort = 0,
+): Promise<{
   origin: string;
   port: number;
   close: () => Promise<void>;
@@ -95,7 +98,7 @@ export async function createLocalProductionOrigin(upstreamPort = 4179): Promise<
 
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
-    server.listen(0, "127.0.0.1", resolve);
+    server.listen(listenPort, "127.0.0.1", resolve);
   });
 
   const address = server.address();

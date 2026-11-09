@@ -224,8 +224,8 @@ async function addVirtualAuthenticator(context: BrowserContext, page: Page) {
   return { cdp, authenticatorId };
 }
 
-async function signIn(page: Page, password: string): Promise<void> {
-  await page.goto(localUrl("/admin"));
+async function signIn(page: Page, password: string, origin = baseURL): Promise<void> {
+  await page.goto(new URL("/admin", origin).toString());
   const necessaryCookies = page.getByRole("button", { name: "Solo Necessari" });
   if (await necessaryCookies.isVisible().catch(() => false)) {
     await necessaryCookies.click();
@@ -235,6 +235,176 @@ async function signIn(page: Page, password: string): Promise<void> {
   await page.getByRole("button", { name: "Accedi" }).click();
   await expect(page).toHaveURL(/\/admin\/dashboard(?:$|[?#])/);
 }
+
+test("a remembered browser restores trust after login and stays blocked after revocation", async () => {
+  test.setTimeout(240_000);
+  requireLoopbackEndpoint(baseURL, "ADMIN_PASSKEY_E2E_BASE_URL");
+  requireLoopbackEndpoint(authEmulator, "ADMIN_PASSKEY_E2E_AUTH_EMULATOR");
+  requireLoopbackEndpoint(firestoreEmulator, "ADMIN_PASSKEY_E2E_FIRESTORE_EMULATOR");
+  await resetDisposableEmulators();
+
+  const password = `Test-${randomBytes(18).toString("hex")}!`;
+  await seedDisposableAdmin(password);
+  const rememberedLabel = "Browser ricordato E2E";
+  const localOrigin = await createLocalProductionOrigin(4179, 443);
+  const systemChromiumPath =
+    process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ?? "/repl/tools/bin/chromium";
+  const browser = await chromium.launch({
+    headless: true,
+    ...(existsSync(systemChromiumPath) ? { executablePath: systemChromiumPath } : {}),
+    args: [
+      "--no-sandbox",
+      "--allow-running-insecure-content",
+      "--host-resolver-rules=MAP imagestudiofotografico.com 127.0.0.1",
+    ],
+  });
+  const contextA = await browser.newContext({ ignoreHTTPSErrors: true });
+  const contextB = await browser.newContext({ ignoreHTTPSErrors: true });
+  const allowOnlyLocalTraffic = async (context: BrowserContext) => {
+    await context.route("**/*", async (route) => {
+      const url = new URL(route.request().url());
+      const localProductionOrigin =
+        url.hostname === "imagestudiofotografico.com" &&
+        (url.port === "" || url.port === "443");
+      if (
+        localProductionOrigin ||
+        url.hostname === "127.0.0.1" ||
+        url.hostname === "localhost" ||
+        url.hostname === "::1"
+      ) {
+        await route.continue();
+      } else {
+        await route.abort("blockedbyclient");
+      }
+    });
+  };
+  await Promise.all([allowOnlyLocalTraffic(contextA), allowOnlyLocalTraffic(contextB)]);
+
+  try {
+    const pageA = await contextA.newPage();
+    const { cdp: cdpA, authenticatorId: authenticatorA } =
+      await addVirtualAuthenticator(contextA, pageA);
+    await signIn(pageA, password, localOrigin.origin);
+    await pageA.goto(new URL("/admin/sicurezza", localOrigin.origin).toString());
+
+    await pageA.getByTestId("input-passkey-label").fill("Passkey browser ricordato");
+    await pageA.getByTestId("button-register-passkey").click();
+    await expect(pageA.locator('[data-testid^="row-passkey-"]').first()).toContainText(
+      "Passkey browser ricordato",
+    );
+    const credentialsA = await cdpA.send("WebAuthn.getCredentials", {
+      authenticatorId: authenticatorA,
+    });
+    expect(credentialsA.credentials).toHaveLength(1);
+
+    const activationVerifyResponse = pageA.waitForResponse((response) =>
+      new URL(response.url()).pathname === "/api/admin/security/authentication/verify",
+    );
+    await pageA.getByTestId("button-verify-now").click();
+    expect((await activationVerifyResponse).ok()).toBe(true);
+    await expect(pageA.getByTestId("card-security-state")).toContainText(
+      "Sessione verificata fino alle",
+    );
+    await pageA.getByTestId("button-generate-recovery-codes").click();
+    const recoveryPanel = pageA.getByTestId("panel-recovery-codes");
+    await expect(recoveryPanel).toBeVisible();
+    await recoveryPanel.getByRole("button", { name: "Li ho salvati" }).click();
+    await pageA.getByTestId("button-enable-enforcement").click();
+    await pageA.getByTestId("button-confirm-enforcement").click();
+    await expect(pageA.getByTestId("card-security-state")).toContainText(
+      "Passkey obbligatoria attiva",
+    );
+
+    // Logout reale da Firebase: il cookie HttpOnly del browser deve restare.
+    await pageA.getByRole("button", { name: "Esci dal pannello" }).click();
+    await expect(pageA).toHaveURL(/\/admin(?:$|[?#])/);
+    await signIn(pageA, password, localOrigin.origin);
+    await expect(pageA.getByRole("heading", { name: "Verifica passkey" })).toBeVisible();
+    await pageA.getByTestId("checkbox-remember-device").check();
+    await pageA.getByTestId("input-remember-device-label").fill(rememberedLabel);
+    const rememberVerifyResponse = pageA.waitForResponse((response) =>
+      new URL(response.url()).pathname === "/api/admin/security/authentication/verify",
+    );
+    await pageA.getByTestId("button-verify-passkey").click();
+    expect((await rememberVerifyResponse).ok()).toBe(true);
+    await expect(pageA.getByRole("heading", { name: "Verifica passkey" })).toHaveCount(0);
+    // Copia la credenziale aggiornata dopo entrambe le asserzioni già eseguite
+    // dal browser A, così il contatore dell'autenticatore virtuale resta coerente.
+    const authenticatedCredentialsA = await cdpA.send("WebAuthn.getCredentials", {
+      authenticatorId: authenticatorA,
+    });
+    expect(authenticatedCredentialsA.credentials).toHaveLength(1);
+    const credential = authenticatedCredentialsA.credentials[0];
+
+    await pageA.goto(new URL("/admin/sicurezza", localOrigin.origin).toString());
+    const rememberedRowA = pageA
+      .getByTestId("card-remembered-devices")
+      .locator('[data-testid^="row-remembered-device-"]')
+      .filter({ hasText: rememberedLabel });
+    await expect(rememberedRowA).toContainText("Questo browser");
+
+    // Lo stesso browser deve ripristinare la fiducia al successivo accesso.
+    await pageA.getByRole("button", { name: "Esci dal pannello" }).click();
+    await expect(pageA).toHaveURL(/\/admin(?:$|[?#])/);
+    await signIn(pageA, password, localOrigin.origin);
+    await expect(pageA.getByRole("heading", { name: "Verifica passkey" })).toHaveCount(0);
+    await pageA.goto(new URL("/admin/sicurezza", localOrigin.origin).toString());
+    await expect(pageA.getByTestId("card-security-state")).toContainText(
+      "Sessione verificata fino alle",
+    );
+    await expect(
+      pageA
+        .getByTestId("card-remembered-devices")
+        .locator('[data-testid^="row-remembered-device-"]')
+        .filter({ hasText: rememberedLabel }),
+    ).toContainText("Questo browser");
+
+    // Un contesto browser nuovo non ha il cookie: deve inserire la passkey.
+    const pageB = await contextB.newPage();
+    const { cdp: cdpB, authenticatorId: authenticatorB } =
+      await addVirtualAuthenticator(contextB, pageB);
+    await cdpB.send("WebAuthn.addCredential", {
+      authenticatorId: authenticatorB,
+      credential,
+    });
+    await signIn(pageB, password, localOrigin.origin);
+    await expect(pageB.getByRole("heading", { name: "Verifica passkey" })).toBeVisible();
+    await expect(pageB.getByTestId("checkbox-remember-device")).not.toBeChecked();
+    const freshBrowserVerifyResponse = pageB.waitForResponse((response) =>
+      new URL(response.url()).pathname === "/api/admin/security/authentication/verify",
+    );
+    await pageB.getByTestId("button-verify-passkey").click();
+    const freshBrowserVerification = await freshBrowserVerifyResponse;
+    if (!freshBrowserVerification.ok()) {
+      throw new Error(
+        `Passkey verification from a new context failed (${freshBrowserVerification.status()}): ${await freshBrowserVerification.text()}`,
+      );
+    }
+    await expect(pageB.getByRole("heading", { name: "Verifica passkey" })).toHaveCount(0);
+
+    // Revocare da una sessione verificata deve bloccare il browser ricordato.
+    await pageB.goto(new URL("/admin/sicurezza", localOrigin.origin).toString());
+    const rememberedRowB = pageB
+      .getByTestId("card-remembered-devices")
+      .locator('[data-testid^="row-remembered-device-"]')
+      .filter({ hasText: rememberedLabel });
+    await expect(rememberedRowB).toHaveCount(1);
+    await rememberedRowB.getByRole("button", { name: "Dimentica" }).click();
+    await pageB.getByTestId("button-confirm-forget-device").click();
+    await expect(rememberedRowB).toContainText("Revocato");
+
+    await pageA.reload();
+    await expect(pageA.getByRole("heading", { name: "Verifica passkey" })).toBeVisible();
+    await pageA.getByTestId("button-logout-from-verification").click();
+    await expect(pageA).toHaveURL(/\/admin(?:$|[?#])/);
+    await signIn(pageA, password, localOrigin.origin);
+    await expect(pageA.getByRole("heading", { name: "Verifica passkey" })).toBeVisible();
+  } finally {
+    await Promise.allSettled([contextA.close(), contextB.close()]);
+    await browser.close().catch(() => undefined);
+    await localOrigin.close();
+  }
+});
 
 test("account dashboard link opens the passkey guard on desktop and mobile", async () => {
   test.setTimeout(120_000);
