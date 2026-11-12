@@ -94,7 +94,31 @@ export function formatCouponOffer(coupon: CouponArtworkData): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-  return coupon.discountType === 'fixed_total' ? `${euros} €` : `−${euros} €`;
+  return `${euros} €`;
+}
+
+export function formatCouponOfferCaption(coupon: CouponArtworkData): string {
+  if (coupon.discountType === 'fixed_total') {
+    return coupon.minPrintQuantity > 0
+      ? `PREZZO FINALE · ${coupon.minPrintQuantity} STAMPE`
+      : 'PREZZO FINALE PROMOZIONALE';
+  }
+  if (coupon.discountType === 'fixed') return 'DI SCONTO MASSIMO SULLE STAMPE';
+  return 'DI SCONTO SULLE STAMPE';
+}
+
+export function formatCouponOfferSummary(coupon: CouponArtworkData): string {
+  if (coupon.discountType === 'percentage') return `${coupon.value}% di sconto sulle stampe`;
+  const amount = (coupon.value / 100).toLocaleString('it-IT', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  if (coupon.discountType === 'fixed_total') {
+    return coupon.minPrintQuantity > 0
+      ? `${coupon.minPrintQuantity} stampe a ${amount} €`
+      : `Prezzo promozionale: ${amount} €`;
+  }
+  return `Fino a ${amount} € di sconto sulle stampe`;
 }
 
 export function formatCouponTerms(coupon: CouponArtworkData): string[] {
@@ -102,13 +126,15 @@ export function formatCouponTerms(coupon: CouponArtworkData): string[] {
     ? 'Scadenza da definire'
     : `Valido fino al ${new Date(coupon.endsAt).toLocaleDateString('it-IT', { day: '2-digit', month: 'long', year: 'numeric' })}`;
   const quantity = coupon.minPrintQuantity > 0
-    ? `${coupon.discountType === 'fixed_total' ? 'Esattamente' : 'Minimo'} ${coupon.minPrintQuantity} ${coupon.minPrintQuantity === 1 ? 'stampa' : 'stampe'}`
-    : 'Nessun minimo di stampe';
+    ? coupon.discountType === 'fixed_total'
+      ? `Solo ${coupon.minPrintQuantity} stampe esatte`
+      : `Da almeno ${coupon.minPrintQuantity} ${coupon.minPrintQuantity === 1 ? 'stampa' : 'stampe'}`
+    : 'Senza minimo di stampe';
   const formats = coupon.scope === 'all'
-    ? 'Valido su tutti i formati'
+    ? 'Su tutti i formati'
     : coupon.eligibleFormats.length
-      ? `Solo: ${coupon.eligibleFormats.join(', ')}`
-      : 'Formati selezionati';
+      ? `Formati inclusi: ${coupon.eligibleFormats.join(', ')}`
+      : 'Su formati selezionati';
   return [expiry, quantity, formats];
 }
 
@@ -150,10 +176,10 @@ export function layoutCouponArtworkTerms(coupon: CouponArtworkData, placement: C
   const compact = lines.length > maxLines;
   if (compact) {
     const formats = coupon.scope === 'all'
-      ? 'Valido su tutti i formati'
+      ? 'Su tutti i formati'
       : coupon.eligibleFormats.length
-        ? `Solo su ${coupon.eligibleFormats.length} formati selezionati`
-        : 'Solo sui formati selezionati';
+        ? `Su ${coupon.eligibleFormats.length} formati inclusi`
+        : 'Su formati selezionati';
     lines = [terms[0], terms[1], formats].flatMap(term => wrapText(term, lineMax));
   }
   return { lines, compact, fontSize, lineHeight, startY, bottomY, footerY };
@@ -173,6 +199,7 @@ export function createCouponArtworkSvg(
   const cx = w / 2;
   const centerY = story ? h * 0.45 : h * 0.44;
   const offer = formatCouponOffer(coupon);
+  const offerCaption = formatCouponOfferCaption(coupon);
   const code = coupon.code.trim().toUpperCase() || 'IL TUO CODICE';
   const codeBoxWidth = Math.min(w - margin * 2 - 140, Math.max(400, code.length * 22));
   const codeSpacing = code.length > 18 ? 1 : 3;
@@ -191,14 +218,16 @@ export function createCouponArtworkSvg(
       <path d="M ${margin + 24} ${margin} v ${h - margin * 2} M ${w - margin - 24} ${margin} v ${h - margin * 2}" stroke="${palette.soft}" stroke-width="3" stroke-dasharray="3 17"/>
       <rect x="${margin + 50}" y="${margin + 48}" width="${w - margin * 2 - 100}" height="${h - margin * 2 - 96}" fill="${palette.paper}"/>
       <circle cx="${w - margin - 94}" cy="${margin + 100}" r="24" fill="${palette.accent}"/>
-      ${textElement('IMAGE STUDIO  /  PRINTS', cx, margin + 112, 23, palette.ink, `${commonText} text-anchor="middle" letter-spacing="5"`)}
+        ${textElement('UN VANTAGGIO PER I TUOI RICORDI', cx, margin + 112, 20, palette.ink, `${commonText} text-anchor="middle" letter-spacing="3"`)}
       <path d="M ${cx - 100} ${centerY - 210} h 200" stroke="${palette.accent}" stroke-width="3"/>
-      ${textElement('UN RICORDO,', cx, centerY - 143, 38, palette.ink, `${serifText} text-anchor="middle" font-style="italic"`)}
-      ${textElement('IN STAMPA', cx, centerY - 98, 27, palette.ink, `${commonText} text-anchor="middle" letter-spacing="6"`)}
+        ${textElement('Dai più spazio', cx, centerY - 143, 38, palette.ink, `${serifText} text-anchor="middle" font-style="italic"`)}
+        ${textElement('AI TUOI RICORDI', cx, centerY - 98, 27, palette.ink, `${commonText} text-anchor="middle" letter-spacing="4"`)}
       ${textElement(offer, cx, centerY + 95, offerFont, palette.accent, `${serifText} text-anchor="middle" font-weight="600"`)}
-      ${textElement(coupon.discountType === 'fixed_total' ? 'PREZZO LOTTO' : 'DI SCONTO', cx, centerY + 145, 22, palette.ink, `${commonText} text-anchor="middle" letter-spacing="4"`)}
-       <rect x="${cx - codeBoxWidth / 2}" y="${centerY + 190}" width="${codeBoxWidth}" height="74" rx="37" fill="${palette.ink}"/>
-       ${textElement(code, cx, centerY + 238, codeFont, palette.paper, `${commonText} text-anchor="middle" font-weight="700" letter-spacing="${codeSpacing}"`)}
+        ${textElement(offerCaption, cx, centerY + 145, 20, palette.ink, `${commonText} text-anchor="middle" letter-spacing="2"`)}
+        ${textElement('CODICE COUPON', cx, centerY + 195, 16, palette.ink, `${commonText} text-anchor="middle" letter-spacing="3"`)}
+       <rect x="${cx - codeBoxWidth / 2}" y="${centerY + 210}" width="${codeBoxWidth}" height="74" rx="37" fill="${palette.ink}"/>
+        ${textElement(code, cx, centerY + 258, codeFont, palette.paper, `${commonText} text-anchor="middle" font-weight="700" letter-spacing="${codeSpacing}"`)}
+        ${textElement('INSERISCILO NEL CARRELLO', cx, centerY + 307, 17, palette.ink, `${commonText} text-anchor="middle" letter-spacing="2"`)}
     `;
   } else if (templateId === 'darkroom') {
     art = `
@@ -206,13 +235,15 @@ export function createCouponArtworkSvg(
       <path d="M0 ${h * 0.17} C ${w * 0.35} ${h * 0.06}, ${w * 0.72} ${h * 0.28}, ${w} ${h * 0.12} V ${h * 0.43} C ${w * 0.64} ${h * 0.32}, ${w * 0.33} ${h * 0.49}, 0 ${h * 0.37} Z" fill="${palette.soft}" opacity=".36"/>
       <circle cx="${w * 0.82}" cy="${h * 0.22}" r="${w * 0.19}" fill="${palette.accent}" opacity=".16"/>
       <rect x="${margin}" y="${margin}" width="${w - margin * 2}" height="${h - margin * 2}" rx="24" fill="none" stroke="${palette.soft}" stroke-width="2"/>
-      ${textElement('IMAGE STUDIO', margin + 30, margin + 64, 24, palette.ink, `${commonText} letter-spacing="5"`)}
-       ${textElement('RICORDI DA TENERE,', cx, centerY - 160, 33, palette.ink, `${commonText} text-anchor="middle" letter-spacing="4"`)}
-       ${textElement('ANCHE SU CARTA.', cx, centerY - 104, 64, palette.ink, `${serifText} text-anchor="middle" font-style="italic"`)}
+       ${textElement('IMAGE STUDIO FOTOGRAFICO', margin + 30, margin + 64, 20, palette.ink, `${commonText} letter-spacing="3"`)}
+        ${textElement('Le tue foto', cx, centerY - 160, 38, palette.ink, `${commonText} text-anchor="middle"`)}
+        ${textElement('meritano la stampa.', cx, centerY - 104, 58, palette.ink, `${serifText} text-anchor="middle" font-style="italic"`)}
       ${textElement(offer, cx, centerY + 90, offerFont + 10, palette.accent, `${serifText} text-anchor="middle" font-weight="600"`)}
-      ${textElement(coupon.discountType === 'fixed_total' ? 'PREZZO LOTTO' : 'DI SCONTO', cx, centerY + 140, 22, palette.ink, `${commonText} text-anchor="middle" letter-spacing="5"`)}
-      <path d="M ${cx - 185} ${centerY + 190} h 370" stroke="${palette.accent}" stroke-width="2"/>
-       ${textElement(code, cx, centerY + 250, codeFont, palette.ink, `${commonText} text-anchor="middle" font-weight="700" letter-spacing="${codeSpacing}"`)}
+       ${textElement(offerCaption, cx, centerY + 140, 19, palette.ink, `${commonText} text-anchor="middle" letter-spacing="2"`)}
+       <path d="M ${cx - 185} ${centerY + 190} h 370" stroke="${palette.accent}" stroke-width="2"/>
+        ${textElement('CODICE COUPON', cx, centerY + 218, 16, palette.ink, `${commonText} text-anchor="middle" letter-spacing="3"`)}
+        ${textElement(code, cx, centerY + 260, codeFont, palette.ink, `${commonText} text-anchor="middle" font-weight="700" letter-spacing="${codeSpacing}"`)}
+        ${textElement('INSERISCILO NEL CARRELLO', cx, centerY + 307, 17, palette.ink, `${commonText} text-anchor="middle" letter-spacing="2"`)}
     `;
   } else if (templateId === 'gallery-label') {
     art = `
@@ -221,14 +252,15 @@ export function createCouponArtworkSvg(
       <rect x="${margin + 16}" y="${margin + 16}" width="${w - margin * 2 - 32}" height="${h - margin * 2 - 32}" fill="none" stroke="${palette.soft}" stroke-width="2"/>
       <rect x="${margin + 44}" y="${margin + 44}" width="92" height="8" fill="${palette.accent}"/>
       ${textElement('IMAGE STUDIO', margin + 44, margin + 100, 23, palette.ink, `${commonText} letter-spacing="5"`)}
-      ${textElement('PRINT SHOP', margin + 44, margin + 136, 16, palette.ink, `${commonText} letter-spacing="4" opacity=".65"`)}
-      ${textElement('Le tue foto', cx, centerY - 150, 44, palette.ink, `${serifText} text-anchor="middle" font-style="italic"`)}
-      ${textElement('meritano carta.', cx, centerY - 94, 44, palette.ink, `${serifText} text-anchor="middle" font-style="italic"`)}
+       ${textElement('STAMPE FOTOGRAFICHE', margin + 44, margin + 136, 16, palette.ink, `${commonText} letter-spacing="3" opacity=".75"`)}
+       ${textElement('Stampa i tuoi', cx, centerY - 150, 44, palette.ink, `${serifText} text-anchor="middle" font-style="italic"`)}
+       ${textElement('ricordi più belli.', cx, centerY - 94, 44, palette.ink, `${serifText} text-anchor="middle" font-style="italic"`)}
       <path d="M ${cx - 60} ${centerY - 44} h 120" stroke="${palette.accent}" stroke-width="2"/>
       ${textElement(offer, cx, centerY + 100, offerFont, palette.accent, `${serifText} text-anchor="middle" font-weight="600"`)}
-      ${textElement(coupon.discountType === 'fixed_total' ? 'PREZZO LOTTO' : 'DI SCONTO', cx, centerY + 148, 20, palette.ink, `${commonText} text-anchor="middle" letter-spacing="4"`)}
-      ${textElement('CODICE', cx, centerY + 210, 16, palette.ink, `${commonText} text-anchor="middle" letter-spacing="4" opacity=".7"`)}
-       ${textElement(code, cx, centerY + 253, codeFont, palette.ink, `${commonText} text-anchor="middle" font-weight="700" letter-spacing="${codeSpacing}"`)}
+       ${textElement(offerCaption, cx, centerY + 148, 19, palette.ink, `${commonText} text-anchor="middle" letter-spacing="2"`)}
+       ${textElement('CODICE COUPON', cx, centerY + 203, 15, palette.ink, `${commonText} text-anchor="middle" letter-spacing="3" opacity=".82"`)}
+        ${textElement(code, cx, centerY + 248, codeFont, palette.ink, `${commonText} text-anchor="middle" font-weight="700" letter-spacing="${codeSpacing}"`)}
+        ${textElement('INSERISCILO NEL CARRELLO', cx, centerY + 300, 16, palette.ink, `${commonText} text-anchor="middle" letter-spacing="2"`)}
     `;
   } else {
     art = `
@@ -236,13 +268,15 @@ export function createCouponArtworkSvg(
       <path d="M ${margin + 18} ${margin} H ${w - margin} V ${h - margin} H ${margin} V ${margin + 22}" fill="${palette.paper}" stroke="${palette.soft}" stroke-width="3"/>
       <path d="M ${margin + 18} ${margin} l 22 22 h -22 Z" fill="${palette.soft}"/>
       <circle cx="${w - margin - 76}" cy="${margin + 80}" r="39" fill="${palette.accent}"/>
-      ${textElement('NOTE N° 04', margin + 62, margin + 85, 20, palette.ink, `${commonText} letter-spacing="3"`)}
-      ${textElement('Una foto bella', cx, centerY - 140, 40, palette.ink, `${serifText} text-anchor="middle" font-style="italic"`)}
-      ${textElement('non resta nel telefono.', cx, centerY - 88, 32, palette.ink, `${commonText} text-anchor="middle"`)}
+       ${textElement('UN’IDEA PER TE', margin + 62, margin + 85, 20, palette.ink, `${commonText} letter-spacing="3"`)}
+       ${textElement('Le tue foto più belle', cx, centerY - 140, 40, palette.ink, `${serifText} text-anchor="middle" font-style="italic"`)}
+       ${textElement('da tenere con te.', cx, centerY - 88, 32, palette.ink, `${commonText} text-anchor="middle"`)}
       ${textElement(offer, cx, centerY + 93, offerFont, palette.accent, `${serifText} text-anchor="middle" font-weight="600"`)}
-      ${textElement(coupon.discountType === 'fixed_total' ? 'PREZZO LOTTO' : 'DI SCONTO', cx, centerY + 142, 20, palette.ink, `${commonText} text-anchor="middle" letter-spacing="4"`)}
+       ${textElement(offerCaption, cx, centerY + 142, 19, palette.ink, `${commonText} text-anchor="middle" letter-spacing="2"`)}
       <path d="M ${cx - 170} ${centerY + 184} h 340" stroke="${palette.soft}" stroke-width="2" stroke-dasharray="8 8"/>
-       ${textElement(code, cx, centerY + 244, codeFont, palette.ink, `${commonText} text-anchor="middle" font-weight="700" letter-spacing="${codeSpacing}"`)}
+        ${textElement('CODICE COUPON', cx, centerY + 213, 15, palette.ink, `${commonText} text-anchor="middle" letter-spacing="3"`)}
+        ${textElement(code, cx, centerY + 257, codeFont, palette.ink, `${commonText} text-anchor="middle" font-weight="700" letter-spacing="${codeSpacing}"`)}
+        ${textElement('INSERISCILO NEL CARRELLO', cx, centerY + 307, 16, palette.ink, `${commonText} text-anchor="middle" letter-spacing="2"`)}
     `;
   }
 

@@ -68,6 +68,7 @@
 - [Fotolibri e invio stampa](photobook-print-dispatch.md) — blocco, trasferimento ed email sono stati distinti; invii dall’esito ambiguo richiedono verifica esplicita, mai retry automatico.
 - [Costo prodotti shop e privacy](shop-product-cost-privacy.md) — i costi unitari restano in dati admin-only, mai nei prodotti pubblici o nelle risposte cliente.
 - [Coupon e incassi confermati](print-coupon-payment-safety.md) — validare prima dell’incasso; dopo la conferma del provider riconciliare la prenotazione congelata, non le condizioni attuali.
+- [Testi promozionali coupon](coupon-promo-copy.md) — valorizzare il beneficio, indicare prezzo/sconto e inclusioni, e spiegare chiaramente dove inserire il codice.
 - [Consenso marketing e disiscrizioni](marketing-consent.md) — il titolare dichiara il consenso dei clienti; non riattivare chi si è disiscritto e richiedere conferma per la lista selezionata.
 - [Footer invii email marketing](marketing-email-footer.md) — ogni invio massivo dichiara che è automatico e mostra i recapiti salvati dello studio.
 - [Destinatari marketing dalle prenotazioni](bulk-email-booking-snapshots.md) — usare lo snapshot valido se manca la scheda cliente; escludere prenotazioni annullate e deduplicare email normalizzate.

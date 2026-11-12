@@ -6,6 +6,8 @@ import {
   COUPON_ARTWORK_TEMPLATES,
   createCouponArtworkBlob,
   createCouponArtworkSvg,
+  formatCouponOfferSummary,
+  formatCouponTerms,
   layoutCouponArtworkTerms,
   type CouponArtworkAssetMetadata,
   type CouponArtworkData,
@@ -212,7 +214,7 @@ export default function PrintCouponArtworkStudio({
             )}
             {compactTerms && (
               <p className="mt-3 rounded-lg bg-[#f4eddf] px-3 py-2.5 text-xs leading-5 text-[#625c4d]">
-                Per mantenere leggibili le condizioni, la grafica indica il numero di formati ammessi. L’elenco completo resta consultabile nello shop prima dell’ordine.
+                Quando i formati sono molti, l’immagine indica quanti sono inclusi; il cliente può vedere l’elenco completo nello shop.
               </p>
             )}
             {placement.height / placement.width > 1.6 && (
@@ -284,13 +286,18 @@ export default function PrintCouponArtworkStudio({
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <div className="rounded-xl border border-[#ded8cc] bg-[#fbf9f4] p-4" data-testid="surface-coupon-conditions">
               <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.11em] text-[#758079]">
-                <BadgeCheck className="h-4 w-4 text-[#56736b]" aria-hidden="true" /> Contenuti inclusi
+                <BadgeCheck className="h-4 w-4 text-[#56736b]" aria-hidden="true" /> La promozione in breve
               </div>
-              <p className="mt-2 break-words font-mono text-sm font-bold text-[#314846]" data-testid="text-coupon-code">{coupon.code || 'Codice coupon'}</p>
-              <ul className="mt-2 space-y-1 text-xs leading-5 text-[#6e7973]">
-                <li data-testid="text-coupon-expiry">{coupon.endsAt ? `Scade il ${new Date(coupon.endsAt).toLocaleDateString('it-IT')}` : 'Scadenza da definire'}</li>
-                <li data-testid="text-coupon-quantity">{coupon.minPrintQuantity > 0 ? `${coupon.discountType === 'fixed_total' ? 'Quantità esatta' : 'Minimo'}: ${coupon.minPrintQuantity} stampe` : 'Nessun minimo'}</li>
-                <li data-testid="text-coupon-formats">{coupon.scope === 'all' ? 'Tutti i formati' : coupon.eligibleFormats.join(', ') || 'Formati selezionati'}</li>
+              <p className="mt-2 text-lg font-bold leading-6 text-[#314846]" data-testid="text-coupon-offer-summary">{formatCouponOfferSummary(coupon)}</p>
+              <div className="mt-3 rounded-lg bg-[#f0ece2] px-3 py-2.5">
+                <p className="text-[11px] font-bold uppercase tracking-[.1em] text-[#758079]">Codice coupon da inserire nel carrello</p>
+                <p className="mt-1 break-words font-mono text-base font-bold text-[#314846]" data-testid="text-coupon-code">{coupon.code || 'Codice coupon'}</p>
+              </div>
+              <p className="mt-3 text-[11px] font-bold uppercase tracking-[.1em] text-[#758079]">Cosa comprende</p>
+              <ul className="mt-1 space-y-1 text-xs leading-5 text-[#6e7973]">
+                {formatCouponTerms(coupon).map((term, index) => (
+                  <li key={term} data-testid={['text-coupon-expiry', 'text-coupon-quantity', 'text-coupon-formats'][index]}>{term}</li>
+                ))}
               </ul>
             </div>
             <div className="rounded-xl border border-[#ded8cc] bg-[#fbf9f4] p-4" data-testid="surface-saved-artwork">
