@@ -178,6 +178,39 @@ export type PrintShopCouponInput = Pick<
   'code' | 'discountType' | 'value' | 'startsAt' | 'endsAt' | 'maxUses' | 'active' | 'showOnPromotionsPage' | 'scope' | 'eligibleSkus' | 'minPrintQuantity'
 >;
 
+/** Margine riservato alle risposte amministrative; non va aggiunto ai DTO pubblici. */
+export type PrintShopMarginStatus = 'actual' | 'estimated' | 'incomplete';
+
+export interface PrintShopOrderFinancialItem {
+  sku: string;
+  productName: string;
+  copyCount: number;
+  unitCostCents: number | null;
+  lineCostCents: number | null;
+}
+
+export interface PrintShopOrderFinancialRecord {
+  orderId: string;
+  orderNumber: string;
+  customerName: string;
+  date: string | null;
+  paymentMethod: string;
+  paymentStatus: string;
+  fulfillmentMethod: PrintShopDeliveryMethod;
+  revenueCents: number;
+  copyCount: number;
+  items: readonly PrintShopOrderFinancialItem[];
+  estimatedPrintCostCents: number | null;
+  supplierCostCents: number | null;
+  supplierCostComplete: boolean;
+  productionCostCents: number | null;
+  productionCostBasis: 'actual' | 'estimated' | null;
+  paypalFeeCents: number | null;
+  marginCents: number | null;
+  marginStatus: PrintShopMarginStatus;
+  missingReasons: readonly string[];
+}
+
 /** Public, safe-to-display fields for an explicitly promoted print coupon. */
 export interface PrintShopPublicPromotion {
   code: string;

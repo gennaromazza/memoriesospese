@@ -412,6 +412,15 @@ service cloud.firestore {
       allow delete: if isAdmin() &&
         !isPrintShopOrder(resource.data);
     }
+
+    // Costi unitari interni e snapshot di margine: accesso esclusivamente
+    // tramite API server con Admin SDK e gate passkey.
+    match /printShopUnitCosts/{sku} {
+      allow read, write: if false;
+    }
+    match /printShopOrderFinancials/{orderId} {
+      allow read, write: if false;
+    }
     
     // Clienti - Admin-only client management (November 2025)
     match /clienti/{clienteId} {

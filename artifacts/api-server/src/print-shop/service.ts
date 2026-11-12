@@ -33,6 +33,8 @@ import {
   type PrintShopCouponInput,
   type PrintShopCouponDiscountType,
   type PrintShopPublicPromotion,
+  type PrintShopOrderFinancialRecord,
+  type PrintShopOrderFinancialItem,
   type PrintShopShippingConfig,
 } from '@shared/print-shop-types';
 import {
@@ -2358,6 +2360,12 @@ export class PrintShopService {
               .where('couponId', '==', coupon.id))
           : Promise.resolve({ docs: [] }),
       ]);
+      await this.capturePrintUnitCostSnapshot(transaction, orderId, data, now, {
+        method: 'other',
+        status: 'paid',
+        paypalFeeStatus: 'not_applicable',
+        paypalFeeCents: 0,
+      });
       if (coupon) {
         if (!couponDoc?.exists) {
           throw new PrintShopHttpError(409, 'coupon_invalid', 'Il coupon non è più disponibile');
@@ -2796,6 +2804,14 @@ export class PrintShopService {
         }
         return;
       }
+      const paypalFeeKnown = Number.isSafeInteger(capture.paypalFeeCents) &&
+        Number(capture.paypalFeeCents) >= 0;
+      await this.capturePrintUnitCostSnapshot(transaction, orderId, order, now, {
+        method: 'paypal',
+        status: 'paid',
+        paypalFeeStatus: paypalFeeKnown ? 'known' : 'unknown',
+        ...(paypalFeeKnown ? { paypalFeeCents: capture.paypalFeeCents } : {}),
+      });
       if (appliedCoupon?.id && couponRedemptionDoc?.data()?.state === 'reserved') {
         if (couponDoc?.exists) {
           const coupon = couponDoc.data();
@@ -2824,6 +2840,8 @@ export class PrintShopService {
       const {
         captureClaimToken: _captureClaimToken,
         captureClaimedAt: _captureClaimedAt,
+        paypalFeeCents: _previousPaypalFeeCents,
+        netAmountCents: _previousNetAmountCents,
         ...paymentBeforeCapture
       } = order.payment || {};
       const newTransaction = {
@@ -2852,8 +2870,13 @@ export class PrintShopService {
           paypalCaptureId: capture.captureId,
           paypalStatus: 'COMPLETED',
           amountCents: capture.amountCents,
-          paypalFeeCents: capture.paypalFeeCents || 0,
-          netAmountCents: capture.amountCents - (capture.paypalFeeCents || 0),
+          paypalFeeStatus: paypalFeeKnown ? 'known' : 'unknown',
+          ...(paypalFeeKnown
+            ? {
+                paypalFeeCents: capture.paypalFeeCents,
+                netAmountCents: capture.amountCents - Number(capture.paypalFeeCents),
+              }
+            : {}),
           currency: capture.currency,
           ...(capture.payerEmail ? { payerEmail: capture.payerEmail } : {}),
           refundedCents: order.payment?.refundedCents || 0,
@@ -2899,11 +2922,6 @@ export class PrintShopService {
               assetRetentionDays: this.retentionDays,
             },
         updatedAt: now,
-        'printShop.paypalFeeCents': capture.paypalFeeCents || 0,
-        'printShop.estimatedMarginCents':
-          capture.amountCents -
-          Number(order.printShop?.totalSupplierCostCents || 0) -
-          Number(capture.paypalFeeCents || 0),
       });
       transaction.set(cashRef, {
         tipo: 'entrata',
@@ -2950,6 +2968,7 @@ export class PrintShopService {
         paypalOrderId: capture.paypalOrderId,
         captureId: capture.captureId,
         amountCents: capture.amountCents,
+        ...(paypalFeeKnown ? { paypalFeeCents: capture.paypalFeeCents } : {}),
         currency: capture.currency,
         recordedAt: now,
       });
@@ -3274,6 +3293,71 @@ export class PrintShopService {
     return product;
   }
 
+  async adminCatalogUnitCost(sku: string): Promise<{
+    sku: string;
+    unitCostCents: number | null;
+    updatedAt?: string;
+  }> {
+    const normalizedSku = normalizeCatalogSku(sku);
+    await this.adminCatalogProduct(normalizedSku);
+    const doc = await this.deps.db.collection('printShopUnitCosts').doc(normalizedSku).get();
+    const value = doc.exists ? doc.data() : undefined;
+    return {
+      sku: normalizedSku,
+      unitCostCents: Number.isSafeInteger(value?.unitCostCents) && value.unitCostCents >= 0
+        ? value.unitCostCents
+        : null,
+      ...(timestampToIso(value?.updatedAt) ? { updatedAt: timestampToIso(value?.updatedAt) } : {}),
+    };
+  }
+
+  async updateAdminCatalogUnitCost(
+    sku: string,
+    unitCostCents: number | null,
+    adminEmail: string,
+  ): Promise<{ sku: string; unitCostCents: number | null; updatedAt: string }> {
+    const normalizedSku = normalizeCatalogSku(sku);
+    if (unitCostCents !== null &&
+      (!Number.isSafeInteger(unitCostCents) || unitCostCents < 0 || unitCostCents > 100_000_000)) {
+      throw new PrintShopHttpError(400, 'invalid_unit_cost', 'Costo unitario non valido');
+    }
+    await this.adminCatalogProduct(normalizedSku);
+    const costRef = this.deps.db.collection('printShopUnitCosts').doc(normalizedSku);
+    const now = this.now();
+    await this.deps.db.runTransaction(async (transaction: any) => {
+      // Rilegge il prodotto nella stessa transazione per non salvare costi di SKU
+      // rimossi o modificati durante la richiesta.
+      const productSnapshot = await transaction.get(this.deps.db.collection('products')
+        .where('sku', '==', normalizedSku).limit(2));
+      if (productSnapshot.size !== 1) {
+        throw new PrintShopHttpError(409, 'catalog_product_changed', 'Il prodotto è cambiato');
+      }
+      const productDoc = await transaction.get(productSnapshot.docs[0].ref);
+      if (!productDoc.exists || normalizeCatalogSku(productDoc.data()?.sku) !== normalizedSku ||
+        !productDoc.data()?.salesChannels?.includes('print_shop')) {
+        throw new PrintShopHttpError(409, 'catalog_product_changed', 'Il prodotto è cambiato');
+      }
+      // Lettura del documento privato prima della scrittura: la transazione
+      // mantiene l'aggiornamento coerente e non tocca il catalogo pubblico.
+      await transaction.get(costRef);
+      if (unitCostCents === null) {
+        transaction.delete(costRef);
+      } else {
+        transaction.set(costRef, {
+          sku: normalizedSku,
+          unitCostCents,
+          updatedAt: now,
+          updatedBy: normalizeRequiredEmail(adminEmail),
+        });
+      }
+    });
+    return {
+      sku: normalizedSku,
+      unitCostCents,
+      updatedAt: now.toDate().toISOString(),
+    };
+  }
+
   async updateAdminCatalogProduct(
     sku: string,
     input: PrintShopCatalogAdminUpdate,
@@ -3390,6 +3474,263 @@ export class PrintShopService {
     return result;
   }
 
+  private async capturePrintUnitCostSnapshot(
+    transaction: any,
+    orderId: string,
+    order: any,
+    at: Timestamp,
+    payment: {
+      method: string;
+      status: string;
+      paypalFeeStatus: 'known' | 'unknown' | 'not_applicable';
+      paypalFeeCents?: number;
+    },
+  ): Promise<void> {
+    const financialRef = this.deps.db.collection('printShopOrderFinancials').doc(orderId);
+    const existingDoc = await transaction.get(financialRef);
+    const existing = existingDoc.exists ? existingDoc.data() : {};
+    let unitCostSnapshot = existing?.unitCostSnapshot;
+
+    // Lo snapshot si crea una sola volta, alla conferma dell'ordine. Un costo
+    // inserito successivamente non può alterare i dati storici.
+    if (!unitCostSnapshot) {
+      const orderItems = Array.isArray(order.printShop?.items) ? order.printShop.items : [];
+      const skus = [...new Set(orderItems.map((item: any) => normalizeCatalogSku(item.sku)).filter(Boolean))];
+      const costDocs = await Promise.all(skus.map((sku: string) =>
+        transaction.get(this.deps.db.collection('printShopUnitCosts').doc(sku))));
+      const costBySku = new Map(skus.map((sku, index) => {
+        const data = costDocs[index]?.exists ? costDocs[index].data() : undefined;
+        return [sku, Number.isSafeInteger(data?.unitCostCents) && data.unitCostCents >= 0
+          ? data.unitCostCents
+          : null] as const;
+      }));
+      const items: PrintShopOrderFinancialItem[] = orderItems.map((item: any) => {
+        const sku = normalizeCatalogSku(item.sku);
+        const packageQuantity = item.pricingModel === 'package'
+          ? Number(item.packageCount || 1) * Number(item.packageSize || 1)
+          : Number(item.copyCount || (item.assignments || [])
+            .reduce((sum: number, assignment: any) => sum + Number(assignment.copies || 0), 0));
+        const copyCount = Number.isSafeInteger(packageQuantity) && packageQuantity > 0
+          ? packageQuantity
+          : 0;
+        const unitCostCents = costBySku.get(sku) ?? null;
+        const calculatedLineCost = unitCostCents === null || !copyCount
+          ? null
+          : unitCostCents * copyCount;
+        return {
+          sku,
+          productName: String(item.productName || item.nome || sku),
+          copyCount,
+          unitCostCents,
+          lineCostCents: calculatedLineCost !== null &&
+            Number.isSafeInteger(calculatedLineCost) && calculatedLineCost >= 0
+            ? calculatedLineCost
+            : null,
+        };
+      });
+      const calculatedTotal = items.reduce((sum, item) => sum + Number(item.lineCostCents || 0), 0);
+      const complete = items.length > 0 && Number.isSafeInteger(calculatedTotal) && items.every(item =>
+        item.unitCostCents !== null && item.lineCostCents !== null);
+      unitCostSnapshot = {
+        version: 1,
+        capturedAt: at,
+        complete,
+        items,
+        totalCostCents: complete ? calculatedTotal : null,
+      };
+    }
+
+    transaction.set(financialRef, {
+      orderId,
+      unitCostSnapshot,
+      paymentMethod: payment.method,
+      paymentStatus: payment.status,
+      paypalFeeStatus: payment.paypalFeeStatus,
+      paypalFeeCents: payment.paypalFeeStatus === 'known'
+        ? payment.paypalFeeCents
+        : null,
+      paidAt: payment.status === 'paid' ? at : existing?.paidAt || null,
+      updatedAt: at,
+    }, { merge: true });
+  }
+
+  private buildPrintOrderFinancialRecord(
+    orderId: string,
+    order: any,
+    financial: any,
+    shipments: readonly any[],
+  ): PrintShopOrderFinancialRecord {
+    const snapshot = financial?.unitCostSnapshot;
+    const snapshotItems: PrintShopOrderFinancialItem[] = Array.isArray(snapshot?.items)
+      ? snapshot.items.map((item: any) => ({
+          sku: String(item.sku || ''),
+          productName: String(item.productName || item.sku || ''),
+          copyCount: Number(item.copyCount || 0),
+          unitCostCents: Number.isSafeInteger(item.unitCostCents) && item.unitCostCents >= 0
+            ? item.unitCostCents
+            : null,
+          lineCostCents: Number.isSafeInteger(item.lineCostCents) && item.lineCostCents >= 0
+            ? item.lineCostCents
+            : null,
+        }))
+      : [];
+    const estimatedPrintCostCents = snapshot?.complete === true &&
+      Number.isSafeInteger(snapshot.totalCostCents) && snapshot.totalCostCents >= 0
+      ? snapshot.totalCostCents
+      : null;
+
+    const shipmentRows = shipments.filter(shipment => shipment?.orderId === orderId);
+    const legacySupplierCosts = Array.isArray(order.printShop?.supplierCosts)
+      ? order.printShop.supplierCosts
+      : [];
+    const legacyCostByShipment = new Map(legacySupplierCosts.map((cost: any) => [
+      String(cost.labShipmentId || ''),
+      Number.isSafeInteger(cost.amountCents) && cost.amountCents >= 0
+        ? cost.amountCents
+        : null,
+    ]));
+    const supplierCostEntries = shipmentRows.map(shipment => {
+      const stored = Number.isSafeInteger(shipment.costoImportoCents) && shipment.costoImportoCents >= 0
+        ? shipment.costoImportoCents
+        : legacyCostByShipment.get(String(shipment.id || '')) ?? null;
+      return { id: String(shipment.id || ''), amountCents: stored };
+    });
+    const supplierCostCents = supplierCostEntries.some(entry => entry.amountCents !== null)
+      ? supplierCostEntries.reduce((sum, entry) => sum + Number(entry.amountCents || 0), 0)
+      : legacySupplierCosts.length
+        ? legacySupplierCosts.reduce((sum: number, cost: any) =>
+            sum + (Number.isSafeInteger(cost.amountCents) && cost.amountCents >= 0
+              ? cost.amountCents
+              : 0), 0)
+        : null;
+    const supplierCostComplete = shipmentRows.length > 0 &&
+      supplierCostEntries.every(entry => entry.amountCents !== null);
+
+    const paymentMethod = String(order.payment?.method || financial?.paymentMethod || 'paypal');
+    const isPaypal = paymentMethod.toLowerCase() === 'paypal' ||
+      Boolean(order.payment?.paypalCaptureId);
+    const storedFeeStatus = financial?.paypalFeeStatus || order.payment?.paypalFeeStatus;
+    const paypalFeeStatus = !isPaypal
+      ? 'not_applicable'
+      : storedFeeStatus === 'known' ||
+          Number(order.payment?.paypalFeeCents ?? order.printShop?.paypalFeeCents) > 0
+        ? 'known'
+        : 'unknown';
+    const paypalFeeCents = paypalFeeStatus === 'not_applicable'
+      ? 0
+      : paypalFeeStatus === 'known'
+        ? Number.isSafeInteger(financial?.paypalFeeCents) && financial.paypalFeeCents >= 0
+          ? financial.paypalFeeCents
+          : Number(order.payment?.paypalFeeCents ?? order.printShop?.paypalFeeCents)
+        : null;
+
+    const fulfillmentMethod: PrintShopOrderFinancialRecord['fulfillmentMethod'] =
+      order.fulfillment?.method === 'shipping' ? 'shipping' : 'studio_pickup';
+    const collectedCents = collectedPrintCents(order);
+    const paid = ['paid', 'paid_action_required', 'partially_refunded', 'refunded']
+      .includes(String(order.payment?.status || ''));
+    const missingReasons: string[] = [];
+    if (!snapshot) {
+      missingReasons.push('Manca lo snapshot dei costi unitari alla data dell’ordine.');
+    } else if (estimatedPrintCostCents === null) {
+      missingReasons.push('Uno o più costi unitari non erano configurati al momento dell’ordine.');
+    }
+    if (!paid) missingReasons.push('L’ordine non risulta interamente incassato.');
+
+    let productionCostCents: number | null = null;
+    let productionCostBasis: 'actual' | 'estimated' | null = null;
+    if (supplierCostComplete && supplierCostCents !== null) {
+      productionCostCents = supplierCostCents;
+      productionCostBasis = 'actual';
+    } else if (shipmentRows.length > 0) {
+      if (supplierCostEntries.some(entry => entry.amountCents !== null)) {
+        missingReasons.push('Il costo consuntivo del laboratorio è incompleto.');
+      } else {
+        missingReasons.push('Manca il costo consuntivo del laboratorio.');
+      }
+    } else if (legacySupplierCosts.length > 0) {
+      missingReasons.push('Il consuntivo storico del laboratorio non è completo o verificabile.');
+    } else if (fulfillmentMethod === 'studio_pickup' && estimatedPrintCostCents !== null) {
+      productionCostCents = estimatedPrintCostCents;
+      productionCostBasis = 'estimated';
+    } else if (fulfillmentMethod === 'shipping') {
+      missingReasons.push('Mancano i costi consuntivi della spedizione/laboratorio.');
+    }
+
+    if (isPaypal && paypalFeeStatus === 'unknown') {
+      missingReasons.push('La commissione PayPal effettiva non è disponibile.');
+    }
+    const marginComplete = paid && Boolean(snapshot) &&
+      estimatedPrintCostCents !== null && productionCostCents !== null &&
+      paypalFeeCents !== null;
+    const marginCents = marginComplete
+      ? collectedCents - productionCostCents! - paypalFeeCents!
+      : null;
+    const dateValue = order.payment?.paidAt ||
+      order.payment?.manualReceipt?.receivedAt ||
+      order.submittedAt || order.createdAt;
+    const dateMillis = timestampMillis(dateValue);
+    const customerName = String(order.nomeCliente || order.customer?.name ||
+      [order.customer?.firstName, order.customer?.lastName].filter(Boolean).join(' ') ||
+      order.emailCliente || '');
+    const orderNumber = String(order.orderNumber || orderId);
+    const copyCount = snapshotItems.reduce((sum, item) => sum + item.copyCount, 0) ||
+      Number(order.printShop?.copyCount || 0);
+
+    return {
+      orderId,
+      orderNumber,
+      customerName,
+      date: dateMillis > 0 ? new Date(dateMillis).toISOString() : null,
+      paymentMethod,
+      paymentStatus: String(order.payment?.status || 'pending'),
+      fulfillmentMethod,
+      revenueCents: collectedCents,
+      copyCount,
+      items: snapshotItems,
+      estimatedPrintCostCents,
+      supplierCostCents,
+      supplierCostComplete,
+      productionCostCents,
+      productionCostBasis,
+      paypalFeeCents,
+      marginCents,
+      marginStatus: marginCents === null
+        ? 'incomplete'
+        : productionCostBasis === 'actual' ? 'actual' : 'estimated',
+      missingReasons: [...new Set(missingReasons)],
+    };
+  }
+
+  async adminPrintShopFinancialReport(): Promise<PrintShopOrderFinancialRecord[]> {
+    const [ordersSnapshot, financialSnapshot, shipmentSnapshot] = await Promise.all([
+      this.deps.db.collection('orders').where('orderType', '==', 'print_shop').get(),
+      this.deps.db.collection('printShopOrderFinancials').get(),
+      this.deps.db.collection('labShipments').where('sourceType', '==', 'print_shop').get(),
+    ]);
+    const financialByOrder = new Map(financialSnapshot.docs.map((doc: any) =>
+      [doc.id, doc.data()]));
+    const shipments = shipmentSnapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+    return ordersSnapshot.docs
+      .filter((doc: any) => {
+        const order = doc.data();
+        if (hasPrintFinancialActivity(order)) return true;
+        const fulfillmentStatus = String(order.fulfillment?.status || '');
+        const legacyStatus = String(order.stato || '');
+        return !['draft', 'awaiting_payment', 'cancelled'].includes(fulfillmentStatus) &&
+          !['bozza', 'annullato'].includes(legacyStatus) &&
+          order.payment?.status !== 'pending';
+      })
+      .map((doc: any) => this.buildPrintOrderFinancialRecord(
+        doc.id,
+        doc.data(),
+        financialByOrder.get(doc.id),
+        shipments,
+      ))
+      .sort((a: PrintShopOrderFinancialRecord, b: PrintShopOrderFinancialRecord) =>
+        (Date.parse(b.date || '') || 0) - (Date.parse(a.date || '') || 0));
+  }
+
   async adminOrders(filters: {
     status?: string;
     paymentStatus?: string;
@@ -3401,7 +3742,7 @@ export class PrintShopService {
       .get();
     return snapshot.docs
       .map((doc: any) => {
-        const order = doc.data();
+        const order = sanitizeAdminPrintOrder(doc.data());
         const collectedCents = collectedPrintCents(order);
         return { id: doc.id, ...order, payment: { ...order.payment, collectedCents,
           dueCents: Math.max(0, Number(order.totals?.totalCents || 0) - collectedCents) } };
@@ -3419,7 +3760,21 @@ export class PrintShopService {
 
   async adminOrder(orderId: string): Promise<any> {
     const order = await this.requirePrintOrder(orderId);
-    const assets = await this.listAssets(orderId);
+    const [assets, financialDoc, shipmentSnapshot] = await Promise.all([
+      this.listAssets(orderId),
+      this.deps.db.collection('printShopOrderFinancials').doc(orderId).get(),
+      this.deps.db.collection('labShipments')
+        .where('sourceType', '==', 'print_shop')
+        .where('orderId', '==', orderId)
+        .get(),
+    ]);
+    const shipments = shipmentSnapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+    const financials = this.buildPrintOrderFinancialRecord(
+      orderId,
+      order,
+      financialDoc.exists ? financialDoc.data() : undefined,
+      shipments,
+    );
     let reason = '';
     try {
       await this.deps.db.runTransaction(async (tx: any) => {
@@ -3445,10 +3800,12 @@ export class PrintShopService {
         acceptanceReason = error.message;
       }
     }
+    const safeOrder = sanitizeAdminPrintOrder(order);
     return {
-      ...order,
-      payment: { ...order.payment, collectedCents: collectedPrintCents(order),
+      ...safeOrder,
+      payment: { ...safeOrder.payment, collectedCents: collectedPrintCents(order),
         dueCents: Math.max(0, Number(order.totals?.totalCents || 0) - collectedPrintCents(order)) },
+      printShopFinancials: financials,
       assets: assets.map(publicAsset),
       manualAcceptanceEligibility: {
         canAccept: needsManualAcceptance && !acceptanceReason,
@@ -3650,6 +4007,12 @@ export class PrintShopService {
       if (order.payment?.paypalOrderId !== paypalId) {
         throw new PrintShopHttpError(409, 'order_changed', 'Il pagamento è cambiato: aggiorna il dettaglio.');
       }
+      await this.capturePrintUnitCostSnapshot(tx, orderId, order, now, {
+        method: 'pay_on_delivery',
+        status: 'deferred',
+        paypalFeeStatus: 'not_applicable',
+        paypalFeeCents: 0,
+      });
       const by = normalizeRequiredEmail(adminEmail);
       const authorization = { authorizedAt: now, by, note,
         amountCents: order.totals.totalCents, quoteFingerprint: order.quoteFingerprint };
@@ -3741,6 +4104,8 @@ export class PrintShopService {
       }
       const cashDoc = await tx.get(cashRef);
       const captures = await tx.get(this.deps.db.collection('printShopPaymentCaptures').where('orderId', '==', orderId));
+      const financialRef = this.deps.db.collection('printShopOrderFinancials').doc(orderId);
+      const financialDoc = await tx.get(financialRef);
       const clientRef = order.clienteId ? this.deps.db.collection('clienti').doc(order.clienteId) : undefined;
       const client = clientRef ? await tx.get(clientRef) : undefined;
       if (cashDoc.exists || !captures.empty) {
@@ -3753,18 +4118,27 @@ export class PrintShopService {
       const receipt = { method: input.method, receivedAt, recordedAt: now, by, note, amountCents };
       tx.update(ref, {
         payment: { ...order.payment, method: input.method, status: 'paid', paidAt: receivedAt,
-          amountCents, collectedCents: amountCents, dueCents: 0, manualReceipt: receipt },
+          amountCents, collectedCents: amountCents, dueCents: 0,
+          paypalFeeStatus: 'not_applicable', manualReceipt: receipt },
         transactions: [...(order.transactions || []), {
           tipo: 'saldo', importo: amount, metodo: input.method, data: receivedAt, note,
           cashMovementId: cashRef.id, provider: 'manual', recordedBy: by,
         }],
         acconto: amount, saldo: 0, metodoPagamentoSaldo: input.method, dataSaldo: receivedAt,
-        'printShop.estimatedMarginCents': amountCents - Number(order.printShop?.totalSupplierCostCents || 0),
         'fulfillment.history': [...(order.fulfillment?.history || []), {
           action: 'manual_payment_collected', at: now, by, note, amountCents,
         }],
         updatedAt: now,
       });
+      tx.set(financialRef, {
+        orderId,
+        paymentMethod: input.method,
+        paymentStatus: 'paid',
+        paypalFeeStatus: 'not_applicable',
+        paypalFeeCents: 0,
+        paidAt: receivedAt,
+        updatedAt: now,
+      }, { merge: true });
       tx.set(cashRef, { tipo: 'entrata', categoria: 'Vendita stampe online', importo: amount,
         descrizione: `Shop stampe ${order.orderNumber}`, data: receivedAt,
         metodoPagamento: input.method, note, orderId, clienteId: order.clienteId || null,
@@ -5042,25 +5416,6 @@ export class PrintShopService {
       ) {
         throw new PrintShopHttpError(404, 'shipment_not_found', 'Spedizione non trovata');
       }
-      const order = orderDoc.data();
-      const existingCosts = Array.isArray(order.printShop?.supplierCosts)
-        ? order.printShop.supplierCosts
-        : [];
-      const supplierCosts = [
-        ...existingCosts.filter((cost: any) => cost.labShipmentId !== shipmentId),
-        {
-          labShipmentId: shipmentId,
-          labId: shipmentDoc.data()?.labId,
-          labName: shipmentDoc.data()?.labNome,
-          amountCents: cents,
-          updatedAt: now,
-          updatedBy: adminEmail,
-        },
-      ];
-      const totalSupplierCostCents = supplierCosts.reduce(
-        (total: number, cost: any) => total + Number(cost.amountCents || 0),
-        0,
-      );
       transaction.update(shipmentRef, {
         costoImporto: importo,
         costoImportoCents: cents,
@@ -5068,21 +5423,12 @@ export class PrintShopService {
         costoUpdatedBy: adminEmail,
         updatedAt: now,
       });
-      transaction.update(orderRef, {
-        'printShop.supplierCosts': supplierCosts,
-        'printShop.totalSupplierCostCents': totalSupplierCostCents,
-        'printShop.estimatedMarginCents':
-          Number(order.totals?.totalCents || 0) -
-          totalSupplierCostCents -
-          Number(order.payment?.paypalFeeCents || order.printShop?.paypalFeeCents || 0),
-        updatedAt: now,
-      });
       if (cents > 0) {
         transaction.set(cashRef, {
           tipo: 'uscita',
           categoria: 'Produzione stampe',
           importo: importo,
-          descrizione: `Costo laboratorio shop stampe ${order.orderNumber} - ${shipmentDoc.data()?.labNome || 'Laboratorio'}`,
+          descrizione: `Costo laboratorio shop stampe ${orderDoc.data()?.orderNumber || orderId} - ${shipmentDoc.data()?.labNome || 'Laboratorio'}`,
           data: now,
           metodoPagamento: 'altro',
           note: `Costo di produzione collegato alla spedizione ${shipmentId}`,
@@ -5100,10 +5446,10 @@ export class PrintShopService {
         transaction.delete(cashRef);
       }
     });
-    const [shipment, order] = await Promise.all([shipmentRef.get(), orderRef.get()]);
+    const shipment = await shipmentRef.get();
     return {
       shipment: { id: shipment.id, ...shipment.data() },
-      order: { id: order.id, ...order.data() },
+      order: await this.adminOrder(orderId),
     };
   }
 
@@ -5973,7 +6319,6 @@ function paypalFeeFields(
   const fee = paypalValueToCents(breakdown?.paypal_fee?.value);
   if (
     fee === null ||
-    fee <= 0 ||
     String(breakdown?.paypal_fee?.currency_code || captureCurrency || '') !== PRINT_SHOP_CURRENCY
   ) {
     return {};
@@ -6652,6 +6997,27 @@ function isCatalogProduct(value: any): value is PrintShopCatalogProduct {
        (tiersValid || packageValid) &&
        polaroidValid,
   );
+}
+
+function sanitizeAdminPrintOrder(order: any): any {
+  const {
+    paypalFeeCents: _paypalFeeCents,
+    paypalFeeStatus: _paypalFeeStatus,
+    netAmountCents: _netAmountCents,
+    ...payment
+  } = order.payment || {};
+  const {
+    supplierCosts: _supplierCosts,
+    totalSupplierCostCents: _totalSupplierCostCents,
+    estimatedMarginCents: _estimatedMarginCents,
+    paypalFeeCents: _printShopPaypalFeeCents,
+    ...printShop
+  } = order.printShop || {};
+  return {
+    ...order,
+    payment,
+    printShop,
+  };
 }
 
 function publicOwnerOrder(order: any, assets?: any[]): any {

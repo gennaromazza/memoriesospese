@@ -1406,6 +1406,10 @@ describe('print shop coupon quotes and payment reservations', () => {
     const orderId = 'coupon-zero-total-order';
     seedCoupon(f.db, 'FREEPRINTS', { value: 100 });
     seedProduct(f.db, product);
+    f.db.seed(`printShopUnitCosts/${product.sku}`, {
+      sku: product.sku,
+      unitCostCents: 16,
+    });
     f.db.seed(`orders/${orderId}`, baseOrder());
     seedReadyAsset(f.db, orderId, 'coupon-free-asset');
     const quote = await f.service.quote(
@@ -1434,6 +1438,11 @@ describe('print shop coupon quotes and payment reservations', () => {
       state: 'redeemed',
       zeroTotal: true,
       orderId,
+    });
+    expect(f.db.value(`printShopOrderFinancials/${orderId}`)).toMatchObject({
+      paymentMethod: 'other',
+      paypalFeeStatus: 'not_applicable',
+      unitCostSnapshot: { complete: true, totalCostCents: 16 },
     });
   });
 
@@ -1585,12 +1594,21 @@ describe('PrintShopService production validation', () => {
       }],
     });
     const { db, service } = createService({ paypal });
+    const product = PRINT_SHOP_CATALOG.find(item => item.printSpec.pricing.model === 'tiered')!;
+    seedProduct(db, product);
+    db.seed(`printShopUnitCosts/${product.sku}`, { sku: product.sku, unitCostCents: 16 });
     db.seed('orders/order_capture_ok', baseOrder({
       totals: { subtotalCents: 1000, discountCents: 0, totalCents: 1000 },
       totale: 10,
       saldo: 10,
       fulfillment: { method: 'studio_pickup', status: 'awaiting_payment' },
       payment: { method: 'paypal', status: 'pending', paypalOrderId: 'PAYPAL-ORDER-123' },
+      printShop: {
+        ...baseOrder().printShop,
+        items: [snapshotItem(['asset_capture'])],
+        assetCount: 1,
+        copyCount: 1,
+      },
     }));
     const first = await service.capturePaypalOrder(identity, 'order_capture_ok', {});
     const replay = await service.capturePaypalOrder(identity, 'order_capture_ok', {});
@@ -1603,12 +1621,75 @@ describe('PrintShopService production validation', () => {
       paypalFeeCents: 45,
       netAmountCents: 955,
     });
-    expect(db.value('orders/order_capture_ok').printShop.estimatedMarginCents).toBe(955);
+    expect(db.value('orders/order_capture_ok').printShop).not.toHaveProperty('estimatedMarginCents');
+    const financials = db.value('printShopOrderFinancials/order_capture_ok');
+    expect(financials.unitCostSnapshot).toMatchObject({
+      complete: true,
+      totalCostCents: 16,
+      items: [{ sku: product.sku, copyCount: 1, unitCostCents: 16, lineCostCents: 16 }],
+    });
+    expect(financials).toMatchObject({ paypalFeeStatus: 'known', paypalFeeCents: 45 });
+    await service.updateAdminCatalogUnitCost(product.sku, 35, 'admin@example.com');
+    const report = await service.adminPrintShopFinancialReport();
+    expect(report.find(row => row.orderId === 'order_capture_ok')).toMatchObject({
+      revenueCents: 1000,
+      estimatedPrintCostCents: 16,
+      paypalFeeCents: 45,
+      marginCents: 939,
+      marginStatus: 'estimated',
+    });
+    const customerOrder = await service.ownerOrder(identity, 'order_capture_ok');
+    expect(JSON.stringify(customerOrder)).not.toContain('unitCostCents');
+    expect(JSON.stringify(customerOrder)).not.toContain('marginCents');
     expect(db.value(`cashMovements/print_paypal_fee_${createHash('sha256').update('CAPTURE-OK-123').digest('hex').slice(0, 32)}`)).toMatchObject({
       tipo: 'uscita',
       categoria: 'Commissioni di pagamento',
       importo: 0.45,
       origine: 'print_shop',
+    });
+  });
+
+  it('preserves an explicitly reported zero PayPal fee as known', async () => {
+    const { db, service } = createService();
+    const product = PRINT_SHOP_CATALOG.find(item => item.printSpec.pricing.model === 'tiered')!;
+    seedProduct(db, product);
+    db.seed(`printShopUnitCosts/${product.sku}`, { sku: product.sku, unitCostCents: 16 });
+    db.seed('orders/order_zero_paypal_fee', baseOrder({
+      totals: { subtotalCents: 1000, discountCents: 0, totalCents: 1000 },
+      payment: { method: 'paypal', status: 'pending', paypalOrderId: 'PAYPAL-ZERO-FEE' },
+      fulfillment: { method: 'studio_pickup', status: 'awaiting_payment' },
+      printShop: {
+        ...baseOrder().printShop,
+        items: [snapshotItem(['asset_zero_fee'])],
+        copyCount: 1,
+      },
+    }));
+
+    await service.paypalWebhook({}, {
+      id: 'WEBHOOK-ZERO-FEE',
+      event_type: 'PAYMENT.CAPTURE.COMPLETED',
+      resource: {
+        id: 'CAPTURE-ZERO-FEE',
+        status: 'COMPLETED',
+        custom_id: 'order_zero_paypal_fee',
+        invoice_id: 'ST-2026-TEST0001',
+        amount: { currency_code: 'EUR', value: '10.00' },
+        seller_receivable_breakdown: {
+          paypal_fee: { currency_code: 'EUR', value: '0.00' },
+        },
+        supplementary_data: { related_ids: { order_id: 'PAYPAL-ZERO-FEE' } },
+      },
+    });
+
+    expect(db.value('printShopOrderFinancials/order_zero_paypal_fee')).toMatchObject({
+      paypalFeeStatus: 'known',
+      paypalFeeCents: 0,
+    });
+    expect((await service.adminPrintShopFinancialReport()).find(row =>
+      row.orderId === 'order_zero_paypal_fee')).toMatchObject({
+      paypalFeeCents: 0,
+      marginCents: 984,
+      marginStatus: 'estimated',
     });
   });
 
@@ -2961,13 +3042,92 @@ describe('PrintShopService privacy, quotas and abuse guardrails', () => {
 });
 
 describe('PrintShopService laboratory safety', () => {
+  it('keeps unit costs private and never backfills old orders from the current catalog', async () => {
+    const { db, service } = createService();
+    const product = PRINT_SHOP_CATALOG.find(item => item.printSpec.pricing.model === 'tiered')!;
+    seedProduct(db, product);
+
+    await service.updateAdminCatalogUnitCost(product.sku, 16, 'admin@example.com');
+    expect(await service.adminCatalogUnitCost(product.sku)).toMatchObject({
+      sku: product.sku,
+      unitCostCents: 16,
+    });
+    expect(db.value(`products/${product.id}`)).not.toHaveProperty('unitCostCents');
+    expect(db.value(`products/${product.id}`)).not.toHaveProperty('costs');
+
+    db.seed('orders/order_historical_cost', baseOrder({
+      totals: { subtotalCents: 1000, discountCents: 0, totalCents: 1000 },
+      payment: { method: 'cash', status: 'paid', amountCents: 1000 },
+      fulfillment: { method: 'studio_pickup', status: 'ready_to_print' },
+      printShop: { ...baseOrder().printShop, items: [snapshotItem(['old_asset'])], copyCount: 1 },
+    }));
+    const row = (await service.adminPrintShopFinancialReport())
+      .find((entry) => entry.orderId === 'order_historical_cost');
+
+    expect(row).toMatchObject({
+      revenueCents: 1000,
+      estimatedPrintCostCents: null,
+      productionCostCents: null,
+      marginCents: null,
+      marginStatus: 'incomplete',
+    });
+    expect(row?.missingReasons).toContain('Manca lo snapshot dei costi unitari alla data dell’ordine.');
+    expect(db.value('printShopOrderFinancials/order_historical_cost')).toBeUndefined();
+  });
+
+  it('does not treat a missing PayPal fee as zero', async () => {
+    const { db, service } = createService();
+    const product = PRINT_SHOP_CATALOG.find(item => item.printSpec.pricing.model === 'tiered')!;
+    seedProduct(db, product);
+    const at = Timestamp.fromMillis(Date.UTC(2026, 10, 12));
+    db.seed('orders/order_unknown_paypal_fee', baseOrder({
+      totals: { subtotalCents: 1000, discountCents: 0, totalCents: 1000 },
+      payment: { method: 'paypal', status: 'paid', amountCents: 1000 },
+      fulfillment: { method: 'studio_pickup', status: 'ready_to_print' },
+    }));
+    db.seed('printShopOrderFinancials/order_unknown_paypal_fee', {
+      unitCostSnapshot: {
+        version: 1, capturedAt: at, complete: true,
+        items: [{ sku: product.sku, productName: product.nome, copyCount: 1, unitCostCents: 20, lineCostCents: 20 }],
+        totalCostCents: 20,
+      },
+      paymentMethod: 'paypal',
+      paypalFeeStatus: 'unknown',
+    });
+
+    const row = (await service.adminPrintShopFinancialReport())
+      .find((entry) => entry.orderId === 'order_unknown_paypal_fee');
+    expect(row).toMatchObject({
+      estimatedPrintCostCents: 20,
+      paypalFeeCents: null,
+      marginCents: null,
+      marginStatus: 'incomplete',
+    });
+    expect(row?.missingReasons).toContain('La commissione PayPal effettiva non è disponibile.');
+  });
+
   it('records and updates laboratory costs in the financial cash ledger without duplicates', async () => {
     const { db, service } = createService();
+    const at = Timestamp.fromMillis(Date.UTC(2026, 10, 12));
     db.seed('orders/order_lab_cost', baseOrder({
       totals: { subtotalCents: 2000, discountCents: 0, totalCents: 2000 },
       payment: { method: 'paypal', status: 'paid', paypalFeeCents: 50 },
       fulfillment: { method: 'studio_pickup', status: 'ready_to_print' },
     }));
+    db.seed('printShopOrderFinancials/order_lab_cost', {
+      orderId: 'order_lab_cost',
+      paymentMethod: 'paypal',
+      paymentStatus: 'paid',
+      paypalFeeStatus: 'known',
+      paypalFeeCents: 50,
+      unitCostSnapshot: {
+        version: 1,
+        capturedAt: at,
+        complete: true,
+        items: [{ sku: 'PRINT-10X15', productName: 'Stampa 10x15', copyCount: 10, unitCostCents: 50, lineCostCents: 500 }],
+        totalCostCents: 500,
+      },
+    });
     db.seed('labShipments/shipment_cost', {
       sourceType: 'print_shop',
       orderId: 'order_lab_cost',
@@ -2986,15 +3146,32 @@ describe('PrintShopService laboratory safety', () => {
       origine: 'print_shop',
       orderId: 'order_lab_cost',
     });
-    expect(db.value('orders/order_lab_cost').printShop.estimatedMarginCents).toBe(1300);
+    expect(db.value('orders/order_lab_cost').printShop).not.toHaveProperty('estimatedMarginCents');
+    expect((await service.adminPrintShopFinancialReport()).find(row => row.orderId === 'order_lab_cost')).toMatchObject({
+      estimatedPrintCostCents: 500,
+      supplierCostCents: 650,
+      supplierCostComplete: true,
+      productionCostCents: 650,
+      productionCostBasis: 'actual',
+      marginCents: 1300,
+    });
 
     await service.setLabShipmentCost('order_lab_cost', 'shipment_cost', 7, 'admin@example.com');
     expect(db.countCollection('cashMovements')).toBe(1);
     expect(db.value(`cashMovements/${movementId}`).importo).toBe(7);
-    expect(db.value('orders/order_lab_cost').printShop.estimatedMarginCents).toBe(1250);
+    expect((await service.adminPrintShopFinancialReport()).find(row => row.orderId === 'order_lab_cost')).toMatchObject({
+      supplierCostCents: 700,
+      productionCostCents: 700,
+      marginCents: 1250,
+    });
 
     await service.setLabShipmentCost('order_lab_cost', 'shipment_cost', 0, 'admin@example.com');
     expect(db.countCollection('cashMovements')).toBe(0);
+    expect((await service.adminPrintShopFinancialReport()).find(row => row.orderId === 'order_lab_cost')).toMatchObject({
+      supplierCostCents: 0,
+      productionCostCents: 0,
+      marginCents: 1950,
+    });
   });
 
   it('includes only assets referenced by the paid quote in archive and Drive transfer', async () => {

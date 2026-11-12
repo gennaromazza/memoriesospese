@@ -56,6 +56,50 @@ describe("financial dashboard read model", () => {
     expect(result.receivables[0].amount).toBe(150);
   });
 
+  it("filters print margins by date and source without duplicating cash movements", () => {
+    const base = buildFinanceDashboard(snapshot({
+      movements: [{
+        id: "print-cash",
+        tipo: "entrata",
+        importo: 25,
+        data: "2026-10-02T10:00:00Z",
+        origine: "print_shop",
+        orderId: "print-1",
+      }],
+    }), now);
+    const model = {
+      ...base,
+      printShopMargins: [
+        {
+          orderId: "print-1", orderNumber: "P-1", customerName: "Cliente",
+          date: new Date("2026-10-02T10:00:00Z"), paymentMethod: "paypal",
+          revenueCents: 2500, estimatedPrintCostCents: 500, supplierCostCents: null,
+          productionCostCents: 500, productionCostBasis: "estimated" as const,
+          paypalFeeCents: 50, marginCents: 1950, marginStatus: "estimated" as const,
+          missingReasons: [],
+        },
+        {
+          orderId: "print-2", orderNumber: "P-2", customerName: "Cliente",
+          date: new Date("2026-11-02T10:00:00Z"), paymentMethod: "paypal",
+          revenueCents: 1000, estimatedPrintCostCents: null, supplierCostCents: null,
+          productionCostCents: null, productionCostBasis: null,
+          paypalFeeCents: null, marginCents: null, marginStatus: "incomplete" as const,
+          missingReasons: ["Manca lo snapshot."],
+        },
+      ],
+    };
+
+    const october = filterFinanceDashboard(model, {
+      source: "print_shop",
+      from: new Date(2026, 9, 1),
+      to: new Date(2026, 9, 31),
+    });
+
+    expect(october.printShopMargins.map(row => row.orderId)).toEqual(["print-1"]);
+    expect(october.ledger).toHaveLength(1);
+    expect(filterFinanceDashboard(model, { source: "booking" }).printShopMargins).toEqual([]);
+  });
+
   it("does not collapse genuine equal payments or unrelated entities", () => {
     const tx = { importo: 50, data: at, metodo: "carta", tipo: "acconto" };
     const result = buildFinanceDashboard(snapshot({

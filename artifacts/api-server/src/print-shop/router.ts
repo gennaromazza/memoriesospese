@@ -300,6 +300,10 @@ const catalogAdminUpdateSchema = z.object({
   printSpec: printSpecAdminSchema,
 }).strict();
 
+const catalogUnitCostSchema = z.object({
+  unitCostCents: z.number().int().min(0).max(100_000_000).nullable(),
+}).strict();
+
 export function createPrintShopRouter(
   overrides: Partial<RouterDependencies> = {},
 ): express.Router {
@@ -525,6 +529,25 @@ export function createPrintShopRouter(
         req.user.email,
       ),
     });
+  }));
+
+  router.get('/admin/catalog/:sku/cost', auth, admin, route(async (req, res) => {
+    res.json({ cost: await deps.service.adminCatalogUnitCost(req.params.sku) });
+  }));
+
+  router.patch('/admin/catalog/:sku/cost', auth, admin, route(async (req: any, res) => {
+    const input = catalogUnitCostSchema.parse(req.body);
+    res.json({
+      cost: await deps.service.updateAdminCatalogUnitCost(
+        req.params.sku,
+        input.unitCostCents,
+        req.user.email,
+      ),
+    });
+  }));
+
+  router.get('/admin/financial-report', auth, admin, route(async (_req, res) => {
+    res.json({ orders: await deps.service.adminPrintShopFinancialReport() });
   }));
 
   router.get('/admin/shipping', auth, admin, route(async (_req, res) => {

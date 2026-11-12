@@ -144,3 +144,34 @@ describe('print-shop admin manifest download route', () => {
     expect(html).not.toContain('EUR');
   });
 });
+
+describe('print-shop margin privacy routes', () => {
+  it('does not expose private catalog costs or order margins to a non-admin', async () => {
+    const service = new PrintShopService({
+      db: new FakeFirestore(),
+      storage: new FakeStorage(),
+      paypal: {} as any,
+    });
+    const app = express();
+    app.use('/api/print-shop', createPrintShopRouter({
+      service,
+      adminEmails: ['admin@example.test'],
+      authenticate(req: any, _res, next) {
+        req.user = { uid: 'customer', email: 'customer@example.test' };
+        next();
+      },
+    }));
+    const server = app.listen(0, '127.0.0.1');
+    servers.push(server);
+    await new Promise<void>(resolve => server.once('listening', resolve));
+    const port = (server.address() as { port: number }).port;
+
+    const [report, cost] = await Promise.all([
+      fetch(`http://127.0.0.1:${port}/api/print-shop/admin/financial-report`),
+      fetch(`http://127.0.0.1:${port}/api/print-shop/admin/catalog/PRINT-10X15/cost`),
+    ]);
+
+    expect(report.status).toBe(403);
+    expect(cost.status).toBe(403);
+  });
+});

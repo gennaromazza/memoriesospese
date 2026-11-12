@@ -12,6 +12,7 @@ import FinanceDetailDialog, { type FinanceDetail } from "./FinanceDetailDialog";
 import FinanceCampaignsPanel from "./FinanceCampaignsPanel";
 import FinanceMonthlyTable from "./FinanceMonthlyTable";
 import FinanceLabsPanel from "./FinanceLabsPanel";
+import FinancePrintShopPanel from "./FinancePrintShopPanel";
 import { EmptyNote, MovementsTable, ReceivablesTable } from "./FinanceTables";
 
 type ExportContext = { period: string; receivables: string; search?: string };
@@ -61,6 +62,7 @@ export default function FinancialDashboardView({ data, refreshing, onRefresh, on
     data.receivables.forEach((r) => r.date && set.add(r.date.getFullYear()));
     data.labCosts.forEach((cost) => cost.date && set.add(cost.date.getFullYear()));
     data.labPayments.forEach((payment) => payment.date && set.add(payment.date.getFullYear()));
+    data.printShopMargins.forEach((row) => row.date && set.add(row.date.getFullYear()));
     return [...set].sort((a, b) => b - a);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
@@ -96,6 +98,9 @@ export default function FinancialDashboardView({ data, refreshing, onRefresh, on
     (labJobId === "all" || item.jobIds.includes(labJobId)) &&
     (!text || matches(text, item.labName, item.statementName, ...item.jobNames)),
   ), [data.labBalances, labId, labJobId, text]);
+  const scopedPrintShopMargins = useMemo(() => periodData.printShopMargins.filter((row) =>
+    !text || matches(text, row.orderNumber, row.customerName, row.paymentMethod, ...row.missingReasons),
+  ), [periodData.printShopMargins, text]);
 
   const allFor = useMemo(() => filterFinanceDashboard(data, base), [data, base]);
   const scopedReceivables = useMemo(() => allFor.receivables.filter(recOk),
@@ -132,6 +137,7 @@ export default function FinancialDashboardView({ data, refreshing, onRefresh, on
     labCosts: scopedLabCosts,
     labPayments: scopedLabPayments,
     labBalances: scopedLabBalances,
+    printShopMargins: scopedPrintShopMargins,
     receivables: exportRec,
     warnings,
     exportContext: {
@@ -144,9 +150,17 @@ export default function FinancialDashboardView({ data, refreshing, onRefresh, on
       ].filter(Boolean).join(" · ") || undefined,
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [periodData, scopedLedger, scopedCampaigns, scopedLabCosts, scopedLabPayments, scopedLabBalances, exportRec, warnings, bounds.label, tab, horizon, text, labId, labJobId, labOptions, labJobOptions]);
+  }), [periodData, scopedLedger, scopedCampaigns, scopedLabCosts, scopedLabPayments, scopedLabBalances, scopedPrintShopMargins, exportRec, warnings, bounds.label, tab, horizon, text, labId, labJobId, labOptions, labJobOptions]);
 
   const totals = sumLedger(scopedLedger);
+  const printShopTotals = scopedPrintShopMargins.reduce((total, row) => {
+    total.revenue += row.revenueCents;
+    if (row.productionCostCents !== null) total.production += row.productionCostCents;
+    if (row.paypalFeeCents !== null) total.fees += row.paypalFeeCents;
+    if (row.marginCents !== null) total.margin += row.marginCents;
+    else total.incomplete++;
+    return total;
+  }, { revenue: 0, production: 0, fees: 0, margin: 0, incomplete: 0 });
   const outstanding = scopedReceivables.reduce((s, r) => s + r.amount, 0);
   const byStatus = (s: FinanceReceivable["status"]) => scopedReceivables.filter((r) => r.status === s).reduce((a, r) => a + r.amount, 0);
   const incomeBySource = SOURCES.map((s) => ({
@@ -208,12 +222,13 @@ export default function FinancialDashboardView({ data, refreshing, onRefresh, on
       </section>
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="grid h-auto w-full grid-cols-5 gap-1 p-1">
+        <TabsList className="grid h-auto w-full grid-cols-3 gap-1 p-1 sm:grid-cols-6">
           <TabsTrigger value="overview" className="px-1 text-xs sm:text-sm" data-testid="finance-tab-overview">Panoramica</TabsTrigger>
           <TabsTrigger value="campaigns" className="px-1 text-xs sm:text-sm" data-testid="finance-tab-campaigns">Campagne</TabsTrigger>
           <TabsTrigger value="receivables" className="px-1 text-xs sm:text-sm" data-testid="finance-tab-receivables">Da incassare</TabsTrigger>
           <TabsTrigger value="movements" className="px-1 text-xs sm:text-sm" data-testid="finance-tab-movements">Movimenti</TabsTrigger>
           <TabsTrigger value="labs" className="px-1 text-xs sm:text-sm" data-testid="finance-tab-labs">Laboratori</TabsTrigger>
+          <TabsTrigger value="prints" className="px-1 text-xs sm:text-sm" data-testid="finance-tab-prints">Stampe</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-5">
@@ -230,6 +245,22 @@ export default function FinancialDashboardView({ data, refreshing, onRefresh, on
                 {undatedLedger} movimenti senza data di incasso non rientrano in nessun periodo: visibili con "Tutte le date" nei Movimenti.
               </p>
             )}
+          </div>
+          <div className="rounded-lg border p-3">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Margini stampe · {bounds.label}</h3>
+              <Button type="button" variant="link" className="h-auto p-0" onClick={() => setTab("prints")}>Apri dettaglio ordini</Button>
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+              <Kpi label="Incassato stampe" value={eur(printShopTotals.revenue / 100)} />
+              <Kpi label="Costi produzione noti" value={eur(printShopTotals.production / 100)} />
+              <Kpi label="Commissioni PayPal note" value={eur(printShopTotals.fees / 100)} />
+              <Kpi label="Margine calcolabile" value={eur(printShopTotals.margin / 100)} />
+              <Kpi label="Ordini incompleti" value={String(printShopTotals.incomplete)} tone={printShopTotals.incomplete ? "text-amber-800" : "text-blue-gray"} />
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Questi margini sono un’analisi separata: incassi, commissioni PayPal e costi laboratorio già registrati non vengono sommati una seconda volta ai movimenti di cassa.
+            </p>
           </div>
           <div>
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Ancora da incassare (indipendente dal periodo{text ? `, ricerca "${search.trim()}"` : ""})</h3>
@@ -277,6 +308,10 @@ export default function FinancialDashboardView({ data, refreshing, onRefresh, on
             onLabChange={setLabId}
             onJobChange={setLabJobId}
           />
+        </TabsContent>
+
+        <TabsContent value="prints">
+          <FinancePrintShopPanel rows={scopedPrintShopMargins} />
         </TabsContent>
 
         <TabsContent value="receivables" className="space-y-3">
