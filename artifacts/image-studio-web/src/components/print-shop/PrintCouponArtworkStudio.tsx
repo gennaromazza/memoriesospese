@@ -6,6 +6,7 @@ import {
   COUPON_ARTWORK_TEMPLATES,
   createCouponArtworkBlob,
   createCouponArtworkSvg,
+  layoutCouponArtworkTerms,
   type CouponArtworkAssetMetadata,
   type CouponArtworkData,
   type CouponArtworkPlacement,
@@ -89,8 +90,9 @@ export default function PrintCouponArtworkStudio({
   const [exportError, setExportError] = useState('');
   const channelPlacements = useMemo(() => getPlacements(channelId), [channelId]);
   const placement = channelPlacements.find(item => item.id === placementId) || channelPlacements[0];
+  const compactTerms = layoutCouponArtworkTerms(coupon, placement).compact;
   const artworkSvg = useMemo(
-    () => createCouponArtworkSvg(coupon, templateId, placement),
+    () => createCouponArtworkSvg(coupon, templateId, placement, { showGuides: true }),
     [coupon, templateId, placement],
   );
   const previewUrl = useMemo(() => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(artworkSvg)}`, [artworkSvg]);
@@ -208,10 +210,15 @@ export default function PrintCouponArtworkStudio({
                 <strong className="font-bold">Nota sul crop.</strong> {placement.qualification}
               </p>
             )}
+            {compactTerms && (
+              <p className="mt-3 rounded-lg bg-[#f4eddf] px-3 py-2.5 text-xs leading-5 text-[#625c4d]">
+                Per mantenere leggibili le condizioni, la grafica indica il numero di formati ammessi. L’elenco completo resta consultabile nello shop prima dell’ordine.
+              </p>
+            )}
             {placement.height / placement.width > 1.6 && (
               <p className="mt-3 flex gap-2 rounded-lg bg-[#e9ece4] px-3 py-2.5 text-xs leading-5 text-[#58675e]" data-testid="text-story-safe-zone">
                 <Layers3 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                Testi e codice restano nell’area centrale sicura, lontano dai controlli superiori e inferiori.
+                Testi e codice restano nell’area centrale sicura, lontano dai controlli superiori e inferiori. Le guide non vengono esportate.
               </p>
             )}
           </div>

@@ -1619,6 +1619,14 @@ describe('Print shop coupon artwork', () => {
       height: 1080,
     }, 'admin@example.com')).rejects.toMatchObject({ code: 'invalid_coupon_graphic_dimensions' });
 
+    await expect(f.service.saveAdminCouponGraphic(coupon.id, {
+      image: await sharp(jpg).png().toBuffer(),
+      templateId: 'darkroom',
+      placementId: 'instagram-organic-square',
+      width: 1080,
+      height: 1080,
+    }, 'admin@example.com')).rejects.toMatchObject({ code: 'invalid_coupon_graphic' });
+
     const replacement = await f.service.saveAdminCouponGraphic(coupon.id, {
       image: jpg,
       templateId: 'gallery-label',

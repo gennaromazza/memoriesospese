@@ -117,7 +117,9 @@ function textElement(text: string, x: number, y: number, size: number, color: st
 }
 
 function wrapText(input: string, maxLength: number): string[] {
-  const words = input.split(/\s+/).filter(Boolean);
+  const words = input.split(/\s+/).filter(Boolean).flatMap(word =>
+    word.match(new RegExp(`.{1,${maxLength}}`, 'gu')) || [],
+  );
   const lines: string[] = [];
   let line = '';
   for (const word of words) {
@@ -131,11 +133,38 @@ function wrapText(input: string, maxLength: number): string[] {
   return lines;
 }
 
+/** Keeps every condition above the footer; long format lists use an explicit, accurate summary. */
+export function layoutCouponArtworkTerms(coupon: CouponArtworkData, placement: CouponArtworkPlacement) {
+  const { width, height } = placement;
+  const story = height / width > 1.6;
+  const margin = story ? 94 : 76;
+  const fontSize = width === height ? 27 : 29;
+  const lineHeight = fontSize + 14;
+  const startY = height * (story ? 0.45 : 0.44) + (story ? 350 : 340);
+  const footerY = height - margin - (story ? 72 : 54);
+  const bottomY = Math.min(footerY - 42, story ? height - 230 : Infinity);
+  const maxLines = Math.max(1, Math.floor((bottomY - startY - fontSize * 0.3) / lineHeight) + 1);
+  const lineMax = width === height ? 34 : 39;
+  const terms = formatCouponTerms(coupon);
+  let lines = terms.flatMap(term => wrapText(term, lineMax));
+  const compact = lines.length > maxLines;
+  if (compact) {
+    const formats = coupon.scope === 'all'
+      ? 'Valido su tutti i formati'
+      : coupon.eligibleFormats.length
+        ? `Solo su ${coupon.eligibleFormats.length} formati selezionati`
+        : 'Solo sui formati selezionati';
+    lines = [terms[0], terms[1], formats].flatMap(term => wrapText(term, lineMax));
+  }
+  return { lines, compact, fontSize, lineHeight, startY, bottomY, footerY };
+}
+
 /** Builds a standalone SVG, used identically for the live preview and image export. */
 export function createCouponArtworkSvg(
   coupon: CouponArtworkData,
   templateId: CouponArtworkTemplateId,
   placement: CouponArtworkPlacement,
+  options: { showGuides?: boolean } = {},
 ): string {
   const { width: w, height: h } = placement;
   const palette = palettes[templateId];
@@ -144,12 +173,12 @@ export function createCouponArtworkSvg(
   const cx = w / 2;
   const centerY = story ? h * 0.45 : h * 0.44;
   const offer = formatCouponOffer(coupon);
-  const terms = formatCouponTerms(coupon);
-  const termFont = w === h ? 27 : 29;
-  const lineMax = w === h ? 34 : 39;
-  const detailLines = terms.flatMap(term => wrapText(term, lineMax));
+  const code = coupon.code.trim().toUpperCase() || 'IL TUO CODICE';
+  const codeBoxWidth = Math.min(w - margin * 2 - 140, Math.max(400, code.length * 22));
+  const codeSpacing = code.length > 18 ? 1 : 3;
+  const codeFont = Math.min(31, Math.max(12, Math.floor((codeBoxWidth - 48 - codeSpacing * code.length) / (code.length * 0.65))));
+  const termsLayout = layoutCouponArtworkTerms(coupon, placement);
   const offerFont = offer.length > 8 ? 112 : offer.length > 5 ? 144 : 184;
-  const detailStart = centerY + (story ? 350 : 340);
   const commonText = `font-family="DM Sans, Arial, sans-serif"`;
   const serifText = `font-family="Playfair Display, Georgia, serif"`;
   let art = '';
@@ -168,8 +197,8 @@ export function createCouponArtworkSvg(
       ${textElement('IN STAMPA', cx, centerY - 98, 27, palette.ink, `${commonText} text-anchor="middle" letter-spacing="6"`)}
       ${textElement(offer, cx, centerY + 95, offerFont, palette.accent, `${serifText} text-anchor="middle" font-weight="600"`)}
       ${textElement(coupon.discountType === 'fixed_total' ? 'PREZZO LOTTO' : 'DI SCONTO', cx, centerY + 145, 22, palette.ink, `${commonText} text-anchor="middle" letter-spacing="4"`)}
-      <rect x="${cx - 200}" y="${centerY + 190}" width="400" height="74" rx="37" fill="${palette.ink}"/>
-      ${textElement(coupon.code.toUpperCase() || 'IL TUO CODICE', cx, centerY + 238, 28, palette.paper, `${commonText} text-anchor="middle" font-weight="700" letter-spacing="3"`)}
+       <rect x="${cx - codeBoxWidth / 2}" y="${centerY + 190}" width="${codeBoxWidth}" height="74" rx="37" fill="${palette.ink}"/>
+       ${textElement(code, cx, centerY + 238, codeFont, palette.paper, `${commonText} text-anchor="middle" font-weight="700" letter-spacing="${codeSpacing}"`)}
     `;
   } else if (templateId === 'darkroom') {
     art = `
@@ -183,7 +212,7 @@ export function createCouponArtworkSvg(
       ${textElement(offer, cx, centerY + 90, offerFont + 10, palette.accent, `${serifText} text-anchor="middle" font-weight="600"`)}
       ${textElement(coupon.discountType === 'fixed_total' ? 'PREZZO LOTTO' : 'DI SCONTO', cx, centerY + 140, 22, palette.ink, `${commonText} text-anchor="middle" letter-spacing="5"`)}
       <path d="M ${cx - 185} ${centerY + 190} h 370" stroke="${palette.accent}" stroke-width="2"/>
-      ${textElement(coupon.code.toUpperCase() || 'IL TUO CODICE', cx, centerY + 250, 31, palette.ink, `${commonText} text-anchor="middle" font-weight="700" letter-spacing="3"`)}
+       ${textElement(code, cx, centerY + 250, codeFont, palette.ink, `${commonText} text-anchor="middle" font-weight="700" letter-spacing="${codeSpacing}"`)}
     `;
   } else if (templateId === 'gallery-label') {
     art = `
@@ -199,7 +228,7 @@ export function createCouponArtworkSvg(
       ${textElement(offer, cx, centerY + 100, offerFont, palette.accent, `${serifText} text-anchor="middle" font-weight="600"`)}
       ${textElement(coupon.discountType === 'fixed_total' ? 'PREZZO LOTTO' : 'DI SCONTO', cx, centerY + 148, 20, palette.ink, `${commonText} text-anchor="middle" letter-spacing="4"`)}
       ${textElement('CODICE', cx, centerY + 210, 16, palette.ink, `${commonText} text-anchor="middle" letter-spacing="4" opacity=".7"`)}
-      ${textElement(coupon.code.toUpperCase() || 'IL TUO CODICE', cx, centerY + 253, 30, palette.ink, `${commonText} text-anchor="middle" font-weight="700" letter-spacing="3"`)}
+       ${textElement(code, cx, centerY + 253, codeFont, palette.ink, `${commonText} text-anchor="middle" font-weight="700" letter-spacing="${codeSpacing}"`)}
     `;
   } else {
     art = `
@@ -213,21 +242,21 @@ export function createCouponArtworkSvg(
       ${textElement(offer, cx, centerY + 93, offerFont, palette.accent, `${serifText} text-anchor="middle" font-weight="600"`)}
       ${textElement(coupon.discountType === 'fixed_total' ? 'PREZZO LOTTO' : 'DI SCONTO', cx, centerY + 142, 20, palette.ink, `${commonText} text-anchor="middle" letter-spacing="4"`)}
       <path d="M ${cx - 170} ${centerY + 184} h 340" stroke="${palette.soft}" stroke-width="2" stroke-dasharray="8 8"/>
-      ${textElement(coupon.code.toUpperCase() || 'IL TUO CODICE', cx, centerY + 244, 29, palette.ink, `${commonText} text-anchor="middle" font-weight="700" letter-spacing="3"`)}
+       ${textElement(code, cx, centerY + 244, codeFont, palette.ink, `${commonText} text-anchor="middle" font-weight="700" letter-spacing="${codeSpacing}"`)}
     `;
   }
 
-  const details = detailLines.map((line, index) =>
-    textElement(line, cx, detailStart + index * (termFont + 14), termFont, palette.ink, `${commonText} text-anchor="middle"`)
+  const details = termsLayout.lines.map((line, index) =>
+    textElement(line, cx, termsLayout.startY + index * termsLayout.lineHeight, termsLayout.fontSize, palette.ink, `${commonText} text-anchor="middle"`)
   ).join('');
-  const footerY = h - margin - (story ? 72 : 54);
+  const footerY = termsLayout.footerY;
   const safeTop = story ? 230 : margin + 150;
   const safeBottom = story ? h - 230 : h - margin - 120;
-  const channelNotes = `${textElement('IMAGE STUDIO  ·  STAMPE FOTOGRAFICHE', cx, footerY, 19, palette.ink, `${commonText} text-anchor="middle" letter-spacing="3" opacity=".76"`)}`;
+  const channelNotes = `${textElement(termsLayout.compact ? 'IMAGESTUDIOFOTOGRAFICO.COM' : 'IMAGE STUDIO  ·  STAMPE FOTOGRAFICHE', cx, footerY, 19, palette.ink, `${commonText} text-anchor="middle" letter-spacing="3" opacity=".76"`)}`;
   const overlays = `
     <g>${details}</g>
     <g>${channelNotes}</g>
-    ${story ? `<rect x="${margin}" y="${safeTop}" width="${w - margin * 2}" height="${safeBottom - safeTop}" fill="none" stroke="${palette.accent}" stroke-width="2" stroke-dasharray="9 11" opacity=".24"/>` : ''}
+    ${story && options.showGuides ? `<rect x="${margin}" y="${safeTop}" width="${w - margin * 2}" height="${safeBottom - safeTop}" fill="none" stroke="${palette.accent}" stroke-width="2" stroke-dasharray="9 11" opacity=".24"/>` : ''}
   `;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${art}${overlays}</svg>`;
 }

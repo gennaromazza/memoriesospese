@@ -649,7 +649,11 @@ export class PrintShopService {
 
     let optimized: Buffer;
     try {
-      const result = await sharp(input.image, { limitInputPixels: 3_000_000 })
+      const source = sharp(input.image, { limitInputPixels: 3_000_000 });
+      if ((await source.metadata()).format !== 'jpeg') {
+        throw new Error('Expected a JPEG source');
+      }
+      const result = await source
         .jpeg({ quality: 86, mozjpeg: true })
         .toBuffer({ resolveWithObject: true });
       if (
