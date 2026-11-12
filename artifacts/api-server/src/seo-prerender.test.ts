@@ -91,6 +91,34 @@ describe('SEO prerender wedding-first', () => {
     expect(response.body).toContain('data-seo-prerender="true"');
   });
 
+  it('uses the coupon artwork and exact dimensions in public Open Graph metadata', async () => {
+    const promotion: PrintShopPublicPromotion = {
+      code: 'WINTER15',
+      discountType: 'percentage',
+      value: 15,
+      startsAt: '2026-11-01T00:00:00.000Z',
+      endsAt: '2026-12-01T23:59:59.000Z',
+      scope: 'all',
+      eligibleFormats: [],
+      minPrintQuantity: 10,
+      graphic: {
+        imageUrl: 'https://firebasestorage.googleapis.com/v0/b/example/o/print-shop%2Fpromo.jpg?alt=media&token=public',
+        width: 1080,
+        height: 1920,
+        contentType: 'image/jpeg',
+      },
+    };
+    const { response } = await renderForCrawler(
+      '/stampa-foto-aversa/offerte/winter15',
+      async () => [promotion],
+    );
+
+    expect(response.body).toContain(`property="og:image" content="${promotion.graphic!.imageUrl.replace(/&/g, '&amp;')}"`);
+    expect(response.body).toContain('property="og:image:width" content="1080"');
+    expect(response.body).toContain('property="og:image:height" content="1920"');
+    expect(response.body).toContain(`src="${promotion.graphic!.imageUrl.replace(/&/g, '&amp;')}"`);
+  });
+
   it('returns 404 instead of indexing an unavailable print promotion', async () => {
     const { response, next } = await renderForCrawler(
       '/stampa-foto-aversa/offerte/scaduto',

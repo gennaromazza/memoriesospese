@@ -1527,6 +1527,9 @@ async function getPrintPromotionMeta(
       ? `Per applicare il coupon occorrono almeno ${promotion.minPrintQuantity} copie.`
       : '';
   const imageAlt = 'Stampe fotografiche di qualità pronte per conservare i tuoi ricordi';
+  const promotionImage = promotion.graphic?.imageUrl || PRINT_PROMOTION_OG_URL;
+  const promotionImageWidth = promotion.graphic?.width || 1200;
+  const promotionImageHeight = promotion.graphic?.height || 630;
   const offerSchema: Record<string, unknown> = {
     '@context': 'https://schema.org',
     '@type': 'Offer',
@@ -1555,16 +1558,16 @@ async function getPrintPromotionMeta(
     canonical,
     keywords: `stampe foto Aversa, coupon stampa foto, ${promotion.code}, promozioni stampe fotografiche`,
     socialImage: {
-      url: PRINT_PROMOTION_OG_URL,
+      url: promotionImage,
       alt: imageAlt,
-      width: 1200,
-      height: 630,
-      type: 'image/jpeg',
+      width: promotionImageWidth,
+      height: promotionImageHeight,
+      type: promotion.graphic?.contentType || 'image/jpeg',
       source: 'curated-static',
     },
     bodyContent: `
       <article>
-        <img src="${PRINT_PROMOTION_OG_URL}" alt="${imageAlt}" width="1200" height="630" fetchpriority="high" />
+        <img src="${escapeHtml(promotionImage)}" alt="${imageAlt}" width="${promotionImageWidth}" height="${promotionImageHeight}" fetchpriority="high" />
         <h1>Offerta stampe fotografiche: ${escapeHtml(offer)}</h1>
         <p>Usa il codice <strong>${escapeHtml(promotion.code)}</strong> per ordinare stampe fotografiche online ad Aversa.</p>
         <p>Formati validi: ${formats}.</p>

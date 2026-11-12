@@ -169,7 +169,31 @@ export interface PrintShopCoupon {
   eligibleSkus: readonly string[];
   /** Minimum copies required, or exact package quantity for fixed_total coupons. */
   minPrintQuantity?: number;
+  /** Grafica promozionale salvata; storagePath è visibile soltanto nell'area admin. */
+  graphic?: PrintShopCouponGraphic;
   createdAt?: string;
+  updatedAt?: string;
+}
+
+export type PrintShopGraphicTemplateId = 'contact-sheet' | 'darkroom' | 'gallery-label' | 'field-notes';
+export type PrintShopGraphicPlacementId =
+  | 'instagram-organic-34'
+  | 'instagram-organic-square'
+  | 'meta-feed-45'
+  | 'meta-feed-square'
+  | 'stories-reels'
+  | 'whatsapp-status'
+  | 'whatsapp-channel-square'
+  | 'whatsapp-channel-45';
+
+export interface PrintShopCouponGraphic {
+  templateId: PrintShopGraphicTemplateId;
+  placementId: PrintShopGraphicPlacementId;
+  width: number;
+  height: number;
+  contentType: 'image/jpeg';
+  imageUrl: string;
+  storagePath: string;
   updatedAt?: string;
 }
 
@@ -222,6 +246,8 @@ export interface PrintShopPublicPromotion {
   scope: 'all' | 'selected';
   eligibleFormats: readonly { sku: string; name: string }[];
   minPrintQuantity: number;
+  /** URL e dimensioni della creatività pubblicata, mai il percorso interno di Storage. */
+  graphic?: Pick<PrintShopCouponGraphic, 'imageUrl' | 'width' | 'height' | 'contentType'>;
 }
 
 export interface AppliedPrintTier {

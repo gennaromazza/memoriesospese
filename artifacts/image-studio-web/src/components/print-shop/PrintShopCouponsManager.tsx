@@ -1,15 +1,25 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Pencil, Plus, Save, Ticket, X } from 'lucide-react';
+import { auth } from '@/lib/firebase';
+import { createUrl } from '@/lib/config';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import { downloadBlob } from '@/features/shop/download';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import type { PrintShopCatalogProduct, PrintShopCoupon, PrintShopCouponInput } from '@shared/print-shop-types';
+import type {
+  PrintShopCatalogProduct,
+  PrintShopCoupon,
+  PrintShopCouponInput,
+  PrintShopCouponGraphic,
+} from '@shared/print-shop-types';
+import PrintCouponArtworkStudio from './PrintCouponArtworkStudio';
+import type { CouponArtworkAssetMetadata } from './coupon-artwork';
 
 const queryKey = ['/api/print-shop/admin/coupons'] as const;
 const formatsQueryKey = ['/api/print-shop/coupon-formats'] as const;
@@ -27,6 +37,8 @@ type CouponForm = {
   maxUses: string;
   active: boolean;
   showOnPromotionsPage: boolean;
+  graphic?: PrintShopCouponGraphic;
+  pendingArtwork?: Pick<CouponArtworkAssetMetadata, 'templateId' | 'placementId'>;
 };
 
 function localDateTime(value: Date): string {
@@ -49,6 +61,8 @@ function emptyForm(): CouponForm {
     maxUses: '',
     active: true,
     showOnPromotionsPage: false,
+    graphic: undefined,
+    pendingArtwork: undefined,
   };
 }
 
@@ -66,6 +80,8 @@ function editForm(coupon: PrintShopCoupon): CouponForm {
     maxUses: coupon.maxUses == null ? '' : String(coupon.maxUses),
     active: coupon.active,
     showOnPromotionsPage: coupon.showOnPromotionsPage,
+    graphic: coupon.graphic,
+    pendingArtwork: undefined,
   };
 }
 
@@ -123,7 +139,7 @@ export default function PrintShopCouponsManager() {
   }, [query.isError, query.error]);
 
   const saveMutation = useMutation({
-    mutationFn: async (value: { id?: string; input: PrintShopCouponInput }) => {
+    mutationFn: async (value: { id?: string; input: PrintShopCouponInput; keepOpen?: boolean }) => {
       const response = await apiRequest(
         value.id ? 'PATCH' : 'POST',
         value.id
@@ -135,9 +151,13 @@ export default function PrintShopCouponsManager() {
       if (!body.coupon) throw new Error('Il server non ha restituito il coupon salvato.');
       return body.coupon;
     },
-    onSuccess: async (saved) => {
+    onSuccess: async (saved, variables) => {
       await queryClient.invalidateQueries({ queryKey });
-      setForm(null);
+      if (variables.keepOpen) {
+        setForm(current => current ? { ...current, id: saved.id, graphic: saved.graphic } : null);
+      } else {
+        setForm(null);
+      }
       setFormError('');
       toast({
         title: 'Coupon salvato',
@@ -183,6 +203,62 @@ export default function PrintShopCouponsManager() {
     } catch {
       setFormError('Controlla date e importi del coupon.');
     }
+  };
+
+  const saveArtwork = async (blob: Blob, metadata: CouponArtworkAssetMetadata) => {
+    if (!form) return;
+    if (errors.length) {
+      setFormError(errors[0]);
+      throw new Error(errors[0]);
+    }
+    setForm(current => current
+      ? { ...current, pendingArtwork: { templateId: metadata.templateId, placementId: metadata.placementId } }
+      : null);
+    const savedCoupon = await saveMutation.mutateAsync({
+      id: form.id,
+      input: toInput(form),
+      keepOpen: true,
+    });
+    await auth.authStateReady();
+    const user = auth.currentUser;
+    if (!user) throw new Error('Sessione amministratore non disponibile. Accedi di nuovo.');
+    const query = new URLSearchParams({
+      templateId: metadata.templateId,
+      placementId: metadata.placementId,
+      width: String(metadata.width),
+      height: String(metadata.height),
+    });
+    const response = await fetch(
+      createUrl(`/api/print-shop/admin/coupons/${encodeURIComponent(savedCoupon.id)}/graphic?${query.toString()}`),
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${await user.getIdToken()}`,
+          'Content-Type': metadata.mimeType,
+        },
+        body: blob,
+      },
+    );
+    const body = await response.json().catch(() => null) as { graphic?: PrintShopCouponGraphic; error?: string } | null;
+    if (!response.ok || !body?.graphic) {
+      throw new Error(body?.error || `Non riesco a salvare la grafica (${response.status}).`);
+    }
+    setForm(current => current ? {
+      ...current,
+      id: savedCoupon.id,
+      graphic: body.graphic,
+      pendingArtwork: undefined,
+    } : null);
+    await queryClient.invalidateQueries({ queryKey });
+    toast({
+      title: 'Grafica associata',
+      description: `La creatività per ${savedCoupon.code} è salvata con la promozione.`,
+    });
+  };
+
+  const downloadArtwork = (blob: Blob, metadata: CouponArtworkAssetMetadata) => {
+    const code = form?.code.trim().toUpperCase() || 'coupon-stampe';
+    downloadBlob(blob, `${code}-${metadata.placementId}.jpg`);
   };
 
   return (
@@ -413,6 +489,28 @@ export default function PrintShopCouponsManager() {
               <div><Label htmlFor="print-coupon-active">Coupon attivo</Label><p className="mt-1 text-sm text-muted-foreground">Quando è disattivato, non può essere applicato al checkout.</p></div>
               <Switch id="print-coupon-active" checked={form.active} onCheckedChange={(active) => setForm({ ...form, active })} />
             </div>
+            <PrintCouponArtworkStudio
+              key={form.id || 'new-coupon'}
+              coupon={{
+                code: form.code,
+                discountType: form.discountType,
+                value: form.discountType === 'percentage'
+                  ? Number(form.value)
+                  : Math.round((Number(String(form.value).replace(',', '.')) || 0) * 100),
+                endsAt: form.endsAt,
+                minPrintQuantity: form.minPrintQuantity.trim() ? Number(form.minPrintQuantity) : 0,
+                scope: form.scope,
+                eligibleFormats: form.eligibleSkus.map(sku =>
+                  formatsQuery.data?.find(product => product.sku === sku)?.nome || sku,
+                ),
+              }}
+              savedImageUrl={form.graphic?.imageUrl}
+              selectedVariant={form.graphic?.templateId || form.pendingArtwork?.templateId}
+              selectedPlacementId={form.graphic?.placementId || form.pendingArtwork?.placementId}
+              busy={saveMutation.isPending}
+              onDownload={downloadArtwork}
+              onSave={saveArtwork}
+            />
             {(formError || errors.length > 0) && <p className="text-sm font-medium text-destructive" role="alert">{formError || errors[0]}</p>}
             <div className="flex flex-wrap justify-end gap-3">
               <Button type="button" variant="outline" onClick={() => setForm(null)}>Annulla</Button>

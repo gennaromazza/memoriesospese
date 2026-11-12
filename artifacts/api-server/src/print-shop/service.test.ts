@@ -1540,6 +1540,141 @@ describe('print shop coupon quotes and payment reservations', () => {
   });
 });
 
+describe('Print shop coupon artwork', () => {
+  const now = Date.UTC(2026, 0, 2);
+  const input = {
+    code: 'ARTWORK10',
+    discountType: 'percentage' as const,
+    value: 10,
+    scope: 'all' as const,
+    eligibleSkus: [],
+    minPrintQuantity: 0,
+    startsAt: '2026-01-01T00:00:00.000Z',
+    endsAt: '2026-02-01T00:00:00.000Z',
+    maxUses: null,
+    active: true,
+    showOnPromotionsPage: true,
+  };
+
+  it('stores optimized artwork, preserves it through coupon edits, and exposes only its public URL', async () => {
+    const f = createService({ now: () => Timestamp.fromMillis(now) });
+    const coupon = await f.service.saveAdminPrintShopCoupon(input, 'admin@example.com') as any;
+    const jpg = await sharp({
+      create: { width: 1080, height: 1440, channels: 3, background: { r: 235, g: 229, b: 215 } },
+    }).jpeg().toBuffer();
+
+    const graphic = await f.service.saveAdminCouponGraphic(coupon.id, {
+      image: jpg,
+      templateId: 'contact-sheet',
+      placementId: 'instagram-organic-34',
+      width: 1080,
+      height: 1440,
+    }, 'admin@example.com');
+    expect(graphic).toMatchObject({
+      templateId: 'contact-sheet',
+      placementId: 'instagram-organic-34',
+      width: 1080,
+      height: 1440,
+      contentType: 'image/jpeg',
+      imageUrl: expect.stringContaining('firebasestorage.googleapis.com'),
+    });
+    expect(f.storage.files.get(graphic.storagePath)?.buffer.length).toBeLessThan(jpg.length + 1000);
+
+    const edited = await f.service.saveAdminPrintShopCoupon(
+      { ...input, maxUses: 12 },
+      'admin@example.com',
+      coupon.id,
+    ) as any;
+    expect(edited.graphic).toMatchObject({ imageUrl: graphic.imageUrl, storagePath: graphic.storagePath });
+
+    const promotions = await f.service.publicPrintShopPromotions();
+    expect(promotions[0].graphic).toEqual({
+      imageUrl: graphic.imageUrl,
+      width: 1080,
+      height: 1440,
+      contentType: 'image/jpeg',
+    });
+    expect(promotions[0].graphic).not.toHaveProperty('storagePath');
+  });
+
+  it('replaces the previous graphic and rejects dimensions that do not match the placement', async () => {
+    const f = createService({ now: () => Timestamp.fromMillis(now) });
+    const coupon = await f.service.saveAdminPrintShopCoupon(input, 'admin@example.com') as any;
+    const jpg = await sharp({
+      create: { width: 1080, height: 1080, channels: 3, background: { r: 238, g: 232, b: 220 } },
+    }).jpeg().toBuffer();
+    const previous = await f.service.saveAdminCouponGraphic(coupon.id, {
+      image: jpg,
+      templateId: 'darkroom',
+      placementId: 'instagram-organic-square',
+      width: 1080,
+      height: 1080,
+    }, 'admin@example.com');
+
+    await expect(f.service.saveAdminCouponGraphic(coupon.id, {
+      image: jpg,
+      templateId: 'darkroom',
+      placementId: 'instagram-organic-34',
+      width: 1080,
+      height: 1080,
+    }, 'admin@example.com')).rejects.toMatchObject({ code: 'invalid_coupon_graphic_dimensions' });
+
+    const replacement = await f.service.saveAdminCouponGraphic(coupon.id, {
+      image: jpg,
+      templateId: 'gallery-label',
+      placementId: 'meta-feed-square',
+      width: 1080,
+      height: 1080,
+    }, 'admin@example.com');
+    expect(f.storage.deleted).toContain(previous.storagePath);
+    expect(f.db.value(`printShopCoupons/${coupon.id}`).graphic.storagePath).toBe(replacement.storagePath);
+  });
+
+  it('removes an artwork when coupon conditions change so an outdated offer cannot be shared', async () => {
+    const f = createService({ now: () => Timestamp.fromMillis(now) });
+    const coupon = await f.service.saveAdminPrintShopCoupon(input, 'admin@example.com') as any;
+    const jpg = await sharp({
+      create: { width: 1080, height: 1080, channels: 3, background: { r: 238, g: 232, b: 220 } },
+    }).jpeg().toBuffer();
+    const graphic = await f.service.saveAdminCouponGraphic(coupon.id, {
+      image: jpg,
+      templateId: 'field-notes',
+      placementId: 'instagram-organic-square',
+      width: 1080,
+      height: 1080,
+    }, 'admin@example.com');
+
+    const updated = await f.service.saveAdminPrintShopCoupon(
+      { ...input, value: 20 },
+      'admin@example.com',
+      coupon.id,
+    ) as any;
+    expect(updated.graphic).toBeUndefined();
+    expect(f.storage.deleted).toContain(graphic.storagePath);
+    expect(await f.service.publicPrintShopPromotions()).toMatchObject([{ code: 'ARTWORK10' }]);
+    expect((await f.service.publicPrintShopPromotions())[0]).not.toHaveProperty('graphic');
+  });
+
+  it('does not leak a saved graphic for a coupon hidden from the promotions page', async () => {
+    const f = createService({ now: () => Timestamp.fromMillis(now) });
+    const coupon = await f.service.saveAdminPrintShopCoupon(
+      { ...input, showOnPromotionsPage: false },
+      'admin@example.com',
+    ) as any;
+    const jpg = await sharp({
+      create: { width: 1080, height: 1080, channels: 3, background: { r: 238, g: 232, b: 220 } },
+    }).jpeg().toBuffer();
+    await f.service.saveAdminCouponGraphic(coupon.id, {
+      image: jpg,
+      templateId: 'field-notes',
+      placementId: 'whatsapp-channel-square',
+      width: 1080,
+      height: 1080,
+    }, 'admin@example.com');
+    expect(await f.service.publicPrintShopPromotions()).toEqual([]);
+  });
+});
+
 describe('PrintShopService production validation', () => {
   it('rejects a PayPal capture whose amount does not match the frozen server total', async () => {
     const paypal = paypalFake();

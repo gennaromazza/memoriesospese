@@ -304,6 +304,22 @@ const catalogUnitCostSchema = z.object({
   unitCostCents: z.number().int().min(0).max(100_000_000).nullable(),
 }).strict();
 
+const couponGraphicQuerySchema = z.object({
+  templateId: z.enum(['contact-sheet', 'darkroom', 'gallery-label', 'field-notes']),
+  placementId: z.enum([
+    'instagram-organic-34',
+    'instagram-organic-square',
+    'meta-feed-45',
+    'meta-feed-square',
+    'stories-reels',
+    'whatsapp-status',
+    'whatsapp-channel-square',
+    'whatsapp-channel-45',
+  ]),
+  width: z.coerce.number().int().positive().max(2_000),
+  height: z.coerce.number().int().positive().max(2_000),
+}).strict();
+
 export function createPrintShopRouter(
   overrides: Partial<RouterDependencies> = {},
 ): express.Router {
@@ -582,6 +598,25 @@ export function createPrintShopRouter(
       ),
     });
   }));
+
+  router.post(
+    '/admin/coupons/:couponId/graphic',
+    auth,
+    admin,
+    express.raw({ type: 'image/jpeg', limit: '4mb' }),
+    route(async (req: any, res) => {
+      const metadata = couponGraphicQuerySchema.parse(req.query);
+      if (req.get('content-type')?.split(';')[0].trim().toLowerCase() !== 'image/jpeg' || !Buffer.isBuffer(req.body)) {
+        throw new PrintShopHttpError(415, 'invalid_coupon_graphic_type', 'Carica una grafica JPEG valida');
+      }
+      const graphic = await deps.service.saveAdminCouponGraphic(
+        req.params.couponId,
+        { ...metadata, image: req.body },
+        req.user.email,
+      );
+      res.json({ graphic });
+    }),
+  );
 
   router.get('/admin/retention/config', auth, admin, route(async (_req, res) => {
     res.json(await deps.service.retentionConfiguration());

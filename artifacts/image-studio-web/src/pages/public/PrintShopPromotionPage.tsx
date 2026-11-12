@@ -59,11 +59,11 @@ export default function PrintShopPromotionPage() {
   useSEO({
     ...seo,
     canonical,
-    ogImage: PRINT_PROMOTION_OG_IMAGE,
+    ogImage: promotion?.graphic?.imageUrl || PRINT_PROMOTION_OG_IMAGE,
     ogImageAlt: socialImageAlt,
-    ogImageWidth: 1200,
-    ogImageHeight: 630,
-    ogImageType: 'image/jpeg',
+    ogImageWidth: promotion?.graphic?.width || 1200,
+    ogImageHeight: promotion?.graphic?.height || 630,
+    ogImageType: promotion?.graphic?.contentType || 'image/jpeg',
     ogImageSource: 'curated-static',
     noindex: !promotionsQuery.isLoading && !promotion,
     pending: promotionsQuery.isLoading,
@@ -108,12 +108,12 @@ export default function PrintShopPromotionPage() {
           ) : (
             <article className="mt-8 overflow-hidden rounded-[2rem] border border-sage/20 bg-white shadow-sm">
               <img
-                src={createUrl(PRINT_PROMOTION_OG_IMAGE)}
+                src={promotion.graphic?.imageUrl || createUrl(PRINT_PROMOTION_OG_IMAGE)}
                 alt={socialImageAlt}
-                width={1200}
-                height={630}
+                width={promotion.graphic?.width || 1200}
+                height={promotion.graphic?.height || 630}
                 fetchPriority="high"
-                className="aspect-[1200/630] w-full object-cover"
+                className="max-h-[70vh] w-full object-contain bg-off-white"
               />
               <div className="p-6 sm:p-10">
                 <p className="inline-flex items-center gap-2 rounded-full bg-terracotta/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-terracotta">

@@ -1,6 +1,7 @@
 import express from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Server } from 'node:http';
+import sharp from 'sharp';
 import { PRINT_SHOP_CATALOG } from '@shared/print-shop-catalog';
 import { PrintShopService } from './service.js';
 import { FakeFirestore, FakeStorage } from './test-fakes.js';
@@ -173,5 +174,93 @@ describe('print-shop margin privacy routes', () => {
 
     expect(report.status).toBe(403);
     expect(cost.status).toBe(403);
+  });
+});
+
+describe('print-shop coupon artwork route', () => {
+  it('requires admin authorization and accepts only a real JPEG with a matching placement', async () => {
+    const db = new FakeFirestore();
+    const storage = new FakeStorage();
+    const service = new PrintShopService({ db, storage, paypal: {} as any });
+    const coupon = await service.saveAdminPrintShopCoupon({
+      code: 'ARTWORK10',
+      discountType: 'percentage',
+      value: 10,
+      scope: 'all',
+      eligibleSkus: [],
+      minPrintQuantity: 0,
+      startsAt: '2026-01-01T00:00:00.000Z',
+      endsAt: '2027-01-01T00:00:00.000Z',
+      maxUses: null,
+      active: true,
+      showOnPromotionsPage: true,
+    }, 'admin@example.test') as any;
+    const jpg = await sharp({
+      create: { width: 1080, height: 1080, channels: 3, background: { r: 240, g: 230, b: 220 } },
+    }).jpeg().toBuffer();
+
+    const app = express();
+    app.use('/api/print-shop', createPrintShopRouter({
+      service,
+      storage,
+      adminEmails: ['admin@example.test'],
+      authenticate(req: any, _res, next) {
+        req.user = { uid: 'admin', email: 'admin@example.test' };
+        next();
+      },
+    }));
+    const server = app.listen(0, '127.0.0.1');
+    servers.push(server);
+    await new Promise<void>(resolve => server.once('listening', resolve));
+    const port = (server.address() as { port: number }).port;
+    const url = `http://127.0.0.1:${port}/api/print-shop/admin/coupons/${coupon.id}/graphic?templateId=darkroom&placementId=instagram-organic-square&width=1080&height=1080`;
+
+    const uploaded = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'image/jpeg' },
+      body: new Uint8Array(jpg),
+    });
+    expect(uploaded.status).toBe(200);
+    const uploadedBody = await uploaded.json() as { graphic: Record<string, unknown> };
+    expect(uploadedBody.graphic).toMatchObject({
+      templateId: 'darkroom',
+      placementId: 'instagram-organic-square',
+      width: 1080,
+      height: 1080,
+      contentType: 'image/jpeg',
+    });
+
+    const invalidSize = await fetch(url.replace('height=1080', 'height=1350'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'image/jpeg' },
+      body: new Uint8Array(jpg),
+    });
+    expect(invalidSize.status).toBe(400);
+  });
+
+  it('does not permit customers to save promotion artwork', async () => {
+    const service = new PrintShopService({
+      db: new FakeFirestore(),
+      storage: new FakeStorage(),
+      paypal: {} as any,
+    });
+    const app = express();
+    app.use('/api/print-shop', createPrintShopRouter({
+      service,
+      adminEmails: ['admin@example.test'],
+      authenticate(req: any, _res, next) {
+        req.user = { uid: 'customer', email: 'customer@example.test' };
+        next();
+      },
+    }));
+    const server = app.listen(0, '127.0.0.1');
+    servers.push(server);
+    await new Promise<void>(resolve => server.once('listening', resolve));
+    const port = (server.address() as { port: number }).port;
+    const response = await fetch(
+      `http://127.0.0.1:${port}/api/print-shop/admin/coupons/coupon1/graphic?templateId=darkroom&placementId=instagram-organic-square&width=1080&height=1080`,
+      { method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: new Uint8Array([1, 2, 3]) },
+    );
+    expect(response.status).toBe(403);
   });
 });

@@ -32,6 +32,9 @@ import {
   type PrintShopQuoteInput,
   type PrintShopCouponInput,
   type PrintShopCouponDiscountType,
+  type PrintShopCouponGraphic,
+  type PrintShopGraphicPlacementId,
+  type PrintShopGraphicTemplateId,
   type PrintShopPublicPromotion,
   type PrintShopOrderFinancialRecord,
   type PrintShopOrderFinancialItem,
@@ -224,6 +227,24 @@ const ADMIN_TRANSITIONS: Record<string, readonly PrintShopFulfillmentStatus[]> =
   delivered: [],
   cancelled: [],
 };
+
+const PROMOTION_GRAPHIC_SIZES: Record<PrintShopGraphicPlacementId, readonly [number, number]> = {
+  'instagram-organic-34': [1080, 1440],
+  'instagram-organic-square': [1080, 1080],
+  'meta-feed-45': [1080, 1350],
+  'meta-feed-square': [1080, 1080],
+  'stories-reels': [1080, 1920],
+  'whatsapp-status': [1080, 1920],
+  'whatsapp-channel-square': [1080, 1080],
+  'whatsapp-channel-45': [1080, 1350],
+};
+const PROMOTION_GRAPHIC_TEMPLATES = new Set<PrintShopGraphicTemplateId>([
+  'contact-sheet',
+  'darkroom',
+  'gallery-label',
+  'field-notes',
+]);
+const MAX_PROMOTION_GRAPHIC_UPLOAD_BYTES = 4 * 1024 * 1024;
 
 let processFinalizeSlotsInUse = 0;
 
@@ -476,6 +497,14 @@ export class PrintShopService {
         scope,
         eligibleFormats,
         minPrintQuantity: couponMinPrintQuantity(coupon),
+        ...(isPublicPromotionGraphic(coupon.graphic) ? {
+          graphic: {
+            imageUrl: coupon.graphic.imageUrl,
+            width: coupon.graphic.width,
+            height: coupon.graphic.height,
+            contentType: 'image/jpeg' as const,
+          },
+        } : {}),
       }];
     });
   }
@@ -502,6 +531,7 @@ export class PrintShopService {
     const startsAt = Timestamp.fromMillis(Date.parse(coupon.startsAt));
     const endsAt = Timestamp.fromMillis(Date.parse(coupon.endsAt));
     const editor = normalizeRequiredEmail(adminEmail);
+    let staleGraphicPath: string | undefined;
 
     await this.deps.db.runTransaction(async (transaction: any) => {
       const [existing, duplicates, reservations] = await Promise.all([
@@ -535,6 +565,16 @@ export class PrintShopService {
         (previous.maxUses == null ? null : Number(previous.maxUses)) !== coupon.maxUses ||
         (previous.active === true) !== coupon.active
       );
+      const artworkTermsChanged = Boolean(previous.graphic) && (
+        normalizeCouponCode(previous.normalizedCode || previous.code) !== coupon.code ||
+        previous.discountType !== coupon.discountType ||
+        Number(previous.value) !== coupon.value ||
+        couponScope(previous) !== coupon.scope ||
+        couponEligibleSkus(previous).join('|') !== coupon.eligibleSkus.join('|') ||
+        couponMinPrintQuantity(previous) !== coupon.minPrintQuantity ||
+        timestampMillis(previous.startsAt) !== Date.parse(coupon.startsAt) ||
+        timestampMillis(previous.endsAt) !== Date.parse(coupon.endsAt)
+      );
       if (hasActiveReservations && termsChanged) {
         throw new PrintShopHttpError(
           409,
@@ -557,17 +597,116 @@ export class PrintShopService {
         reservedCount: Number.isSafeInteger(previous.reservedCount) ? previous.reservedCount : 0,
         active: coupon.active,
         showOnPromotionsPage: coupon.showOnPromotionsPage,
+        ...(existing.exists && previous.graphic && !artworkTermsChanged ? { graphic: previous.graphic } : {}),
         ...(existing.exists
           ? { createdAt: previous.createdAt || now }
           : { createdAt: now, createdBy: editor }),
         updatedAt: now,
         updatedBy: editor,
       };
+      if (artworkTermsChanged && typeof previous.graphic?.storagePath === 'string') {
+        staleGraphicPath = previous.graphic.storagePath;
+      }
       transaction.set(ref, value);
     });
 
     const saved = await ref.get();
+    if (staleGraphicPath) {
+      await this.deps.storage.bucket().file(staleGraphicPath).delete({ ignoreNotFound: true }).catch(() => undefined);
+    }
     return couponForAdmin(ref.id, saved.data());
+  }
+
+  async saveAdminCouponGraphic(
+    couponId: string,
+    input: {
+      image: Buffer;
+      templateId: PrintShopGraphicTemplateId;
+      placementId: PrintShopGraphicPlacementId;
+      width: number;
+      height: number;
+    },
+    adminEmail: string,
+  ): Promise<PrintShopCouponGraphic> {
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(couponId)) {
+      throw new PrintShopHttpError(400, 'invalid_coupon_id', 'Identificativo coupon non valido');
+    }
+    const expectedSize = PROMOTION_GRAPHIC_SIZES[input.placementId];
+    if (
+      !expectedSize ||
+      !PROMOTION_GRAPHIC_TEMPLATES.has(input.templateId) ||
+      input.width !== expectedSize[0] ||
+      input.height !== expectedSize[1]
+    ) {
+      throw new PrintShopHttpError(400, 'invalid_coupon_graphic_dimensions', 'Formato della grafica coupon non valido');
+    }
+    if (!Buffer.isBuffer(input.image) || input.image.length === 0) {
+      throw new PrintShopHttpError(400, 'invalid_coupon_graphic', 'Immagine vuota o non valida');
+    }
+    if (input.image.length > MAX_PROMOTION_GRAPHIC_UPLOAD_BYTES) {
+      throw new PrintShopHttpError(413, 'coupon_graphic_too_large', 'La grafica non può superare 4 MB');
+    }
+
+    let optimized: Buffer;
+    try {
+      const result = await sharp(input.image, { limitInputPixels: 3_000_000 })
+        .jpeg({ quality: 86, mozjpeg: true })
+        .toBuffer({ resolveWithObject: true });
+      if (
+        result.info.format !== 'jpeg' ||
+        result.info.width !== input.width ||
+        result.info.height !== input.height ||
+        result.data.length === 0 ||
+        result.data.length > MAX_PROMOTION_GRAPHIC_UPLOAD_BYTES
+      ) {
+        throw new Error('Invalid image');
+      }
+      optimized = result.data;
+    } catch {
+      throw new PrintShopHttpError(400, 'invalid_coupon_graphic', 'Immagine non valida o dimensioni diverse dal formato selezionato');
+    }
+
+    const couponRef = this.deps.db.collection('printShopCoupons').doc(couponId);
+    const existing = await couponRef.get();
+    if (!existing.exists) {
+      throw new PrintShopHttpError(404, 'coupon_not_found', 'Coupon non trovato');
+    }
+    const previousPath = existing.data()?.graphic?.storagePath;
+    const storagePath = `print-shop/promotions/${couponId}/${this.now().toMillis()}_${randomUUID()}.jpg`;
+    const token = randomUUID();
+    const bucket = this.deps.storage.bucket();
+    await bucket.file(storagePath).save(optimized, {
+      resumable: false,
+      metadata: {
+        contentType: 'image/jpeg',
+        cacheControl: 'public, max-age=31536000, immutable',
+        metadata: { firebaseStorageDownloadTokens: token },
+      },
+    });
+    const graphic: PrintShopCouponGraphic = {
+      templateId: input.templateId,
+      placementId: input.placementId,
+      width: input.width,
+      height: input.height,
+      contentType: 'image/jpeg',
+      imageUrl: `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(bucket.name)}/o/${encodeURIComponent(storagePath)}?alt=media&token=${encodeURIComponent(token)}`,
+      storagePath,
+      updatedAt: this.now().toDate().toISOString(),
+    };
+    try {
+      await couponRef.update({
+        graphic,
+        updatedAt: this.now(),
+        updatedBy: normalizeRequiredEmail(adminEmail),
+      });
+    } catch (error) {
+      await bucket.file(storagePath).delete({ ignoreNotFound: true }).catch(() => undefined);
+      throw error;
+    }
+    if (typeof previousPath === 'string' && previousPath !== storagePath) {
+      await bucket.file(previousPath).delete({ ignoreNotFound: true }).catch(() => undefined);
+    }
+    return graphic;
   }
 
   private async couponForQuote(
@@ -6461,9 +6600,33 @@ function couponForAdmin(id: string, value: any): Record<string, unknown> {
     remainingUses: maxUses === null ? null : Math.max(0, maxUses - usedCount - reservedCount),
     active: value?.active === true,
     showOnPromotionsPage: value?.showOnPromotionsPage === true,
+    ...(isAdminCouponGraphic(value?.graphic) ? { graphic: value.graphic } : {}),
     ...(timestampToIso(value?.createdAt) ? { createdAt: timestampToIso(value.createdAt) } : {}),
     ...(timestampToIso(value?.updatedAt) ? { updatedAt: timestampToIso(value.updatedAt) } : {}),
   };
+}
+
+function isAdminCouponGraphic(value: any): value is PrintShopCouponGraphic {
+  return Boolean(
+    value &&
+    PROMOTION_GRAPHIC_TEMPLATES.has(value.templateId) &&
+    Object.prototype.hasOwnProperty.call(PROMOTION_GRAPHIC_SIZES, value.placementId) &&
+    Number.isSafeInteger(value.width) &&
+    Number.isSafeInteger(value.height) &&
+    value.contentType === 'image/jpeg' &&
+    typeof value.imageUrl === 'string' &&
+    value.imageUrl.startsWith('https://firebasestorage.googleapis.com/') &&
+    typeof value.storagePath === 'string' &&
+    value.storagePath.startsWith('print-shop/promotions/'),
+  );
+}
+
+function isPublicPromotionGraphic(value: any): value is PrintShopCouponGraphic {
+  return Boolean(
+    isAdminCouponGraphic(value) &&
+    PROMOTION_GRAPHIC_SIZES[value.placementId as PrintShopGraphicPlacementId]?.[0] === value.width &&
+    PROMOTION_GRAPHIC_SIZES[value.placementId as PrintShopGraphicPlacementId]?.[1] === value.height,
+  );
 }
 
 function validateCouponUsable(coupon: any, nowMillis: number): void {
