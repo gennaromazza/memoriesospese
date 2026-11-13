@@ -16,6 +16,7 @@ type MockupTestResponse = MockupPayload & SavedMockup & MockupPhoto & {
 };
 const fetch = jsonFetch<MockupTestResponse>;
 import { BOX_MOCKUP_MODEL, MOCKUP_MODEL, ROTATING_MOCKUP_MODEL, PLAZA_MOCKUP_MODEL } from '../shared/mockup-catalog';
+import { I_NOBILI_MATERIALS } from '../shared/i-nobili-catalog';
 import peppeLabCatalog from '../../image-studio-web/public/mockups/custodia-v1/peppe-lab-catalog.json';
 import { initialMockupSelection } from '../../image-studio-web/src/components/photobook/mockup-presentation';
 
@@ -1041,6 +1042,63 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     expect(invalid.offerError).toContain('non è più disponibile');
     expect(invalid.editable).toBe(false);
     expect((await save(base, { revision: 2, configuration: plaza, selection, offerRevision: 2 }, 'client')).status).toBe(409);
+  });
+  it('salva separatamente foto copertina e retro Plaza LED mantenendo entrambi gli stati LED', async () => {
+    await publish(base);
+    const [plazaMaterial, plazaInnerMaterial] = I_NOBILI_MATERIALS;
+    const lab = h.docs.get('labs/lab');
+    lab.nome = 'I Nobili';
+    lab.mockupCatalog.materials = [
+      { id: plazaMaterial.id, label: 'Tessuto Plaza esterno', supplierCode: 'P-01' },
+      { id: plazaInnerMaterial.id, label: 'Tessuto Plaza interno', supplierCode: 'P-02' },
+    ];
+    lab.mockupCatalog.models = [{ id: entryId, name: 'Plaza LED', supplierCode: 'P-01', rendererId: PLAZA_MOCKUP_MODEL.id, active: true, materialIds: [plazaMaterial.id, plazaInnerMaterial.id] }];
+    const published = await fetch(`${base}/admin/offer`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ revision: 1, savedRevision: 0, mode: 'fixed', selections: [selection] }),
+    });
+    expect(published.status).toBe(200);
+
+    const image = await sharp({ create: { width: 40, height: 30, channels: 3, background: '#708090' } }).jpeg().toBuffer();
+    const upload = async (name: string) => fetch(`${base}/admin/upload?name=${encodeURIComponent(name)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'image/jpeg' },
+      body: image,
+    }).then(response => response.json() as Promise<MockupPhoto>);
+    const cover = await upload('copertina-plaza.jpg');
+    const back = await upload('retro-plaza.jpg');
+    expect(cover.source).toBe('upload');
+    expect(back.source).toBe('upload');
+    expect(back.id).not.toBe(cover.id);
+
+    const plaza = {
+      modelId: PLAZA_MOCKUP_MODEL.id,
+      assetRevision: PLAZA_MOCKUP_MODEL.assetRevision,
+      materialId: plazaMaterial.id,
+      appearanceRevision: plazaMaterial.appearanceRevision,
+      innerMaterialId: plazaInnerMaterial.id,
+      innerAppearanceRevision: plazaInnerMaterial.appearanceRevision,
+      coverLayout: 'full',
+      frameFinish: 'fabric',
+      topText: '',
+      bottomText: '',
+      photoAssetId: cover.id,
+      crop: { zoom: 1.4, x: 0.3, y: 0.7 },
+      backCover: 'photo',
+      backPhotoAssetId: back.id,
+      backCrop: { zoom: 1.8, x: 0.2, y: 0.8 },
+      ledEnabled: true,
+    };
+    const plazaSelection = { labId: 'lab', modelId: entryId };
+    const firstSave = await save(base, { revision: 0, configuration: plaza, selection: plazaSelection, offerRevision: 2 });
+    expect(firstSave.status, await firstSave.clone().text()).toBe(200);
+    expect((await fetch(`${base}/admin`).then(response => response.json())).saved.configuration).toEqual(plaza);
+
+    const ledOff = { ...plaza, ledEnabled: false, coverLayout: 'split-photo-fabric' };
+    expect((await save(base, { revision: 1, configuration: ledOff, selection: plazaSelection, offerRevision: 2 })).status).toBe(200);
+    expect((await fetch(`${base}/admin`).then(response => response.json())).saved.configuration).toEqual(ledOff);
+    expect(notifySubmission).not.toHaveBeenCalled();
   });
   it('nel percorso studio non chiede al cliente correzioni che non può salvare', async () => {
     await publish(base);
