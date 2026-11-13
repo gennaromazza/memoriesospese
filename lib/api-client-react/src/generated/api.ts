@@ -29,6 +29,7 @@ import type {
   BookingCheckoutHoldInput,
   BookingCheckoutHoldReleaseResult,
   BookingCheckoutHoldView,
+  BookingDepositPayPalOrder,
   CampaignImageUploadResult,
   CustomerNotificationKind,
   CustomerOrderNotificationResendInput,
@@ -64,6 +65,95 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getCreateBookingDepositOrderUrl = (bookingId: string,) => {
+
+
+
+
+  return `/api/booking/v2/checkout-holds/${bookingId}/paypal-order`
+}
+
+/**
+ * @summary Create or resume a PayPal order using an owned checkout and its fixed deposit
+ */
+export const createBookingDepositOrder = async (bookingId: string,
+    bookingCheckoutCredentials: BookingCheckoutCredentials, options?: Parameters<typeof customFetch>[1]): Promise<BookingDepositPayPalOrder> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<BookingDepositPayPalOrder>(getCreateBookingDepositOrderUrl(bookingId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(bookingCheckoutCredentials)
+  }
+);}
+
+
+
+
+
+export const getCreateBookingDepositOrderMutationKey = () => ['createBookingDepositOrder'] as const;
+
+export const getCreateBookingDepositOrderMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBookingDepositOrder>>, TError,CreateBookingDepositOrderMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createBookingDepositOrder>>, TError,CreateBookingDepositOrderMutationVariables, TContext> => {
+
+const mutationKey = getCreateBookingDepositOrderMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createBookingDepositOrder>>, CreateBookingDepositOrderMutationVariables> = (props) => {
+          const {bookingId,data} = props ?? {};
+
+          return  createBookingDepositOrder(bookingId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateBookingDepositOrderMutationResult = NonNullable<Awaited<ReturnType<typeof createBookingDepositOrder>>>
+    export type CreateBookingDepositOrderMutationBody = BodyType<BookingCheckoutCredentials>
+    export type CreateBookingDepositOrderMutationError = ErrorType<void>
+    export type CreateBookingDepositOrderMutationVariables = {bookingId: string;data: BodyType<BookingCheckoutCredentials>}
+
+    /**
+ * @summary Create or resume a PayPal order using an owned checkout and its fixed deposit
+ */
+export const useCreateBookingDepositOrder = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBookingDepositOrder>>, TError,CreateBookingDepositOrderMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createBookingDepositOrder>>,
+        TError,
+        CreateBookingDepositOrderMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateBookingDepositOrderMutationOptions(options));
+    }
 
 export const getCreateBookingCheckoutHoldUrl = () => {
 

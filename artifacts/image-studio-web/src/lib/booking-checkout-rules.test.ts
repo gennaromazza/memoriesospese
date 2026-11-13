@@ -31,6 +31,7 @@ beforeEach(async () => {
     await setDoc(doc(db, 'bookings', 'server-booking'), data);
     await setDoc(doc(db, 'bookingCheckoutHolds', 'active-hold'), { status: 'active' });
     await setDoc(doc(db, 'bookingSlotLocks', '2030-12-10'), { version: 1 });
+    await setDoc(doc(db, 'bookingPayPalOrders', 'ORDER-TEST123'), { bookingId: 'server-booking' });
   });
 });
 afterAll(async () => { await env?.cleanup(); });
@@ -44,7 +45,9 @@ describe('nessun client può aggirare le riserve checkout', () => {
   it.each(['public', 'customer', 'admin'])('nega letture e scritture dirette su riserve e guardie al client %s', async actor => {
     const db = actor === 'public' ? env.unauthenticatedContext().firestore()
       : env.authenticatedContext(actor, { email: actor === 'admin' ? 'gennaro.mazzacane@gmail.com' : 'cliente@example.com' }).firestore();
-    for (const [collection, id] of [['bookingCheckoutHolds', 'active-hold'], ['bookingSlotLocks', '2030-12-10']]) {
+    for (const [collection, id] of [
+      ['bookingCheckoutHolds', 'active-hold'], ['bookingSlotLocks', '2030-12-10'], ['bookingPayPalOrders', 'ORDER-TEST123'],
+    ]) {
       await assertFails(getDoc(doc(db, collection, id)));
       await assertFails(setDoc(doc(db, collection, 'forged'), { status: 'active', version: 99 }));
       await assertFails(updateDoc(doc(db, collection, id), { status: 'cancelled', version: 99 }));

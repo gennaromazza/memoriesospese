@@ -32,9 +32,8 @@ aggirare il problema.
 Nei test di concorrenza, caricare prima i confini mockati (preferibilmente con
 import statici), invece di inizializzarli con import lazy simultanei.
 
-**Why:** in questo ambiente due import lazy concorrenti dello stesso adapter
-hanno restituito il mock a una chiamata e il modulo reale all'altra, facendo
-sfuggire una chiamata Calendar al confine previsto dal test.
+**Why:** i test di concorrenza devono esercitare la riserva, non l'inizializzazione
+dei moduli, e non devono poter raggiungere integrazioni reali.
 
 **How to apply:** prima di una `Promise.all` a freddo, inizializzare gli adapter
 mockati; mantenere comunque mock espliciti delle integrazioni esterne.

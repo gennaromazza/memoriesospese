@@ -396,6 +396,9 @@ service cloud.firestore {
     match /bookingSlotLocks/{day} {
       allow read, write: if false;
     }
+    match /bookingPayPalOrders/{paypalOrderId} {
+      allow read, write: if false;
+    }
 
     // Booking creation is server-only: every public/admin creation uses the API.
     // Direct creates would bypass availability checks and transactional day guards.

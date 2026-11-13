@@ -42,6 +42,13 @@ describe('risposta della creazione prenotazione', () => {
     await expect(createBooking(input)).rejects.toMatchObject({ status: 409, message: expect.stringContaining('Scegli un altro slot') });
   });
 
+  it('non presenta la richiesta di checkout obbligatorio come slot occupato', async () => {
+    mocks.request.mockRejectedValue(new Error('400: {"code":"CHECKOUT_REQUIRED","error":"Questa campagna richiede il checkout con acconto."}'));
+    await expect(createBooking(input)).rejects.toMatchObject({
+      status: 400, message: 'Questa campagna richiede il checkout con acconto.',
+    });
+  });
+
   it('conserva i messaggi del server e non mostra errori HTML del proxy', async () => {
     mocks.request.mockRejectedValueOnce(new Error('400: {"error":"Campagna non attiva"}'));
     await expect(createBooking(input)).rejects.toMatchObject({ status: 400, message: 'Campagna non attiva' });

@@ -2377,6 +2377,14 @@ async function createBookingV2(req: express.Request, res: express.Response): Pro
       return res.status(400).json({ error: "Campagna non attiva" });
     }
 
+    if (!isManual && campaign.richiedeApprovazione === false && campaign.richiedeAcconto === true) {
+      return res.status(400).json({
+        code: 'CHECKOUT_REQUIRED',
+        error: "Questa campagna richiede il checkout con acconto. Nessuna prenotazione è stata creata.",
+        checkoutPath: '/api/booking/v2/checkout-holds',
+      });
+    }
+
     // Defaults preserve legacy approval. Never trust approval/deposit/state
     // flags sent by the browser, and never auto-confirm an unpaid deposit.
     const autoConfirm = !isManual && campaign.richiedeApprovazione === false

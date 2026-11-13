@@ -20,6 +20,8 @@ export * from './bookingCheckoutHoldReleaseResultStatus';
 export * from './bookingCheckoutHoldView';
 export * from './bookingCheckoutHoldViewCurrency';
 export * from './bookingCheckoutHoldViewStatus';
+export * from './bookingDepositPayPalOrder';
+export * from './bookingDepositPayPalOrderCurrency';
 export * from './campaignImageUploadResult';
 export * from './customerNotificationKind';
 export * from './customerOrderNotificationResendInput';

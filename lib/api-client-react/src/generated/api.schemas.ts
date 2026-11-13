@@ -5,6 +5,22 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export type BookingDepositPayPalOrderCurrency = typeof BookingDepositPayPalOrderCurrency[keyof typeof BookingDepositPayPalOrderCurrency];
+
+
+export const BookingDepositPayPalOrderCurrency = {
+  EUR: 'EUR',
+} as const;
+
+export interface BookingDepositPayPalOrder {
+  bookingId: string;
+  paypalOrderId: string;
+  /** @minimum 1 */
+  depositAmountCents: number;
+  currency: BookingDepositPayPalOrderCurrency;
+  expiresAt: string;
+}
+
 export interface BookingCheckoutCustomer {
   /**
      * @minLength 1

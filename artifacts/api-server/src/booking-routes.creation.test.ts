@@ -201,9 +201,21 @@ describe('creazione pubblica senza acconto', () => {
     expect(h.admin.mock.calls[0].at(-1)).toBe(true);
   });
 
-  it('non conferma automaticamente se la campagna richiede un acconto', async () => {
+  it.each(['/v2/create', '/create'])('non permette di saltare il checkout immediato tramite %s', async route => {
     Object.assign(h.campaign, { richiedeApprovazione: false, richiedeAcconto: true, accontoImportoCentesimi: 2000 });
-    const response = await request({ richiedeAcconto: false, accontoImportoCentesimi: 0 });
+    const response = await request({ richiedeAcconto: false, accontoImportoCentesimi: 0, giftCardCode: 'GIFT-TEST' }, route);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ code: 'CHECKOUT_REQUIRED', checkoutPath: '/api/booking/v2/checkout-holds' });
+    expect(h.bookings.size).toBe(0); // No permanent unpaid reservation left occupying the slot.
+    expect(h.sendEmail).not.toHaveBeenCalled();
+    expect(h.claimGift).not.toHaveBeenCalled();
+    expect(h.createEvent).not.toHaveBeenCalled();
+  });
+
+  it('mantiene il percorso con approvazione prima dell’acconto', async () => {
+    Object.assign(h.campaign, { richiedeApprovazione: true, richiedeAcconto: true, accontoImportoCentesimi: 2000 });
+    const response = await request();
+    expect(response.status).toBe(201);
     expect(await response.json()).toMatchObject({ stato: 'in_attesa' });
     expect(h.createEvent).not.toHaveBeenCalled();
   });
@@ -305,6 +317,7 @@ describe('creazione pubblica senza acconto', () => {
   });
 
   it('preserva la prenotazione manuale autenticata, incluse le cifre di pagamento', async () => {
+    Object.assign(h.campaign, { richiedeApprovazione: false, richiedeAcconto: true, accontoImportoCentesimi: 2000 });
     h.available = [];
     const response = await request({ isManual: true, totale: 100, acconto: 20, metodoPagamento: 'contante' }, '/v2/create', true);
     expect(response.status).toBe(201);

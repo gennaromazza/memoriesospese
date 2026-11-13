@@ -15,6 +15,39 @@ tags:
   - name: booking-campaigns
     description: Booking campaign administration
 paths:
+  /booking/v2/checkout-holds/{bookingId}/paypal-order:
+    post:
+      operationId: createBookingDepositOrder
+      tags: [booking-checkout]
+      summary: Create or resume a PayPal order using an owned checkout and its fixed deposit
+      parameters:
+        - name: bookingId
+          in: path
+          required: true
+          schema: { type: string, pattern: '^[A-Za-z0-9_-]{1,200}$' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingCheckoutCredentials"
+      responses:
+        "200":
+          description: Verified PayPal order, no payment captured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingDepositPayPalOrder"
+        "400":
+          description: Invalid input or deposit configuration
+        "404":
+          description: Unknown checkout or invalid token
+        "409":
+          description: Order creation pending, closed checkout, or campaign changed
+        "410":
+          description: Checkout expired
+        "503":
+          description: PayPal unavailable or order could not be verified
   /booking/v2/checkout-holds:
     post:
       operationId: createBookingCheckoutHold
@@ -369,6 +402,15 @@ components:
       scheme: bearer
       bearerFormat: Firebase ID token
   schemas:
+    BookingDepositPayPalOrder:
+      type: object
+      required: [bookingId, paypalOrderId, depositAmountCents, currency, expiresAt]
+      properties:
+        bookingId: { type: string }
+        paypalOrderId: { type: string }
+        depositAmountCents: { type: integer, minimum: 1 }
+        currency: { type: string, enum: [EUR] }
+        expiresAt: { type: string, format: date-time }
     BookingCheckoutCustomer:
       type: object
       additionalProperties: false

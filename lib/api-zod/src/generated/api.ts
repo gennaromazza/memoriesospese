@@ -9,6 +9,35 @@ import * as zod from 'zod';
 
 
 /**
+ * @summary Create or resume a PayPal order using an owned checkout and its fixed deposit
+ */
+export const createBookingDepositOrderPathBookingIdRegExp = new RegExp('^[A-Za-z0-9_-]{1,200}$');
+
+
+export const CreateBookingDepositOrderParams = zod.object({
+  "bookingId": zod.coerce.string().regex(createBookingDepositOrderPathBookingIdRegExp)
+})
+
+export const createBookingDepositOrderBodyTokenRegExp = new RegExp('^[a-f0-9]{64}$');
+
+
+export const CreateBookingDepositOrderBody = zod.object({
+  "token": zod.string().regex(createBookingDepositOrderBodyTokenRegExp)
+})
+
+
+
+
+export const CreateBookingDepositOrderResponse = zod.object({
+  "bookingId": zod.string(),
+  "paypalOrderId": zod.string(),
+  "depositAmountCents": zod.number().int().min(1),
+  "currency": zod.enum(['EUR']),
+  "expiresAt": zod.coerce.date()
+})
+
+
+/**
  * @summary Reserve a slot for ten minutes before an immediate deposit checkout
  */
 export const createBookingCheckoutHoldBodyCampaignIdMax = 200;

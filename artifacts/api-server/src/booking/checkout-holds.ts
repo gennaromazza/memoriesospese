@@ -12,7 +12,7 @@ export class CheckoutHoldError extends Error {
 }
 const hashToken = (token: string) => createHash('sha256').update(token).digest('hex');
 
-function authorize(data: FirebaseFirestore.DocumentData | undefined, token: string): FirebaseFirestore.DocumentData {
+export function authorizeCheckoutHold(data: FirebaseFirestore.DocumentData | undefined, token: string): FirebaseFirestore.DocumentData {
   const candidate = hashToken(token);
   if (!data || typeof data.tokenHash !== 'string' || data.tokenHash.length !== candidate.length
     || !timingSafeEqual(Buffer.from(data.tokenHash), Buffer.from(candidate))) {
@@ -21,7 +21,7 @@ function authorize(data: FirebaseFirestore.DocumentData | undefined, token: stri
   return data;
 }
 
-function activeView(bookingId: string, data: FirebaseFirestore.DocumentData): BookingCheckoutHoldView {
+export function activeCheckoutHoldView(bookingId: string, data: FirebaseFirestore.DocumentData): BookingCheckoutHoldView {
   const now = Date.now();
   if (data.status !== 'active') throw new CheckoutHoldError(409, 'Checkout già chiuso');
   if (!Number.isFinite(data.expiresAt?.toMillis?.())) throw new CheckoutHoldError(503, 'Checkout da verificare con lo studio');
@@ -99,13 +99,13 @@ export async function createCheckoutHold(db: Firestore, input: BookingCheckoutHo
     transaction.set(ref, record);
     return record;
   });
-  return { ...activeView(bookingId, data), token };
+  return { ...activeCheckoutHoldView(bookingId, data), token };
 }
 
 /** Read only: reloads/resumes NEVER renew the original deadline. */
 export async function resumeCheckoutHold(db: Firestore, bookingId: string, token: string) {
   const snapshot = await db.collection(CHECKOUT_HOLDS).doc(bookingId).get();
-  return activeView(bookingId, authorize(snapshot.data(), token));
+  return activeCheckoutHoldView(bookingId, authorizeCheckoutHold(snapshot.data(), token));
 }
 
 /** payment_failed is server-only; the public endpoint can only abandon its own checkout. */
@@ -115,7 +115,7 @@ export async function releaseCheckoutHold(
   const ref = db.collection(CHECKOUT_HOLDS).doc(bookingId);
   return db.runTransaction(async transaction => {
     const snapshot = await transaction.get(ref);
-    const data = authorize(snapshot.data(), token);
+    const data = authorizeCheckoutHold(snapshot.data(), token);
     if (data.status === 'cancelled' || data.status === 'payment_failed') return { bookingId, status: data.status };
     if (data.status !== 'active') throw new CheckoutHoldError(409, 'Il checkout non può più essere annullato');
     if (!Number.isFinite(data.expiresAt?.toMillis?.())) throw new CheckoutHoldError(503, 'Checkout da verificare con lo studio');
