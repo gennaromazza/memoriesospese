@@ -24,6 +24,11 @@ import type {
   AdminCatalogProductReorder,
   AdminCatalogProductReorderResult,
   AdminCatalogProductResult,
+  BookingCheckoutCredentials,
+  BookingCheckoutHoldCreated,
+  BookingCheckoutHoldInput,
+  BookingCheckoutHoldReleaseResult,
+  BookingCheckoutHoldView,
   CampaignImageUploadResult,
   CustomerNotificationKind,
   CustomerOrderNotificationResendInput,
@@ -59,6 +64,272 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getCreateBookingCheckoutHoldUrl = () => {
+
+
+
+
+  return `/api/booking/v2/checkout-holds`
+}
+
+/**
+ * @summary Reserve a slot for ten minutes before an immediate deposit checkout
+ */
+export const createBookingCheckoutHold = async (bookingCheckoutHoldInput: BookingCheckoutHoldInput, options?: Parameters<typeof customFetch>[1]): Promise<BookingCheckoutHoldCreated> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<BookingCheckoutHoldCreated>(getCreateBookingCheckoutHoldUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(bookingCheckoutHoldInput)
+  }
+);}
+
+
+
+
+
+export const getCreateBookingCheckoutHoldMutationKey = () => ['createBookingCheckoutHold'] as const;
+
+export const getCreateBookingCheckoutHoldMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBookingCheckoutHold>>, TError,CreateBookingCheckoutHoldMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createBookingCheckoutHold>>, TError,CreateBookingCheckoutHoldMutationVariables, TContext> => {
+
+const mutationKey = getCreateBookingCheckoutHoldMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createBookingCheckoutHold>>, CreateBookingCheckoutHoldMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createBookingCheckoutHold(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateBookingCheckoutHoldMutationResult = NonNullable<Awaited<ReturnType<typeof createBookingCheckoutHold>>>
+    export type CreateBookingCheckoutHoldMutationBody = BodyType<BookingCheckoutHoldInput>
+    export type CreateBookingCheckoutHoldMutationError = ErrorType<void>
+    export type CreateBookingCheckoutHoldMutationVariables = {data: BodyType<BookingCheckoutHoldInput>}
+
+    /**
+ * @summary Reserve a slot for ten minutes before an immediate deposit checkout
+ */
+export const useCreateBookingCheckoutHold = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBookingCheckoutHold>>, TError,CreateBookingCheckoutHoldMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createBookingCheckoutHold>>,
+        TError,
+        CreateBookingCheckoutHoldMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateBookingCheckoutHoldMutationOptions(options));
+    }
+
+export const getResumeBookingCheckoutHoldUrl = (bookingId: string,) => {
+
+
+
+
+  return `/api/booking/v2/checkout-holds/${bookingId}/resume`
+}
+
+/**
+ * @summary Read an active checkout without extending its server deadline
+ */
+export const resumeBookingCheckoutHold = async (bookingId: string,
+    bookingCheckoutCredentials: BookingCheckoutCredentials, options?: Parameters<typeof customFetch>[1]): Promise<BookingCheckoutHoldView> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<BookingCheckoutHoldView>(getResumeBookingCheckoutHoldUrl(bookingId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(bookingCheckoutCredentials)
+  }
+);}
+
+
+
+
+
+export const getResumeBookingCheckoutHoldMutationKey = () => ['resumeBookingCheckoutHold'] as const;
+
+export const getResumeBookingCheckoutHoldMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resumeBookingCheckoutHold>>, TError,ResumeBookingCheckoutHoldMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resumeBookingCheckoutHold>>, TError,ResumeBookingCheckoutHoldMutationVariables, TContext> => {
+
+const mutationKey = getResumeBookingCheckoutHoldMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resumeBookingCheckoutHold>>, ResumeBookingCheckoutHoldMutationVariables> = (props) => {
+          const {bookingId,data} = props ?? {};
+
+          return  resumeBookingCheckoutHold(bookingId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResumeBookingCheckoutHoldMutationResult = NonNullable<Awaited<ReturnType<typeof resumeBookingCheckoutHold>>>
+    export type ResumeBookingCheckoutHoldMutationBody = BodyType<BookingCheckoutCredentials>
+    export type ResumeBookingCheckoutHoldMutationError = ErrorType<void>
+    export type ResumeBookingCheckoutHoldMutationVariables = {bookingId: string;data: BodyType<BookingCheckoutCredentials>}
+
+    /**
+ * @summary Read an active checkout without extending its server deadline
+ */
+export const useResumeBookingCheckoutHold = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resumeBookingCheckoutHold>>, TError,ResumeBookingCheckoutHoldMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof resumeBookingCheckoutHold>>,
+        TError,
+        ResumeBookingCheckoutHoldMutationVariables,
+        TContext
+      > => {
+      return useMutation(getResumeBookingCheckoutHoldMutationOptions(options));
+    }
+
+export const getReleaseBookingCheckoutHoldUrl = (bookingId: string,) => {
+
+
+
+
+  return `/api/booking/v2/checkout-holds/${bookingId}/release`
+}
+
+/**
+ * @summary Abandon an owned checkout without cancelling a paid booking
+ */
+export const releaseBookingCheckoutHold = async (bookingId: string,
+    bookingCheckoutCredentials: BookingCheckoutCredentials, options?: Parameters<typeof customFetch>[1]): Promise<BookingCheckoutHoldReleaseResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<BookingCheckoutHoldReleaseResult>(getReleaseBookingCheckoutHoldUrl(bookingId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(bookingCheckoutCredentials)
+  }
+);}
+
+
+
+
+
+export const getReleaseBookingCheckoutHoldMutationKey = () => ['releaseBookingCheckoutHold'] as const;
+
+export const getReleaseBookingCheckoutHoldMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof releaseBookingCheckoutHold>>, TError,ReleaseBookingCheckoutHoldMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof releaseBookingCheckoutHold>>, TError,ReleaseBookingCheckoutHoldMutationVariables, TContext> => {
+
+const mutationKey = getReleaseBookingCheckoutHoldMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof releaseBookingCheckoutHold>>, ReleaseBookingCheckoutHoldMutationVariables> = (props) => {
+          const {bookingId,data} = props ?? {};
+
+          return  releaseBookingCheckoutHold(bookingId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReleaseBookingCheckoutHoldMutationResult = NonNullable<Awaited<ReturnType<typeof releaseBookingCheckoutHold>>>
+    export type ReleaseBookingCheckoutHoldMutationBody = BodyType<BookingCheckoutCredentials>
+    export type ReleaseBookingCheckoutHoldMutationError = ErrorType<void>
+    export type ReleaseBookingCheckoutHoldMutationVariables = {bookingId: string;data: BodyType<BookingCheckoutCredentials>}
+
+    /**
+ * @summary Abandon an owned checkout without cancelling a paid booking
+ */
+export const useReleaseBookingCheckoutHold = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof releaseBookingCheckoutHold>>, TError,ReleaseBookingCheckoutHoldMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof releaseBookingCheckoutHold>>,
+        TError,
+        ReleaseBookingCheckoutHoldMutationVariables,
+        TContext
+      > => {
+      return useMutation(getReleaseBookingCheckoutHoldMutationOptions(options));
+    }
 
 export const getCreateAdminCatalogProductUrl = () => {
 

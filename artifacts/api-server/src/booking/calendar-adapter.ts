@@ -9,6 +9,7 @@ import { db } from '../firebase-admin.js';
 import { DateTime } from 'luxon';
 import type { AvailabilityConfig, CalendarEvent } from '../../shared/calendar-types.js';
 import { Timestamp } from 'firebase-admin/firestore';
+import { loadCheckoutHoldEvents } from './slot-reservations.js';
 
 /**
  * Campaign data structure (partial - solo campi necessari per calendar)
@@ -280,6 +281,7 @@ export async function getAllExistingBookingEvents(
     throw error;
   }
   
+  events.push(...await loadCheckoutHoldEvents(firestoreDb, dayStart, dayEnd, excludeBookingId));
   console.log(`[getAllExistingBookingEvents] 🏁 Totale: ${events.length} eventi caricati`);
   return events;
 }

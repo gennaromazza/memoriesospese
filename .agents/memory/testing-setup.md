@@ -29,6 +29,16 @@ aggirare il problema.
 
 ## Testare logica server che dipende da Firestore
 
+Nei test di concorrenza, caricare prima i confini mockati (preferibilmente con
+import statici), invece di inizializzarli con import lazy simultanei.
+
+**Why:** in questo ambiente due import lazy concorrenti dello stesso adapter
+hanno restituito il mock a una chiamata e il modulo reale all'altra, facendo
+sfuggire una chiamata Calendar al confine previsto dal test.
+
+**How to apply:** prima di una `Promise.all` a freddo, inizializzare gli adapter
+mockati; mantenere comunque mock espliciti delle integrazioni esterne.
+
 `runVisioneAutoInviteCheck` (e simili) importano `db/Timestamp/FieldValue` da
 `./firebase-admin.js`, che **inizializza Firebase Admin all'import** (serve un service
 account) → in test va sempre mockato. Pattern usato in `server/reminder-routes.test.ts`:

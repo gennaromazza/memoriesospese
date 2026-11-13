@@ -5,6 +5,7 @@ import type { AddressInfo } from 'node:net';
 const h = vi.hoisted(() => ({
   campaign: {} as any,
   bookings: new Map<string, any>(),
+  guards: new Map<string, any>(),
   sequence: 0,
   available: [] as any[],
   events: vi.fn(),
@@ -33,7 +34,7 @@ function reference(collection: string, id: string): any {
     id, collection,
     get: async () => ({
       exists: collection !== 'bookings' || h.bookings.has(id),
-      data: () => collection === 'booking_campaigns' ? h.campaign
+      data: () => collection === 'bookingSlotLocks' ? h.guards.get(id) : collection === 'booking_campaigns' ? h.campaign
         : collection === 'clienti' ? { sourceRefs: { bookingIds: ['booking-1', 'booking-2', 'booking-3'] } }
         : h.bookings.get(id),
     }),
@@ -54,7 +55,7 @@ function collection(name: string, conditions: any[] = []): any {
       return ref;
     },
     get: async () => ({
-      docs: [...h.bookings].filter(([, data]) => conditions.every(([field, op, expected]) => {
+      docs: (name === 'bookingCheckoutHolds' ? [] : [...h.bookings]).filter(([, data]) => conditions.every(([field, op, expected]) => {
         const actual = data[field]?.toDate?.().getTime() ?? data[field];
         const value = expected?.toDate?.().getTime() ?? expected;
         return op === '==' ? actual === value : op === '>=' ? actual >= value : actual <= value;
@@ -76,7 +77,7 @@ vi.mock('./firebase-admin.js', () => ({
       try {
         const result = await fn({
           get: (target: any) => target.get(),
-          set: (ref: any, data: any) => writes.push(() => h.bookings.set(ref.id, { ...data })),
+          set: (ref: any, data: any) => writes.push(() => (ref.collection === 'bookingSlotLocks' ? h.guards : h.bookings).set(ref.id, { ...data })),
           update: (ref: any, data: any) => writes.push(() => { if (ref.collection === 'bookings') Object.assign(h.bookings.get(ref.id), data); }),
         });
         writes.forEach(write => write());
@@ -139,7 +140,7 @@ function request(patch: any = {}, route = '/v2/create', admin = false) {
 function firstBooking(): any { return [...h.bookings.values()][0]; }
 beforeEach(() => {
   vi.clearAllMocks();
-  h.bookings.clear(); h.sequence = 0; h.failSave = false; h.trace = []; h.tail = Promise.resolve();
+  h.bookings.clear(); h.guards.clear(); h.sequence = 0; h.failSave = false; h.trace = []; h.tail = Promise.resolve();
   h.campaign = {
     nome: 'Campagna test', attiva: true, dataInizio: stamp('2030-12-01'), dataFine: stamp('2030-12-31'),
     orarioApertura: '09:00', orarioPausaInizio: '13:00', orarioPausaFine: '14:00',

@@ -1,10 +1,9 @@
-import { Timestamp, FieldValue, type Firestore, type DocumentReference } from 'firebase-admin/firestore';
-import { DateTime } from 'luxon';
+import { FieldValue, type Firestore, type DocumentReference } from 'firebase-admin/firestore';
 import { createEvent, deleteEvent } from '../google-calendar.js';
 import { syncBookingWorkflowState } from '../../shared/workflow-helpers.js';
 import { logger } from '../lib/logger.js';
-
-export class BookingSlotConflictError extends Error {}
+import { checkSlotReservation } from './slot-reservations.js';
+export { BookingSlotConflictError } from './slot-reservations.js';
 
 /** Rechecks Firestore inside the write transaction, including other campaigns. */
 export async function reservePublicBooking(
@@ -14,20 +13,9 @@ export async function reservePublicBooking(
   end: Date,
 ): Promise<DocumentReference> {
   const ref = db.collection('bookings').doc();
-  const searchStart = DateTime.fromJSDate(start, { zone: 'Europe/Rome' })
-    .minus({ days: 1 }).startOf('day').toJSDate();
   await db.runTransaction(async transaction => {
-    const snapshots = await Promise.all(['in_attesa', 'confermata'].map(stato =>
-      transaction.get(db.collection('bookings')
-        .where('stato', '==', stato)
-        .where('dataShootingInizio', '>=', Timestamp.fromDate(searchStart))
-        .where('dataShootingInizio', '<=', Timestamp.fromDate(end))),
-    ));
-    const occupied = snapshots.some(snapshot => snapshot.docs.some(doc => {
-      const booking = doc.data();
-      return start < booking.dataShootingFine.toDate() && end > booking.dataShootingInizio.toDate();
-    }));
-    if (occupied) throw new BookingSlotConflictError('Slot non più disponibile');
+    const commitLocks = await checkSlotReservation(transaction, db, start, end);
+    commitLocks();
     transaction.set(ref, data);
   });
   return ref;

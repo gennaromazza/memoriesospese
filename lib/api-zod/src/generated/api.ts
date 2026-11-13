@@ -9,6 +9,114 @@ import * as zod from 'zod';
 
 
 /**
+ * @summary Reserve a slot for ten minutes before an immediate deposit checkout
+ */
+export const createBookingCheckoutHoldBodyCampaignIdMax = 200;
+
+
+export const createBookingCheckoutHoldBodyCampaignIdRegExp = new RegExp('^[^/]+$');
+export const createBookingCheckoutHoldBodyClienteNomeMax = 120;
+
+export const createBookingCheckoutHoldBodyClienteCognomeMax = 120;
+
+export const createBookingCheckoutHoldBodyClienteEmailMax = 254;
+
+export const createBookingCheckoutHoldBodyClienteWhatsappMin = 8;
+export const createBookingCheckoutHoldBodyClienteWhatsappMax = 50;
+
+export const createBookingCheckoutHoldBodyProdottoIdMax = 200;
+
+
+export const createBookingCheckoutHoldBodyProdottoIdRegExp = new RegExp('^[^/]+$');
+export const createBookingCheckoutHoldBodyNoteMax = 4000;
+
+
+
+export const CreateBookingCheckoutHoldBody = zod.object({
+  "campaignId": zod.string().min(1).max(createBookingCheckoutHoldBodyCampaignIdMax).regex(createBookingCheckoutHoldBodyCampaignIdRegExp),
+  "cliente": zod.object({
+  "nome": zod.string().min(1).max(createBookingCheckoutHoldBodyClienteNomeMax),
+  "cognome": zod.string().min(1).max(createBookingCheckoutHoldBodyClienteCognomeMax),
+  "email": zod.string().email().max(createBookingCheckoutHoldBodyClienteEmailMax),
+  "whatsapp": zod.string().min(createBookingCheckoutHoldBodyClienteWhatsappMin).max(createBookingCheckoutHoldBodyClienteWhatsappMax)
+}),
+  "dataShootingInizio": zod.coerce.date(),
+  "dataShootingFine": zod.coerce.date(),
+  "prodottoId": zod.string().min(1).max(createBookingCheckoutHoldBodyProdottoIdMax).regex(createBookingCheckoutHoldBodyProdottoIdRegExp).optional(),
+  "note": zod.string().max(createBookingCheckoutHoldBodyNoteMax).optional()
+})
+
+
+
+
+export const CreateBookingCheckoutHoldResponse = zod.object({
+  "bookingId": zod.string(),
+  "campaignId": zod.string(),
+  "status": zod.enum(['active']),
+  "expiresAt": zod.coerce.date(),
+  "serverTime": zod.coerce.date(),
+  "depositAmountCents": zod.number().int().min(1),
+  "currency": zod.enum(['EUR'])
+}).and(zod.object({
+  "token": zod.string()
+}))
+
+
+/**
+ * @summary Read an active checkout without extending its server deadline
+ */
+export const resumeBookingCheckoutHoldPathBookingIdRegExp = new RegExp('^[A-Za-z0-9_-]{1,200}$');
+
+
+export const ResumeBookingCheckoutHoldParams = zod.object({
+  "bookingId": zod.coerce.string().regex(resumeBookingCheckoutHoldPathBookingIdRegExp)
+})
+
+export const resumeBookingCheckoutHoldBodyTokenRegExp = new RegExp('^[a-f0-9]{64}$');
+
+
+export const ResumeBookingCheckoutHoldBody = zod.object({
+  "token": zod.string().regex(resumeBookingCheckoutHoldBodyTokenRegExp)
+})
+
+
+
+
+export const ResumeBookingCheckoutHoldResponse = zod.object({
+  "bookingId": zod.string(),
+  "campaignId": zod.string(),
+  "status": zod.enum(['active']),
+  "expiresAt": zod.coerce.date(),
+  "serverTime": zod.coerce.date(),
+  "depositAmountCents": zod.number().int().min(1),
+  "currency": zod.enum(['EUR'])
+})
+
+
+/**
+ * @summary Abandon an owned checkout without cancelling a paid booking
+ */
+export const releaseBookingCheckoutHoldPathBookingIdRegExp = new RegExp('^[A-Za-z0-9_-]{1,200}$');
+
+
+export const ReleaseBookingCheckoutHoldParams = zod.object({
+  "bookingId": zod.coerce.string().regex(releaseBookingCheckoutHoldPathBookingIdRegExp)
+})
+
+export const releaseBookingCheckoutHoldBodyTokenRegExp = new RegExp('^[a-f0-9]{64}$');
+
+
+export const ReleaseBookingCheckoutHoldBody = zod.object({
+  "token": zod.string().regex(releaseBookingCheckoutHoldBodyTokenRegExp)
+})
+
+export const ReleaseBookingCheckoutHoldResponse = zod.object({
+  "bookingId": zod.string(),
+  "status": zod.enum(['cancelled', 'expired', 'payment_failed'])
+})
+
+
+/**
  * @summary Create a catalog product and its private cost atomically
  */
 export const createAdminCatalogProductBodyPrezzoMin = 0;

@@ -27,3 +27,17 @@ dell'implementazione; non sono decisioni da reinventare nei singoli task.
 **How to apply:** consultare `docs/booking-deposit-policy.md` per la matrice
 completa, i confini temporali e i casi eccezionali, inclusa la gestione diretta
 dello studio quando manca un'ora o meno allo shooting.
+
+## Creazione protetta degli slot
+
+I form pubblici possono restare anonimi, ma tutte le creazioni di prenotazioni
+devono passare dal server. Non riaprire la creazione diretta dai client per
+compatibilità con una schermata amministrativa.
+
+**Why:** una transazione che riserva correttamente uno slot è comunque
+aggirabile se le regole del database consentono di creare prenotazioni
+direttamente. La protezione va verificata anche sul percorso Web SDK.
+
+**How to apply:** quando si modificano hold o prenotazioni, controllare sia
+le corse delle API sia le regole client; adattare eventuali form legacy al
+percorso server protetto, mantenendo separati i permessi di lettura e gestione.

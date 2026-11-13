@@ -15,6 +15,92 @@ tags:
   - name: booking-campaigns
     description: Booking campaign administration
 paths:
+  /booking/v2/checkout-holds:
+    post:
+      operationId: createBookingCheckoutHold
+      tags: [booking-checkout]
+      summary: Reserve a slot for ten minutes before an immediate deposit checkout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingCheckoutHoldInput"
+      responses:
+        "201":
+          description: Private booking draft reserved, no payment or confirmation email sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingCheckoutHoldCreated"
+        "400":
+          description: Invalid input or campaign does not support immediate deposit checkout
+        "404":
+          description: Campaign not found
+        "409":
+          description: Slot occupied or campaign changed
+        "503":
+          description: Availability cannot be verified
+  /booking/v2/checkout-holds/{bookingId}/resume:
+    post:
+      operationId: resumeBookingCheckoutHold
+      tags: [booking-checkout]
+      summary: Read an active checkout without extending its server deadline
+      parameters:
+        - name: bookingId
+          in: path
+          required: true
+          schema: { type: string, pattern: '^[A-Za-z0-9_-]{1,200}$' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingCheckoutCredentials"
+      responses:
+        "200":
+          description: Original deadline and server time
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingCheckoutHoldView"
+        "400":
+          description: Invalid input
+        "404":
+          description: Unknown booking or invalid token
+        "409":
+          description: Checkout already closed
+        "410":
+          description: Checkout expired
+  /booking/v2/checkout-holds/{bookingId}/release:
+    post:
+      operationId: releaseBookingCheckoutHold
+      tags: [booking-checkout]
+      summary: Abandon an owned checkout without cancelling a paid booking
+      parameters:
+        - name: bookingId
+          in: path
+          required: true
+          schema: { type: string, pattern: '^[A-Za-z0-9_-]{1,200}$' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingCheckoutCredentials"
+      responses:
+        "200":
+          description: Hold released or already expired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingCheckoutHoldReleaseResult"
+        "400":
+          description: Invalid input
+        "404":
+          description: Unknown booking or invalid token
+        "409":
+          description: Checkout already consumed by a payment
   /shop/admin/catalog-products:
     post:
       operationId: createAdminCatalogProduct
@@ -283,6 +369,57 @@ components:
       scheme: bearer
       bearerFormat: Firebase ID token
   schemas:
+    BookingCheckoutCustomer:
+      type: object
+      additionalProperties: false
+      required: [nome, cognome, email, whatsapp]
+      properties:
+        nome: { type: string, minLength: 1, maxLength: 120 }
+        cognome: { type: string, minLength: 1, maxLength: 120 }
+        email: { type: string, format: email, maxLength: 254 }
+        whatsapp: { type: string, minLength: 8, maxLength: 50 }
+    BookingCheckoutHoldInput:
+      type: object
+      additionalProperties: false
+      required: [campaignId, cliente, dataShootingInizio, dataShootingFine]
+      properties:
+        campaignId: { type: string, minLength: 1, maxLength: 200, pattern: '^[^/]+$' }
+        cliente:
+          $ref: "#/components/schemas/BookingCheckoutCustomer"
+        dataShootingInizio: { type: string, format: date-time }
+        dataShootingFine: { type: string, format: date-time }
+        prodottoId: { type: string, minLength: 1, maxLength: 200, pattern: '^[^/]+$' }
+        note: { type: string, maxLength: 4000 }
+    BookingCheckoutCredentials:
+      type: object
+      additionalProperties: false
+      required: [token]
+      properties:
+        token: { type: string, pattern: '^[a-f0-9]{64}$' }
+    BookingCheckoutHoldView:
+      type: object
+      required: [bookingId, campaignId, status, expiresAt, serverTime, depositAmountCents, currency]
+      properties:
+        bookingId: { type: string }
+        campaignId: { type: string }
+        status: { type: string, enum: [active] }
+        expiresAt: { type: string, format: date-time }
+        serverTime: { type: string, format: date-time }
+        depositAmountCents: { type: integer, minimum: 1 }
+        currency: { type: string, enum: [EUR] }
+    BookingCheckoutHoldCreated:
+      allOf:
+        - $ref: "#/components/schemas/BookingCheckoutHoldView"
+        - type: object
+          required: [token]
+          properties:
+            token: { type: string }
+    BookingCheckoutHoldReleaseResult:
+      type: object
+      required: [bookingId, status]
+      properties:
+        bookingId: { type: string }
+        status: { type: string, enum: [cancelled, expired, payment_failed] }
     AdminCatalogProductResult:
       type: object
       required: [id]

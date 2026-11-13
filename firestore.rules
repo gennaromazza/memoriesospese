@@ -389,10 +389,19 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
     
-    // Bookings - Public can create, admin manages
+    // Checkout drafts and reservation guards are exclusively server-managed.
+    match /bookingCheckoutHolds/{bookingId} {
+      allow read, write: if false;
+    }
+    match /bookingSlotLocks/{day} {
+      allow read, write: if false;
+    }
+
+    // Booking creation is server-only: every public/admin creation uses the API.
+    // Direct creates would bypass availability checks and transactional day guards.
     match /bookings/{bookingId} {
       allow read: if isAdmin(); // Only admin can see all bookings
-      allow create: if true; // Public can create bookings via booking form
+      allow create: if false;
       allow update: if isAdmin(); // Only admin can update bookings (confirm, complete, etc.)
       allow delete: if isAdmin(); // Only admin can delete bookings
     }

@@ -5,6 +5,94 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface BookingCheckoutCustomer {
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  nome: string;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  cognome: string;
+  /** @maxLength 254 */
+  email: string;
+  /**
+     * @minLength 8
+     * @maxLength 50
+     */
+  whatsapp: string;
+}
+
+export interface BookingCheckoutHoldInput {
+  /**
+     * @minLength 1
+     * @maxLength 200
+     * @pattern ^[^/]+$
+     */
+  campaignId: string;
+  cliente: BookingCheckoutCustomer;
+  dataShootingInizio: string;
+  dataShootingFine: string;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     * @pattern ^[^/]+$
+     */
+  prodottoId?: string;
+  /** @maxLength 4000 */
+  note?: string;
+}
+
+export interface BookingCheckoutCredentials {
+  /** @pattern ^[a-f0-9]{64}$ */
+  token: string;
+}
+
+export type BookingCheckoutHoldViewStatus = typeof BookingCheckoutHoldViewStatus[keyof typeof BookingCheckoutHoldViewStatus];
+
+
+export const BookingCheckoutHoldViewStatus = {
+  active: 'active',
+} as const;
+
+export type BookingCheckoutHoldViewCurrency = typeof BookingCheckoutHoldViewCurrency[keyof typeof BookingCheckoutHoldViewCurrency];
+
+
+export const BookingCheckoutHoldViewCurrency = {
+  EUR: 'EUR',
+} as const;
+
+export interface BookingCheckoutHoldView {
+  bookingId: string;
+  campaignId: string;
+  status: BookingCheckoutHoldViewStatus;
+  expiresAt: string;
+  serverTime: string;
+  /** @minimum 1 */
+  depositAmountCents: number;
+  currency: BookingCheckoutHoldViewCurrency;
+}
+
+export type BookingCheckoutHoldCreated = BookingCheckoutHoldView & {
+  token: string;
+};
+
+export type BookingCheckoutHoldReleaseResultStatus = typeof BookingCheckoutHoldReleaseResultStatus[keyof typeof BookingCheckoutHoldReleaseResultStatus];
+
+
+export const BookingCheckoutHoldReleaseResultStatus = {
+  cancelled: 'cancelled',
+  expired: 'expired',
+  payment_failed: 'payment_failed',
+} as const;
+
+export interface BookingCheckoutHoldReleaseResult {
+  bookingId: string;
+  status: BookingCheckoutHoldReleaseResultStatus;
+}
+
 export interface AdminCatalogProductResult {
   id: string;
 }

@@ -19,8 +19,11 @@ import { GiftCardHttpError, GiftCardService } from "./gift-cards/service.js";
 import {
   reservePublicBooking, confirmPublicBooking, BookingSlotConflictError, AutomaticConfirmationError,
 } from "./booking/public-creation.js";
+import { checkoutHoldRouter } from './booking/checkout-hold-routes.js';
+import { loadCheckoutHoldEvents } from './booking/slot-reservations.js';
 
 const router = express.Router();
+router.use('/v2/checkout-holds', checkoutHoldRouter(db));
 
 // Riscatto delle gift card nella prenotazione pubblica (stessa base dati, nessuna dipendenza da PayPal)
 const giftCards = new GiftCardService({ db });
@@ -431,6 +434,12 @@ router.post("/available-slots", async (req, res) => {
         `[Available Slots] Fallback attivo: ${slots.length} slot da Google Calendar`,
       );
     }
+
+    // Holds are global across campaigns and must never use the legacy fail-open fallback.
+    const heldEvents = await loadCheckoutHoldEvents(
+      db, parseDateForSlots(date).startOf('day').toJSDate(), parseDateForSlots(date).endOf('day').toJSDate(),
+    );
+    slots = slots.filter(slot => !heldEvents.some(hold => slot.start < hold.end && slot.end > hold.start));
 
     // Formatta slot per risposta JSON
     const formattedSlots = slots.map((slot) => ({
