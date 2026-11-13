@@ -691,6 +691,42 @@ for (const model of directModels) {
           && body.dataset.backPhotoLoaded === "true";
       }, { frontId: savedPhotoIds.front, backId: savedPhotoIds.back, materialId });
     }
+    if (model.key === "girevole") {
+      await page.waitForFunction(({ frontId, backId, materialId }) => {
+        const configuration = (window as Window & {
+          __plazaReadonlyConfiguration?: {
+            modelId?: string;
+            materialId?: string;
+            coverLayout?: string;
+            frameFinish?: string;
+            photoAssetId?: string | null;
+            crop?: { zoom?: number; x?: number; y?: number };
+            backCover?: string;
+            backPhotoAssetId?: string | null;
+            backCrop?: { zoom?: number; x?: number; y?: number };
+          };
+        }).__plazaReadonlyConfiguration;
+        const frame = Array.from(document.querySelectorAll("iframe"))
+          .find(candidate => candidate.src.includes("/mockups/")) as HTMLIFrameElement | undefined;
+        const body = frame?.contentDocument?.body;
+        return configuration?.modelId === "album-girevole"
+          && configuration.materialId === materialId
+          && configuration.coverLayout === "full"
+          && configuration.frameFinish === "fabric"
+          && configuration.photoAssetId === frontId
+          && configuration.crop?.zoom === 1
+          && configuration.crop?.x === 0.5
+          && configuration.crop?.y === 0.5
+          && configuration.backCover === "photo"
+          && configuration.backPhotoAssetId === backId
+          && configuration.backCrop?.zoom === 1
+          && configuration.backCrop?.x === 0.5
+          && configuration.backCrop?.y === 0.5
+          && body?.dataset.backCover === "photo"
+          && body.dataset.backPhotoId === backId
+          && body.dataset.backPhotoLoaded === "true";
+      }, { frontId: savedPhotoIds.front, backId: savedPhotoIds.back, materialId });
+    }
     const inspectViewer = async () => page.evaluate((isBox) => {
       const frame = Array.from(document.querySelectorAll("iframe"))
         .find(candidate => candidate.src.includes("/mockups/")) as HTMLIFrameElement | undefined;
@@ -815,6 +851,31 @@ for (const model of directModels) {
       expect(viewerState.summary).toContain("Plexiglass dello scrigno: Foto stampata");
       expect((viewerState.configuration as { photoAssetId: string; backPhotoAssetId: string }).photoAssetId)
         .not.toBe((viewerState.configuration as { photoAssetId: string; backPhotoAssetId: string }).backPhotoAssetId);
+    }
+    if (model.key === "girevole") {
+      expect(viewerState.framePath).toContain("/mockups/girevole-v4/index.html");
+      expect(viewerState).toMatchObject({
+        backPhotoId: savedPhotoIds.back,
+        backPhotoLoaded: "true",
+        coverLayout: "full",
+        configuration: {
+          modelId: "album-girevole",
+          materialId,
+          coverLayout: "full",
+          frameFinish: "fabric",
+          photoAssetId: savedPhotoIds.front,
+          crop: { zoom: 1, x: 0.5, y: 0.5 },
+          backCover: "photo",
+          backPhotoAssetId: savedPhotoIds.back,
+          backCrop: { zoom: 1, x: 0.5, y: 0.5 },
+        },
+      });
+      expect(viewerState.summary).toContain("Tessuto: Tessuto di prova");
+      expect(viewerState.summary).toContain("Copertina: Foto grande a tutta copertina");
+      expect(viewerState.summary).toContain("Plexiglass posteriore dello scrigno: Foto stampata");
+      const rotatingFrame = page.frameLocator('iframe[src*="/mockups/girevole-v4/index.html"]');
+      await expect(rotatingFrame.locator("#photoStatus")).toHaveText("Foto salvata");
+      await expect(rotatingFrame.locator("#backPhotoStatus")).toHaveText("Foto retro salvata");
     }
     if (boxModel) {
       expect(viewerState.locked).toBe(true);
