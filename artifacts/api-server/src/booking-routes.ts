@@ -23,8 +23,23 @@ import { checkoutHoldRouter } from './booking/checkout-hold-routes.js';
 import { bookingDepositPaymentRouter } from './booking/deposit-payment-routes.js';
 import { loadCheckoutHoldEvents } from './booking/slot-reservations.js';
 import { hasPaidBookingDeposit, unpaidDepositRequestExpired } from './booking/payment-deadlines.js';
+import { approveBookingWithDeposit } from './booking/approved-deposit-request.js';
+import { CheckoutHoldError } from './booking/checkout-hold-state.js';
 
 const router = express.Router();
+async function requestDepositIfNeeded(req: any, res: express.Response, bookingId: string,
+  booking: { depositPaymentRequest?: { approvedBy?: string } }): Promise<boolean> {
+  // Old/faulty requests must retain their fail-closed guard without looking up other services.
+  if (booking.depositPaymentRequest && !booking.depositPaymentRequest.approvedBy) return false;
+  try {
+    const result = await approveBookingWithDeposit(db, bookingId, req.user?.uid || req.user?.email || 'admin');
+    if (!result) return false;
+    res.json(result); return true;
+  } catch (error) {
+    if (!(error instanceof CheckoutHoldError)) throw error;
+    res.status(error.status).json({ error: error.message }); return true;
+  }
+}
 router.use('/v2/checkout-holds', checkoutHoldRouter(db));
 router.use(bookingDepositPaymentRouter(db));
 
@@ -933,6 +948,7 @@ router.patch("/v2/:id/approve", authenticateFirebase, requireAdmin, async (req, 
     }
 
     // RIVALIDAZIONE con Calendar Engine V2
+    if (await requestDepositIfNeeded(req, res, id, bookingData)) return;
     if (bookingData.depositPaymentRequest?.status === 'pending' && !hasPaidBookingDeposit(bookingData)) {
       return res.status(400).json({ code: "DEPOSIT_PAYMENT_PENDING", error: "Acconto in attesa di pagamento: la scadenza originaria resta invariata" });
     }
@@ -1229,6 +1245,7 @@ router.patch("/:id/approve", authenticateFirebase, requireAdmin, async (req, res
     }
 
     // RIVALIDAZIONE: Verifica che lo slot sia ancora disponibile prima di creare evento
+    if (await requestDepositIfNeeded(req, res, id, bookingData)) return;
     if (bookingData.depositPaymentRequest?.status === 'pending' && !hasPaidBookingDeposit(bookingData)) {
       return res.status(400).json({ code: "DEPOSIT_PAYMENT_PENDING", error: "Acconto in attesa di pagamento: la scadenza originaria resta invariata" });
     }
@@ -1745,6 +1762,13 @@ router.patch("/:id/status", authenticateFirebase, requireAdmin, async (req, res)
     }
 
     const oldStato = bookingData.stato;
+    if (stato === 'in_attesa' && unpaidDepositRequestExpired(bookingData)) {
+      return res.status(410).json({ error: 'La richiesta di acconto è scaduta. Occorre una nuova prenotazione, non riattivare quella precedente.' });
+    }
+    if (['confermata', 'completata'].includes(stato) && bookingData.depositPaymentRequest && !hasPaidBookingDeposit(bookingData)) {
+      return res.status(400).json({ code: 'DEPOSIT_PAYMENT_PENDING',
+        error: 'L’acconto non è confermato o richiede una verifica. Non è possibile confermare lo shooting da questo comando.' });
+    }
 
     // Fix #2: Sync statoWorkflow basato su nuovo stato (spread-safe)
     const currentWorkflowState = bookingData.statoWorkflow;

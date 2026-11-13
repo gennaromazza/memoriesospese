@@ -21,6 +21,7 @@ export function activeCheckoutHoldView(bookingId: string, data: FirebaseFirestor
   if (!Number.isFinite(data.expiresAt?.toMillis?.())) throw new CheckoutHoldError(503, 'Checkout da verificare con lo studio');
   if (!checkoutHoldBlocksSlot(data, now)) throw new CheckoutHoldError(410, 'Checkout scaduto: scegli nuovamente lo slot');
   return { bookingId, campaignId: data.campaignId, status: 'active', expiresAt: data.expiresAt.toDate(),
+    flow: data.kind === 'approved_deposit' ? 'approved' : 'immediate',
     dataShootingInizio: data.dataShootingInizio.toDate(), dataShootingFine: data.dataShootingFine.toDate(),
     serverTime: new Date(now), depositAmountCents: data.depositAmountCents, currency: 'EUR' };
 }

@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { BookingDepositCaptureResult } from './bookingDepositCaptureResult';
+import type { BookingDepositStatusResultFlow } from './bookingDepositStatusResultFlow';
 import type { BookingDepositStatusResultStatus } from './bookingDepositStatusResultStatus';
 
 export interface BookingDepositStatusResult {
@@ -13,5 +14,7 @@ export interface BookingDepositStatusResult {
   status: BookingDepositStatusResultStatus;
   dataShootingInizio: Date;
   dataShootingFine: Date;
+  campaignId: string;
+  flow: BookingDepositStatusResultFlow;
   payment?: BookingDepositCaptureResult;
 }

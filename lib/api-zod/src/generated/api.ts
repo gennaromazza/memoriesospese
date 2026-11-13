@@ -8,6 +8,52 @@
 import * as zod from 'zod';
 
 
+export const approveLegacyBookingRequestPathBookingIdMax = 200;
+
+
+
+export const ApproveLegacyBookingRequestParams = zod.object({
+  "bookingId": zod.coerce.string().min(1).max(approveLegacyBookingRequestPathBookingIdMax)
+})
+
+
+
+
+export const ApproveLegacyBookingRequestResponse = zod.object({
+  "success": zod.boolean(),
+  "bookingId": zod.string().optional(),
+  "paymentRequired": zod.boolean().optional(),
+  "stato": zod.enum(['in_attesa_pagamento', 'confermata']).optional(),
+  "amountCents": zod.number().int().min(1).optional(),
+  "currency": zod.enum(['EUR']).optional(),
+  "expiresAt": zod.coerce.date().optional(),
+  "emailStatus": zod.enum(['pending', 'sending', 'sent', 'failed', 'unknown']).optional()
+})
+
+
+export const approveBookingRequestPathBookingIdMax = 200;
+
+
+
+export const ApproveBookingRequestParams = zod.object({
+  "bookingId": zod.coerce.string().min(1).max(approveBookingRequestPathBookingIdMax)
+})
+
+
+
+
+export const ApproveBookingRequestResponse = zod.object({
+  "success": zod.boolean(),
+  "bookingId": zod.string().optional(),
+  "paymentRequired": zod.boolean().optional(),
+  "stato": zod.enum(['in_attesa_pagamento', 'confermata']).optional(),
+  "amountCents": zod.number().int().min(1).optional(),
+  "currency": zod.enum(['EUR']).optional(),
+  "expiresAt": zod.coerce.date().optional(),
+  "emailStatus": zod.enum(['pending', 'sending', 'sent', 'failed', 'unknown']).optional()
+})
+
+
 export const GetBookingPayPalConfigResponse = zod.object({
   "enabled": zod.boolean(),
   "clientId": zod.string().nullable(),
@@ -43,6 +89,8 @@ export const GetBookingDepositStatusResponse = zod.object({
   "status": zod.enum(['unpaid', 'processing', 'paid', 'paid_action_required']),
   "dataShootingInizio": zod.coerce.date(),
   "dataShootingFine": zod.coerce.date(),
+  "campaignId": zod.string(),
+  "flow": zod.enum(['immediate', 'approved']),
   "payment": zod.object({
   "bookingId": zod.string(),
   "paypalOrderId": zod.string(),
@@ -173,6 +221,7 @@ export const CreateBookingCheckoutHoldBody = zod.object({
 export const CreateBookingCheckoutHoldResponse = zod.object({
   "bookingId": zod.string(),
   "campaignId": zod.string(),
+  "flow": zod.enum(['immediate', 'approved']),
   "status": zod.enum(['active']),
   "expiresAt": zod.coerce.date(),
   "serverTime": zod.coerce.date(),
@@ -208,6 +257,7 @@ export const ResumeBookingCheckoutHoldBody = zod.object({
 export const ResumeBookingCheckoutHoldResponse = zod.object({
   "bookingId": zod.string(),
   "campaignId": zod.string(),
+  "flow": zod.enum(['immediate', 'approved']),
   "status": zod.enum(['active']),
   "expiresAt": zod.coerce.date(),
   "serverTime": zod.coerce.date(),

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { isApprovedDepositHold, assertApprovedDepositMatchesBooking } from './approved-deposit-state.js';
 import { Timestamp, type Firestore } from 'firebase-admin/firestore';
 import { captureFromWebhook, extractCompletedCapture } from '../commerce/paypal-capture.js';
 import { paypalRequestId, type PayPalOrdersClient, type PayPalOrdersConfig, type PayPalOrderResponse } from '../print-shop/paypal-orders.js';
@@ -37,7 +38,9 @@ function verifiedCapture(remote: PayPalOrderResponse, association: any, merchant
 /** A receipt check may reconcile money already received, but must NEVER POST a capture. */
 export async function getBookingDepositStatus(db: Firestore, paypal: BookingCapturePayPalClient, bookingId: string, token: string) {
   const hold = authorizeCheckoutHold((await db.collection(CHECKOUT_HOLDS).doc(bookingId).get()).data(), token);
-  const summary = { bookingId, dataShootingInizio: hold.dataShootingInizio.toDate(), dataShootingFine: hold.dataShootingFine.toDate() };
+  const summary = { bookingId, campaignId: hold.campaignId,
+    flow: hold.kind === 'approved_deposit' ? 'approved' as const : 'immediate' as const,
+    dataShootingInizio: hold.dataShootingInizio.toDate(), dataShootingFine: hold.dataShootingFine.toDate() };
   if (!hold.paypal?.orderId) return { ...summary, status: 'unpaid' as const };
   const association = (await db.collection(BOOKING_PAYPAL_ORDERS).doc(hold.paypal.orderId).get()).data();
   if (!association || association.bookingId !== bookingId) throw fail('PAYPAL_ORDER_UNKNOWN', 'Ordine PayPal non associato.');
@@ -99,6 +102,7 @@ export async function captureBookingDeposit(db: Firestore, paypal: BookingCaptur
       assertAccount(currentOrder, paypal.config);
       if (fresh.depositPayment?.paypalCaptureId) return depositCaptureResult(bookingId, fresh.depositPayment, booking, true);
       activeCheckoutHoldView(bookingId, fresh);
+      if (isApprovedDepositHold(fresh)) assertApprovedDepositMatchesBooking(fresh, booking);
       if (fresh.paypal?.orderId !== association.paypalOrderId || fresh.depositAmountCents !== association.depositAmountCents
         || currentOrder.depositAmountCents !== association.depositAmountCents || currentOrder.state !== 'created') {
         throw fail('PAYPAL_CAPTURE_MISMATCH', 'Ordine PayPal da verificare.');

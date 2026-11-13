@@ -20,6 +20,8 @@ export interface BookingDepositCompletion {
 interface Props {
   campaignId: string;
   input: BookingCheckoutHoldInput | null;
+  initialCredentials?: BookingCheckoutSession;
+  sessionScope?: string;
   onCompleted(result: BookingDepositCompletion): void;
   onExit(): void;
 }
@@ -30,24 +32,28 @@ const problem = (error: unknown) => {
   return typeof data?.error === 'string' ? data.error : 'Non è stato possibile completare la verifica. Controlla la connessione.';
 };
 
-export function BookingDepositCheckout({ campaignId, input, onCompleted, onExit }: Props) {
+export function BookingDepositCheckout({ campaignId, input, initialCredentials, sessionScope, onCompleted, onExit }: Props) {
+  const storageScope = sessionScope ?? campaignId;
   const [phase, setPhase] = useState<Phase>('loading');
   const [hold, setHold] = useState<BookingCheckoutHoldView | null>(null);
   const [config, setConfig] = useState<BookingPayPalConfig | null>(null);
   const [message, setMessage] = useState('');
   const [remaining, setRemaining] = useState(0);
   const [storageWarning, setStorageWarning] = useState(false);
+  const [sdkVersion, setSdkVersion] = useState(0);
+  const [canRetrySdk, setCanRetrySdk] = useState(false);
   const session = useRef<BookingCheckoutSession | null>(null);
   const container = useRef<HTMLDivElement>(null);
   const busy = useRef(false), alive = useRef(true), closed = useRef(false);
   const orderId = useRef<string | null>(null);
   const deadlineTriggered = useRef(false);
   const initialInput = useRef(input);
+  const explicitCredentials = useRef(initialCredentials);
   const init = useRef<Promise<{ hold?: BookingCheckoutHoldView; config?: BookingPayPalConfig; receipt?: BookingDepositStatusResult }> | null>(null);
 
   const persist = (value: BookingCheckoutSession) => {
     session.current = value;
-    if (!saveCheckoutSession(campaignId, value)) setStorageWarning(true);
+    if (!saveCheckoutSession(storageScope, value)) setStorageWarning(true);
   };
   const credentials = () => {
     if (!session.current) throw new Error('Sessione non disponibile');
@@ -96,13 +102,21 @@ export function BookingDepositCheckout({ campaignId, input, onCompleted, onExit 
     busy.current = true; setPhase('closing');
     try {
       if (accept(await check())) return;
+      if (hold?.flow === 'approved' && reason !== 'expired') {
+        setPhase('ready');
+        setCanRetrySdk(reason === 'error');
+        setMessage(reason === 'cancelled'
+          ? 'Hai annullato il pagamento PayPal, non la prenotazione. L’orario resta riservato fino alla scadenza indicata: puoi riprovare qui.'
+          : 'PayPal non è disponibile al momento. Il tuo orario resta riservato fino alla scadenza indicata. Puoi ricaricare i pulsanti per riprovare.');
+        return;
+      }
       const current = credentials();
       await releaseBookingCheckoutHold(current.bookingId, { token: current.token });
-      clearCheckoutSession(campaignId);
+      clearCheckoutSession(storageScope);
       if (!alive.current) return;
       closed.current = true; setPhase('closed');
       setMessage(reason === 'expired' ? 'Il tempo per pagare è scaduto. Lo slot è stato liberato: scegli nuovamente data e orario.'
-        : reason === 'cancelled' ? 'Pagamento annullato. Lo slot è stato liberato e i dati del modulo sono conservati.'
+        : reason === 'cancelled' ? `Pagamento annullato. Lo slot è stato liberato${initialInput.current ? ' e i dati del modulo sono conservati.' : ': scegli nuovamente data e orario.'}`
           : 'PayPal non ha completato il pagamento. Lo slot è stato liberato: puoi tornare alla prenotazione.');
     } catch {
       if (alive.current) {
@@ -120,9 +134,12 @@ export function BookingDepositCheckout({ campaignId, input, onCompleted, onExit 
     container.current?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
     let disposed = false;
     init.current ??= (async () => {
-      const saved = readCheckoutSession(campaignId);
+      const stored = readCheckoutSession(storageScope), explicit = explicitCredentials.current;
+      const saved = explicit && (stored?.bookingId !== explicit.bookingId || stored?.token !== explicit.token)
+        ? explicit : stored ?? explicit;
       if (saved) {
         session.current = saved;
+        if (!saveCheckoutSession(storageScope, saved)) setStorageWarning(true);
         const receipt = await getBookingDepositStatus(saved.bookingId, { token: saved.token });
         if (receipt.payment || receipt.status === 'processing' || saved.captureAttempted) return { receipt };
         const existing = await resumeBookingCheckoutHold(saved.bookingId, { token: saved.token });
@@ -137,8 +154,8 @@ export function BookingDepositCheckout({ campaignId, input, onCompleted, onExit 
       const value = { bookingId: created.bookingId, token: created.token };
       session.current = value;
       // No customer details or tokens in URLs, analytics, or persistent localStorage.
-      const stored = saveCheckoutSession(campaignId, value);
-      return { hold: created, config: paypal, stored };
+      const persisted = saveCheckoutSession(storageScope, value);
+      return { hold: created, config: paypal, stored: persisted };
     })();
     void init.current.then(result => {
       if (disposed) return;
@@ -201,6 +218,7 @@ export function BookingDepositCheckout({ campaignId, input, onCompleted, onExit 
     try {
       const payment = await captureBookingDeposit(current.bookingId, { token: current.token });
       if (hold) accept({ bookingId: current.bookingId, status: payment.status, payment,
+        campaignId, flow: hold.flow,
         dataShootingInizio: hold.dataShootingInizio, dataShootingFine: hold.dataShootingFine });
     } catch {
       if (alive.current) {
@@ -231,10 +249,12 @@ export function BookingDepositCheckout({ campaignId, input, onCompleted, onExit 
         {message && <p role={phase === 'closed' ? 'alert' : 'status'} data-testid="booking-payment-message" className="text-sm">{message}</p>}
         {storageWarning && <p role="alert" className="text-sm">Questo browser non salva la sessione: non ricaricare la pagina durante il pagamento.</p>}
         {config && hold && ['ready', 'authorizing', 'capturing'].includes(phase) && <GiftCardPayPalButtons
+          key={sdkVersion}
           config={config} enabled={phase === 'ready' && remaining > 0}
           createOrder={async () => {
             if (busy.current || closed.current || remaining <= 0) throw new Error('Checkout non disponibile');
             setPhase('authorizing');
+            setCanRetrySdk(false); setMessage('');
             try {
               const current = credentials();
               const order = await createBookingDepositOrder(current.bookingId, { token: current.token });
@@ -248,7 +268,9 @@ export function BookingDepositCheckout({ campaignId, input, onCompleted, onExit 
           onError={() => { void closeUnpaid('error'); }}
         />}
         {phase === 'authorizing' && <p className="text-sm" role="status">Completa l’autorizzazione nella finestra PayPal.</p>}
-        {phase === 'ready' && <Button type="button" variant="outline" className="w-full" data-testid="button-cancel-booking-payment" onClick={() => void closeUnpaid('cancelled')}>Annulla e libera lo slot</Button>}
+        {phase === 'ready' && hold?.flow !== 'approved' && <Button type="button" variant="outline" className="w-full" data-testid="button-cancel-booking-payment" onClick={() => void closeUnpaid('cancelled')}>Annulla e libera lo slot</Button>}
+        {phase === 'ready' && canRetrySdk && <Button type="button" variant="outline" className="w-full" data-testid="button-retry-booking-paypal"
+          onClick={() => { setCanRetrySdk(false); setSdkVersion(value => value + 1); }}>Ricarica PayPal</Button>}
         {phase === 'unknown' && <Button type="button" className="w-full" data-testid="button-verify-booking-payment" onClick={() => void verify()}>Verifica pagamento</Button>}
         {phase === 'review' && <p className="text-sm">Riferimento da comunicare allo studio: <strong>{session.current?.bookingId}</strong></p>}
         {phase === 'closed' && <Button type="button" className="w-full" data-testid="button-return-booking-form" onClick={onExit}>Torna a data e orario</Button>}

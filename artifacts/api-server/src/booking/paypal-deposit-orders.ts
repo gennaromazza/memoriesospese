@@ -8,6 +8,7 @@ import {
 import { authorizeCheckoutHold, activeCheckoutHoldView, CheckoutHoldError } from './checkout-hold-state.js';
 import { CHECKOUT_HOLDS, checkoutHoldBlocksSlot } from './slot-reservations.js';
 import { logger } from '../lib/logger.js';
+import { isApprovedDepositHold, assertApprovedDepositMatchesBooking } from './approved-deposit-state.js';
 
 export const BOOKING_PAYPAL_ORDERS = 'bookingPayPalOrders';
 const CREATE_LEASE_MS = 60_000;
@@ -23,7 +24,13 @@ export const bookingPayPalAccountKey = (config: Pick<PayPalOrdersConfig, 'enviro
 export class BookingDepositOrderError extends CheckoutHoldError {
   constructor(status: number, readonly checkoutCode: string, message: string) { super(status, message); }
 }
-function validateDeposit(campaign: FirebaseFirestore.DocumentData | undefined, amount: number) {
+function validateDeposit(campaign: FirebaseFirestore.DocumentData | undefined, amount: number,
+  hold?: FirebaseFirestore.DocumentData, booking?: FirebaseFirestore.DocumentData) {
+  if (hold && isApprovedDepositHold(hold)) {
+    if (!campaign?.attiva) throw new BookingDepositOrderError(400, 'DEPOSIT_NOT_AVAILABLE', 'La campagna non è attiva. Contatta lo studio.');
+    assertApprovedDepositMatchesBooking(hold, booking);
+    return; // The admin's fixed request is immutable even if the catalog/campaign price changes.
+  }
   if (!campaign?.attiva || campaign.richiedeAcconto !== true || campaign.richiedeApprovazione !== false
     || !Number.isSafeInteger(campaign.accontoImportoCentesimi) || campaign.accontoImportoCentesimi <= 0) {
     throw new BookingDepositOrderError(400, 'DEPOSIT_NOT_AVAILABLE', 'La campagna non consente questo checkout con acconto.');
@@ -62,8 +69,9 @@ export async function createBookingDepositOrder(
     const data = authorizeCheckoutHold(snapshot.data(), token);
     const campaign = await transaction.get(db.collection('booking_campaigns').doc(data.campaignId));
     const view = activeCheckoutHoldView(bookingId, data);
+    const booking = isApprovedDepositHold(data) ? (await transaction.get(db.collection('bookings').doc(bookingId))).data() : undefined;
     if (data.currency !== 'EUR') throw new BookingDepositOrderError(503, 'DEPOSIT_CURRENCY_INVALID', 'Acconto da verificare con lo studio.');
-    validateDeposit(campaign.data(), view.depositAmountCents);
+    validateDeposit(campaign.data(), view.depositAmountCents, data, booking);
     paypal.assertCheckoutConfigured();
     if (data.paypal?.accountKey && data.paypal.accountKey !== accountKey) {
       throw new BookingDepositOrderError(409, 'PAYPAL_ACCOUNT_CHANGED', 'La configurazione PayPal è cambiata. Scegli nuovamente lo slot.');
@@ -109,6 +117,7 @@ export async function createBookingDepositOrder(
       const orderRef = db.collection(BOOKING_PAYPAL_ORDERS).doc(created.id);
       const previous = await transaction.get(orderRef);
       const previousData = previous.data();
+      const booking = isApprovedDepositHold(data) ? (await transaction.get(db.collection('bookings').doc(bookingId))).data() : undefined;
       if ((previous.exists && (previousData?.bookingId !== bookingId || previousData?.depositAmountCents !== claim.amount
           || previousData?.currency !== 'EUR' || previousData?.accountKey !== accountKey))
         || (data.paypal?.orderId && data.paypal.orderId !== created.id)
@@ -119,7 +128,7 @@ export async function createBookingDepositOrder(
         throw new BookingDepositOrderError(409, 'PAYPAL_ORDER_CLOSED', 'Ordine PayPal già elaborato o da riconciliare con lo studio.');
       }
       let campaignError: CheckoutHoldError | null = null;
-      try { validateDeposit(campaign.data(), claim.amount); }
+      try { validateDeposit(campaign.data(), claim.amount, data, booking); }
       catch (error) { if (error instanceof CheckoutHoldError) campaignError = error; else throw error; }
       const usable = checkoutHoldBlocksSlot(data) && !campaignError;
       const paypalData = { state: 'created', orderId: created.id, requestId, accountKey,

@@ -40,6 +40,14 @@ export const BookingDepositStatusResultStatus = {
   paid_action_required: 'paid_action_required',
 } as const;
 
+export type BookingDepositStatusResultFlow = typeof BookingDepositStatusResultFlow[keyof typeof BookingDepositStatusResultFlow];
+
+
+export const BookingDepositStatusResultFlow = {
+  immediate: 'immediate',
+  approved: 'approved',
+} as const;
+
 export type BookingDepositCaptureResultStatus = typeof BookingDepositCaptureResultStatus[keyof typeof BookingDepositCaptureResultStatus];
 
 
@@ -74,7 +82,52 @@ export interface BookingDepositStatusResult {
   status: BookingDepositStatusResultStatus;
   dataShootingInizio: string;
   dataShootingFine: string;
+  campaignId: string;
+  flow: BookingDepositStatusResultFlow;
   payment?: BookingDepositCaptureResult;
+}
+
+export type BookingApprovalResultStato = typeof BookingApprovalResultStato[keyof typeof BookingApprovalResultStato];
+
+
+export const BookingApprovalResultStato = {
+  in_attesa_pagamento: 'in_attesa_pagamento',
+  confermata: 'confermata',
+} as const;
+
+export type BookingApprovalResultCurrency = typeof BookingApprovalResultCurrency[keyof typeof BookingApprovalResultCurrency];
+
+
+export const BookingApprovalResultCurrency = {
+  EUR: 'EUR',
+} as const;
+
+export type BookingApprovalResultEmailStatus = typeof BookingApprovalResultEmailStatus[keyof typeof BookingApprovalResultEmailStatus];
+
+
+export const BookingApprovalResultEmailStatus = {
+  pending: 'pending',
+  sending: 'sending',
+  sent: 'sent',
+  failed: 'failed',
+  unknown: 'unknown',
+} as const;
+
+export interface BookingApprovalResult {
+  success: boolean;
+  bookingId?: string;
+  paymentRequired?: boolean;
+  stato?: BookingApprovalResultStato;
+  /** @minimum 1 */
+  amountCents?: number;
+  currency?: BookingApprovalResultCurrency;
+  expiresAt?: string;
+  emailStatus?: BookingApprovalResultEmailStatus;
+}
+
+export interface BookingApprovalError {
+  error: string;
+  code?: string;
 }
 
 export type BookingDepositPayPalOrderCurrency = typeof BookingDepositPayPalOrderCurrency[keyof typeof BookingDepositPayPalOrderCurrency];
@@ -138,6 +191,14 @@ export interface BookingCheckoutCredentials {
   token: string;
 }
 
+export type BookingCheckoutHoldViewFlow = typeof BookingCheckoutHoldViewFlow[keyof typeof BookingCheckoutHoldViewFlow];
+
+
+export const BookingCheckoutHoldViewFlow = {
+  immediate: 'immediate',
+  approved: 'approved',
+} as const;
+
 export type BookingCheckoutHoldViewStatus = typeof BookingCheckoutHoldViewStatus[keyof typeof BookingCheckoutHoldViewStatus];
 
 
@@ -155,6 +216,7 @@ export const BookingCheckoutHoldViewCurrency = {
 export interface BookingCheckoutHoldView {
   bookingId: string;
   campaignId: string;
+  flow: BookingCheckoutHoldViewFlow;
   status: BookingCheckoutHoldViewStatus;
   expiresAt: string;
   serverTime: string;

@@ -6,6 +6,7 @@ import { CHECKOUT_HOLDS, checkSlotReservation, checkoutHoldBlocksSlot } from './
 import { validateCampaign, campaignToAvailabilityConfig, getAllExistingBookingEvents } from './calendar-adapter.js';
 import { getAvailableSlotsForDate } from '../calendar-engine/index.js';
 import { CheckoutHoldError, authorizeCheckoutHold, activeCheckoutHoldView, hashCheckoutToken as hashToken } from './checkout-hold-state.js';
+import { isApprovedDepositHold } from './approved-deposit-state.js';
 export { CheckoutHoldError, authorizeCheckoutHold, activeCheckoutHoldView } from './checkout-hold-state.js';
 
 export const CHECKOUT_HOLD_MS = 10 * 60 * 1000;
@@ -102,6 +103,9 @@ export async function releaseCheckoutHold(
     }
     if (data.paypalCaptureAttempt) {
       throw new CheckoutHoldError(409, 'Pagamento in verifica: attendi l’esito prima di annullare. La scadenza originaria non cambia.');
+    }
+    if (isApprovedDepositHold(data)) {
+      throw new CheckoutHoldError(409, 'L’appuntamento resta riservato fino alla scadenza della richiesta approvata.');
     }
     transaction.update(ref, { status: reason, releasedAt: Timestamp.now() });
     return { bookingId, status: reason };

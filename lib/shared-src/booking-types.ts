@@ -177,6 +177,18 @@ export interface BookingCampaignFE extends Omit<BookingCampaign, 'dataInizio' | 
 /**
  * BOOKINGS - Prenotazioni clienti
  */
+export interface BookingDepositPaymentRequest {
+  status: 'pending' | 'expired' | 'paid';
+  amountCents: number;
+  currency: 'EUR';
+  requestedAt: Timestamp;
+  expiresAt: Timestamp;
+  expiredAt?: Timestamp;
+  paidAt?: Timestamp;
+  approvedBy?: string;
+  emailStatus?: 'pending' | 'sending' | 'sent' | 'failed' | 'unknown';
+}
+
 export interface Booking {
   id: string;
   campaignId: string; // Riferimento a booking_campaigns
@@ -235,6 +247,7 @@ export interface Booking {
   // Pagamento (per prenotazioni manuali con acconto/saldo)
   totale?: number; // Totale ordine in euro
   acconto?: number; // Acconto pagato in euro
+  depositPaymentRequest?: BookingDepositPaymentRequest;
   saldo?: number; // Saldo residuo (totale - acconto)
   metodoPagamento?: 'contante' | 'carta' | 'bonifico' | 'paypal' | 'altro'; // Metodo pagamento acconto
   transactions?: Transaction[]; // Storico transazioni (centralizzato con ordini)

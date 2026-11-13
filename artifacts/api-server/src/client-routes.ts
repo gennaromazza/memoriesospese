@@ -70,6 +70,7 @@ export function isPrivateClientPath(pathname: string): boolean {
     path === '/admin'
     || path.startsWith('/admin/')
     || path === '/profile'
+    || hasOneSegmentAfter('/prenota/acconto', path)
     || path === '/quote-management-demo'
     || path === '/special-gallery'
     || path === '/accesso-galleria'

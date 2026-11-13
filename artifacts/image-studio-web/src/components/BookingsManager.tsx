@@ -179,7 +179,10 @@ const STATI_WORKFLOW = [
   { value: WorkflowState.CONSEGNATO, label: "Consegnato al Cliente", icon: PackageCheck },
 ] as const;
 
-function getStatoBadge(stato: string) {
+function getStatoBadge(stato: string, request?: Booking['depositPaymentRequest']) {
+  if (stato === 'in_attesa' && request?.status === 'pending') {
+    return <Badge variant="outline" className="bg-muted text-foreground">In attesa di pagamento</Badge>;
+  }
   switch (stato) {
     case "in_attesa":
       return (
@@ -1022,13 +1025,17 @@ export default function BookingsManager({
     mutationFn: async (bookingId: string) => {
       // Marca come vista prima di approvare (per far scomparire badge NUOVA)
       await markBookingAsViewed(bookingId);
-      await approveBooking(bookingId);
+      return approveBooking(bookingId);
     },
-    onSuccess: () => {
+    onSuccess: result => {
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
       toast({
-        title: "Prenotazione approvata",
-        description: "Email di conferma inviata al cliente",
+        title: result?.paymentRequired ? "In attesa di pagamento" : "Prenotazione approvata",
+        description: result?.paymentRequired
+          ? result.emailStatus === 'sent' ? `Richiesta di acconto inviata. Pagamento entro ${new Date(result.expiresAt!).toLocaleString('it-IT', { timeZone: 'Europe/Rome', timeStyle: 'short' })}.`
+            : result.emailStatus === 'sending' ? 'Invio della richiesta già in corso. La scadenza resta invariata.'
+              : 'L’invio della richiesta richiede una verifica. L’appuntamento non è confermato e la scadenza resta invariata.'
+          : "Email di conferma inviata al cliente",
       });
       setSelectedBooking(null);
     },
@@ -2109,7 +2116,7 @@ export default function BookingsManager({
                                       {getCampaignName(booking.campaignId)}
                                     </p>
                                   </div>
-                                  {getStatoBadge(booking.stato)}
+                                  {getStatoBadge(booking.stato, booking.depositPaymentRequest)}
                                 </div>
 
                                 {/* Dettagli */}
@@ -3241,7 +3248,7 @@ export default function BookingsManager({
                 <div>
                   <Label className="text-sm font-medium">Stato Attuale</Label>
                   <div className="mt-2">
-                    {getStatoBadge(selectedBooking.stato)}
+                    {getStatoBadge(selectedBooking.stato, selectedBooking.depositPaymentRequest)}
                   </div>
                 </div>
 

@@ -16,10 +16,20 @@ export function reservationDb() {
     };
   };
   const seed = (path: string, value: any) => rows.set(path, { value: { ...value }, version: ++version });
+  function mergeUpdate(current: any, patch: any) {
+    const result = { ...current };
+    for (const [field, value] of Object.entries(patch)) {
+      const parts = field.split('.');
+      let target = result;
+      for (const part of parts.slice(0, -1)) { target[part] = { ...target[part] }; target = target[part]; }
+      target[parts.at(-1)!] = value;
+    }
+    return result;
+  }
   function reference(path: string): any {
     return { kind: 'ref', path, id: path.split('/')[1], get: async () => read(path),
       set: async (data: any) => seed(path, data),
-      update: async (data: any) => seed(path, { ...rows.get(path)!.value, ...data }),
+      update: async (data: any) => seed(path, mergeUpdate(rows.get(path)!.value, data)),
       delete: async () => rows.delete(path) };
   }
   function query(name: string, filters: any[] = [], max = Infinity, after = ''): any {
@@ -58,7 +68,7 @@ export function reservationDb() {
             return result;
           },
           set: (ref: any, data: any) => writes.push(() => { seed(ref.path, data); }),
-          update: (ref: any, data: any) => writes.push(() => { seed(ref.path, { ...rows.get(ref.path)!.value, ...data }); }),
+          update: (ref: any, data: any) => writes.push(() => { seed(ref.path, mergeUpdate(rows.get(ref.path)!.value, data)); }),
         });
         if ([...reads].some(([path, v]) => (rows.get(path)?.version ?? 0) !== v)) { retries++; continue; }
         writes.forEach(write => write());

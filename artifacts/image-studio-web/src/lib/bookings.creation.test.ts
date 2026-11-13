@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ request: vi.fn() }));
 vi.mock('@/lib/firebase', () => ({ db: {} }));
 vi.mock('@/lib/queryClient', () => ({ apiRequest: mocks.request }));
-import { createBooking } from './bookings';
+import { createBooking, approveBooking } from './bookings';
 
 const input = {
   campaignId: 'test-campaign',
@@ -13,6 +13,31 @@ const input = {
   note: '',
 };
 beforeEach(() => { vi.clearAllMocks(); });
+describe('esito approvazione con acconto', () => {
+  it('preserves the waiting state, email result and server deadline', async () => {
+    const result = { success: true, paymentRequired: true, stato: 'in_attesa_pagamento', amountCents: 2500,
+      expiresAt: '2030-12-01T09:00:00.000Z', emailStatus: 'sent' };
+    mocks.request.mockResolvedValue(new Response(JSON.stringify(result)));
+    expect(await approveBooking('test')).toEqual(result);
+    expect(mocks.request).toHaveBeenCalledWith('PATCH', '/api/booking/v2/test/approve');
+  });
+  it('retains existing approval for campaigns without deposits', async () => {
+    mocks.request.mockResolvedValue(new Response(JSON.stringify({ success: true })));
+    expect(await approveBooking('test')).toEqual({ success: true });
+  });
+  it.each([
+    { success: true, paymentRequired: true, amountCents: 0 },
+    { success: true, paymentRequired: true, amountCents: 2500, expiresAt: 'invalid', emailStatus: 'sent' },
+    { success: false },
+  ])('does not show a successful confirmation for malformed responses %j', async result => {
+    mocks.request.mockResolvedValue(new Response(JSON.stringify(result)));
+    await expect(approveBooking('test')).rejects.toThrow('Esito dell’approvazione da verificare');
+  });
+  it('shows the exact safe server error, not a raw JSON or generic slot-conflict message', async () => {
+    mocks.request.mockRejectedValue(new Error('409: {"error":"La richiesta è già stata elaborata"}'));
+    await expect(approveBooking('test')).rejects.toMatchObject({ status: 409, message: 'La richiesta è già stata elaborata' });
+  });
+});
 
 describe('risposta della creazione prenotazione', () => {
   it.each(['in_attesa', 'confermata'] as const)('conserva lo stato server %s e le date ISO', async stato => {

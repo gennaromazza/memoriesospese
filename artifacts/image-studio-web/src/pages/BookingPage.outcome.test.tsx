@@ -31,7 +31,7 @@ vi.mock('@/lib/queryClient', async () => {
   return { apiRequest: h.request, queryClient: new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } }) };
 });
 vi.mock('wouter', () => ({
-  useParams: () => ({ code: h.code }),
+  useParams: () => ({ code: h.code, bookingId: 'hold-test' }),
   useLocation: () => ['/prenota/TESTCODE', vi.fn()],
   Link: ({ children, ...props }: any) => <a {...props}>{children}</a>,
 }));
@@ -58,6 +58,7 @@ vi.mock('@/hooks/useSEO', () => ({ useSEO: vi.fn() }));
 vi.mock('@/lib/analytics', () => ({ trackAnalyticsEvent: h.analytics, trackBlogConversion: h.blog }));
 import { queryClient } from '@/lib/queryClient';
 import BookingPage from './BookingPage';
+import BookingDepositPaymentPage from './BookingDepositPaymentPage';
 
 const slot = {
   start: '2030-12-01T09:00:00.000Z', end: '2030-12-01T09:30:00.000Z', startTime: '10:00', endTime: '10:30',
@@ -72,7 +73,7 @@ function mount(strict = false) {
 const payment = { bookingId: 'hold-test', paypalOrderId: 'ORDER-TEST', paypalCaptureId: 'CAPTURE-TEST',
   amountCents: 2500, currency: 'EUR', status: 'paid', bookingConfirmed: true, duplicate: false };
 function holdView() {
-  return { bookingId: 'hold-test', campaignId: 'campaign-test', status: 'active', depositAmountCents: 2500, currency: 'EUR',
+  return { bookingId: 'hold-test', campaignId: 'campaign-test', flow: 'immediate', status: 'active', depositAmountCents: 2500, currency: 'EUR',
     expiresAt: new Date(Date.now() + 600_000).toISOString(), serverTime: new Date().toISOString(),
     dataShootingInizio: slot.start, dataShootingFine: slot.end, token: '1'.repeat(64) };
 }
@@ -102,12 +103,73 @@ beforeEach(() => {
   h.config.mockReset().mockResolvedValue({ enabled: true, clientId: 'public-test', currency: 'EUR', environment: 'sandbox' });
   h.order.mockReset().mockResolvedValue({ bookingId: 'hold-test', paypalOrderId: 'ORDER-TEST', depositAmountCents: 2500, currency: 'EUR' });
   h.capture.mockReset().mockResolvedValue(payment);
-  h.status.mockReset().mockResolvedValue({ bookingId: 'hold-test', status: 'unpaid',
+  h.status.mockReset().mockResolvedValue({ bookingId: 'hold-test', campaignId: 'campaign-test', flow: 'immediate', status: 'unpaid',
     dataShootingInizio: slot.start, dataShootingFine: slot.end });
   h.release.mockReset().mockResolvedValue({ bookingId: 'hold-test', status: 'cancelled' });
   h.request.mockImplementation(async (_method, url) => {
     if (url.endsWith('/available-slots')) return json({ slots: h.slots });
     return json({ success: true, bookingId: 'booking-test', stato: h.stato });
+  });
+});
+async function openApprovedLink(strict = false) {
+  const approved = { ...holdView(), flow: 'approved', expiresAt: new Date(Date.now() + 3_600_000).toISOString() };
+  window.history.replaceState({}, '', `/prenota/acconto/hold-test#${'1'.repeat(64)}`);
+  h.resume.mockResolvedValue(approved);
+  h.status.mockResolvedValue({ bookingId: 'hold-test', campaignId: 'campaign-test', flow: 'approved', status: 'unpaid',
+    dataShootingInizio: slot.start, dataShootingFine: slot.end });
+  const page = <BookingDepositPaymentPage />;
+  const result = render(strict ? <StrictMode>{page}</StrictMode> : page);
+  await screen.findByTestId('paypal-buttons');
+  return result;
+}
+describe('link acconto dopo approvazione', () => {
+  it('opens the existing request directly, strips the token and charges only after PayPal approval', async () => {
+    await openApprovedLink(true);
+    expect(window.location.hash).toBe('');
+    expect(h.hold).not.toHaveBeenCalled();
+    expect(h.capture).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('button-cancel-booking-payment')).toBeNull();
+    await pay();
+    expect(await screen.findByTestId('approved-deposit-receipt')).toBeTruthy();
+    expect(h.capture).toHaveBeenCalledTimes(1);
+    expect(h.capture).toHaveBeenCalledWith('hold-test', { token: '1'.repeat(64) });
+  });
+  it('preserves the original reservation after native PayPal cancellation', async () => {
+    await openApprovedLink();
+    fireEvent.click(screen.getByTestId('sdk-cancel'));
+    expect(await screen.findByText(/Hai annullato il pagamento PayPal, non la prenotazione/)).toBeTruthy();
+    expect(h.release).not.toHaveBeenCalled();
+    expect(h.hold).not.toHaveBeenCalled();
+    await pay();
+    expect(await screen.findByTestId('approved-deposit-receipt')).toBeTruthy();
+  });
+  it('allows reloading a failed SDK without releasing or recreating the booking', async () => {
+    await openApprovedLink();
+    fireEvent.click(screen.getByTestId('sdk-error'));
+    fireEvent.click(await screen.findByTestId('button-retry-booking-paypal'));
+    await pay();
+    expect(await screen.findByTestId('approved-deposit-receipt')).toBeTruthy();
+    expect(h.release).not.toHaveBeenCalled();
+    expect(h.hold).not.toHaveBeenCalled();
+  });
+  it('reloads a paid link as a receipt without another capture or SDK configuration', async () => {
+    const first = await openApprovedLink();
+    await pay(); await screen.findByTestId('approved-deposit-receipt');
+    first.unmount();
+    h.status.mockResolvedValue({ bookingId: 'hold-test', campaignId: 'campaign-test', flow: 'approved',
+      status: 'paid', payment, dataShootingInizio: slot.start, dataShootingFine: slot.end });
+    h.capture.mockClear(); h.config.mockClear();
+    render(<BookingDepositPaymentPage />);
+    expect(await screen.findByTestId('approved-deposit-receipt')).toBeTruthy();
+    expect(h.capture).not.toHaveBeenCalled();
+    expect(h.config).not.toHaveBeenCalled();
+  });
+  it('rejects an incomplete link without calling payment APIs', async () => {
+    window.history.replaceState({}, '', '/prenota/acconto/hold-test#invalid');
+    render(<BookingDepositPaymentPage />);
+    expect(await screen.findByText(/Il link di pagamento non è valido/)).toBeTruthy();
+    expect(h.status).not.toHaveBeenCalled();
+    expect(h.capture).not.toHaveBeenCalled();
   });
 });
 afterEach(() => { cleanup(); queryClient.clear(); vi.unstubAllGlobals(); });

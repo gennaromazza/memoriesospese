@@ -15,6 +15,40 @@ tags:
   - name: booking-campaigns
     description: Booking campaign administration
 paths:
+  /booking/{bookingId}/approve:
+    patch:
+      operationId: approveLegacyBookingRequest
+      tags: [booking-checkout]
+      parameters:
+        - { name: bookingId, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 200 } }
+      responses:
+        "200":
+          description: Legacy approval with the same deposit policy as V2
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BookingApprovalResult" }
+        default:
+          description: Approval unavailable or unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BookingApprovalError" }
+  /booking/v2/{bookingId}/approve:
+    patch:
+      operationId: approveBookingRequest
+      tags: [booking-checkout]
+      parameters:
+        - { name: bookingId, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 200 } }
+      responses:
+        "200":
+          description: Final approval or a fixed deposit request awaiting payment
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BookingApprovalResult" }
+        default:
+          description: Approval unavailable or unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BookingApprovalError" }
   /booking/paypal/config:
     get:
       operationId: getBookingPayPalConfig
@@ -497,14 +531,34 @@ components:
         currency: { type: string, enum: [EUR] }
     BookingDepositStatusResult:
       type: object
-      required: [bookingId, status, dataShootingInizio, dataShootingFine]
+      required: [bookingId, campaignId, flow, status, dataShootingInizio, dataShootingFine]
       properties:
         bookingId: { type: string }
         status: { type: string, enum: [unpaid, processing, paid, paid_action_required] }
         dataShootingInizio: { type: string, format: date-time }
         dataShootingFine: { type: string, format: date-time }
+        campaignId: { type: string }
+        flow: { type: string, enum: [immediate, approved] }
         payment:
           $ref: "#/components/schemas/BookingDepositCaptureResult"
+    BookingApprovalResult:
+      type: object
+      required: [success]
+      properties:
+        success: { type: boolean }
+        bookingId: { type: string }
+        paymentRequired: { type: boolean }
+        stato: { type: string, enum: [in_attesa_pagamento, confermata] }
+        amountCents: { type: integer, minimum: 1 }
+        currency: { type: string, enum: [EUR] }
+        expiresAt: { type: string, format: date-time }
+        emailStatus: { type: string, enum: [pending, sending, sent, failed, unknown] }
+    BookingApprovalError:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+        code: { type: string }
     BookingDepositCaptureResult:
       type: object
       required: [bookingId, paypalOrderId, paypalCaptureId, status, amountCents, currency, duplicate, bookingConfirmed]
@@ -556,10 +610,11 @@ components:
         token: { type: string, pattern: '^[a-f0-9]{64}$' }
     BookingCheckoutHoldView:
       type: object
-      required: [bookingId, campaignId, status, expiresAt, serverTime, depositAmountCents, currency, dataShootingInizio, dataShootingFine]
+      required: [bookingId, campaignId, flow, status, expiresAt, serverTime, depositAmountCents, currency, dataShootingInizio, dataShootingFine]
       properties:
         bookingId: { type: string }
         campaignId: { type: string }
+        flow: { type: string, enum: [immediate, approved] }
         status: { type: string, enum: [active] }
         expiresAt: { type: string, format: date-time }
         serverTime: { type: string, format: date-time }

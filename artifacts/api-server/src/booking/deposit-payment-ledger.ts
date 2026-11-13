@@ -5,6 +5,7 @@ import type { CompletedCapture } from '../commerce/paypal-capture.js';
 import { syncBookingWorkflowState } from '../../shared/workflow-helpers.js';
 import { BOOKING_PAYPAL_ORDERS, BookingDepositOrderError } from './paypal-deposit-orders.js';
 import { CHECKOUT_HOLDS, BookingSlotConflictError, checkSlotReservation } from './slot-reservations.js';
+import { approvedDepositMatchesBooking, isApprovedDepositHold } from './approved-deposit-state.js';
 
 export const BOOKING_PAYMENT_CAPTURES = 'bookingPaymentCaptures';
 export const BOOKING_PAYMENT_EVENTS = 'bookingPaymentEvents';
@@ -63,12 +64,14 @@ export async function recordBookingDeposit(
     const duplicate = capturedSnap.exists;
     const customer = hold.draft?.cliente;
     const customerValid = customer && ['nome', 'cognome', 'email', 'whatsapp'].every(field => typeof customer[field] === 'string');
-    let confirm = !duplicate && !bookingSnap.exists && hold.status === 'active'
+    const approved = isApprovedDepositHold(hold);
+    const ownedPendingBooking = approved && approvedDepositMatchesBooking(hold, booking);
+    let confirm = !duplicate && (approved ? ownedPendingBooking : !bookingSnap.exists) && hold.status === 'active'
       && Number.isFinite(hold.expiresAt?.toMillis?.()) && hold.expiresAt.toMillis() > Date.now()
       && hold.dataShootingInizio?.toMillis?.() > Date.now() && !!customerValid;
     let commitLocks: (() => void) | undefined;
     if (confirm) {
-      try { commitLocks = await checkSlotReservation(tx, db, hold.dataShootingInizio.toDate(), hold.dataShootingFine.toDate(), bookingId); }
+      try { commitLocks = await checkSlotReservation(tx, db, hold.dataShootingInizio.toDate(), hold.dataShootingFine.toDate(), bookingId, approved ? bookingId : undefined); }
       catch (error) { if (error instanceof BookingSlotConflictError) confirm = false; else throw error; }
     }
     if (confirm && (hold.expiresAt.toMillis() <= Date.now() || hold.dataShootingInizio.toMillis() <= Date.now())) confirm = false;
@@ -84,13 +87,18 @@ export async function recordBookingDeposit(
       emailInviata: false, providerTransactionId: capture.captureId, paypalOrderId: capture.paypalOrderId,
       ...(fee === undefined ? {} : { paypalFeeCents: fee }) };
     const confirmedBooking = confirm ? {
-      campaignId: hold.campaignId, cliente: hold.draft.cliente,
+      ...(approved ? booking : {}),
+      campaignId: hold.campaignId, cliente: approved ? booking!.cliente : hold.draft.cliente,
       dataShootingInizio: hold.dataShootingInizio, dataShootingFine: hold.dataShootingFine,
-      prodottoId: hold.draft.prodottoId ?? null, prodottoNome: hold.draft.prodottoNome ?? null, note: hold.draft.note || '',
+      prodottoId: (approved ? booking!.prodottoId : hold.draft.prodottoId) ?? null,
+      prodottoNome: (approved ? booking!.prodottoNome : hold.draft.prodottoNome) ?? null,
+      note: (approved ? booking!.note : hold.draft.note) || '',
       stato: 'confermata', ...syncBookingWorkflowState('confermata'), confermataDa: 'paypal', confermatail: now,
-      acconto: capture.amountCents / 100, metodoPagamento: 'paypal', transactions: [transaction], depositPayment: payment,
+      acconto: (approved ? Number(booking?.acconto) || 0 : 0) + capture.amountCents / 100, metodoPagamento: 'paypal',
+      transactions: [...(approved ? booking?.transactions || [] : []), transaction], depositPayment: payment,
       emailRicevutaInviata: false, emailConfermataInviata: false, emailAdminInviata: false,
-      calendarSyncPending: true, createdAt: hold.createdAt ?? now, updatedAt: now,
+      calendarSyncPending: true, createdAt: booking?.createdAt ?? hold.createdAt ?? now, updatedAt: now,
+      ...(approved ? { depositPaymentRequest: { ...booking!.depositPaymentRequest, status: 'paid', paidAt: payment.paidAt } } : {}),
     } : booking;
     // Finish every read, including slot guards, before starting any writes.
     if (confirm) {
@@ -100,6 +108,13 @@ export async function recordBookingDeposit(
       tx.update(bookingRef, { depositPayment: payment, updatedAt: now,
         transactions: (booking?.transactions || []).map((line: any) => line.providerTransactionId === capture.captureId
           ? { ...line, ...(fee === undefined ? {} : { paypalFeeCents: fee }) } : line) });
+    } else if (approved && bookingSnap.exists) {
+      // Received money remains recorded even when an expired/cancelled request cannot confirm a slot.
+      tx.update(bookingRef, { depositPayment: payment, paymentReviewRequired: true, updatedAt: now,
+        stato: booking?.stato === 'in_attesa' ? 'annullata' : booking!.stato,
+        acconto: (Number(booking?.acconto) || 0) + capture.amountCents / 100,
+        transactions: [...(booking?.transactions || []), transaction],
+        depositPaymentRequest: { ...booking!.depositPaymentRequest, status: 'paid', paidAt: payment.paidAt } });
     }
     tx.update(holdRef, {
       depositPayment: payment, ...(duplicate ? {} : { status: confirm ? 'consumed' : hold.status }),

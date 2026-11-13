@@ -186,6 +186,9 @@ export interface BookingDepositPaymentRequest {
   requestedAt: Timestamp;
   expiresAt: Timestamp;
   expiredAt?: Timestamp;
+  emailStatus?: 'pending' | 'sending' | 'sent' | 'failed' | 'unknown';
+  approvedBy?: string;
+  paidAt?: Timestamp;
 }
 
 export interface Booking {

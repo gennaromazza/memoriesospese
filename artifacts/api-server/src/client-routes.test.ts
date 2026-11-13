@@ -1,5 +1,13 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { isKnownClientPath, isPrivateClientPath } from './client-routes';
+describe('link privato di pagamento acconto', () => {
+  it('is reachable in production, but never indexable', () => {
+    expect(isKnownClientPath('/prenota/acconto/booking-test')).toBe(true);
+    expect(isPrivateClientPath('/prenota/acconto/booking-test')).toBe(true);
+    expect(isKnownClientPath('/prenota/acconto/booking-test/')).toBe(true);
+    expect(isKnownClientPath('/prenota/acconto/booking-test/extra')).toBe(false);
+  });
+});
 
 describe('percorsi delle gift card', () => {
   it('la pagina del regalo è raggiungibile ma mai indicizzata', () => {

@@ -6,11 +6,13 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { BookingCheckoutHoldViewCurrency } from './bookingCheckoutHoldViewCurrency';
+import type { BookingCheckoutHoldViewFlow } from './bookingCheckoutHoldViewFlow';
 import type { BookingCheckoutHoldViewStatus } from './bookingCheckoutHoldViewStatus';
 
 export interface BookingCheckoutHoldView {
   bookingId: string;
   campaignId: string;
+  flow: BookingCheckoutHoldViewFlow;
   status: BookingCheckoutHoldViewStatus;
   expiresAt: Date;
   serverTime: Date;

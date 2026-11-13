@@ -19,6 +19,7 @@ import {
 import { db } from '@/lib/firebase';
 import { apiRequest } from '@/lib/queryClient';
 import type { Booking } from '@shared/booking-types';
+import type { BookingApprovalResult } from '@workspace/api-client-react';
 import { WorkflowState } from '@shared/schema';
 
 const COLLECTION = 'bookings';
@@ -36,10 +37,10 @@ export class BookingRequestError extends Error {
   }
 }
 
-function bookingRequestError(error: unknown): BookingRequestError {
+function bookingRequestError(error: unknown, preserveConflictMessage = false): BookingRequestError {
   const match = error instanceof Error ? /^(\d{3}):\s*([\s\S]*)$/.exec(error.message) : null;
   const status = match ? Number(match[1]) : undefined;
-  if (status === 409) {
+  if (status === 409 && !preserveConflictMessage) {
     return new BookingRequestError('Questo orario non è più disponibile. Scegli un altro slot: i dati inseriti sono conservati.', status);
   }
   if (match) {
@@ -216,8 +217,20 @@ export async function getBookingsByStatus(
 /**
  * Approva prenotazione (admin only) - chiama API server V2 con Calendar Engine V2
  */
-export async function approveBooking(bookingId: string): Promise<void> {
-  await apiRequest('PATCH', `/api/booking/v2/${bookingId}/approve`);
+export async function approveBooking(bookingId: string): Promise<BookingApprovalResult> {
+  try {
+    const response = await apiRequest('PATCH', `/api/booking/v2/${bookingId}/approve`);
+    const result = await response.json();
+    if (result?.success !== true || result.paymentRequired === true && (
+      !Number.isSafeInteger(result.amountCents) || result.amountCents <= 0 || !Number.isFinite(Date.parse(result.expiresAt))
+      || !['pending', 'sending', 'sent', 'failed', 'unknown'].includes(result.emailStatus))) {
+      throw new BookingRequestError('Esito dell’approvazione da verificare: aggiorna la lista prima di riprovare.');
+    }
+    return result;
+  } catch (error) {
+    if (error instanceof BookingRequestError) throw error;
+    throw bookingRequestError(error, true);
+  }
 }
 
 /**

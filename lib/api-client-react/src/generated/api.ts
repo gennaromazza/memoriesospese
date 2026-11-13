@@ -24,6 +24,8 @@ import type {
   AdminCatalogProductReorder,
   AdminCatalogProductReorderResult,
   AdminCatalogProductResult,
+  BookingApprovalError,
+  BookingApprovalResult,
   BookingCheckoutCredentials,
   BookingCheckoutHoldCreated,
   BookingCheckoutHoldInput,
@@ -69,6 +71,142 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getApproveLegacyBookingRequestUrl = (bookingId: string,) => {
+
+
+
+
+  return `/api/booking/${bookingId}/approve`
+}
+
+export const approveLegacyBookingRequest = async (bookingId: string, options?: Parameters<typeof customFetch>[1]): Promise<BookingApprovalResult> => {
+
+  return customFetch<BookingApprovalResult>(getApproveLegacyBookingRequestUrl(bookingId),
+  {
+    ...options,
+    method: 'PATCH'
+
+
+  }
+);}
+
+
+
+
+
+export const getApproveLegacyBookingRequestMutationKey = () => ['approveLegacyBookingRequest'] as const;
+
+export const getApproveLegacyBookingRequestMutationOptions = <TError = ErrorType<BookingApprovalError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveLegacyBookingRequest>>, TError,ApproveLegacyBookingRequestMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveLegacyBookingRequest>>, TError,ApproveLegacyBookingRequestMutationVariables, TContext> => {
+
+const mutationKey = getApproveLegacyBookingRequestMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveLegacyBookingRequest>>, ApproveLegacyBookingRequestMutationVariables> = (props) => {
+          const {bookingId} = props ?? {};
+
+          return  approveLegacyBookingRequest(bookingId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveLegacyBookingRequestMutationResult = NonNullable<Awaited<ReturnType<typeof approveLegacyBookingRequest>>>
+
+    export type ApproveLegacyBookingRequestMutationError = ErrorType<BookingApprovalError>
+    export type ApproveLegacyBookingRequestMutationVariables = {bookingId: string}
+
+    export const useApproveLegacyBookingRequest = <TError = ErrorType<BookingApprovalError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveLegacyBookingRequest>>, TError,ApproveLegacyBookingRequestMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approveLegacyBookingRequest>>,
+        TError,
+        ApproveLegacyBookingRequestMutationVariables,
+        TContext
+      > => {
+      return useMutation(getApproveLegacyBookingRequestMutationOptions(options));
+    }
+
+export const getApproveBookingRequestUrl = (bookingId: string,) => {
+
+
+
+
+  return `/api/booking/v2/${bookingId}/approve`
+}
+
+export const approveBookingRequest = async (bookingId: string, options?: Parameters<typeof customFetch>[1]): Promise<BookingApprovalResult> => {
+
+  return customFetch<BookingApprovalResult>(getApproveBookingRequestUrl(bookingId),
+  {
+    ...options,
+    method: 'PATCH'
+
+
+  }
+);}
+
+
+
+
+
+export const getApproveBookingRequestMutationKey = () => ['approveBookingRequest'] as const;
+
+export const getApproveBookingRequestMutationOptions = <TError = ErrorType<BookingApprovalError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveBookingRequest>>, TError,ApproveBookingRequestMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveBookingRequest>>, TError,ApproveBookingRequestMutationVariables, TContext> => {
+
+const mutationKey = getApproveBookingRequestMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveBookingRequest>>, ApproveBookingRequestMutationVariables> = (props) => {
+          const {bookingId} = props ?? {};
+
+          return  approveBookingRequest(bookingId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveBookingRequestMutationResult = NonNullable<Awaited<ReturnType<typeof approveBookingRequest>>>
+
+    export type ApproveBookingRequestMutationError = ErrorType<BookingApprovalError>
+    export type ApproveBookingRequestMutationVariables = {bookingId: string}
+
+    export const useApproveBookingRequest = <TError = ErrorType<BookingApprovalError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveBookingRequest>>, TError,ApproveBookingRequestMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approveBookingRequest>>,
+        TError,
+        ApproveBookingRequestMutationVariables,
+        TContext
+      > => {
+      return useMutation(getApproveBookingRequestMutationOptions(options));
+    }
 
 export const getGetBookingPayPalConfigUrl = () => {
 

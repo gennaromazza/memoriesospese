@@ -49,6 +49,10 @@ listino corrente della campagna. Errori di Calendar o email non autorizzano
 la cancellazione della prenotazione pagata, la riapertura dello slot o
 l'eliminazione dei movimenti: serve un retry separato.
 
+Una richiesta di acconto già approvata congela importo e scadenza anche
+prima dell'incasso: modificare la campagna o ripetere l'approvazione non
+deve cambiare quanto promesso al cliente né concedere un'altra ora.
+
 **Why:** il denaro già incassato non viene annullato dal fallimento di un
 servizio esterno; trattare la sincronizzazione come una creazione reversibile
 può perdere una prenotazione pur conservando il pagamento.
@@ -82,3 +86,17 @@ richieste di pagamento ancora aperte.
 approvazione e attesa di approvazione. Le letture liberano subito gli slot
 scaduti anche se la manutenzione è in ritardo; la manutenzione non rimuove
 incassi verificati o eventi storici.
+
+## Email di acconto dall'esito incerto
+
+Una richiesta di pagamento è una comunicazione operativa, non una campagna
+marketing. Se il provider non garantisce che l'invio sia stato rifiutato,
+non autorizzare un altro invio automatico: mantenere la richiesta originale
+e chiedere una verifica della Posta inviata.
+
+**Why:** un timeout può arrivare dopo che l'email è stata spedita. Ripetere
+alla cieca confonde il cliente e può far sembrare rinnovata l'ora di pagamento.
+
+**How to apply:** distinguere rifiuti certi da esiti sconosciuti; i retry
+espliciti conservano importo, link e termine originari. Un problema tecnico
+non deve generare una nuova richiesta né rimettere in gioco uno slot scaduto.
