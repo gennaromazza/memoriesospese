@@ -41,9 +41,10 @@ manuale autenticata dell'admin e il percorso con approvazione restano distinti.
   per riconciliazione ma non è restituita come checkout utilizzabile.
 - Una risposta lenta duplicata non sovrascrive successivi stati finanziari.
 
-## Da completare nei passaggi successivi
+## Cattura e prossime integrazioni
 
-La cattura deve verificare l'associazione e lo snapshot monetario prima di
-registrare incassi, consumare la riserva e confermare la prenotazione.
+La cattura verificata e la registrazione atomica sono descritte in
+`docs/booking-deposit-payments.md`. Verificano l'associazione e lo snapshot
+monetario prima di registrare incassi, consumare la riserva e confermare.
 Il flusso con pagamento dopo approvazione richiede la propria autorizzazione
 temporanea; non deve aggirare i controlli del checkout immediato.

@@ -20,10 +20,12 @@ import {
   reservePublicBooking, confirmPublicBooking, BookingSlotConflictError, AutomaticConfirmationError,
 } from "./booking/public-creation.js";
 import { checkoutHoldRouter } from './booking/checkout-hold-routes.js';
+import { bookingDepositPaymentRouter } from './booking/deposit-payment-routes.js';
 import { loadCheckoutHoldEvents } from './booking/slot-reservations.js';
 
 const router = express.Router();
 router.use('/v2/checkout-holds', checkoutHoldRouter(db));
+router.use(bookingDepositPaymentRouter(db));
 
 // Riscatto delle gift card nella prenotazione pubblica (stessa base dati, nessuna dipendenza da PayPal)
 const giftCards = new GiftCardService({ db });

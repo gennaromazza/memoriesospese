@@ -15,6 +15,51 @@ tags:
   - name: booking-campaigns
     description: Booking campaign administration
 paths:
+  /booking/v2/checkout-holds/{bookingId}/paypal-capture:
+    post:
+      operationId: captureBookingDeposit
+      tags: [booking-checkout]
+      summary: Verify a PayPal deposit and atomically record it once
+      parameters:
+        - name: bookingId
+          in: path
+          required: true
+          schema: { type: string, pattern: '^[A-Za-z0-9_-]{1,200}$' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingCheckoutCredentials"
+      responses:
+        "200":
+          description: Verified payment, possibly requiring manual reconciliation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingDepositCaptureResult"
+        "400": { description: Invalid request }
+        "404": { description: Unknown checkout or token }
+        "409": { description: Capture pending or payment mismatch }
+        "410": { description: Unpaid checkout expired }
+        "503": { description: Provider unavailable or reconciliation required }
+  /booking/paypal/webhook:
+    post:
+      operationId: receiveBookingPayPalWebhook
+      tags: [booking-checkout]
+      summary: Verify PayPal signature before reconciling booking captures
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingPayPalWebhookEvent"
+      responses:
+        "200": { description: Processed or unrelated event }
+        "400": { description: Invalid event }
+        "401": { description: Invalid PayPal signature }
+        "409": { description: Capture does not match the server order }
+        "503": { description: "Provider unavailable, retry required" }
   /booking/v2/checkout-holds/{bookingId}/paypal-order:
     post:
       operationId: createBookingDepositOrder
@@ -402,6 +447,22 @@ components:
       scheme: bearer
       bearerFormat: Firebase ID token
   schemas:
+    BookingPayPalWebhookEvent:
+      type: object
+      additionalProperties: true
+    BookingDepositCaptureResult:
+      type: object
+      required: [bookingId, paypalOrderId, paypalCaptureId, status, amountCents, currency, duplicate, bookingConfirmed]
+      properties:
+        bookingId: { type: string }
+        paypalOrderId: { type: string }
+        paypalCaptureId: { type: string }
+        status: { type: string, enum: [paid, paid_action_required] }
+        amountCents: { type: integer, minimum: 1 }
+        currency: { type: string, enum: [EUR] }
+        paypalFeeCents: { type: integer, minimum: 0 }
+        duplicate: { type: boolean }
+        bookingConfirmed: { type: boolean }
     BookingDepositPayPalOrder:
       type: object
       required: [bookingId, paypalOrderId, depositAmountCents, currency, expiresAt]

@@ -140,6 +140,19 @@ describe("financial dashboard read model", () => {
     expect(result.ledger.every(e => e.campaignId === "c1")).toBe(true);
   });
 
+  it("counts a PayPal booking deposit once and subtracts its separate provider fee", () => {
+    const result = buildFinanceDashboard(snapshot({
+      campaigns: [{ id: "c1", nome: "Natale" }],
+      bookings: [{ id: "b1", campaignId: "c1", acconto: 20, transactions: [{ importo: 20, data: at, metodo: "paypal" }] }],
+      movements: [
+        { id: "receipt", tipo: "entrata", bookingId: "b1", origine: "booking", origineRef: "b1", importo: 20, data: at, metodoPagamento: "paypal" },
+        { id: "fee", tipo: "uscita", bookingId: "b1", origine: "booking", origineRef: "b1", importo: 0.95, data: at, metodoPagamento: "paypal", movementRole: "payment_fee" },
+      ],
+    }), now);
+    expect(result.ledger).toHaveLength(2);
+    expect(result.campaigns[0]).toMatchObject({ income: 20, expenses: 0.95, net: 19.05 });
+  });
+
   it("excludes cancelled debt but preserves real historic receipts", () => {
     const result = buildFinanceDashboard(snapshot({
       jobs: [{ id: "j", status: "annullato" }],

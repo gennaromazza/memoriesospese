@@ -9,6 +9,49 @@ import * as zod from 'zod';
 
 
 /**
+ * @summary Verify a PayPal deposit and atomically record it once
+ */
+export const captureBookingDepositPathBookingIdRegExp = new RegExp('^[A-Za-z0-9_-]{1,200}$');
+
+
+export const CaptureBookingDepositParams = zod.object({
+  "bookingId": zod.coerce.string().regex(captureBookingDepositPathBookingIdRegExp)
+})
+
+export const captureBookingDepositBodyTokenRegExp = new RegExp('^[a-f0-9]{64}$');
+
+
+export const CaptureBookingDepositBody = zod.object({
+  "token": zod.string().regex(captureBookingDepositBodyTokenRegExp)
+})
+
+
+export const captureBookingDepositResponsePaypalFeeCentsMin = 0;
+
+
+
+export const CaptureBookingDepositResponse = zod.object({
+  "bookingId": zod.string(),
+  "paypalOrderId": zod.string(),
+  "paypalCaptureId": zod.string(),
+  "status": zod.enum(['paid', 'paid_action_required']),
+  "amountCents": zod.number().int().min(1),
+  "currency": zod.enum(['EUR']),
+  "paypalFeeCents": zod.number().int().min(captureBookingDepositResponsePaypalFeeCentsMin).optional(),
+  "duplicate": zod.boolean(),
+  "bookingConfirmed": zod.boolean()
+})
+
+
+/**
+ * @summary Verify PayPal signature before reconciling booking captures
+ */
+export const ReceiveBookingPayPalWebhookBody = zod.record(zod.string(), zod.unknown())
+
+export const ReceiveBookingPayPalWebhookResponse = zod.unknown()
+
+
+/**
  * @summary Create or resume a PayPal order using an owned checkout and its fixed deposit
  */
 export const createBookingDepositOrderPathBookingIdRegExp = new RegExp('^[A-Za-z0-9_-]{1,200}$');

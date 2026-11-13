@@ -5,7 +5,7 @@ import {
   PayPalOrdersClient, loadPayPalOrdersConfig, paypalRequestId, paypalValueToCents,
   type PayPalOrdersConfig, type PayPalOrderResponse,
 } from '../print-shop/paypal-orders.js';
-import { authorizeCheckoutHold, activeCheckoutHoldView, CheckoutHoldError } from './checkout-holds.js';
+import { authorizeCheckoutHold, activeCheckoutHoldView, CheckoutHoldError } from './checkout-hold-state.js';
 import { CHECKOUT_HOLDS, checkoutHoldBlocksSlot } from './slot-reservations.js';
 import { logger } from '../lib/logger.js';
 
@@ -15,8 +15,10 @@ export type BookingPayPalClient = Pick<PayPalOrdersClient, 'createOrder' | 'getO
   config: Pick<PayPalOrdersConfig, 'environment' | 'clientId' | 'merchantId'>;
 };
 let defaultClient: PayPalOrdersClient | undefined;
-export const bookingPayPalClient = (): BookingPayPalClient =>
+export const bookingPayPalClient = (): PayPalOrdersClient =>
   defaultClient ??= new PayPalOrdersClient(loadPayPalOrdersConfig());
+export const bookingPayPalAccountKey = (config: Pick<PayPalOrdersConfig, 'environment' | 'clientId'>) =>
+  createHash('sha256').update(`${config.environment}:${config.clientId}`).digest('hex');
 
 export class BookingDepositOrderError extends CheckoutHoldError {
   constructor(status: number, readonly checkoutCode: string, message: string) { super(status, message); }
@@ -31,10 +33,9 @@ function validateDeposit(campaign: FirebaseFirestore.DocumentData | undefined, a
   }
 }
 
-function assertRemoteOrder(order: PayPalOrderResponse, orderId: string, bookingId: string, amount: number, merchantId?: string) {
+export function assertBookingPayPalOrderIdentity(order: PayPalOrderResponse, orderId: string, bookingId: string, amount: number, merchantId?: string) {
   const unit = order.purchase_units?.[0];
-  if (order.id !== orderId || !['CREATED', 'APPROVED', 'PAYER_ACTION_REQUIRED'].includes(order.status || '')
-    || order.purchase_units?.length !== 1
+  if (order.id !== orderId || order.purchase_units?.length !== 1
     || unit?.reference_id !== `booking:${bookingId}` || unit?.custom_id !== `booking:${bookingId}`
     || unit?.invoice_id !== `BOOKING-${bookingId}`
     || unit?.amount?.currency_code !== 'EUR' || paypalValueToCents(unit?.amount?.value) !== amount
@@ -54,7 +55,7 @@ export async function createBookingDepositOrder(
 ): Promise<BookingDepositPayPalOrder> {
   const ref = db.collection(CHECKOUT_HOLDS).doc(bookingId);
   const attemptId = randomUUID();
-  const accountKey = createHash('sha256').update(`${paypal.config.environment}:${paypal.config.clientId}`).digest('hex');
+  const accountKey = bookingPayPalAccountKey(paypal.config);
   const requestId = paypalRequestId('booking-deposit', 'create', bookingId);
   const claim = await db.runTransaction(async transaction => {
     const snapshot = await transaction.get(ref);
@@ -97,7 +98,10 @@ export async function createBookingDepositOrder(
     }
     // Create can return a minimal representation: verify the canonical order.
     const remote = await paypal.getOrder(created.id);
-    assertRemoteOrder(remote, created.id, bookingId, claim.amount, paypal.config.merchantId);
+    assertBookingPayPalOrderIdentity(remote, created.id, bookingId, claim.amount, paypal.config.merchantId);
+    if (!['CREATED', 'APPROVED', 'PAYER_ACTION_REQUIRED'].includes(remote.status || '')) {
+      throw new BookingDepositOrderError(503, 'PAYPAL_ORDER_MISMATCH', 'Ordine PayPal non utilizzabile per un nuovo pagamento.');
+    }
     const saved = await db.runTransaction(async transaction => {
       const snapshot = await transaction.get(ref);
       const data = authorizeCheckoutHold(snapshot.data(), token);

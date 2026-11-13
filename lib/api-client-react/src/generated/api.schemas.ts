@@ -5,6 +5,37 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface BookingPayPalWebhookEvent { [key: string]: unknown }
+
+export type BookingDepositCaptureResultStatus = typeof BookingDepositCaptureResultStatus[keyof typeof BookingDepositCaptureResultStatus];
+
+
+export const BookingDepositCaptureResultStatus = {
+  paid: 'paid',
+  paid_action_required: 'paid_action_required',
+} as const;
+
+export type BookingDepositCaptureResultCurrency = typeof BookingDepositCaptureResultCurrency[keyof typeof BookingDepositCaptureResultCurrency];
+
+
+export const BookingDepositCaptureResultCurrency = {
+  EUR: 'EUR',
+} as const;
+
+export interface BookingDepositCaptureResult {
+  bookingId: string;
+  paypalOrderId: string;
+  paypalCaptureId: string;
+  status: BookingDepositCaptureResultStatus;
+  /** @minimum 1 */
+  amountCents: number;
+  currency: BookingDepositCaptureResultCurrency;
+  /** @minimum 0 */
+  paypalFeeCents?: number;
+  duplicate: boolean;
+  bookingConfirmed: boolean;
+}
+
 export type BookingDepositPayPalOrderCurrency = typeof BookingDepositPayPalOrderCurrency[keyof typeof BookingDepositPayPalOrderCurrency];
 
 

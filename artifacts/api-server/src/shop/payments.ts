@@ -13,6 +13,7 @@ import {
   normalizePostalAddress,
 } from '../commerce/checkout-input.js';
 import { CommerceHttpError } from '../commerce/errors.js';
+import { handleVerifiedBookingPayPalEvent } from '../booking/deposit-payments.js';
 import { captureFromWebhook, extractCompletedCapture, type CompletedCapture } from '../commerce/paypal-capture.js';
 import { centsToEuros, cleanText, hashId, splitCustomerName, stableStringify, timestampMillis } from '../commerce/text.js';
 import {
@@ -430,6 +431,8 @@ export class ShopPaymentService {
       throw mapPayPalError(error);
     }
     if (!verified) throw new CommerceHttpError(401, 'invalid_webhook_signature', 'Firma webhook PayPal non valida');
+    const bookingPayment = await handleVerifiedBookingPayPalEvent(this.deps.db, this.deps.paypal, event);
+    if (bookingPayment) return bookingPayment;
     const eventId = cleanText(event?.id, 160);
     const eventType = cleanText(event?.event_type, 160);
     if (!eventId || !eventType) throw new CommerceHttpError(400, 'invalid_webhook', 'Evento PayPal non valido');

@@ -41,3 +41,18 @@ direttamente. La protezione va verificata anche sul percorso Web SDK.
 **How to apply:** quando si modificano hold o prenotazioni, controllare sia
 le corse delle API sia le regole client; adattare eventuali form legacy al
 percorso server protetto, mantenendo separati i permessi di lettura e gestione.
+
+## Incassi separati dai servizi esterni
+
+Dopo un incasso verificato si usa lo snapshot monetario concordato, non il
+listino corrente della campagna. Errori di Calendar o email non autorizzano
+la cancellazione della prenotazione pagata, la riapertura dello slot o
+l'eliminazione dei movimenti: serve un retry separato.
+
+**Why:** il denaro già incassato non viene annullato dal fallimento di un
+servizio esterno; trattare la sincronizzazione come una creazione reversibile
+può perdere una prenotazione pur conservando il pagamento.
+
+**How to apply:** confermare e registrare atomicamente il pagamento; eseguire
+successivamente sincronizzazione e comunicazioni idempotenti. Distinguere
+sempre incasso ricevuto da slot confermato nei casi tardivi o da riconciliare.

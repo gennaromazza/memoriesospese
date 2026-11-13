@@ -32,6 +32,8 @@ beforeEach(async () => {
     await setDoc(doc(db, 'bookingCheckoutHolds', 'active-hold'), { status: 'active' });
     await setDoc(doc(db, 'bookingSlotLocks', '2030-12-10'), { version: 1 });
     await setDoc(doc(db, 'bookingPayPalOrders', 'ORDER-TEST123'), { bookingId: 'server-booking' });
+    await setDoc(doc(db, 'bookingPaymentCaptures', 'CAPTURE-TEST123'), { bookingId: 'server-booking' });
+    await setDoc(doc(db, 'bookingPaymentEvents', 'EVENT-TEST123'), { bookingId: 'server-booking' });
   });
 });
 afterAll(async () => { await env?.cleanup(); });
@@ -47,6 +49,7 @@ describe('nessun client può aggirare le riserve checkout', () => {
       : env.authenticatedContext(actor, { email: actor === 'admin' ? 'gennaro.mazzacane@gmail.com' : 'cliente@example.com' }).firestore();
     for (const [collection, id] of [
       ['bookingCheckoutHolds', 'active-hold'], ['bookingSlotLocks', '2030-12-10'], ['bookingPayPalOrders', 'ORDER-TEST123'],
+      ['bookingPaymentCaptures', 'CAPTURE-TEST123'], ['bookingPaymentEvents', 'EVENT-TEST123'],
     ]) {
       await assertFails(getDoc(doc(db, collection, id)));
       await assertFails(setDoc(doc(db, collection, 'forged'), { status: 'active', version: 99 }));

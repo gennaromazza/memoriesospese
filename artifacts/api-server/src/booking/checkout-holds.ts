@@ -1,38 +1,14 @@
-import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { Timestamp, type Firestore } from 'firebase-admin/firestore';
 import { DateTime } from 'luxon';
-import type { BookingCheckoutHoldInput, BookingCheckoutHoldView, BookingCheckoutHoldReleaseResult } from '@workspace/api-zod';
+import type { BookingCheckoutHoldInput, BookingCheckoutHoldReleaseResult } from '@workspace/api-zod';
 import { CHECKOUT_HOLDS, checkSlotReservation, checkoutHoldBlocksSlot } from './slot-reservations.js';
 import { validateCampaign, campaignToAvailabilityConfig, getAllExistingBookingEvents } from './calendar-adapter.js';
 import { getAvailableSlotsForDate } from '../calendar-engine/index.js';
+import { CheckoutHoldError, authorizeCheckoutHold, activeCheckoutHoldView, hashCheckoutToken as hashToken } from './checkout-hold-state.js';
+export { CheckoutHoldError, authorizeCheckoutHold, activeCheckoutHoldView } from './checkout-hold-state.js';
 
 export const CHECKOUT_HOLD_MS = 10 * 60 * 1000;
-export class CheckoutHoldError extends Error {
-  constructor(readonly status: number, message: string) { super(message); }
-}
-const hashToken = (token: string) => createHash('sha256').update(token).digest('hex');
-
-export function authorizeCheckoutHold(data: FirebaseFirestore.DocumentData | undefined, token: string): FirebaseFirestore.DocumentData {
-  const candidate = hashToken(token);
-  if (!data || typeof data.tokenHash !== 'string' || data.tokenHash.length !== candidate.length
-    || !timingSafeEqual(Buffer.from(data.tokenHash), Buffer.from(candidate))) {
-    throw new CheckoutHoldError(404, 'Checkout non trovato');
-  }
-  return data;
-}
-
-export function activeCheckoutHoldView(bookingId: string, data: FirebaseFirestore.DocumentData): BookingCheckoutHoldView {
-  const now = Date.now();
-  if (data.status !== 'active') throw new CheckoutHoldError(409, 'Checkout già chiuso');
-  if (!Number.isFinite(data.expiresAt?.toMillis?.())) throw new CheckoutHoldError(503, 'Checkout da verificare con lo studio');
-  if (!checkoutHoldBlocksSlot(data, now)) throw new CheckoutHoldError(410, 'Checkout scaduto: scegli nuovamente lo slot');
-  return {
-    bookingId, campaignId: data.campaignId, status: 'active',
-    expiresAt: data.expiresAt.toDate(), serverTime: new Date(now),
-    depositAmountCents: data.depositAmountCents, currency: 'EUR',
-  };
-}
-
 /** The private draft reserves the eventual booking ID, without creating an approval request. */
 export async function createCheckoutHold(db: Firestore, input: BookingCheckoutHoldInput) {
   const campaignRef = db.collection('booking_campaigns').doc(input.campaignId);

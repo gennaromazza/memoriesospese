@@ -399,6 +399,12 @@ service cloud.firestore {
     match /bookingPayPalOrders/{paypalOrderId} {
       allow read, write: if false;
     }
+    match /bookingPaymentCaptures/{captureId} {
+      allow read, write: if false;
+    }
+    match /bookingPaymentEvents/{eventId} {
+      allow read, write: if false;
+    }
 
     // Booking creation is server-only: every public/admin creation uses the API.
     // Direct creates would bypass availability checks and transactional day guards.

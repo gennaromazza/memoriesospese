@@ -167,6 +167,18 @@ export interface BookingCampaignFE extends Omit<BookingCampaign, 'dataInizio' | 
 /**
  * BOOKINGS - Prenotazioni clienti
  */
+export interface BookingDepositPayment {
+  provider: 'paypal';
+  status: 'paid' | 'paid_action_required';
+  amountCents: number;
+  currency: 'EUR';
+  paypalOrderId: string;
+  paypalCaptureId: string;
+  paypalFeeCents?: number; // assente = non ancora disponibile, non zero
+  netCents?: number;
+  paidAt: Timestamp;
+}
+
 export interface Booking {
   id: string;
   campaignId: string; // Riferimento a booking_campaigns
@@ -228,6 +240,8 @@ export interface Booking {
   saldo?: number; // Saldo residuo (totale - acconto)
   metodoPagamento?: 'contante' | 'carta' | 'bonifico' | 'paypal' | 'altro'; // Metodo pagamento acconto
   transactions?: Transaction[]; // Storico transazioni (centralizzato con ordini)
+  depositPayment?: BookingDepositPayment;
+  calendarSyncPending?: boolean;
   
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -290,6 +304,9 @@ export interface Transaction {
   data: Timestamp;
   note?: string; // Note opzionali (es. "Primo acconto", "Bonifico IBAN: IT...")
   emailInviata: boolean; // Flag per tracking notifica email cliente
+  providerTransactionId?: string;
+  paypalOrderId?: string;
+  paypalFeeCents?: number;
 }
 
 /**

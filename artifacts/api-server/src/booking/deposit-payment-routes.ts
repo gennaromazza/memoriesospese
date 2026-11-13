@@ -1,0 +1,39 @@
+import { Router } from 'express';
+import type { Firestore } from 'firebase-admin/firestore';
+import { CaptureBookingDepositBody, CaptureBookingDepositParams, CaptureBookingDepositResponse } from '@workspace/api-zod';
+import { bookingPayPalClient, BookingDepositOrderError } from './paypal-deposit-orders.js';
+import { CheckoutHoldError } from './checkout-hold-state.js';
+import { captureBookingDeposit, handleVerifiedBookingPayPalEvent, type BookingCapturePayPalClient } from './deposit-payments.js';
+import { logger } from '../lib/logger.js';
+
+export function bookingDepositPaymentRouter(db: Firestore, client: () => BookingCapturePayPalClient = bookingPayPalClient) {
+  const router = Router();
+  const failure = (res: import('express').Response, error: unknown) => {
+    if (error instanceof CheckoutHoldError) return res.status(error.status).json({
+      error: error.message, ...(error instanceof BookingDepositOrderError ? { code: error.checkoutCode } : {}),
+    });
+    logger.error('Verifica acconto PayPal non completata');
+    return res.status(503).json({ error: 'Impossibile verificare il pagamento. Riprova tra poco.' });
+  };
+  router.post('/v2/checkout-holds/:bookingId/paypal-capture', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const params = CaptureBookingDepositParams.safeParse(req.params);
+    const body = CaptureBookingDepositBody.strict().safeParse(req.body);
+    if (!params.success || !body.success) { res.status(400).json({ error: 'Dati del checkout non validi' }); return; }
+    try { res.json(CaptureBookingDepositResponse.parse(await captureBookingDeposit(db, client(), params.data.bookingId, body.data.token))); }
+    catch (error) { failure(res, error); }
+  });
+  router.post('/paypal/webhook', async (req, res) => {
+    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) { res.status(400).json({ error: 'Evento PayPal non valido' }); return; }
+    try {
+      const paypal = client();
+      const verified = await paypal.verifyWebhook({
+        transmissionId: req.get('paypal-transmission-id'), transmissionTime: req.get('paypal-transmission-time'),
+        certUrl: req.get('paypal-cert-url'), authAlgo: req.get('paypal-auth-algo'), transmissionSig: req.get('paypal-transmission-sig'),
+      }, req.body);
+      if (!verified) { res.status(401).json({ error: 'Firma webhook PayPal non valida' }); return; }
+      res.json(await handleVerifiedBookingPayPalEvent(db, paypal, req.body) ?? { ok: true, ignored: true });
+    } catch (error) { failure(res, error); }
+  });
+  return router;
+}

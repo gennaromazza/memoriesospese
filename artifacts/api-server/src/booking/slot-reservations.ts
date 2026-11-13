@@ -40,6 +40,7 @@ export async function loadCheckoutHoldEvents(
  */
 export async function checkSlotReservation(
   transaction: Transaction, db: Firestore, start: Date, end: Date,
+  excludeCheckoutHoldId?: string,
 ): Promise<() => void> {
   let day = DateTime.fromJSDate(start, { zone: 'Europe/Rome' }).startOf('day');
   const last = DateTime.fromJSDate(new Date(end.getTime() - 1), { zone: 'Europe/Rome' }).startOf('day');
@@ -59,6 +60,7 @@ export async function checkSlotReservation(
   ]);
   const now = Date.now();
   const occupied = snapshots.some((snapshot, index) => snapshot.docs.some(doc => {
+    if (index === 2 && doc.id === excludeCheckoutHoldId) return false;
     const data = doc.data();
     if (index === 2 && !checkoutHoldBlocksSlot(data, now)) return false;
     return start < data.dataShootingFine.toDate() && end > data.dataShootingInizio.toDate();

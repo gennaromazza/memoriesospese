@@ -29,7 +29,9 @@ import type {
   BookingCheckoutHoldInput,
   BookingCheckoutHoldReleaseResult,
   BookingCheckoutHoldView,
+  BookingDepositCaptureResult,
   BookingDepositPayPalOrder,
+  BookingPayPalWebhookEvent,
   CampaignImageUploadResult,
   CustomerNotificationKind,
   CustomerOrderNotificationResendInput,
@@ -65,6 +67,183 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getCaptureBookingDepositUrl = (bookingId: string,) => {
+
+
+
+
+  return `/api/booking/v2/checkout-holds/${bookingId}/paypal-capture`
+}
+
+/**
+ * @summary Verify a PayPal deposit and atomically record it once
+ */
+export const captureBookingDeposit = async (bookingId: string,
+    bookingCheckoutCredentials: BookingCheckoutCredentials, options?: Parameters<typeof customFetch>[1]): Promise<BookingDepositCaptureResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<BookingDepositCaptureResult>(getCaptureBookingDepositUrl(bookingId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(bookingCheckoutCredentials)
+  }
+);}
+
+
+
+
+
+export const getCaptureBookingDepositMutationKey = () => ['captureBookingDeposit'] as const;
+
+export const getCaptureBookingDepositMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof captureBookingDeposit>>, TError,CaptureBookingDepositMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof captureBookingDeposit>>, TError,CaptureBookingDepositMutationVariables, TContext> => {
+
+const mutationKey = getCaptureBookingDepositMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof captureBookingDeposit>>, CaptureBookingDepositMutationVariables> = (props) => {
+          const {bookingId,data} = props ?? {};
+
+          return  captureBookingDeposit(bookingId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CaptureBookingDepositMutationResult = NonNullable<Awaited<ReturnType<typeof captureBookingDeposit>>>
+    export type CaptureBookingDepositMutationBody = BodyType<BookingCheckoutCredentials>
+    export type CaptureBookingDepositMutationError = ErrorType<void>
+    export type CaptureBookingDepositMutationVariables = {bookingId: string;data: BodyType<BookingCheckoutCredentials>}
+
+    /**
+ * @summary Verify a PayPal deposit and atomically record it once
+ */
+export const useCaptureBookingDeposit = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof captureBookingDeposit>>, TError,CaptureBookingDepositMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof captureBookingDeposit>>,
+        TError,
+        CaptureBookingDepositMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCaptureBookingDepositMutationOptions(options));
+    }
+
+export const getReceiveBookingPayPalWebhookUrl = () => {
+
+
+
+
+  return `/api/booking/paypal/webhook`
+}
+
+/**
+ * @summary Verify PayPal signature before reconciling booking captures
+ */
+export const receiveBookingPayPalWebhook = async (bookingPayPalWebhookEvent: BookingPayPalWebhookEvent, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<void>(getReceiveBookingPayPalWebhookUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(bookingPayPalWebhookEvent)
+  }
+);}
+
+
+
+
+
+export const getReceiveBookingPayPalWebhookMutationKey = () => ['receiveBookingPayPalWebhook'] as const;
+
+export const getReceiveBookingPayPalWebhookMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof receiveBookingPayPalWebhook>>, TError,ReceiveBookingPayPalWebhookMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof receiveBookingPayPalWebhook>>, TError,ReceiveBookingPayPalWebhookMutationVariables, TContext> => {
+
+const mutationKey = getReceiveBookingPayPalWebhookMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof receiveBookingPayPalWebhook>>, ReceiveBookingPayPalWebhookMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  receiveBookingPayPalWebhook(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReceiveBookingPayPalWebhookMutationResult = NonNullable<Awaited<ReturnType<typeof receiveBookingPayPalWebhook>>>
+    export type ReceiveBookingPayPalWebhookMutationBody = BodyType<BookingPayPalWebhookEvent>
+    export type ReceiveBookingPayPalWebhookMutationError = ErrorType<void>
+    export type ReceiveBookingPayPalWebhookMutationVariables = {data: BodyType<BookingPayPalWebhookEvent>}
+
+    /**
+ * @summary Verify PayPal signature before reconciling booking captures
+ */
+export const useReceiveBookingPayPalWebhook = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof receiveBookingPayPalWebhook>>, TError,ReceiveBookingPayPalWebhookMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof receiveBookingPayPalWebhook>>,
+        TError,
+        ReceiveBookingPayPalWebhookMutationVariables,
+        TContext
+      > => {
+      return useMutation(getReceiveBookingPayPalWebhookMutationOptions(options));
+    }
 
 export const getCreateBookingDepositOrderUrl = (bookingId: string,) => {
 
