@@ -1,10 +1,12 @@
 ---
 name: Acconto per prenotazioni shooting
-description: Flusso concordato per approvazione admin, pagamento entro un'ora e conferma cliente.
+description: Impostazioni per campagna su approvazione admin e acconto, con conferma cliente.
 ---
 
-Per le campagne di shooting, il cliente arriva dalla presentazione e usa il link pubblico per inviare una richiesta di slot. L'amministratore approva la richiesta; solo allora parte via email la richiesta di acconto PayPal con una scadenza di un'ora. Il pagamento riuscito finalizza la prenotazione; senza pagamento entro la scadenza, la richiesta decade e lo slot va liberato. La conferma finale via email contiene il link personale sicuro per gestire la prenotazione e il collegamento al calendario; non si richiede un account con password.
+Le campagne devono poter configurare separatamente se richiedono approvazione admin e se richiedono un acconto. Se servono entrambi, il cliente invia la richiesta, l'admin approva e riceve una richiesta PayPal con un'ora di scadenza; il pagamento riuscito finalizza la prenotazione, mentre la scadenza libera lo slot. Se l'approvazione è disattivata ma l'acconto è attivo, il pagamento PayPal parte subito dopo la scelta dello slot: non si invia una richiesta differita di un'ora; si tiene lo slot solo mentre il checkout è in corso e il pagamento riuscito conferma la prenotazione. Se l'acconto è disattivato, non si avvia PayPal e vale il percorso di approvazione selezionato per quella campagna.
 
-**Why:** non incassare prima che lo studio abbia approvato la richiesta, evitare rimborsi quando lo studio rifiuta e non lasciare slot bloccati dopo una richiesta di pagamento scaduta.
+La mail di conferma finale contiene sempre il link personale sicuro per gestire la prenotazione e il collegamento al calendario; il cliente non deve creare un account con password.
 
-**How to apply:** tenere distinti pre-approvazione, attesa pagamento e conferma finale. La scadenza va verificata lato server; un mancato pagamento deve liberare lo slot e un pagamento tardivo va riconciliato in modo esplicito. Inviare il link di gestione solo nell'email di conferma finale.
+**Why:** alcune campagne richiedono approvazione e/o acconto e altre no; le regole devono essere selezionabili per campagna senza cambiare il comportamento globale.
+
+**How to apply:** mantenere indipendenti le due impostazioni nel pannello admin e applicarle lato server. La finestra di un'ora vale solo per l'acconto richiesto dopo approvazione; il checkout immediato ha un hold breve limitato alla sessione di pagamento. Gestire esplicitamente scadenze, slot liberati e catture PayPal tardive. Inviare il link di gestione solo nell'email di conferma finale.

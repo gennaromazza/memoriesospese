@@ -75,4 +75,4 @@
 - [Resend e schemi dei contatti](resend-contact-schema.md) — verificare le strutture annidate nella documentazione API corrente: i riepiloghi del connettore possono essere obsoleti.
 - [Continuità del carrello shop](shop-cart-continuity.md) — uscire dal checkout non conclude l’acquisto: rendere raggiungibile la bozza senza duplicare gli articoli.
 - [Trasferimenti stampe interrotti](print-transfer-interruption.md) — “running” non prova che il worker sia vivo; riconciliare Drive prima della ripresa e non ripetere l’email.
-- [Acconto shooting dopo approvazione](booking-deposit-flow.md) — dopo l’ok admin, inviare richiesta PayPal con un’ora per pagare; confermare e inviare il link gestione solo a pagamento riuscito.
+- [Acconti shooting configurabili](booking-deposit-flow.md) — approvazione admin e acconto sono opzioni indipendenti per campagna; inviare il link gestione nella conferma finale.
