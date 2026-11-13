@@ -98,4 +98,24 @@ test("il cliente personalizza l'ImageBox con sole scritte e salva", async ({ pag
     glassEngraving: { mode: "text", text: "il mio battesimo", color: "black" },
   });
   await expect(page.getByTestId("quadrobook-actions")).toContainText("Bozza salvata");
+
+  // Riaprendo il link, foto e incisioni devono tornare sulle superfici salvate.
+  await page.reload();
+  await page.getByRole("button", { name: /Personalizza il tuo album|Apri il tuo album|Personalizza album/ }).first().click();
+  const restored = page.frameLocator("iframe").first();
+  await expect(restored.locator("#coverText")).toHaveValue("Lorenzo\n12 ottobre 2026", { timeout: 60_000 });
+  await expect(restored.locator("#glassText")).toHaveValue("il mio battesimo");
+  await expect(restored.locator('[data-layout="plaque"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(restored.locator("#coverPhotoBox")).toBeHidden();
+  await expect(restored.locator("#baseStatus")).toContainText("Foto scelta");
+
+  // Il link di sola lettura riusa la configurazione, senza strumenti studio o salvataggio.
+  saved = { ...(saved as object), status: "confirmed" };
+  await page.goto(`/fotolibro/${token}/mockup?version=1`);
+  const readonly = page.frameLocator("iframe").first();
+  await expect(readonly.locator("#coverText")).toHaveValue("Lorenzo\n12 ottobre 2026", { timeout: 60_000 });
+  await expect(readonly.locator("#coverText")).toBeDisabled();
+  await expect(readonly.locator("#glassText")).toBeDisabled();
+  await expect(readonly.locator("#openStudio")).toBeHidden();
+  await expect(page.getByTestId("quadrobook-actions")).toHaveCount(0);
 });
