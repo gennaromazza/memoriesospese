@@ -5,7 +5,7 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { reservationDb } from './test-helpers/reservation-db.js';
 import { hashCheckoutToken } from './checkout-hold-state.js';
 import { bookingPayPalAccountKey, BOOKING_PAYPAL_ORDERS } from './paypal-deposit-orders.js';
-import { captureBookingDeposit, getBookingDepositStatus, handleVerifiedBookingPayPalEvent } from './deposit-payments.js';
+import { captureBookingDeposit, getBookingDepositStatus, getBookingDepositStatusForAdmin, handleVerifiedBookingPayPalEvent } from './deposit-payments.js';
 import { BOOKING_PAYMENT_CAPTURES } from './deposit-payment-ledger.js';
 import { bookingDepositPaymentRouter } from './deposit-payment-routes.js';
 import { paypalRequestId, PayPalConfigurationError } from '../print-shop/paypal-orders.js';
@@ -82,6 +82,26 @@ beforeEach(() => {
   });
   store.seed(orderPath, { bookingId, campaignId: 'campaign-a', paypalOrderId: orderId, depositAmountCents: 2000,
     currency: 'EUR', state: 'created', accountKey: bookingPayPalAccountKey(config) });
+});
+it('lets an admin read PayPal without creating or capturing an order', async () => {
+  expect(await getBookingDepositStatusForAdmin(store.db, client, bookingId)).toMatchObject({ status: 'unpaid' });
+  expect(client.getOrder).toHaveBeenCalledTimes(1);
+  expect(client.createOrder).not.toHaveBeenCalled();
+  expect(client.captureOrder).not.toHaveBeenCalled();
+  expect(store.value(holdPath).paypal.lastVerifiedStatus).toBe('APPROVED');
+  expect(count('bookings')).toBe(0);
+});
+it('reconciles money already received for an admin without charging again, including repeated checks', async () => {
+  paid = true;
+  expect(await getBookingDepositStatusForAdmin(store.db, client, bookingId)).toMatchObject({ status: 'paid' });
+  const movements = count('cashMovements');
+  client.getOrder.mockRejectedValueOnce(new Error('Provider unavailable'));
+  expect(await getBookingDepositStatusForAdmin(store.db, client, bookingId)).toMatchObject({ status: 'paid' });
+  expect(client.getOrder).toHaveBeenCalledTimes(1);
+  expect(client.captureOrder).not.toHaveBeenCalled();
+  expect(client.createOrder).not.toHaveBeenCalled();
+  expect(count('bookings')).toBe(1);
+  expect(count('cashMovements')).toBe(movements);
 });
 it('confirms an owned approved booking at the frozen amount, preserving admin edits and idempotent accounting', async () => {
   approvedBooking();

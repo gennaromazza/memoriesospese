@@ -130,6 +130,76 @@ export interface BookingApprovalError {
   code?: string;
 }
 
+export interface BookingDepositResendInput {
+  requestId: string;
+}
+
+export type AdminBookingPaymentFlow = typeof AdminBookingPaymentFlow[keyof typeof AdminBookingPaymentFlow];
+
+
+export const AdminBookingPaymentFlow = {
+  approved: 'approved',
+  immediate: 'immediate',
+  none: 'none',
+} as const;
+
+export type AdminBookingPaymentCurrency = typeof AdminBookingPaymentCurrency[keyof typeof AdminBookingPaymentCurrency];
+
+
+export const AdminBookingPaymentCurrency = {
+  EUR: 'EUR',
+} as const;
+
+export type AdminBookingPaymentPaymentStatus = typeof AdminBookingPaymentPaymentStatus[keyof typeof AdminBookingPaymentPaymentStatus];
+
+
+export const AdminBookingPaymentPaymentStatus = {
+  not_required: 'not_required',
+  unpaid: 'unpaid',
+  processing: 'processing',
+  paid: 'paid',
+  review: 'review',
+} as const;
+
+export type AdminBookingPaymentMethod = typeof AdminBookingPaymentMethod[keyof typeof AdminBookingPaymentMethod] | null;
+
+
+export const AdminBookingPaymentMethod = {
+  paypal: 'paypal',
+  manual: 'manual',
+} as const;
+
+export interface AdminBookingPayment {
+  bookingId: string;
+  campaignId: string;
+  campaignName: string;
+  stage: string;
+  flow: AdminBookingPaymentFlow;
+  amountCents: number | null;
+  paidAmountCents: number | null;
+  currency: AdminBookingPaymentCurrency;
+  expiresAt: string | null;
+  serverTime: string;
+  paymentStatus: AdminBookingPaymentPaymentStatus;
+  method: AdminBookingPaymentMethod;
+  paypalOrderId: string | null;
+  paypalCaptureId: string | null;
+  paypalFeeCents: number | null;
+  netCents: number | null;
+  providerStatus: string | null;
+  emailStatus: string | null;
+  canResend: boolean;
+  resendReason: string | null;
+  resendAvailableAt: string | null;
+  canVerify: boolean;
+  payable: boolean;
+  payabilityReason: string | null;
+  customerName: string;
+  customerEmail: string;
+  shootingStart: string | null;
+  shootingEnd: string | null;
+}
+
 export type BookingDepositPayPalOrderCurrency = typeof BookingDepositPayPalOrderCurrency[keyof typeof BookingDepositPayPalOrderCurrency];
 
 
@@ -359,6 +429,11 @@ export interface CustomerOrderNotificationResendResult {
   sent: boolean;
   skipped: boolean;
 }
+
+export type GetAdminBookingPaymentCheckouts200 = {
+  items: AdminBookingPayment[];
+  truncated: boolean;
+};
 
 export type GetRecentLabShipmentsParams = {
 /**

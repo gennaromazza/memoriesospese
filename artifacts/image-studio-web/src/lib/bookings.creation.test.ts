@@ -1,9 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ request: vi.fn() }));
+const mocks = vi.hoisted(() => ({ request: vi.fn(), snapshot: vi.fn() }));
 vi.mock('@/lib/firebase', () => ({ db: {} }));
 vi.mock('@/lib/queryClient', () => ({ apiRequest: mocks.request }));
-import { createBooking, approveBooking } from './bookings';
+vi.mock('firebase/firestore', async importOriginal => ({ ...await importOriginal<typeof import('firebase/firestore')>(),
+  collection: (_db: unknown, name: string) => ({ name }), query: (value: unknown) => value,
+  orderBy: () => ({}), onSnapshot: mocks.snapshot }));
+import { createBooking, approveBooking, getBookingPaymentDetails, getBookingPaymentCheckouts, verifyBookingDeposit, resendBookingDeposit, subscribeBookings } from './bookings';
 
 const input = {
   campaignId: 'test-campaign',
@@ -13,6 +16,37 @@ const input = {
   note: '',
 };
 beforeEach(() => { vi.clearAllMocks(); });
+describe('authenticated payment administration transport', () => {
+  it('uses one Firestore listener and preserves actual document identifiers', () => {
+    const stop = vi.fn(), update = vi.fn(), error = vi.fn();
+    mocks.snapshot.mockReturnValue(stop);
+    expect(subscribeBookings(update, error)).toBe(stop);
+    const args = mocks.snapshot.mock.calls[0];
+    expect(args[1]).toEqual({ includeMetadataChanges: true });
+    args[2]({ docs: [{ id: 'actual-id', data: () => ({ id: 'stale-id', stato: 'in_attesa' }) }], metadata: { fromCache: false } });
+    expect(update).toHaveBeenCalledWith([{ id: 'actual-id', stato: 'in_attesa' }], false);
+    expect(args[3]).toBe(error);
+    stop();
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(mocks.request).not.toHaveBeenCalled();
+  });
+  it('uses the existing authenticated bridge and only sends an idempotent resend intent', async () => {
+    mocks.request.mockImplementation(async () => new Response('{}'));
+    await getBookingPaymentDetails('test');
+    await getBookingPaymentCheckouts();
+    await verifyBookingDeposit('test');
+    await resendBookingDeposit('test', '11111111-1111-4111-8111-111111111111');
+    expect(mocks.request.mock.calls).toEqual([
+      ['GET', '/api/booking/test/payment'], ['GET', '/api/booking/admin/payment-checkouts'],
+      ['POST', '/api/booking/test/payment/verify', {}],
+      ['POST', '/api/booking/test/payment/resend', { requestId: '11111111-1111-4111-8111-111111111111' }],
+    ]);
+  });
+  it('preserves a safe server explanation when a request is no longer payable', async () => {
+    mocks.request.mockRejectedValueOnce(new Error('410: {"error":"La richiesta è scaduta."}'));
+    await expect(resendBookingDeposit('test', 'intent')).rejects.toThrow('La richiesta è scaduta.');
+  });
+});
 describe('esito approvazione con acconto', () => {
   it('preserves the waiting state, email result and server deadline', async () => {
     const result = { success: true, paymentRequired: true, stato: 'in_attesa_pagamento', amountCents: 2500,

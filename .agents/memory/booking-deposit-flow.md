@@ -100,3 +100,17 @@ alla cieca confonde il cliente e può far sembrare rinnovata l'ora di pagamento.
 **How to apply:** distinguere rifiuti certi da esiti sconosciuti; i retry
 espliciti conservano importo, link e termine originari. Un problema tecnico
 non deve generare una nuova richiesta né rimettere in gioco uno slot scaduto.
+
+## Visibilità admin senza conferme artificiali
+
+Un checkout immediato non ancora pagato deve essere visibile all'admin come
+blocco temporaneo, senza creare una prenotazione confermata per poterlo elencare.
+
+**Why:** anticipare il documento definitivo cambia le condizioni con cui
+l'incasso può confermare lo slot e rischia di confondere pagamenti e disponibilità.
+
+**How to apply:** separare nel pannello i checkout non conclusi dalle prenotazioni
+reali; deduplicare per identità quando l'incasso crea la prenotazione. Non
+ripetere scansioni periodiche di tutte le prenotazioni per aggiornare un pagamento:
+preferire notifiche in tempo reale e verifiche mirate. Il refresh manuale non
+deve sovrascrivere un evento di pagamento più recente ricevuto durante la lettura.

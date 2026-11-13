@@ -25,6 +25,7 @@ import { loadCheckoutHoldEvents } from './booking/slot-reservations.js';
 import { hasPaidBookingDeposit, unpaidDepositRequestExpired } from './booking/payment-deadlines.js';
 import { approveBookingWithDeposit } from './booking/approved-deposit-request.js';
 import { CheckoutHoldError } from './booking/checkout-hold-state.js';
+import { bookingAdminPaymentRouter } from './booking/admin-payment-routes.js';
 
 const router = express.Router();
 async function requestDepositIfNeeded(req: any, res: express.Response, bookingId: string,
@@ -42,6 +43,7 @@ async function requestDepositIfNeeded(req: any, res: express.Response, bookingId
 }
 router.use('/v2/checkout-holds', checkoutHoldRouter(db));
 router.use(bookingDepositPaymentRouter(db));
+router.use(bookingAdminPaymentRouter(db, authenticateFirebase, requireAdmin));
 
 // Riscatto delle gift card nella prenotazione pubblica (stessa base dati, nessuna dipendenza da PayPal)
 const giftCards = new GiftCardService({ db });

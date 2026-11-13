@@ -56,6 +56,7 @@ export function reservationDb() {
   let retries = 0;
   const db = {
     collection: (name: string) => query(name),
+    getAll: (...refs: any[]) => Promise.all(refs.map(ref => ref.get())),
     runTransaction: async (fn: any) => {
       for (let attempt = 0; attempt < 10; attempt++) {
         const reads = new Map<string, number>();

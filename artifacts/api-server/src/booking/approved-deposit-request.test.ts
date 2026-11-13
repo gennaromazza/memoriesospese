@@ -27,6 +27,57 @@ beforeEach(() => {
 });
 afterEach(() => vi.restoreAllMocks());
 describe('approved deposit request', () => {
+  it.each([undefined, { status: 'unrecognised', attempts: 1 }, { status: 'sent', attempts: NaN }])(
+    'fails closed for missing or invalid email delivery metadata %j', async paymentEmail => {
+      await approve();
+      store.seed(holdPath, { ...store.value(holdPath), paymentEmail });
+      vi.mocked(Date.now).mockReturnValue(now + 61_000);
+      await expect(approveBookingWithDeposit(store.db, id, 'admin-test', deps, { resendRequestId: 'invalid-metadata' })).rejects.toMatchObject({ status: 503 });
+      expect(deps.send).toHaveBeenCalledTimes(1);
+    });
+  it('requires an existing request for explicit resend instead of silently approving', async () => {
+    await expect(approveBookingWithDeposit(store.db, id, 'admin-test', deps, { resendRequestId: 'resend-test' })).rejects.toMatchObject({ status: 409 });
+    expect(deps.send).not.toHaveBeenCalled();
+    expect(store.value(bookPath).depositPaymentRequest).toBeUndefined();
+  });
+  it('resends a sent request once per explicit intent, preserving amount, link and deadline', async () => {
+    await approve();
+    const firstHtml = vi.mocked(deps.send).mock.calls[0][2];
+    const expiry = store.value(holdPath).expiresAt.toMillis();
+    vi.mocked(Date.now).mockReturnValue(now + 61_000);
+    store.seed(campaignPath, { ...store.value(campaignPath), accontoImportoCentesimi: 5000 });
+    const resend = () => approveBookingWithDeposit(store.db, id, 'admin-test', deps, { resendRequestId: 'same-intent' });
+    await Promise.all([resend(), resend()]);
+    await resend();
+    expect(deps.send).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(deps.send).mock.calls[1][2]).toBe(firstHtml);
+    expect(store.value(holdPath).expiresAt.toMillis()).toBe(expiry);
+    expect(store.value(bookPath).depositPaymentRequest.amountCents).toBe(2500);
+    expect(store.value(holdPath).paymentEmail.resendIds).toEqual(['same-intent']);
+  });
+  it('enforces resend cooldown and the overall attempt limit', async () => {
+    await approve();
+    vi.mocked(Date.now).mockReturnValue(now + 59_000);
+    await expect(approveBookingWithDeposit(store.db, id, 'admin-test', deps, { resendRequestId: 'too-soon' })).rejects.toMatchObject({ status: 429 });
+    vi.mocked(Date.now).mockReturnValue(now + 61_000);
+    await approveBookingWithDeposit(store.db, id, 'admin-test', deps, { resendRequestId: 'second' });
+    vi.mocked(Date.now).mockReturnValue(now + 122_000);
+    await approveBookingWithDeposit(store.db, id, 'admin-test', deps, { resendRequestId: 'third' });
+    vi.mocked(Date.now).mockReturnValue(now + 183_000);
+    await approveBookingWithDeposit(store.db, id, 'admin-test', deps, { resendRequestId: 'fourth' });
+    expect(deps.send).toHaveBeenCalledTimes(3);
+    expect(store.value(holdPath).paymentEmail.attempts).toBe(3);
+  });
+  it('does not resend an uncertain email or revive an expired request', async () => {
+    vi.mocked(deps.send).mockRejectedValueOnce(new Error('Network timeout after sending'));
+    await approve();
+    vi.mocked(Date.now).mockReturnValue(now + 61_000);
+    expect(await approveBookingWithDeposit(store.db, id, 'admin-test', deps, { resendRequestId: 'uncertain' })).toMatchObject({ emailStatus: 'unknown' });
+    expect(deps.send).toHaveBeenCalledTimes(1);
+    vi.mocked(Date.now).mockReturnValue(now + 3_600_000);
+    await expect(approveBookingWithDeposit(store.db, id, 'admin-test', deps, { resendRequestId: 'expired' })).rejects.toMatchObject({ status: 410 });
+    expect(deps.send).toHaveBeenCalledTimes(1);
+  });
   it('keeps the booking pending, fixes one hour and sends only a personal payment request', async () => {
     const result = await approve();
     expect(result).toMatchObject({ success: true, paymentRequired: true, stato: 'in_attesa_pagamento', amountCents: 2500, emailStatus: 'sent' });

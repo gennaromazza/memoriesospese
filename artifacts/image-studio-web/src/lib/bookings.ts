@@ -7,6 +7,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   addDoc,
   updateDoc,
   deleteDoc,
@@ -19,7 +20,7 @@ import {
 import { db } from '@/lib/firebase';
 import { apiRequest } from '@/lib/queryClient';
 import type { Booking } from '@shared/booking-types';
-import type { BookingApprovalResult } from '@workspace/api-client-react';
+import type { BookingApprovalResult, AdminBookingPayment, GetAdminBookingPaymentCheckouts200 } from '@workspace/api-client-react';
 import { WorkflowState } from '@shared/schema';
 
 const COLLECTION = 'bookings';
@@ -217,6 +218,28 @@ export async function getBookingsByStatus(
 /**
  * Approva prenotazione (admin only) - chiama API server V2 con Calendar Engine V2
  */
+export async function getBookingPaymentDetails(id: string): Promise<AdminBookingPayment> {
+  try { return await (await apiRequest('GET', `/api/booking/${encodeURIComponent(id)}/payment`)).json(); }
+  catch (error) { throw bookingRequestError(error, true); }
+}
+/** One initial read, then Firestore delivers changes; never poll the entire booking collection. */
+export function subscribeBookings(onUpdate: (bookings: Booking[], fromCache: boolean) => void, onError: (error: Error) => void) {
+  return onSnapshot(query(collection(db, 'bookings'), orderBy('dataShootingInizio', 'desc')), { includeMetadataChanges: true },
+    snapshot => onUpdate(snapshot.docs.map(document => ({ ...document.data(), id: document.id } as Booking)), snapshot.metadata.fromCache),
+    onError);
+}
+export async function getBookingPaymentCheckouts(): Promise<GetAdminBookingPaymentCheckouts200> {
+  try { return await (await apiRequest('GET', '/api/booking/admin/payment-checkouts')).json(); }
+  catch (error) { throw bookingRequestError(error, true); }
+}
+export async function verifyBookingDeposit(id: string): Promise<AdminBookingPayment> {
+  try { return await (await apiRequest('POST', `/api/booking/${encodeURIComponent(id)}/payment/verify`, {})).json(); }
+  catch (error) { throw bookingRequestError(error, true); }
+}
+export async function resendBookingDeposit(id: string, requestId: string): Promise<AdminBookingPayment> {
+  try { return await (await apiRequest('POST', `/api/booking/${encodeURIComponent(id)}/payment/resend`, { requestId })).json(); }
+  catch (error) { throw bookingRequestError(error, true); }
+}
 export async function approveBooking(bookingId: string): Promise<BookingApprovalResult> {
   try {
     const response = await apiRequest('PATCH', `/api/booking/v2/${bookingId}/approve`);

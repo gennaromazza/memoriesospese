@@ -8,6 +8,165 @@
 import * as zod from 'zod';
 
 
+export const GetAdminBookingPaymentCheckoutsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "bookingId": zod.string(),
+  "campaignId": zod.string(),
+  "campaignName": zod.string(),
+  "stage": zod.string(),
+  "flow": zod.enum(['approved', 'immediate', 'none']),
+  "amountCents": zod.number().int().nullable(),
+  "paidAmountCents": zod.number().int().nullable(),
+  "currency": zod.enum(['EUR']),
+  "expiresAt": zod.coerce.date().nullable(),
+  "serverTime": zod.coerce.date(),
+  "paymentStatus": zod.enum(['not_required', 'unpaid', 'processing', 'paid', 'review']),
+  "method": zod.enum(['paypal', 'manual']).nullable(),
+  "paypalOrderId": zod.string().nullable(),
+  "paypalCaptureId": zod.string().nullable(),
+  "paypalFeeCents": zod.number().int().nullable(),
+  "netCents": zod.number().int().nullable(),
+  "providerStatus": zod.string().nullable(),
+  "emailStatus": zod.string().nullable(),
+  "canResend": zod.boolean(),
+  "resendReason": zod.string().nullable(),
+  "resendAvailableAt": zod.coerce.date().nullable(),
+  "canVerify": zod.boolean(),
+  "payable": zod.boolean(),
+  "payabilityReason": zod.string().nullable(),
+  "customerName": zod.string(),
+  "customerEmail": zod.string(),
+  "shootingStart": zod.coerce.date().nullable(),
+  "shootingEnd": zod.coerce.date().nullable()
+})),
+  "truncated": zod.boolean()
+})
+
+
+export const getAdminBookingPaymentPathBookingIdMax = 200;
+
+
+
+export const GetAdminBookingPaymentParams = zod.object({
+  "bookingId": zod.coerce.string().min(1).max(getAdminBookingPaymentPathBookingIdMax)
+})
+
+export const GetAdminBookingPaymentResponse = zod.object({
+  "bookingId": zod.string(),
+  "campaignId": zod.string(),
+  "campaignName": zod.string(),
+  "stage": zod.string(),
+  "flow": zod.enum(['approved', 'immediate', 'none']),
+  "amountCents": zod.number().int().nullable(),
+  "paidAmountCents": zod.number().int().nullable(),
+  "currency": zod.enum(['EUR']),
+  "expiresAt": zod.coerce.date().nullable(),
+  "serverTime": zod.coerce.date(),
+  "paymentStatus": zod.enum(['not_required', 'unpaid', 'processing', 'paid', 'review']),
+  "method": zod.enum(['paypal', 'manual']).nullable(),
+  "paypalOrderId": zod.string().nullable(),
+  "paypalCaptureId": zod.string().nullable(),
+  "paypalFeeCents": zod.number().int().nullable(),
+  "netCents": zod.number().int().nullable(),
+  "providerStatus": zod.string().nullable(),
+  "emailStatus": zod.string().nullable(),
+  "canResend": zod.boolean(),
+  "resendReason": zod.string().nullable(),
+  "resendAvailableAt": zod.coerce.date().nullable(),
+  "canVerify": zod.boolean(),
+  "payable": zod.boolean(),
+  "payabilityReason": zod.string().nullable(),
+  "customerName": zod.string(),
+  "customerEmail": zod.string(),
+  "shootingStart": zod.coerce.date().nullable(),
+  "shootingEnd": zod.coerce.date().nullable()
+})
+
+
+export const verifyAdminBookingPaymentPathBookingIdMax = 200;
+
+
+
+export const VerifyAdminBookingPaymentParams = zod.object({
+  "bookingId": zod.coerce.string().min(1).max(verifyAdminBookingPaymentPathBookingIdMax)
+})
+
+export const VerifyAdminBookingPaymentResponse = zod.object({
+  "bookingId": zod.string(),
+  "campaignId": zod.string(),
+  "campaignName": zod.string(),
+  "stage": zod.string(),
+  "flow": zod.enum(['approved', 'immediate', 'none']),
+  "amountCents": zod.number().int().nullable(),
+  "paidAmountCents": zod.number().int().nullable(),
+  "currency": zod.enum(['EUR']),
+  "expiresAt": zod.coerce.date().nullable(),
+  "serverTime": zod.coerce.date(),
+  "paymentStatus": zod.enum(['not_required', 'unpaid', 'processing', 'paid', 'review']),
+  "method": zod.enum(['paypal', 'manual']).nullable(),
+  "paypalOrderId": zod.string().nullable(),
+  "paypalCaptureId": zod.string().nullable(),
+  "paypalFeeCents": zod.number().int().nullable(),
+  "netCents": zod.number().int().nullable(),
+  "providerStatus": zod.string().nullable(),
+  "emailStatus": zod.string().nullable(),
+  "canResend": zod.boolean(),
+  "resendReason": zod.string().nullable(),
+  "resendAvailableAt": zod.coerce.date().nullable(),
+  "canVerify": zod.boolean(),
+  "payable": zod.boolean(),
+  "payabilityReason": zod.string().nullable(),
+  "customerName": zod.string(),
+  "customerEmail": zod.string(),
+  "shootingStart": zod.coerce.date().nullable(),
+  "shootingEnd": zod.coerce.date().nullable()
+})
+
+
+export const resendAdminBookingDepositPathBookingIdMax = 200;
+
+
+
+export const ResendAdminBookingDepositParams = zod.object({
+  "bookingId": zod.coerce.string().min(1).max(resendAdminBookingDepositPathBookingIdMax)
+})
+
+export const ResendAdminBookingDepositBody = zod.object({
+  "requestId": zod.string().uuid()
+})
+
+export const ResendAdminBookingDepositResponse = zod.object({
+  "bookingId": zod.string(),
+  "campaignId": zod.string(),
+  "campaignName": zod.string(),
+  "stage": zod.string(),
+  "flow": zod.enum(['approved', 'immediate', 'none']),
+  "amountCents": zod.number().int().nullable(),
+  "paidAmountCents": zod.number().int().nullable(),
+  "currency": zod.enum(['EUR']),
+  "expiresAt": zod.coerce.date().nullable(),
+  "serverTime": zod.coerce.date(),
+  "paymentStatus": zod.enum(['not_required', 'unpaid', 'processing', 'paid', 'review']),
+  "method": zod.enum(['paypal', 'manual']).nullable(),
+  "paypalOrderId": zod.string().nullable(),
+  "paypalCaptureId": zod.string().nullable(),
+  "paypalFeeCents": zod.number().int().nullable(),
+  "netCents": zod.number().int().nullable(),
+  "providerStatus": zod.string().nullable(),
+  "emailStatus": zod.string().nullable(),
+  "canResend": zod.boolean(),
+  "resendReason": zod.string().nullable(),
+  "resendAvailableAt": zod.coerce.date().nullable(),
+  "canVerify": zod.boolean(),
+  "payable": zod.boolean(),
+  "payabilityReason": zod.string().nullable(),
+  "customerName": zod.string(),
+  "customerEmail": zod.string(),
+  "shootingStart": zod.coerce.date().nullable(),
+  "shootingEnd": zod.coerce.date().nullable()
+})
+
+
 export const approveLegacyBookingRequestPathBookingIdMax = 200;
 
 

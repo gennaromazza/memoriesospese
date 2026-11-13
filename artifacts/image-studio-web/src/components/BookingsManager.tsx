@@ -1,6 +1,10 @@
 /**
  * Bookings Manager - Gestione prenotazioni booking per admin
  */
+import { bookingPaymentStage, bookingPaymentStageLabel, matchesBookingPaymentFilter } from '@shared/booking-payment-state';
+import { BookingPaymentPanel } from './booking/BookingPaymentPanel';
+import { BookingPaymentCheckouts } from './booking/BookingPaymentCheckouts';
+import { useLiveBookings } from './booking/useLiveBookings';
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -16,7 +20,6 @@ import {
   startOfDay,
 } from "date-fns";
 import {
-  getAllBookings,
   approveBooking,
   rejectBooking,
   updateBookingStatus,
@@ -144,9 +147,15 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+function needsDepositApproval(booking: Booking, campaigns: BookingCampaignFE[]) {
+  return campaigns.some(c => c.id === booking.campaignId && c.richiedeAcconto === true && c.richiedeApprovazione !== false);
+}
 const STATI_BOOKING = [
   { value: "all", label: "Tutti", icon: FileText },
-  { value: "in_attesa", label: "In Attesa", icon: Clock },
+  { value: "in_attesa", label: "Da approvare", icon: Clock },
+  { value: "in_attesa_pagamento", label: "In attesa di pagamento", icon: Clock },
+  { value: "scaduta", label: "Scadute", icon: XCircle },
+  { value: "pagamento_da_verificare", label: "Pagamenti da riconciliare", icon: AlertCircle },
   { value: "confermata", label: "Confermate", icon: CheckCircle },
   { value: "completata", label: "Completate", icon: Package },
   { value: "annullata", label: "Annullate", icon: XCircle },
@@ -179,9 +188,10 @@ const STATI_WORKFLOW = [
   { value: WorkflowState.CONSEGNATO, label: "Consegnato al Cliente", icon: PackageCheck },
 ] as const;
 
-function getStatoBadge(stato: string, request?: Booking['depositPaymentRequest']) {
-  if (stato === 'in_attesa' && request?.status === 'pending') {
-    return <Badge variant="outline" className="bg-muted text-foreground">In attesa di pagamento</Badge>;
+function getStatoBadge(booking: Booking, now = Date.now()) {
+  const stato = bookingPaymentStage(booking, now);
+  if (['in_attesa_pagamento', 'scaduta', 'pagamento_da_verificare'].includes(stato)) {
+    return <Badge variant="outline" className="max-w-44 whitespace-normal break-words text-right">{bookingPaymentStageLabel(stato)}</Badge>;
   }
   switch (stato) {
     case "in_attesa":
@@ -190,7 +200,7 @@ function getStatoBadge(stato: string, request?: Booking['depositPaymentRequest']
           variant="outline"
           className="bg-yellow-50 text-yellow-700 border-yellow-200"
         >
-          In Attesa
+          Da approvare
         </Badge>
       );
     case "confermata":
@@ -248,6 +258,8 @@ export default function BookingsManager({
 }: BookingsManagerProps = {}) {
   const { toast } = useToast();
   const { user } = useFirebaseAuth();
+  const [paymentClock, setPaymentClock] = useState(Date.now());
+  useEffect(() => { const timer = window.setInterval(() => setPaymentClock(Date.now()), 15_000); return () => window.clearInterval(timer); }, []);
   const [, navigate] = useLocation();
   const searchParams = useSearch();
 
@@ -465,11 +477,12 @@ export default function BookingsManager({
     data: allBookings = [],
     isLoading,
     refetch,
-  } = useQuery<Booking[]>({
-    queryKey: ["bookings"],
-    queryFn: getAllBookings,
-    staleTime: 2 * 60 * 1000,
-  });
+    liveError,
+  } = useLiveBookings(user?.uid || '');
+  useEffect(() => {
+    const fresh = allBookings.find(booking => booking.id === selectedBooking?.id);
+    if (fresh && fresh !== selectedBooking) setSelectedBooking(fresh);
+  }, [allBookings, selectedBooking?.id]);
 
   // Query campagne per nomi
   const { data: campaigns = [] } = useQuery<BookingCampaignFE[]>({
@@ -657,16 +670,7 @@ export default function BookingsManager({
       // Senza ricerca, applica i filtri normali
 
       // 1. Filtra per stato (escludi annullate se "all")
-      if (selectedStato === "all") {
-        // Escludi gli stati terminali/tecnici dalla vista "Tutte" per evitare confusione.
-        filtered = filtered.filter((b) => !["annullata", "cancellata", "cancellation_pending"].includes(b.stato));
-      } else if (selectedStato === "annullata") {
-        // Compatibilità dati storici: entrambe le forme di annullamento sono
-        // mostrate nello stesso filtro, senza migrare documenti esistenti.
-        filtered = filtered.filter((b) => ["annullata", "cancellata"].includes(b.stato));
-      } else {
-        filtered = filtered.filter((b) => b.stato === selectedStato);
-      }
+      filtered = filtered.filter(b => matchesBookingPaymentFilter(b, selectedStato, Date.now()));
 
       // 2. Filtra per selezioni approvate
       if (selectionFilter === "approved") {
@@ -811,6 +815,7 @@ export default function BookingsManager({
   }, [
     allBookings,
     selectedStato,
+    paymentClock,
     searchQuery,
     campaigns,
     timeFilter,
@@ -1948,6 +1953,10 @@ export default function BookingsManager({
           </div>
         </div>
 
+        {liveError && <Alert variant="destructive"><AlertDescription>{liveError}</AlertDescription></Alert>}
+        <BookingPaymentCheckouts userId={user?.uid || ''} existingIds={(allBookings || []).map(b => b.id!)}
+          campaignFilter={campaignFilter} activeCampaignIds={(campaigns || []).filter(c => c.attiva).map(c => c.id!)}
+          statusFilter={selectedStato} search={searchQuery} />
         {/* Lista prenotazioni */}
         {isLoading ? (
           <Card>
@@ -2116,7 +2125,7 @@ export default function BookingsManager({
                                       {getCampaignName(booking.campaignId)}
                                     </p>
                                   </div>
-                                  {getStatoBadge(booking.stato, booking.depositPaymentRequest)}
+                                  {getStatoBadge(booking, paymentClock)}
                                 </div>
 
                                 {/* Dettagli */}
@@ -2807,7 +2816,7 @@ export default function BookingsManager({
                                 </TooltipProvider>
 
                                 {/* Pulsanti Approva/Rifiuta - Solo se in_attesa */}
-                                {booking.stato === "in_attesa" && (
+                                {bookingPaymentStage(booking) === "in_attesa" && (
                                   <div className="grid grid-cols-2 gap-2 w-full">
                                     <Button
                                       size="sm"
@@ -2818,7 +2827,7 @@ export default function BookingsManager({
                                         approveMutation.isPending ||
                                         rejectMutation.isPending
                                       }
-                                      className="bg-sage hover:bg-dark-sage h-12"
+                                      className="bg-sage hover:bg-dark-sage h-auto min-h-12 whitespace-normal"
                                       data-testid={`button-approve-${booking.id}`}
                                     >
                                       {approveMutation.isPending ? (
@@ -2826,7 +2835,7 @@ export default function BookingsManager({
                                       ) : (
                                         <CheckCircle className="w-4 h-4 mr-1" />
                                       )}
-                                      Approva
+                                      {needsDepositApproval(booking, campaigns) ? 'Approva e richiedi acconto' : 'Approva'}
                                     </Button>
                                     <Button
                                       size="sm"
@@ -3248,7 +3257,7 @@ export default function BookingsManager({
                 <div>
                   <Label className="text-sm font-medium">Stato Attuale</Label>
                   <div className="mt-2">
-                    {getStatoBadge(selectedBooking.stato, selectedBooking.depositPaymentRequest)}
+                    {getStatoBadge(selectedBooking, paymentClock)}
                   </div>
                 </div>
 
@@ -3523,13 +3532,16 @@ export default function BookingsManager({
                   </div>
                 </div>
 
+                {(selectedBooking.depositPaymentRequest || selectedBooking.depositPayment) && <BookingPaymentPanel
+                  key={selectedBooking.id} bookingId={selectedBooking.id!} userId={user?.uid || ''} />}
                 {/* Azioni rapide */}
-                {selectedBooking.stato === "in_attesa" && (
+                {bookingPaymentStage(selectedBooking) === "in_attesa" && (
                   <Alert className="bg-yellow-50 border-yellow-200">
                     <AlertCircle className="w-4 h-4 text-yellow-600" />
                     <AlertDescription className="text-yellow-800">
-                      Questa prenotazione è in attesa di approvazione. Clicca su
-                      "Approva Ora" per confermare e inviare l'email al cliente.
+                      {needsDepositApproval(selectedBooking, campaigns)
+                        ? 'L’approvazione invia la richiesta di acconto, valida un’ora. La prenotazione sarà confermata solo dopo l’incasso.'
+                        : 'Questa prenotazione è in attesa di approvazione. Clicca su “Approva Ora” per confermare e inviare l’email al cliente.'}
                     </AlertDescription>
                   </Alert>
                 )}
@@ -3549,7 +3561,7 @@ export default function BookingsManager({
               >
                 ✏️ Modifica Dati
               </Button>
-              {selectedBooking?.stato === "in_attesa" && (
+              {selectedBooking && bookingPaymentStage(selectedBooking) === "in_attesa" && (
                 <>
                   <Button
                     onClick={() => approveMutation.mutate(selectedBooking.id)}
@@ -3566,7 +3578,7 @@ export default function BookingsManager({
                     ) : (
                       <>
                         <CheckCircle className="w-4 h-4 mr-2" />
-                        Approva Ora
+                        {needsDepositApproval(selectedBooking, campaigns) ? 'Approva e richiedi acconto' : 'Approva Ora'}
                       </>
                     )}
                   </Button>

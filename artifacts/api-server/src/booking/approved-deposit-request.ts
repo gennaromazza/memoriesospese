@@ -83,10 +83,11 @@ function definitelyRejected(error: unknown) {
 
 /** Null leaves all legacy/no-deposit approval paths untouched. */
 export async function approveBookingWithDeposit(db: Firestore, bookingId: string, adminId: string,
-  dependencies: Partial<ApprovedDepositDependencies> = {}) {
+  dependencies: Partial<ApprovedDepositDependencies> = {}, options: { resendRequestId?: string } = {}) {
   const deps = { ...defaults, ...dependencies };
   const ref = db.collection('bookings').doc(bookingId), holdRef = db.collection(CHECKOUT_HOLDS).doc(bookingId);
   const original = (await ref.get()).data();
+  if (options.resendRequestId && !original?.depositPaymentRequest) throw new CheckoutHoldError(409, 'Nessuna richiesta esistente da reinviare.');
   if (!original) return null;
   const campaignRef = db.collection('booking_campaigns').doc(original.campaignId);
   const originalCampaign = await campaignRef.get(), campaign = originalCampaign.data();
@@ -158,17 +159,27 @@ export async function approveBookingWithDeposit(db: Firestore, bookingId: string
     const [privateSnap, bookingSnap] = await Promise.all([tx.get(holdRef), tx.get(ref)]);
     const fresh = privateSnap.data()!;
     assertApprovedDepositMatchesBooking(fresh, bookingSnap.data());
-    const email = fresh.paymentEmail || { status: 'pending', attempts: 0 };
+    const email = fresh.paymentEmail;
+    if (!email || !['pending', 'sending', 'sent', 'failed', 'unknown'].includes(email.status)
+      || !Number.isSafeInteger(email.attempts) || email.attempts < 0
+      || email.resendIds !== undefined && (!Array.isArray(email.resendIds) || email.resendIds.some((value: unknown) => typeof value !== 'string'))) {
+      throw new CheckoutHoldError(503, 'Dati dell’invio da verificare. Nessuna nuova email inviata.');
+    }
+    const resendIds: string[] = email.resendIds || [];
+    if (options.resendRequestId && resendIds.includes(options.resendRequestId)) return { send: false, status: email.status as EmailStatus };
     let status: EmailStatus = email.status;
     if (status === 'sending' && email.leaseUntil?.toMillis?.() <= Date.now()) status = 'unknown';
-    if (['sent', 'unknown', 'sending'].includes(status) || email.attempts >= 3) {
+    if (['unknown', 'sending'].includes(status) || status === 'sent' && !options.resendRequestId || email.attempts >= 3) {
       if (status !== email.status) {
         tx.update(holdRef, { 'paymentEmail.status': status });
         tx.update(ref, { 'depositPaymentRequest.emailStatus': status });
       }
       return { send: false, status };
     }
-    tx.update(holdRef, { paymentEmail: { status: 'sending', attempts: email.attempts + 1, attemptId,
+    if (status === 'sent' && !Number.isFinite(email.sentAt?.toMillis?.())) throw new CheckoutHoldError(503, 'Data dell’ultimo invio da verificare.');
+    if (email.sentAt?.toMillis?.() + 60_000 > Date.now()) throw new CheckoutHoldError(429, 'Attendi almeno un minuto prima di reinviare il link.');
+    tx.update(holdRef, { paymentEmail: { ...email, status: 'sending', attempts: email.attempts + 1, attemptId,
+      ...(options.resendRequestId ? { resendIds: [...resendIds, options.resendRequestId] } : {}),
       leaseUntil: Timestamp.fromMillis(Date.now() + 60_000) } });
     tx.update(ref, { 'depositPaymentRequest.emailStatus': 'sending' });
     return { send: true, status: 'sending' as EmailStatus };

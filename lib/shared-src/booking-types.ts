@@ -188,6 +188,17 @@ export interface BookingDepositPaymentRequest {
   approvedBy?: string;
   emailStatus?: 'pending' | 'sending' | 'sent' | 'failed' | 'unknown';
 }
+export interface BookingDepositPayment {
+  provider: 'paypal';
+  status: 'paid' | 'paid_action_required';
+  amountCents: number;
+  currency: 'EUR';
+  paypalOrderId: string;
+  paypalCaptureId: string;
+  paypalFeeCents?: number;
+  netCents?: number;
+  paidAt: Timestamp;
+}
 
 export interface Booking {
   id: string;
@@ -248,6 +259,8 @@ export interface Booking {
   totale?: number; // Totale ordine in euro
   acconto?: number; // Acconto pagato in euro
   depositPaymentRequest?: BookingDepositPaymentRequest;
+  depositPayment?: BookingDepositPayment;
+  paymentReviewRequired?: boolean;
   saldo?: number; // Saldo residuo (totale - acconto)
   metodoPagamento?: 'contante' | 'carta' | 'bonifico' | 'paypal' | 'altro'; // Metodo pagamento acconto
   transactions?: Transaction[]; // Storico transazioni (centralizzato con ordini)

@@ -20,6 +20,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AdminBookingPayment,
   AdminCatalogProductInput,
   AdminCatalogProductReorder,
   AdminCatalogProductReorderResult,
@@ -33,6 +34,7 @@ import type {
   BookingCheckoutHoldView,
   BookingDepositCaptureResult,
   BookingDepositPayPalOrder,
+  BookingDepositResendInput,
   BookingDepositStatusResult,
   BookingPayPalConfig,
   BookingPayPalWebhookEvent,
@@ -40,6 +42,7 @@ import type {
   CustomerNotificationKind,
   CustomerOrderNotificationResendInput,
   CustomerOrderNotificationResendResult,
+  GetAdminBookingPaymentCheckouts200,
   GetRecentLabShipmentsParams,
   HealthStatus,
   RecentLabShipment
@@ -71,6 +74,299 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getGetAdminBookingPaymentCheckoutsUrl = () => {
+
+
+
+
+  return `/api/booking/admin/payment-checkouts`
+}
+
+export const getAdminBookingPaymentCheckouts = async ( options?: Parameters<typeof customFetch>[1]): Promise<GetAdminBookingPaymentCheckouts200> => {
+
+  return customFetch<GetAdminBookingPaymentCheckouts200>(getGetAdminBookingPaymentCheckoutsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminBookingPaymentCheckoutsQueryKey = () => {
+    return [
+    `/api/booking/admin/payment-checkouts`
+    ] as const;
+    }
+
+
+export const getGetAdminBookingPaymentCheckoutsQueryOptions = <TData = Awaited<ReturnType<typeof getAdminBookingPaymentCheckouts>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminBookingPaymentCheckouts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminBookingPaymentCheckoutsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminBookingPaymentCheckouts>>> = ({ signal }) => getAdminBookingPaymentCheckouts({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminBookingPaymentCheckouts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdminBookingPaymentCheckoutsQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminBookingPaymentCheckouts>>>
+export type GetAdminBookingPaymentCheckoutsQueryError = ErrorType<unknown>
+
+
+
+export function useGetAdminBookingPaymentCheckouts<TData = Awaited<ReturnType<typeof getAdminBookingPaymentCheckouts>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminBookingPaymentCheckouts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdminBookingPaymentCheckoutsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetAdminBookingPaymentUrl = (bookingId: string,) => {
+
+
+
+
+  return `/api/booking/${bookingId}/payment`
+}
+
+export const getAdminBookingPayment = async (bookingId: string, options?: Parameters<typeof customFetch>[1]): Promise<AdminBookingPayment> => {
+
+  return customFetch<AdminBookingPayment>(getGetAdminBookingPaymentUrl(bookingId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminBookingPaymentQueryKey = (bookingId: string,) => {
+    return [
+    `/api/booking/${bookingId}/payment`
+    ] as const;
+    }
+
+
+export const getGetAdminBookingPaymentQueryOptions = <TData = Awaited<ReturnType<typeof getAdminBookingPayment>>, TError = ErrorType<unknown>>(bookingId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminBookingPayment>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminBookingPaymentQueryKey(bookingId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminBookingPayment>>> = ({ signal }) => getAdminBookingPayment(bookingId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: bookingId !== null && bookingId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminBookingPayment>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdminBookingPaymentQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminBookingPayment>>>
+export type GetAdminBookingPaymentQueryError = ErrorType<unknown>
+
+
+
+export function useGetAdminBookingPayment<TData = Awaited<ReturnType<typeof getAdminBookingPayment>>, TError = ErrorType<unknown>>(
+ bookingId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminBookingPayment>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdminBookingPaymentQueryOptions(bookingId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getVerifyAdminBookingPaymentUrl = (bookingId: string,) => {
+
+
+
+
+  return `/api/booking/${bookingId}/payment/verify`
+}
+
+export const verifyAdminBookingPayment = async (bookingId: string, options?: Parameters<typeof customFetch>[1]): Promise<AdminBookingPayment> => {
+
+  return customFetch<AdminBookingPayment>(getVerifyAdminBookingPaymentUrl(bookingId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getVerifyAdminBookingPaymentMutationKey = () => ['verifyAdminBookingPayment'] as const;
+
+export const getVerifyAdminBookingPaymentMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyAdminBookingPayment>>, TError,VerifyAdminBookingPaymentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof verifyAdminBookingPayment>>, TError,VerifyAdminBookingPaymentMutationVariables, TContext> => {
+
+const mutationKey = getVerifyAdminBookingPaymentMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof verifyAdminBookingPayment>>, VerifyAdminBookingPaymentMutationVariables> = (props) => {
+          const {bookingId} = props ?? {};
+
+          return  verifyAdminBookingPayment(bookingId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VerifyAdminBookingPaymentMutationResult = NonNullable<Awaited<ReturnType<typeof verifyAdminBookingPayment>>>
+
+    export type VerifyAdminBookingPaymentMutationError = ErrorType<unknown>
+    export type VerifyAdminBookingPaymentMutationVariables = {bookingId: string}
+
+    export const useVerifyAdminBookingPayment = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyAdminBookingPayment>>, TError,VerifyAdminBookingPaymentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof verifyAdminBookingPayment>>,
+        TError,
+        VerifyAdminBookingPaymentMutationVariables,
+        TContext
+      > => {
+      return useMutation(getVerifyAdminBookingPaymentMutationOptions(options));
+    }
+
+export const getResendAdminBookingDepositUrl = (bookingId: string,) => {
+
+
+
+
+  return `/api/booking/${bookingId}/payment/resend`
+}
+
+export const resendAdminBookingDeposit = async (bookingId: string,
+    bookingDepositResendInput: BookingDepositResendInput, options?: Parameters<typeof customFetch>[1]): Promise<AdminBookingPayment> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<AdminBookingPayment>(getResendAdminBookingDepositUrl(bookingId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(bookingDepositResendInput)
+  }
+);}
+
+
+
+
+
+export const getResendAdminBookingDepositMutationKey = () => ['resendAdminBookingDeposit'] as const;
+
+export const getResendAdminBookingDepositMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resendAdminBookingDeposit>>, TError,ResendAdminBookingDepositMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resendAdminBookingDeposit>>, TError,ResendAdminBookingDepositMutationVariables, TContext> => {
+
+const mutationKey = getResendAdminBookingDepositMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resendAdminBookingDeposit>>, ResendAdminBookingDepositMutationVariables> = (props) => {
+          const {bookingId,data} = props ?? {};
+
+          return  resendAdminBookingDeposit(bookingId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResendAdminBookingDepositMutationResult = NonNullable<Awaited<ReturnType<typeof resendAdminBookingDeposit>>>
+    export type ResendAdminBookingDepositMutationBody = BodyType<BookingDepositResendInput>
+    export type ResendAdminBookingDepositMutationError = ErrorType<unknown>
+    export type ResendAdminBookingDepositMutationVariables = {bookingId: string;data: BodyType<BookingDepositResendInput>}
+
+    export const useResendAdminBookingDeposit = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resendAdminBookingDeposit>>, TError,ResendAdminBookingDepositMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof resendAdminBookingDeposit>>,
+        TError,
+        ResendAdminBookingDepositMutationVariables,
+        TContext
+      > => {
+      return useMutation(getResendAdminBookingDepositMutationOptions(options));
+    }
 
 export const getApproveLegacyBookingRequestUrl = (bookingId: string,) => {
 

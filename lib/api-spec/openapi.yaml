@@ -15,6 +15,62 @@ tags:
   - name: booking-campaigns
     description: Booking campaign administration
 paths:
+  /booking/admin/payment-checkouts:
+    get:
+      operationId: getAdminBookingPaymentCheckouts
+      tags: [booking-checkout]
+      responses:
+        "200":
+          description: Active or financially unresolved checkouts without a root booking
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, truncated]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/AdminBookingPayment" } }
+                  truncated: { type: boolean }
+  /booking/{bookingId}/payment:
+    get:
+      operationId: getAdminBookingPayment
+      tags: [booking-checkout]
+      parameters:
+        - { name: bookingId, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 200 } }
+      responses:
+        "200":
+          description: Admin-only payment snapshot without owner tokens
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminBookingPayment" }
+  /booking/{bookingId}/payment/verify:
+    post:
+      operationId: verifyAdminBookingPayment
+      tags: [booking-checkout]
+      parameters:
+        - { name: bookingId, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 200 } }
+      responses:
+        "200":
+          description: Provider read and reconciliation, never a new capture
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminBookingPayment" }
+  /booking/{bookingId}/payment/resend:
+    post:
+      operationId: resendAdminBookingDeposit
+      tags: [booking-checkout]
+      parameters:
+        - { name: bookingId, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 200 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BookingDepositResendInput" }
+      responses:
+        "200":
+          description: Idempotent explicit resend with the original amount, token and deadline
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminBookingPayment" }
   /booking/{bookingId}/approve:
     patch:
       operationId: approveLegacyBookingRequest
@@ -559,6 +615,43 @@ components:
       properties:
         error: { type: string }
         code: { type: string }
+    BookingDepositResendInput:
+      type: object
+      required: [requestId]
+      properties:
+        requestId: { type: string, format: uuid }
+    AdminBookingPayment:
+      type: object
+      required: [bookingId, campaignId, campaignName, stage, flow, amountCents, paidAmountCents, currency, expiresAt, serverTime, paymentStatus, method, paypalOrderId, paypalCaptureId, paypalFeeCents, netCents, providerStatus, emailStatus, canResend, resendReason, resendAvailableAt, canVerify, payable, payabilityReason, customerName, customerEmail, shootingStart, shootingEnd]
+      properties:
+        bookingId: { type: string }
+        campaignId: { type: string }
+        campaignName: { type: string }
+        stage: { type: string }
+        flow: { type: string, enum: [approved, immediate, none] }
+        amountCents: { type: integer, nullable: true }
+        paidAmountCents: { type: integer, nullable: true }
+        currency: { type: string, enum: [EUR] }
+        expiresAt: { type: string, format: date-time, nullable: true }
+        serverTime: { type: string, format: date-time }
+        paymentStatus: { type: string, enum: [not_required, unpaid, processing, paid, review] }
+        method: { type: string, enum: [paypal, manual], nullable: true }
+        paypalOrderId: { type: string, nullable: true }
+        paypalCaptureId: { type: string, nullable: true }
+        paypalFeeCents: { type: integer, nullable: true }
+        netCents: { type: integer, nullable: true }
+        providerStatus: { type: string, nullable: true }
+        emailStatus: { type: string, nullable: true }
+        canResend: { type: boolean }
+        resendReason: { type: string, nullable: true }
+        resendAvailableAt: { type: string, format: date-time, nullable: true }
+        canVerify: { type: boolean }
+        payable: { type: boolean }
+        payabilityReason: { type: string, nullable: true }
+        customerName: { type: string }
+        customerEmail: { type: string }
+        shootingStart: { type: string, format: date-time, nullable: true }
+        shootingEnd: { type: string, format: date-time, nullable: true }
     BookingDepositCaptureResult:
       type: object
       required: [bookingId, paypalOrderId, paypalCaptureId, status, amountCents, currency, duplicate, bookingConfirmed]

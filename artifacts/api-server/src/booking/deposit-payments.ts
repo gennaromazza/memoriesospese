@@ -38,6 +38,20 @@ function verifiedCapture(remote: PayPalOrderResponse, association: any, merchant
 /** A receipt check may reconcile money already received, but must NEVER POST a capture. */
 export async function getBookingDepositStatus(db: Firestore, paypal: BookingCapturePayPalClient, bookingId: string, token: string) {
   const hold = authorizeCheckoutHold((await db.collection(CHECKOUT_HOLDS).doc(bookingId).get()).data(), token);
+  return readBookingDepositStatus(db, paypal, bookingId, hold);
+}
+/** Call only behind authenticated admin middleware. Reads provider state; never captures. */
+export async function getBookingDepositStatusForAdmin(db: Firestore, paypal: BookingCapturePayPalClient, bookingId: string) {
+  const ref = db.collection(CHECKOUT_HOLDS).doc(bookingId);
+  const hold = (await ref.get()).data();
+  if (!hold) throw new CheckoutHoldError(404, 'Nessun checkout PayPal associato.');
+  let providerStatus: string | null = null;
+  const result = await readBookingDepositStatus(db, paypal, bookingId, hold, status => { providerStatus = status; });
+  if (providerStatus) await ref.update({ 'paypal.lastVerifiedStatus': providerStatus, 'paypal.lastVerifiedAt': Timestamp.now() });
+  return result;
+}
+async function readBookingDepositStatus(db: Firestore, paypal: BookingCapturePayPalClient, bookingId: string,
+  hold: import('firebase-admin/firestore').DocumentData, observe?: (status: string) => void) {
   const summary = { bookingId, campaignId: hold.campaignId,
     flow: hold.kind === 'approved_deposit' ? 'approved' as const : 'immediate' as const,
     dataShootingInizio: hold.dataShootingInizio.toDate(), dataShootingFine: hold.dataShootingFine.toDate() };
@@ -51,10 +65,12 @@ export async function getBookingDepositStatus(db: Firestore, paypal: BookingCapt
       throw fail('PAYPAL_CAPTURE_MISMATCH', 'Registrazione dell’acconto da verificare.');
     }
     const payment = depositCaptureResult(bookingId, hold.depositPayment, (await db.collection('bookings').doc(bookingId).get()).data(), true);
+    observe?.('COMPLETED');
     return { ...summary, status: payment.status, payment };
   }
   assertAccount(association, paypal.config);
   const remote = await paypal.getOrder(association.paypalOrderId);
+  observe?.(remote.status || 'UNKNOWN');
   const completed = verifiedCapture(remote, association, paypal.config.merchantId);
   if (completed) {
     const payment = await recordBookingDeposit(db, completed);
