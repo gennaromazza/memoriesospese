@@ -116,3 +116,11 @@ React del frontend quando si sostituisce `useEffect`.
 **Why:** il pattern `new URL("percorso-letterale", import.meta.url)` può essere riscritto da Vite come URL HTTP anche in Vitest; passarlo a `fileURLToPath` fallisce prima del test.
 
 **How to apply:** quando il runner parte dalla directory dell’artifact, usare `node:path` e quella directory come base per l’import runtime. Mantenere React caricato una sola volta; per isolare le cache in memoria dei link usare ID di fixture distinti, perché svuotare soltanto lo storage non azzera i moduli.
+
+## Suite browser che richiedono la Preview
+
+**Regola:** le verifiche browser collegate ai workflow in esecuzione devono avere un’attivazione esplicita, separata dai test unitari server.
+
+**Why:** i test unitari devono funzionare anche negli ambienti isolati senza frontend avviato o Chromium disponibile; un test browser eseguito incidentalmente può bloccare una verifica backend non correlata.
+
+**How to apply:** usare un flag dedicato per avviare l’intera suite browser, inclusi setup e cleanup, e verificare davvero la suite con il flag attivo. I servizi esterni restano sostituiti da fixture, non da dati o pagamenti reali.
