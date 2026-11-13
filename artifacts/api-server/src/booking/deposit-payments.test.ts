@@ -190,6 +190,9 @@ describe('cattura e cassa acconti', () => {
     expect(booking).toMatchObject({ stato: 'confermata', acconto: 20, metodoPagamento: 'paypal',
       prodottoId: null, depositPayment: { paypalCaptureId: captureId, netCents: 1905 }, calendarSyncPending: true });
     expect(booking.transactions).toHaveLength(1);
+    expect(store.value(`bookingConfirmationJobs/${bookingId}`)).toMatchObject({
+      status: 'pending', attempts: 0, captureId, amountCents: 2000,
+    });
     expect(booking).not.toHaveProperty('totale'); // Product may still be chosen in studio.
     expect(store.value(holdPath).status).toBe('consumed');
     const rows = [...store.rows].filter(([path]) => path.startsWith('cashMovements/')).map(([, row]) => row.value);
@@ -200,6 +203,7 @@ describe('cattura e cassa acconti', () => {
   });
   it('retry e webhook duplicati producono un solo incasso e una sola transazione', async () => {
     await capture();
+    store.seed(`bookingConfirmationJobs/${bookingId}`, { ...store.value(`bookingConfirmationJobs/${bookingId}`), status: 'sent' });
     expect(await capture()).toMatchObject({ duplicate: true, bookingConfirmed: true });
     await Promise.all([
       handleVerifiedBookingPayPalEvent(store.db, client, event()),
@@ -210,6 +214,7 @@ describe('cattura e cassa acconti', () => {
     expect(count(BOOKING_PAYMENT_CAPTURES)).toBe(1);
     expect(count('cashMovements')).toBe(2);
     expect(store.value(`bookings/${bookingId}`).transactions).toHaveLength(1);
+    expect(store.value(`bookingConfirmationJobs/${bookingId}`).status).toBe('sent');
   });
   it('due catture concorrenti non addebitano due volte', async () => {
     const results = await Promise.allSettled([capture(), capture()]);

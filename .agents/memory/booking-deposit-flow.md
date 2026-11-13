@@ -114,3 +114,21 @@ reali; deduplicare per identità quando l'incasso crea la prenotazione. Non
 ripetere scansioni periodiche di tutte le prenotazioni per aggiornare un pagamento:
 preferire notifiche in tempo reale e verifiche mirate. Il refresh manuale non
 deve sovrascrivere un evento di pagamento più recente ricevuto durante la lettura.
+
+## Link personali e destinatari delle conferme
+
+Il link del portale è distinto dal token di pagamento e si emette solo dopo la
+conferma effettiva. I retry conservano il link attivo e non annullano mai una
+revoca esplicita. L’autorizzazione a leggere il portale non autorizza da sola
+riprogrammazioni o annullamenti: ogni azione deve verificare stato e termini.
+
+**Why:** il cliente deve poter vedere anche l’esito di un annullamento, senza
+acquisire il diritto di cambiare ancora una prenotazione chiusa. Un cambio del
+cliente o la ricreazione di un documento non deve trasferire il vecchio accesso.
+
+**How to apply:** vincolare l’accesso all’identità della prenotazione e al
+destinatario. Prima di generare il link per un’email, confrontare il destinatario
+effettivo con l’anagrafica riletta: altrimenti un vecchio snapshot può spedire al
+vecchio indirizzo il token appena generato per il nuovo cliente. Rimuovere il
+frammento riservato dall’URL prima dell’analisi delle visite e costruire risposte
+pubbliche esplicite, senza serializzare note interne o dati amministrativi.

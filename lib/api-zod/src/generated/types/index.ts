@@ -6,6 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './adminBookingManagementLink';
+export * from './adminBookingManagementLinkStatus';
 export * from './adminBookingPayment';
 export * from './adminBookingPaymentCurrency';
 export * from './adminBookingPaymentFlow';
@@ -40,11 +42,18 @@ export * from './bookingDepositResendInput';
 export * from './bookingDepositStatusResult';
 export * from './bookingDepositStatusResultFlow';
 export * from './bookingDepositStatusResultStatus';
+export * from './bookingManagementAccessInput';
+export * from './bookingManagementChangeInput';
+export * from './bookingManagementChangeInputAction';
+export * from './bookingManagementView';
+export * from './bookingManagementViewStatus';
+export * from './bookingManagementViewStudio';
 export * from './bookingPayPalConfig';
 export * from './bookingPayPalConfigCurrency';
 export * from './bookingPayPalConfigEnvironment';
 export * from './bookingPayPalWebhookEvent';
 export * from './campaignImageUploadResult';
+export * from './changeAdminBookingManagementLink200';
 export * from './customerNotificationKind';
 export * from './customerOrderNotificationResendInput';
 export * from './customerOrderNotificationResendResult';

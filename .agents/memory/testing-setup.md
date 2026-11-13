@@ -40,7 +40,7 @@ mockati; mantenere comunque mock espliciti delle integrazioni esterne.
 
 `runVisioneAutoInviteCheck` (e simili) importano `db/Timestamp/FieldValue` da
 `./firebase-admin.js`, che **inizializza Firebase Admin all'import** (serve un service
-account) → in test va sempre mockato. Pattern usato in `server/reminder-routes.test.ts`:
+account) → in test va sempre mockato. Pattern usato nei test dei promemoria:
 
 - `vi.hoisted()` per un holder mutabile (`h.db`, `h.sendGmailEmail`, `h.Timestamp`,
   `h.FieldValue`) — i factory di `vi.mock` sono hoisted, quindi NON possono riferirsi a
@@ -100,3 +100,19 @@ React del frontend quando si sostituisce `useEffect`.
 **Why:** la cache del catalogo shop sopravvive tra le richieste e non viene azzerata quando cambia il mock Firestore; un render precedente della vetrina vuota può far risultare inesistente una categoria fixture in un test successivo.
 
 **How to apply:** eseguire il caso categoria prima dei render che caricano la vetrina senza fixture, o isolare il modulo/cache; cambiare solo il mock non garantisce una nuova lettura.
+
+## Hook che azzerano i mock
+
+**Regola:** usare un blocco senza valore di ritorno nei setup che chiamano `mockReset()` o metodi analoghi.
+
+**Why:** tali metodi restituiscono il mock stesso. Vitest interpreta una funzione restituita dal setup come cleanup e può chiamare involontariamente il mock dopo il test, generando richieste o rifiuti aggiuntivi.
+
+**How to apply:** scrivere `beforeEach(() => { mock.mockReset(); })`, non una freccia con ritorno implicito del mock.
+
+## Fixture Node in un test JSDOM
+
+**Regola:** per importare a runtime una fixture server da un test browser simulato, risolvere un percorso filesystem, non un URL di asset Vite.
+
+**Why:** il pattern `new URL("percorso-letterale", import.meta.url)` può essere riscritto da Vite come URL HTTP anche in Vitest; passarlo a `fileURLToPath` fallisce prima del test.
+
+**How to apply:** quando il runner parte dalla directory dell’artifact, usare `node:path` e quella directory come base per l’import runtime. Mantenere React caricato una sola volta; per isolare le cache in memoria dei link usare ID di fixture distinti, perché svuotare soltanto lo storage non azzera i moduli.

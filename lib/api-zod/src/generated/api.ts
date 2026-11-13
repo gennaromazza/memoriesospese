@@ -8,6 +8,98 @@
 import * as zod from 'zod';
 
 
+export const authorizeBookingManagementAccessPathBookingIdMax = 200;
+
+
+
+export const AuthorizeBookingManagementAccessParams = zod.object({
+  "bookingId": zod.coerce.string().min(1).max(authorizeBookingManagementAccessPathBookingIdMax)
+})
+
+export const authorizeBookingManagementAccessBodyTokenRegExp = new RegExp('^[a-f0-9]{64}$');
+
+
+export const AuthorizeBookingManagementAccessBody = zod.object({
+  "token": zod.string().regex(authorizeBookingManagementAccessBodyTokenRegExp)
+})
+
+export const authorizeBookingManagementAccessResponseDepositPaidCentsMin = 0;
+
+
+
+export const AuthorizeBookingManagementAccessResponse = zod.object({
+  "success": zod.boolean(),
+  "bookingId": zod.string(),
+  "status": zod.enum(['confirmed', 'completed', 'cancelled', 'cancellation_pending']),
+  "campaignName": zod.string().nullable(),
+  "startsAt": zod.coerce.date().nullable(),
+  "endsAt": zod.coerce.date().nullable(),
+  "customerName": zod.string().nullable(),
+  "productName": zod.string().nullable(),
+  "depositPaidCents": zod.number().int().min(authorizeBookingManagementAccessResponseDepositPaidCentsMin).nullable(),
+  "studio": zod.object({
+  "name": zod.string().nullable(),
+  "email": zod.string().nullable(),
+  "phone": zod.string().nullable(),
+  "address": zod.string().nullable()
+})
+})
+
+
+export const getAdminBookingManagementLinkPathBookingIdMax = 200;
+
+
+
+export const GetAdminBookingManagementLinkParams = zod.object({
+  "bookingId": zod.coerce.string().min(1).max(getAdminBookingManagementLinkPathBookingIdMax)
+})
+
+export const getAdminBookingManagementLinkResponseVersionMin = 0;
+
+
+
+export const GetAdminBookingManagementLinkResponse = zod.object({
+  "status": zod.enum(['not_issued', 'active', 'revoked']),
+  "version": zod.number().int().min(getAdminBookingManagementLinkResponseVersionMin),
+  "canIssue": zod.boolean(),
+  "canRevoke": zod.boolean(),
+  "reason": zod.string().nullable()
+})
+
+
+export const changeAdminBookingManagementLinkPathBookingIdMax = 200;
+
+
+
+export const ChangeAdminBookingManagementLinkParams = zod.object({
+  "bookingId": zod.coerce.string().min(1).max(changeAdminBookingManagementLinkPathBookingIdMax)
+})
+
+export const changeAdminBookingManagementLinkBodyExpectedVersionMin = 0;
+
+
+
+export const ChangeAdminBookingManagementLinkBody = zod.object({
+  "action": zod.enum(['rotate', 'revoke']),
+  "requestId": zod.string().uuid(),
+  "expectedVersion": zod.number().int().min(changeAdminBookingManagementLinkBodyExpectedVersionMin)
+})
+
+export const changeAdminBookingManagementLinkResponseOneVersionMin = 0;
+
+
+
+export const ChangeAdminBookingManagementLinkResponse = zod.object({
+  "status": zod.enum(['not_issued', 'active', 'revoked']),
+  "version": zod.number().int().min(changeAdminBookingManagementLinkResponseOneVersionMin),
+  "canIssue": zod.boolean(),
+  "canRevoke": zod.boolean(),
+  "reason": zod.string().nullable()
+}).and(zod.object({
+  "url": zod.string().nullable()
+}))
+
+
 export const GetAdminBookingPaymentCheckoutsResponse = zod.object({
   "items": zod.array(zod.object({
   "bookingId": zod.string(),

@@ -134,6 +134,88 @@ export interface BookingDepositResendInput {
   requestId: string;
 }
 
+export interface BookingManagementAccessInput {
+  /** @pattern ^[a-f0-9]{64}$ */
+  token: string;
+}
+
+export type BookingManagementViewStatus = typeof BookingManagementViewStatus[keyof typeof BookingManagementViewStatus];
+
+
+export const BookingManagementViewStatus = {
+  confirmed: 'confirmed',
+  completed: 'completed',
+  cancelled: 'cancelled',
+  cancellation_pending: 'cancellation_pending',
+} as const;
+
+export type BookingManagementViewStudio = {
+  /** @nullable */
+  name: string | null;
+  /** @nullable */
+  email: string | null;
+  /** @nullable */
+  phone: string | null;
+  /** @nullable */
+  address: string | null;
+};
+
+export interface BookingManagementView {
+  success: boolean;
+  bookingId: string;
+  status: BookingManagementViewStatus;
+  /** @nullable */
+  campaignName: string | null;
+  /** @nullable */
+  startsAt: string | null;
+  /** @nullable */
+  endsAt: string | null;
+  /** @nullable */
+  customerName: string | null;
+  /** @nullable */
+  productName: string | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  depositPaidCents: number | null;
+  studio: BookingManagementViewStudio;
+}
+
+export type BookingManagementChangeInputAction = typeof BookingManagementChangeInputAction[keyof typeof BookingManagementChangeInputAction];
+
+
+export const BookingManagementChangeInputAction = {
+  rotate: 'rotate',
+  revoke: 'revoke',
+} as const;
+
+export interface BookingManagementChangeInput {
+  action: BookingManagementChangeInputAction;
+  requestId: string;
+  /** @minimum 0 */
+  expectedVersion: number;
+}
+
+export type AdminBookingManagementLinkStatus = typeof AdminBookingManagementLinkStatus[keyof typeof AdminBookingManagementLinkStatus];
+
+
+export const AdminBookingManagementLinkStatus = {
+  not_issued: 'not_issued',
+  active: 'active',
+  revoked: 'revoked',
+} as const;
+
+export interface AdminBookingManagementLink {
+  status: AdminBookingManagementLinkStatus;
+  /** @minimum 0 */
+  version: number;
+  canIssue: boolean;
+  canRevoke: boolean;
+  /** @nullable */
+  reason: string | null;
+}
+
 export type AdminBookingPaymentFlow = typeof AdminBookingPaymentFlow[keyof typeof AdminBookingPaymentFlow];
 
 
@@ -429,6 +511,11 @@ export interface CustomerOrderNotificationResendResult {
   sent: boolean;
   skipped: boolean;
 }
+
+export type ChangeAdminBookingManagementLink200 = AdminBookingManagementLink & ({
+  /** @nullable */
+  url: string | null;
+});
 
 export type GetAdminBookingPaymentCheckouts200 = {
   items: AdminBookingPayment[];

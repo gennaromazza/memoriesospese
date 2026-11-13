@@ -109,7 +109,7 @@ describe('production web runtime', () => {
     for (const slug of ['missing', 'draft']) {
       expect((await fetch(`${baseUrl}/blog/${slug}`)).status).toBe(404);
     }
-    for (const route of ['/admin/dashboard', '/gallery/private', '/quote/private', '/prenota/acconto/booking-test', '/consulenze/template/session/prenota']) {
+    for (const route of ['/admin/dashboard', '/gallery/private', '/quote/private', '/prenota/acconto/booking-test', '/prenota/gestisci/booking-test', '/consulenze/template/session/prenota']) {
       const response = await fetch(`${baseUrl}${route}`);
       expect(response.status).toBe(200);
       expect(response.headers.get('x-robots-tag')).toContain('noindex');

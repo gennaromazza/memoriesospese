@@ -20,6 +20,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AdminBookingManagementLink,
   AdminBookingPayment,
   AdminCatalogProductInput,
   AdminCatalogProductReorder,
@@ -36,9 +37,13 @@ import type {
   BookingDepositPayPalOrder,
   BookingDepositResendInput,
   BookingDepositStatusResult,
+  BookingManagementAccessInput,
+  BookingManagementChangeInput,
+  BookingManagementView,
   BookingPayPalConfig,
   BookingPayPalWebhookEvent,
   CampaignImageUploadResult,
+  ChangeAdminBookingManagementLink200,
   CustomerNotificationKind,
   CustomerOrderNotificationResendInput,
   CustomerOrderNotificationResendResult,
@@ -74,6 +79,243 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getAuthorizeBookingManagementAccessUrl = (bookingId: string,) => {
+
+
+
+
+  return `/api/booking/${bookingId}/management/access`
+}
+
+export const authorizeBookingManagementAccess = async (bookingId: string,
+    bookingManagementAccessInput: BookingManagementAccessInput, options?: Parameters<typeof customFetch>[1]): Promise<BookingManagementView> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<BookingManagementView>(getAuthorizeBookingManagementAccessUrl(bookingId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(bookingManagementAccessInput)
+  }
+);}
+
+
+
+
+
+export const getAuthorizeBookingManagementAccessMutationKey = () => ['authorizeBookingManagementAccess'] as const;
+
+export const getAuthorizeBookingManagementAccessMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authorizeBookingManagementAccess>>, TError,AuthorizeBookingManagementAccessMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof authorizeBookingManagementAccess>>, TError,AuthorizeBookingManagementAccessMutationVariables, TContext> => {
+
+const mutationKey = getAuthorizeBookingManagementAccessMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof authorizeBookingManagementAccess>>, AuthorizeBookingManagementAccessMutationVariables> = (props) => {
+          const {bookingId,data} = props ?? {};
+
+          return  authorizeBookingManagementAccess(bookingId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AuthorizeBookingManagementAccessMutationResult = NonNullable<Awaited<ReturnType<typeof authorizeBookingManagementAccess>>>
+    export type AuthorizeBookingManagementAccessMutationBody = BodyType<BookingManagementAccessInput>
+    export type AuthorizeBookingManagementAccessMutationError = ErrorType<unknown>
+    export type AuthorizeBookingManagementAccessMutationVariables = {bookingId: string;data: BodyType<BookingManagementAccessInput>}
+
+    export const useAuthorizeBookingManagementAccess = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authorizeBookingManagementAccess>>, TError,AuthorizeBookingManagementAccessMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof authorizeBookingManagementAccess>>,
+        TError,
+        AuthorizeBookingManagementAccessMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAuthorizeBookingManagementAccessMutationOptions(options));
+    }
+
+export const getGetAdminBookingManagementLinkUrl = (bookingId: string,) => {
+
+
+
+
+  return `/api/booking/${bookingId}/management-link`
+}
+
+export const getAdminBookingManagementLink = async (bookingId: string, options?: Parameters<typeof customFetch>[1]): Promise<AdminBookingManagementLink> => {
+
+  return customFetch<AdminBookingManagementLink>(getGetAdminBookingManagementLinkUrl(bookingId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminBookingManagementLinkQueryKey = (bookingId: string,) => {
+    return [
+    `/api/booking/${bookingId}/management-link`
+    ] as const;
+    }
+
+
+export const getGetAdminBookingManagementLinkQueryOptions = <TData = Awaited<ReturnType<typeof getAdminBookingManagementLink>>, TError = ErrorType<unknown>>(bookingId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminBookingManagementLink>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminBookingManagementLinkQueryKey(bookingId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminBookingManagementLink>>> = ({ signal }) => getAdminBookingManagementLink(bookingId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: bookingId !== null && bookingId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminBookingManagementLink>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdminBookingManagementLinkQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminBookingManagementLink>>>
+export type GetAdminBookingManagementLinkQueryError = ErrorType<unknown>
+
+
+
+export function useGetAdminBookingManagementLink<TData = Awaited<ReturnType<typeof getAdminBookingManagementLink>>, TError = ErrorType<unknown>>(
+ bookingId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminBookingManagementLink>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdminBookingManagementLinkQueryOptions(bookingId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getChangeAdminBookingManagementLinkUrl = (bookingId: string,) => {
+
+
+
+
+  return `/api/booking/${bookingId}/management-link`
+}
+
+export const changeAdminBookingManagementLink = async (bookingId: string,
+    bookingManagementChangeInput: BookingManagementChangeInput, options?: Parameters<typeof customFetch>[1]): Promise<ChangeAdminBookingManagementLink200> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ChangeAdminBookingManagementLink200>(getChangeAdminBookingManagementLinkUrl(bookingId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(bookingManagementChangeInput)
+  }
+);}
+
+
+
+
+
+export const getChangeAdminBookingManagementLinkMutationKey = () => ['changeAdminBookingManagementLink'] as const;
+
+export const getChangeAdminBookingManagementLinkMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changeAdminBookingManagementLink>>, TError,ChangeAdminBookingManagementLinkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof changeAdminBookingManagementLink>>, TError,ChangeAdminBookingManagementLinkMutationVariables, TContext> => {
+
+const mutationKey = getChangeAdminBookingManagementLinkMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof changeAdminBookingManagementLink>>, ChangeAdminBookingManagementLinkMutationVariables> = (props) => {
+          const {bookingId,data} = props ?? {};
+
+          return  changeAdminBookingManagementLink(bookingId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ChangeAdminBookingManagementLinkMutationResult = NonNullable<Awaited<ReturnType<typeof changeAdminBookingManagementLink>>>
+    export type ChangeAdminBookingManagementLinkMutationBody = BodyType<BookingManagementChangeInput>
+    export type ChangeAdminBookingManagementLinkMutationError = ErrorType<unknown>
+    export type ChangeAdminBookingManagementLinkMutationVariables = {bookingId: string;data: BodyType<BookingManagementChangeInput>}
+
+    export const useChangeAdminBookingManagementLink = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changeAdminBookingManagementLink>>, TError,ChangeAdminBookingManagementLinkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof changeAdminBookingManagementLink>>,
+        TError,
+        ChangeAdminBookingManagementLinkMutationVariables,
+        TContext
+      > => {
+      return useMutation(getChangeAdminBookingManagementLinkMutationOptions(options));
+    }
 
 export const getGetAdminBookingPaymentCheckoutsUrl = () => {
 

@@ -3,6 +3,7 @@
  */
 import { bookingPaymentStage, bookingPaymentStageLabel, matchesBookingPaymentFilter } from '@shared/booking-payment-state';
 import { BookingPaymentPanel } from './booking/BookingPaymentPanel';
+import { BookingManagementLinkPanel } from './booking/BookingManagementLinkPanel';
 import { BookingPaymentCheckouts } from './booking/BookingPaymentCheckouts';
 import { useLiveBookings } from './booking/useLiveBookings';
 
@@ -3534,6 +3535,8 @@ export default function BookingsManager({
 
                 {(selectedBooking.depositPaymentRequest || selectedBooking.depositPayment) && <BookingPaymentPanel
                   key={selectedBooking.id} bookingId={selectedBooking.id!} userId={user?.uid || ''} />}
+                <BookingManagementLinkPanel key={`management-${user?.uid}-${selectedBooking.id}`}
+                  bookingId={selectedBooking.id!} userId={user?.uid || ''} />
                 {/* Azioni rapide */}
                 {bookingPaymentStage(selectedBooking) === "in_attesa" && (
                   <Alert className="bg-yellow-50 border-yellow-200">

@@ -24,6 +24,7 @@ import { cleanupExpiredManualConsultationLocks } from "./consultation-routes";
 import { runSocialCoverHealthCheck } from "./social-cover-health";
 import { db } from "./firebase-admin";
 import { startBookingPaymentExpiryWorker } from "./booking/payment-expiry";
+import { startBookingConfirmationWorker } from "./booking/confirmation-delivery";
 
 const rawPort = process.env["PORT"];
 
@@ -41,6 +42,7 @@ if (Number.isNaN(port) || port <= 0) {
 
 let cancellationWorkerCleanup: (() => void) | null = null;
 let bookingExpiryCleanup: (() => void) | null = null;
+let bookingConfirmationCleanup: (() => void) | null = null;
 let cleanupInterval: NodeJS.Timeout | null = null;
 let reminderInterval: NodeJS.Timeout | null = null;
 
@@ -86,6 +88,7 @@ app.listen(port, async (err) => {
 
   cancellationWorkerCleanup = startCancellationRetryWorker();
   bookingExpiryCleanup = startBookingPaymentExpiryWorker(db);
+  bookingConfirmationCleanup = startBookingConfirmationWorker(db);
   startEventSyncWorker(30);
   await cleanupStaleJobs();
   startBulkEmailDispatcher(30_000);
@@ -103,6 +106,7 @@ const shutdown = (signal: string) => {
   logger.info({ signal }, "Shutting down");
   cancellationWorkerCleanup?.();
   bookingExpiryCleanup?.();
+  bookingConfirmationCleanup?.();
   stopEventSyncWorker();
   stopBulkEmailDispatcher();
   if (cleanupInterval) clearInterval(cleanupInterval);

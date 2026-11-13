@@ -20,7 +20,8 @@ import {
 import { db } from '@/lib/firebase';
 import { apiRequest } from '@/lib/queryClient';
 import type { Booking } from '@shared/booking-types';
-import type { BookingApprovalResult, AdminBookingPayment, GetAdminBookingPaymentCheckouts200 } from '@workspace/api-client-react';
+import type { BookingApprovalResult, AdminBookingPayment, GetAdminBookingPaymentCheckouts200,
+  AdminBookingManagementLink, BookingManagementChangeInput, ChangeAdminBookingManagementLink200 } from '@workspace/api-client-react';
 import { WorkflowState } from '@shared/schema';
 
 const COLLECTION = 'bookings';
@@ -220,6 +221,15 @@ export async function getBookingsByStatus(
  */
 export async function getBookingPaymentDetails(id: string): Promise<AdminBookingPayment> {
   try { return await (await apiRequest('GET', `/api/booking/${encodeURIComponent(id)}/payment`)).json(); }
+  catch (error) { throw bookingRequestError(error, true); }
+}
+/** Authenticated transport preserves Firebase + admin-MFA headers for generated hooks. */
+export async function getBookingManagementLinkDetails(id: string): Promise<AdminBookingManagementLink> {
+  try { return await (await apiRequest('GET', `/api/booking/${encodeURIComponent(id)}/management-link`)).json(); }
+  catch (error) { throw bookingRequestError(error, true); }
+}
+export async function changeBookingManagementLink(id: string, input: BookingManagementChangeInput): Promise<ChangeAdminBookingManagementLink200> {
+  try { return await (await apiRequest('POST', `/api/booking/${encodeURIComponent(id)}/management-link`, input)).json(); }
   catch (error) { throw bookingRequestError(error, true); }
 }
 /** One initial read, then Firestore delivers changes; never poll the entire booking collection. */

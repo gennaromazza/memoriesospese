@@ -26,6 +26,8 @@ import { hasPaidBookingDeposit, unpaidDepositRequestExpired } from './booking/pa
 import { approveBookingWithDeposit } from './booking/approved-deposit-request.js';
 import { CheckoutHoldError } from './booking/checkout-hold-state.js';
 import { bookingAdminPaymentRouter } from './booking/admin-payment-routes.js';
+import { bookingManagementRouter } from './booking/management-routes.js';
+import { ensureBookingManagementLink } from './booking/management-access.js';
 
 const router = express.Router();
 async function requestDepositIfNeeded(req: any, res: express.Response, bookingId: string,
@@ -44,6 +46,7 @@ async function requestDepositIfNeeded(req: any, res: express.Response, bookingId
 router.use('/v2/checkout-holds', checkoutHoldRouter(db));
 router.use(bookingDepositPaymentRouter(db));
 router.use(bookingAdminPaymentRouter(db, authenticateFirebase, requireAdmin));
+router.use(bookingManagementRouter(db, authenticateFirebase, requireAdmin));
 
 // Riscatto delle gift card nella prenotazione pubblica (stessa base dati, nessuna dipendenza da PayPal)
 const giftCards = new GiftCardService({ db });
@@ -1174,6 +1177,8 @@ router.patch("/v2/:id/approve", authenticateFirebase, requireAdmin, async (req, 
         bookingData.note,
         studioInfo,
         calendarLink,
+        undefined,
+        await ensureBookingManagementLink(db, bookingRef.id, undefined, bookingData.cliente.email),
       );
 
       await sendGmailEmail(
@@ -1452,6 +1457,8 @@ router.patch("/:id/approve", authenticateFirebase, requireAdmin, async (req, res
         bookingData.note,
         studioInfo,
         calendarLink,
+        undefined,
+        await ensureBookingManagementLink(db, bookingRef.id, undefined, bookingData.cliente.email),
       );
 
       await sendGmailEmail(
@@ -2731,7 +2738,8 @@ async function createBookingV2(req: express.Request, res: express.Response): Pro
       }) : undefined;
       const emailHTML = autoConfirm ? createBookingConfirmedEmailHTML(
         clienteName, campaignName, bookingDate, bookingTime, durationMinutes,
-        prodottoNome, note, studioInfo, calendarLink,
+        prodottoNome, note, studioInfo, calendarLink, undefined,
+        await ensureBookingManagementLink(db, bookingRef.id, undefined, cliente.email),
       ) : createBookingReceivedEmailHTML(
         clienteName,
         campaignName,
@@ -3066,6 +3074,11 @@ router.post("/resend-confirmation-emails", authenticateFirebase, requireAdmin, a
         let subject: string;
         
         if (booking.stato === "confermata") {
+          const delivery = (await db.collection('bookingConfirmationJobs').doc(bookingId).get()).data();
+          if (delivery && ['pending', 'sending'].includes(delivery.status)) {
+            results.push({ bookingId, success: false, error: 'La conferma automatica è già in coda o in invio. Attendi l’esito prima di reinviarla.' });
+            continue;
+          }
           // Email di conferma (con link calendario)
           // Firma: clienteName, campaignName, bookingDate, bookingTime, duration, productName, notes, studioInfo, calendarLink
           emailHTML = createBookingConfirmedEmailHTML(
@@ -3077,7 +3090,9 @@ router.post("/resend-confirmation-emails", authenticateFirebase, requireAdmin, a
             prodottoNome,
             undefined, // notes
             studioInfo,
-            booking.calendarLink || undefined
+            booking.calendarLink || undefined,
+            undefined,
+            await ensureBookingManagementLink(db, bookingId, undefined, clienteEmail),
           );
           subject = `Prenotazione Confermata - ${campaignName}`;
         } else {
@@ -3097,6 +3112,12 @@ router.post("/resend-confirmation-emails", authenticateFirebase, requireAdmin, a
         }
         
         await sendGmailEmail(clienteEmail, subject, emailHTML);
+        if (booking.stato === 'confermata') {
+          // Delivery succeeded: a bookkeeping failure must not report the message as unsent.
+          await doc.ref.update({ emailConfermataInviata: true }).catch(() => {
+            console.warn('Conferma inviata: aggiornamento del relativo indicatore da verificare');
+          });
+        }
         
         console.log(`✅ Email rinviata a ${clienteEmail} per booking ${bookingId}`);
         

@@ -85,6 +85,14 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Personal booking links and delivery outbox: Admin SDK only.
+    match /bookingManagementAccess/{document=**} {
+      allow read, write: if false;
+    }
+    match /bookingConfirmationJobs/{document=**} {
+      allow read, write: if false;
+    }
+
     // Users collection
     match /users/{userId} {
       // Il profilo cliente contiene dati personali: ogni cliente vede solo il

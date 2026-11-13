@@ -104,6 +104,11 @@ export async function recordBookingDeposit(
     if (confirm) {
       commitLocks!();
       tx.set(bookingRef, confirmedBooking!);
+      // External delivery follows the financial commit; duplicate captures never enqueue twice.
+      tx.set(db.collection('bookingConfirmationJobs').doc(bookingId), {
+        status: 'pending', attempts: 0, captureId: capture.captureId, amountCents: capture.amountCents,
+        createdAt: now, updatedAt: now,
+      });
     } else if (duplicate && bookingSnap.exists) {
       tx.update(bookingRef, { depositPayment: payment, updatedAt: now,
         transactions: (booking?.transactions || []).map((line: any) => line.providerTransactionId === capture.captureId

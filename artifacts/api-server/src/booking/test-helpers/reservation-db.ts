@@ -45,7 +45,7 @@ export function reservationDb() {
           const fieldValue = field.split('.').reduce((value: any, key: string) => value?.[key], row.value);
           const actual = fieldValue?.toMillis?.() ?? fieldValue;
           const expected = value?.toMillis?.() ?? value;
-          return op === '==' ? actual === expected : op === '>=' ? actual >= expected : actual <= expected;
+          return op === 'in' ? value.includes(fieldValue) : op === '==' ? actual === expected : op === '>=' ? actual >= expected : actual <= expected;
         })).filter(([path]) => path.split('/')[1] > after)
           .sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
           .slice(0, max).map(([path]) => read(path));

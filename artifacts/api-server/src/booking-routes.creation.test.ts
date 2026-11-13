@@ -6,6 +6,8 @@ const h = vi.hoisted(() => ({
   campaign: {} as any,
   bookings: new Map<string, any>(),
   guards: new Map<string, any>(),
+  management: new Map<string, any>(),
+  confirmations: new Map<string, any>(),
   sequence: 0,
   available: [] as any[],
   events: vi.fn(),
@@ -33,10 +35,10 @@ function reference(collection: string, id: string): any {
   return {
     id, collection,
     get: async () => ({
-      exists: collection !== 'bookings' || h.bookings.has(id),
+      exists: collection === 'bookingConfirmationJobs' ? h.confirmations.has(id) : collection === 'bookingManagementAccess' ? h.management.has(id) : collection !== 'bookings' || h.bookings.has(id),
       data: () => collection === 'bookingSlotLocks' ? h.guards.get(id) : collection === 'booking_campaigns' ? h.campaign
         : collection === 'clienti' ? { sourceRefs: { bookingIds: ['booking-1', 'booking-2', 'booking-3'] } }
-        : h.bookings.get(id),
+        : collection === 'bookingConfirmationJobs' ? h.confirmations.get(id) : collection === 'bookingManagementAccess' ? h.management.get(id) : h.bookings.get(id),
     }),
     update: async (patch: any) => {
       if (patch.stato === 'confermata' && h.failSave) throw new Error('save failed');
@@ -48,6 +50,8 @@ function reference(collection: string, id: string): any {
 function collection(name: string, conditions: any[] = []): any {
   return {
     where: (field: string, operator: string, value: any) => collection(name, [...conditions, [field, operator, value]]),
+    orderBy: () => collection(name, conditions),
+    limit: () => collection(name, conditions),
     doc: (id?: string) => reference(name, id || `booking-${++h.sequence}`),
     add: async (data: any) => {
       const ref = reference(name, `booking-${++h.sequence}`);
@@ -59,7 +63,7 @@ function collection(name: string, conditions: any[] = []): any {
         const actual = data[field]?.toDate?.().getTime() ?? data[field];
         const value = expected?.toDate?.().getTime() ?? expected;
         return op === '==' ? actual === value : op === '>=' ? actual >= value : actual <= value;
-      })).map(([id, data]) => ({ id, data: () => data })),
+      })).map(([id, data]) => ({ id, ref: reference(name, id), data: () => data })),
     }),
   };
 }
@@ -77,7 +81,7 @@ vi.mock('./firebase-admin.js', () => ({
       try {
         const result = await fn({
           get: (target: any) => target.get(),
-          set: (ref: any, data: any) => writes.push(() => (ref.collection === 'bookingSlotLocks' ? h.guards : h.bookings).set(ref.id, { ...data })),
+          set: (ref: any, data: any) => writes.push(() => (ref.collection === 'bookingSlotLocks' ? h.guards : ref.collection === 'bookingManagementAccess' ? h.management : h.bookings).set(ref.id, { ...data })),
           update: (ref: any, data: any) => writes.push(() => { if (ref.collection === 'bookings') Object.assign(h.bookings.get(ref.id), data); }),
         });
         writes.forEach(write => write());
@@ -130,7 +134,7 @@ app.use(express.json());
 app.use('/api/booking', router);
 const server = app.listen(0);
 const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/booking`;
-afterAll(() => server.close());
+afterAll(() => { server.close(); vi.unstubAllEnvs(); });
 function request(patch: any = {}, route = '/v2/create', admin = false) {
   return fetch(`${base}${route}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json', ...(admin ? { Authorization: 'Bearer admin' } : {}) },
@@ -140,6 +144,9 @@ function request(patch: any = {}, route = '/v2/create', admin = false) {
 function firstBooking(): any { return [...h.bookings.values()][0]; }
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubEnv('SESSION_SECRET', 'booking-creation-test-key-not-a-real-secret');
+  h.management.clear();
+  h.confirmations.clear();
   h.bookings.clear(); h.guards.clear(); h.sequence = 0; h.failSave = false; h.trace = []; h.tail = Promise.resolve();
   h.campaign = {
     nome: 'Campagna test', attiva: true, dataInizio: stamp('2030-12-01'), dataFine: stamp('2030-12-31'),
@@ -162,6 +169,17 @@ beforeEach(() => {
 });
 
 describe('creazione pubblica senza acconto', () => {
+  it('does not duplicate a final confirmation already queued for delivery', async () => {
+    h.bookings.set('booking-one', { stato: 'confermata', cliente: client, campaignId: 'campaign',
+      dataShootingInizio: stamp(start), dataShootingFine: stamp(end) });
+    h.confirmations.set('booking-one', { status: 'pending' });
+    const response = await fetch(`${base}/resend-confirmation-emails`, {
+      method: 'POST', headers: { Authorization: 'Bearer admin', 'Content-Type': 'application/json' }, body: JSON.stringify({ limit: 1 }),
+    });
+    expect(response.status).toBe(200);
+    expect(JSON.stringify(await response.json())).toContain('già in coda');
+    expect(h.sendEmail).not.toHaveBeenCalled();
+  });
   it.each(['/v2/create', '/create'])('mantiene le campagne legacy in attesa tramite %s', async route => {
     const response = await request({ stato: 'confermata', richiedeApprovazione: false }, route);
     expect(response.status).toBe(201);
@@ -198,6 +216,8 @@ describe('creazione pubblica senza acconto', () => {
     expect(h.trace).toEqual(['calendar', 'email', 'email']);
     expect(h.received).not.toHaveBeenCalled();
     expect(h.confirmed.mock.calls[0][8]).toContain('calendar.google.com');
+    expect(h.confirmed.mock.calls[0][10]).toMatch(/^https:\/\/imagestudiofotografico\.com\/prenota\/gestisci\/booking-\d+#[a-f0-9]{64}$/);
+    expect(h.management.size).toBe(1);
     expect(h.admin.mock.calls[0].at(-1)).toBe(true);
   });
 

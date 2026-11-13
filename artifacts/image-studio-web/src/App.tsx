@@ -71,6 +71,7 @@ const SpecialGalleryAccess = lazyWithRetry(() => import("./pages/SpecialGalleryA
 const BookingIndex = lazyWithRetry(() => import("./pages/BookingIndex"));
 const BookingPage = lazyWithRetry(() => import("./pages/BookingPage"));
 const BookingDepositPaymentPage = lazyWithRetry(() => import("./pages/BookingDepositPaymentPage"));
+const BookingManagementPage = lazyWithRetry(() => import("./pages/BookingManagementPage"));
 const QuotePortal = lazyWithRetry(() => import("./pages/QuotePortal"));
 const Privacy = lazyWithRetry(() => import("./pages/Privacy"));
 const CookiePolicy = lazyWithRetry(() => import("./pages/CookiePolicy"));
@@ -226,6 +227,7 @@ function AppRoutes() {
         {/* Booking pubblico */}
         <Route path="/prenota" component={BookingIndex} />
         <Route path="/prenota/acconto/:bookingId" component={BookingDepositPaymentPage} />
+        <Route path="/prenota/gestisci/:bookingId" component={BookingManagementPage} />
         <Route path="/prenota/:code" component={BookingPage} />
 
         {/* Consultations pubbliche (italiano) */}
