@@ -16,11 +16,14 @@ vi.mock('../google-calendar.js', async original => ({
   resolveCalendarId: () => 'studio-calendar',
   getEventsWithDetailsAllCalendars: vi.fn(async () => external.events),
   updateEvent: vi.fn(async () => ({ id: 'browser-event' })),
+  deleteEvent: vi.fn(async () => undefined),
   createEvent: vi.fn(async (_calendar: string, event: any) => ({ id: event.id })),
 }));
 vi.mock('../consultations/calendar-adapter.js', () => ({ getAllExistingEvents: vi.fn(async () => []) }));
 import { getStudioContactInfo, sendGmailEmail } from '../email-routes.js';
-import { updateEvent, createEvent } from '../google-calendar.js';
+import { updateEvent, createEvent, deleteEvent } from '../google-calendar.js';
+import { bookingConditionsSnapshot, BOOKING_CONDITIONS_VERSION } from '../../shared/booking-conditions.js';
+import { deliverBookingCancellation } from './cancellations.js';
 import { Timestamp } from 'firebase-admin/firestore';
 import { managementPortalHarness } from './test-helpers/management-portal.js';
 
@@ -182,6 +185,47 @@ it('lets a customer pick a real available slot on mobile, preserves the deposit 
   expect(await page.getByTestId('customer-booking').textContent()).toContain('11 dicembre 2030');
   expect(await page.getByTestId('button-open-reschedule').count()).toBe(0);
   expect(errors).toEqual([]);
+}, 60_000);
+it('cancels from the real owner page on mobile only after confirmation, retains the deposit and sends one outcome', async () => {
+  const id = harness.bookingId, prior = harness.store.value(`bookings/${id}`);
+  harness.store.seed(`bookings/${id}`, { ...prior, googleCalendarEventId: 'cancel-event',
+    bookingConditions: bookingConditionsSnapshot(BOOKING_CONDITIONS_VERSION) });
+  await open(); await page.getByTestId('customer-booking-status').waitFor(); await dismissCookies();
+  await page.getByRole('button', { name: 'Annulla appuntamento', exact: true }).click();
+  expect(deleteEvent).not.toHaveBeenCalled();
+  await page.getByRole('button', { name: 'Mantieni appuntamento', exact: true }).click();
+  expect(deleteEvent).not.toHaveBeenCalled();
+  await page.getByRole('button', { name: 'Annulla appuntamento', exact: true }).click();
+  await page.getByRole('button', { name: 'Conferma annullamento', exact: true }).click();
+  await page.getByText('Prenotazione annullata', { exact: true }).waitFor();
+  await page.getByText('Ti abbiamo inviato l’email con l’esito.', { exact: true }).waitFor();
+  expect(harness.store.value(`bookings/${id}`).depositPayment).toEqual(prior.depositPayment);
+  expect(harness.store.value(`bookings/${id}`).bookingRefund.status).toBe('review');
+  expect(deleteEvent).toHaveBeenCalledTimes(1); expect(sendGmailEmail).toHaveBeenCalledTimes(1);
+  expect(updateEvent).not.toHaveBeenCalled(); expect(createEvent).not.toHaveBeenCalled();
+  expect(await page.getByRole('button', { name: 'Conferma annullamento', exact: true }).count()).toBe(0);
+  expect(await page.evaluate('document.documentElement.scrollWidth <= innerWidth')).toBe(true);
+  await page.screenshot({ path: '/tmp/booking-cancelled-mobile.jpg', fullPage: true, type: 'jpeg' });
+  await page.reload(); await page.getByText('Prenotazione annullata', { exact: true }).waitFor();
+  expect(deleteEvent).toHaveBeenCalledTimes(1); expect(sendGmailEmail).toHaveBeenCalledTimes(1);
+  expect(errors).toEqual([]);
+}, 60_000);
+it('shows pending cancellation instead of a false success during a calendar outage and refreshes after recovery', async () => {
+  const id = harness.bookingId;
+  harness.store.seed(`bookings/${id}`, { ...harness.store.value(`bookings/${id}`), googleCalendarEventId: 'cancel-event',
+    bookingConditions: bookingConditionsSnapshot(BOOKING_CONDITIONS_VERSION) });
+  vi.mocked(deleteEvent).mockRejectedValueOnce(new Error('offline'));
+  await open(); await page.getByTestId('customer-booking-status').waitFor(); await dismissCookies();
+  await page.getByRole('button', { name: 'Annulla appuntamento', exact: true }).click();
+  await page.getByRole('button', { name: 'Conferma annullamento', exact: true }).click();
+  await page.getByText('Annullamento in elaborazione', { exact: true }).waitFor();
+  expect(harness.store.value(`bookings/${id}`).stato).toBe('cancellation_pending');
+  expect(sendGmailEmail).not.toHaveBeenCalled();
+  await harness.store.db.collection('bookingCancellationJobs').doc(id).update({ notBefore: Timestamp.fromMillis(0) });
+  await deliverBookingCancellation(harness.store.db, id);
+  await page.getByRole('button', { name: 'Aggiorna i dati', exact: true }).click();
+  await page.getByText('Prenotazione annullata', { exact: true }).waitFor();
+  expect(sendGmailEmail).toHaveBeenCalledTimes(1); expect(errors).toEqual([]);
 }, 60_000);
 it('recovers in the mobile chooser when another booking occupies the selected slot', async () => {
   harness.store.seed('booking_campaigns/campaign', { nome: 'Natale test', attiva: true,

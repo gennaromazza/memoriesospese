@@ -28,6 +28,9 @@ import { CheckoutHoldError } from './booking/checkout-hold-state.js';
 import { bookingAdminPaymentRouter } from './booking/admin-payment-routes.js';
 import { bookingManagementRouter } from './booking/management-routes.js';
 import { ensureBookingManagementLink } from './booking/management-access.js';
+import { bookingConditionsSnapshot } from '../shared/booking-conditions.js';
+import { bookingCancellationRouter } from './booking/cancellation-routes.js';
+import { bookingDepositCents } from './booking/cancellation-policy.js';
 
 const router = express.Router();
 async function requestDepositIfNeeded(req: any, res: express.Response, bookingId: string,
@@ -47,6 +50,7 @@ router.use('/v2/checkout-holds', checkoutHoldRouter(db));
 router.use(bookingDepositPaymentRouter(db));
 router.use(bookingAdminPaymentRouter(db, authenticateFirebase, requireAdmin));
 router.use(bookingManagementRouter(db, authenticateFirebase, requireAdmin));
+router.use(bookingCancellationRouter(db, authenticateFirebase, requireAdmin));
 
 // Riscatto delle gift card nella prenotazione pubblica (stessa base dati, nessuna dipendenza da PayPal)
 const giftCards = new GiftCardService({ db });
@@ -733,6 +737,7 @@ router.post("/create", requireAdminForManualBooking, async (req, res) => {
 
     const bookingData: any = {
       campaignId,
+      bookingConditions: bookingConditionsSnapshot(req.body.bookingConditionsVersion),
       cliente: {
         nome: cliente.nome.trim(),
         cognome: cliente.cognome.trim(),
@@ -1520,6 +1525,10 @@ router.patch("/:id/reject", authenticateFirebase, requireAdmin, async (req, res)
     }
 
     // Verifica stato attuale
+    if (bookingDepositCents(bookingData) > 0 || ['pending', 'blocked'].includes(bookingData.customerReschedule?.status)
+      || ['pending', 'working', 'blocked'].includes(bookingData.bookingCancellation?.status)) {
+      return res.status(409).json({ error: "Usa Annullamento e acconto: scegli rimborso integrale o riprogrammazione concordata, oppure attendi l’operazione in corso." });
+    }
     if (bookingData.stato === "annullata") {
       return res.status(400).json({
         error: "Prenotazione già annullata",
@@ -1527,6 +1536,10 @@ router.patch("/:id/reject", authenticateFirebase, requireAdmin, async (req, res)
       });
     }
 
+    if (['pending', 'blocked'].includes(bookingData.customerReschedule?.status)
+      || ['pending', 'working', 'blocked'].includes(bookingData.bookingCancellation?.status)) {
+      return res.status(409).json({ error: 'Attendi la conclusione del cambio o dell’annullamento prima di modificare i dati del cliente.' });
+    }
     // Prepara update data
     // Fix #2: Preserva statoWorkflow esistente per booking annullate (spread-safe)
     const currentWorkflowState = bookingData.statoWorkflow;
@@ -1771,6 +1784,11 @@ router.patch("/:id/status", authenticateFirebase, requireAdmin, async (req, res)
     }
 
     const oldStato = bookingData.stato;
+    if (stato === 'annullata' && bookingDepositCents(bookingData) > 0
+      || ['pending', 'blocked'].includes(bookingData.customerReschedule?.status)
+      || ['pending', 'working', 'blocked'].includes(bookingData.bookingCancellation?.status)) {
+      return res.status(409).json({ error: 'Gestisci l’annullamento dal pannello Annullamento e acconto; attendi eventuali operazioni in corso.' });
+    }
     if (stato === 'in_attesa' && unpaidDepositRequestExpired(bookingData)) {
       return res.status(410).json({ error: 'La richiesta di acconto è scaduta. Occorre una nuova prenotazione, non riattivare quella precedente.' });
     }
@@ -2005,6 +2023,10 @@ router.patch("/:id/update", authenticateFirebase, requireAdmin, async (req, res)
       updatedAt: FieldValue.serverTimestamp(),
     };
 
+    if (['pending', 'blocked'].includes(bookingData.customerReschedule?.status)
+      || ['pending', 'working', 'blocked'].includes(bookingData.bookingCancellation?.status)) {
+      return res.status(409).json({ error: 'Attendi la conclusione del cambio o dell’annullamento prima di modificare i dati del cliente.' });
+    }
     // Aggiorna dati cliente se forniti
     if (cliente) {
       const currentCliente = bookingData.cliente || {};
@@ -2201,6 +2223,11 @@ router.delete("/:bookingId/calendar-event", authenticateFirebase, requireAdmin, 
       return res.status(409).json({
         error: "L'evento Calendar non corrisponde alla prenotazione",
       });
+    }
+    if (bookingData && (bookingDepositCents(bookingData) > 0
+      || ['pending', 'blocked'].includes(bookingData.customerReschedule?.status)
+      || ['pending', 'working', 'blocked'].includes(bookingData.bookingCancellation?.status))) {
+      return res.status(409).json({ error: 'Gestisci il calendario tramite Annullamento e acconto: non cancellare separatamente l’evento.' });
     }
     const currentState = bookingData?.stato;
     const currentWorkflowState = bookingData?.statoWorkflow;
@@ -3181,6 +3208,11 @@ router.delete("/:bookingId/delete", authenticateFirebase, requireAdmin, async (r
 
     const bookingData = docSnap.data();
     const googleCalendarEventId = bookingData?.googleCalendarEventId;
+    if (bookingData && (bookingData.depositPayment || bookingData.depositPaymentRequest || bookingDepositCents(bookingData) > 0
+      || ['pending', 'blocked'].includes(bookingData.customerReschedule?.status)
+      || ['pending', 'working', 'blocked'].includes(bookingData.bookingCancellation?.status))) {
+      return res.status(409).json({ error: 'Questa prenotazione conserva un acconto o un’operazione in corso. Usa Annullamento e acconto invece di eliminarla.' });
+    }
 
     if (googleCalendarEventId) {
       try {

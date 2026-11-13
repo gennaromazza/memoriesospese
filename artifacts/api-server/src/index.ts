@@ -26,6 +26,7 @@ import { db } from "./firebase-admin";
 import { startBookingPaymentExpiryWorker } from "./booking/payment-expiry";
 import { startBookingConfirmationWorker } from "./booking/confirmation-delivery";
 import { startBookingRescheduleWorker } from "./booking/reschedule-delivery";
+import { startBookingCancellationWorker } from "./booking/cancellations";
 
 const rawPort = process.env["PORT"];
 
@@ -92,6 +93,9 @@ app.listen(port, async (err) => {
   bookingExpiryCleanup = startBookingPaymentExpiryWorker(db);
   bookingConfirmationCleanup = startBookingConfirmationWorker(db);
   bookingRescheduleCleanup = startBookingRescheduleWorker(db);
+  const stopCancellation = startBookingCancellationWorker(db);
+  process.once('SIGTERM', stopCancellation);
+  process.once('SIGINT', stopCancellation);
   startEventSyncWorker(30);
   await cleanupStaleJobs();
   startBulkEmailDispatcher(30_000);

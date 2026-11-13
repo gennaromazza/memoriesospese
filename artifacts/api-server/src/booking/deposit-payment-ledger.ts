@@ -89,6 +89,7 @@ export async function recordBookingDeposit(
     const confirmedBooking = confirm ? {
       ...(approved ? booking : {}),
       campaignId: hold.campaignId, cliente: approved ? booking!.cliente : hold.draft.cliente,
+      bookingConditions: approved ? booking!.bookingConditions ?? null : hold.draft.bookingConditions ?? null,
       dataShootingInizio: hold.dataShootingInizio, dataShootingFine: hold.dataShootingFine,
       prodottoId: (approved ? booking!.prodottoId : hold.draft.prodottoId) ?? null,
       prodottoNome: (approved ? booking!.prodottoNome : hold.draft.prodottoNome) ?? null,

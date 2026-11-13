@@ -12,6 +12,7 @@ import { getBundleGalleryPhotoCount } from "@/lib/bundle-photos";
 import { createBooking, getAvailableSlots, BookingRequestError, type BookingCreationResult } from "@/lib/bookings";
 import { GiftCardBookingBanner, useBookingGiftCard } from "@/components/gift-cards/GiftCardBookingBanner";
 import type { BookingCampaignFE, Product } from "@shared/booking-types";
+import { BOOKING_CONDITIONS_VERSION, BOOKING_CONDITIONS_TEXT } from '@shared/booking-conditions';
 import {
   Card,
   CardContent,
@@ -410,6 +411,7 @@ export default function BookingPage() {
         return;
       }
       setCheckoutInput({
+        bookingConditionsVersion: BOOKING_CONDITIONS_VERSION,
         campaignId: campaign.id, cliente: { nome: formData.nome.trim(), cognome: formData.cognome.trim(),
           email: formData.email.trim(), whatsapp: formData.whatsapp.trim() },
         dataShootingInizio: new Date(selectedSlot.start).toISOString(),
@@ -424,6 +426,7 @@ export default function BookingPage() {
       date: new Date(selectedDate),
       slot: { ...selectedSlot },
       payload: {
+        bookingConditionsVersion: BOOKING_CONDITIONS_VERSION,
         campaignId: campaign.id,
         cliente: { nome: formData.nome, cognome: formData.cognome, email: formData.email, whatsapp: formData.whatsapp },
         dataShootingInizio: new Date(selectedSlot.start),
@@ -1412,6 +1415,10 @@ export default function BookingPage() {
                       </div>
                     </div>
 
+                    <div className="rounded-lg border p-4 text-sm" data-testid="booking-conditions">
+                      <strong>Gestione dell’appuntamento e dell’acconto</strong>
+                      <p className="mt-2">{BOOKING_CONDITIONS_TEXT}</p>
+                    </div>
                     {immediateDeposit && <div className="rounded-lg bg-muted p-4 text-sm" data-testid="booking-deposit-notice">
                       <strong>Acconto richiesto: {campaign.accontoImportoCentesimi && campaign.accontoImportoCentesimi > 0
                         ? (campaign.accontoImportoCentesimi / 100).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' }) : 'da verificare con lo studio'}</strong>

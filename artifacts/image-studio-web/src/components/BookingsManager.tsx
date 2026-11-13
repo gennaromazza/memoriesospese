@@ -4,6 +4,8 @@
 import { bookingPaymentStage, bookingPaymentStageLabel, matchesBookingPaymentFilter } from '@shared/booking-payment-state';
 import { BookingPaymentPanel } from './booking/BookingPaymentPanel';
 import { BookingManagementLinkPanel } from './booking/BookingManagementLinkPanel';
+import { BookingCancellationAdminPanel } from './booking/BookingCancellationAdminPanel';
+import { requiresBookingCancellationPanel } from '@/lib/booking-deletion';
 import { BookingPaymentCheckouts } from './booking/BookingPaymentCheckouts';
 import { useLiveBookings } from './booking/useLiveBookings';
 
@@ -309,6 +311,15 @@ export default function BookingsManager({
     initialParams.stato,
   );
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [cancellationFocusId, setCancellationFocusId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!cancellationFocusId || selectedBooking?.id !== cancellationFocusId) return;
+    const frame = requestAnimationFrame(() => {
+      document.getElementById('booking-cancellation-actions')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+      setCancellationFocusId(null);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [cancellationFocusId, selectedBooking?.id]);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>(initialParams.search);
   const [selectedBookingForOrder, setSelectedBookingForOrder] =
@@ -1111,7 +1122,11 @@ export default function BookingsManager({
       });
       setDeleteConfirmId(null);
     },
-    onError: (error: Error) => {
+    onError: (error: Error, bookingId: string) => {
+      if (error.message.includes('Annullamento e acconto')) {
+        setDeleteConfirmId(null);
+        openCancellationForBooking(bookingId);
+      }
       toast({
         title: "Errore eliminazione",
         description: error.message,
@@ -1139,7 +1154,8 @@ export default function BookingsManager({
       setCascadeDeleteCounts(null);
       setCancelReason("");
     },
-    onError: (error: Error) => {
+    onError: (error: Error, params: { bookingId: string; cancelReason?: string }) => {
+      if (error.message.includes('Annullamento e acconto')) openCancellationForBooking(params.bookingId);
       toast({
         title: "Errore eliminazione",
         description: error.message,
@@ -1589,9 +1605,21 @@ export default function BookingsManager({
     window.open(`https://wa.me/${phone}?text=${message}`, "_blank");
   };
 
+  function openCancellationForBooking(bookingId: string) {
+    const booking = bookings.find(item => item.id === bookingId);
+    if (!booking) return;
+    setSelectedBooking(booking);
+    setCancellationFocusId(bookingId);
+  }
   // Handler: Richiesta cancellazione a cascata
   const handleRequestCascadeDelete = async (bookingId: string) => {
     try {
+      const booking = bookings.find(item => item.id === bookingId);
+      if (booking && requiresBookingCancellationPanel(booking)) {
+        openCancellationForBooking(bookingId);
+        toast({ title: 'Gestisci annullamento e acconto', description: 'La prenotazione non viene eliminata: scegli qui come gestire appuntamento e acconto.' });
+        return;
+      }
       // Conta elementi associati prima di mostrare dialog
       const counts = await countRelatedEntities(bookingId);
       setCascadeDeleteCounts(counts);
@@ -3537,6 +3565,9 @@ export default function BookingsManager({
                   key={selectedBooking.id} bookingId={selectedBooking.id!} userId={user?.uid || ''} />}
                 <BookingManagementLinkPanel key={`management-${user?.uid}-${selectedBooking.id}`}
                   bookingId={selectedBooking.id!} userId={user?.uid || ''} />
+                <div id="booking-cancellation-actions" className="scroll-mt-4">
+                  <BookingCancellationAdminPanel key={`cancellation-${selectedBooking.id}`} bookingId={selectedBooking.id!} userId={user?.uid || ''} />
+                </div>
                 {/* Azioni rapide */}
                 {bookingPaymentStage(selectedBooking) === "in_attesa" && (
                   <Alert className="bg-yellow-50 border-yellow-200">

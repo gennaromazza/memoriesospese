@@ -4,6 +4,7 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { randomUUID } from 'node:crypto';
 import { reservationDb } from './reservation-db.js';
 import { bookingManagementRouter } from '../management-routes.js';
+import { bookingCancellationRouter } from '../cancellation-routes.js';
 import { preparePaidBookingConfirmation } from '../confirmation-email.js';
 import { changeManagementLink } from '../management-access.js';
 
@@ -27,6 +28,8 @@ export async function managementPortalHarness(bookingId = 'one') {
   app.use('/api/booking', bookingManagementRouter(store.db,
     (_req, res) => { res.status(401).end(); }, (_req, res) => { res.status(403).end(); }));
   const server = app.listen(0, '127.0.0.1');
+  app.use('/api/booking', bookingCancellationRouter(store.db,
+    (_req, res) => { res.status(401).end(); }, (_req, res) => { res.status(403).end(); }));
   await new Promise<void>(resolve => server.once('listening', resolve));
   return {
     url, store, bookingId, requests: () => requests, base: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,

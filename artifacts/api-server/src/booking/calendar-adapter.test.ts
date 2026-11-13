@@ -34,7 +34,7 @@ import { getAllExistingBookingEvents } from './calendar-adapter.js';
 function fakeDb() {
   return {
     collection: (name: string) => {
-      if (!['bookings', 'bookingCheckoutHolds', 'bookingRescheduleJobs'].includes(name)) throw new Error(`collezione inattesa: ${name}`);
+      if (!['bookings', 'bookingCheckoutHolds', 'bookingRescheduleJobs', 'bookingCancellationJobs'].includes(name)) throw new Error(`collezione inattesa: ${name}`);
       let state = '';
       const chain: any = {
         where: (field: string, _operator: string, value: unknown) => {

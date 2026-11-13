@@ -8,6 +8,8 @@
 import type { BookingCheckoutCustomer } from './bookingCheckoutCustomer';
 
 export interface BookingCheckoutHoldInput {
+  /** @maxLength 50 */
+  bookingConditionsVersion?: string;
   /**
      * @minLength 1
      * @maxLength 200

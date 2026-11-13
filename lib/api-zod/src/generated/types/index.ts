@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './adminBookingCancellation';
+export * from './adminBookingCancellationInput';
+export * from './adminBookingCancellationInputAction';
 export * from './adminBookingManagementLink';
 export * from './adminBookingManagementLinkStatus';
 export * from './adminBookingPayment';
@@ -23,6 +26,9 @@ export * from './bookingApprovalResult';
 export * from './bookingApprovalResultCurrency';
 export * from './bookingApprovalResultEmailStatus';
 export * from './bookingApprovalResultStato';
+export * from './bookingCancellationInput';
+export * from './bookingCancellationView';
+export * from './bookingCancellationViewStatus';
 export * from './bookingCheckoutCredentials';
 export * from './bookingCheckoutCustomer';
 export * from './bookingCheckoutHoldCreated';

@@ -3,6 +3,8 @@ import { DateTime } from 'luxon';
 import type { CalendarEvent } from '../../shared/calendar-types.js';
 import { unpaidDepositRequestExpired } from './payment-deadlines.js';
 import { RESCHEDULE_JOBS, rescheduleBlocksSlot } from './reschedule-policy.js';
+import { CANCELLATION_JOBS } from './cancellation-policy.js';
+const cancellationBlocksSlot = (data: FirebaseFirestore.DocumentData) => ['pending', 'working', 'blocked'].includes(data.status);
 
 export const CHECKOUT_HOLDS = 'bookingCheckoutHolds';
 export class BookingSlotConflictError extends Error {}
@@ -34,7 +36,17 @@ export async function loadCheckoutHoldEvents(
     return slotStart < end && slotEnd > start
       ? [{ start: slotStart, end: slotEnd, source: 'firestore_booking' as const, id: `reschedule-${doc.id}`, allDay: false }] : [];
   });
-  return [...moving, ...snapshot.docs.flatMap(doc => {
+  const cancelling = await db.collection(CANCELLATION_JOBS)
+    .where('dataShootingInizio', '>=', Timestamp.fromDate(searchStart(start)))
+    .where('dataShootingInizio', '<=', Timestamp.fromDate(end)).get();
+  const pendingCancellation = cancelling.docs.flatMap(doc => {
+    const data = doc.data();
+    if (doc.id === excludeBookingId || !cancellationBlocksSlot(data)) return [];
+    const slotStart = data.dataShootingInizio.toDate(), slotEnd = data.dataShootingFine.toDate();
+    return slotStart < end && slotEnd > start
+      ? [{ start: slotStart, end: slotEnd, source: 'firestore_booking' as const, id: `cancel-${doc.id}`, allDay: false }] : [];
+  });
+  return [...pendingCancellation, ...moving, ...snapshot.docs.flatMap(doc => {
     const data = doc.data();
     if (doc.id === excludeBookingId || !checkoutHoldBlocksSlot(data, now)) return [];
     const slotStart = data.dataShootingInizio.toDate();
@@ -72,6 +84,7 @@ export async function checkSlotReservation(
     transaction.get(query('bookings').where('stato', '==', 'confermata')),
     transaction.get(query(CHECKOUT_HOLDS)),
     transaction.get(query(RESCHEDULE_JOBS)),
+    transaction.get(query(CANCELLATION_JOBS)),
   ]);
   const now = Date.now();
   const occupied = snapshots.some((snapshot, index) => snapshot.docs.some(doc => {
@@ -81,6 +94,7 @@ export async function checkSlotReservation(
     const data = doc.data();
     if (index === 2 && !checkoutHoldBlocksSlot(data, now)) return false;
     if (index === 3 && !rescheduleBlocksSlot(data)) return false;
+    if (index === 4 && !cancellationBlocksSlot(data)) return false;
     if (index < 2 && unpaidDepositRequestExpired(data, now)) return false;
     return start < data.dataShootingFine.toDate() && end > data.dataShootingInizio.toDate();
   }));

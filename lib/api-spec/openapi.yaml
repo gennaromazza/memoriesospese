@@ -15,6 +15,53 @@ tags:
   - name: booking-campaigns
     description: Booking campaign administration
 paths:
+  /booking/{bookingId}/management/cancel:
+    post:
+      operationId: cancelManagedBooking
+      tags: [booking]
+      parameters:
+        - { name: bookingId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BookingCancellationInput" }
+      responses:
+        "200":
+          description: Cancellation outcome without automatic refund
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BookingManagementView" }
+  /booking/{bookingId}/cancellation:
+    get:
+      operationId: getAdminBookingCancellation
+      tags: [booking]
+      security: [{ FirebaseAuth: [] }]
+      parameters:
+        - { name: bookingId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Administrative cancellation and refund state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminBookingCancellation" }
+    post:
+      operationId: manageAdminBookingCancellation
+      tags: [booking]
+      security: [{ FirebaseAuth: [] }]
+      parameters:
+        - { name: bookingId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminBookingCancellationInput" }
+      responses:
+        "200":
+          description: Explicit admin action outcome
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminBookingCancellation" }
   /booking/{bookingId}/management/slots:
     post:
       operationId: getBookingManagementSlots
@@ -659,6 +706,50 @@ components:
       scheme: bearer
       bearerFormat: Firebase ID token
   schemas:
+    BookingCancellationInput:
+      type: object
+      additionalProperties: false
+      required: [token, requestId, expectedStartsAt]
+      properties:
+        token: { type: string, pattern: '^[a-f0-9]{64}$' }
+        requestId: { type: string, format: uuid }
+        expectedStartsAt: { type: string, format: date-time }
+    BookingCancellationView:
+      type: object
+      additionalProperties: false
+      required: [canCancel, reason, conditions, status, refundStatus, notificationStatus]
+      properties:
+        canCancel: { type: boolean }
+        reason: { type: [string, "null"] }
+        conditions: { type: [string, "null"] }
+        status: { type: string, enum: [available, unavailable, pending, complete, blocked] }
+        refundStatus: { type: string }
+        notificationStatus: { type: [string, "null"] }
+    AdminBookingCancellationInput:
+      type: object
+      additionalProperties: false
+      required: [action, requestId]
+      properties:
+        action: { type: string, enum: [cancel_unpaid, cancel_refund, cancel_reschedule, retry_cancellation, refund, verify_refund, review] }
+        requestId: { type: string, format: uuid }
+        expectedAmountCents: { type: integer, minimum: 0 }
+    AdminBookingCancellation:
+      type: object
+      additionalProperties: false
+      required: [bookingId, bookingStatus, amountCents, status, refundStatus, notificationStatus, canCancel, canRefund, reason, refundId]
+      properties:
+        bookingId: { type: string }
+        bookingStatus: { type: string }
+        amountCents: { type: integer }
+        status: { type: string }
+        refundStatus: { type: string }
+        notificationStatus: { type: [string, "null"] }
+        canCancel: { type: boolean }
+        canRefund: { type: boolean }
+        canVerifyRefund: { type: boolean }
+        paypalDeposit: { type: boolean }
+        reason: { type: [string, "null"] }
+        refundId: { type: [string, "null"] }
     BookingPayPalWebhookEvent:
       type: object
       additionalProperties: true
@@ -757,7 +848,7 @@ components:
     BookingManagementView:
       type: object
       additionalProperties: false
-      required: [success, bookingId, status, campaignName, startsAt, endsAt, customerName, productName, depositPaidCents, studio, reschedule]
+      required: [success, bookingId, status, campaignName, startsAt, endsAt, customerName, productName, depositPaidCents, studio, reschedule, cancellation]
       properties:
         success: { type: boolean }
         bookingId: { type: string }
@@ -769,6 +860,7 @@ components:
         productName: { type: [string, "null"] }
         depositPaidCents: { type: [integer, "null"], minimum: 0 }
         reschedule: { $ref: "#/components/schemas/BookingRescheduleView" }
+        cancellation: { $ref: "#/components/schemas/BookingCancellationView" }
         studio:
           type: object
           additionalProperties: false
@@ -863,6 +955,7 @@ components:
       additionalProperties: false
       required: [campaignId, cliente, dataShootingInizio, dataShootingFine]
       properties:
+        bookingConditionsVersion: { type: string, maxLength: 50 }
         campaignId: { type: string, minLength: 1, maxLength: 200, pattern: '^[^/]+$' }
         cliente:
           $ref: "#/components/schemas/BookingCheckoutCustomer"

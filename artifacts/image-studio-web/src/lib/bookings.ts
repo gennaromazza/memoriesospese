@@ -19,6 +19,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { apiRequest } from '@/lib/queryClient';
+import { requiresBookingCancellationPanel } from './booking-deletion';
 import type { Booking } from '@shared/booking-types';
 import type { BookingApprovalResult, AdminBookingPayment, GetAdminBookingPaymentCheckouts200,
   AdminBookingManagementLink, BookingManagementChangeInput, ChangeAdminBookingManagementLink200 } from '@workspace/api-client-react';
@@ -76,6 +77,7 @@ export async function createBooking(data: {
   prodottoNome?: string;
   prodotti?: Array<{ prodottoId: string; prodottoNome: string; quantity: number }>;
   note: string;
+  bookingConditionsVersion?: string;
   isManual?: boolean;
   createdByAdmin?: string;
   /** Gift card usata per pagare la prenotazione. */
@@ -92,6 +94,7 @@ export async function createBooking(data: {
       prodottoNome: data.prodottoNome,
       prodotti: data.prodotti,
       note: data.note,
+      bookingConditionsVersion: data.bookingConditionsVersion,
       isManual: data.isManual,
       createdByAdmin: data.createdByAdmin,
       giftCardCode: data.giftCardCode,
@@ -324,6 +327,11 @@ export async function markBookingAsViewed(bookingId: string): Promise<void> {
 export async function deleteBooking(bookingId: string): Promise<void> {
   const docRef = doc(db, COLLECTION, bookingId);
   const bookingSnap = await getDoc(docRef);
+  if (bookingSnap.exists() && requiresBookingCancellationPanel(bookingSnap.data())) {
+    throw new Error('Usa Annullamento e acconto: la prenotazione pagata o in lavorazione non va eliminata.');
+  }
+  // The authoritative server must finish before any customer cancellation email.
+  await apiRequest('DELETE', `/api/booking/${bookingId}/delete`);
   
   if (bookingSnap.exists()) {
     const bookingData = bookingSnap.data();
@@ -366,7 +374,6 @@ export async function deleteBooking(bookingId: string): Promise<void> {
     }
   }
   
-  await apiRequest('DELETE', `/api/booking/${bookingId}/delete`);
 }
 
 /**
@@ -425,6 +432,10 @@ export async function countRelatedEntities(bookingId: string): Promise<{
  */
 export async function deleteBookingCascade(params: { bookingId: string; cancelReason?: string }): Promise<void> {
   const { bookingId, cancelReason } = params;
+  const snapshot = await getDoc(doc(db, 'bookings', bookingId)), source = snapshot.data();
+  if (source && requiresBookingCancellationPanel(source)) {
+    throw new Error('Questa prenotazione conserva un acconto o un’operazione in corso. Usa Annullamento e acconto: nessun file collegato è stato eliminato.');
+  }
   console.log(`🗑️ Inizio cancellazione a cascata per booking ${bookingId}${cancelReason ? ` - Motivo: ${cancelReason}` : ''}`);
 
   // 1. Conta e trova tutti gli elementi correlati

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { bookingPaymentMillis, bookingPaymentStageLabel } from '@shared/booking-payment-state';
 import { getBookingPaymentCheckouts } from '@/lib/bookings';
 import { BookingPaymentPanel } from './BookingPaymentPanel';
+import { BookingCancellationAdminPanel } from './BookingCancellationAdminPanel';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -33,7 +34,9 @@ export function BookingPaymentCheckouts({ userId, existingIds, campaignFilter, a
     <Dialog open={!!selected} onOpenChange={open => { if (!open) setSelected(null); }}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto"><DialogHeader><DialogTitle>Checkout e acconto</DialogTitle>
         <DialogDescription>Verifica un pagamento senza confermare manualmente o addebitare il cliente.</DialogDescription></DialogHeader>
-        {selected && <BookingPaymentPanel key={selected} bookingId={selected} userId={userId} />}
+        {selected && <><BookingPaymentPanel key={selected} bookingId={selected} userId={userId} />
+          {query.data?.items.some(item => item.bookingId === selected && item.stage === 'pagamento_da_verificare')
+            && <BookingCancellationAdminPanel key={`refund-${selected}`} bookingId={selected} userId={userId} />}</>}
       </DialogContent>
     </Dialog>
   </section>;

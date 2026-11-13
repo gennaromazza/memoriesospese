@@ -20,6 +20,8 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AdminBookingCancellation,
+  AdminBookingCancellationInput,
   AdminBookingManagementLink,
   AdminBookingPayment,
   AdminCatalogProductInput,
@@ -28,6 +30,7 @@ import type {
   AdminCatalogProductResult,
   BookingApprovalError,
   BookingApprovalResult,
+  BookingCancellationInput,
   BookingCheckoutCredentials,
   BookingCheckoutHoldCreated,
   BookingCheckoutHoldInput,
@@ -82,6 +85,243 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getCancelManagedBookingUrl = (bookingId: string,) => {
+
+
+
+
+  return `/api/booking/${bookingId}/management/cancel`
+}
+
+export const cancelManagedBooking = async (bookingId: string,
+    bookingCancellationInput: BookingCancellationInput, options?: Parameters<typeof customFetch>[1]): Promise<BookingManagementView> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<BookingManagementView>(getCancelManagedBookingUrl(bookingId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(bookingCancellationInput)
+  }
+);}
+
+
+
+
+
+export const getCancelManagedBookingMutationKey = () => ['cancelManagedBooking'] as const;
+
+export const getCancelManagedBookingMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelManagedBooking>>, TError,CancelManagedBookingMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelManagedBooking>>, TError,CancelManagedBookingMutationVariables, TContext> => {
+
+const mutationKey = getCancelManagedBookingMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelManagedBooking>>, CancelManagedBookingMutationVariables> = (props) => {
+          const {bookingId,data} = props ?? {};
+
+          return  cancelManagedBooking(bookingId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelManagedBookingMutationResult = NonNullable<Awaited<ReturnType<typeof cancelManagedBooking>>>
+    export type CancelManagedBookingMutationBody = BodyType<BookingCancellationInput>
+    export type CancelManagedBookingMutationError = ErrorType<unknown>
+    export type CancelManagedBookingMutationVariables = {bookingId: string;data: BodyType<BookingCancellationInput>}
+
+    export const useCancelManagedBooking = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelManagedBooking>>, TError,CancelManagedBookingMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cancelManagedBooking>>,
+        TError,
+        CancelManagedBookingMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCancelManagedBookingMutationOptions(options));
+    }
+
+export const getGetAdminBookingCancellationUrl = (bookingId: string,) => {
+
+
+
+
+  return `/api/booking/${bookingId}/cancellation`
+}
+
+export const getAdminBookingCancellation = async (bookingId: string, options?: Parameters<typeof customFetch>[1]): Promise<AdminBookingCancellation> => {
+
+  return customFetch<AdminBookingCancellation>(getGetAdminBookingCancellationUrl(bookingId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminBookingCancellationQueryKey = (bookingId: string,) => {
+    return [
+    `/api/booking/${bookingId}/cancellation`
+    ] as const;
+    }
+
+
+export const getGetAdminBookingCancellationQueryOptions = <TData = Awaited<ReturnType<typeof getAdminBookingCancellation>>, TError = ErrorType<unknown>>(bookingId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminBookingCancellation>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminBookingCancellationQueryKey(bookingId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminBookingCancellation>>> = ({ signal }) => getAdminBookingCancellation(bookingId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: bookingId !== null && bookingId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminBookingCancellation>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdminBookingCancellationQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminBookingCancellation>>>
+export type GetAdminBookingCancellationQueryError = ErrorType<unknown>
+
+
+
+export function useGetAdminBookingCancellation<TData = Awaited<ReturnType<typeof getAdminBookingCancellation>>, TError = ErrorType<unknown>>(
+ bookingId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminBookingCancellation>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdminBookingCancellationQueryOptions(bookingId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getManageAdminBookingCancellationUrl = (bookingId: string,) => {
+
+
+
+
+  return `/api/booking/${bookingId}/cancellation`
+}
+
+export const manageAdminBookingCancellation = async (bookingId: string,
+    adminBookingCancellationInput: AdminBookingCancellationInput, options?: Parameters<typeof customFetch>[1]): Promise<AdminBookingCancellation> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<AdminBookingCancellation>(getManageAdminBookingCancellationUrl(bookingId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(adminBookingCancellationInput)
+  }
+);}
+
+
+
+
+
+export const getManageAdminBookingCancellationMutationKey = () => ['manageAdminBookingCancellation'] as const;
+
+export const getManageAdminBookingCancellationMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof manageAdminBookingCancellation>>, TError,ManageAdminBookingCancellationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof manageAdminBookingCancellation>>, TError,ManageAdminBookingCancellationMutationVariables, TContext> => {
+
+const mutationKey = getManageAdminBookingCancellationMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof manageAdminBookingCancellation>>, ManageAdminBookingCancellationMutationVariables> = (props) => {
+          const {bookingId,data} = props ?? {};
+
+          return  manageAdminBookingCancellation(bookingId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ManageAdminBookingCancellationMutationResult = NonNullable<Awaited<ReturnType<typeof manageAdminBookingCancellation>>>
+    export type ManageAdminBookingCancellationMutationBody = BodyType<AdminBookingCancellationInput>
+    export type ManageAdminBookingCancellationMutationError = ErrorType<unknown>
+    export type ManageAdminBookingCancellationMutationVariables = {bookingId: string;data: BodyType<AdminBookingCancellationInput>}
+
+    export const useManageAdminBookingCancellation = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof manageAdminBookingCancellation>>, TError,ManageAdminBookingCancellationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof manageAdminBookingCancellation>>,
+        TError,
+        ManageAdminBookingCancellationMutationVariables,
+        TContext
+      > => {
+      return useMutation(getManageAdminBookingCancellationMutationOptions(options));
+    }
 
 export const getGetBookingManagementSlotsUrl = (bookingId: string,) => {
 

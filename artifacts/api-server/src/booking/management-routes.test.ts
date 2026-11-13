@@ -52,6 +52,7 @@ describe('management link HTTP boundaries', () => {
     expect(await response.json()).toEqual({ success: true, bookingId: 'one', status: 'confirmed', campaignName: null,
       startsAt: null, endsAt: null, customerName: null, productName: null, depositPaidCents: null,
       reschedule: { canChange: false, status: 'unavailable', firstDate: null, lastDate: null, targetStartsAt: null, targetEndsAt: null, notificationStatus: null, reason: 'L’orario richiede una verifica dello studio.' },
+      cancellation: { canCancel: false, status: 'unavailable', conditions: null, reason: 'Le condizioni originali non sono disponibili per l’annullamento online. Contatta lo studio.', refundStatus: 'none', notificationStatus: null },
       studio: { name: 'Studio test', email: 'studio@example.test', phone: '+390000000000', address: 'Via test' } });
   });
   it('returns the same safe denial for unknown IDs and wrong tokens', async () => {

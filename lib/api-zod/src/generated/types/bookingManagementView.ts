@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { BookingCancellationView } from './bookingCancellationView';
 import type { BookingManagementViewStatus } from './bookingManagementViewStatus';
 import type { BookingManagementViewStudio } from './bookingManagementViewStudio';
 import type { BookingRescheduleView } from './bookingRescheduleView';
@@ -29,5 +30,6 @@ export interface BookingManagementView {
      */
   depositPaidCents: number | null;
   reschedule: BookingRescheduleView;
+  cancellation: BookingCancellationView;
   studio: BookingManagementViewStudio;
 }

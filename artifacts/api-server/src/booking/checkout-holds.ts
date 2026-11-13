@@ -7,6 +7,7 @@ import { validateCampaign, campaignToAvailabilityConfig, getAllExistingBookingEv
 import { getAvailableSlotsForDate } from '../calendar-engine/index.js';
 import { CheckoutHoldError, authorizeCheckoutHold, activeCheckoutHoldView, hashCheckoutToken as hashToken } from './checkout-hold-state.js';
 import { isApprovedDepositHold } from './approved-deposit-state.js';
+import { bookingConditionsSnapshot } from '../../shared/booking-conditions.js';
 export { CheckoutHoldError, authorizeCheckoutHold, activeCheckoutHoldView } from './checkout-hold-state.js';
 
 export const CHECKOUT_HOLD_MS = 10 * 60 * 1000;
@@ -53,6 +54,7 @@ export async function createCheckoutHold(db: Firestore, input: BookingCheckoutHo
   const ref = db.collection(CHECKOUT_HOLDS).doc(bookingId);
   const token = randomBytes(32).toString('hex');
   const draft = {
+    bookingConditions: bookingConditionsSnapshot(input.bookingConditionsVersion),
     cliente: { ...input.cliente, nome: input.cliente.nome.trim(), cognome: input.cliente.cognome.trim(),
       email: input.cliente.email.trim().toLowerCase(), whatsapp: input.cliente.whatsapp.trim() },
     prodottoId: input.prodottoId || null, prodottoNome: productName, note: input.note || '',

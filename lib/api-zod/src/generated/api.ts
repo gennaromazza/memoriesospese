@@ -8,6 +8,110 @@
 import * as zod from 'zod';
 
 
+export const CancelManagedBookingParams = zod.object({
+  "bookingId": zod.coerce.string()
+})
+
+export const cancelManagedBookingBodyTokenRegExp = new RegExp('^[a-f0-9]{64}$');
+
+
+export const CancelManagedBookingBody = zod.object({
+  "token": zod.string().regex(cancelManagedBookingBodyTokenRegExp),
+  "requestId": zod.string().uuid(),
+  "expectedStartsAt": zod.coerce.date()
+})
+
+export const cancelManagedBookingResponseDepositPaidCentsMin = 0;
+
+
+
+export const CancelManagedBookingResponse = zod.object({
+  "success": zod.boolean(),
+  "bookingId": zod.string(),
+  "status": zod.enum(['confirmed', 'completed', 'cancelled', 'cancellation_pending']),
+  "campaignName": zod.string().nullable(),
+  "startsAt": zod.coerce.date().nullable(),
+  "endsAt": zod.coerce.date().nullable(),
+  "customerName": zod.string().nullable(),
+  "productName": zod.string().nullable(),
+  "depositPaidCents": zod.number().int().min(cancelManagedBookingResponseDepositPaidCentsMin).nullable(),
+  "reschedule": zod.object({
+  "canChange": zod.boolean(),
+  "status": zod.enum(['available', 'unavailable', 'pending', 'changed', 'blocked']),
+  "reason": zod.string().nullable(),
+  "firstDate": zod.string().nullable(),
+  "lastDate": zod.string().nullable(),
+  "notificationStatus": zod.union([zod.literal('pending'),zod.literal('preparing'),zod.literal('sending'),zod.literal('sent'),zod.literal('failed'),zod.literal('unknown'),zod.literal('skipped'),zod.literal(null)]).nullable(),
+  "targetStartsAt": zod.coerce.date().nullable(),
+  "targetEndsAt": zod.coerce.date().nullable()
+}),
+  "cancellation": zod.object({
+  "canCancel": zod.boolean(),
+  "reason": zod.string().nullable(),
+  "conditions": zod.string().nullable(),
+  "status": zod.enum(['available', 'unavailable', 'pending', 'complete', 'blocked']),
+  "refundStatus": zod.string(),
+  "notificationStatus": zod.string().nullable()
+}),
+  "studio": zod.object({
+  "name": zod.string().nullable(),
+  "email": zod.string().nullable(),
+  "phone": zod.string().nullable(),
+  "address": zod.string().nullable()
+})
+})
+
+
+export const GetAdminBookingCancellationParams = zod.object({
+  "bookingId": zod.coerce.string()
+})
+
+export const GetAdminBookingCancellationResponse = zod.object({
+  "bookingId": zod.string(),
+  "bookingStatus": zod.string(),
+  "amountCents": zod.number().int(),
+  "status": zod.string(),
+  "refundStatus": zod.string(),
+  "notificationStatus": zod.string().nullable(),
+  "canCancel": zod.boolean(),
+  "canRefund": zod.boolean(),
+  "canVerifyRefund": zod.boolean().optional(),
+  "paypalDeposit": zod.boolean().optional(),
+  "reason": zod.string().nullable(),
+  "refundId": zod.string().nullable()
+})
+
+
+export const ManageAdminBookingCancellationParams = zod.object({
+  "bookingId": zod.coerce.string()
+})
+
+export const manageAdminBookingCancellationBodyExpectedAmountCentsMin = 0;
+
+
+
+export const ManageAdminBookingCancellationBody = zod.object({
+  "action": zod.enum(['cancel_unpaid', 'cancel_refund', 'cancel_reschedule', 'retry_cancellation', 'refund', 'verify_refund', 'review']),
+  "requestId": zod.string().uuid(),
+  "expectedAmountCents": zod.number().int().min(manageAdminBookingCancellationBodyExpectedAmountCentsMin).optional()
+})
+
+export const ManageAdminBookingCancellationResponse = zod.object({
+  "bookingId": zod.string(),
+  "bookingStatus": zod.string(),
+  "amountCents": zod.number().int(),
+  "status": zod.string(),
+  "refundStatus": zod.string(),
+  "notificationStatus": zod.string().nullable(),
+  "canCancel": zod.boolean(),
+  "canRefund": zod.boolean(),
+  "canVerifyRefund": zod.boolean().optional(),
+  "paypalDeposit": zod.boolean().optional(),
+  "reason": zod.string().nullable(),
+  "refundId": zod.string().nullable()
+})
+
+
 export const GetBookingManagementSlotsParams = zod.object({
   "bookingId": zod.coerce.string()
 })
@@ -69,6 +173,14 @@ export const RescheduleManagedBookingResponse = zod.object({
   "targetStartsAt": zod.coerce.date().nullable(),
   "targetEndsAt": zod.coerce.date().nullable()
 }),
+  "cancellation": zod.object({
+  "canCancel": zod.boolean(),
+  "reason": zod.string().nullable(),
+  "conditions": zod.string().nullable(),
+  "status": zod.enum(['available', 'unavailable', 'pending', 'complete', 'blocked']),
+  "refundStatus": zod.string(),
+  "notificationStatus": zod.string().nullable()
+}),
   "studio": zod.object({
   "name": zod.string().nullable(),
   "email": zod.string().nullable(),
@@ -116,6 +228,14 @@ export const AuthorizeBookingManagementAccessResponse = zod.object({
   "notificationStatus": zod.union([zod.literal('pending'),zod.literal('preparing'),zod.literal('sending'),zod.literal('sent'),zod.literal('failed'),zod.literal('unknown'),zod.literal('skipped'),zod.literal(null)]).nullable(),
   "targetStartsAt": zod.coerce.date().nullable(),
   "targetEndsAt": zod.coerce.date().nullable()
+}),
+  "cancellation": zod.object({
+  "canCancel": zod.boolean(),
+  "reason": zod.string().nullable(),
+  "conditions": zod.string().nullable(),
+  "status": zod.enum(['available', 'unavailable', 'pending', 'complete', 'blocked']),
+  "refundStatus": zod.string(),
+  "notificationStatus": zod.string().nullable()
 }),
   "studio": zod.object({
   "name": zod.string().nullable(),
@@ -511,6 +631,8 @@ export const CreateBookingDepositOrderResponse = zod.object({
 /**
  * @summary Reserve a slot for ten minutes before an immediate deposit checkout
  */
+export const createBookingCheckoutHoldBodyBookingConditionsVersionMax = 50;
+
 export const createBookingCheckoutHoldBodyCampaignIdMax = 200;
 
 
@@ -533,6 +655,7 @@ export const createBookingCheckoutHoldBodyNoteMax = 4000;
 
 
 export const CreateBookingCheckoutHoldBody = zod.object({
+  "bookingConditionsVersion": zod.string().max(createBookingCheckoutHoldBodyBookingConditionsVersionMax).optional(),
   "campaignId": zod.string().min(1).max(createBookingCheckoutHoldBodyCampaignIdMax).regex(createBookingCheckoutHoldBodyCampaignIdRegExp),
   "cliente": zod.object({
   "nome": zod.string().min(1).max(createBookingCheckoutHoldBodyClienteNomeMax),

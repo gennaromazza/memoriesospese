@@ -96,6 +96,12 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    match /bookingCancellationJobs/{bookingId} {
+      allow read, write: if false;
+    }
+    match /bookingRefunds/{bookingId} {
+      allow read, write: if false;
+    }
     // Users collection
     match /users/{userId} {
       // Il profilo cliente contiene dati personali: ogni cliente vede solo il

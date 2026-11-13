@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'wouter';
 import { useAuthorizeBookingManagementAccess, type BookingManagementView } from '@workspace/api-client-react';
 import { BookingReschedulePanel } from '@/components/booking/BookingReschedulePanel';
+import { BookingCancellationPanel } from '@/components/booking/BookingCancellationPanel';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useSEO } from '@/hooks/useSEO';
@@ -46,11 +47,18 @@ function ManagementDetails({ bookingId }: { bookingId: string }) {
   const denied = !token || !/^[A-Za-z0-9_-]{1,200}$/.test(bookingId)
     || (access.error && 'status' in access.error && [400, 404, 410].includes(Number(access.error.status)));
   useEffect(() => {
-    if (!token || !booking || !(booking.reschedule.status === 'pending'
+    if (!token || !booking || !(booking.cancellation.status === 'pending'
+      || ['pending', 'preparing', 'sending'].includes(booking.cancellation.notificationStatus || '')
+      || ['approved', 'processing', 'pending', 'unknown'].includes(booking.cancellation.refundStatus)
+      || booking.reschedule.status === 'pending'
       || booking.reschedule.status === 'changed' && ['pending', 'preparing', 'sending'].includes(booking.reschedule.notificationStatus || ''))) return;
     const timer = window.setInterval(refresh, 15_000);
     return () => window.clearInterval(timer);
   }, [bookingId, token, booking, refresh]);
+  const applyUpdated = (data: BookingManagementView) => {
+    if (currentToken.current !== token) return;
+    generation.current++; reset(); setSnapshot({ token: token!, data });
+  };
   return <main className="min-h-screen bg-background px-4 py-8 sm:py-12">
     <div className="mx-auto max-w-2xl space-y-5">
       <p className="text-sm font-medium text-muted-foreground">Image Studio · La tua prenotazione</p>
@@ -80,11 +88,9 @@ function ManagementDetails({ bookingId }: { bookingId: string }) {
                 <dd>{(booking.depositPaidCents / 100).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}</dd></div>}
             </dl>
             {token && <BookingReschedulePanel key={`${booking.startsAt}-${booking.reschedule.status}`} booking={booking} token={token}
-              onRefresh={refresh} onUpdated={data => {
-                if (currentToken.current !== token) return;
-                generation.current++; reset();
-                setSnapshot({ token, data });
-              }} />}
+              onRefresh={refresh} onUpdated={applyUpdated} />}
+            {token && <BookingCancellationPanel key={`cancel-${booking.startsAt}-${booking.cancellation.status}`} booking={booking}
+              token={token} onRefresh={refresh} onUpdated={applyUpdated} />}
             <div className="flex flex-wrap items-center gap-3 border-t pt-4">
               <Button variant="outline" disabled={access.isPending} onClick={refresh}>Aggiorna i dati</Button>
               <p className="text-xs text-muted-foreground">Dati dell’ultima verifica · orari italiani</p>

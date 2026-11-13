@@ -1,4 +1,4 @@
-import { Timestamp, type Firestore } from 'firebase-admin/firestore';
+import { Timestamp, FieldValue, type Firestore } from 'firebase-admin/firestore';
 
 /**
  * Optimistic document-version transactions. Queries deliberately do not lock
@@ -22,7 +22,8 @@ export function reservationDb() {
       const parts = field.split('.');
       let target = result;
       for (const part of parts.slice(0, -1)) { target[part] = { ...target[part] }; target = target[part]; }
-      target[parts.at(-1)!] = value;
+      if (typeof (value as any)?.isEqual === 'function' && (value as any).isEqual(FieldValue.delete())) delete target[parts.at(-1)!];
+      else target[parts.at(-1)!] = value;
     }
     return result;
   }

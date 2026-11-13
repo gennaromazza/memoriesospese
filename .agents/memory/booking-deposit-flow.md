@@ -148,3 +148,34 @@ Usare l’evento esistente o un’identità deterministica per un inserimento in
 Rilasciare riserve soltanto davanti a un rifiuto certo; dopo un tentativo di
 modifica dall’esito sconosciuto privilegiare riconciliazione e verifica dello
 studio, senza azzerare l’acconto né ritentare alla cieca l’invio email.
+
+## Condizioni originali e rimborsi incerti
+
+Applicare all'annullamento autonomo soltanto le condizioni effettivamente
+mostrate e salvate nella prenotazione. Per le vecchie prenotazioni senza copia,
+serve gestione dello studio, non una nuova regola retroattiva.
+
+Non ripetere un POST di rimborso dall'esito incerto: verificare con GET e,
+se necessario, mantenere un caso esplicito da controllare. Conservare sempre
+l'incasso originale e contabilizzare separatamente il rimborso verificato.
+
+**Why:** il consenso sulle condizioni non si può ricostruire dalle impostazioni
+attuali; le chiavi di idempotenza PayPal hanno una conservazione limitata e
+un rimborso accettato può precedere un timeout della risposta.
+
+**How to apply:** distinguere annullamento, decisione amministrativa e denaro
+effettivamente restituito. Solo una nuova conferma esplicita può riprovare una
+richiesta di rimborso che certamente non è ancora arrivata al provider.
+
+## Rifiuti server e azioni legacy
+
+Quando si protegge un'azione sul server, verificare anche gli effetti precedenti
+del vecchio client: notificare l'annullamento soltanto dopo il suo completamento
+autoritativo e indirizzare le prenotazioni pagate alla gestione dell'acconto,
+non all'eliminazione.
+
+**Why:** un rifiuto alla DELETE non può annullare un'email già partita né
+recuperare file che una cancellazione a cascata ha già rimosso.
+
+**How to apply:** provare anche snapshot client obsoleti e rifiuti 409/500,
+asserendo l'assenza di notifiche e di eliminazioni collaterali.

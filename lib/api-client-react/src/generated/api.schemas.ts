@@ -5,6 +5,74 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface BookingCancellationInput {
+  /** @pattern ^[a-f0-9]{64}$ */
+  token: string;
+  requestId: string;
+  expectedStartsAt: string;
+}
+
+export type BookingCancellationViewStatus = typeof BookingCancellationViewStatus[keyof typeof BookingCancellationViewStatus];
+
+
+export const BookingCancellationViewStatus = {
+  available: 'available',
+  unavailable: 'unavailable',
+  pending: 'pending',
+  complete: 'complete',
+  blocked: 'blocked',
+} as const;
+
+export interface BookingCancellationView {
+  canCancel: boolean;
+  /** @nullable */
+  reason: string | null;
+  /** @nullable */
+  conditions: string | null;
+  status: BookingCancellationViewStatus;
+  refundStatus: string;
+  /** @nullable */
+  notificationStatus: string | null;
+}
+
+export type AdminBookingCancellationInputAction = typeof AdminBookingCancellationInputAction[keyof typeof AdminBookingCancellationInputAction];
+
+
+export const AdminBookingCancellationInputAction = {
+  cancel_unpaid: 'cancel_unpaid',
+  cancel_refund: 'cancel_refund',
+  cancel_reschedule: 'cancel_reschedule',
+  retry_cancellation: 'retry_cancellation',
+  refund: 'refund',
+  verify_refund: 'verify_refund',
+  review: 'review',
+} as const;
+
+export interface AdminBookingCancellationInput {
+  action: AdminBookingCancellationInputAction;
+  requestId: string;
+  /** @minimum 0 */
+  expectedAmountCents?: number;
+}
+
+export interface AdminBookingCancellation {
+  bookingId: string;
+  bookingStatus: string;
+  amountCents: number;
+  status: string;
+  refundStatus: string;
+  /** @nullable */
+  notificationStatus: string | null;
+  canCancel: boolean;
+  canRefund: boolean;
+  canVerifyRefund?: boolean;
+  paypalDeposit?: boolean;
+  /** @nullable */
+  reason: string | null;
+  /** @nullable */
+  refundId: string | null;
+}
+
 export interface BookingPayPalWebhookEvent { [key: string]: unknown }
 
 export type BookingPayPalConfigEnvironment = typeof BookingPayPalConfigEnvironment[keyof typeof BookingPayPalConfigEnvironment];
@@ -250,6 +318,7 @@ export interface BookingManagementView {
      */
   depositPaidCents: number | null;
   reschedule: BookingRescheduleView;
+  cancellation: BookingCancellationView;
   studio: BookingManagementViewStudio;
 }
 
@@ -390,6 +459,8 @@ export interface BookingCheckoutCustomer {
 }
 
 export interface BookingCheckoutHoldInput {
+  /** @maxLength 50 */
+  bookingConditionsVersion?: string;
   /**
      * @minLength 1
      * @maxLength 200

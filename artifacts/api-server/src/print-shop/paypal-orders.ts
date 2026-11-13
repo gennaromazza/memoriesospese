@@ -182,6 +182,21 @@ export class PayPalOrdersClient {
     );
   }
 
+  async refundCapture(captureId: string, amountCents: number, requestId: string): Promise<any> {
+    this.assertCheckoutConfigured(); assertPayPalResourceId(captureId);
+    if (!Number.isSafeInteger(amountCents) || amountCents <= 0 || !/^[a-f0-9]{32}$/.test(requestId)) throw new Error('Rimborso non valido');
+    return this.request(`/v2/payments/captures/${encodeURIComponent(captureId)}/refund`, {
+      method: 'POST', headers: { 'PayPal-Request-Id': requestId, Prefer: 'return=representation' },
+      body: { amount: { value: centsToPayPalValue(amountCents), currency_code: 'EUR' }, custom_id: requestId,
+        note_to_payer: 'Rimborso integrale acconto shooting approvato dallo studio' },
+    });
+  }
+
+  async getRefund(refundId: string): Promise<any> {
+    this.assertCheckoutConfigured(); assertPayPalResourceId(refundId);
+    return this.request(`/v2/payments/refunds/${encodeURIComponent(refundId)}`, { method: 'GET' });
+  }
+
   async verifyWebhook(
     headers: PayPalWebhookHeaders,
     event: unknown,
