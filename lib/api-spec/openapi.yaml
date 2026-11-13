@@ -15,6 +15,43 @@ tags:
   - name: booking-campaigns
     description: Booking campaign administration
 paths:
+  /booking/paypal/config:
+    get:
+      operationId: getBookingPayPalConfig
+      tags: [booking-checkout]
+      responses:
+        "200":
+          description: Public PayPal checkout configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingPayPalConfig"
+  /booking/v2/checkout-holds/{bookingId}/paypal-status:
+    post:
+      operationId: getBookingDepositStatus
+      tags: [booking-checkout]
+      summary: Reconcile a receipt without starting a charge
+      parameters:
+        - name: bookingId
+          in: path
+          required: true
+          schema: { type: string, pattern: '^[A-Za-z0-9_-]{1,200}$' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingCheckoutCredentials"
+      responses:
+        "200":
+          description: Verified current payment state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingDepositStatusResult"
+        "400": { description: Invalid request }
+        "404": { description: Unknown checkout or token }
+        "503": { description: Payment state unavailable }
   /booking/v2/checkout-holds/{bookingId}/paypal-capture:
     post:
       operationId: captureBookingDeposit
@@ -450,6 +487,24 @@ components:
     BookingPayPalWebhookEvent:
       type: object
       additionalProperties: true
+    BookingPayPalConfig:
+      type: object
+      required: [enabled, clientId, environment, currency]
+      properties:
+        enabled: { type: boolean }
+        clientId: { type: ["string", "null"] }
+        environment: { type: string, enum: [sandbox, live] }
+        currency: { type: string, enum: [EUR] }
+    BookingDepositStatusResult:
+      type: object
+      required: [bookingId, status, dataShootingInizio, dataShootingFine]
+      properties:
+        bookingId: { type: string }
+        status: { type: string, enum: [unpaid, processing, paid, paid_action_required] }
+        dataShootingInizio: { type: string, format: date-time }
+        dataShootingFine: { type: string, format: date-time }
+        payment:
+          $ref: "#/components/schemas/BookingDepositCaptureResult"
     BookingDepositCaptureResult:
       type: object
       required: [bookingId, paypalOrderId, paypalCaptureId, status, amountCents, currency, duplicate, bookingConfirmed]
@@ -501,13 +556,15 @@ components:
         token: { type: string, pattern: '^[a-f0-9]{64}$' }
     BookingCheckoutHoldView:
       type: object
-      required: [bookingId, campaignId, status, expiresAt, serverTime, depositAmountCents, currency]
+      required: [bookingId, campaignId, status, expiresAt, serverTime, depositAmountCents, currency, dataShootingInizio, dataShootingFine]
       properties:
         bookingId: { type: string }
         campaignId: { type: string }
         status: { type: string, enum: [active] }
         expiresAt: { type: string, format: date-time }
         serverTime: { type: string, format: date-time }
+        dataShootingInizio: { type: string, format: date-time }
+        dataShootingFine: { type: string, format: date-time }
         depositAmountCents: { type: integer, minimum: 1 }
         currency: { type: string, enum: [EUR] }
     BookingCheckoutHoldCreated:

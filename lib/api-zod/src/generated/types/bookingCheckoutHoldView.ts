@@ -14,6 +14,8 @@ export interface BookingCheckoutHoldView {
   status: BookingCheckoutHoldViewStatus;
   expiresAt: Date;
   serverTime: Date;
+  dataShootingInizio: Date;
+  dataShootingFine: Date;
   /** @minimum 1 */
   depositAmountCents: number;
   currency: BookingCheckoutHoldViewCurrency;

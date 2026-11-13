@@ -60,6 +60,9 @@ import { it } from "date-fns/locale";
 import { isSundayOrHoliday } from "@/lib/italian-holidays";
 import { EmailSuggestionChip } from '@/components/EmailSuggestionChip';
 import { useSEO } from '@/hooks/useSEO';
+import { BookingDepositCheckout, type BookingDepositCompletion } from '@/features/booking/BookingDepositCheckout';
+import { clearCheckoutSession, readCheckoutSession } from '@/features/booking/checkout-session';
+import type { BookingCheckoutHoldInput } from '@workspace/api-client-react';
 
 type BookingSlot = Awaited<ReturnType<typeof getAvailableSlots>>[number];
 interface BookingSubmission {
@@ -88,7 +91,9 @@ export default function BookingPage() {
     prodottoId: "",
     note: "",
   });
-  const [bookingResult, setBookingResult] = useState<(BookingCreationResult & { slot: BookingSlot; email: string }) | null>(null);
+  const [bookingResult, setBookingResult] = useState<(BookingCreationResult & { slot: BookingSlot; email: string; depositAmountCents?: number }) | null>(null);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [checkoutInput, setCheckoutInput] = useState<BookingCheckoutHoldInput | null>(null);
   const [submissionError, setSubmissionError] = useState<{ message: string; conflict: boolean } | null>(null);
   const [privacyConsent, setPrivacyConsent] = useState(false);
 
@@ -121,6 +126,7 @@ export default function BookingPage() {
     queryFn: () => getCampaignByCode(code),
     enabled: !!code,
   });
+  const immediateDeposit = campaign?.richiedeAcconto === true && campaign.richiedeApprovazione === false;
 
   // Query products
   const { data: products = [] } = useQuery<Product[]>({
@@ -198,12 +204,17 @@ export default function BookingPage() {
 
   useEffect(() => {
     setBookingResult(null);
+    setCheckoutOpen(false);
+    setCheckoutInput(null);
     setSubmissionError(null);
     setSelectedDate(null);
     setSelectedSlot(null);
     setPrivacyConsent(false);
     setFormData(current => ({ ...current, prodottoId: '' }));
   }, [code]);
+  useEffect(() => {
+    if (campaign?.id && readCheckoutSession(campaign.id)) setCheckoutOpen(true);
+  }, [campaign?.id]);
 
   // Reset week index quando campaign cambia per evitare settimane vuote
   useEffect(() => {
@@ -332,7 +343,7 @@ export default function BookingPage() {
   // Validazione form
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (createBookingMutation.isPending || !campaign || !privacyConsent) return;
+    if (createBookingMutation.isPending || checkoutOpen || !campaign || !privacyConsent) return;
 
     if (!formData.nome.trim() || !formData.cognome.trim()) {
       toast({
@@ -389,6 +400,25 @@ export default function BookingPage() {
 
     const prodotto = products.find(product => product.id === formData.prodottoId);
     setSubmissionError(null);
+    if (immediateDeposit) {
+      if (!Number.isSafeInteger(campaign.accontoImportoCentesimi) || !campaign.accontoImportoCentesimi || campaign.accontoImportoCentesimi <= 0) {
+        setSubmissionError({ conflict: false, message: 'L’importo dell’acconto è da verificare. Contatta lo studio prima di pagare.' });
+        return;
+      }
+      if (gift.usableCode) {
+        setSubmissionError({ conflict: false, message: 'Per usare la gift card con una campagna che richiede acconto, contatta lo studio prima di pagare. Nessun addebito è stato avviato.' });
+        return;
+      }
+      setCheckoutInput({
+        campaignId: campaign.id, cliente: { nome: formData.nome.trim(), cognome: formData.cognome.trim(),
+          email: formData.email.trim(), whatsapp: formData.whatsapp.trim() },
+        dataShootingInizio: new Date(selectedSlot.start).toISOString(),
+        dataShootingFine: new Date(selectedSlot.end).toISOString(),
+        ...(formData.prodottoId ? { prodottoId: formData.prodottoId } : {}), note: formData.note,
+      });
+      setCheckoutOpen(true);
+      return;
+    }
     createBookingMutation.mutate({
       code,
       date: new Date(selectedDate),
@@ -441,7 +471,26 @@ export default function BookingPage() {
     );
   }
 
-  if (!campaign.attiva) {
+  if (checkoutOpen) {
+    const completed = ({ payment, start, end }: BookingDepositCompletion) => {
+      const time = (value: string) => new Date(value).toLocaleTimeString('it-IT', { timeZone: 'Europe/Rome', hour: '2-digit', minute: '2-digit' });
+      setBookingResult({ success: true, bookingId: payment.bookingId, stato: 'confermata',
+        depositAmountCents: payment.amountCents, email: formData.email,
+        slot: { start, end, startTime: time(start), endTime: time(end) } });
+      setCheckoutOpen(false);
+      trackAnalyticsEvent('booking_request_submitted', { campaign: campaign.code || campaign.id, outcome: 'confermata', payment: 'paypal' });
+      trackBlogConversion('booking_request_submitted', { campaign: campaign.code || campaign.id, outcome: 'confermata', payment: 'paypal' });
+    };
+    return <div className="min-h-screen bg-background px-4 py-8">
+      <BookingDepositCheckout key={`${code}-${campaign.id}`} campaignId={campaign.id} input={checkoutInput}
+        onCompleted={completed} onExit={() => {
+          setCheckoutOpen(false); setCheckoutInput(null); setSelectedSlot(null);
+          void queryClient.invalidateQueries({ queryKey: ['available-slots'] });
+        }} />
+    </div>;
+  }
+
+  if (!campaign.attiva && !bookingResult) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-sage-50 to-cream-50 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center px-4">
         <Card className="max-w-md w-full">
@@ -494,15 +543,26 @@ export default function BookingPage() {
                 <strong>Orario:</strong> {bookingResult.slot.startTime} -{" "}
                 {bookingResult.slot.endTime}
               </p>
-              <p className="text-sm">
+              {bookingResult.email && <p className="text-sm">
                 <strong>Email:</strong> <span className="break-all">{bookingResult.email}</span>
-              </p>
+              </p>}
+              {bookingResult.depositAmountCents !== undefined && <p className="text-sm" data-testid="booking-deposit-paid">
+                <strong>Acconto ricevuto:</strong> {(bookingResult.depositAmountCents / 100).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
+              </p>}
             </div>
             <p className="text-sm text-muted-foreground">
-              {confirmed
+              {bookingResult.depositAmountCents !== undefined
+                ? `Pagamento registrato. Riferimento prenotazione: ${bookingResult.bookingId}. Per informazioni contatta lo studio.`
+                : confirmed
                 ? 'Per i dettagli controlla la tua email, anche nella cartella spam. Se non ricevi il messaggio, contatta lo studio.'
                 : 'La conferma definitiva arriverà via email solo dopo l’approvazione. Controlla anche la cartella spam.'}
             </p>
+            {bookingResult.depositAmountCents !== undefined && campaign.attiva && <Button variant="outline" className="w-full"
+              data-testid="button-new-paid-booking" onClick={() => {
+                clearCheckoutSession(campaign.id); setBookingResult(null); setCheckoutOpen(false);
+                setCheckoutInput(null); setSelectedSlot(null);
+                void queryClient.invalidateQueries({ queryKey: ['available-slots'] });
+              }}>Prenota un altro appuntamento</Button>}
             <Button onClick={() => setLocation("/")} className="w-full">
               Torna alla homepage
             </Button>
@@ -1352,6 +1412,11 @@ export default function BookingPage() {
                       </div>
                     </div>
 
+                    {immediateDeposit && <div className="rounded-lg bg-muted p-4 text-sm" data-testid="booking-deposit-notice">
+                      <strong>Acconto richiesto: {campaign.accontoImportoCentesimi && campaign.accontoImportoCentesimi > 0
+                        ? (campaign.accontoImportoCentesimi / 100).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' }) : 'da verificare con lo studio'}</strong>
+                      <p className="mt-1">L’appuntamento si conferma dopo il pagamento PayPal. Puoi scegliere i prodotti in studio: l’acconto resta richiesto.</p>
+                    </div>}
                     <Button
                       type="submit"
                       className="w-full"
@@ -1365,13 +1430,13 @@ export default function BookingPage() {
                           Invio in corso...
                         </>
                       ) : (
-                        "Invia prenotazione"
+                        immediateDeposit ? "Continua con PayPal" : "Invia prenotazione"
                       )}
                     </Button>
 
                     <p className="text-xs text-center text-muted-foreground">
-                      Controlliamo che lo slot sia ancora disponibile. Al termine vedrai se
-                      l’appuntamento è confermato o se la richiesta attende l’approvazione dello studio.
+                      {immediateDeposit ? 'Il pagamento conferma lo slot. Hai dieci minuti per completarlo; altrimenti l’orario torna disponibile.'
+                        : 'Controlliamo che lo slot sia ancora disponibile. Al termine vedrai se l’appuntamento è confermato o se la richiesta attende l’approvazione dello studio.'}
                     </p>
                   </CardContent>
                 </Card>

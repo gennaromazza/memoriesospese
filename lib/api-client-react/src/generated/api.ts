@@ -31,6 +31,8 @@ import type {
   BookingCheckoutHoldView,
   BookingDepositCaptureResult,
   BookingDepositPayPalOrder,
+  BookingDepositStatusResult,
+  BookingPayPalConfig,
   BookingPayPalWebhookEvent,
   CampaignImageUploadResult,
   CustomerNotificationKind,
@@ -67,6 +69,166 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getGetBookingPayPalConfigUrl = () => {
+
+
+
+
+  return `/api/booking/paypal/config`
+}
+
+export const getBookingPayPalConfig = async ( options?: Parameters<typeof customFetch>[1]): Promise<BookingPayPalConfig> => {
+
+  return customFetch<BookingPayPalConfig>(getGetBookingPayPalConfigUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetBookingPayPalConfigQueryKey = () => {
+    return [
+    `/api/booking/paypal/config`
+    ] as const;
+    }
+
+
+export const getGetBookingPayPalConfigQueryOptions = <TData = Awaited<ReturnType<typeof getBookingPayPalConfig>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBookingPayPalConfig>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetBookingPayPalConfigQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBookingPayPalConfig>>> = ({ signal }) => getBookingPayPalConfig({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBookingPayPalConfig>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetBookingPayPalConfigQueryResult = NonNullable<Awaited<ReturnType<typeof getBookingPayPalConfig>>>
+export type GetBookingPayPalConfigQueryError = ErrorType<unknown>
+
+
+
+export function useGetBookingPayPalConfig<TData = Awaited<ReturnType<typeof getBookingPayPalConfig>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBookingPayPalConfig>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetBookingPayPalConfigQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetBookingDepositStatusUrl = (bookingId: string,) => {
+
+
+
+
+  return `/api/booking/v2/checkout-holds/${bookingId}/paypal-status`
+}
+
+/**
+ * @summary Reconcile a receipt without starting a charge
+ */
+export const getBookingDepositStatus = async (bookingId: string,
+    bookingCheckoutCredentials: BookingCheckoutCredentials, options?: Parameters<typeof customFetch>[1]): Promise<BookingDepositStatusResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<BookingDepositStatusResult>(getGetBookingDepositStatusUrl(bookingId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(bookingCheckoutCredentials)
+  }
+);}
+
+
+
+
+
+export const getGetBookingDepositStatusMutationKey = () => ['getBookingDepositStatus'] as const;
+
+export const getGetBookingDepositStatusMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getBookingDepositStatus>>, TError,GetBookingDepositStatusMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof getBookingDepositStatus>>, TError,GetBookingDepositStatusMutationVariables, TContext> => {
+
+const mutationKey = getGetBookingDepositStatusMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof getBookingDepositStatus>>, GetBookingDepositStatusMutationVariables> = (props) => {
+          const {bookingId,data} = props ?? {};
+
+          return  getBookingDepositStatus(bookingId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GetBookingDepositStatusMutationResult = NonNullable<Awaited<ReturnType<typeof getBookingDepositStatus>>>
+    export type GetBookingDepositStatusMutationBody = BodyType<BookingCheckoutCredentials>
+    export type GetBookingDepositStatusMutationError = ErrorType<void>
+    export type GetBookingDepositStatusMutationVariables = {bookingId: string;data: BodyType<BookingCheckoutCredentials>}
+
+    /**
+ * @summary Reconcile a receipt without starting a charge
+ */
+export const useGetBookingDepositStatus = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getBookingDepositStatus>>, TError,GetBookingDepositStatusMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof getBookingDepositStatus>>,
+        TError,
+        GetBookingDepositStatusMutationVariables,
+        TContext
+      > => {
+      return useMutation(getGetBookingDepositStatusMutationOptions(options));
+    }
 
 export const getCaptureBookingDepositUrl = (bookingId: string,) => {
 

@@ -40,6 +40,17 @@ beforeEach(() => {
 });
 afterEach(() => vi.restoreAllMocks());
 
+it.each(['capturing', 'unknown'])('non libera prematuramente un incasso %s da un’altra scheda', async state => {
+  const result = await createCheckoutHold(store.db, input);
+  const path = `${CHECKOUT_HOLDS}/${result.bookingId}`;
+  store.seed(path, { ...store.value(path), paypalCaptureAttempt: { state } });
+  await expect(releaseCheckoutHold(store.db, result.bookingId, result.token)).rejects.toMatchObject({ status: 409 });
+  expect(store.value(path).status).toBe('active');
+  vi.mocked(Date.now).mockReturnValue(now + CHECKOUT_HOLD_MS);
+  expect(await releaseCheckoutHold(store.db, result.bookingId, result.token)).toMatchObject({ status: 'expired' });
+  expect(store.value(path).paypalCaptureAttempt.state).toBe(state);
+});
+
 describe('riserve checkout immediate', () => {
   it('salva una bozza privata e l’importo della campagna, anche scegliendo i prodotti in studio', async () => {
     const hold = await createCheckoutHold(store.db, input);

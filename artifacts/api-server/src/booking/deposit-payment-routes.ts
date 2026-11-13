@@ -1,13 +1,24 @@
 import { Router } from 'express';
 import type { Firestore } from 'firebase-admin/firestore';
 import { CaptureBookingDepositBody, CaptureBookingDepositParams, CaptureBookingDepositResponse } from '@workspace/api-zod';
+import { GetBookingPayPalConfigResponse, GetBookingDepositStatusBody, GetBookingDepositStatusParams, GetBookingDepositStatusResponse } from '@workspace/api-zod';
 import { bookingPayPalClient, BookingDepositOrderError } from './paypal-deposit-orders.js';
 import { CheckoutHoldError } from './checkout-hold-state.js';
-import { captureBookingDeposit, handleVerifiedBookingPayPalEvent, type BookingCapturePayPalClient } from './deposit-payments.js';
+import { captureBookingDeposit, getBookingDepositStatus, handleVerifiedBookingPayPalEvent, type BookingCapturePayPalClient } from './deposit-payments.js';
 import { logger } from '../lib/logger.js';
 
 export function bookingDepositPaymentRouter(db: Firestore, client: () => BookingCapturePayPalClient = bookingPayPalClient) {
   const router = Router();
+  router.get('/paypal/config', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    try {
+      const config = client().publicConfig();
+      res.json(GetBookingPayPalConfigResponse.parse({
+        enabled: config.checkoutEnabled, clientId: config.checkoutEnabled ? config.clientId : null,
+        environment: config.environment, currency: 'EUR',
+      }));
+    } catch (error) { failure(res, error); }
+  });
   const failure = (res: import('express').Response, error: unknown) => {
     if (error instanceof CheckoutHoldError) return res.status(error.status).json({
       error: error.message, ...(error instanceof BookingDepositOrderError ? { code: error.checkoutCode } : {}),
@@ -21,6 +32,14 @@ export function bookingDepositPaymentRouter(db: Firestore, client: () => Booking
     const body = CaptureBookingDepositBody.strict().safeParse(req.body);
     if (!params.success || !body.success) { res.status(400).json({ error: 'Dati del checkout non validi' }); return; }
     try { res.json(CaptureBookingDepositResponse.parse(await captureBookingDeposit(db, client(), params.data.bookingId, body.data.token))); }
+    catch (error) { failure(res, error); }
+  });
+  router.post('/v2/checkout-holds/:bookingId/paypal-status', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const params = GetBookingDepositStatusParams.safeParse(req.params);
+    const body = GetBookingDepositStatusBody.strict().safeParse(req.body);
+    if (!params.success || !body.success) { res.status(400).json({ error: 'Dati del checkout non validi' }); return; }
+    try { res.json(GetBookingDepositStatusResponse.parse(await getBookingDepositStatus(db, client(), params.data.bookingId, body.data.token))); }
     catch (error) { failure(res, error); }
   });
   router.post('/paypal/webhook', async (req, res) => {

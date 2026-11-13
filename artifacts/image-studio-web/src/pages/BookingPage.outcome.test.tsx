@@ -2,11 +2,28 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClientProvider } from '@tanstack/react-query';
+import { StrictMode } from 'react';
 
 const h = vi.hoisted(() => ({
   request: vi.fn(), toast: vi.fn(), analytics: vi.fn(), blog: vi.fn(),
   code: 'TESTCODE', approval: true, stato: 'in_attesa',
   slots: [] as any[],
+  deposit: false, giftCode: undefined as string | undefined,
+  hold: vi.fn(), resume: vi.fn(), config: vi.fn(), order: vi.fn(), capture: vi.fn(), status: vi.fn(), release: vi.fn(),
+}));
+vi.mock('@workspace/api-client-react', () => ({
+  createBookingCheckoutHold: h.hold, resumeBookingCheckoutHold: h.resume, getBookingPayPalConfig: h.config,
+  createBookingDepositOrder: h.order, captureBookingDeposit: h.capture, getBookingDepositStatus: h.status,
+  releaseBookingCheckoutHold: h.release,
+}));
+vi.mock('@/features/gift-cards/GiftCardPayPalButtons', () => ({
+  GiftCardPayPalButtons: ({ enabled, createOrder, onApprove, onCancel, onError }: any) => <div data-testid="paypal-buttons">
+    <button type="button" disabled={!enabled} data-testid="sdk-pay" onClick={async () => {
+      try { await onApprove(await createOrder()); } catch { /* SDK reports its own callback errors. */ }
+    }}>Paga con PayPal</button>
+    <button type="button" data-testid="sdk-cancel" onClick={onCancel}>Annulla PayPal</button>
+    <button type="button" data-testid="sdk-error" onClick={() => onError('SDK non disponibile')}>Errore PayPal</button>
+  </div>,
 }));
 vi.mock('@/lib/firebase', () => ({ db: {} }));
 vi.mock('@/lib/queryClient', async () => {
@@ -23,7 +40,7 @@ vi.mock('@/lib/booking-campaigns', () => ({
     id: 'campaign-test', code: h.code, nome: 'Campagna test', descrizione: '',
     dataInizio: new Date(2030, 11, 1), dataFine: new Date(2030, 11, 3),
     durataShootingMinuti: 30, prodottiDisponibili: ['product-test'], attiva: true,
-    richiedeApprovazione: h.approval, richiedeAcconto: false,
+    richiedeApprovazione: h.approval, richiedeAcconto: h.deposit, accontoImportoCentesimi: 2000,
   }),
 }));
 vi.mock('@/lib/products', () => ({
@@ -33,7 +50,7 @@ vi.mock('@/lib/products', () => ({
   }],
 }));
 vi.mock('@/components/gift-cards/GiftCardBookingBanner', () => ({
-  useBookingGiftCard: () => ({ usableCode: undefined }), GiftCardBookingBanner: () => null,
+  useBookingGiftCard: () => ({ usableCode: h.giftCode }), GiftCardBookingBanner: () => null,
 }));
 vi.mock('@/components/EmailSuggestionChip', () => ({ EmailSuggestionChip: () => null }));
 vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: h.toast }) }));
@@ -48,8 +65,16 @@ const slot = {
 const nextSlot = {
   start: '2030-12-01T10:00:00.000Z', end: '2030-12-01T10:30:00.000Z', startTime: '11:00', endTime: '11:30',
 };
-function mount() {
-  return render(<QueryClientProvider client={queryClient}><BookingPage /></QueryClientProvider>);
+function mount(strict = false) {
+  const page = <QueryClientProvider client={queryClient}><BookingPage /></QueryClientProvider>;
+  return render(strict ? <StrictMode>{page}</StrictMode> : page);
+}
+const payment = { bookingId: 'hold-test', paypalOrderId: 'ORDER-TEST', paypalCaptureId: 'CAPTURE-TEST',
+  amountCents: 2500, currency: 'EUR', status: 'paid', bookingConfirmed: true, duplicate: false };
+function holdView() {
+  return { bookingId: 'hold-test', campaignId: 'campaign-test', status: 'active', depositAmountCents: 2500, currency: 'EUR',
+    expiresAt: new Date(Date.now() + 600_000).toISOString(), serverTime: new Date().toISOString(),
+    dataShootingInizio: slot.start, dataShootingFine: slot.end, token: '1'.repeat(64) };
 }
 const json = (data: any) => ({ json: async () => data });
 async function fillForm() {
@@ -71,12 +96,136 @@ beforeEach(() => {
     disconnect() {}
   });
   h.code = 'TESTCODE'; h.approval = true; h.stato = 'in_attesa'; h.slots = [slot];
+  sessionStorage.clear(); h.deposit = false; h.giftCode = undefined;
+  h.hold.mockReset().mockImplementation(async () => holdView());
+  h.resume.mockReset().mockImplementation(async () => holdView());
+  h.config.mockReset().mockResolvedValue({ enabled: true, clientId: 'public-test', currency: 'EUR', environment: 'sandbox' });
+  h.order.mockReset().mockResolvedValue({ bookingId: 'hold-test', paypalOrderId: 'ORDER-TEST', depositAmountCents: 2500, currency: 'EUR' });
+  h.capture.mockReset().mockResolvedValue(payment);
+  h.status.mockReset().mockResolvedValue({ bookingId: 'hold-test', status: 'unpaid',
+    dataShootingInizio: slot.start, dataShootingFine: slot.end });
+  h.release.mockReset().mockResolvedValue({ bookingId: 'hold-test', status: 'cancelled' });
   h.request.mockImplementation(async (_method, url) => {
     if (url.endsWith('/available-slots')) return json({ slots: h.slots });
     return json({ success: true, bookingId: 'booking-test', stato: h.stato });
   });
 });
 afterEach(() => { cleanup(); queryClient.clear(); vi.unstubAllGlobals(); });
+
+async function openCheckout(strict = false) {
+  h.approval = false; h.deposit = true;
+  mount(strict); await fillForm(); submit();
+  await screen.findByTestId('booking-deposit-checkout');
+}
+async function pay() {
+  await waitFor(() => expect((screen.getByTestId('sdk-pay') as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(screen.getByTestId('sdk-pay'));
+}
+describe('acconto PayPal immediato', () => {
+  it('usa l’importo del server e conferma solo dopo la cattura, anche scegliendo i prodotti in studio', async () => {
+    await openCheckout();
+    expect((await screen.findByTestId('booking-deposit-amount')).textContent).toContain('25,00');
+    expect(h.hold.mock.calls[0][0]).toMatchObject({ campaignId: 'campaign-test', cliente: { nome: 'Cliente' } });
+    expect(h.hold.mock.calls[0][0]).not.toHaveProperty('depositAmountCents');
+    expect(h.hold.mock.calls[0][0]).not.toHaveProperty('prodottoId');
+    await pay();
+    expect(await screen.findByText('Appuntamento confermato!')).toBeTruthy();
+    expect(screen.getByTestId('booking-deposit-paid').textContent).toContain('25,00');
+    expect(h.capture).toHaveBeenCalledWith('hold-test', { token: '1'.repeat(64) });
+    expect(h.order).toHaveBeenCalledWith('hold-test', { token: '1'.repeat(64) });
+    expect(h.request.mock.calls.some(call => call[1].endsWith('/create'))).toBe(false);
+  });
+  it('non prepara due riserve in StrictMode', async () => {
+    await openCheckout(true);
+    await screen.findByTestId('booking-deposit-amount');
+    expect(h.hold).toHaveBeenCalledOnce();
+  });
+  it.each(['sdk-cancel', 'sdk-error'])('libera lo slot da %s e conserva i dati del cliente', async button => {
+    await openCheckout();
+    fireEvent.click(await screen.findByTestId(button));
+    await waitFor(() => expect(screen.getByTestId('booking-payment-message').textContent).toContain('liberato'));
+    expect(h.release).toHaveBeenCalledOnce();
+    expect(h.capture).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId('button-return-booking-form'));
+    fireEvent.click(await screen.findByTestId('slot-10:00'));
+    expect((await screen.findByTestId('input-nome') as HTMLInputElement).value).toBe('Cliente');
+    expect(screen.queryByTestId('booking-deposit-checkout')).toBeNull();
+  });
+  it('scade sul termine server senza usare l’orologio del cliente per rinnovarlo', async () => {
+    h.hold.mockImplementation(async () => { const view = holdView(); return { ...view, expiresAt: view.serverTime }; });
+    await openCheckout();
+    await waitFor(() => expect(screen.getByTestId('booking-payment-message').textContent).toContain('scaduto'));
+    expect(h.release).toHaveBeenCalledOnce();
+    expect(h.order).not.toHaveBeenCalled();
+    expect(h.capture).not.toHaveBeenCalled();
+  });
+  it('riconcilia una risposta persa senza ripetere l’addebito', async () => {
+    h.capture.mockRejectedValue(new Error('network'));
+    await openCheckout(); await pay();
+    await screen.findByTestId('button-verify-booking-payment');
+    expect(h.release).not.toHaveBeenCalled();
+    h.status.mockResolvedValue({ bookingId: 'hold-test', status: 'paid', payment,
+      dataShootingInizio: slot.start, dataShootingFine: slot.end });
+    fireEvent.click(screen.getByTestId('button-verify-booking-payment'));
+    expect(await screen.findByText('Appuntamento confermato!')).toBeTruthy();
+    expect(h.capture).toHaveBeenCalledOnce();
+  });
+  it('non dichiara confermato un incasso tardivo', async () => {
+    h.capture.mockResolvedValue({ ...payment, status: 'paid_action_required', bookingConfirmed: false });
+    await openCheckout(); await pay();
+    await waitFor(() => expect(screen.getByTestId('booking-payment-message').textContent).toContain('verifica dello studio'));
+    expect(screen.queryByText('Appuntamento confermato!')).toBeNull();
+    expect(screen.queryByTestId('button-return-booking-form')).toBeNull();
+  });
+  it('riprende una ricevuta dopo reload anche se PayPal è stato disattivato', async () => {
+    sessionStorage.setItem('booking-deposit:campaign-test', JSON.stringify({ bookingId: 'hold-test', token: '1'.repeat(64), captureAttempted: true }));
+    h.config.mockResolvedValue({ enabled: false, clientId: null, currency: 'EUR', environment: 'live' });
+    h.status.mockResolvedValue({ bookingId: 'hold-test', status: 'paid', payment,
+      dataShootingInizio: slot.start, dataShootingFine: slot.end });
+    mount();
+    expect(await screen.findByText('Appuntamento confermato!')).toBeTruthy();
+    expect(h.config).not.toHaveBeenCalled();
+    expect(h.capture).not.toHaveBeenCalled();
+    expect(h.hold).not.toHaveBeenCalled();
+  });
+  it('mantiene la ricevuta anche dopo il successo e riapre il modulo solo su scelta esplicita', async () => {
+    await openCheckout(); await pay();
+    await screen.findByText('Appuntamento confermato!');
+    expect(sessionStorage.getItem('booking-deposit:campaign-test')).not.toBeNull();
+    h.status.mockResolvedValue({ bookingId: 'hold-test', status: 'paid', payment,
+      dataShootingInizio: slot.start, dataShootingFine: slot.end });
+    cleanup(); mount();
+    await screen.findByText('Appuntamento confermato!');
+    expect(h.hold).toHaveBeenCalledOnce();
+    expect(h.capture).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByTestId('button-new-paid-booking'));
+    await screen.findByTestId('date-2030-12-01');
+    expect(sessionStorage.getItem('booking-deposit:campaign-test')).toBeNull();
+    expect(screen.queryByTestId('booking-outcome')).toBeNull();
+  });
+  it('non apre riserve se PayPal non è disponibile', async () => {
+    h.config.mockResolvedValue({ enabled: false, clientId: null, currency: 'EUR', environment: 'live' });
+    await openCheckout();
+    await waitFor(() => expect(screen.getByTestId('booking-payment-message').textContent).toContain('PayPal non è disponibile'));
+    expect(h.hold).not.toHaveBeenCalled();
+  });
+  it('non ignora una gift card già applicata facendo pagare di nuovo', async () => {
+    h.approval = false; h.deposit = true; h.giftCode = 'GIFT-TEST';
+    mount(); await fillForm(); submit();
+    expect(await screen.findByText(/Per usare la gift card con una campagna/)).toBeTruthy();
+    expect(h.hold).not.toHaveBeenCalled();
+    expect(h.capture).not.toHaveBeenCalled();
+  });
+  it.each([
+    { approval: true, deposit: true }, { approval: true, deposit: false }, { approval: false, deposit: false },
+  ])('non mostra PayPal per $approval/$deposit', async ({ approval, deposit }) => {
+    h.approval = approval; h.deposit = deposit;
+    mount(); await fillForm(); submit();
+    await screen.findByTestId('booking-outcome');
+    expect(h.hold).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('paypal-buttons')).toBeNull();
+  });
+});
 
 describe('esito pubblico della prenotazione', () => {
   it.each([

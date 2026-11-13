@@ -5,7 +5,7 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { reservationDb } from './test-helpers/reservation-db.js';
 import { hashCheckoutToken } from './checkout-hold-state.js';
 import { bookingPayPalAccountKey, BOOKING_PAYPAL_ORDERS } from './paypal-deposit-orders.js';
-import { captureBookingDeposit, handleVerifiedBookingPayPalEvent } from './deposit-payments.js';
+import { captureBookingDeposit, getBookingDepositStatus, handleVerifiedBookingPayPalEvent } from './deposit-payments.js';
 import { BOOKING_PAYMENT_CAPTURES } from './deposit-payment-ledger.js';
 import { bookingDepositPaymentRouter } from './deposit-payment-routes.js';
 import { paypalRequestId, PayPalConfigurationError } from '../print-shop/paypal-orders.js';
@@ -46,6 +46,7 @@ function event(): any {
 function fakeClient() {
   return {
     config: { ...config }, assertCheckoutConfigured: vi.fn(), createOrder: vi.fn(),
+    publicConfig: () => ({ checkoutEnabled: true, enabled: true, webhookReady: true, environment: config.environment, clientId: config.clientId }),
     verifyWebhook: vi.fn(async () => true), getOrder: vi.fn(async (_id: string) => remote()),
     captureOrder: vi.fn(async (_id: string, _key: string) => { paid = true; return remote(); }),
   };
@@ -70,6 +71,25 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe('cattura e cassa acconti', () => {
+  it('la verifica non addebita un ordine approvato e riconcilia solo un incasso già completato', async () => {
+    expect(await getBookingDepositStatus(store.db, client, bookingId, token)).toMatchObject({ status: 'unpaid' });
+    expect(client.captureOrder).not.toHaveBeenCalled();
+    paid = true;
+    expect(await getBookingDepositStatus(store.db, client, bookingId, token)).toMatchObject({
+      status: 'paid', payment: { bookingConfirmed: true },
+    });
+    expect(client.captureOrder).not.toHaveBeenCalled();
+  });
+  it('la verifica richiede il token proprietario e non chiama PayPal per token errati', async () => {
+    await expect(getBookingDepositStatus(store.db, client, bookingId, '0'.repeat(64))).rejects.toMatchObject({ status: 404 });
+    expect(client.getOrder).not.toHaveBeenCalled();
+    expect(client.captureOrder).not.toHaveBeenCalled();
+  });
+  it('non tratta come sicuramente non pagata una cattura dall’esito ancora incerto', async () => {
+    store.seed(holdPath, { ...store.value(holdPath), paypalCaptureAttempt: { state: 'unknown' } });
+    expect(await getBookingDepositStatus(store.db, client, bookingId, token)).toMatchObject({ status: 'processing' });
+    expect(client.captureOrder).not.toHaveBeenCalled();
+  });
   it('riconcilia un incasso dopo la pulizia senza confermare neppure uno slot rimasto libero', async () => {
     vi.mocked(Date.now).mockReturnValue(now + 600_000);
     await expireBookingPayments(store.db);
@@ -253,6 +273,22 @@ const post = (path: string, body: unknown) => fetch(`${base}${path}`, {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
 });
 describe('contratto HTTP cattura', () => {
+  it('espone solo la configurazione pubblica e una verifica che non addebita', async () => {
+    const configResponse = await fetch(`${base}/paypal/config`);
+    expect(configResponse.headers.get('Cache-Control')).toBe('no-store');
+    expect(await configResponse.json()).toEqual({ enabled: true, clientId: config.clientId, environment: 'sandbox', currency: 'EUR' });
+    const response = await post(`/v2/checkout-holds/${bookingId}/paypal-status`, { token });
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Cache-Control')).toBe('no-store');
+    expect(await response.json()).toMatchObject({ status: 'unpaid', dataShootingInizio: expect.any(String) });
+    expect(client.captureOrder).not.toHaveBeenCalled();
+  });
+  it('non accetta importi o token errati nella verifica', async () => {
+    const path = `/v2/checkout-holds/${bookingId}/paypal-status`;
+    expect((await post(path, { token, amountCents: 1 })).status).toBe(400);
+    expect((await post(path, { token: '0'.repeat(64) })).status).toBe(404);
+    expect(client.getOrder).not.toHaveBeenCalled();
+  });
   it('rifiuta valori finanziari dal browser e accetta solo il token', async () => {
     const path = `/v2/checkout-holds/${bookingId}/paypal-capture`;
     expect((await post(path, { token, amountCents: 1, paypalOrderId: 'FORGED-ORDER' })).status).toBe(400);

@@ -100,6 +100,9 @@ export async function releaseCheckoutHold(
       transaction.update(ref, { status: 'expired', expiredAt: Timestamp.now() });
       return { bookingId, status: 'expired' as const };
     }
+    if (data.paypalCaptureAttempt) {
+      throw new CheckoutHoldError(409, 'Pagamento in verifica: attendi l’esito prima di annullare. La scadenza originaria non cambia.');
+    }
     transaction.update(ref, { status: reason, releasedAt: Timestamp.now() });
     return { bookingId, status: reason };
   });

@@ -7,6 +7,39 @@
  */
 export interface BookingPayPalWebhookEvent { [key: string]: unknown }
 
+export type BookingPayPalConfigEnvironment = typeof BookingPayPalConfigEnvironment[keyof typeof BookingPayPalConfigEnvironment];
+
+
+export const BookingPayPalConfigEnvironment = {
+  sandbox: 'sandbox',
+  live: 'live',
+} as const;
+
+export type BookingPayPalConfigCurrency = typeof BookingPayPalConfigCurrency[keyof typeof BookingPayPalConfigCurrency];
+
+
+export const BookingPayPalConfigCurrency = {
+  EUR: 'EUR',
+} as const;
+
+export interface BookingPayPalConfig {
+  enabled: boolean;
+  /** @nullable */
+  clientId: string | null;
+  environment: BookingPayPalConfigEnvironment;
+  currency: BookingPayPalConfigCurrency;
+}
+
+export type BookingDepositStatusResultStatus = typeof BookingDepositStatusResultStatus[keyof typeof BookingDepositStatusResultStatus];
+
+
+export const BookingDepositStatusResultStatus = {
+  unpaid: 'unpaid',
+  processing: 'processing',
+  paid: 'paid',
+  paid_action_required: 'paid_action_required',
+} as const;
+
 export type BookingDepositCaptureResultStatus = typeof BookingDepositCaptureResultStatus[keyof typeof BookingDepositCaptureResultStatus];
 
 
@@ -34,6 +67,14 @@ export interface BookingDepositCaptureResult {
   paypalFeeCents?: number;
   duplicate: boolean;
   bookingConfirmed: boolean;
+}
+
+export interface BookingDepositStatusResult {
+  bookingId: string;
+  status: BookingDepositStatusResultStatus;
+  dataShootingInizio: string;
+  dataShootingFine: string;
+  payment?: BookingDepositCaptureResult;
 }
 
 export type BookingDepositPayPalOrderCurrency = typeof BookingDepositPayPalOrderCurrency[keyof typeof BookingDepositPayPalOrderCurrency];
@@ -117,6 +158,8 @@ export interface BookingCheckoutHoldView {
   status: BookingCheckoutHoldViewStatus;
   expiresAt: string;
   serverTime: string;
+  dataShootingInizio: string;
+  dataShootingFine: string;
   /** @minimum 1 */
   depositAmountCents: number;
   currency: BookingCheckoutHoldViewCurrency;

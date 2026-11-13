@@ -8,6 +8,55 @@
 import * as zod from 'zod';
 
 
+export const GetBookingPayPalConfigResponse = zod.object({
+  "enabled": zod.boolean(),
+  "clientId": zod.string().nullable(),
+  "environment": zod.enum(['sandbox', 'live']),
+  "currency": zod.enum(['EUR'])
+})
+
+
+/**
+ * @summary Reconcile a receipt without starting a charge
+ */
+export const getBookingDepositStatusPathBookingIdRegExp = new RegExp('^[A-Za-z0-9_-]{1,200}$');
+
+
+export const GetBookingDepositStatusParams = zod.object({
+  "bookingId": zod.coerce.string().regex(getBookingDepositStatusPathBookingIdRegExp)
+})
+
+export const getBookingDepositStatusBodyTokenRegExp = new RegExp('^[a-f0-9]{64}$');
+
+
+export const GetBookingDepositStatusBody = zod.object({
+  "token": zod.string().regex(getBookingDepositStatusBodyTokenRegExp)
+})
+
+
+export const getBookingDepositStatusResponsePaymentPaypalFeeCentsMin = 0;
+
+
+
+export const GetBookingDepositStatusResponse = zod.object({
+  "bookingId": zod.string(),
+  "status": zod.enum(['unpaid', 'processing', 'paid', 'paid_action_required']),
+  "dataShootingInizio": zod.coerce.date(),
+  "dataShootingFine": zod.coerce.date(),
+  "payment": zod.object({
+  "bookingId": zod.string(),
+  "paypalOrderId": zod.string(),
+  "paypalCaptureId": zod.string(),
+  "status": zod.enum(['paid', 'paid_action_required']),
+  "amountCents": zod.number().int().min(1),
+  "currency": zod.enum(['EUR']),
+  "paypalFeeCents": zod.number().int().min(getBookingDepositStatusResponsePaymentPaypalFeeCentsMin).optional(),
+  "duplicate": zod.boolean(),
+  "bookingConfirmed": zod.boolean()
+}).optional()
+})
+
+
 /**
  * @summary Verify a PayPal deposit and atomically record it once
  */
@@ -127,6 +176,8 @@ export const CreateBookingCheckoutHoldResponse = zod.object({
   "status": zod.enum(['active']),
   "expiresAt": zod.coerce.date(),
   "serverTime": zod.coerce.date(),
+  "dataShootingInizio": zod.coerce.date(),
+  "dataShootingFine": zod.coerce.date(),
   "depositAmountCents": zod.number().int().min(1),
   "currency": zod.enum(['EUR'])
 }).and(zod.object({
@@ -160,6 +211,8 @@ export const ResumeBookingCheckoutHoldResponse = zod.object({
   "status": zod.enum(['active']),
   "expiresAt": zod.coerce.date(),
   "serverTime": zod.coerce.date(),
+  "dataShootingInizio": zod.coerce.date(),
+  "dataShootingFine": zod.coerce.date(),
   "depositAmountCents": zod.number().int().min(1),
   "currency": zod.enum(['EUR'])
 })

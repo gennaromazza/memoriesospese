@@ -8,7 +8,7 @@ import { authorizeCheckoutHold, activeCheckoutHoldView, CheckoutHoldError } from
 import { CHECKOUT_HOLDS } from './slot-reservations.js';
 import { recordBookingDeposit, depositCaptureResult } from './deposit-payment-ledger.js';
 
-export type BookingCapturePayPalClient = BookingPayPalClient & Pick<PayPalOrdersClient, 'captureOrder' | 'verifyWebhook'>;
+export type BookingCapturePayPalClient = BookingPayPalClient & Pick<PayPalOrdersClient, 'captureOrder' | 'verifyWebhook' | 'publicConfig'>;
 type VerifiedWebhookClient = Pick<PayPalOrdersClient, 'getOrder'> & { config: Partial<PayPalOrdersConfig> };
 const fail = (code: string, message: string, status = 409) => new BookingDepositOrderError(status, code, message);
 
@@ -32,6 +32,34 @@ function verifiedCapture(remote: PayPalOrderResponse, association: any, merchant
   const fee = completed[0]?.seller_receivable_breakdown?.paypal_fee;
   if (capture.paypalFeeCents === undefined && fee?.value === '0.00' && fee.currency_code === 'EUR') capture.paypalFeeCents = 0;
   return capture;
+}
+
+/** A receipt check may reconcile money already received, but must NEVER POST a capture. */
+export async function getBookingDepositStatus(db: Firestore, paypal: BookingCapturePayPalClient, bookingId: string, token: string) {
+  const hold = authorizeCheckoutHold((await db.collection(CHECKOUT_HOLDS).doc(bookingId).get()).data(), token);
+  const summary = { bookingId, dataShootingInizio: hold.dataShootingInizio.toDate(), dataShootingFine: hold.dataShootingFine.toDate() };
+  if (!hold.paypal?.orderId) return { ...summary, status: 'unpaid' as const };
+  const association = (await db.collection(BOOKING_PAYPAL_ORDERS).doc(hold.paypal.orderId).get()).data();
+  if (!association || association.bookingId !== bookingId) throw fail('PAYPAL_ORDER_UNKNOWN', 'Ordine PayPal non associato.');
+  if (hold.depositPayment?.paypalCaptureId) {
+    if (association.paypalOrderId !== hold.depositPayment.paypalOrderId
+      || association.captureId !== hold.depositPayment.paypalCaptureId
+      || association.depositAmountCents !== hold.depositPayment.amountCents) {
+      throw fail('PAYPAL_CAPTURE_MISMATCH', 'Registrazione dell’acconto da verificare.');
+    }
+    const payment = depositCaptureResult(bookingId, hold.depositPayment, (await db.collection('bookings').doc(bookingId).get()).data(), true);
+    return { ...summary, status: payment.status, payment };
+  }
+  assertAccount(association, paypal.config);
+  const remote = await paypal.getOrder(association.paypalOrderId);
+  const completed = verifiedCapture(remote, association, paypal.config.merchantId);
+  if (completed) {
+    const payment = await recordBookingDeposit(db, completed);
+    return { ...summary, status: payment.status, payment };
+  }
+  const uncertain = !!hold.paypalCaptureAttempt
+    || remote.purchase_units?.some(unit => unit.payments?.captures?.some((capture: any) => capture.status === 'PENDING'));
+  return { ...summary, status: uncertain ? 'processing' as const : 'unpaid' as const };
 }
 
 export async function captureBookingDeposit(db: Firestore, paypal: BookingCapturePayPalClient, bookingId: string, token: string) {

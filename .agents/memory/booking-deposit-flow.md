@@ -57,6 +57,17 @@ può perdere una prenotazione pur conservando il pagamento.
 successivamente sincronizzazione e comunicazioni idempotenti. Distinguere
 sempre incasso ricevuto da slot confermato nei casi tardivi o da riconciliare.
 
+La verifica dell'esito dopo un errore di rete o un reload deve leggere
+l'ordine del provider, non avviare un incasso come controllo.
+
+**Why:** un ordine autorizzato può essere ancora non incassato; usare la
+cattura per un pulsante “verifica” può addebitare senza una nuova intenzione
+esplicita del cliente. Un'altra scheda non deve liberare prematuramente
+un tentativo dall'esito incerto.
+
+**How to apply:** separare verifica e cattura. Conservare la possibilità di
+riconciliare gli incassi effettivi, con il termine originario invariato.
+
 ## Scadenze senza effetti retroattivi
 
 Applicare la scadenza di pagamento solo a una richiesta esplicitamente
