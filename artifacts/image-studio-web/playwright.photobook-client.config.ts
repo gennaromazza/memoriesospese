@@ -12,7 +12,7 @@ const systemChromium = "/repl/tools/bin/chromium";
 
 export default defineConfig({
   testDir: "./e2e",
-  testMatch: "photobook-client.spec.ts",
+  testMatch: ["photobook-client.spec.ts", "quadrobook-client.spec.ts"],
   timeout: 60_000,
   expect: { timeout: 15_000 },
   fullyParallel: false,

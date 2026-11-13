@@ -395,16 +395,25 @@ function markSwatches() {
 }
 const orientation = () => AW > AH + 1e-6 ? 'orizzontale' : AH > AW + 1e-6 ? 'verticale' : 'quadrato';
 function updateSummary() {
+  const boxLabel = chosen.box?.label || '—';
+  const albumLabel = chosen.album?.label || boxLabel;
+  const fabricsDiffer = !!chosen.box && !!chosen.album && chosen.box.id !== chosen.album.id;
+  const fabricSummary = fabricsDiffer
+    ? [`Tessuto scatola, tappo e piedistallo: ${boxLabel}`, `Tessuto album: ${albumLabel}`]
+    : [`Tessuto (scatola, tappo, album e piedistallo): ${boxLabel}`];
   const lines = [
     `Formato album: ${cm(AW * 100)} × ${cm(AH * 100)} cm (${orientation()}), stabilito dallo studio`,
     `Scatola e tappo: ${cm(W * 100)} × ${cm(H * 100)} cm`,
-    `Tessuto (scatola, album e piedistallo): ${chosen.box ? chosen.box.label : '—'}`,
+    ...fabricSummary,
     ...Object.values(photoSlots).map(s => s === photoSlots.album
       ? `Copertina dell’album: ${effectiveCover() === 'graphic' ? `grafica dello studio (${graphic.name})` : s.state === 'esempio' ? 'foto di esempio' : s.state}`
       : `${s.label}: ${s.state === 'esempio' ? 'foto di esempio' : s.state}`),
   ];
   const phoneLines = [
-    `Album ${cm(AW * 100)} × ${cm(AH * 100)} cm · ${chosen.box ? chosen.box.label : '—'}`,
+    `Album ${cm(AW * 100)} × ${cm(AH * 100)} cm`,
+    ...(fabricsDiffer
+      ? [`Tessuto scatola: ${boxLabel}`, `Tessuto album: ${albumLabel}`]
+      : [`Tessuto: ${boxLabel}`]),
     ...Object.values(photoSlots).map(sl => sl === photoSlots.album
       ? `Copertina: ${effectiveCover() === 'graphic' ? 'grafica dello studio' : sl.state === 'esempio' ? 'da scegliere' : 'la tua foto'}`
       : `${sl === photoSlots.base ? 'Quadro da parete' : 'Cornice da tavolo'}: ${sl.state === 'esempio' ? 'da scegliere' : 'la tua foto'}`),
