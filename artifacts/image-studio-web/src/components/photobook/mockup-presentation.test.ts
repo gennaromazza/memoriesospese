@@ -41,6 +41,28 @@ describe('modello mostrato nel link cliente', () => {
       expect(mockupPresentation(payload)).toMatchObject({ title: 'Modello salvato', rendererId, staleFixedSave: false, savedRendererUnavailable: false });
     },
   );
+  it('collega l’assegnazione fissa Custodia alla sua anteprima 3D', () => {
+    const option = {
+      labId: 'peppe-lab',
+      id: 'custodia-del-laboratorio',
+      name: 'Custodia personalizzata',
+      rendererId: MOCKUP_MODEL.id,
+    };
+    const payload = {
+      modelMode: 'fixed',
+      offer: { revision: 1, mode: 'fixed', options: [option] },
+      saved: null,
+    } as unknown as MockupPayload;
+
+    const selection = initialMockupSelection(payload);
+    expect(selection).toEqual({ labId: option.labId, modelId: option.id });
+    expect(mockupPresentation(payload, selection)).toMatchObject({
+      title: option.name,
+      rendererId: MOCKUP_MODEL.id,
+      staleFixedSave: false,
+    });
+  });
+
   it('spiega quando una bozza salvata usa un renderer sconosciuto senza alterare la configurazione', () => {
     const configuration = { modelId: 'renderer-ritirato', coverText: 'Alice e Marco', photoAssetId: 'cover-1' };
     const payload = {

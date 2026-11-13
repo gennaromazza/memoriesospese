@@ -166,6 +166,36 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     expect((await save(base, { revision: 0, configuration: { ...configuration, topText: 'Obsoleto' } })).status).toBe(409);
     expect(h.docs.get('photobooks/book/mockups/v1').configuration.topText).toBe('Anna e Marco');
   });
+  it('Custodia: salva e riapre entrambi i layout, rifiutando foto, rivestimenti e testi non validi', async () => {
+    const first = { ...configuration, coverLayout: 'oblique' };
+    expect((await save(base, { revision: 0, configuration: first })).status).toBe(200);
+    expect((await fetch(`${base}/admin`).then(r => r.json())).saved.configuration).toEqual(first);
+
+    const second = {
+      ...configuration,
+      coverLayout: 'full',
+      topText: 'A'.repeat(50),
+      bottomText: '',
+      crop: { zoom: 2.2, x: 0.25, y: 0.75 },
+    };
+    expect((await save(base, { revision: 1, configuration: second })).status).toBe(200);
+    expect((await fetch(`${base}/admin`).then(r => r.json())).saved.configuration).toEqual(second);
+    expect(h.docs.get('photobooks/book/mockupHistory/v1-r1').configuration).toEqual(first);
+
+    const invalidConfigurations = [
+      { ...second, coverLayout: 'unsupported' },
+      { ...second, photoAssetId: null },
+      { ...second, materialId: 'materiale-non-esistente' },
+      { ...second, appearanceRevision: material.appearanceRevision + 1 },
+      { ...second, topText: 'A'.repeat(51) },
+      { ...second, bottomText: 'B'.repeat(51) },
+    ];
+    for (const invalid of invalidConfigurations) {
+      expect((await save(base, { revision: 2, configuration: invalid })).status).toBe(400);
+    }
+    expect(h.docs.get('photobooks/book/mockups/v1')).toMatchObject({ revision: 2, configuration: second });
+    expect(h.docs.has('photobooks/book/mockupHistory/v1-r2')).toBe(false);
+  });
   it('salva i due nomi del monogramma senza reinterpretare scritte o date precedenti', async () => {
     const monogram = { ...configuration, modelId: ROTATING_MOCKUP_MODEL.id, assetRevision: 3, frameFinish: 'wood', coverLayout: 'plaque', photoAssetId: null, backCover: 'fabric', backPhotoAssetId: null, backCrop: { zoom: 1, x: .5, y: .5 }, engravingNames: { first: 'Éléonore', second: 'Gian Marco' } };
     expect((await save(base, { revision: 0, configuration: monogram })).status).toBe(200);
@@ -484,7 +514,7 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     h.docs.get('photobooks/book').approval = null;
 
     const initial = await fetch(`${base}/admin`).then(r => r.json());
-    expect(initial).toMatchObject({ offer: { options: [{ id: entryId }] }, saved: null, approvalRequired: false });
+    expect(initial).toMatchObject({ offer: { options: [{ id: entryId, rendererId: MOCKUP_MODEL.id }] }, saved: null, approvalRequired: false });
     expect(h.files.size).toBe(0);
     expect([...h.docs.keys()].filter(path => path.includes('/mockupAssets/'))).toEqual([`photobooks/book/mockupAssets/${photoId}`]);
 
