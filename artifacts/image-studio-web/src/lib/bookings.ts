@@ -23,6 +23,38 @@ import { WorkflowState } from '@shared/schema';
 
 const COLLECTION = 'bookings';
 
+export interface BookingCreationResult {
+  success: true;
+  bookingId: string;
+  stato: 'in_attesa' | 'confermata';
+}
+
+export class BookingRequestError extends Error {
+  constructor(message: string, readonly status?: number) {
+    super(message);
+    this.name = 'BookingRequestError';
+  }
+}
+
+function bookingRequestError(error: unknown): BookingRequestError {
+  const match = error instanceof Error ? /^(\d{3}):\s*([\s\S]*)$/.exec(error.message) : null;
+  const status = match ? Number(match[1]) : undefined;
+  if (status === 409) {
+    return new BookingRequestError('Questo orario non è più disponibile. Scegli un altro slot: i dati inseriti sono conservati.', status);
+  }
+  if (match) {
+    try {
+      const body = JSON.parse(match[2]);
+      const message = body.message || body.error;
+      if (typeof message === 'string' && message.trim()) return new BookingRequestError(message, status);
+    } catch { /* Non mostrare pagine HTML di errore o dettagli del proxy. */ }
+  }
+  return new BookingRequestError(
+    'Non è stato possibile verificare l’esito. Controlla la tua email o contatta lo studio prima di riprovare.',
+    status,
+  );
+}
+
 /**
  * Crea nuova prenotazione via endpoint server V2 (usa Calendar Engine V2)
  * Non richiede più workingHours/durataMinuti - usa solo campaignId
@@ -45,8 +77,10 @@ export async function createBooking(data: {
   createdByAdmin?: string;
   /** Gift card usata per pagare la prenotazione. */
   giftCardCode?: string;
-}): Promise<string> {
-  const response = await apiRequest('POST', '/api/booking/v2/create', {
+}): Promise<BookingCreationResult> {
+  let response: Response;
+  try {
+    response = await apiRequest('POST', '/api/booking/v2/create', {
       campaignId: data.campaignId,
       cliente: data.cliente,
       dataShootingInizio: data.dataShootingInizio.toISOString(),
@@ -58,10 +92,22 @@ export async function createBooking(data: {
       isManual: data.isManual,
       createdByAdmin: data.createdByAdmin,
       giftCardCode: data.giftCardCode,
-  });
+    });
+  } catch (error) {
+    throw bookingRequestError(error);
+  }
 
-  const result = await response.json();
-  return result.bookingId;
+  let result: unknown;
+  try { result = await response.json(); } catch {
+    throw bookingRequestError(null);
+  }
+  if (!result || typeof result !== 'object'
+    || !('success' in result) || result.success !== true
+    || !('bookingId' in result) || typeof result.bookingId !== 'string' || !result.bookingId.trim()
+    || !('stato' in result) || (result.stato !== 'in_attesa' && result.stato !== 'confermata')) {
+    throw bookingRequestError(null);
+  }
+  return { success: true, bookingId: result.bookingId, stato: result.stato };
 }
 
 /**

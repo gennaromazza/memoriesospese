@@ -5,11 +5,11 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getCampaignByCode } from "@/lib/booking-campaigns";
 import { getAllProducts } from "@/lib/products";
 import { getBundleGalleryPhotoCount } from "@/lib/bundle-photos";
-import { createBooking, getAvailableSlots } from "@/lib/bookings";
+import { createBooking, getAvailableSlots, BookingRequestError, type BookingCreationResult } from "@/lib/bookings";
 import { GiftCardBookingBanner, useBookingGiftCard } from "@/components/gift-cards/GiftCardBookingBanner";
 import type { BookingCampaignFE, Product } from "@shared/booking-types";
 import {
@@ -61,16 +61,25 @@ import { isSundayOrHoliday } from "@/lib/italian-holidays";
 import { EmailSuggestionChip } from '@/components/EmailSuggestionChip';
 import { useSEO } from '@/hooks/useSEO';
 
+type BookingSlot = Awaited<ReturnType<typeof getAvailableSlots>>[number];
+interface BookingSubmission {
+  code: string;
+  date: Date;
+  slot: BookingSlot;
+  payload: Parameters<typeof createBooking>[0];
+}
+
 export default function BookingPage() {
   const params = useParams<{ code: string }>();
   const [, setLocation] = useLocation();
   const gift = useBookingGiftCard();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const code = params.code || "";
 
   // Stati form
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [selectedSlot, setSelectedSlot] = useState<any | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<BookingSlot | null>(null);
   const [formData, setFormData] = useState({
     nome: "",
     cognome: "",
@@ -79,7 +88,8 @@ export default function BookingPage() {
     prodottoId: "",
     note: "",
   });
-  const [bookingSuccess, setBookingSuccess] = useState(false);
+  const [bookingResult, setBookingResult] = useState<(BookingCreationResult & { slot: BookingSlot; email: string }) | null>(null);
+  const [submissionError, setSubmissionError] = useState<{ message: string; conflict: boolean } | null>(null);
   const [privacyConsent, setPrivacyConsent] = useState(false);
 
   // Stati lightbox immagini
@@ -120,7 +130,7 @@ export default function BookingPage() {
   });
 
   // Query slots disponibili per data selezionata (V2: usa Calendar Engine V2)
-  const { data: availableSlots = [], isLoading: loadingSlots } = useQuery({
+  const { data: availableSlots = [], isLoading: loadingSlots, isSuccess: slotsLoaded } = useQuery({
     queryKey: ["available-slots", selectedDate, campaign?.id],
     queryFn: async () => {
       if (!selectedDate || !campaign) return [];
@@ -135,46 +145,39 @@ export default function BookingPage() {
 
   // Mutation per creare prenotazione
   const createBookingMutation = useMutation({
-    mutationFn: async () => {
-      if (!campaign || !selectedSlot) {
-        throw new Error("Dati mancanti");
-      }
-
-      const prodotto = products.find((p) => p.id === formData.prodottoId);
-
-      // V2: No workingHours/durataMinuti needed (loaded server-side)
-      return await createBooking({
-        campaignId: campaign.id,
-        cliente: {
-          nome: formData.nome,
-          cognome: formData.cognome,
-          email: formData.email,
-          whatsapp: formData.whatsapp,
-        },
-        dataShootingInizio: new Date(selectedSlot.start),
-        dataShootingFine: new Date(selectedSlot.end),
-        prodottoId: formData.prodottoId || undefined,
-        prodottoNome: prodotto?.nome || undefined,
-        note: formData.note,
-        giftCardCode: gift.usableCode,
-      });
-    },
-    onSuccess: () => {
-      setBookingSuccess(true);
+    mutationFn: (submission: BookingSubmission) => createBooking(submission.payload),
+    onSuccess: (result, submission) => {
+      if (submission.code !== code) return;
+      setSubmissionError(null);
+      setBookingResult({ ...result, slot: submission.slot, email: submission.payload.cliente.email });
       trackAnalyticsEvent('booking_request_submitted', {
         campaign: campaign?.code || campaign?.id || 'unknown',
+        outcome: result.stato,
       });
       trackBlogConversion('booking_request_submitted', {
         campaign: campaign?.code || campaign?.id || 'unknown',
+        outcome: result.stato,
       });
       toast({
-        title: "Prenotazione inviata!",
-        description: "Riceverai una conferma via email a breve.",
+        title: result.stato === 'confermata' ? "Appuntamento confermato!" : "Richiesta inviata",
+        description: result.stato === 'confermata'
+          ? "Lo slot è confermato. Controlla la tua email per i dettagli."
+          : "L’appuntamento non è ancora confermato: attendi l’approvazione dello studio.",
       });
     },
-    onError: (error: Error) => {
+    onError: (error: Error, submission) => {
+      if (submission.code !== code) return;
+      const conflict = error instanceof BookingRequestError && error.status === 409;
+      setSubmissionError({ message: error.message, conflict });
+      if (conflict) {
+        setSelectedSlot(current => current?.start === submission.slot.start ? null : current);
+        const key = ["available-slots", submission.date, submission.payload.campaignId];
+        // Remove the stale slot immediately, even if refreshing availability fails.
+        queryClient.setQueryData<BookingSlot[]>(key, slots => slots?.filter(slot => slot.start !== submission.slot.start));
+        void queryClient.invalidateQueries({ queryKey: key });
+      }
       toast({
-        title: "Errore",
+        title: conflict ? "Slot non più disponibile" : "Invio non completato",
         description: error.message,
         variant: "destructive",
       });
@@ -183,7 +186,7 @@ export default function BookingPage() {
 
   // Reset slot selezionato se non è più disponibile
   useEffect(() => {
-    if (selectedSlot && availableSlots.length > 0) {
+    if (selectedSlot && slotsLoaded) {
       const stillAvailable = availableSlots.some(
         (slot) => slot.start === selectedSlot.start,
       );
@@ -191,7 +194,16 @@ export default function BookingPage() {
         setSelectedSlot(null);
       }
     }
-  }, [availableSlots, selectedSlot]);
+  }, [availableSlots, selectedSlot, slotsLoaded]);
+
+  useEffect(() => {
+    setBookingResult(null);
+    setSubmissionError(null);
+    setSelectedDate(null);
+    setSelectedSlot(null);
+    setPrivacyConsent(false);
+    setFormData(current => ({ ...current, prodottoId: '' }));
+  }, [code]);
 
   // Reset week index quando campaign cambia per evitare settimane vuote
   useEffect(() => {
@@ -320,6 +332,7 @@ export default function BookingPage() {
   // Validazione form
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (createBookingMutation.isPending || !campaign || !privacyConsent) return;
 
     if (!formData.nome.trim() || !formData.cognome.trim()) {
       toast({
@@ -351,7 +364,7 @@ export default function BookingPage() {
       return;
     }
 
-    if (!selectedSlot) {
+    if (!selectedSlot || !selectedDate) {
       toast({
         title: "Errore",
         description: "Seleziona data e orario",
@@ -374,7 +387,23 @@ export default function BookingPage() {
       return;
     }
 
-    createBookingMutation.mutate();
+    const prodotto = products.find(product => product.id === formData.prodottoId);
+    setSubmissionError(null);
+    createBookingMutation.mutate({
+      code,
+      date: new Date(selectedDate),
+      slot: { ...selectedSlot },
+      payload: {
+        campaignId: campaign.id,
+        cliente: { nome: formData.nome, cognome: formData.cognome, email: formData.email, whatsapp: formData.whatsapp },
+        dataShootingInizio: new Date(selectedSlot.start),
+        dataShootingFine: new Date(selectedSlot.end),
+        prodottoId: formData.prodottoId || undefined,
+        prodottoNome: prodotto?.nome || undefined,
+        note: formData.note,
+        giftCardCode: gift.usableCode,
+      },
+    });
   };
 
   if (isLoading) {
@@ -437,39 +466,42 @@ export default function BookingPage() {
   }
 
   // Mostra conferma prenotazione
-  if (bookingSuccess) {
+  if (bookingResult) {
+    const confirmed = bookingResult.stato === 'confermata';
     return (
       <div className="min-h-screen bg-gradient-to-br from-sage-50 to-cream-50 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center px-4">
-        <Card className="max-w-md w-full">
+        <Card className="max-w-md w-full" role="status" aria-live="polite" data-testid="booking-outcome">
           <CardHeader>
-            <div className="flex items-center gap-3 text-green-600">
-              <CheckCircle2 className="h-8 w-8" />
-              <CardTitle>Prenotazione Confermata!</CardTitle>
+            <div className={`flex items-center gap-3 ${confirmed ? 'text-green-600' : 'text-amber-700'}`}>
+              {confirmed ? <CheckCircle2 className="h-8 w-8 shrink-0" /> : <Clock className="h-8 w-8 shrink-0" />}
+              <CardTitle>{confirmed ? 'Appuntamento confermato!' : 'Richiesta inviata · in attesa'}</CardTitle>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-muted-foreground">
-              La tua richiesta di prenotazione è stata inviata con successo.
+              {confirmed
+                ? 'Il tuo appuntamento è confermato. Ti aspettiamo in studio nel giorno e nell’orario indicati.'
+                : 'Abbiamo ricevuto la tua richiesta. L’appuntamento non è ancora confermato: attendi l’approvazione dello studio.'}
             </p>
             <div className="bg-muted rounded-lg p-4 space-y-2">
               <p className="text-sm">
                 <strong>Data:</strong>{" "}
-                {selectedSlot &&
-                  format(new Date(selectedSlot.start), "dd MMMM yyyy", {
+                {format(new Date(bookingResult.slot.start), "dd MMMM yyyy", {
                     locale: it,
                   })}
               </p>
               <p className="text-sm">
-                <strong>Orario:</strong> {selectedSlot?.startTime} -{" "}
-                {selectedSlot?.endTime}
+                <strong>Orario:</strong> {bookingResult.slot.startTime} -{" "}
+                {bookingResult.slot.endTime}
               </p>
               <p className="text-sm">
-                <strong>Email:</strong> {formData.email}
+                <strong>Email:</strong> <span className="break-all">{bookingResult.email}</span>
               </p>
             </div>
             <p className="text-sm text-muted-foreground">
-              Riceverai una email di conferma all'indirizzo fornito. Lo staff ti
-              contatterà a breve per confermare la prenotazione.
+              {confirmed
+                ? 'Per i dettagli controlla la tua email, anche nella cartella spam. Se non ricevi il messaggio, contatta lo studio.'
+                : 'La conferma definitiva arriverà via email solo dopo l’approvazione. Controlla anche la cartella spam.'}
             </p>
             <Button onClick={() => setLocation("/")} className="w-full">
               Torna alla homepage
@@ -609,6 +641,13 @@ export default function BookingPage() {
         {/* Form Prenotazione */}
         {bookingsOpen && (
           <form onSubmit={handleSubmit} className="space-y-6">
+            {submissionError && (
+              <div role="alert" className="space-y-2 rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm">
+                <p className="font-semibold">{submissionError.conflict ? 'Slot non più disponibile' : 'Invio non completato'}</p>
+                <p>{submissionError.message}</p>
+                {submissionError.conflict && <a href="#booking-slot-picker" className="inline-block font-medium underline">Scegli un altro orario</a>}
+              </div>
+            )}
             {/* Banner Guida: appare se non hanno ancora completato selezione data/orario */}
             {(!selectedDate || !selectedSlot) && (
               <Card className="border-primary/30 bg-primary/5 dark:bg-primary/10">
@@ -773,7 +812,7 @@ export default function BookingPage() {
 
             {/* Selezione Orario */}
             {selectedDate && (
-              <Card>
+              <Card id="booking-slot-picker" tabIndex={-1}>
                 <CardHeader>
                   <CardTitle>2. Seleziona l'Orario</CardTitle>
                   <CardDescription>
@@ -1258,7 +1297,7 @@ export default function BookingPage() {
                 {/* Riepilogo e Conferma */}
                 <Card>
                   <CardHeader>
-                    <CardTitle>4. Conferma Prenotazione</CardTitle>
+                    <CardTitle>4. Riepilogo e invio</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="bg-muted rounded-lg p-4 space-y-2">
@@ -1326,14 +1365,13 @@ export default function BookingPage() {
                           Invio in corso...
                         </>
                       ) : (
-                        "Conferma Prenotazione"
+                        "Invia prenotazione"
                       )}
                     </Button>
 
                     <p className="text-xs text-center text-muted-foreground">
-                      Cliccando conferma, riceverai una email con i dettagli
-                      della prenotazione. Lo staff ti contatterà per la conferma
-                      definitiva.
+                      Controlliamo che lo slot sia ancora disponibile. Al termine vedrai se
+                      l’appuntamento è confermato o se la richiesta attende l’approvazione dello studio.
                     </p>
                   </CardContent>
                 </Card>
