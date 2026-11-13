@@ -48,4 +48,14 @@ describe('protezione delle route booking amministrative', () => {
     });
     expect(response.status).toBe(401);
   });
+
+  it.each(['/create', '/v2/create'])('rifiuta flag manuali non booleani su %s prima di leggere i dati', async route => {
+    for (const isManual of ['true', 'false', 1, {}]) {
+      const response = await fetch(`${base}/api/booking${route}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isManual }),
+      });
+      expect(response.status).toBe(400);
+    }
+  });
 });

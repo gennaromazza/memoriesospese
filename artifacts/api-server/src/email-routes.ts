@@ -1681,6 +1681,7 @@ export function createAdminNotificationEmailHTML(
   notes?: string,
   studioInfo?: { name: string; email: string; phone: string; address: string },
   products?: ProductWithBundle[],
+  confirmed: boolean = false,
 ): string {
   const studio = studioInfo || {
     name: "Image Studio Fotografico",
@@ -1700,7 +1701,7 @@ export function createAdminNotificationEmailHTML(
           <strong>Attenzione Admin!</strong>
         </p>
         <p style="font-size: 16px; margin-bottom: 20px;">
-          È stata ricevuta una <strong>nuova richiesta di prenotazione</strong> per <strong style="color: #8b5a3c;">${campaignName}</strong>.
+          È stata ricevuta una <strong>${confirmed ? "prenotazione già confermata automaticamente" : "nuova richiesta di prenotazione"}</strong> per <strong style="color: #8b5a3c;">${campaignName}</strong>.
         </p>
 
         <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0;">
@@ -1721,9 +1722,10 @@ export function createAdminNotificationEmailHTML(
 
         <div style="background: #d1ecf1; border-left: 4px solid #17a2b8; padding: 15px; margin: 20px 0;">
           <p style="margin: 0; font-size: 14px; color: #0c5460;">
-            <strong>⏰ Azione Richiesta</strong><br>
+            ${confirmed ? `<strong>Prenotazione confermata</strong><br>
+            Lo slot è stato verificato, l’evento è sul calendario e il cliente ha ricevuto la conferma. Non serve approvarla.` : `<strong>⏰ Azione Richiesta</strong><br>
             Accedi alla dashboard admin per <strong>approvare o gestire</strong> questa prenotazione. 
-            Il cliente ha ricevuto una email di conferma ricezione e attende la tua approvazione.
+            Il cliente ha ricevuto una email di conferma ricezione e attende la tua approvazione.`}
           </p>
         </div>
 

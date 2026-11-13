@@ -2,7 +2,7 @@ import type { HttpHandlerResult } from "./http-types.js";
 /**
  * Booking API Routes - Express.js
  * Gestisce endpoint per slot disponibili Google Calendar
- * NOTA: Validazione campagna fatta lato client, server gestisce solo Google Calendar
+ * Le regole della campagna e la disponibilità sono verificate lato server.
  */
 
 import express from "express";
@@ -16,6 +16,9 @@ import type { BookingCampaign } from "../shared/booking-types.js";
 import { normalizeEmail, generateClienteIdFromEmail } from "./utils/normalize.js";
 import { authenticateFirebase } from "./email-routes.js";
 import { GiftCardHttpError, GiftCardService } from "./gift-cards/service.js";
+import {
+  reservePublicBooking, confirmPublicBooking, BookingSlotConflictError, AutomaticConfirmationError,
+} from "./booking/public-creation.js";
 
 const router = express.Router();
 
@@ -37,6 +40,11 @@ function requireAdmin(req: any, res: express.Response, next: express.NextFunctio
  * un privilegio amministrativo: non deve mai essere deciso dal browser.
  */
 function requireAdminForManualBooking(req: any, res: express.Response, next: express.NextFunction) {
+  for (const field of ["isManual", "isManualBooking"]) {
+    if (req.body?.[field] !== undefined && typeof req.body[field] !== "boolean") {
+      return res.status(400).json({ error: `Parametro ${field} invalido` });
+    }
+  }
   if (req.body?.isManual !== true && req.body?.isManualBooking !== true) {
     return next();
   }
@@ -494,6 +502,9 @@ router.post("/available-slots", async (req, res) => {
  * }
  */
 router.post("/create", requireAdminForManualBooking, async (req, res) => {
+  // Public legacy callers must follow the same server-owned campaign policy.
+  // Keep the old admin-only manual flow unchanged.
+  if (req.body?.isManual !== true) return createBookingV2(req, res);
   try {
     const {
       campaignId,
@@ -2289,7 +2300,7 @@ router.delete("/:bookingId/calendar-event", authenticateFirebase, requireAdmin, 
  * 
  * NOTA: Non richiede più workingHours/durataMinuti - vengono presi dalla campaign
  */
-router.post("/v2/create", requireAdminForManualBooking, async (req, res) => {
+async function createBookingV2(req: express.Request, res: express.Response): Promise<HttpHandlerResult> {
   try {
     console.log("[POST /v2/create] 🔵 Calendar Engine V2 - Request");
     
@@ -2338,7 +2349,7 @@ router.post("/v2/create", requireAdminForManualBooking, async (req, res) => {
     const slotStart = new Date(dataShootingInizio);
     const slotEnd = new Date(dataShootingFine);
 
-    if (isNaN(slotStart.getTime()) || isNaN(slotEnd.getTime())) {
+    if (isNaN(slotStart.getTime()) || isNaN(slotEnd.getTime()) || slotEnd <= slotStart) {
       return res.status(400).json({
         error: "Date invalide",
       });
@@ -2355,6 +2366,19 @@ router.post("/v2/create", requireAdminForManualBooking, async (req, res) => {
 
     if (!campaign?.attiva) {
       return res.status(400).json({ error: "Campagna non attiva" });
+    }
+
+    // Defaults preserve legacy approval. Never trust approval/deposit/state
+    // flags sent by the browser, and never auto-confirm an unpaid deposit.
+    const autoConfirm = !isManual && campaign.richiedeApprovazione === false
+      && campaign.richiedeAcconto !== true;
+    if (!isManual) {
+      const { DateTime } = await import('luxon');
+      const firstDay = DateTime.fromJSDate(campaign.dataInizio.toDate(), { zone: 'Europe/Rome' }).startOf('day');
+      const lastDay = DateTime.fromJSDate(campaign.dataFine.toDate(), { zone: 'Europe/Rome' }).endOf('day');
+      if (slotStart.getTime() <= Date.now() || slotStart < firstDay.toJSDate() || slotEnd > lastDay.toJSDate()) {
+        return res.status(400).json({ error: "Data fuori dal periodo prenotabile della campagna" });
+      }
     }
 
     // Step 2: Import Calendar Engine modules
@@ -2466,7 +2490,7 @@ router.post("/v2/create", requireAdminForManualBooking, async (req, res) => {
     }
 
     // Step 6: Create booking (same as legacy)
-    const workflowUpdate = syncBookingWorkflowState("in_attesa");
+    const workflowUpdate = syncBookingWorkflowState(isManual ? "confermata" : "in_attesa");
 
     const bookingData: any = {
       campaignId,
@@ -2541,12 +2565,27 @@ router.post("/v2/create", requireAdminForManualBooking, async (req, res) => {
 
     let bookingRef: FirebaseFirestore.DocumentReference;
     try {
-      bookingRef = await db.collection("bookings").add(bookingData);
+      bookingRef = isManual
+        ? await db.collection("bookings").add(bookingData)
+        : await reservePublicBooking(db, bookingData, slotStart, slotEnd);
     } catch (createError) {
       if (giftClaim) await giftCards.releaseClaim(giftClaim.code).catch(() => undefined);
       throw createError;
     }
     console.log(`[POST /v2/create] ✅ Booking created: ${bookingRef.id}`);
+
+    if (autoConfirm) {
+      try {
+        await confirmPublicBooking(bookingRef, bookingData, slotStart, slotEnd);
+        bookingData.stato = "confermata";
+      } catch (error) {
+        if (error instanceof AutomaticConfirmationError) {
+          if (giftClaim && !error.bookingRetained) await giftCards.releaseClaim(giftClaim.code).catch(() => undefined);
+          return res.status(error.status).json({ error: error.message, code: "AUTOMATIC_CONFIRMATION_FAILED" });
+        }
+        throw error;
+      }
+    }
 
     if (giftClaim) {
       try {
@@ -2613,15 +2652,26 @@ router.post("/v2/create", requireAdminForManualBooking, async (req, res) => {
       const {
         sendGmailEmail,
         createBookingReceivedEmailHTML,
+        createBookingConfirmedEmailHTML,
         createAdminNotificationEmailHTML,
         getStudioContactInfo,
+        generateGoogleCalendarLink,
       } = await import("./email-routes.js");
 
       const studioInfo = await getStudioContactInfo();
       const clienteName = `${cliente.nome} ${cliente.cognome}`;
 
       // Send client email
-      const emailHTML = createBookingReceivedEmailHTML(
+      const calendarLink = autoConfirm ? generateGoogleCalendarLink({
+        title: `Shooting ${campaignName} - ${clienteName}`,
+        description: `Sessione fotografica: ${campaignName}`,
+        location: studioInfo.address || "Studio fotografico",
+        startDate: slotStart, endDate: slotEnd, isAllDay: false,
+      }) : undefined;
+      const emailHTML = autoConfirm ? createBookingConfirmedEmailHTML(
+        clienteName, campaignName, bookingDate, bookingTime, durationMinutes,
+        prodottoNome, note, studioInfo, calendarLink,
+      ) : createBookingReceivedEmailHTML(
         clienteName,
         campaignName,
         bookingDate,
@@ -2634,11 +2684,11 @@ router.post("/v2/create", requireAdminForManualBooking, async (req, res) => {
 
       await sendGmailEmail(
         cliente.email,
-        `Prenotazione Ricevuta - ${campaignName}`,
+        `${autoConfirm ? "Prenotazione Confermata" : "Prenotazione Ricevuta"} - ${campaignName}`,
         emailHTML,
       );
 
-      await bookingRef.update({ emailRicevutaInviata: true });
+      await bookingRef.update(autoConfirm ? { emailConfermataInviata: true } : { emailRicevutaInviata: true });
       console.log(`[POST /v2/create] ✅ Email sent to ${cliente.email}`);
 
       // Send admin email
@@ -2653,6 +2703,8 @@ router.post("/v2/create", requireAdminForManualBooking, async (req, res) => {
           prodottoNome,
           note,
           studioInfo,
+          undefined,
+          autoConfirm,
         );
 
         await sendGmailEmail(
@@ -2681,11 +2733,19 @@ router.post("/v2/create", requireAdminForManualBooking, async (req, res) => {
     return res.status(201).json({
       success: true,
       bookingId: bookingRef.id,
+      stato: bookingData.stato,
       message: isManual 
         ? "Prenotazione manuale creata e confermata automaticamente" 
+        : autoConfirm ? "Prenotazione confermata con successo"
         : "Prenotazione creata con successo - in attesa di approvazione admin",
     });
   } catch (error: any) {
+    if (error instanceof BookingSlotConflictError) {
+      return res.status(409).json({ error: "Slot non più disponibile", message: "Scegli un altro orario." });
+    }
+    if (error.code === "CALENDAR_UNAVAILABLE" || error.message?.includes("CALENDAR_UNAVAILABLE")) {
+      return res.status(503).json({ error: "Calendario temporaneamente non disponibile", code: "CALENDAR_UNAVAILABLE" });
+    }
     console.error("[POST /v2/create] ❌ Error:", error);
     
     if (error.message?.includes("Google Calendar")) {
@@ -2700,7 +2760,9 @@ router.post("/v2/create", requireAdminForManualBooking, async (req, res) => {
       message: error.message || "Errore sconosciuto",
     });
   }
-});
+}
+
+router.post("/v2/create", requireAdminForManualBooking, createBookingV2);
 
 router.post("/v2/available-slots", requireAdminForManualBooking, async (req, res): Promise<HttpHandlerResult> => {
   try {
