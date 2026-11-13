@@ -47,7 +47,7 @@ const directModels = [
     configuration: {
       modelId: models[2].rendererId, assetRevision: 2, materialId, appearanceRevision: 4,
       coverLayout: "full", frameFinish: "fabric", topText: "", bottomText: "",
-      photoAssetId: savedPhotoIds.front, crop, backCover: "photo", backPhotoAssetId: savedPhotoIds.back, backCrop: crop, ledEnabled: true,
+      photoAssetId: savedPhotoIds.front, crop, backCover: "photo", backPhotoAssetId: savedPhotoIds.back, backCrop: crop, ledEnabled: false,
     },
   },
   {
@@ -609,6 +609,14 @@ for (const model of directModels) {
       configuration: model.configuration,
       option,
     };
+    await page.addInitScript(() => {
+      window.addEventListener("message", event => {
+        const message = event.data as { channel?: string; type?: string; configuration?: unknown } | null;
+        if (message?.channel === "memorie-mockup-v1" && message.type === "change" && message.configuration) {
+          (window as Window & { __plazaReadonlyConfiguration?: unknown }).__plazaReadonlyConfiguration = message.configuration;
+        }
+      });
+    });
     let writes = 0;
     await page.route("**/*", async route => {
       const request = route.request(), url = new URL(request.url());
@@ -656,6 +664,33 @@ for (const model of directModels) {
         && body.classList.contains("mq-phone")
         && body.classList.contains("mq-3d");
     }, null, { timeout: 240_000 });
+    if (model.key === "plaza") {
+      await page.waitForFunction(({ frontId, backId, materialId }) => {
+        const configuration = (window as Window & {
+          __plazaReadonlyConfiguration?: {
+            modelId?: string;
+            materialId?: string;
+            coverLayout?: string;
+            photoAssetId?: string | null;
+            backPhotoAssetId?: string | null;
+            ledEnabled?: boolean;
+          };
+        }).__plazaReadonlyConfiguration;
+        const frame = Array.from(document.querySelectorAll("iframe"))
+          .find(candidate => candidate.src.includes("/mockups/")) as HTMLIFrameElement | undefined;
+        const body = frame?.contentDocument?.body;
+        return configuration?.modelId === "plaza-led"
+          && configuration.materialId === materialId
+          && configuration.coverLayout === "full"
+          && configuration.photoAssetId === frontId
+          && configuration.backPhotoAssetId === backId
+          && configuration.ledEnabled === false
+          && body?.dataset.coverLayout === "full"
+          && body.dataset.led === "false"
+          && body.dataset.backPhotoId === backId
+          && body.dataset.backPhotoLoaded === "true";
+      }, { frontId: savedPhotoIds.front, backId: savedPhotoIds.back, materialId });
+    }
     const inspectViewer = async () => page.evaluate((isBox) => {
       const frame = Array.from(document.querySelectorAll("iframe"))
         .find(candidate => candidate.src.includes("/mockups/")) as HTMLIFrameElement | undefined;
@@ -733,6 +768,12 @@ for (const model of directModels) {
         viewControlPressedAfterClick: viewControl?.getAttribute("aria-pressed") === "true",
         phoneWidth: viewportWidth,
         phoneHeight: viewportHeight,
+        backPhotoId: body?.dataset.backPhotoId ?? null,
+        backPhotoLoaded: body?.dataset.backPhotoLoaded ?? null,
+        coverLayout: body?.dataset.coverLayout ?? null,
+        led: body?.dataset.led ?? null,
+        summary: doc?.getElementById("configurationSummary")?.textContent ?? "",
+        configuration: (window as Window & { __plazaReadonlyConfiguration?: unknown }).__plazaReadonlyConfiguration ?? null,
       };
     }, boxModel);
 
@@ -753,6 +794,28 @@ for (const model of directModels) {
     expect(viewerState.controlWithinPhoneViewport).toBe(true);
     expect(viewerState.controlReceivesPointer).toBe(true);
     expect(viewerState.viewControlEnabled).toBe(true);
+    if (model.key === "plaza") {
+      expect(viewerState).toMatchObject({
+        led: "false",
+        backPhotoId: savedPhotoIds.back,
+        backPhotoLoaded: "true",
+        coverLayout: "full",
+        summary: expect.stringContaining("LED: Spento"),
+        configuration: {
+          materialId,
+          coverLayout: "full",
+          photoAssetId: savedPhotoIds.front,
+          backCover: "photo",
+          backPhotoAssetId: savedPhotoIds.back,
+          ledEnabled: false,
+        },
+      });
+      expect(viewerState.summary).toContain("Telaio esterno e album: Tessuto di prova");
+      expect(viewerState.summary).toContain("Copertina album: Foto grande a tutta copertina");
+      expect(viewerState.summary).toContain("Plexiglass dello scrigno: Foto stampata");
+      expect((viewerState.configuration as { photoAssetId: string; backPhotoAssetId: string }).photoAssetId)
+        .not.toBe((viewerState.configuration as { photoAssetId: string; backPhotoAssetId: string }).backPhotoAssetId);
+    }
     if (boxModel) {
       expect(viewerState.locked).toBe(true);
       expect(viewerState.pipCloseVisible).toBe(true);
@@ -793,6 +856,15 @@ for (const model of directModels) {
       expect(state.viewControlEnabled, `${label}: comando 3D utilizzabile`).toBe(true);
       expect(state.wizardReadonly).toBe(viewerState.wizardReadonly);
       expect(state.locked).toBe(viewerState.locked);
+      if (model.key === "plaza") {
+        expect(state).toMatchObject({
+          led: "false",
+          backPhotoId: savedPhotoIds.back,
+          backPhotoLoaded: "true",
+          coverLayout: "full",
+          summary: expect.stringContaining("LED: Spento"),
+        });
+      }
       if (boxModel) expect(state.viewControlPressedAfterClick, `${label}: il comando vista risponde`).toBe(true);
     };
 
