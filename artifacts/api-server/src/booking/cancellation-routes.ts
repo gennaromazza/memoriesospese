@@ -14,7 +14,7 @@ export async function adminCancellationSnapshot(db: Firestore, id: string) {
   if (!root) throw new BookingManagementError(404, 'Prenotazione o incasso non trovato.');
   const refund = (await db.collection('bookingRefunds').doc(id).get()).data();
   const canCancel = source.kind === 'booking' && ['confermata', 'in_attesa'].includes(root.stato)
-    && !root.paymentReviewRequired && !root.automaticConfirmationError && !['pending', 'blocked'].includes(root.customerReschedule?.status);
+    && root.calendarSyncPending !== true && !root.paymentReviewRequired && !root.automaticConfirmationError && !['pending', 'blocked'].includes(root.customerReschedule?.status);
   const canRefund = ['annullata', 'cancellata'].includes(root.stato) && bookingDepositCents(root) > 0 && (!refund || refund.status === 'review' && !refund.providerStarted)
     && root.depositPayment?.provider === 'paypal';
   return GetAdminBookingCancellationResponse.parse({ bookingId: id, bookingStatus: root.stato, amountCents: bookingDepositCents(root),
@@ -22,7 +22,8 @@ export async function adminCancellationSnapshot(db: Firestore, id: string) {
     notificationStatus: root.bookingCancellation?.emailStatus || null, canCancel, canRefund,
     canVerifyRefund: !!refund?.providerStarted,
     paypalDeposit: root.depositPayment?.provider === 'paypal',
-    reason: refund?.status === 'review' ? 'Verifica manuale necessaria su PayPal. Non inviare un altro rimborso senza controllare l’esito.'
+    reason: root.calendarSyncPending === true ? 'Il calendario è in aggiornamento. Riprova tra poco: l’annullamento resta sospeso per evitare eventi duplicati.'
+      : refund?.status === 'review' ? 'Verifica manuale necessaria su PayPal. Non inviare un altro rimborso senza controllare l’esito.'
       : !refund && root.bookingCancellation?.decision === 'reschedule' ? 'Nuova data da concordare con il cliente. L’acconto resta tracciato: nessun nuovo pagamento automatico.'
       : bookingDepositCents(root) > 0 && !root.depositPayment ? 'Acconto non PayPal: gestione diretta dello studio.' : null,
     refundId: refund?.refundId || null });

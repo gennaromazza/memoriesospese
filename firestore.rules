@@ -428,8 +428,12 @@ service cloud.firestore {
     match /bookings/{bookingId} {
       allow read: if isAdmin(); // Only admin can see all bookings
       allow create: if false;
-      allow update: if isAdmin(); // Only admin can update bookings (confirm, complete, etc.)
-      allow delete: if isAdmin(); // Only admin can delete bookings
+      // Non cambiare o rimuovere una prenotazione mentre un inserimento
+      // Calendar può essere ancora in volo. Il server riconcilia prima l'esito.
+      allow update: if isAdmin() && resource.data.get('calendarSyncPending', false) != true;
+      // La cancellazione passa dal server: anche un vecchio client deve
+      // rispettare le verifiche su acconti e operazioni concorrenti.
+      allow delete: if false;
     }
     
     // Orders - Admin-only management

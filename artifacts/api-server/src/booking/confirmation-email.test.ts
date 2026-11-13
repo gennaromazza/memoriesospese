@@ -1,6 +1,13 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { Timestamp } from 'firebase-admin/firestore';
 import { reservationDb } from './test-helpers/reservation-db.js';
+vi.mock('../google-calendar.js', async original => ({
+  ...await original<typeof import('../google-calendar.js')>(),
+  resolveCalendarId: () => 'fake-studio-calendar',
+  getEventById: vi.fn(async () => null),
+  createEvent: vi.fn(async (_calendar, event) => ({ id: event.id, description: event.description,
+    start: { dateTime: event.start.toISOString() }, end: { dateTime: event.end.toISOString() } })),
+}));
 vi.mock('../firebase-admin.js', async () => ({
   db: (await import('./test-helpers/reservation-db.js')).reservationDb().db,
   FieldValue: { serverTimestamp: () => 'test-timestamp' },
@@ -40,7 +47,8 @@ it('delivers the real paid-confirmation pipeline once through a mocked Gmail bou
   await deliverBookingConfirmation(store.db, 'one'); await deliverBookingConfirmation(store.db, 'one');
   expect(sendGmailEmail).toHaveBeenCalledOnce();
   expect(vi.mocked(sendGmailEmail).mock.calls[0][2]).toContain('/prenota/gestisci/one#');
-  expect(store.value('bookings/one')).toMatchObject({ emailConfermataInviata: true, calendarSyncPending: true });
+  expect(store.value('bookings/one')).toMatchObject({ emailConfermataInviata: true, calendarSyncPending: false,
+    googleCalendarId: 'fake-studio-calendar' });
 });
 it('does not compose a management link for a pending or unpaid request', async () => {
   const unpaid = { ...root(), depositPayment: undefined, depositPaymentRequest: { status: 'pending', currency: 'EUR', amountCents: 3000 } };

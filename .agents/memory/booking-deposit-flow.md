@@ -169,6 +169,17 @@ richiesta di rimborso che certamente non è ancora arrivata al provider.
 
 ## Rifiuti server e azioni legacy
 
+La prima creazione Calendar deve essere riconciliata prima di consentire
+annullamenti o spostamenti: una risposta persa non prova che l'evento non esista.
+Conservare la riserva e riutilizzare la stessa identità evento.
+
+**Why:** liberare o spostare lo slot mentre un inserimento è ancora incerto
+può lasciare un evento tardivo su una data che si crede già liberata.
+
+**How to apply:** distinguere incasso valido, calendario riconciliato e email
+inviata; non usare un cambio data come riparazione implicita della prima
+sincronizzazione ancora in corso.
+
 Quando si protegge un'azione sul server, verificare anche gli effetti precedenti
 del vecchio client: notificare l'annullamento soltanto dopo il suo completamento
 autoritativo e indirizzare le prenotazioni pagate alla gestione dell'acconto,

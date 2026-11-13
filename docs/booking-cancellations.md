@@ -61,11 +61,12 @@ I test usano Firestore simulato, Google simulato e PayPal simulato. Non effettua
 incassi, rimborsi o email reali per collaudare. Le prove browser sono opt-in con
 BOOKING_PORTAL_BROWSER_E2E=1 e isolano tutte le richieste esterne.
 
-Prima della pubblicazione resta necessaria la verifica end-to-end già prevista:
-in particolare la prima sincronizzazione Calendar delle prenotazioni pagate,
-segnalate con calendarSyncPending, e la sua eventuale concorrenza con
-l'annullamento. La verifica della sola cancellazione di un evento esistente non
-sostituisce questo controllo.
+La prima sincronizzazione Calendar delle prenotazioni pagate è ora eseguita
+dal worker prima di preparare la conferma, con identità evento stabile e
+riconciliazione degli esiti incerti. Durante tale fase non sono consentiti
+annullamento o cambio data. Per risultati del collaudo e blocchi ancora aperti
+prima della pubblicazione, consultare `docs/booking-flow-audit.md`: in particolare
+la protezione completa delle eliminazioni legacy e dei dati collegati.
 
 Riferimenti provider:
 - https://developer.paypal.com/api/payments/v2/captures-refund

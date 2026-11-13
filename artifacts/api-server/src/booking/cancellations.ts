@@ -27,7 +27,7 @@ export async function requestBookingCancellation(db: Firestore, id: string,
       if (job.requestId === input.requestId || ['pending', 'working', 'complete', 'blocked'].includes(job.status)) return;
     }
     if (admin) {
-      if (!['confermata', 'in_attesa'].includes(root.stato) || root.paymentReviewRequired
+      if (root.calendarSyncPending === true || !['confermata', 'in_attesa'].includes(root.stato) || root.paymentReviewRequired
         || root.automaticConfirmationError || ['pending', 'blocked'].includes(root.customerReschedule?.status)) {
         throw new BookingManagementError(409, 'Prenotazione da verificare prima di annullare.');
       }

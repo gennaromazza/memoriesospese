@@ -23,6 +23,7 @@ export function rescheduleView(booking: DocumentData, campaign?: DocumentData, n
   } else if (count === 1) {
     status = 'changed'; reason = 'Hai già utilizzato il cambio autonomo. Per altre modifiche contatta lo studio.';
   } else if (booking.stato !== 'confermata') reason = 'Il cambio autonomo è disponibile solo per una prenotazione confermata.';
+  else if (booking.calendarSyncPending === true) reason = 'Il calendario è in aggiornamento. Riprova tra poco o contatta lo studio.';
   else if (booking.paymentReviewRequired || booking.automaticConfirmationError) reason = 'La prenotazione richiede una verifica dello studio.';
   else if (count !== 0) reason = 'Le modifiche precedenti richiedono una verifica dello studio.';
   else if (start === null) reason = 'L’orario richiede una verifica dello studio.';

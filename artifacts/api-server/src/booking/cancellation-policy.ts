@@ -14,6 +14,7 @@ export function cancellationView(root: DocumentData, now = Date.now()) {
   let reason: string | null = null;
   if (state === 'complete' || root.stato === 'annullata') reason = 'La prenotazione è già annullata.';
   else if (['pending', 'working', 'blocked'].includes(state) || root.stato === 'cancellation_pending') reason = 'Annullamento in verifica: non effettuare una nuova prenotazione finché non ricevi l’esito.';
+  else if (root.calendarSyncPending === true) reason = 'Il calendario è in aggiornamento. Riprova tra poco o contatta lo studio.';
   else if (!known) reason = 'Le condizioni originali non sono disponibili per l’annullamento online. Contatta lo studio.';
   else if (root.stato !== 'confermata' || root.paymentReviewRequired || root.automaticConfirmationError) reason = 'Contatta lo studio per gestire questa prenotazione.';
   else if (['pending', 'blocked'].includes(root.customerReschedule?.status)) reason = 'Attendi l’esito del cambio appuntamento prima di annullare.';

@@ -7,7 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 
 let env: RulesTestEnvironment;
 const data = {
@@ -39,6 +39,21 @@ beforeEach(async () => {
 afterAll(async () => { await env?.cleanup(); });
 
 describe('nessun client può aggirare le riserve checkout', () => {
+  it.each(['public', 'customer', 'admin'])('nega l’eliminazione diretta di una prenotazione al client %s', async actor => {
+    const db = actor === 'public' ? env.unauthenticatedContext().firestore()
+      : env.authenticatedContext(actor, { email: actor === 'admin' ? 'gennaro.mazzacane@gmail.com' : 'cliente@example.com' }).firestore();
+    await assertFails(deleteDoc(doc(db, 'bookings', 'server-booking')));
+  });
+  it('impedisce a un vecchio client admin di cambiare lo slot durante la sincronizzazione Calendar', async () => {
+    await env.withSecurityRulesDisabled(async context => {
+      await updateDoc(doc(context.firestore(), 'bookings', 'server-booking'), { calendarSyncPending: true });
+    });
+    const db = env.authenticatedContext('admin', { email: 'gennaro.mazzacane@gmail.com' }).firestore();
+    await assertSucceeds(getDoc(doc(db, 'bookings', 'server-booking')));
+    await assertFails(updateDoc(doc(db, 'bookings', 'server-booking'), { stato: 'annullata' }));
+    await assertFails(updateDoc(doc(db, 'bookings', 'server-booking'), { dataShootingInizio: new Date() }));
+    await assertFails(updateDoc(doc(db, 'bookings', 'server-booking'), { calendarSyncPending: false }));
+  });
   it.each(['public', 'customer', 'admin'])('nega la creazione diretta di prenotazioni al client %s', async actor => {
     const db = actor === 'public' ? env.unauthenticatedContext().firestore()
       : env.authenticatedContext(actor, { email: actor === 'admin' ? 'gennaro.mazzacane@gmail.com' : 'cliente@example.com' }).firestore();

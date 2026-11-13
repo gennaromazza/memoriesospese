@@ -3,6 +3,7 @@ import { Timestamp, type Firestore, type DocumentData } from 'firebase-admin/fir
 import { logger } from '../lib/logger.js';
 import { canIssueManagementLink, MANAGEMENT_ACCESS, managementAccessMatches } from './management-access.js';
 import { preparePaidBookingConfirmation, type PreparedBookingConfirmation } from './confirmation-email.js';
+import { synchronizeInitialBookingCalendar } from './initial-calendar.js';
 
 export const CONFIRMATION_JOBS = 'bookingConfirmationJobs';
 const LEASE_MS = 180_000, MAX_ATTEMPTS = 3;
@@ -11,7 +12,7 @@ export interface ConfirmationDependencies {
   send(message: PreparedBookingConfirmation, bookingId: string): Promise<void>;
 }
 const defaults: ConfirmationDependencies = {
-  prepare: preparePaidBookingConfirmation,
+  prepare: async (db, id) => preparePaidBookingConfirmation(db, id, await synchronizeInitialBookingCalendar(db, id)),
   send: async (message, id) => {
     await (await import('../email-routes.js')).sendGmailEmail(message.to, message.subject, message.html, undefined,
       { type: 'booking_confirmation', relatedDocId: id, relatedDocType: 'booking' });

@@ -223,9 +223,9 @@ describe('customer rescheduling', () => {
     expect(updateEvent).toHaveBeenCalledTimes(2); expect(createEvent).not.toHaveBeenCalled();
     expect(sendGmailEmail).toHaveBeenCalledTimes(1);
   });
-  it('creates a stable event ID if an already paid booking has not yet synchronized Calendar', async () => {
+  it('creates a stable event ID for a legacy paid booking without an event or an initial synchronization in progress', async () => {
     const { id, input } = await fixture();
-    store.seed(`bookings/${id}`, { ...store.value(`bookings/${id}`), googleCalendarEventId: null, calendarSyncPending: true });
+    store.seed(`bookings/${id}`, { ...store.value(`bookings/${id}`), googleCalendarEventId: null, calendarSyncPending: false });
     await reserveManagedReschedule(store.db, id, input); await deliverManagedReschedule(store.db, id);
     const booking = store.value(`bookings/${id}`);
     expect(booking.googleCalendarEventId).toMatch(/^[a-f0-9]{64}$/);
