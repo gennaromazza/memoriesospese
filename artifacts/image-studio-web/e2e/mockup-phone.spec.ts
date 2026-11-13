@@ -27,7 +27,7 @@ const directModels = [
     name: "Custodia",
     configuration: {
       modelId: models[0].rendererId, assetRevision: 2, materialId, appearanceRevision: 4,
-      coverLayout: "full", topText: "", bottomText: "", photoAssetId: savedPhotoIds.front, crop,
+      coverLayout: "full", topText: "Anna", bottomText: "Marco", photoAssetId: savedPhotoIds.front, crop,
     },
   },
   {
@@ -822,6 +822,16 @@ for (const model of directModels) {
       expect(viewerState.viewControlPressedAfterClick).toBe(true);
     } else {
       expect(viewerState.wizardReadonly).toBe(true);
+    }
+    if (model.key === "custodia") {
+      const custodiaFrame = page.frameLocator('iframe[src*="/mockups/custodia-v1/index.html"]');
+      await expect(custodiaFrame.locator("#topText")).toHaveValue("Anna");
+      await expect(custodiaFrame.locator("#bottomText")).toHaveValue("Marco");
+      await expect(custodiaFrame.locator("#photoStatus")).toHaveText("Foto salvata");
+      await expect(custodiaFrame.locator("#configurationSummary")).toContainText("Custodia");
+      await expect(custodiaFrame.locator("#configurationSummary")).toContainText("Foto: Foto salvata");
+      await expect(custodiaFrame.locator("#configurationSummary")).toContainText("Superiore: Anna");
+      await expect(custodiaFrame.locator("#configurationSummary")).toContainText("Inferiore: Marco");
     }
 
     const assertOrientation = async (viewport: { width: number; height: number }, label: string) => {

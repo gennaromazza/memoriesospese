@@ -131,14 +131,18 @@ function rendererTestPage() {
         window.addEventListener("message", event => {
           if (event.source !== parent || event.data?.channel !== channel || event.data.type !== "apply") return;
           const rendererId = event.data.option?.rendererId || "${custodiaId}";
-          const configuration = event.data.configuration || configurations[rendererId] || configurations["${custodiaId}"];
-          document.body.dataset.appliedModel = configuration.modelId;
-          document.body.dataset.appliedBottomText = configuration.bottomText || "";
-          send("change", { configuration });
+        const configuration = event.data.configuration || configurations[rendererId] || configurations["${custodiaId}"];
+        document.body.dataset.appliedModel = configuration.modelId;
+        document.body.dataset.appliedBottomText = configuration.bottomText || "";
+        document.body.dataset.appliedPhotoId = configuration.photoAssetId || "";
+        send("change", { configuration });
           send("busy", { busy: false });
         });
         window.testChangeConfiguration = () => send("change", {
           configuration: { ...configurations["album-girevole"], bottomText: "Scelta mobile salvata" }
+        });
+        window.testChangeCustodiaConfiguration = () => send("change", {
+          configuration: { ...configurations["${custodiaId}"], topText: "Anna", bottomText: "Marco" }
         });
         send("ready");
         send("busy", { busy: false });
@@ -617,6 +621,92 @@ test.describe("flusso mockup su desktop", () => {
     await exerciseClientModelChoice(page);
   });
 
+  test("su desktop il cliente recupera la Custodia assegnata dopo il salvataggio", async ({ page }) => {
+    const photoAssetId = "11111111-1111-4111-8111-111111111111";
+    const option = { ...custodiaOption };
+    let saved: Record<string, unknown> | null = null;
+    let payload: Record<string, unknown> = {
+      version: 1,
+      mockupPath: "client",
+      editable: true,
+      enabled: true,
+      approvalRequired: false,
+      saved,
+      offer: { revision: 1, mode: "fixed", options: [option] },
+      modelMode: "fixed",
+      modelSelection: { labId: option.labId, modelId: option.id },
+      offerError: null,
+    };
+    let submitRequests = 0;
+    page.on("request", request => {
+      if (new URL(request.url()).pathname === `/api/photobooks/by-token/${token}/mockup/submit`) {
+        submitRequests += 1;
+      }
+    });
+
+    await mockPhotobookApi(page, async route => {
+      if (route.request().method() === "PUT") {
+        const body = route.request().postDataJSON() as {
+          revision: number;
+          configuration: Record<string, unknown>;
+          selection?: { labId: string; modelId: string };
+        };
+        saved = {
+          revision: body.revision + 1,
+          status: "draft",
+          updatedAt: "2026-10-01T10:05:00.000Z",
+          updatedBy: "client",
+          selection: body.selection || { labId: option.labId, modelId: option.id },
+          configuration: body.configuration,
+          option,
+        };
+        payload = { ...payload, saved };
+        await fulfillMockup(route, saved);
+        return;
+      }
+      await fulfillMockup(route, payload);
+    });
+    await page.route(`**/api/photobooks/by-token/${token}/mockup/photos/${photoAssetId}`, route =>
+      route.fulfill({ status: 200, contentType: "image/jpeg", body: Buffer.from([0xff, 0xd8, 0xff, 0xd9]) }),
+    );
+
+    await page.goto(`/fotolibro/${token}`);
+    const mockup = page.getByTestId("photobook-mockup");
+    await expect(mockup).toBeVisible();
+    await mockup.getByRole("button").first().click();
+
+    const renderer = page.frameLocator(`iframe[title="Configuratore 3D ${option.name}"]`);
+    await expect(renderer.locator('body[data-wizard="true"]')).toBeVisible();
+    await renderer.locator("body").evaluate(body => {
+      const viewer = body.ownerDocument.defaultView as (Window & { testChangeCustodiaConfiguration: () => void }) | null;
+      viewer?.testChangeCustodiaConfiguration();
+    });
+    const saveButton = renderer.getByRole("button", { name: /Salva bozza/ });
+    await expect(saveButton).toBeEnabled();
+    const saveResponse = page.waitForResponse(response =>
+      response.request().method() === "PUT" && response.url().includes(`/photobooks/by-token/${token}/mockup`),
+    );
+    await saveButton.click();
+    await saveResponse;
+    expect(saved?.configuration).toMatchObject({
+      modelId: custodiaId,
+      topText: "Anna",
+      bottomText: "Marco",
+      photoAssetId: photoAssetId,
+      coverLayout: "oblique",
+    });
+
+    await page.reload();
+    const reopened = page.getByTestId("photobook-mockup");
+    await expect(reopened).toBeVisible();
+    await reopened.getByRole("button").first().click();
+    const restored = page.frameLocator(`iframe[title="Configuratore 3D ${option.name}"]`);
+    await expect(restored.locator("body")).toHaveAttribute("data-applied-model", custodiaId);
+    await expect(restored.locator("body")).toHaveAttribute("data-applied-bottom-text", "Marco");
+    await expect(restored.locator("body")).toHaveAttribute("data-applied-photo-id", photoAssetId);
+    expect(submitRequests).toBe(0);
+  });
+
   test("lo studio copia una sola volta il link del mockup confermato", async ({ page }) => {
     await exerciseStudioSharing(page);
   });
@@ -634,7 +724,8 @@ test.describe("flusso mockup su desktop", () => {
     await dialog.getByRole("button", { name: "Chiudi mockup" }).click();
 
     await expect(page.getByRole("heading", { name: /La vostra anteprima.*Fotolibro di prova/ })).toBeVisible();
-    await expect(page.getByTestId("status-photobook-approval")).toContainText("versione 1");
+    await expect(page.getByTestId("status-photobook-approval")).toContainText("L’impaginato non è ancora stato caricato");
+    await expect(page.getByTestId("status-photobook-approval")).toContainText("non approva le pagine");
     const mockup = page.getByTestId("photobook-mockup");
     await expect(mockup.locator(".mockup-status-card")).toContainText("confermato");
     await expect(mockup.locator(".mockup-status-card")).toContainText("revisione 7");
