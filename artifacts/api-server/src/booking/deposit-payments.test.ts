@@ -12,6 +12,7 @@ import { paypalRequestId, PayPalConfigurationError } from '../print-shop/paypal-
 import { ShopPaymentService } from '../shop/payments.js';
 import { PrintShopService } from '../print-shop/service.js';
 import { GiftCardOnlineService } from '../gift-cards/online.js';
+import { expireBookingPayments } from './payment-expiry.js';
 
 const now = Date.parse('2030-12-10T08:00:00Z');
 const bookingId = 'booking-test-1', orderId = 'ORDER-BOOKING-001', captureId = 'CAPTURE-BOOKING-001', token = '1'.repeat(64);
@@ -69,6 +70,25 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe('cattura e cassa acconti', () => {
+  it('riconcilia un incasso dopo la pulizia senza confermare neppure uno slot rimasto libero', async () => {
+    vi.mocked(Date.now).mockReturnValue(now + 600_000);
+    await expireBookingPayments(store.db);
+    expect(store.value(holdPath).status).toBe('expired');
+    paid = true;
+    expect(await capture()).toMatchObject({ status: 'paid_action_required', bookingConfirmed: false });
+    expect(await capture()).toMatchObject({ status: 'paid_action_required', duplicate: true });
+    expect(store.value(holdPath).paymentReviewRequired).toBe(true);
+    expect(store.value(`bookings/${bookingId}`)).toBeUndefined();
+    expect(count('cashMovements')).toBe(2);
+    expect(client.captureOrder).not.toHaveBeenCalled();
+  });
+  it('rifiuta un nuovo addebito dopo la pulizia mantenendo lo stesso errore di checkout scaduto', async () => {
+    vi.mocked(Date.now).mockReturnValue(now + 600_000);
+    await expireBookingPayments(store.db);
+    await expect(capture()).rejects.toMatchObject({ status: 410 });
+    expect(client.captureOrder).not.toHaveBeenCalled();
+    expect(count('cashMovements')).toBe(0);
+  });
   it('conferma lo slot, registra l’acconto lordo e distingue la commissione PayPal', async () => {
     expect(await capture()).toMatchObject({ bookingId, status: 'paid', amountCents: 2000, paypalFeeCents: 95, bookingConfirmed: true, duplicate: false });
     expect(client.captureOrder).toHaveBeenCalledWith(orderId, paypalRequestId('booking-deposit', 'capture', bookingId, orderId));

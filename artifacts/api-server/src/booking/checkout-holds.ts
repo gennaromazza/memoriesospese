@@ -92,10 +92,14 @@ export async function releaseCheckoutHold(
   return db.runTransaction(async transaction => {
     const snapshot = await transaction.get(ref);
     const data = authorizeCheckoutHold(snapshot.data(), token);
+    if (data.status === 'expired') return { bookingId, status: 'expired' as const };
     if (data.status === 'cancelled' || data.status === 'payment_failed') return { bookingId, status: data.status };
     if (data.status !== 'active') throw new CheckoutHoldError(409, 'Il checkout non può più essere annullato');
     if (!Number.isFinite(data.expiresAt?.toMillis?.())) throw new CheckoutHoldError(503, 'Checkout da verificare con lo studio');
-    if (!checkoutHoldBlocksSlot(data)) return { bookingId, status: 'expired' as const };
+    if (!checkoutHoldBlocksSlot(data)) {
+      transaction.update(ref, { status: 'expired', expiredAt: Timestamp.now() });
+      return { bookingId, status: 'expired' as const };
+    }
     transaction.update(ref, { status: reason, releasedAt: Timestamp.now() });
     return { bookingId, status: reason };
   });

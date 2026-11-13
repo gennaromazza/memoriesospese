@@ -22,6 +22,7 @@ import {
 import { checkoutHoldRouter } from './booking/checkout-hold-routes.js';
 import { bookingDepositPaymentRouter } from './booking/deposit-payment-routes.js';
 import { loadCheckoutHoldEvents } from './booking/slot-reservations.js';
+import { hasPaidBookingDeposit, unpaidDepositRequestExpired } from './booking/payment-deadlines.js';
 
 const router = express.Router();
 router.use('/v2/checkout-holds', checkoutHoldRouter(db));
@@ -390,6 +391,7 @@ router.post("/available-slots", async (req, res) => {
         // Verifica che lo slot NON si sovrapponga con nessuna prenotazione
         const hasOverlap = existingBookingsSnapshot.docs.some((doc) => {
           const booking = doc.data();
+          if (unpaidDepositRequestExpired(booking)) return false;
           const bookingStart = booking.dataShootingInizio.toDate();
           const bookingEnd = booking.dataShootingFine.toDate();
 
@@ -926,7 +928,14 @@ router.patch("/v2/:id/approve", authenticateFirebase, requireAdmin, async (req, 
       });
     }
 
+    if (unpaidDepositRequestExpired(bookingData)) {
+      return res.status(410).json({ error: "La richiesta di acconto è scaduta: occorre una nuova prenotazione" });
+    }
+
     // RIVALIDAZIONE con Calendar Engine V2
+    if (bookingData.depositPaymentRequest?.status === 'pending' && !hasPaidBookingDeposit(bookingData)) {
+      return res.status(400).json({ code: "DEPOSIT_PAYMENT_PENDING", error: "Acconto in attesa di pagamento: la scadenza originaria resta invariata" });
+    }
     const slotStart = bookingData.dataShootingInizio.toDate();
     const slotEnd = bookingData.dataShootingFine.toDate();
 
@@ -1215,7 +1224,14 @@ router.patch("/:id/approve", authenticateFirebase, requireAdmin, async (req, res
       });
     }
 
+    if (unpaidDepositRequestExpired(bookingData)) {
+      return res.status(410).json({ error: "La richiesta di acconto è scaduta: occorre una nuova prenotazione" });
+    }
+
     // RIVALIDAZIONE: Verifica che lo slot sia ancora disponibile prima di creare evento
+    if (bookingData.depositPaymentRequest?.status === 'pending' && !hasPaidBookingDeposit(bookingData)) {
+      return res.status(400).json({ code: "DEPOSIT_PAYMENT_PENDING", error: "Acconto in attesa di pagamento: la scadenza originaria resta invariata" });
+    }
     const slotStart = bookingData.dataShootingInizio.toDate();
     const slotEnd = bookingData.dataShootingFine.toDate();
 

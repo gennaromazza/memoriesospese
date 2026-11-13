@@ -76,6 +76,21 @@ describe('getAllExistingBookingEvents', () => {
     expect(await getAllExistingBookingEvents(start, end, fakeDb(), 'active')).toHaveLength(0);
   });
 
+  it('esclude le richieste scadute senza aspettare la pulizia ma conserva gli incassi confermati', async () => {
+    const start = new Date('2030-12-10T09:00:00Z'), end = new Date('2030-12-10T09:30:00Z');
+    const current = Date.now();
+    const request = { status: 'pending', requestedAt: { toMillis: () => current - 3_600_000 },
+      expiresAt: { toMillis: () => current } };
+    h.pending = [{ ...booking('expired', start, end), data: () => ({
+      ...booking('', start, end).data(), depositPaymentRequest: request,
+    }) }];
+    h.confirmed = [{ ...booking('paid', start, end), data: () => ({
+      ...booking('', start, end).data(), depositPaymentRequest: request,
+      depositPayment: { status: 'paid', paypalCaptureId: 'CAPTURE' },
+    }) }];
+    expect((await getAllExistingBookingEvents(start, end, fakeDb())).map(event => event.id)).toEqual(['paid']);
+  });
+
   it('centralizza Google, consulenze, Job e prenotazioni pendenti/confermate', async () => {
     const start = new Date('2026-09-17T07:00:00.000Z');
     const end = new Date('2026-09-17T18:00:00.000Z');

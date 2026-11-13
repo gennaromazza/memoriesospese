@@ -6,6 +6,7 @@ import type { AvailabilityConfig } from "../../shared/calendar-types.js";
 import type { ConsultationTemplate } from "../../shared/consultation-types.js";
 import { createConsultationDateTime } from "../services/consultation-datetime.js";
 import { loadCheckoutHoldEvents } from '../booking/slot-reservations.js';
+import { unpaidDepositRequestExpired } from '../booking/payment-deadlines.js';
 
 /**
  * Convert consultation template to unified AvailabilityConfig
@@ -432,6 +433,7 @@ export async function getAllExistingEvents(
 
     for (const doc of bookingsSnap.docs) {
       const data = doc.data();
+      if (unpaidDepositRequestExpired(data)) continue;
       const startDate = data.dataShootingInizio.toDate();
       const endDate = data.dataShootingFine?.toDate?.() || startDate;
 

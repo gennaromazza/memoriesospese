@@ -10,6 +10,7 @@ import { DateTime } from 'luxon';
 import type { AvailabilityConfig, CalendarEvent } from '../../shared/calendar-types.js';
 import { Timestamp } from 'firebase-admin/firestore';
 import { loadCheckoutHoldEvents } from './slot-reservations.js';
+import { unpaidDepositRequestExpired } from './payment-deadlines.js';
 
 /**
  * Campaign data structure (partial - solo campi necessari per calendar)
@@ -257,6 +258,7 @@ export async function getAllExistingBookingEvents(
       }
       
       const data = doc.data();
+      if (unpaidDepositRequestExpired(data)) continue;
       
       // Converti Firestore Timestamp in Date
       const startTime = data.dataShootingInizio?.toDate?.() || new Date(data.dataShootingInizio);

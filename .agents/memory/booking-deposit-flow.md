@@ -56,3 +56,18 @@ può perdere una prenotazione pur conservando il pagamento.
 **How to apply:** confermare e registrare atomicamente il pagamento; eseguire
 successivamente sincronizzazione e comunicazioni idempotenti. Distinguere
 sempre incasso ricevuto da slot confermato nei casi tardivi o da riconciliare.
+
+## Scadenze senza effetti retroattivi
+
+Applicare la scadenza di pagamento solo a una richiesta esplicitamente
+registrata sul server. Non ricostruirla dalla configurazione attuale della
+campagna per le prenotazioni storiche.
+
+**Why:** modificare oggi una campagna non deve annullare appuntamenti presi
+prima dell'introduzione degli acconti né interpretare vecchi importi come
+richieste di pagamento ancora aperte.
+
+**How to apply:** mantenere separati scadenza del checkout, ora dopo
+approvazione e attesa di approvazione. Le letture liberano subito gli slot
+scaduti anche se la manutenzione è in ritardo; la manutenzione non rimuove
+incassi verificati o eventi storici.

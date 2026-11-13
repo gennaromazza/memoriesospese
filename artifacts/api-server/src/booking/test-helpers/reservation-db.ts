@@ -22,17 +22,23 @@ export function reservationDb() {
       update: async (data: any) => seed(path, { ...rows.get(path)!.value, ...data }),
       delete: async () => rows.delete(path) };
   }
-  function query(name: string, filters: any[] = []): any {
+  function query(name: string, filters: any[] = [], max = Infinity, after = ''): any {
     return {
       kind: 'query', name,
       doc: (id?: string) => reference(`${name}/${id || `draft-${++sequence}`}`),
-      where: (field: string, op: string, value: any) => query(name, [...filters, [field, op, value]]),
+      where: (field: string, op: string, value: any) => query(name, [...filters, [field, op, value]], max, after),
+      orderBy: () => query(name, filters, max, after),
+      limit: (limit: number) => query(name, filters, limit, after),
+      startAfter: (id: string) => query(name, filters, max, id),
       get: async () => {
         const docs = [...rows].filter(([path, row]) => path.split('/')[0] === name && filters.every(([field, op, value]) => {
-          const actual = row.value[field]?.toMillis?.() ?? row.value[field];
+          const fieldValue = field.split('.').reduce((value: any, key: string) => value?.[key], row.value);
+          const actual = fieldValue?.toMillis?.() ?? fieldValue;
           const expected = value?.toMillis?.() ?? value;
           return op === '==' ? actual === expected : op === '>=' ? actual >= expected : actual <= expected;
-        })).map(([path]) => read(path));
+        })).filter(([path]) => path.split('/')[1] > after)
+          .sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
+          .slice(0, max).map(([path]) => read(path));
         return { docs, size: docs.length, empty: docs.length === 0 };
       },
     };

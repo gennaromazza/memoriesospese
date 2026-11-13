@@ -1,6 +1,7 @@
 import { Timestamp, type Firestore, type Transaction } from 'firebase-admin/firestore';
 import { DateTime } from 'luxon';
 import type { CalendarEvent } from '../../shared/calendar-types.js';
+import { unpaidDepositRequestExpired } from './payment-deadlines.js';
 
 export const CHECKOUT_HOLDS = 'bookingCheckoutHolds';
 export class BookingSlotConflictError extends Error {}
@@ -63,6 +64,7 @@ export async function checkSlotReservation(
     if (index === 2 && doc.id === excludeCheckoutHoldId) return false;
     const data = doc.data();
     if (index === 2 && !checkoutHoldBlocksSlot(data, now)) return false;
+    if (index !== 2 && unpaidDepositRequestExpired(data, now)) return false;
     return start < data.dataShootingFine.toDate() && end > data.dataShootingInizio.toDate();
   }));
   if (occupied) throw new BookingSlotConflictError('Slot non più disponibile');

@@ -16,6 +16,7 @@ export function authorizeCheckoutHold(data: FirebaseFirestore.DocumentData | und
 }
 export function activeCheckoutHoldView(bookingId: string, data: FirebaseFirestore.DocumentData): BookingCheckoutHoldView {
   const now = Date.now();
+  if (data.status === 'expired') throw new CheckoutHoldError(410, 'Checkout scaduto: scegli nuovamente lo slot');
   if (data.status !== 'active') throw new CheckoutHoldError(409, 'Checkout già chiuso');
   if (!Number.isFinite(data.expiresAt?.toMillis?.())) throw new CheckoutHoldError(503, 'Checkout da verificare con lo studio');
   if (!checkoutHoldBlocksSlot(data, now)) throw new CheckoutHoldError(410, 'Checkout scaduto: scegli nuovamente lo slot');

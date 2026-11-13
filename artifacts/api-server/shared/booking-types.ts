@@ -179,6 +179,15 @@ export interface BookingDepositPayment {
   paidAt: Timestamp;
 }
 
+export interface BookingDepositPaymentRequest {
+  status: 'pending' | 'expired' | 'paid';
+  amountCents: number;
+  currency: 'EUR';
+  requestedAt: Timestamp;
+  expiresAt: Timestamp;
+  expiredAt?: Timestamp;
+}
+
 export interface Booking {
   id: string;
   campaignId: string; // Riferimento a booking_campaigns
@@ -241,6 +250,7 @@ export interface Booking {
   metodoPagamento?: 'contante' | 'carta' | 'bonifico' | 'paypal' | 'altro'; // Metodo pagamento acconto
   transactions?: Transaction[]; // Storico transazioni (centralizzato con ordini)
   depositPayment?: BookingDepositPayment;
+  depositPaymentRequest?: BookingDepositPaymentRequest;
   calendarSyncPending?: boolean;
   
   createdAt: Timestamp;
