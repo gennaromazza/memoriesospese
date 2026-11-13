@@ -11,6 +11,7 @@ import type { AvailabilityConfig, CalendarEvent } from '../../shared/calendar-ty
 import { Timestamp } from 'firebase-admin/firestore';
 import { loadCheckoutHoldEvents } from './slot-reservations.js';
 import { unpaidDepositRequestExpired } from './payment-deadlines.js';
+import type { CalendarBusyOptions } from '../calendar-engine/google-sync.js';
 
 /**
  * Campaign data structure (partial - solo campi necessari per calendar)
@@ -35,8 +36,6 @@ export function validateCampaign(campaign: any): campaign is BookingCampaign {
   
   const required = [
     'orarioApertura',
-    'orarioPausaInizio',
-    'orarioPausaFine',
     'orarioChiusura',
     'durataShootingMinuti'
   ];
@@ -162,7 +161,8 @@ export async function getAllExistingBookingEvents(
   dayStart: Date,
   dayEnd: Date,
   firestoreDb: FirebaseFirestore.Firestore,
-  excludeBookingId?: string
+  excludeBookingId?: string,
+  calendarOptions?: CalendarBusyOptions,
 ): Promise<CalendarEvent[]> {
   const events: CalendarEvent[] = [];
   
@@ -171,7 +171,7 @@ export async function getAllExistingBookingEvents(
   // 1. Carica eventi Google Calendar (con gestione errori graceful)
   try {
     const { checkGoogleCalendarBusyPeriods } = await import('../calendar-engine/google-sync.js');
-    const busyPeriods = await checkGoogleCalendarBusyPeriods(dayStart, dayEnd);
+    const busyPeriods = await checkGoogleCalendarBusyPeriods(dayStart, dayEnd, calendarOptions);
     
     // Converti busy periods in CalendarEvent
     for (const period of busyPeriods) {

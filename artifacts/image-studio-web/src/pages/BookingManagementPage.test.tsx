@@ -31,7 +31,7 @@ beforeEach(async () => {
     if (!url.pathname.startsWith('/api/booking/')) throw new Error('Unexpected external request');
     return nativeFetch(harness.base + url.pathname + url.search, init);
   });
-});
+}, 30_000);
 afterEach(async () => {
   cleanup(); client?.clear(); await harness?.close(); vi.unstubAllGlobals(); vi.unstubAllEnvs();
 });
@@ -75,4 +75,11 @@ it('does not disclose customer details after explicit revocation', async () => {
 it('does not call the backend without the personal fragment or cached credential', async () => {
   open(harness.url.split('#')[0]); await screen.findByTestId('management-denied');
   await waitFor(() => expect(harness.requests()).toBe(0));
+});
+it('explains why an expired campaign cannot offer a self-service date change', async () => {
+  harness.store.seed('booking_campaigns/campaign', { nome: 'Natale test', attiva: true,
+    dataInizio: new Date('2000-12-01'), dataFine: new Date('2000-12-20') });
+  open(); await screen.findByTestId('customer-booking-status');
+  expect(screen.getByText(/La campagna non è più prenotabile/)).toBeTruthy();
+  expect(screen.queryByTestId('button-open-reschedule')).toBeNull();
 });

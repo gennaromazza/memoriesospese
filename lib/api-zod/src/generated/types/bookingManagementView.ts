@@ -7,6 +7,7 @@
  */
 import type { BookingManagementViewStatus } from './bookingManagementViewStatus';
 import type { BookingManagementViewStudio } from './bookingManagementViewStudio';
+import type { BookingRescheduleView } from './bookingRescheduleView';
 
 export interface BookingManagementView {
   success: boolean;
@@ -27,5 +28,6 @@ export interface BookingManagementView {
      * @nullable
      */
   depositPaidCents: number | null;
+  reschedule: BookingRescheduleView;
   studio: BookingManagementViewStudio;
 }

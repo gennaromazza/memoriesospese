@@ -1,6 +1,7 @@
 import type { DocumentData, Firestore } from 'firebase-admin/firestore';
 import type { BookingManagementView } from '@workspace/api-zod';
 import { bookingPaymentMillis } from '@shared/booking-payment-state';
+import { rescheduleView } from './reschedule-policy.js';
 
 const text = (value: unknown) => typeof value === 'string' && value.trim() ? value.trim() : null;
 const date = (value: unknown) => {
@@ -28,6 +29,7 @@ export async function bookingManagementView(db: Firestore, bookingId: string, bo
     startsAt: date(booking.dataShootingInizio), endsAt: date(booking.dataShootingFine),
     customerName: [text(booking.cliente?.nome), text(booking.cliente?.cognome)].filter(Boolean).join(' ') || null,
     productName: text(booking.prodottoNome), depositPaidCents: paid,
+    reschedule: rescheduleView(booking, campaign),
     studio: { name: text(studio.name), address: text(studio.address),
       email: email && /^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/.test(email) ? email : null,
       phone: phone && /^\+?[0-9][0-9 ().-]{4,30}$/.test(phone) ? phone : null },

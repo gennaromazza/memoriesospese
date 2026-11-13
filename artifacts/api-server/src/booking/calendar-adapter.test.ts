@@ -6,6 +6,7 @@ const h = vi.hoisted(() => ({
   pending: [] as any[],
   confirmed: [] as any[],
   holds: [] as any[],
+  reschedules: [] as any[],
 }));
 
 vi.mock('../calendar-engine/google-sync.js', () => ({
@@ -33,7 +34,7 @@ import { getAllExistingBookingEvents } from './calendar-adapter.js';
 function fakeDb() {
   return {
     collection: (name: string) => {
-      if (!['bookings', 'bookingCheckoutHolds'].includes(name)) throw new Error(`collezione inattesa: ${name}`);
+      if (!['bookings', 'bookingCheckoutHolds', 'bookingRescheduleJobs'].includes(name)) throw new Error(`collezione inattesa: ${name}`);
       let state = '';
       const chain: any = {
         where: (field: string, _operator: string, value: unknown) => {
@@ -41,7 +42,7 @@ function fakeDb() {
           return chain;
         },
         get: async () => {
-          const docs = name === 'bookingCheckoutHolds' ? h.holds : state === 'in_attesa' ? h.pending : h.confirmed;
+          const docs = name === 'bookingRescheduleJobs' ? h.reschedules : name === 'bookingCheckoutHolds' ? h.holds : state === 'in_attesa' ? h.pending : h.confirmed;
           return { docs, size: docs.length };
         },
       };
@@ -61,6 +62,16 @@ describe('getAllExistingBookingEvents', () => {
     h.pending = [];
     h.confirmed = [];
     h.holds = [];
+    h.reschedules = [];
+  });
+
+  it('blocca anche le destinazioni di cambi in verifica e conserva esclusivamente il proprio cambio', async () => {
+    const start = new Date('2030-12-10T09:00:00Z'), end = new Date('2030-12-10T09:30:00Z');
+    h.reschedules = [{ ...booking('moving', start, end), data: () => ({
+      ...booking('', start, end).data(), status: 'pending',
+    }) }];
+    expect((await getAllExistingBookingEvents(start, end, fakeDb())).map(event => event.id)).toEqual(['reschedule-moving']);
+    expect(await getAllExistingBookingEvents(start, end, fakeDb(), 'moving')).toEqual([]);
   });
 
   it('include solo riserve attive e non scadute, anche di altre campagne', async () => {

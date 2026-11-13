@@ -139,6 +139,76 @@ export interface BookingManagementAccessInput {
   token: string;
 }
 
+export interface BookingRescheduleSlotsInput {
+  /** @pattern ^[a-f0-9]{64}$ */
+  token: string;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  date: string;
+}
+
+export interface BookingRescheduleInput {
+  /** @pattern ^[a-f0-9]{64}$ */
+  token: string;
+  requestId: string;
+  expectedStartsAt: string;
+  startsAt: string;
+  endsAt: string;
+}
+
+export interface BookingRescheduleSlot {
+  startsAt: string;
+  endsAt: string;
+  label: string;
+}
+
+export interface BookingRescheduleSlots {
+  slots: BookingRescheduleSlot[];
+}
+
+export type BookingRescheduleViewStatus = typeof BookingRescheduleViewStatus[keyof typeof BookingRescheduleViewStatus];
+
+
+export const BookingRescheduleViewStatus = {
+  available: 'available',
+  unavailable: 'unavailable',
+  pending: 'pending',
+  changed: 'changed',
+  blocked: 'blocked',
+} as const;
+
+/**
+ * @nullable
+ */
+export type BookingRescheduleViewNotificationStatus = typeof BookingRescheduleViewNotificationStatus[keyof typeof BookingRescheduleViewNotificationStatus] | null;
+
+
+export const BookingRescheduleViewNotificationStatus = {
+  pending: 'pending',
+  preparing: 'preparing',
+  sending: 'sending',
+  sent: 'sent',
+  failed: 'failed',
+  unknown: 'unknown',
+  skipped: 'skipped',
+} as const;
+
+export interface BookingRescheduleView {
+  canChange: boolean;
+  status: BookingRescheduleViewStatus;
+  /** @nullable */
+  reason: string | null;
+  /** @nullable */
+  firstDate: string | null;
+  /** @nullable */
+  lastDate: string | null;
+  /** @nullable */
+  notificationStatus: BookingRescheduleViewNotificationStatus;
+  /** @nullable */
+  targetStartsAt: string | null;
+  /** @nullable */
+  targetEndsAt: string | null;
+}
+
 export type BookingManagementViewStatus = typeof BookingManagementViewStatus[keyof typeof BookingManagementViewStatus];
 
 
@@ -179,6 +249,7 @@ export interface BookingManagementView {
      * @nullable
      */
   depositPaidCents: number | null;
+  reschedule: BookingRescheduleView;
   studio: BookingManagementViewStudio;
 }
 

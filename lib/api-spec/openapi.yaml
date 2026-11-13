@@ -15,6 +15,40 @@ tags:
   - name: booking-campaigns
     description: Booking campaign administration
 paths:
+  /booking/{bookingId}/management/slots:
+    post:
+      operationId: getBookingManagementSlots
+      tags: [booking]
+      parameters:
+        - { name: bookingId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BookingRescheduleSlotsInput" }
+      responses:
+        "200":
+          description: Available slots for this booking and campaign
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BookingRescheduleSlots" }
+  /booking/{bookingId}/management/reschedule:
+    post:
+      operationId: rescheduleManagedBooking
+      tags: [booking]
+      parameters:
+        - { name: bookingId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BookingRescheduleInput" }
+      responses:
+        "200":
+          description: Updated booking or safely pending calendar synchronization
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BookingManagementView" }
   /booking/{bookingId}/management/access:
     post:
       operationId: authorizeBookingManagementAccess
@@ -677,10 +711,53 @@ components:
       required: [token]
       properties:
         token: { type: string, pattern: "^[a-f0-9]{64}$" }
+    BookingRescheduleSlotsInput:
+      type: object
+      additionalProperties: false
+      required: [token, date]
+      properties:
+        token: { type: string, pattern: "^[a-f0-9]{64}$" }
+        date: { type: string, pattern: "^\\d{4}-\\d{2}-\\d{2}$" }
+    BookingRescheduleInput:
+      type: object
+      additionalProperties: false
+      required: [token, requestId, expectedStartsAt, startsAt, endsAt]
+      properties:
+        token: { type: string, pattern: "^[a-f0-9]{64}$" }
+        requestId: { type: string, format: uuid }
+        expectedStartsAt: { type: string, format: date-time }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+    BookingRescheduleSlot:
+      type: object
+      required: [startsAt, endsAt, label]
+      properties:
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        label: { type: string }
+    BookingRescheduleSlots:
+      type: object
+      required: [slots]
+      properties:
+        slots:
+          type: array
+          items: { $ref: "#/components/schemas/BookingRescheduleSlot" }
+    BookingRescheduleView:
+      type: object
+      required: [canChange, status, reason, firstDate, lastDate, notificationStatus, targetStartsAt, targetEndsAt]
+      properties:
+        canChange: { type: boolean }
+        status: { type: string, enum: [available, unavailable, pending, changed, blocked] }
+        reason: { type: [string, "null"] }
+        firstDate: { type: [string, "null"] }
+        lastDate: { type: [string, "null"] }
+        notificationStatus: { type: [string, "null"], enum: [pending, preparing, sending, sent, failed, unknown, skipped, null] }
+        targetStartsAt: { type: [string, "null"], format: date-time }
+        targetEndsAt: { type: [string, "null"], format: date-time }
     BookingManagementView:
       type: object
       additionalProperties: false
-      required: [success, bookingId, status, campaignName, startsAt, endsAt, customerName, productName, depositPaidCents, studio]
+      required: [success, bookingId, status, campaignName, startsAt, endsAt, customerName, productName, depositPaidCents, studio, reschedule]
       properties:
         success: { type: boolean }
         bookingId: { type: string }
@@ -691,6 +768,7 @@ components:
         customerName: { type: [string, "null"] }
         productName: { type: [string, "null"] }
         depositPaidCents: { type: [integer, "null"], minimum: 0 }
+        reschedule: { $ref: "#/components/schemas/BookingRescheduleView" }
         studio:
           type: object
           additionalProperties: false

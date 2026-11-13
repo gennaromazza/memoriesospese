@@ -51,6 +51,7 @@ describe('management link HTTP boundaries', () => {
     expect(response.headers.get('referrer-policy')).toBe('no-referrer');
     expect(await response.json()).toEqual({ success: true, bookingId: 'one', status: 'confirmed', campaignName: null,
       startsAt: null, endsAt: null, customerName: null, productName: null, depositPaidCents: null,
+      reschedule: { canChange: false, status: 'unavailable', firstDate: null, lastDate: null, targetStartsAt: null, targetEndsAt: null, notificationStatus: null, reason: 'L’orario richiede una verifica dello studio.' },
       studio: { name: 'Studio test', email: 'studio@example.test', phone: '+390000000000', address: 'Via test' } });
   });
   it('returns the same safe denial for unknown IDs and wrong tokens', async () => {

@@ -42,6 +42,9 @@ import type {
   BookingManagementView,
   BookingPayPalConfig,
   BookingPayPalWebhookEvent,
+  BookingRescheduleInput,
+  BookingRescheduleSlots,
+  BookingRescheduleSlotsInput,
   CampaignImageUploadResult,
   ChangeAdminBookingManagementLink200,
   CustomerNotificationKind,
@@ -79,6 +82,172 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getGetBookingManagementSlotsUrl = (bookingId: string,) => {
+
+
+
+
+  return `/api/booking/${bookingId}/management/slots`
+}
+
+export const getBookingManagementSlots = async (bookingId: string,
+    bookingRescheduleSlotsInput: BookingRescheduleSlotsInput, options?: Parameters<typeof customFetch>[1]): Promise<BookingRescheduleSlots> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<BookingRescheduleSlots>(getGetBookingManagementSlotsUrl(bookingId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(bookingRescheduleSlotsInput)
+  }
+);}
+
+
+
+
+
+export const getGetBookingManagementSlotsMutationKey = () => ['getBookingManagementSlots'] as const;
+
+export const getGetBookingManagementSlotsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getBookingManagementSlots>>, TError,GetBookingManagementSlotsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof getBookingManagementSlots>>, TError,GetBookingManagementSlotsMutationVariables, TContext> => {
+
+const mutationKey = getGetBookingManagementSlotsMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof getBookingManagementSlots>>, GetBookingManagementSlotsMutationVariables> = (props) => {
+          const {bookingId,data} = props ?? {};
+
+          return  getBookingManagementSlots(bookingId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GetBookingManagementSlotsMutationResult = NonNullable<Awaited<ReturnType<typeof getBookingManagementSlots>>>
+    export type GetBookingManagementSlotsMutationBody = BodyType<BookingRescheduleSlotsInput>
+    export type GetBookingManagementSlotsMutationError = ErrorType<unknown>
+    export type GetBookingManagementSlotsMutationVariables = {bookingId: string;data: BodyType<BookingRescheduleSlotsInput>}
+
+    export const useGetBookingManagementSlots = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getBookingManagementSlots>>, TError,GetBookingManagementSlotsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof getBookingManagementSlots>>,
+        TError,
+        GetBookingManagementSlotsMutationVariables,
+        TContext
+      > => {
+      return useMutation(getGetBookingManagementSlotsMutationOptions(options));
+    }
+
+export const getRescheduleManagedBookingUrl = (bookingId: string,) => {
+
+
+
+
+  return `/api/booking/${bookingId}/management/reschedule`
+}
+
+export const rescheduleManagedBooking = async (bookingId: string,
+    bookingRescheduleInput: BookingRescheduleInput, options?: Parameters<typeof customFetch>[1]): Promise<BookingManagementView> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<BookingManagementView>(getRescheduleManagedBookingUrl(bookingId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(bookingRescheduleInput)
+  }
+);}
+
+
+
+
+
+export const getRescheduleManagedBookingMutationKey = () => ['rescheduleManagedBooking'] as const;
+
+export const getRescheduleManagedBookingMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rescheduleManagedBooking>>, TError,RescheduleManagedBookingMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rescheduleManagedBooking>>, TError,RescheduleManagedBookingMutationVariables, TContext> => {
+
+const mutationKey = getRescheduleManagedBookingMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rescheduleManagedBooking>>, RescheduleManagedBookingMutationVariables> = (props) => {
+          const {bookingId,data} = props ?? {};
+
+          return  rescheduleManagedBooking(bookingId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RescheduleManagedBookingMutationResult = NonNullable<Awaited<ReturnType<typeof rescheduleManagedBooking>>>
+    export type RescheduleManagedBookingMutationBody = BodyType<BookingRescheduleInput>
+    export type RescheduleManagedBookingMutationError = ErrorType<unknown>
+    export type RescheduleManagedBookingMutationVariables = {bookingId: string;data: BodyType<BookingRescheduleInput>}
+
+    export const useRescheduleManagedBooking = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rescheduleManagedBooking>>, TError,RescheduleManagedBookingMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rescheduleManagedBooking>>,
+        TError,
+        RescheduleManagedBookingMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRescheduleManagedBookingMutationOptions(options));
+    }
 
 export const getAuthorizeBookingManagementAccessUrl = (bookingId: string,) => {
 

@@ -8,6 +8,76 @@
 import * as zod from 'zod';
 
 
+export const GetBookingManagementSlotsParams = zod.object({
+  "bookingId": zod.coerce.string()
+})
+
+export const getBookingManagementSlotsBodyTokenRegExp = new RegExp('^[a-f0-9]{64}$');
+export const getBookingManagementSlotsBodyDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const GetBookingManagementSlotsBody = zod.object({
+  "token": zod.string().regex(getBookingManagementSlotsBodyTokenRegExp),
+  "date": zod.string().regex(getBookingManagementSlotsBodyDateRegExp)
+})
+
+export const GetBookingManagementSlotsResponse = zod.object({
+  "slots": zod.array(zod.object({
+  "startsAt": zod.coerce.date(),
+  "endsAt": zod.coerce.date(),
+  "label": zod.string()
+}))
+})
+
+
+export const RescheduleManagedBookingParams = zod.object({
+  "bookingId": zod.coerce.string()
+})
+
+export const rescheduleManagedBookingBodyTokenRegExp = new RegExp('^[a-f0-9]{64}$');
+
+
+export const RescheduleManagedBookingBody = zod.object({
+  "token": zod.string().regex(rescheduleManagedBookingBodyTokenRegExp),
+  "requestId": zod.string().uuid(),
+  "expectedStartsAt": zod.coerce.date(),
+  "startsAt": zod.coerce.date(),
+  "endsAt": zod.coerce.date()
+})
+
+export const rescheduleManagedBookingResponseDepositPaidCentsMin = 0;
+
+
+
+export const RescheduleManagedBookingResponse = zod.object({
+  "success": zod.boolean(),
+  "bookingId": zod.string(),
+  "status": zod.enum(['confirmed', 'completed', 'cancelled', 'cancellation_pending']),
+  "campaignName": zod.string().nullable(),
+  "startsAt": zod.coerce.date().nullable(),
+  "endsAt": zod.coerce.date().nullable(),
+  "customerName": zod.string().nullable(),
+  "productName": zod.string().nullable(),
+  "depositPaidCents": zod.number().int().min(rescheduleManagedBookingResponseDepositPaidCentsMin).nullable(),
+  "reschedule": zod.object({
+  "canChange": zod.boolean(),
+  "status": zod.enum(['available', 'unavailable', 'pending', 'changed', 'blocked']),
+  "reason": zod.string().nullable(),
+  "firstDate": zod.string().nullable(),
+  "lastDate": zod.string().nullable(),
+  "notificationStatus": zod.union([zod.literal('pending'),zod.literal('preparing'),zod.literal('sending'),zod.literal('sent'),zod.literal('failed'),zod.literal('unknown'),zod.literal('skipped'),zod.literal(null)]).nullable(),
+  "targetStartsAt": zod.coerce.date().nullable(),
+  "targetEndsAt": zod.coerce.date().nullable()
+}),
+  "studio": zod.object({
+  "name": zod.string().nullable(),
+  "email": zod.string().nullable(),
+  "phone": zod.string().nullable(),
+  "address": zod.string().nullable()
+})
+})
+
+
 export const authorizeBookingManagementAccessPathBookingIdMax = 200;
 
 
@@ -37,6 +107,16 @@ export const AuthorizeBookingManagementAccessResponse = zod.object({
   "customerName": zod.string().nullable(),
   "productName": zod.string().nullable(),
   "depositPaidCents": zod.number().int().min(authorizeBookingManagementAccessResponseDepositPaidCentsMin).nullable(),
+  "reschedule": zod.object({
+  "canChange": zod.boolean(),
+  "status": zod.enum(['available', 'unavailable', 'pending', 'changed', 'blocked']),
+  "reason": zod.string().nullable(),
+  "firstDate": zod.string().nullable(),
+  "lastDate": zod.string().nullable(),
+  "notificationStatus": zod.union([zod.literal('pending'),zod.literal('preparing'),zod.literal('sending'),zod.literal('sent'),zod.literal('failed'),zod.literal('unknown'),zod.literal('skipped'),zod.literal(null)]).nullable(),
+  "targetStartsAt": zod.coerce.date().nullable(),
+  "targetEndsAt": zod.coerce.date().nullable()
+}),
   "studio": zod.object({
   "name": zod.string().nullable(),
   "email": zod.string().nullable(),

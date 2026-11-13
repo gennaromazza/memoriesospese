@@ -132,3 +132,19 @@ effettivo con l’anagrafica riletta: altrimenti un vecchio snapshot può spedir
 vecchio indirizzo il token appena generato per il nuovo cliente. Rimuovere il
 frammento riservato dall’URL prima dell’analisi delle visite e costruire risposte
 pubbliche esplicite, senza serializzare note interne o dati amministrativi.
+
+## Spostamenti e calendario dall’esito incerto
+
+Tenere protetti sia l’orario originale sia la destinazione finché non è
+riconciliato lo spostamento Google. Consumare il cambio autonomo solo quando il
+nuovo appuntamento viene registrato; un errore email successivo non lo annulla.
+
+**Why:** Google e il database non possono confermare nella stessa transazione.
+Un timeout può arrivare dopo uno spostamento riuscito: liberare la destinazione
+in quel caso permette una seconda prenotazione sopra l’appuntamento reale.
+
+**How to apply:** separare riserva, sincronizzazione idempotente e comunicazione.
+Usare l’evento esistente o un’identità deterministica per un inserimento incerto.
+Rilasciare riserve soltanto davanti a un rifiuto certo; dopo un tentativo di
+modifica dall’esito sconosciuto privilegiare riconciliazione e verifica dello
+studio, senza azzerare l’acconto né ritentare alla cieca l’invio email.

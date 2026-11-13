@@ -92,6 +92,9 @@ service cloud.firestore {
     match /bookingConfirmationJobs/{document=**} {
       allow read, write: if false;
     }
+    match /bookingRescheduleJobs/{document=**} {
+      allow read, write: if false;
+    }
 
     // Users collection
     match /users/{userId} {
