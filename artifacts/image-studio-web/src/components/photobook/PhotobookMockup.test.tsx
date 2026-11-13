@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { BOX_MOCKUP_MODEL, MOCKUP_MODEL, ROTATING_MOCKUP_MODEL } from '@shared/mockup-catalog';
+import { BOX_MOCKUP_MODEL, IMAGEBOX_MOCKUP_MODEL, MOCKUP_MODEL, ROTATING_MOCKUP_MODEL } from '@shared/mockup-catalog';
 import type { MockupConfiguration } from '@shared/mockup-types';
 import MockupRendererError from './MockupRendererError';
 import SavedMockupPhotoRecoveryError from './SavedMockupPhotoRecoveryError';
@@ -341,5 +341,41 @@ describe('recupero del mockup fotolibro', () => {
     expect(assets.boxPhotos?.base?.id).toBe('saved-base-1');
     expect(assets.boxPhotos?.lid?.id).toBe('saved-lid-2');
     expect(assets.boxPhotos?.cover?.id).toBe('saved-cover-3');
+  });
+
+  it('riapre foto e grafiche ImageBox nei rispettivi slot e sostituisce solo la grafica scelta', async () => {
+    const configuration = {
+      modelId: IMAGEBOX_MOCKUP_MODEL.id,
+      photoAssetId: 'saved-base',
+      coverPhotoAssetId: 'saved-cover',
+      coverEngraving: { mode: 'graphic', assetId: 'saved-cover-graphic' },
+      glassEngraving: { mode: 'graphic', assetId: 'saved-glass-graphic' },
+    } as unknown as MockupConfiguration;
+    const loadPhoto = vi.fn(async (id: string) => new Blob([id], { type: 'image/png' }));
+
+    const restored = await loadSavedMockupPhotos(configuration, loadPhoto);
+
+    expect(restored.boxPhotos).toMatchObject({
+      base: { id: 'saved-base' },
+      cover: { id: 'saved-cover' },
+      coverGraphic: { id: 'saved-cover-graphic' },
+      glassGraphic: { id: 'saved-glass-graphic' },
+    });
+    expect(loadPhoto.mock.calls.map(([id]) => id).sort()).toEqual([
+      'saved-base',
+      'saved-cover',
+      'saved-cover-graphic',
+      'saved-glass-graphic',
+    ]);
+    expect(replaceMockupPhotoReference(configuration, 'coverGraphic', 'replacement-cover-graphic')).toMatchObject({
+      coverEngraving: { mode: 'graphic', assetId: 'replacement-cover-graphic' },
+      glassEngraving: { mode: 'graphic', assetId: 'saved-glass-graphic' },
+      photoAssetId: 'saved-base',
+      coverPhotoAssetId: 'saved-cover',
+    });
+    expect(replaceMockupPhotoReference(configuration, 'glassGraphic', 'replacement-glass-graphic')).toMatchObject({
+      coverEngraving: { mode: 'graphic', assetId: 'saved-cover-graphic' },
+      glassEngraving: { mode: 'graphic', assetId: 'replacement-glass-graphic' },
+    });
   });
 });

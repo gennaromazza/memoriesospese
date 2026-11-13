@@ -817,7 +817,16 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     expect(asset.storagePath).toMatch(/\.png$/);
     const served = await globalThis.fetch(`${base}/admin/photos/${graphicId}?version=1`);
     expect(served.headers.get('content-type')).toContain('image/png');
-    const withGraphic = { ...box, glassEngraving: { mode: 'graphic', assetId: graphicId } };
+    const coverGraphicUpload = await upload('admin');
+    expect(coverGraphicUpload.status).toBe(200);
+    const coverGraphicId = (await coverGraphicUpload.json() as { id: string }).id;
+    const withGraphic = {
+      ...box,
+      coverLayout: 'split-photo-fabric',
+      coverPhotoAssetId: photoId,
+      coverEngraving: { mode: 'graphic', assetId: coverGraphicId },
+      glassEngraving: { mode: 'graphic', assetId: graphicId },
+    };
     expect((await save(base, { revision: 1, configuration: withGraphic, ...mine }, 'client')).status).toBe(403);
     // Percorso in cui sceglie il cliente: nemmeno lo studio mette grafiche.
     expect((await save(base, { revision: 1, configuration: withGraphic, ...mine }, 'admin')).status).toBe(403);
@@ -827,6 +836,10 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     const studio = await save(base, { revision: 1, configuration: withGraphic, ...mine }, 'admin');
     expect(studio.status).toBe(200);
     expect((await studio.json()).configuration).toEqual(withGraphic);
+    // Riaprendo la bozza, foto e grafiche devono restare associate alle superfici corrette.
+    expect((await fetch(`${base}/admin`).then(r => r.json())).saved.configuration).toEqual(withGraphic);
+    expect((await globalThis.fetch(`${base}/admin/photos/${coverGraphicId}?version=1`)).headers.get('content-type')).toContain('image/png');
+    expect((await globalThis.fetch(`${base}/admin/photos/${graphicId}?version=1`)).headers.get('content-type')).toContain('image/png');
   });
 
   it('avvisa lo studio solo dopo l’invio acquisito, mai dopo bozza, rifiuto o richiesta di correzioni', async () => {
