@@ -10,3 +10,20 @@ La mail di conferma finale contiene sempre il link personale sicuro per gestire 
 **Why:** alcune campagne richiedono approvazione e/o acconto e altre no; le regole devono essere selezionabili per campagna senza cambiare il comportamento globale.
 
 **How to apply:** mantenere indipendenti le due impostazioni nel pannello admin e applicarle lato server; salvare per campagna l'importo fisso deciso dall'admin. La finestra di un'ora vale solo per l'acconto richiesto dopo approvazione; il checkout immediato ha un hold breve limitato alla sessione di pagamento. Gestire esplicitamente scadenze, slot liberati e catture PayPal tardive. Inviare il link di gestione solo nell'email di conferma finale.
+
+## Limiti e condizioni approvati
+
+Il titolare ha confermato: checkout di 10 minuti senza rinnovo al refresh;
+attesa approvazione massima di 24 ore, mai oltre lo shooting; un solo cambio
+autonomo nella stessa campagna fino a 24 ore prima, conservando l'acconto.
+Annullare non significa rimborsare: i movimenti richiedono conferma admin.
+Un incasso tardivo non assegna lo slot neppure se libero. Scegliere i prodotti
+in studio non esonera dall'acconto. Le campagne legacy mantengono approvazione
+attiva e acconto disattivato, senza modificare prenotazioni esistenti.
+
+**Why:** il titolare ha approvato esplicitamente questi limiti prima
+dell'implementazione; non sono decisioni da reinventare nei singoli task.
+
+**How to apply:** consultare `docs/booking-deposit-policy.md` per la matrice
+completa, i confini temporali e i casi eccezionali, inclusa la gestione diretta
+dello studio quando manca un'ora o meno allo shooting.
