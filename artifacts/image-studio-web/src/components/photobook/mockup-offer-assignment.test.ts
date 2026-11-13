@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { assignMockupOffer } from './mockup-offer-assignment';
 import MockupOfferEditor, { MockupOfferPublishError } from './MockupOfferEditor';
 import { initialMockupSelection, mockupPresentation } from './mockup-presentation';
+import { BOX_MOCKUP_MODEL } from '@shared/mockup-catalog';
 import type { MockupPayload } from '@shared/mockup-types';
 
 describe('assegnazione modello e aggiornamento anteprima', () => {
@@ -25,6 +26,61 @@ describe('assegnazione modello e aggiornamento anteprima', () => {
     expect(html).toContain('Un solo modello: lo scelgo io');
     expect(html).toContain('Il cliente sceglie tra i modelli pubblicati');
     expect(html).toContain('non sceglie tra modelli diversi');
+  });
+
+  it('mostra all’admin formato e modalità copertina assegnati al Quadrobook', () => {
+    const material = BOX_MOCKUP_MODEL.variants[0];
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(['mockup-labs-catalog'], [{
+      id: 'lab',
+      nome: 'Laboratorio di prova',
+      mockupCatalog: {
+        revision: 1,
+        materials: [{ id: material.id, label: 'Tessuto prova', supplierCode: 'T-01' }],
+        models: [{
+          id: 'quadrobook',
+          name: 'Quadrobook',
+          supplierCode: 'Q-01',
+          rendererId: BOX_MOCKUP_MODEL.id,
+          active: true,
+          materialIds: [material.id],
+        }],
+      },
+    }]);
+    const option = {
+      id: 'quadrobook',
+      labId: 'lab',
+      labName: 'Laboratorio di prova',
+      name: 'Quadrobook',
+      supplierCode: 'Q-01',
+      rendererId: BOX_MOCKUP_MODEL.id,
+      active: true,
+      materialIds: [material.id],
+      materials: [{ id: material.id, label: 'Tessuto prova', supplierCode: 'T-01' }],
+      setup: { format: { w: 30, h: 40 }, cover: { mode: 'choice', graphicAssetId: 'graphic-asset' } },
+    };
+    const html = renderToStaticMarkup(createElement(
+      QueryClientProvider,
+      { client: queryClient },
+      createElement(MockupOfferEditor, {
+        offer: { revision: 1, updatedAt: '2026-11-01T10:00:00Z', mode: 'fixed', options: [option] },
+        modelMode: 'fixed',
+        modelSelection: { labId: 'lab', modelId: 'quadrobook', setup: option.setup },
+        disabled: false,
+        alwaysOpen: true,
+        reloadOffer: async () => undefined,
+        publish: async () => true,
+        uploadGraphic: async () => 'graphic-asset',
+      }),
+    ));
+
+    expect(html).toContain('data-testid="box-setup"');
+    expect(html).toContain('Formato album (lo decidi tu, il cliente non lo cambia)');
+    expect(html).toContain('value="30"');
+    expect(html).toContain('value="40"');
+    expect(html).toContain('Copertina dell’album');
+    expect(html).toContain('Il cliente sceglie tra la sua foto e la mia grafica');
+    expect(html).toContain('Grafica richiesta dall’offerta Quadrobook');
   });
 
   it('propaga l’errore di salvataggio del server senza tentare il refetch', async () => {

@@ -28,6 +28,7 @@ import { mockupUploadValidationError } from './mockup-upload-validation';
 import { prepareMockupPhotoPreview } from './mockup-photo-preview';
 import { beginMockupRendererRetry, configurationForRendererRestore, planMockupRendererRecovery, reuseCompatibleMockupChoices, shouldSkipSavedMockupRestore, type RendererRecoveryPlan } from './mockup-renderer-recovery';
 import { hasSavedMockupPhotos, isGraphicSlot, loadSavedMockupPhotos, loadSavedMockupPhotosPartial, mockupRequestErrorFromResponse, replaceMockupPhotoReference, resolveMockupPhotoTarget, savedMockupPhotoFailure, type RuntimeMockupPhoto, type SavedMockupPhotoFailure, type SavedMockupPhotoLabels, type SavedMockupPhotoSlot } from './mockup-photo-recovery';
+import { mockupCoverGraphicBlock, type MockupCoverGraphicState } from './mockup-cover-graphic-state';
 import { useToast } from '@/hooks/use-toast';
 import PhotobookInlineGallery from './PhotobookInlineGallery';
 import MockupLabMaterialsNotice from './MockupLabMaterialsNotice';
@@ -105,7 +106,8 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   const [pickedPhoto, setPickedPhoto] = useState<{ front?: string; back?: string }>({});
   const skipRestoreRevision = useRef<number | null>(null);
   const hostActions = useRef<{ close: () => void; submit: () => void; step: () => void; pickGallery: (slot: string, photoId: string) => void; pickGraphic: (slot: string) => void }>({ close: () => undefined, submit: () => undefined, step: () => undefined, pickGallery: () => undefined, pickGraphic: () => undefined });
-  const graphicBlob = useRef<Promise<Blob> | null>(null);
+  const graphicBlob = useRef<{ id: string; promise: Promise<Blob> } | null>(null);
+  const applyGeneration = useRef(0);
   const [busy, setBusy] = useState(false);
   const [renderBusy, setRenderBusy] = useState(true);
   const [ready, setReady] = useState(false);
@@ -143,6 +145,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   const [attachmentRecovery, setAttachmentRecovery] = useState<{ status?: string; canResume?: boolean; fileProgress?: { name: string; status: string; message?: string }[] } | null>(null);
   const [generation, setGeneration] = useState(0);
   const [rendererOverride, setRendererOverride] = useState<string | null>(null);
+  const [coverGraphicState, setCoverGraphicState] = useState<MockupCoverGraphicState>('idle');
   const pendingOption = useRef<MockupOption | null>(null);
   const currentPhoto = useRef<RuntimePhoto | undefined>(undefined);
   const savedPhotoRecovery = useRef<SavedPhotoRecoveryContext | null>(null);
@@ -238,16 +241,40 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   const post = (payload: Record<string, unknown>) => frame.current?.contentWindow?.postMessage({ channel: 'memorie-mockup-v1', type: 'apply', allowGraphics, ...payload }, window.location.origin);
   // La grafica di copertina del Quadrobook la carica lo studio: si scarica una volta e si passa al visualizzatore.
   const apply = (payload: Record<string, unknown>) => {
+    const generation = ++applyGeneration.current;
     const option = payload.option as MockupOption | undefined;
     const photos = payload.photos as Record<string, unknown> | undefined;
     const graphicId = option?.rendererId === BOX_MOCKUP_MODEL.id ? boxCoverGraphicId(option.setup) : undefined;
-    if (graphicId && !photos?.graphic) {
-      graphicBlob.current ??= request('/cover-graphic').then(response => response.blob());
-      graphicBlob.current .then(blob => post({ ...payload, photos: { ...photos, graphic: { id: graphicId, name: 'grafica dello studio', blob } } }))
-        .catch(() => { graphicBlob.current = null; post(payload); setMessage('Grafica di copertina non disponibile. Riprova più tardi.'); });
+    if (!graphicId) {
+      setCoverGraphicState('idle');
+      post(payload);
       return;
     }
-    post(payload);
+    if (photos?.graphic) {
+      setCoverGraphicState('ready');
+      post(payload);
+      return;
+    }
+    if (graphicId) {
+      setCoverGraphicState('loading');
+      if (graphicBlob.current?.id !== graphicId) {
+        graphicBlob.current = { id: graphicId, promise: request('/cover-graphic').then(response => response.blob()) };
+      }
+      const graphicRequest = graphicBlob.current.promise;
+      graphicRequest
+        .then(blob => {
+          if (generation !== applyGeneration.current) return;
+          post({ ...payload, photos: { ...photos, graphic: { id: graphicId, name: 'grafica dello studio', blob } } });
+        })
+        .catch(() => {
+          if (generation !== applyGeneration.current) return;
+          if (graphicBlob.current?.promise === graphicRequest) graphicBlob.current = null;
+          setCoverGraphicState('error');
+          post(payload);
+          setMessage('Grafica di copertina non disponibile. Ricarica la proposta per riprovare; la conferma è bloccata.');
+        });
+      return;
+    }
   };
   const loadSavedPhotos = (cfg: MockupConfiguration, labels?: SavedMockupPhotoLabels) => loadSavedMockupPhotos(
     cfg,
@@ -274,8 +301,10 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     return fresh.data;
   }
   function showAssignedOffer(payload: MockupPayload) {
+    applyGeneration.current += 1;
     pendingOption.current = null; pendingPreview.current = null;
     skipRestoreRevision.current = null; initializing.current = true;
+    setCoverGraphicState('idle');
     setSelection(initialMockupSelection(payload)); setRendererOverride(null);
     setConfiguration(null); setWizard(null); setReady(false); setRenderBusy(true);
     setDirty(false); setOfferChangeConfirmed(false);
@@ -309,11 +338,13 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     finally { setBusy(false); }
   }
   function closeConfigurator() {
+    applyGeneration.current += 1;
     if (busy) return;
     if (dirty && !window.confirm('Chiudere il configuratore e abbandonare le modifiche non salvate?')) return;
     setOpen(false); setPicker(false); setReady(false); setRenderBusy(true); setRendererError('');
     setSavedPhotoError(null); setSavedPhotoSlot(null); setSavedPhotoRetryBusy(false); savedPhotoRecovery.current = null;
     setDirty(false); setUploadError(''); setOfferChangeConfirmed(false); setConfiguration(null); setRendererOverride(null); setSelection(undefined);
+    setCoverGraphicState('idle');
     setDraftCoverLayout(''); setDraftBackCover(''); setFrontPhotoPresent(false); setBackPhotoPresent(false);
     pendingOption.current = null; pendingPreview.current = null; currentPhoto.current = undefined; initializing.current = true;
     setHistory(null); setNote(''); setMessage(''); setPhotoSide('front'); setAskingChanges(false); setViewerExpanded(false);
@@ -632,6 +663,9 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
           ? hasUnsavedMockupChanges(parsed.data, context.saved, context.selection, initializing.current)
           : !initializing.current));
         const draft = event.data.configuration;
+        if (draft?.modelId === BOX_MOCKUP_MODEL.id && draft.coverLayout === 'graphic') {
+          setCoverGraphicState(current => current === 'loading' ? 'ready' : current);
+        }
         if (draft?.modelId === BOX_MOCKUP_MODEL.id) {
           setConfigurationIssue(parsed.success ? '' : !draft.photoAssetId ? 'Scegli la foto del quadro da parete.' : !draft.lidPhotoAssetId ? 'Scegli la foto della cornice da tavolo.' : draft.coverLayout === 'photo' && !draft.coverPhotoAssetId ? 'Scegli la foto della copertina.' : 'Controlla le scelte: tessuto non disponibile per questo modello.');
           initializing.current = false;
@@ -960,7 +994,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     finally { setBusy(false); }
   }
   async function confirm() {
-    if (!saved || dirty || !ready) return;
+    if (!saved || dirty || !ready || mockupCoverGraphicBlock(coverGraphicState)) return;
     if (deliveryRecovery && !window.confirm('Confermi la copia già salvata per il laboratorio? L’album resterà bloccato. Non verranno modificati i file su Drive né inviate email.')) return;
     setBusy(true); setMessage('Preparazione delle otto viste e conferma…');
     try {
@@ -1150,7 +1184,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     : dirty ? 'Ci sono modifiche non salvate: salva la revisione prima di confermarla.'
     : !saved.selection ? 'Associa un modello dalla scheda Bozza e salva prima di confermare.'
     : saved.status === 'confirmed' ? 'Questa revisione è già confermata. Puoi scaricare la conferma qui sotto.'
-    : !ready || renderBusy ? 'Attendi il caricamento dell’anteprima prima di confermare.' : '';
+    : mockupCoverGraphicBlock(coverGraphicState) || (!ready || renderBusy ? 'Attendi il caricamento dell’anteprima prima di confermare.' : '');
   if (token && state.isError) return (
     <section className={compact ? 'inline-flex items-center gap-2' : 'rounded-lg border border-destructive/40 bg-destructive/5 p-3 space-y-2'} data-testid="photobook-mockup-load-error">
       <p role="alert" className="text-sm text-destructive">

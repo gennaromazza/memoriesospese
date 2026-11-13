@@ -15,7 +15,7 @@ type MockupTestResponse = MockupPayload & SavedMockup & MockupPhoto & {
   reportPath: string;
 };
 const fetch = jsonFetch<MockupTestResponse>;
-import { MOCKUP_MODEL, ROTATING_MOCKUP_MODEL, PLAZA_MOCKUP_MODEL } from '../shared/mockup-catalog';
+import { BOX_MOCKUP_MODEL, MOCKUP_MODEL, ROTATING_MOCKUP_MODEL, PLAZA_MOCKUP_MODEL } from '../shared/mockup-catalog';
 import peppeLabCatalog from '../../image-studio-web/public/mockups/custodia-v1/peppe-lab-catalog.json';
 import { initialMockupSelection } from '../../image-studio-web/src/components/photobook/mockup-presentation';
 
@@ -600,6 +600,75 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     expect(graphic.status).toBe(200);
     expect(Buffer.from(await graphic.arrayBuffer()).toString()).toBe('grafica');
     expect((await action(base, 'client', 'submit', 2)).status).toBe(200);
+  });
+
+  it('Quadrobook admin: conserva superfici e tessuti separati fino alla conferma', async () => {
+    const albumMaterial = BOX_MOCKUP_MODEL.variants[1];
+    const lidPhotoId = '77777777-7777-4777-8777-777777777777';
+    const coverPhotoId = '88888888-8888-4888-8888-888888888888';
+    h.docs.get('photobooks/book').jobId = 'job';
+    h.docs.set(`photobooks/book/mockupAssets/${lidPhotoId}`, { version: 1, storagePath: 'lid.jpg' });
+    h.docs.set(`photobooks/book/mockupAssets/${coverPhotoId}`, { version: 1, storagePath: 'cover.jpg' });
+    h.docs.set('labs/lab', {
+      nome: 'Laboratorio scelto',
+      attivo: true,
+      mockupCatalog: {
+        revision: 1,
+        materials: [
+          { id: material.id, label: 'Tessuto scatola', supplierCode: 'BOX-01' },
+          { id: albumMaterial.id, label: 'Tessuto album', supplierCode: 'ALBUM-02' },
+        ],
+        models: [{
+          id: entryId, name: 'Quadrobook', supplierCode: 'Q-01',
+          rendererId: BOX_MOCKUP_MODEL.id, active: true,
+          materialIds: [material.id, albumMaterial.id],
+        }],
+      },
+    });
+
+    const setup = { format: { w: 30, h: 20 }, cover: { mode: 'photo' } };
+    const published = await fetch(`${base}/admin/offer`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ revision: 0, savedRevision: 0, mode: 'fixed', selections: [{ ...selection, setup }] }),
+    });
+    expect(published.status).toBe(200);
+
+    const configuration = {
+      modelId: BOX_MOCKUP_MODEL.id,
+      assetRevision: BOX_MOCKUP_MODEL.assetRevision,
+      materialId: material.id,
+      appearanceRevision: material.appearanceRevision,
+      albumMaterialId: albumMaterial.id,
+      albumAppearanceRevision: albumMaterial.appearanceRevision,
+      coverLayout: 'photo',
+      format: { w: 30, h: 20 },
+      photoAssetId: photoId,
+      lidPhotoAssetId: lidPhotoId,
+      coverPhotoAssetId: coverPhotoId,
+    };
+    const saved = await save(base, { revision: 0, configuration, selection, offerRevision: 1 });
+    expect(saved.status).toBe(200);
+    expect((await fetch(`${base}/admin`).then(response => response.json())).saved.configuration).toEqual(configuration);
+
+    const jpeg = await sharp({ create: { width: 8, height: 8, channels: 3, background: '#d8d1c4' } }).jpeg().toBuffer();
+    const previews = Array.from({ length: 8 }, (_, index) => ({
+      label: `Vista ${index + 1}`,
+      image: `data:image/jpeg;base64,${jpeg.toString('base64')}`,
+    }));
+    const confirmed = await globalThis.fetch(`${base}/admin/confirm`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: JSON.stringify({ revision: 1, configuration, previews }),
+    });
+    expect(confirmed.status).toBe(200);
+    const result = await confirmed.json() as SavedMockup;
+    expect(result).toMatchObject({ status: 'confirmed', configuration });
+    const report = h.files.get(result.reportPath!)?.toString('utf8');
+    expect(report).toContain('Tessuto scatola, cornice e piedistallo</th><td>Tessuto scatola');
+    expect(report).toContain('Tessuto album</th><td>Tessuto album');
+    expect(report).toContain('Foto del fondo (da appendere)');
+    expect(report).toContain('Foto del tappo (cornice)');
   });
 
   it('ImageBox: formato dallo studio; grafiche solo dallo studio quando prepara lui il mockup', async () => {
