@@ -178,6 +178,56 @@ describe('booking-campaigns Firestore service', () => {
     expect(payload.dataFine).toBe('2026-10-31T00:00:00.000Z');
   });
 
+  it('invia i parametri di acconto al server senza trasformare i centesimi', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true, json: async () => ({ id: 'NEW12345' }),
+    });
+    await createCampaign({
+      ...campaignInput('NEW12345'),
+      richiedeApprovazione: false,
+      richiedeAcconto: true,
+      accontoImportoCentesimi: 2550,
+    });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
+      richiedeApprovazione: false, richiedeAcconto: true, accontoImportoCentesimi: 2550,
+    });
+  });
+
+  it('salva, rilegge e cancella l’importo di una singola campagna', async () => {
+    const saved: Record<string, unknown> = {
+      ...campaignInput('OLD12345'),
+      dataInizio: asTimestamp('2026-10-01T00:00:00.000Z'),
+      dataFine: asTimestamp('2026-10-31T00:00:00.000Z'),
+    };
+    const transaction = configureTransaction({ exists: () => true, data: () => saved });
+    transaction.update.mockImplementation((_ref, patch) => {
+      for (const [key, value] of Object.entries(patch)) {
+        if (value && typeof value === 'object' && 'deleteField' in value) delete saved[key];
+        else saved[key] = value;
+      }
+    });
+    firestoreMock.getDocs.mockResolvedValue({
+      docs: [{ id: 'one-campaign', data: () => saved }],
+    });
+
+    await updateCampaign('one-campaign', {
+      richiedeApprovazione: false, richiedeAcconto: true, accontoImportoCentesimi: 2550,
+    });
+    expect(transaction.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({ id: 'one-campaign' }),
+      { richiedeApprovazione: false, richiedeAcconto: true, accontoImportoCentesimi: 2550 },
+    );
+    expect((await getAllCampaigns())[0]).toMatchObject({
+      richiedeApprovazione: false, richiedeAcconto: true, accontoImportoCentesimi: 2550,
+    });
+
+    await updateCampaign('one-campaign', { richiedeAcconto: false, accontoImportoCentesimi: null });
+    expect((await getAllCampaigns())[0]).toMatchObject({
+      richiedeApprovazione: false, richiedeAcconto: false, accontoImportoCentesimi: null,
+    });
+    expect(saved).not.toHaveProperty('accontoImportoCentesimi');
+  });
+
   it('valida le date unite a quelle salvate anche quando l’aggiornamento è parziale', async () => {
     const transaction = configureTransaction({
       exists: () => true,

@@ -67,6 +67,12 @@ import {
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import imageCompression from 'browser-image-compression';
+import CampaignPaymentSettings from './CampaignPaymentSettings';
+import {
+  campaignPaymentForm,
+  campaignPaymentFields,
+  type CampaignPaymentFormValues,
+} from '@/lib/campaign-payment-settings';
 
 // Temi stagionali disponibili
 const TEMI_STAGIONALI = [
@@ -78,7 +84,7 @@ const TEMI_STAGIONALI = [
   { value: 'halloween', label: '🎃 Halloween' },
 ];
 
-interface CampaignFormData {
+interface CampaignFormData extends CampaignPaymentFormValues {
   nome: string;
   descrizione: string;
   code: string;
@@ -106,6 +112,7 @@ interface CampaignProductGroup {
 }
 
 const defaultFormData: CampaignFormData = {
+  ...campaignPaymentForm(),
   nome: '',
   descrizione: '',
   code: '',
@@ -131,6 +138,7 @@ export default function CampaignsManager() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState<BookingCampaignFE | null>(null);
   const [formData, setFormData] = useState<CampaignFormData>(defaultFormData);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [productSearchTerm, setProductSearchTerm] = useState('');
   const [productCategoryFilter, setProductCategoryFilter] = useState('all');
@@ -258,6 +266,7 @@ export default function CampaignsManager() {
         orarioChiusura: data.orarioChiusura,
         durataShootingMinuti: data.durataShootingMinuti,
         prodottiDisponibili: data.prodottiDisponibili,
+        ...campaignPaymentFields(data),
         attiva: data.attiva,
         ...(data.excludedDays.length > 0 && { excludedDays: data.excludedDays }),
         ...(data.immagineSlider && { immagineSlider: data.immagineSlider }),
@@ -285,8 +294,10 @@ export default function CampaignsManager() {
 
   // Update mutation
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Partial<CampaignFormData> }) => {
+    mutationFn: async ({ id, data }: { id: string; data: CampaignFormData }) => {
       const updateData: any = { ...data };
+      Object.assign(updateData, campaignPaymentFields(data));
+      delete updateData.accontoImportoEuro;
       
       if (data.dataInizio) {
         updateData.dataInizio = new Date(data.dataInizio);
@@ -471,11 +482,12 @@ export default function CampaignsManager() {
       isUnique = await isCampaignCodeUnique(code);
     }
     
-    setFormData({ ...formData, code });
+    setFormData(current => ({ ...current, code }));
   };
 
   // Apri dialog per nuova campagna
   const handleNewCampaign = async () => {
+    setPaymentError(null);
     setEditingCampaign(null);
     setFormData(defaultFormData);
     setSelectedProducts([]);
@@ -491,11 +503,13 @@ export default function CampaignsManager() {
 
   // Apri dialog per modifica
   const handleEditCampaign = (campaign: BookingCampaignFE) => {
+    setPaymentError(null);
     setEditingCampaign(campaign);
     setProductSearchTerm('');
     setProductCategoryFilter('all');
     setShowOnlySelectedProducts(false);
     setFormData({
+      ...campaignPaymentForm(campaign),
       nome: campaign.nome,
       descrizione: campaign.descrizione,
       code: campaign.code,
@@ -521,6 +535,7 @@ export default function CampaignsManager() {
 
   // Chiudi dialog
   const handleCloseDialog = () => {
+    setPaymentError(null);
     setDialogOpen(false);
     setEditingCampaign(null);
     setFormData(defaultFormData);
@@ -564,6 +579,14 @@ export default function CampaignsManager() {
       ...formData,
       prodottiDisponibili: selectedProducts,
     };
+    try {
+      campaignPaymentFields(dataToSave);
+      setPaymentError(null);
+    } catch (error) {
+      setPaymentError(error instanceof Error ? error.message : 'Controlla l’importo dell’acconto.');
+      document.getElementById('campaign-deposit-amount')?.focus();
+      return;
+    }
 
     if (editingCampaign) {
       updateMutation.mutate({ id: editingCampaign.id, data: dataToSave });
@@ -974,6 +997,19 @@ export default function CampaignsManager() {
                   ))}
                 </div>
               </div>
+
+              <CampaignPaymentSettings
+                value={{
+                  richiedeApprovazione: formData.richiedeApprovazione,
+                  richiedeAcconto: formData.richiedeAcconto,
+                  accontoImportoEuro: formData.accontoImportoEuro,
+                }}
+                error={paymentError}
+                onChange={payment => {
+                  setPaymentError(null);
+                  setFormData(current => ({ ...current, ...payment }));
+                }}
+              />
 
               {/* Prodotti Disponibili */}
               <div className="space-y-3 pt-3 border-t">
