@@ -152,6 +152,12 @@ export interface BookingCampaign {
   
   // Prodotti disponibili per questa campagna
   prodottiDisponibili: string[]; // Array di productId
+
+  // Impostazioni pagamento (opzionali nei documenti legacy).
+  // Se assenti: approvazione richiesta e nessun acconto.
+  richiedeApprovazione?: boolean;
+  richiedeAcconto?: boolean;
+  accontoImportoCentesimi?: number | null;
   
   // Immagini personalizzate (opzionali)
   immagineSlider?: string; // URL immagine per slider homepage (opzionale)

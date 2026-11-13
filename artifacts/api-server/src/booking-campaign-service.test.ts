@@ -68,10 +68,47 @@ describe('creazione centralizzata campagne', () => {
       expect.objectContaining({ id: 'TEST1234', kind: 'doc' }),
       expect.objectContaining({
         code: 'TEST1234',
+        richiedeApprovazione: true,
+        richiedeAcconto: false,
         createdAt: 'server-timestamp',
         dataInizio: { date: new Date(campaignInput.dataInizio) },
       }),
     );
+  });
+
+  it('salva i parametri indipendenti e l’importo fisso in centesimi', async () => {
+    await createBookingCampaign({
+      ...campaignInput,
+      richiedeApprovazione: false,
+      richiedeAcconto: true,
+      accontoImportoCentesimi: 2500,
+    });
+
+    expect(store.transaction.create).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        richiedeApprovazione: false,
+        richiedeAcconto: true,
+        accontoImportoCentesimi: 2500,
+      }),
+    );
+  });
+
+  it.each([
+    ['mancante', undefined],
+    ['nullo', null],
+    ['zero', 0],
+    ['negativo', -100],
+    ['non intero', 2500.5],
+    ['oltre il limite sicuro', Number.MAX_SAFE_INTEGER + 1],
+  ])('rifiuta un acconto %s', async (_label, accontoImportoCentesimi) => {
+    await expect(createBookingCampaign({
+      ...campaignInput,
+      richiedeAcconto: true,
+      accontoImportoCentesimi,
+    })).rejects.toThrow('I dati della campagna non sono validi.');
+
+    expect(store.transaction.create).not.toHaveBeenCalled();
   });
 
   it('rifiuta il codice presente in una campagna legacy con ID casuale', async () => {

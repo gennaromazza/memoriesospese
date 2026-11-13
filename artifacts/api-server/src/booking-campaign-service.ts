@@ -17,9 +17,21 @@ const campaignInputSchema = z.object({
   durataShootingMinuti: z.number().finite().positive(),
   excludedDays: z.array(z.number().int().min(0).max(6)).optional(),
   prodottiDisponibili: z.array(z.string()),
+  // Defaults preserve the behavior of existing admin clients and legacy campaigns.
+  richiedeApprovazione: z.boolean().default(true),
+  richiedeAcconto: z.boolean().default(false),
+  accontoImportoCentesimi: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).nullable().optional(),
   immagineSlider: z.string().optional(),
   immaginePaginaBooking: z.string().optional(),
   attiva: z.boolean(),
+}).superRefine((campaign, context) => {
+  if (campaign.richiedeAcconto && !campaign.accontoImportoCentesimi) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['accontoImportoCentesimi'],
+      message: 'Un importo di acconto positivo in centesimi è obbligatorio.',
+    });
+  }
 });
 
 export class CampaignCodeConflictError extends Error {

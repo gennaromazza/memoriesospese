@@ -96,6 +96,30 @@ describe('booking-campaigns Firestore service', () => {
     expect(campaigns[0].temaStagionale).toBeNull();
     expect(campaigns[0].createdAt.getTime()).toBe(0);
     expect(campaigns[0].dataInizio).toEqual(new Date('2026-10-01T00:00:00.000Z'));
+    expect(campaigns[0].richiedeApprovazione).toBe(true);
+    expect(campaigns[0].richiedeAcconto).toBe(false);
+    expect(campaigns[0].accontoImportoCentesimi).toBeNull();
+  });
+
+  it('normalizza i parametri di pagamento salvati', async () => {
+    firestoreMock.getDocs.mockResolvedValue({
+      docs: [{
+        id: 'deposit-campaign',
+        data: () => ({
+          richiedeApprovazione: false,
+          richiedeAcconto: true,
+          accontoImportoCentesimi: 3500,
+          dataInizio: asTimestamp('2026-10-01T00:00:00.000Z'),
+          dataFine: asTimestamp('2026-10-31T00:00:00.000Z'),
+        }),
+      }],
+    });
+
+    const [campaign] = await getAllCampaigns();
+
+    expect(campaign.richiedeApprovazione).toBe(false);
+    expect(campaign.richiedeAcconto).toBe(true);
+    expect(campaign.accontoImportoCentesimi).toBe(3500);
   });
 
   it('mantiene raggiungibili i link legacy basati sul campo code', async () => {

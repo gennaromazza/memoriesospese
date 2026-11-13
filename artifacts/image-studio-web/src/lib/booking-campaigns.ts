@@ -153,6 +153,18 @@ function toBookingCampaignFE(id: string, data: any): BookingCampaignFE | null {
     id,
     ...data,
     temaStagionale: data.temaStagionale ?? null,
+    // Fallback espliciti per i documenti storici, che non hanno le opzioni di
+    // pagamento introdotte successivamente.
+    richiedeApprovazione: typeof data.richiedeApprovazione === 'boolean'
+      ? data.richiedeApprovazione
+      : true,
+    richiedeAcconto: typeof data.richiedeAcconto === 'boolean'
+      ? data.richiedeAcconto
+      : false,
+    accontoImportoCentesimi: Number.isSafeInteger(data.accontoImportoCentesimi)
+      && data.accontoImportoCentesimi > 0
+      ? data.accontoImportoCentesimi
+      : null,
     dataInizio,
     dataFine,
     // Fallback deterministico: una campagna legacy senza createdAt non deve
