@@ -549,6 +549,89 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     expect(notifyClient).toHaveBeenCalledTimes(1); // callback mockato, nessuna email reale
   });
 
+  it('Album girevole admin: assegna il renderer giusto e conserva fronte, retro, crop e materiali fino alla conferma', async () => {
+    const backMaterial = ROTATING_MOCKUP_MODEL.variants[1];
+    const coverId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const backId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    h.docs.get('photobooks/book').mockupPath = 'studio';
+    h.docs.set('labs/lab', {
+      nome: 'Laboratorio di prova',
+      attivo: true,
+      mockupCatalog: {
+        revision: 1,
+        materials: [
+          { id: material.id, label: 'Tessuto fronte test', supplierCode: 'G-01' },
+          { id: backMaterial.id, label: 'Tessuto retro test', supplierCode: 'G-02' },
+        ],
+        models: [{
+          id: entryId,
+          name: 'Album girevole test',
+          supplierCode: 'G-01',
+          rendererId: ROTATING_MOCKUP_MODEL.id,
+          active: true,
+          materialIds: [material.id, backMaterial.id],
+        }],
+      },
+    });
+    const assigned = await fetch(`${base}/admin/offer`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ revision: 0, savedRevision: 0, mode: 'fixed', selections: [selection] }),
+    });
+    expect(assigned.status).toBe(200);
+    const offer = await assigned.json() as MockupOffer;
+    expect(offer.options[0]).toMatchObject({ id: entryId, rendererId: ROTATING_MOCKUP_MODEL.id });
+
+    h.docs.set(`photobooks/book/mockupAssets/${coverId}`, { version: 1, storagePath: 'test-cover.jpg' });
+    h.docs.set(`photobooks/book/mockupAssets/${backId}`, { version: 1, storagePath: 'test-back.jpg' });
+    h.files.set('test-cover.jpg', Buffer.from('cover-test'));
+    h.files.set('test-back.jpg', Buffer.from('back-test'));
+    const rotating = {
+      modelId: ROTATING_MOCKUP_MODEL.id,
+      assetRevision: ROTATING_MOCKUP_MODEL.assetRevision,
+      materialId: backMaterial.id,
+      appearanceRevision: backMaterial.appearanceRevision,
+      coverLayout: 'split-photo-fabric',
+      frameFinish: 'white',
+      topText: 'Anna',
+      bottomText: 'Marco',
+      engravingNames: { first: 'Anna', second: 'Marco' },
+      photoAssetId: coverId,
+      crop: { zoom: 2.1, x: 0.2, y: 0.7 },
+      backCover: 'photo',
+      backPhotoAssetId: backId,
+      backCrop: { zoom: 1.7, x: 0.65, y: 0.35 },
+    };
+    const savedResponse = await save(base, { revision: 0, configuration: rotating, selection, offerRevision: offer.revision });
+    expect(savedResponse.status).toBe(200);
+    expect(await savedResponse.json()).toMatchObject({ revision: 1, configuration: rotating, selection });
+
+    const reopened = await fetch(`${base}/admin`).then(response => response.json());
+    expect(reopened).toMatchObject({
+      offer: { options: [{ id: entryId, rendererId: 'album-girevole' }] },
+      saved: { revision: 1, configuration: rotating, selection },
+    });
+    expect(h.docs.get('photobooks/book/mockupAssets/' + coverId)).toMatchObject({ version: 1, storagePath: 'test-cover.jpg' });
+    expect(h.docs.get('photobooks/book/mockupAssets/' + backId)).toMatchObject({ version: 1, storagePath: 'test-back.jpg' });
+
+    const preview = await sharp({ create: { width: 24, height: 24, channels: 3, background: '#708090' } }).jpeg().toBuffer();
+    const confirmation = await fetch(`${base}/admin/confirm`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: JSON.stringify({
+        revision: 1,
+        configuration: rotating,
+        previews: Array.from({ length: 8 }, (_, index) => ({
+          label: `Vista girevole ${index + 1}`,
+          image: `data:image/jpeg;base64,${preview.toString('base64')}`,
+        })),
+      }),
+    });
+    expect(confirmation.status).toBe(200);
+    expect(await confirmation.json()).toMatchObject({ revision: 2, status: 'confirmed', configuration: rotating });
+    expect(h.docs.get('photobooks/book/mockups/v1')).toMatchObject({ revision: 2, configuration: rotating, status: 'confirmed' });
+  });
+
   it('percorso cliente completo: sceglie un modello, collega una foto e invia senza avviare la stampa', async () => {
     expect((await publish(base, [selection, secondSelection], 'choice')).status).toBe(200);
     h.docs.get('photobooks/book').mockupPath = 'client';
@@ -584,7 +667,7 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     expect(notifySubmission).toHaveBeenCalledTimes(1); // callback mockato, nessuna email reale
   });
 
-  it.each(['plaque', 'full', 'photo-plaque'].flatMap(coverLayout => ['fabric', 'photo'].flatMap(backCover => ['wood', 'white', 'fabric'].map(frameFinish => ({ coverLayout, backCover, frameFinish })))))('Plaza v4: salva e invia dal cliente con %j', async variant => {
+  it.each(['plaque', 'full', 'photo-plaque'].flatMap(coverLayout => ['fabric', 'photo'].flatMap(backCover => ['wood', 'white', 'fabric'].map(frameFinish => ({ coverLayout, backCover, frameFinish })))))('Album girevole v4: salva e invia dal cliente con %j', async variant => {
     await publish(base);
     h.docs.get('photobooks/book/mockupOffers/v1').options[0].rendererId = ROTATING_MOCKUP_MODEL.id;
     const rotating = { ...configuration, modelId: ROTATING_MOCKUP_MODEL.id, assetRevision: 4, ...variant,

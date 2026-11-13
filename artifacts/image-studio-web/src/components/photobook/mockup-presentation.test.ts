@@ -63,6 +63,29 @@ describe('modello mostrato nel link cliente', () => {
     });
   });
 
+  it('collega l’assegnazione fissa Girevole al renderer girevole e non a Custodia', () => {
+    const option = {
+      labId: 'laboratorio-test',
+      id: 'girevole-del-laboratorio',
+      name: 'Album girevole test',
+      rendererId: ROTATING_MOCKUP_MODEL.id,
+    };
+    const payload = {
+      modelMode: 'fixed',
+      offer: { revision: 1, mode: 'fixed', options: [option] },
+      saved: null,
+    } as unknown as MockupPayload;
+
+    const selection = initialMockupSelection(payload);
+    expect(selection).toEqual({ labId: option.labId, modelId: option.id });
+    expect(mockupPresentation(payload, selection)).toMatchObject({
+      title: option.name,
+      rendererId: ROTATING_MOCKUP_MODEL.id,
+      staleFixedSave: false,
+      savedRendererUnavailable: false,
+    });
+  });
+
   it('spiega quando una bozza salvata usa un renderer sconosciuto senza alterare la configurazione', () => {
     const configuration = { modelId: 'renderer-ritirato', coverText: 'Alice e Marco', photoAssetId: 'cover-1' };
     const payload = {
