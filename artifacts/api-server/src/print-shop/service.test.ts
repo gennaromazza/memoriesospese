@@ -1148,6 +1148,8 @@ describe('print shop coupon quotes and payment reservations', () => {
     const revisedQuote = await f.service.quote(identity, orderId, revisedInput, {
       allowPendingPaypal: true,
     });
+    expect(f.db.value(`orders/${orderId}`).fulfillment.status).toBe('draft');
+    expect(f.db.value(`orders/${orderId}`).payment.paypalOrderId).toBeUndefined();
     await f.service.createPaypalOrder(identity, orderId, {
       termsAccepted: true,
       privacyAccepted: true,
@@ -2092,6 +2094,70 @@ describe('PrintShopService production validation', () => {
     expect(paypal.createOrder).toHaveBeenCalledTimes(2);
     expect(db.value('orders/order_legal_reuse').payment.attempt).toBe(2);
   });
+
+  it.each(['interrupted', 'requoted', 'legacy-draft', 'coupon'] as const)(
+    'completes a reused PayPal checkout after %s without duplicate collection', async (scenario) => {
+      const { db, service, paypal } = createService({
+        now: () => Timestamp.fromMillis(Date.UTC(2026, 0, 2)),
+      });
+      const orderId = `order_checkout_${scenario}`;
+      const product = PRINT_SHOP_CATALOG.find(item => item.printSpec.pricing.model === 'tiered')!;
+      seedProduct(db, product);
+      db.seed(`orders/${orderId}`, baseOrder());
+      seedReadyAsset(db, orderId, 'asset_retry');
+      if (scenario === 'coupon') {
+        seedCoupon(db, 'RETRY15', {
+          discountType: 'fixed_total', value: 1500, minPrintQuantity: 50,
+          scope: 'selected', eligibleSkus: [product.sku],
+        });
+      }
+      const input = {
+        items: [{
+          sku: product.sku, finish: 'matte' as const, fitMode: 'border' as const,
+          assignments: [{ assetId: 'asset_retry', copies: 50 }],
+        }],
+        ...(scenario === 'coupon' ? { couponCode: 'RETRY15' } : {}),
+      };
+      await service.quote(identity, orderId, input);
+      const first = await service.createPaypalOrder(identity, orderId, checkoutInput(db, orderId));
+      const original = db.value(`orders/${orderId}`);
+      if (scenario === 'legacy-draft') {
+        await db.collection('orders').doc(orderId).update({ 'fulfillment.status': 'draft' });
+      }
+      if (scenario === 'requoted') {
+        await service.quote(identity, orderId, input, { allowPendingPaypal: true });
+        expect(db.value(`orders/${orderId}`).fulfillment.status).toBe('awaiting_payment');
+      }
+      const retry = await service.createPaypalOrder(identity, orderId, checkoutInput(db, orderId));
+      expect(retry).toMatchObject({ reused: true, paypalOrderId: first.paypalOrderId });
+      const payable = db.value(`orders/${orderId}`);
+      expect(payable.fulfillment.status).toBe('awaiting_payment');
+      expect(payable.payment).toEqual(original.payment);
+      expect(payable.totals).toEqual(original.totals);
+      expect(db.countCollection(`orders/${orderId}/legalAcceptances`)).toBe(1);
+      if (scenario === 'coupon') expect(payable.totals.totalCents).toBe(1500);
+      paypal.captureOrder.mockResolvedValue({
+        id: first.paypalOrderId, status: 'COMPLETED',
+        purchase_units: [{
+          custom_id: orderId, invoice_id: payable.payment.invoiceId,
+          payments: { captures: [{
+            id: 'CAPTURE-RETRY-123', status: 'COMPLETED',
+            amount: { currency_code: 'EUR', value: (payable.totals.totalCents / 100).toFixed(2) },
+          }] },
+        }],
+      });
+      await expect(service.capturePaypalOrder(identity, orderId, {})).resolves.toMatchObject({ success: true });
+      await expect(service.capturePaypalOrder(identity, orderId, {})).resolves.toMatchObject({ duplicate: true });
+      expect(paypal.createOrder).toHaveBeenCalledTimes(1);
+      expect(paypal.captureOrder).toHaveBeenCalledTimes(1);
+      expect(db.value(`orders/${orderId}`).payment.status).toBe('paid');
+      expect(db.countCollection('cashMovements')).toBe(1);
+      if (scenario === 'coupon') {
+        expect(db.value(`printShopCouponRedemptions/${orderId}`).state).toBe('redeemed');
+        expect(db.value('printShopCoupons/RETRY15').usedCount).toBe(1);
+      }
+    },
+  );
 
   it('uses a fresh PayPal idempotency key after a failed payment attempt', async () => {
     const paypal = paypalFake();

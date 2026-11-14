@@ -1524,6 +1524,10 @@ export class PrintShopService {
         freshData.payment?.paypalOrderId &&
         freshData.payment?.quoteFingerprint === fingerprint,
       );
+      // Recalculating an unchanged checkout must preserve its payable state,
+      // including retries of older orders left in draft by this recalculation.
+      // A changed quote still invalidates the provider order and stays a draft.
+      if (preservePendingPaypalOrder) nextFulfillment.status = 'awaiting_payment';
       transaction.update(orderRef, {
         catalogVersion: quote.catalogVersion,
         totals: quote.totals,
