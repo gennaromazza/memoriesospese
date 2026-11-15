@@ -5,6 +5,11 @@ type HarnessState = {
   payment: Record<string, any> | null;
   released: boolean;
   resolveCapture: boolean;
+  bookingId?: string;
+  campaignId?: string;
+  flow?: "immediate" | "approved";
+  status?: string;
+  emailStatus?: string;
 };
 
 declare global {
@@ -35,7 +40,7 @@ function record(name: string, detail?: unknown) {
 }
 function payment(value: HarnessState) {
   return value.payment ?? {
-    bookingId: "booking-browser-test",
+    bookingId: value.bookingId ?? "booking-browser-test",
     paypalOrderId: "ORDER-BROWSER-TEST",
     paypalCaptureId: "CAPTURE-BROWSER-TEST",
     amountCents: 2500,
@@ -57,8 +62,8 @@ export async function createBookingCheckoutHold(input: Record<string, unknown>) 
   const serverTime = now();
   const expiresAt = value.scenario === "expired" ? serverTime : new Date(serverTime.getTime() + 10 * 60_000);
   value.hold = {
-    bookingId: "booking-browser-test",
-    campaignId: "campaign-browser-test",
+    bookingId: value.bookingId ?? "booking-browser-test",
+    campaignId: value.campaignId ?? "campaign-browser-test",
     flow: "immediate",
     status: "active",
     depositAmountCents: 2500,
@@ -76,7 +81,9 @@ export async function createBookingCheckoutHold(input: Record<string, unknown>) 
 export async function resumeBookingCheckoutHold(bookingId: string) {
   record("resume-hold", { bookingId });
   const value = state();
+  if (value.scenario === "expired") throw Object.assign(new Error("Richiesta scaduta"), { status: 410 });
   if (!value.hold) throw Object.assign(new Error("Checkout non trovato"), { status: 404 });
+  if (value.hold.bookingId !== bookingId) throw Object.assign(new Error("Checkout non trovato"), { status: 404 });
   return value.hold;
 }
 
@@ -89,11 +96,12 @@ export async function releaseBookingCheckoutHold(bookingId: string) {
 }
 
 export async function createBookingDepositOrder(bookingId: string) {
-  record("create-order", { bookingId, amountCents: 2500 });
+  const amountCents = state().hold?.depositAmountCents ?? 2500;
+  record("create-order", { bookingId, amountCents });
   return {
     bookingId,
     paypalOrderId: "ORDER-BROWSER-TEST",
-    depositAmountCents: 2500,
+    depositAmountCents: amountCents,
     currency: "EUR",
   };
 }
@@ -129,8 +137,8 @@ export async function getBookingDepositStatus(bookingId: string) {
   if (value.payment && (value.scenario !== "uncertain" || value.resolveCapture)) {
     return {
       bookingId,
-      campaignId: "campaign-browser-test",
-      flow: "immediate",
+      campaignId: value.campaignId ?? "campaign-browser-test",
+      flow: value.flow ?? "immediate",
       status: value.payment.status,
       payment: value.payment,
       dataShootingInizio: value.hold?.dataShootingInizio || "2030-12-01T09:00:00.000Z",
@@ -139,9 +147,9 @@ export async function getBookingDepositStatus(bookingId: string) {
   }
   return {
     bookingId,
-    campaignId: "campaign-browser-test",
-    flow: "immediate",
-    status: "unpaid",
+    campaignId: value.campaignId ?? "campaign-browser-test",
+    flow: value.flow ?? "immediate",
+    status: value.status ?? "unpaid",
     dataShootingInizio: value.hold?.dataShootingInizio || "2030-12-01T09:00:00.000Z",
     dataShootingFine: value.hold?.dataShootingFine || "2030-12-01T09:30:00.000Z",
   };

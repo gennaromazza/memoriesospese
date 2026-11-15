@@ -4,6 +4,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Route, Router, Switch } from "wouter";
 import "../../src/index.css";
 import BookingPage from "../../src/pages/BookingPage";
+import BookingDepositPaymentPage from "../../src/pages/BookingDepositPaymentPage";
+import AdminApprovalHarness from "./admin-approval";
 
 const key = "booking-deposit-browser-harness";
 const queryScenario = new URLSearchParams(window.location.search).get("scenario") || "success";
@@ -31,6 +33,8 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <Router>
         <Switch>
+          <Route path="/test/admin-approval" component={AdminApprovalHarness} />
+          <Route path="/prenota/acconto/:bookingId" component={BookingDepositPaymentPage} />
           <Route path="/prenota/:code" component={BookingPage} />
           <Route>Harness pronto</Route>
         </Switch>

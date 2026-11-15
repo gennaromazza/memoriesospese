@@ -3,6 +3,7 @@
  */
 import { bookingPaymentStage, bookingPaymentStageLabel, matchesBookingPaymentFilter } from '@shared/booking-payment-state';
 import { BookingPaymentPanel } from './booking/BookingPaymentPanel';
+import { BookingApprovalButton } from './booking/BookingApprovalButton';
 import { BookingManagementLinkPanel } from './booking/BookingManagementLinkPanel';
 import { BookingCancellationAdminPanel } from './booking/BookingCancellationAdminPanel';
 import { requiresBookingCancellationPanel } from '@/lib/booking-deletion';
@@ -2847,25 +2848,14 @@ export default function BookingsManager({
                                 {/* Pulsanti Approva/Rifiuta - Solo se in_attesa */}
                                 {bookingPaymentStage(booking) === "in_attesa" && (
                                   <div className="grid grid-cols-2 gap-2 w-full">
-                                    <Button
-                                      size="sm"
-                                      onClick={() =>
-                                        approveMutation.mutate(booking.id)
-                                      }
-                                      disabled={
-                                        approveMutation.isPending ||
-                                        rejectMutation.isPending
-                                      }
-                                      className="bg-sage hover:bg-dark-sage h-auto min-h-12 whitespace-normal"
-                                      data-testid={`button-approve-${booking.id}`}
-                                    >
-                                      {approveMutation.isPending ? (
-                                        <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                                      ) : (
-                                        <CheckCircle className="w-4 h-4 mr-1" />
-                                      )}
-                                      {needsDepositApproval(booking, campaigns) ? 'Approva e richiedi acconto' : 'Approva'}
-                                    </Button>
+                                    <BookingApprovalButton
+                                      bookingId={booking.id}
+                                      requiresDeposit={needsDepositApproval(booking, campaigns)}
+                                      placement="list"
+                                      isPending={approveMutation.isPending}
+                                      isDisabled={rejectMutation.isPending}
+                                      onApprove={() => approveMutation.mutate(booking.id)}
+                                    />
                                     <Button
                                       size="sm"
                                       variant="outline"
@@ -3597,25 +3587,14 @@ export default function BookingsManager({
               </Button>
               {selectedBooking && bookingPaymentStage(selectedBooking) === "in_attesa" && (
                 <>
-                  <Button
-                    onClick={() => approveMutation.mutate(selectedBooking.id)}
-                    disabled={
-                      approveMutation.isPending || rejectMutation.isPending
-                    }
-                    className="bg-sage hover:bg-dark-sage"
-                  >
-                    {approveMutation.isPending ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Approvazione...
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle className="w-4 h-4 mr-2" />
-                        {needsDepositApproval(selectedBooking, campaigns) ? 'Approva e richiedi acconto' : 'Approva Ora'}
-                      </>
-                    )}
-                  </Button>
+                  <BookingApprovalButton
+                    bookingId={selectedBooking.id}
+                    requiresDeposit={needsDepositApproval(selectedBooking, campaigns)}
+                    placement="detail"
+                    isPending={approveMutation.isPending}
+                    isDisabled={rejectMutation.isPending}
+                    onApprove={() => approveMutation.mutate(selectedBooking.id)}
+                  />
                   <Button
                     variant="outline"
                     onClick={() => rejectMutation.mutate(selectedBooking.id)}

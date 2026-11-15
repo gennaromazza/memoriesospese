@@ -22,6 +22,8 @@ export default defineConfig({
       { find: "@/components/EmailSuggestionChip", replacement: path.join(stubs, "ui.tsx") },
       { find: "@/hooks/useSEO", replacement: path.join(stubs, "ui.tsx") },
       { find: "@/hooks/use-toast", replacement: path.join(stubs, "ui.tsx") },
+      { find: "@/lib/queryClient", replacement: path.join(stubs, "admin-api.ts") },
+      { find: "@/lib/firebase", replacement: path.join(stubs, "firebase.ts") },
       { find: "@/lib/analytics", replacement: path.join(stubs, "ui.tsx") },
       { find: "@/lib/booking-campaigns", replacement: path.join(stubs, "booking-services.ts") },
       { find: "@/lib/products", replacement: path.join(stubs, "booking-services.ts") },

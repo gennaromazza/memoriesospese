@@ -1,3 +1,20 @@
+const harnessKey = 'booking-deposit-browser-harness';
+
+function readHarnessState(): Record<string, any> {
+  try { return JSON.parse(window.localStorage.getItem(harnessKey) || '{}'); }
+  catch { return {}; }
+}
+
+function saveHarnessState(value: Record<string, any>) {
+  window.localStorage.setItem(harnessKey, JSON.stringify(value));
+}
+
+function record(name: string, detail?: unknown) {
+  const value = readHarnessState();
+  value.calls = [...(value.calls || []), { name, detail }];
+  saveHarnessState(value);
+}
+
 export async function getCampaignByCode(code: string) {
   return {
     id: "campaign-browser-test",
@@ -30,6 +47,38 @@ export async function getAvailableSlots() {
 
 export async function createBooking() {
   throw new Error("Il checkout con acconto non deve usare la creazione standard.");
+}
+
+export async function getBookingPaymentDetails(bookingId: string) {
+  const value = readHarnessState();
+  if (!value.adminPayment || value.adminPayment.bookingId !== bookingId) {
+    throw Object.assign(new Error('Pagamento di prova non trovato'), { status: 404 });
+  }
+  return value.adminPayment;
+}
+
+export async function resendBookingDeposit(bookingId: string, requestId: string) {
+  record('resend-email', { bookingId, requestId });
+  const value = readHarnessState();
+  if (!value.adminPayment || value.adminPayment.bookingId !== bookingId) {
+    throw Object.assign(new Error('Richiesta di prova non trovata'), { status: 404 });
+  }
+  value.adminPayment = {
+    ...value.adminPayment,
+    canResend: false,
+    resendReason: 'Attendi prima di effettuare un altro invio.',
+  };
+  saveHarnessState(value);
+  return value.adminPayment;
+}
+
+export async function verifyBookingDeposit(bookingId: string) {
+  record('verify-payment', { bookingId });
+  const value = readHarnessState();
+  if (!value.adminPayment || value.adminPayment.bookingId !== bookingId) {
+    throw Object.assign(new Error('Richiesta di prova non trovata'), { status: 404 });
+  }
+  return value.adminPayment;
 }
 
 export class BookingRequestError extends Error {
