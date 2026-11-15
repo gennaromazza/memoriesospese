@@ -173,6 +173,17 @@ const call = (path: string, init: RequestInit = {}) =>
     headers: { Authorization: 'Bearer ok', Origin: ORIGIN, 'Content-Type': 'application/json', ...(init.headers ?? {}) },
   });
 
+async function withAllowedPreviewOrigin<T>(callback: () => Promise<T>): Promise<T> {
+  const previous = process.env.ADMIN_PASSKEY_ALLOWED_ORIGINS;
+  process.env.ADMIN_PASSKEY_ALLOWED_ORIGINS = 'https://preview.replit.dev';
+  try {
+    return await callback();
+  } finally {
+    if (previous === undefined) delete process.env.ADMIN_PASSKEY_ALLOWED_ORIGINS;
+    else process.env.ADMIN_PASSKEY_ALLOWED_ORIGINS = previous;
+  }
+}
+
 beforeEach(() => {
   h.docs.clear();
   h.claims.clear();
@@ -796,6 +807,38 @@ describe('dispositivi amministrativi ricordati', () => {
     expect((await call('/api/admin-only', {
       headers: { Authorization: 'Bearer expired-browser' },
     })).status).toBe(403);
+  });
+
+  it('in Preview non ripristina la fiducia, ma consente al guard di proseguire con la verifica', async () => {
+    const response = await withAllowedPreviewOrigin(() =>
+      call('/api/admin/security/devices/restore', {
+        method: 'POST',
+        headers: { Origin: 'https://preview.replit.dev' },
+        body: '{}',
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await json(response)).toEqual({ restored: false });
+    expect(h.createdCustomToken).toBeNull();
+  });
+
+  it('in Preview scarta un eventuale cookie locale senza elevarlo a dispositivo fidato', async () => {
+    const response = await withAllowedPreviewOrigin(() =>
+      call('/api/admin/security/devices/restore', {
+        method: 'POST',
+        headers: {
+          Origin: 'https://preview.replit.dev',
+          Cookie: `__Host-admin-device=${'A'.repeat(43)}.${'B'.repeat(43)}`,
+        },
+        body: '{}',
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await json(response)).toEqual({ restored: false });
+    expect(response.headers.get('set-cookie')).toContain('Max-Age=0');
+    expect(h.createdCustomToken).toBeNull();
   });
 });
 

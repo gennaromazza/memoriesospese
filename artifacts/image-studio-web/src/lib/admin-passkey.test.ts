@@ -24,6 +24,7 @@ import {
   AdminPasskeyRefreshError,
   AdminSecurityError,
   canOfferDeviceEnrollment,
+  canRestoreRememberedDeviceAtOrigin,
   getDeviceEnrollmentUnavailableReason,
   type AdminSecurityStatus,
 } from './admin-passkey';
@@ -85,6 +86,13 @@ describe('autorizzazione QR per nuovo dispositivo', () => {
       { ...baseStatus, passkeyRequired: false },
       'imagestudiofotografico.com',
     )).toContain('attiva prima l’obbligo passkey');
+  });
+
+  it('ripristina la fiducia del dispositivo solo sull’origine ufficiale', () => {
+    expect(canRestoreRememberedDeviceAtOrigin('https://imagestudiofotografico.com')).toBe(true);
+    expect(canRestoreRememberedDeviceAtOrigin('https://www.imagestudiofotografico.com')).toBe(true);
+    expect(canRestoreRememberedDeviceAtOrigin('https://preview.replit.dev')).toBe(false);
+    expect(canRestoreRememberedDeviceAtOrigin('http://imagestudiofotografico.com')).toBe(false);
   });
 });
 

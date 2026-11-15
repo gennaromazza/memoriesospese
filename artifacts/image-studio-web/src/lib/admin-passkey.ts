@@ -101,6 +101,15 @@ export interface DeviceEnrollmentApprovalInfo {
 export const PREVIEW_HANDOFF_TIMEOUT_MS = 10 * 60 * 1000;
 export const DEVICE_ENROLLMENT_TIMEOUT_MS = 10 * 60 * 1000;
 
+const OFFICIAL_PASSKEY_ORIGINS = new Set([
+  'https://imagestudiofotografico.com',
+  'https://www.imagestudiofotografico.com',
+]);
+
+export function canRestoreRememberedDeviceAtOrigin(origin: string): boolean {
+  return OFFICIAL_PASSKEY_ORIGINS.has(origin);
+}
+
 type PasskeyHandoffStatus = 'pending' | 'verified' | 'expired';
 
 /** Verification and lock state are already evaluated against the server clock. */

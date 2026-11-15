@@ -11,15 +11,33 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocation } from 'wouter';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { onIdTokenChanged, signOut } from 'firebase/auth';
-import { Fingerprint, KeyRound, LogOut, QrCode, RefreshCw, ShieldAlert, ShieldCheck } from 'lucide-react';
+import {
+  Fingerprint,
+  KeyRound,
+  LogOut,
+  Maximize2,
+  Minimize2,
+  QrCode,
+  RefreshCw,
+  ShieldAlert,
+  ShieldCheck,
+} from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { auth } from '@/lib/firebase';
 import { createUrl } from '@/lib/basePath';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   AdminPasskeyClient,
   AdminPasskeyRefreshError,
   AdminSecurityError,
+  canRestoreRememberedDeviceAtOrigin,
   DEVICE_ENROLLMENT_TIMEOUT_MS,
   getDeviceEnrollmentUnavailableReason,
   type DeviceEnrollmentHandoff,
@@ -93,6 +111,13 @@ export function AdminRouteGuard({ children }: { children: ReactNode }) {
       return;
     }
     const uid = user.uid;
+    // Il cookie HttpOnly della fiducia appartiene al dominio ufficiale.
+    // In Preview non tentare il ripristino: il rifiuto previsto del server
+    // non deve bloccare l'intero pannello.
+    if (!canRestoreRememberedDeviceAtOrigin(window.location.origin)) {
+      setDeviceTrustCheck({ uid, state: 'ready' });
+      return;
+    }
     let active = true;
     setDeviceTrustCheck({ uid, state: 'checking' });
     const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
@@ -253,10 +278,14 @@ function DeviceEnrollmentRequestPanel({
   status,
   currentRpId,
   disabled,
+  expanded,
+  onActiveChange,
 }: {
   status: AdminSecurityStatus;
   currentRpId: string;
   disabled: boolean;
+  expanded: boolean;
+  onActiveChange: (active: boolean) => void;
 }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -285,6 +314,7 @@ function DeviceEnrollmentRequestPanel({
       if (performance.now() >= deadline) {
         setRequestStatus('expired');
         setHandoff(null);
+        onActiveChange(false);
         setError(null);
         deadlineRef.current = null;
         return;
@@ -297,11 +327,13 @@ function DeviceEnrollmentRequestPanel({
         if (result.status === 'approved') return;
         if (result.status === 'registered') {
           setHandoff(null);
+          onActiveChange(false);
           setRegistered(true);
           return;
         }
         if (result.status === 'expired' || result.status === 'rejected' || result.status === 'cancelled') {
           setHandoff(null);
+          onActiveChange(false);
           setError(result.status === 'expired'
             ? null
             : result.status === 'rejected'
@@ -315,6 +347,7 @@ function DeviceEnrollmentRequestPanel({
         if (cancelled) return;
         if (err instanceof AdminSecurityError && err.status < 500) {
           setHandoff(null);
+          onActiveChange(false);
           setError(err.message);
           deadlineRef.current = null;
           return;
@@ -329,10 +362,11 @@ function DeviceEnrollmentRequestPanel({
       cancelled = true;
       if (pollTimer !== undefined) clearTimeout(pollTimer);
     };
-  }, [handoff]);
+  }, [handoff, onActiveChange]);
 
   const start = async () => {
     setWorking(true);
+    onActiveChange(true);
     setError(null);
     setNotice(null);
     setRegistered(false);
@@ -343,6 +377,7 @@ function DeviceEnrollmentRequestPanel({
       setRequestStatus('pending');
       setHandoff(request);
     } catch (err) {
+      onActiveChange(false);
       setError(err instanceof Error ? err.message : 'Non è stato possibile creare il QR.');
     } finally {
       setWorking(false);
@@ -356,6 +391,7 @@ function DeviceEnrollmentRequestPanel({
       await AdminPasskeyClient.cancelDeviceEnrollment(handoff);
       setRequestStatus('cancelled');
       setHandoff(null);
+      onActiveChange(false);
       deadlineRef.current = null;
       setError(null);
       setNotice('Richiesta annullata.');
@@ -373,6 +409,7 @@ function DeviceEnrollmentRequestPanel({
     try {
       await AdminPasskeyClient.registerDeviceEnrollmentPasskey(handoff);
       setHandoff(null);
+      onActiveChange(false);
       setRequestStatus('registered');
       setRegistered(true);
       deadlineRef.current = null;
@@ -424,6 +461,16 @@ function DeviceEnrollmentRequestPanel({
       </div>
 
       {error && <p className="text-sm text-amber-800" role="status" data-testid="text-device-enrollment-error">{error}</p>}
+      {working && (
+        <p className="text-xs text-blue-gray" role="status" data-testid="text-device-enrollment-working">
+          Sto preparando la richiesta. Attendi il completamento prima di chiudere questa finestra.
+        </p>
+      )}
+      {handoff && (
+        <p className="text-xs text-blue-gray" role="status" data-testid="text-device-enrollment-active">
+          Completa la registrazione oppure annulla la richiesta per poter chiudere questa finestra.
+        </p>
+      )}
       {!handoff && requestStatus === 'expired' && (
         <p className="text-sm text-amber-800" role="status" data-testid="text-device-enrollment-expired">
           La richiesta QR è scaduta. Genera un nuovo QR per continuare.
@@ -466,7 +513,7 @@ function DeviceEnrollmentRequestPanel({
         <div className="flex flex-col items-center gap-3 rounded-md bg-white p-4">
           <QRCodeSVG
             value={handoff.approvalUrl}
-            size={192}
+            size={expanded ? 264 : 192}
             level="M"
             marginSize={2}
             bgColor="#ffffff"
@@ -537,6 +584,9 @@ export function AdminPasskeyVerification({ status }: { status: AdminSecurityStat
   const [previewHandoffError, setPreviewHandoffError] = useState<string | null>(null);
   const [rememberThisDevice, setRememberThisDevice] = useState(false);
   const [rememberDeviceLabel, setRememberDeviceLabel] = useState('Browser personale');
+  const [deviceEnrollmentOpen, setDeviceEnrollmentOpen] = useState(false);
+  const [deviceEnrollmentActive, setDeviceEnrollmentActive] = useState(false);
+  const [deviceEnrollmentExpanded, setDeviceEnrollmentExpanded] = useState(false);
   const supportsPasskeys = AdminPasskeyClient.supportsPasskeys();
   const locked = isAdminPasskeyLocked(status);
   const hostname = window.location.hostname.toLowerCase();
@@ -819,11 +869,81 @@ export function AdminPasskeyVerification({ status }: { status: AdminSecurityStat
                 </div>
               )}
 
-              <DeviceEnrollmentRequestPanel
-                status={status}
-                currentRpId={currentRpId}
-                disabled={busy || needsSessionRefresh || locked}
-              />
+              <div className="rounded-md border border-sage/30 bg-sage/5 p-3 space-y-2">
+                <div className="flex items-start gap-2">
+                  <QrCode className="h-5 w-5 text-sage shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-charcoal">Nuovo dispositivo?</p>
+                    <p className="text-xs text-blue-gray">
+                      Apri la procedura QR in una finestra dedicata, senza appesantire la verifica.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  disabled={busy || needsSessionRefresh || locked}
+                  onClick={() => setDeviceEnrollmentOpen(true)}
+                  data-testid="button-open-device-enrollment"
+                >
+                  <QrCode className="h-4 w-4 mr-2" />
+                  Associa un nuovo dispositivo
+                </Button>
+              </div>
+
+              <Dialog
+                open={deviceEnrollmentOpen}
+                onOpenChange={(open) => {
+                  if (!open && deviceEnrollmentActive) return;
+                  setDeviceEnrollmentOpen(open);
+                  if (!open) setDeviceEnrollmentExpanded(false);
+                }}
+              >
+                <DialogContent
+                  closeDisabled={deviceEnrollmentActive}
+                  onEscapeKeyDown={(event) => {
+                    if (deviceEnrollmentActive) event.preventDefault();
+                  }}
+                  onInteractOutside={(event) => {
+                    if (deviceEnrollmentActive) event.preventDefault();
+                  }}
+                  className={deviceEnrollmentExpanded
+                    ? '!max-w-4xl max-h-[90vh]'
+                    : 'max-w-xl max-h-[90vh]'}
+                  data-testid="dialog-device-enrollment"
+                >
+                  <DialogHeader className="pr-10">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <DialogTitle>Associa un nuovo dispositivo</DialogTitle>
+                        <DialogDescription>
+                          Il QR autorizza solo la registrazione della nuova passkey; non trasferisce la sessione amministrativa.
+                        </DialogDescription>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label={deviceEnrollmentExpanded ? 'Riduci finestra QR' : 'Espandi finestra QR'}
+                        onClick={() => setDeviceEnrollmentExpanded((expanded) => !expanded)}
+                        data-testid="button-toggle-device-enrollment-size"
+                      >
+                        {deviceEnrollmentExpanded
+                          ? <Minimize2 className="h-4 w-4" />
+                          : <Maximize2 className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </DialogHeader>
+                  <DeviceEnrollmentRequestPanel
+                    status={status}
+                    currentRpId={currentRpId}
+                    disabled={busy || needsSessionRefresh || locked}
+                    expanded={deviceEnrollmentExpanded}
+                    onActiveChange={setDeviceEnrollmentActive}
+                  />
+                </DialogContent>
+              </Dialog>
 
               {hasPasskeyForCurrentRp && (
                 <>

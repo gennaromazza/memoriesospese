@@ -262,12 +262,16 @@ router.get('/status', async (req, res) => {
 router.post('/devices/restore', async (req, res) => {
   const rp = relyingPartyOf(req, res);
   if (!rp) return;
-  if (!isProductionPasskeyOrigin(rp.origin)) {
-    res.status(400).json({ error: 'La fiducia dispositivo è disponibile solo sul sito ufficiale', code: 'origin_not_allowed' });
-    return;
-  }
   const identity = identityOf(req, res);
   if (!identity) return;
+  if (!isProductionPasskeyOrigin(rp.origin)) {
+    // Il browser Preview non riceve il cookie __Host- del sito ufficiale.
+    // Non ripristinare fiducia fuori produzione, ma non trasformare questo
+    // caso previsto in un errore che impedisce il controllo MFA successivo.
+    if (readRememberedDeviceCookie(req)) clearRememberedDeviceCookie(res);
+    res.json({ restored: false });
+    return;
+  }
   try {
     const result = await restoreRememberedDevice(
       identity,
