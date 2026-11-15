@@ -168,9 +168,9 @@ describe('tappe del lavoro: contratto, visione, ritiro', () => {
     ] } })[2]).toMatchObject({ state: 'done', status: 'Ritirato', date: '2026-09-01T00:00:00.000Z' });
   });
 
-  it('nasconde lavori eliminati e contatti senza preventivo inviato', () => {
+  it('mostra i lavori anche prima della firma, nasconde solo gli eliminati', () => {
     expect(isJobVisibleToClient({ deletedAt: new Date() }, [])).toBe(false);
-    expect(isJobVisibleToClient({ status: 'lead' }, [])).toBe(false);
+    expect(isJobVisibleToClient({ status: 'lead' }, [])).toBe(true);
     expect(isJobVisibleToClient({ status: 'lead' }, [quote('inviato')])).toBe(true);
   });
 

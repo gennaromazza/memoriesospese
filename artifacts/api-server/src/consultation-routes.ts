@@ -1677,6 +1677,11 @@ router.post(
         jobId: jobRef.id,
       });
 
+      // Area cliente: benvenuto ai clienti del nuovo lavoro (una volta per cliente, non bloccante).
+      void import("./client-area-routes.js")
+        .then(({ welcomeClientsOfJob }) => welcomeClientsOfJob(jobRef.id, req))
+        .catch((err) => console.warn("[convert-to-job] Benvenuto area cliente non inviato:", err?.message));
+
       res.json({
         message: "Consultation convertita in job con successo",
         jobId: jobRef.id,

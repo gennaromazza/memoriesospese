@@ -5,7 +5,9 @@
  *  POST /login/verify    { email, code }   → restituisce un custom token Firebase (pubblico)
  *  GET  /me                                → lavori, gallerie, prenotazioni, IBAN (cliente)
  *  GET  /admin/settings                    → impostazioni area cliente (admin)
- *  PUT  /admin/settings                    → salva IBAN, intestatario, banca, causale (admin)
+ *  PUT  /admin/settings                    → salva IBAN, intestatario, banca, causale, benvenuto automatico (admin)
+ *  POST /admin/welcome/job/:jobId          → benvenuto ai clienti del lavoro non ancora invitati (admin)
+ *  POST /admin/welcome/cliente/:clienteId  → invia (o reinvia) il benvenuto a un cliente (admin)
  *
  * Sicurezza:
  *  - il cliente entra con un uid dedicato (`ca_…`) creato dal custom token:
@@ -18,7 +20,7 @@
 import { Router, type Request, type Response } from 'express';
 import { getAuth } from 'firebase-admin/auth';
 import { db, FieldValue } from './firebase-admin';
-import { authenticateFirebase, getStudioContactInfo, sendGmailEmail } from './email-routes.js';
+import { authenticateFirebase, getSiteBaseUrl, getStudioContactInfo, sendGmailEmail } from './email-routes.js';
 import { isAdminEmail } from './admin-security/admin-identity.js';
 import { requireAdmin } from './admin-security/admin-guard.js';
 import { safeErrorMessage } from './utils/safe-logging.js';
@@ -29,6 +31,8 @@ import {
   MAX_ATTEMPTS, clientAreaUid, emailKey, generateCode, prepareSend, verifyCode, type LoginCodeRecord,
 } from './client-area/login-code.js';
 import { findClientRecords, loadClientAreaOverview } from './client-area/overview.js';
+import { escapeHtml } from './client-area/emails.js';
+import { jobClienteIds, sendClientAreaWelcome, type WelcomeOutcome } from './client-area/welcome.js';
 
 const router = Router();
 const CODES = 'clientAreaLoginCodes';
@@ -55,9 +59,6 @@ const GENERIC_SENT = {
   message: "Se l'email è collegata a un nostro servizio, riceverai a breve un codice di accesso.",
 };
 
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
-}
 
 function codeEmailHtml(studioName: string, nome: string, code: string): string {
   const name = escapeHtml(studioName);
@@ -202,6 +203,7 @@ router.get('/admin/settings', authenticateFirebase, requireAdmin, async (_req: R
     intestatario: data.intestatario || '',
     banca: data.banca || '',
     causale: data.causale || '',
+    welcomeAuto: data.welcomeAuto !== false,
   });
 });
 
@@ -216,9 +218,63 @@ router.put('/admin/settings', authenticateFirebase, requireAdmin, async (req: Re
     intestatario,
     banca: clean(req.body?.banca, 120),
     causale: clean(req.body?.causale, 200),
+    welcomeAuto: req.body?.welcomeAuto !== false,
   };
   await SETTINGS_DOC().set({ ...settings, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
   return res.json({ success: true, ...settings });
+});
+
+async function welcomeDeps(req?: Request) {
+  const studio = await getStudioContactInfo().catch(() => null);
+  return {
+    baseUrl: getSiteBaseUrl(req as any),
+    studioName: studio?.name || 'Image Studio',
+    send: (to: string, subject: string, html: string) => sendGmailEmail([to], subject, html),
+    isExcludedEmail: (email: string) => isAdminEmail(email),
+  };
+}
+
+/**
+ * Benvenuto automatico ai clienti di un lavoro: una volta per cliente, solo se
+ * l'opzione è attiva nelle impostazioni. Usato dal pannello dopo la creazione
+ * del lavoro o l'aggiunta di clienti, e dalla conversione di una consulenza.
+ */
+export async function welcomeClientsOfJob(jobId: string, req?: Request): Promise<WelcomeOutcome[] | 'disabled' | 'not_found'> {
+  const settings = await SETTINGS_DOC().get();
+  if (settings.exists && settings.data()?.welcomeAuto === false) return 'disabled';
+  const job = await db.collection('jobs').doc(jobId).get();
+  if (!job.exists || job.data()?.deletedAt) return 'not_found';
+  const data = job.data() || {};
+  return sendClientAreaWelcome(db, jobClienteIds(data), await welcomeDeps(req), {
+    nomeEvento: typeof data.nomeEvento === 'string' ? data.nomeEvento : undefined,
+  });
+}
+
+router.post('/admin/welcome/job/:jobId', authenticateFirebase, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const outcome = await welcomeClientsOfJob(String(req.params.jobId), req);
+    if (outcome === 'not_found') return res.status(404).json({ error: 'Lavoro non trovato' });
+    if (outcome === 'disabled') return res.json({ disabled: true, outcomes: [] });
+    return res.json({ disabled: false, outcomes: outcome });
+  } catch (error) {
+    console.error('❌ Area cliente: benvenuto non inviato:', safeErrorMessage(error));
+    return res.status(500).json({ error: "Impossibile inviare l'email di benvenuto." });
+  }
+});
+
+router.post('/admin/welcome/cliente/:clienteId', authenticateFirebase, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const [outcome] = await sendClientAreaWelcome(db, [String(req.params.clienteId)], await welcomeDeps(req), { force: true });
+    if (outcome.result === 'sent') return res.json({ success: true });
+    const message = outcome.result === 'error' ? "Invio dell'email non riuscito. Riprova."
+      : outcome.reason === 'no_email' ? 'Il cliente non ha un indirizzo email valido.'
+        : outcome.reason === 'not_found' ? 'Cliente non trovato.'
+          : 'Questo indirizzo non può ricevere inviti all’area cliente.';
+    return res.status(outcome.result === 'error' ? 502 : 400).json({ error: message });
+  } catch (error) {
+    console.error('❌ Area cliente: invito manuale non inviato:', safeErrorMessage(error));
+    return res.status(500).json({ error: "Impossibile inviare l'invito." });
+  }
 });
 
 export default router;

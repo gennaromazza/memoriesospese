@@ -169,6 +169,8 @@ export interface ClientAreaSettings {
   banca?: string;
   /** Causale suggerita; `{evento}` viene sostituito col nome del lavoro. */
   causale?: string;
+  /** Email di benvenuto automatica quando un cliente viene collegato a un lavoro (predefinito: attiva). */
+  welcomeAuto?: boolean;
 }
 
 // ─── Utilità ────────────────────────────────────────────────────────────────
@@ -588,11 +590,12 @@ function dateField(date: string | undefined): { date?: string } {
   return date ? { date } : {};
 }
 
-/** Un job è visibile se non è eliminato e non è un semplice contatto senza preventivi inviati. */
-export function isJobVisibleToClient(job: AnyRecord, visibleQuotes: ClientAreaQuote[]): boolean {
-  if (job.deletedAt) return false;
-  if (job.status === 'lead' && visibleQuotes.length === 0) return false;
-  return true;
+/**
+ * Un job è visibile appena il cliente ci è collegato, firmato o no
+ * (il contratto mostra "Non ancora inviato"). Solo i job eliminati spariscono.
+ */
+export function isJobVisibleToClient(job: AnyRecord, _visibleQuotes: ClientAreaQuote[] = []): boolean {
+  return !job.deletedAt;
 }
 
 export function toClientJob(

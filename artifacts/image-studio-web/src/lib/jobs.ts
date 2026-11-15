@@ -40,6 +40,20 @@ const JOBS_COLLECTION = 'jobs';
 const TIMELINE_COLLECTION = 'jobTimeline';
 
 /**
+ * Area cliente: chiede al server di mandare l'email di benvenuto ai clienti del
+ * lavoro che non l'hanno ancora ricevuta. Non blocca né fa fallire il salvataggio.
+ */
+function requestClientAreaWelcome(jobId: string): void {
+  void apiRequest('POST', `/api/client-area/admin/welcome/job/${encodeURIComponent(jobId)}`)
+    .then(res => res.json())
+    .then(result => {
+      const sent = Array.isArray(result?.outcomes) ? result.outcomes.filter((o: any) => o.result === 'sent').length : 0;
+      if (sent > 0) console.log(`✉️ Benvenuto area cliente inviato a ${sent} clienti`);
+    })
+    .catch(error => console.warn('⚠️ Benvenuto area cliente non inviato:', error?.message || error));
+}
+
+/**
  * Crea nuovo job
  */
 export async function createJob(
@@ -122,6 +136,7 @@ export async function createJob(
     await Promise.all(updatePromises);
 
     console.log('✅ Job creato:', docRef.id, `(${data.clientiIds.length} clienti collegati)`);
+    requestClientAreaWelcome(docRef.id);
     
     // Sincronizza automaticamente con Google Calendar (se ha una data definita)
     if (!data.dataNonDefinita && data.eventDate) {
@@ -221,6 +236,7 @@ export async function updateJob(
   data: UpdateJob,
   userId: string
 ): Promise<void> {
+  let welcomeAfterSave = false;
   try {
     // Se clientiIds è nell'update (anche se array vuoto), dobbiamo sincronizzare sourceRefs
     if (data.clientiIds !== undefined) {
@@ -260,6 +276,7 @@ export async function updateJob(
         
         await Promise.all([...removePromises, ...addPromises]);
         
+        if (addedClients.length > 0) welcomeAfterSave = true;
         if (removedClients.length > 0 || addedClients.length > 0) {
           console.log(`📝 sourceRefs sincronizzati: +${addedClients.length} -${removedClients.length} clienti`);
         }
@@ -313,6 +330,7 @@ export async function updateJob(
     const cleanedUpdateData = removeUndefinedFields(updateData);
     
     await updateDoc(doc(db, JOBS_COLLECTION, jobId), cleanedUpdateData);
+    if (welcomeAfterSave) requestClientAreaWelcome(jobId);
     
     // Timeline event se cambia status
     if (data.status) {
