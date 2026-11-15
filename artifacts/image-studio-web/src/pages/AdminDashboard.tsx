@@ -181,6 +181,7 @@ const GiftCardAdminContent = lazy(
   () => import("@/components/gift-cards/admin/GiftCardAdminContent"),
 );
 // Lazy load StudioAssistant per migliorare il caricamento iniziale
+const ClientAreaSettingsPanel = lazy(() => import("@/components/admin/ClientAreaSettingsPanel"));
 const StudioAssistant = lazy(
   () => import("@/components/studio-assistant/StudioAssistant"),
 );
@@ -290,7 +291,8 @@ type SettingsSection =
   | "product-categories"
   | "migration"
   | "email-logs"
-  | "integrations";
+  | "integrations"
+  | "client-area";
 type SitoSection = "portfolio" | "blog";
 type JobSection =
   | "jobs-list"
@@ -2304,6 +2306,7 @@ export default function AdminDashboard() {
                           { id: 'studio',       icon: Building2, label: 'Studio',       desc: 'Profilo & contatti' },
                           { id: 'slideshow',    icon: Play,      label: 'Slideshow',    desc: 'Foto homepage' },
                           { id: 'integrations', icon: Link2,     label: 'Integrazioni', desc: 'Calendar & Gmail' },
+                          { id: 'client-area',  icon: CreditCard, label: 'Area clienti', desc: 'IBAN per i pagamenti' },
                         ] as const).map(({ id, icon: Icon, label, desc }) => (
                           <button
                             key={id}
@@ -2380,6 +2383,7 @@ export default function AdminDashboard() {
                       { id: 'studio',             icon: Building2,  label: 'Studio' },
                       { id: 'slideshow',           icon: Play,       label: 'Slideshow' },
                       { id: 'integrations',        icon: Link2,      label: 'Integrazioni' },
+                      { id: 'client-area',         icon: CreditCard, label: 'Area clienti' },
                       { id: 'products',            icon: Package,    label: 'Prodotti' },
                       { id: 'product-categories',  icon: FolderOpen, label: 'Categorie' },
                       { id: 'migration',           icon: RefreshCw,  label: 'Migrazione' },
@@ -3114,6 +3118,12 @@ export default function AdminDashboard() {
                       </div>
                     </div>
                   </div>
+                </TabsContent>
+
+                <TabsContent value="client-area" className="mt-0">
+                  <Suspense fallback={<Skeleton className="h-64 w-full rounded-xl" />}>
+                    <ClientAreaSettingsPanel />
+                  </Suspense>
                 </TabsContent>
 
                 <TabsContent value="integrations" className="mt-0">

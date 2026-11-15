@@ -128,6 +128,7 @@ export async function apiRequest(
     '/api/places', // Google Places proxy (autocomplete indirizzi) requiring auth
     '/api/wedding-seo/gallery/', // Editor Real Wedding (la route /public resta pubblica)
     '/api/print-shop', // Shop stampe: checkout cliente e gestione ordini admin
+    '/api/client-area/admin/', // Impostazioni area cliente (IBAN) solo admin
   ];
   
   // Check specifico per consultations: tutti tranne i pubblici
