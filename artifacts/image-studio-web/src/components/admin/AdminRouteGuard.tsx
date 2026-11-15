@@ -597,6 +597,7 @@ export function AdminPasskeyVerification({ status }: { status: AdminSecurityStat
   // Le passkey elencate sono dell'account/RP, non una prova che siano salvate
   // sul browser corrente. Questa condizione mostra solo il pulsante di verifica.
   const hasPasskeyForCurrentRp = status.passkeys.some((passkey) => passkey.rpId === currentRpId);
+  const recoveryIsPrimary = !supportsPasskeys || !hasPasskeyForCurrentRp;
   const canUseProductionHandoff =
     currentRpId !== 'imagestudiofotografico.com' &&
     status.passkeys.some((passkey) => passkey.rpId === 'imagestudiofotografico.com');
@@ -689,7 +690,10 @@ export function AdminPasskeyVerification({ status }: { status: AdminSecurityStat
     }
   };
 
-  const finish = async (action: () => Promise<number>) => {
+  const finish = async (
+    action: () => Promise<number>,
+    options: { offerRecoveryOnPasskeyUnavailable?: boolean } = {},
+  ) => {
     setBusy(true);
     setError(null);
     try {
@@ -707,14 +711,20 @@ export function AdminPasskeyVerification({ status }: { status: AdminSecurityStat
         void queryClient.invalidateQueries({ queryKey: ADMIN_SECURITY_STATUS_KEY });
         return;
       }
-      const message =
-        err instanceof AdminSecurityError
+      const passkeyUnavailable =
+        options.offerRecoveryOnPasskeyUnavailable &&
+        err instanceof Error &&
+        err.name === 'NotAllowedError';
+      const message = passkeyUnavailable
+        ? 'La passkey non è disponibile su questo dispositivo o la verifica è stata annullata. Puoi usare un codice di recupero.'
+        : err instanceof AdminSecurityError
           ? err.message
           : err instanceof Error && err.name === 'NotAllowedError'
             ? 'Verifica annullata o non riuscita sul dispositivo.'
             : err instanceof Error
               ? err.message
               : 'Verifica non riuscita';
+      if (passkeyUnavailable) setShowRecovery(true);
       setError(message);
       void queryClient.invalidateQueries({ queryKey: ADMIN_SECURITY_STATUS_KEY });
     } finally {
@@ -864,7 +874,7 @@ export function AdminPasskeyVerification({ status }: { status: AdminSecurityStat
                 </div>
               )}
 
-              {!canUseProductionHandoff && hasPasskeyForCurrentRp && (
+              {!canUseProductionHandoff && hasPasskeyForCurrentRp && supportsPasskeys && (
                 <>
                   {status.passkeyRequired && currentRpId === 'imagestudiofotografico.com' && (
                     <div className="rounded-md border border-sage/30 bg-sage/5 p-3 space-y-2">
@@ -897,11 +907,14 @@ export function AdminPasskeyVerification({ status }: { status: AdminSecurityStat
                   <Button
                     className="w-full"
                     disabled={busy || needsSessionRefresh || locked || !supportsPasskeys || (rememberThisDevice && !rememberDeviceLabel.trim())}
-                    onClick={() => void finish(() => AdminPasskeyClient.verify(
-                      rememberThisDevice
-                        ? { rememberDevice: true, deviceLabel: rememberDeviceLabel.trim() }
-                        : undefined,
-                    ))}
+                    onClick={() => void finish(
+                      () => AdminPasskeyClient.verify(
+                        rememberThisDevice
+                          ? { rememberDevice: true, deviceLabel: rememberDeviceLabel.trim() }
+                          : undefined,
+                      ),
+                      { offerRecoveryOnPasskeyUnavailable: true },
+                    )}
                     data-testid="button-verify-passkey"
                   >
                     <ShieldCheck className="h-4 w-4 mr-2" />
@@ -910,7 +923,7 @@ export function AdminPasskeyVerification({ status }: { status: AdminSecurityStat
                 </>
               )}
 
-              {!canUseProductionHandoff && !hasPasskeyForCurrentRp && (
+              {!canUseProductionHandoff && recoveryIsPrimary && (
                 <Button
                   className="w-full"
                   disabled={busy || needsSessionRefresh || locked}

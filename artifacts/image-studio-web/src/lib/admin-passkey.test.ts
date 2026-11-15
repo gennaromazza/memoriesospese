@@ -97,6 +97,56 @@ describe('autorizzazione QR per nuovo dispositivo', () => {
 });
 
 describe('admin passkey session refresh', () => {
+  it('redeems a recovery code once and confirms the resulting session claim', async () => {
+    mocks.auth.currentUser = {
+      getIdToken: vi.fn(async () => 'test-id-token'),
+      getIdTokenResult: vi.fn(async () => ({ claims: { apk: claim } })),
+    };
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      verifiedUntil: claim.exp,
+      expectedClaim: claim,
+    }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(AdminPasskeyClient.redeemRecoveryCode('AAAA-BBBB-CCCC')).resolves.toBe(claim.exp);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toContain('/recovery/verify');
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toEqual({
+      code: 'AAAA-BBBB-CCCC',
+    });
+  });
+
+  it('does not redeem a consumed recovery code again when session refresh is retried', async () => {
+    let tokenRefreshes = 0;
+    const getIdTokenResult = vi.fn(async () => {
+      tokenRefreshes += 1;
+      return { claims: tokenRefreshes < 4 ? {} : { apk: claim } };
+    });
+    mocks.auth.currentUser = {
+      getIdToken: vi.fn(async () => 'test-id-token'),
+      getIdTokenResult,
+    };
+
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      verifiedUntil: claim.exp,
+      expectedClaim: claim,
+    }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('setTimeout', ((callback: () => void) => {
+      callback();
+      return 0;
+    }) as typeof setTimeout);
+
+    await expect(AdminPasskeyClient.redeemRecoveryCode('AAAA-BBBB-CCCC'))
+      .rejects.toBeInstanceOf(AdminPasskeyRefreshError);
+    await AdminPasskeyClient.refreshEnforcementClaim(claim);
+
+    expect(tokenRefreshes).toBe(4);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toContain('/recovery/verify');
+  });
+
   it('retains the server claim and retries refresh without repeating the consumed WebAuthn verification', async () => {
     let tokenRefreshes = 0;
     mocks.auth.currentUser = {

@@ -596,6 +596,10 @@ describe('route di sicurezza', () => {
     // Il codice di recupero concede una verifica breve e vale una sola volta.
     res = await call('/api/admin/security/recovery/verify', { method: 'POST', body: JSON.stringify({ code: codes[0] }) });
     expect(res.status).toBe(400);
+    expect(await json(res)).toMatchObject({
+      error: 'Codice di recupero non valido',
+      code: 'invalid_recovery_code',
+    });
     res = await call('/api/admin/security/recovery/verify', { method: 'POST', body: JSON.stringify({ code: codes[1] }) });
     expect(res.status).toBe(200);
     expect((await json(res)).expectedClaim).toMatchObject({ req: true, sat: h.authTime });
