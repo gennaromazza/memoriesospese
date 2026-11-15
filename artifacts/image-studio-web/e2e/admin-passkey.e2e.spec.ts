@@ -872,6 +872,7 @@ test("device enrollment QR registers a new device without transferring admin acc
 
   const enrollmentId = randomBytes(32).toString("base64url");
   const replacementEnrollmentId = randomBytes(32).toString("base64url");
+  const approvedEnrollmentId = randomBytes(32).toString("base64url");
   const deviceLabel = "Portatile nuovo";
   let trustedCredentialId = "";
   let passkeys: Array<{
@@ -884,8 +885,9 @@ test("device enrollment QR registers a new device without transferring admin acc
     lastUsedAt: number | null;
   }> = [];
   let passkeyRequired = false;
-  let enrollmentStatus: "pending" | "approved" | "registered" = "pending";
-  let replacementEnrollmentStatus: "pending" | "approved" | "registered" = "pending";
+  let enrollmentStatus: "pending" | "approved" | "registered" | "expired" = "pending";
+  let replacementEnrollmentStatus: "pending" | "approved" | "registered" | "cancelled" = "pending";
+  let approvedEnrollmentStatus: "pending" | "approved" | "registered" = "pending";
   let approvalUrl = "";
   let verifierFromNewDevice = "";
   let approvalVerificationCount = 0;
@@ -1047,6 +1049,28 @@ test("device enrollment QR registers a new device without transferring admin acc
       replacementEnrollmentStatus = "approved";
       return json(route, { approvedAt: Date.now() });
     }
+    if (pathname.endsWith(`/device-enrollment/${approvedEnrollmentId}/approval-info`)) {
+      return json(route, {
+        status: approvedEnrollmentStatus,
+        deviceLabel,
+        expiresAt: Date.now() + 10 * 60_000,
+      });
+    }
+    if (pathname.endsWith(`/device-enrollment/${approvedEnrollmentId}/authentication/options`)) {
+      return json(route, {
+        ...authenticationOptions,
+        allowCredentials: authenticationOptions.allowCredentials(),
+      });
+    }
+    if (pathname.endsWith(`/device-enrollment/${approvedEnrollmentId}/authentication/verify`)) {
+      const body = route.request().postDataJSON() as {
+        response?: { id?: string };
+      };
+      expect(body.response?.id).toBe(trustedCredentialId);
+      approvalVerificationCount += 1;
+      approvedEnrollmentStatus = "approved";
+      return json(route, { approvedAt: Date.now() });
+    }
     return json(route, { error: `Unexpected trusted-device request: ${pathname}` });
   });
 
@@ -1063,7 +1087,12 @@ test("device enrollment QR registers a new device without transferring admin acc
       expect(body.verifierHash).toMatch(/^[A-Za-z0-9_-]{43}$/);
       expect(body.deviceLabel).toBe(deviceLabel);
       enrollmentStartCount += 1;
-      const activeEnrollmentId = enrollmentStartCount === 1 ? enrollmentId : replacementEnrollmentId;
+      const activeEnrollmentId = [
+        enrollmentId,
+        replacementEnrollmentId,
+        approvedEnrollmentId,
+      ][enrollmentStartCount - 1];
+      if (!activeEnrollmentId) throw new Error("Unexpected extra enrollment request");
       approvalUrl =
         `https://imagestudiofotografico.com/admin/authorize-device?deviceEnrollment=${activeEnrollmentId}`;
       return json(route, {
@@ -1088,13 +1117,27 @@ test("device enrollment QR registers a new device without transferring admin acc
         expiresAt: Date.now() + 10 * 60_000,
       });
     }
-    if (pathname.endsWith(`/device-enrollment/${replacementEnrollmentId}/registration/options`)) {
+    if (pathname.endsWith(`/device-enrollment/${approvedEnrollmentId}/status`)) {
+      const body = route.request().postDataJSON() as { verifier?: string };
+      expect(body.verifier).toMatch(/^[A-Za-z0-9_-]{43}$/);
+      verifierFromNewDevice = body.verifier!;
+      return json(route, {
+        status: approvedEnrollmentStatus,
+        deviceLabel,
+        expiresAt: Date.now() + 10 * 60_000,
+      });
+    }
+    if (pathname.endsWith(`/device-enrollment/${replacementEnrollmentId}/cancel`)) {
+      replacementEnrollmentStatus = "cancelled";
+      return json(route, { cancelled: true });
+    }
+    if (pathname.endsWith(`/device-enrollment/${approvedEnrollmentId}/registration/options`)) {
       const body = route.request().postDataJSON() as { verifier?: string };
       expect(body.verifier).toBe(verifierFromNewDevice);
-      expect(replacementEnrollmentStatus).toBe("approved");
+      expect(approvedEnrollmentStatus).toBe("approved");
       return json(route, makeRegistrationOptions(trustedCredentialId));
     }
-    if (pathname.endsWith(`/device-enrollment/${replacementEnrollmentId}/registration/verify`)) {
+    if (pathname.endsWith(`/device-enrollment/${approvedEnrollmentId}/registration/verify`)) {
       const body = route.request().postDataJSON() as {
         verifier?: string;
         response?: { id?: string };
@@ -1108,7 +1151,7 @@ test("device enrollment QR registers a new device without transferring admin acc
         createdAt: Date.now(),
       };
       passkeys = [...passkeys, newPasskey];
-      replacementEnrollmentStatus = "registered";
+      approvedEnrollmentStatus = "registered";
       return json(route, { passkey: newPasskey });
     }
     if (pathname === "/api/admin/security/authentication/options" ||
@@ -1146,6 +1189,8 @@ test("device enrollment QR registers a new device without transferring admin acc
 
     await pageB.goto(`${localOrigin.origin}/admin/dashboard`);
     await expect(pageB.getByRole("heading", { name: "Verifica passkey" })).toBeVisible();
+    await pageB.getByTestId("button-toggle-passkey-options").click();
+    await pageB.getByTestId("button-open-device-enrollment").click();
     await expect(pageB.getByTestId("panel-device-enrollment")).toBeVisible();
     await pageB.getByTestId("input-device-enrollment-label").fill(deviceLabel);
     await pageB.getByTestId("button-start-device-enrollment").click();
@@ -1161,6 +1206,19 @@ test("device enrollment QR registers a new device without transferring admin acc
     await expect(pageB.getByTestId("qr-device-enrollment")).toBeVisible();
     expect(enrollmentStartCount).toBe(2);
     expect(await pageB.getByTestId("qr-device-enrollment").innerHTML()).not.toBe(firstQrMarkup);
+
+    await pageB.getByRole("button", { name: "Annulla richiesta" }).click();
+    await expect(pageB.getByText("Richiesta annullata.")).toBeVisible();
+    const cancelledApprovalUrl = new URL(approvalUrl);
+    expect(cancelledApprovalUrl.searchParams.get("deviceEnrollment")).toBe(replacementEnrollmentId);
+    cancelledApprovalUrl.port = String(localOrigin.port);
+    await pageA.goto(cancelledApprovalUrl.toString());
+    await expect(pageA.getByText(/Richiesta annullata/)).toBeVisible();
+    await expect(pageA.getByRole("button", { name: "Approva e verifica con passkey" })).toHaveCount(0);
+
+    await pageB.getByRole("button", { name: "Mostra il QR di autorizzazione" }).click();
+    await expect(pageB.getByTestId("qr-device-enrollment")).toBeVisible();
+    expect(enrollmentStartCount).toBe(3);
 
     const expiredApprovalUrl = new URL(
       `https://imagestudiofotografico.com/admin/authorize-device?deviceEnrollment=${enrollmentId}`,
@@ -1184,7 +1242,7 @@ test("device enrollment QR registers a new device without transferring admin acc
     const parsedApprovalUrl = new URL(approvalUrl);
     expect(parsedApprovalUrl.origin).toBe("https://imagestudiofotografico.com");
     expect(parsedApprovalUrl.pathname).toBe("/admin/authorize-device");
-    expect(parsedApprovalUrl.searchParams.get("deviceEnrollment")).toBe(replacementEnrollmentId);
+    expect(parsedApprovalUrl.searchParams.get("deviceEnrollment")).toBe(approvedEnrollmentId);
     expect([...parsedApprovalUrl.searchParams.keys()]).toEqual(["deviceEnrollment"]);
 
     // Il QR punta al dominio ufficiale; il test sostituisce solo la porta per
@@ -1204,12 +1262,16 @@ test("device enrollment QR registers a new device without transferring admin acc
     await expect(pageB.getByText(/Passkey aggiunta/)).toBeVisible();
 
     // L’approvazione non trasferisce la sessione e la sola registrazione non
-    // sblocca il pannello: sul dispositivo nuovo resta richiesta la verifica.
+    // sblocca il pannello: chiudi il dialogo e verifica la nuova passkey.
+    await pageB.getByRole("dialog").getByRole("button", { name: "Close" }).click();
     await expect(pageB.getByRole("heading", { name: "Verifica passkey" })).toBeVisible();
     await expect(pageB.getByTestId("button-verify-passkey")).toBeVisible();
     await expect(pageB.getByTestId("button-register-approved-device")).toHaveCount(0);
+    await pageA.reload();
+    await expect(pageA.getByText(/La registrazione è già stata completata/)).toBeVisible();
+    await expect(pageA.getByRole("button", { name: "Approva e verifica con passkey" })).toHaveCount(0);
     expect(newDeviceAuthenticationCount).toBe(0);
-    expect(replacementEnrollmentStatus).toBe("registered");
+    expect(approvedEnrollmentStatus).toBe("registered");
     expect(passkeys).toHaveLength(2);
   } finally {
     await Promise.allSettled([contextA.close(), contextB.close()]);
