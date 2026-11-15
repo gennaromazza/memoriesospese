@@ -8,6 +8,7 @@ vi.mock("@replit/connectors-sdk", () => ({
 }));
 import {
   buildResendBroadcastHtml,
+  getResendMarketingStatus,
   normalizeMarketingEmail,
   submitResendBroadcast,
   validateMarketingSender,
@@ -15,6 +16,8 @@ import {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
   proxy.mockReset();
 });
 
@@ -54,6 +57,44 @@ describe("Resend marketing helpers", () => {
     expect(html).toContain("{{{contact.last_name|}}}");
     expect(html).toContain("{{{contact.first_name|cliente}}}");
     expect(html).toContain("{{{RESEND_UNSUBSCRIBE_URL}}}");
+  });
+
+  it("uses the Resend secret directly in production instead of the development connector", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("RESEND_API_KEY", "re_test_do_not_use");
+    const fetchMock = vi.fn(async () => Response.json({
+      data: [
+        {
+          id: "domain",
+          name: "example.com",
+          status: "verified",
+          capabilities: { sending: "enabled" },
+        },
+      ],
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const status = await getResendMarketingStatus();
+
+    expect(status.verifiedSendingDomains).toEqual([
+      { id: "domain", name: "example.com", status: "verified" },
+    ]);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit];
+    expect(String(url)).toBe("https://api.resend.com/domains?limit=100");
+    expect(new Headers(init.headers).get("authorization")).toBe("Bearer re_test_do_not_use");
+    expect(new Headers(init.headers).get("user-agent")).toBe("Image Studio Backend");
+    expect(proxy).not.toHaveBeenCalled();
+  });
+
+  it("shows a clear setup error if production has no Resend secret", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("RESEND_API_KEY", "");
+
+    await expect(getResendMarketingStatus()).rejects.toThrow(
+      "Invio Resend in produzione non configurato: aggiungi RESEND_API_KEY",
+    );
+    expect(proxy).not.toHaveBeenCalled();
   });
 
   it("syncs only eligible selected contacts and sends one broadcast", async () => {

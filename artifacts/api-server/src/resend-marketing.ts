@@ -77,15 +77,33 @@ async function resendRequest(
   allowNotFound = false,
 ): Promise<{ status: number; data: any }> {
   await throttleResendRequests();
-  const response = await new ReplitConnectors().proxy("resend", path, {
-    method: options.method ?? "GET",
-    ...(options.body
-      ? {
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(options.body),
-        }
-      : {}),
-  });
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  let response: Response;
+  if (apiKey) {
+    response = await fetch(new URL(path, "https://api.resend.com"), {
+      method: options.method ?? "GET",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "User-Agent": "Image Studio Backend",
+      },
+      ...(options.body ? { body: JSON.stringify(options.body) } : {}),
+    });
+  } else if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "Invio Resend in produzione non configurato: aggiungi RESEND_API_KEY nei Secrets del progetto. Nessuna email è stata inviata.",
+    );
+  } else {
+    response = await new ReplitConnectors().proxy("resend", path, {
+      method: options.method ?? "GET",
+      ...(options.body
+        ? {
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(options.body),
+          }
+        : {}),
+    });
+  }
 
   if (allowNotFound && response.status === 404) {
     return { status: response.status, data: null };
