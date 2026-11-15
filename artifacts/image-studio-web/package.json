@@ -13,7 +13,8 @@
     "test:quote-builder-products": "firebase emulators:exec --project wedding-gallery-397b6 --config ../../firebase.quote-builder-products-e2e.json --only firestore \"pnpm exec playwright test --config playwright.quote-builder-products.config.ts\"",
     "test:quote-builder-lifecycle": "firebase emulators:exec --project wedding-gallery-397b6 --config ../../firebase.quote-builder-lifecycle-e2e.json --only auth,firestore \"pnpm exec playwright test --config playwright.quote-builder-lifecycle.config.ts\"",
     "test:job-cost-payment": "firebase emulators:exec --project wedding-gallery-397b6 --config ../../firebase.job-cost-payment-e2e.json --only auth,firestore \"pnpm exec playwright test --config playwright.job-cost-payment.config.ts\"",
-    "test:campaign-links": "firebase emulators:exec --project wedding-gallery-397b6 --config ../../firebase.campaign-links-e2e.json --only auth,firestore \"pnpm exec playwright test --config playwright.campaign-links.config.ts\""
+    "test:campaign-links": "firebase emulators:exec --project wedding-gallery-397b6 --config ../../firebase.campaign-links-e2e.json --only auth,firestore \"pnpm exec playwright test --config playwright.campaign-links.config.ts\"",
+    "test:booking-deposit-browser": "pnpm exec playwright test --config playwright.booking-deposit.config.ts"
   },
   "devDependencies": {
     "@dnd-kit/core": "^6.3.1",
