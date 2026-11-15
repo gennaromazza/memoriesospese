@@ -107,6 +107,14 @@ service cloud.firestore {
       allow write: if isAdmin(); // Solo admin può modificare password/PIN
     }
 
+    // Area Cliente: codici di accesso (solo server) e IBAN/impostazioni (letti dal server, mai dal browser del cliente)
+    match /clientAreaLoginCodes/{codeId} {
+      allow read, write: if false;
+    }
+    match /clientAreaSettings/{settingId} {
+      allow read, write: if isAdmin();
+    }
+
     // Galleries collection
     match /galleries/{galleryId} {
       // SICUREZZA: password e specialPin RIMOSSI da questo documento

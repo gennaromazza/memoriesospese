@@ -39,6 +39,7 @@ import printShopRoutes from "./print-shop/router";
 import giftCardRoutes from "./gift-cards";
 import shopRoutes from "./shop";
 import desktopGalleryRoutes from "./desktop-gallery-routes";
+import clientAreaRoutes from "./client-area-routes";
 import { generateDynamicSitemap } from "./sitemap-generator";
 
 const app: Express = express();
@@ -128,6 +129,7 @@ app.use("/api/print-shop", printShopRoutes);
 app.use("/api/gift-cards", giftCardRoutes);
 app.use("/api/shop", shopRoutes);
 app.use("/api/desktop", desktopGalleryRoutes);
+app.use("/api/client-area", clientAreaRoutes);
 
 app.use("/api", (_req, res) => {
   res.status(404).json({ error: "API route not found" });

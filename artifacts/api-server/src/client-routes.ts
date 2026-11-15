@@ -69,6 +69,7 @@ export function isPrivateClientPath(pathname: string): boolean {
     path === '/admin'
     || path.startsWith('/admin/')
     || path === '/profile'
+    || path === '/area-cliente'
     || path === '/quote-management-demo'
     || path === '/special-gallery'
     || path === '/accesso-galleria'
