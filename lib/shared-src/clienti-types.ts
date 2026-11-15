@@ -75,6 +75,13 @@ export interface Cliente {
     lastPaymentAt?: Timestamp; // Data ultimo pagamento
   };
   
+  // Area cliente (scritto dal server)
+  clientArea?: {
+    welcomeSentAt?: Timestamp; // Email di benvenuto inviata
+    activatedAt?: Timestamp;   // Primo accesso all'area
+    lastLoginAt?: Timestamp;   // Ultimo accesso all'area
+  };
+  
   // Note e tags
   note?: string; // Note interne admin
   tags?: string[]; // Tags per categorizzazione (es. "matrimonio", "famiglia", "VIP")

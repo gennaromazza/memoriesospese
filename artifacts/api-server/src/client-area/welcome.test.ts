@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { clientAreaLinkBlock, withClientAreaLink, welcomeEmailHtml } from './emails';
-import { jobClienteIds, sendClientAreaWelcome } from './welcome';
+import { isPendingWelcome, jobClienteIds, sendClientAreaWelcome } from './welcome';
 
 /** Firestore minimo in memoria: solo ciò che usa sendClientAreaWelcome. */
 function fakeDb(docs: Record<string, Record<string, any>>) {
@@ -93,5 +93,17 @@ describe('link all’area nelle email', () => {
     expect(withClientAreaLink('<p>x</p>', 'https://s.example')).toContain(clientAreaLinkBlock('https://s.example'));
     expect(welcomeEmailHtml({ studioName: 'A & B', nome: '<Giulia>', baseUrl: 'https://s.example' }))
       .toContain('&lt;Giulia&gt;');
+  });
+});
+
+describe('clienti da invitare', () => {
+  const excluded = (email: string) => email === 'admin@example.com';
+  it('considera solo clienti con lavori, email valida, non archiviati e non ancora invitati', () => {
+    expect(isPendingWelcome({ email: 'a@example.com', sourceRefs: { jobIds: ['j1'] } }, excluded)).toBe(true);
+    expect(isPendingWelcome({ email: 'a@example.com', sourceRefs: { jobIds: [] } }, excluded)).toBe(false);
+    expect(isPendingWelcome({ email: 'non-valida', sourceRefs: { jobIds: ['j1'] } }, excluded)).toBe(false);
+    expect(isPendingWelcome({ email: 'admin@example.com', sourceRefs: { jobIds: ['j1'] } }, excluded)).toBe(false);
+    expect(isPendingWelcome({ email: 'a@example.com', lifecycle: { status: 'archiviato' }, sourceRefs: { jobIds: ['j1'] } }, excluded)).toBe(false);
+    expect(isPendingWelcome({ email: 'a@example.com', clientArea: { welcomeSentAt: 'x' }, sourceRefs: { jobIds: ['j1'] } }, excluded)).toBe(false);
   });
 });

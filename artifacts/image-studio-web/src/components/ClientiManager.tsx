@@ -23,6 +23,7 @@ import ClienteForm from '@/components/ClienteForm';
 import ClienteDetailDrawer from '@/components/ClienteDetailDrawer';
 import MergeDuplicatesDialog from '@/components/MergeDuplicatesDialog';
 import ImportClientiDialog from '@/components/ImportClientiDialog';
+import InviteAllClientsButton from '@/components/client-area/InviteAllClientsButton';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -375,6 +376,7 @@ export function ClientiManager() {
             <Upload className="w-4 h-4 mr-2" />
             Importa CSV
           </Button>
+          <InviteAllClientsButton />
           {duplicates.length > 0 && (
             <Button
               onClick={() => setShowAutoMergeConfirm(true)}

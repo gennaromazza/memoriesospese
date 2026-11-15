@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import ClienteQuickActions from './ClienteQuickActions';
 import ClienteStorico from './ClienteStorico';
+import ClientAreaStatus from './client-area/ClientAreaStatus';
 import { 
   Mail, 
   Phone, 
@@ -174,6 +175,10 @@ export default function ClienteDetailDrawer({
               </div>
             </div>
           </section>
+
+          <Separator />
+
+          <ClientAreaStatus cliente={cliente} />
 
           <Separator />
 

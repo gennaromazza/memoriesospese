@@ -73,3 +73,16 @@ export function jobClienteIds(job: Record<string, any>): string[] {
     job.clienteId,
   ].filter((id): id is string => typeof id === 'string' && id.trim().length > 0))];
 }
+
+/**
+ * Clienti da invitare all'area: hanno almeno un lavoro collegato, un'email
+ * valida, non sono archiviati e non hanno ancora ricevuto il benvenuto.
+ */
+export function isPendingWelcome(data: Record<string, any>, isExcludedEmail: (email: string) => boolean): boolean {
+  const email = normalizeClientEmail(data.email);
+  if (!isValidEmail(email) || isExcludedEmail(email)) return false;
+  if (data.lifecycle?.status === 'archiviato') return false;
+  if (data.clientArea?.welcomeSentAt) return false;
+  const jobIds = data.sourceRefs?.jobIds;
+  return Array.isArray(jobIds) && jobIds.some((id: unknown) => typeof id === 'string' && id.trim());
+}

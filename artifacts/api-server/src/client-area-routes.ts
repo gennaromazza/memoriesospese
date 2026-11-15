@@ -9,6 +9,8 @@
  *  PUT  /admin/settings                    → salva IBAN, intestatario, banca, causale, benvenuto automatico (admin)
  *  POST /admin/welcome/job/:jobId          → benvenuto ai clienti del lavoro non ancora invitati (admin)
  *  POST /admin/welcome/cliente/:clienteId  → invia (o reinvia) il benvenuto a un cliente (admin)
+ *  GET  /admin/welcome/pending             → quanti clienti con lavori non sono ancora invitati (admin)
+ *  POST /admin/welcome/pending             → invita il prossimo blocco di clienti in attesa (admin)
  *
  * Sicurezza:
  *  - il cliente entra con un uid dedicato (`ca_…`) creato dal custom token:
@@ -33,7 +35,7 @@ import {
 } from './client-area/login-code.js';
 import { findClientRecords, loadClientAreaOverview } from './client-area/overview.js';
 import { escapeHtml } from './client-area/emails.js';
-import { jobClienteIds, sendClientAreaWelcome, type WelcomeOutcome } from './client-area/welcome.js';
+import { isPendingWelcome, jobClienteIds, sendClientAreaWelcome, type WelcomeOutcome } from './client-area/welcome.js';
 
 const router = Router();
 const CODES = 'clientAreaLoginCodes';
@@ -311,6 +313,41 @@ router.post('/admin/welcome/cliente/:clienteId', authenticateFirebase, requireAd
   } catch (error) {
     console.error('❌ Area cliente: invito manuale non inviato:', safeErrorMessage(error));
     return res.status(500).json({ error: "Impossibile inviare l'invito." });
+  }
+});
+
+const BULK_BATCH = 20;
+
+async function pendingWelcomeIds(): Promise<string[]> {
+  const snap = await db.collection('clienti').get();
+  return snap.docs.filter(d => isPendingWelcome(d.data(), isAdminEmail)).map(d => d.id);
+}
+
+router.get('/admin/welcome/pending', authenticateFirebase, requireAdmin, async (_req: Request, res: Response) => {
+  try {
+    return res.json({ pending: (await pendingWelcomeIds()).length });
+  } catch (error) {
+    console.error('❌ Area cliente: conteggio inviti non riuscito:', safeErrorMessage(error));
+    return res.status(500).json({ error: 'Impossibile contare i clienti da invitare.' });
+  }
+});
+
+/**
+ * Invia il benvenuto a un blocco di clienti in attesa (massimo 20 per chiamata,
+ * per restare nei limiti di invio della casella). Il pannello richiama finché
+ * `remaining` arriva a zero.
+ */
+router.post('/admin/welcome/pending', authenticateFirebase, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const ids = await pendingWelcomeIds();
+    const batch = ids.slice(0, BULK_BATCH);
+    const outcomes = await sendClientAreaWelcome(db, batch, await welcomeDeps(req));
+    const sent = outcomes.filter(o => o.result === 'sent').length;
+    const failed = outcomes.filter(o => o.result === 'error').length;
+    return res.json({ sent, failed, remaining: Math.max(0, ids.length - batch.length) + failed });
+  } catch (error) {
+    console.error('❌ Area cliente: invio di gruppo non riuscito:', safeErrorMessage(error));
+    return res.status(500).json({ error: "Invio degli inviti non riuscito. Riprova." });
   }
 });
 
