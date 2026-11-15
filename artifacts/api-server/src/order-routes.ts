@@ -9,6 +9,7 @@ import { db, FieldValue } from './firebase-admin.js';
 import { nowRomeDate, toRomeDateTime } from './utils/timezone.js';
 import { normalizeEmail } from './utils/normalize.js';
 import { recomputeJobTransactionCount } from './job-aggregates.js';
+import { BOOKING_DEPOSIT_SOURCE, reconcileOrderBookingDeposit } from './booking/order-deposit-credit.js';
 import {
   expandOrderProductsToRequirements as expandOrderSnapshotToRequirements,
   getRequiredGalleryPhotoCount,
@@ -17,6 +18,21 @@ import {
 const ADMIN_EMAILS = ["gennaro.mazzacane@gmail.com"];
 
 const router = Router();
+
+router.post('/reconcile-booking-deposits', authenticateFirebase, async (req: any, res: Response) => {
+  if (!ADMIN_EMAILS.includes(req.user?.email)) return res.status(403).json({ error: 'Solo gli admin possono riconciliare acconti' });
+  const ids = req.body?.orderIds;
+  if (!Array.isArray(ids) || ids.length > 50 || ids.some(id => typeof id !== 'string' || !id || id.includes('/'))) {
+    return res.status(400).json({ error: 'Elenco ordini non valido' });
+  }
+  try {
+    let updated = 0;
+    for (const id of new Set<string>(ids)) if (await reconcileOrderBookingDeposit(db, id)) updated++;
+    return res.json({ updated });
+  } catch (error: any) {
+    return res.status(409).json({ error: error.message || 'Acconto da riconciliare' });
+  }
+});
 
 /**
  * Helper: Crea HTML email per notifica aggiornamento ordine
@@ -952,6 +968,7 @@ router.post('/:id/register-payment', authenticateFirebase, async (req: any, res:
       return res.status(400).json({ error: 'Tipo pagamento deve essere "acconto" o "saldo"' });
     }
 
+    await reconcileOrderBookingDeposit(db, orderId);
     const orderRef = db.collection('orders').doc(orderId);
     const orderDoc = await orderRef.get();
 
@@ -974,7 +991,7 @@ router.post('/:id/register-payment', authenticateFirebase, async (req: any, res:
     }
     const totale = orderData.totale || 0;
     const accontoAttuale = orderData.acconto || 0;
-    const saldoAttuale = orderData.saldo || totale - accontoAttuale;
+    const saldoAttuale = orderData.saldo ?? totale - accontoAttuale;
     const transactions = orderData.transactions || [];
     const paymentDate = data ? toRomeDateTime(data).toJSDate() : nowRomeDate();
 
@@ -1121,6 +1138,7 @@ router.post('/:id/delete-payment', authenticateFirebase, async (req: any, res: R
       return res.status(400).json({ error: 'Indice transazione non valido' });
     }
 
+    await reconcileOrderBookingDeposit(db, orderId);
     const orderRef = db.collection('orders').doc(orderId);
     const orderDoc = await orderRef.get();
 
@@ -1148,6 +1166,9 @@ router.post('/:id/delete-payment', authenticateFirebase, async (req: any, res: R
     }
 
     const deletedTransaction = transactions[transactionIndex];
+    if (deletedTransaction.source === BOOKING_DEPOSIT_SOURCE) {
+      return res.status(409).json({ error: 'L’acconto PayPal appartiene alla prenotazione: gestisci l’eventuale rimborso da Annullamento e acconto, non eliminare l’incasso dall’ordine.' });
+    }
     const deletedAmount = deletedTransaction.importo || 0;
 
     if (expectedImporto !== undefined && Math.abs(deletedAmount - expectedImporto) > 0.01) {

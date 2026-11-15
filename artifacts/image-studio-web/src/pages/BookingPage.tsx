@@ -64,6 +64,7 @@ import { useSEO } from '@/hooks/useSEO';
 import { BookingDepositCheckout, type BookingDepositCompletion } from '@/features/booking/BookingDepositCheckout';
 import { clearCheckoutSession, readCheckoutSession } from '@/features/booking/checkout-session';
 import type { BookingCheckoutHoldInput } from '@workspace/api-client-react';
+import { BookingDepositNotice } from '@/components/booking/BookingDepositNotice';
 
 type BookingSlot = Awaited<ReturnType<typeof getAvailableSlots>>[number];
 interface BookingSubmission {
@@ -704,6 +705,11 @@ export default function BookingPage() {
         {/* Form Prenotazione */}
         {bookingsOpen && (
           <form onSubmit={handleSubmit} className="space-y-6">
+            <BookingDepositNotice
+              enabled={campaign.richiedeAcconto}
+              amountCents={campaign.accontoImportoCentesimi}
+              requiresApproval={campaign.richiedeApprovazione !== false}
+            />
             {submissionError && (
               <div role="alert" className="space-y-2 rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm">
                 <p className="font-semibold">{submissionError.conflict ? 'Slot non più disponibile' : 'Invio non completato'}</p>
@@ -1419,11 +1425,12 @@ export default function BookingPage() {
                       <strong>Gestione dell’appuntamento e dell’acconto</strong>
                       <p className="mt-2">{BOOKING_CONDITIONS_TEXT}</p>
                     </div>
-                    {immediateDeposit && <div className="rounded-lg bg-muted p-4 text-sm" data-testid="booking-deposit-notice">
-                      <strong>Acconto richiesto: {campaign.accontoImportoCentesimi && campaign.accontoImportoCentesimi > 0
-                        ? (campaign.accontoImportoCentesimi / 100).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' }) : 'da verificare con lo studio'}</strong>
-                      <p className="mt-1">L’appuntamento si conferma dopo il pagamento PayPal. Puoi scegliere i prodotti in studio: l’acconto resta richiesto.</p>
-                    </div>}
+                    <BookingDepositNotice
+                      enabled={campaign.richiedeAcconto}
+                      amountCents={campaign.accontoImportoCentesimi}
+                      requiresApproval={campaign.richiedeApprovazione !== false}
+                      compact
+                    />
                     <Button
                       type="submit"
                       className="w-full"

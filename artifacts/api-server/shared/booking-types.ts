@@ -320,6 +320,10 @@ export interface Transaction {
   providerTransactionId?: string;
   paypalOrderId?: string;
   paypalFeeCents?: number;
+  source?: 'booking_paypal_deposit';
+  bookingId?: string;
+  originalAmountCents?: number;
+  cashMovementId?: string;
 }
 
 /**

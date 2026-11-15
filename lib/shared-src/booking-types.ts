@@ -328,6 +328,13 @@ export interface Transaction {
   data: Timestamp;
   note?: string; // Note opzionali (es. "Primo acconto", "Bonifico IBAN: IT...")
   emailInviata: boolean; // Flag per tracking notifica email cliente
+  providerTransactionId?: string;
+  paypalOrderId?: string;
+  paypalFeeCents?: number;
+  source?: 'booking_paypal_deposit';
+  bookingId?: string;
+  originalAmountCents?: number;
+  cashMovementId?: string;
 }
 
 /**

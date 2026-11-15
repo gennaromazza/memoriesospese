@@ -30,14 +30,17 @@ import {
   deleteBooking,
   markBookingAsViewed,
   updateBooking,
+  getBookingById,
   countRelatedEntities,
   deleteBookingCascade,
   updateWorkflowState,
+  getWorkflowStateAfterOrderCreation,
 } from "@/lib/bookings";
 import { getAllCampaigns } from "@/lib/booking-campaigns";
 import { getClienteByEmail } from "@/lib/clienti";
 import {
   getAllOrders,
+  getOrderById,
   createOrder,
   addAccontoPayment,
   recordSaldoPayment,
@@ -139,7 +142,7 @@ import {
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -524,7 +527,7 @@ export default function BookingsManager({
   }, [pendingOrderBookingId, allBookings]);
 
   // Query ordini per lookup
-  const { data: allOrders = [] } = useQuery<Order[]>({
+  const { data: allOrders = [], error: ordersError } = useQuery<Order[]>({
     queryKey: ["orders"],
     queryFn: getAllOrders,
     staleTime: 2 * 60 * 1000,
@@ -1217,11 +1220,33 @@ export default function BookingsManager({
   const createOrderMutation = useMutation({
     mutationFn: createOrder,
     onSuccess: async (_orderId: string, orderData: any) => {
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
-      queryClient.invalidateQueries({ queryKey: ["bookings"] });
+      let shootingMarkedComplete = false;
+      let workflowAlreadyAdvanced = false;
+      let workflowError: string | null = null;
+      if (orderData.bookingId) {
+        try {
+          const booking = await getBookingById(orderData.bookingId);
+          if (!booking) throw new Error("Prenotazione collegata non trovata.");
+          const nextWorkflowState = getWorkflowStateAfterOrderCreation(booking.statoWorkflow);
+          if (nextWorkflowState) {
+            await updateWorkflowState(orderData.bookingId, "booking", nextWorkflowState);
+            shootingMarkedComplete = true;
+          } else {
+            workflowAlreadyAdvanced = true;
+          }
+        } catch (error) {
+          workflowError = error instanceof Error ? error.message : "Aggiornamento workflow non riuscito.";
+          console.error("Ordine creato, ma aggiornamento automatico workflow fallito:", error);
+        }
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["orders"] }),
+        queryClient.invalidateQueries({ queryKey: ["bookings"] }),
+      ]);
 
       // Invia email automatica al cliente (non bloccante)
       let emailSent = false;
+      let orderEmailError: string | null = null;
       if (orderData.emailCliente && orderData.emailCliente.trim()) {
         try {
           // Prepara nome prodotto per l'email
@@ -1237,8 +1262,9 @@ export default function BookingsManager({
           );
           const sconto = orderData.sconto || 0;
           const totale = Math.max(0, subtotale - sconto);
-          const acconto = orderData.acconto || 0;
-          const saldo = totale - acconto;
+          const savedOrder = await getOrderById(_orderId);
+          const acconto = savedOrder ? getOrderTotals(savedOrder).totalePagato : orderData.acconto || 0;
+          const saldo = Math.max(0, totale - acconto);
 
           // Mappa prodotti per template email
           const prodottiEmail = orderData.prodotti.map((p: any) => ({
@@ -1282,24 +1308,27 @@ export default function BookingsManager({
             "⚠️ Errore invio email (ordine comunque creato):",
             emailError,
           );
-          // Mostra toast warning per fallimento email
-          toast({
-            title: "Ordine creato, email non inviata",
-            description: `L'ordine è stato creato ma l'email al cliente ha fallito: ${emailError.message}`,
-            variant: "destructive",
-          });
+          orderEmailError = emailError instanceof Error ? emailError.message : "Invio email non riuscito.";
         }
       }
 
-      // Toast success solo se email OK o nessuna email richiesta
-      if (!orderData.emailCliente || emailSent) {
-        toast({
-          title: "Ordine creato",
-          description: emailSent
-            ? "L'ordine è stato creato e il cliente ha ricevuto una email di conferma"
-            : "L'ordine è stato creato con successo",
-        });
-      }
+      const warnings = [
+        workflowError && `Stato non aggiornato: ${workflowError}`,
+        orderEmailError && `Email non inviata: ${orderEmailError}`,
+      ].filter(Boolean);
+      toast({
+        title: warnings.length ? "Ordine creato con avvisi" : "Ordine creato",
+        description: warnings.length
+          ? warnings.join(" ")
+          : shootingMarkedComplete
+            ? "Il workflow della prenotazione è passato a “Shooting completato”."
+            : workflowAlreadyAdvanced
+              ? "Il workflow era già oltre “Shooting da svolgere” ed è rimasto invariato."
+              : emailSent
+                ? "L'ordine è stato creato e il cliente ha ricevuto una email di conferma."
+                : "L'ordine è stato creato con successo.",
+        ...(warnings.length ? { variant: "destructive" as const } : {}),
+      });
 
       setSelectedBookingForOrder(null);
     },
@@ -1665,6 +1694,18 @@ export default function BookingsManager({
 
   return (
     <div className="space-y-6 overflow-x-hidden">
+      {ordersError && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Pagamenti degli ordini da verificare</AlertTitle>
+          <AlertDescription>
+            {ordersError.message} Non registrare nuovamente un acconto già versato.
+            <Button variant="outline" size="sm" className="ml-2" onClick={() => queryClient.invalidateQueries({ queryKey: ["orders"] })}>
+              Riprova
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
       {/* Contenuto Prenotazioni */}
       <>
         {/* Header e filtri */}
@@ -3070,7 +3111,9 @@ export default function BookingsManager({
                                                         : "text-green-600"
                                                     }
                                                   >
-                                                    {t.tipo === "acconto"
+                                                    {t.source === "booking_paypal_deposit"
+                                                      ? t.importo > 0 ? "Acconto prenotazione · PayPal" : "Acconto prenotazione rimborsato"
+                                                      : t.tipo === "acconto"
                                                       ? "💳 Acconto"
                                                       : "✅ Saldo"}
                                                   </span>
@@ -5022,8 +5065,14 @@ function CreateOrderDialog({
 
           {/* Acconto */}
           <div>
+            {booking.depositPayment?.status === 'paid' && (
+              <p className="mb-3 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+                Acconto prenotazione già ricevuto: €{(booking.depositPayment.amountCents / 100).toFixed(2)}.
+                Verrà scalato automaticamente dal saldo dell’ordine. Non reinserirlo qui.
+              </p>
+            )}
             <Label htmlFor="acconto" className="mb-2 block">
-              Acconto (opzionale)
+              Acconto aggiuntivo (opzionale)
             </Label>
             <Input
               id="acconto"

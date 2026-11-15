@@ -190,3 +190,32 @@ recuperare file che una cancellazione a cascata ha già rimosso.
 
 **How to apply:** provare anche snapshot client obsoleti e rifiuti 409/500,
 asserendo l'assenza di notifiche e di eliminazioni collaterali.
+
+## Acconto come parte del prezzo e impegno
+
+L'acconto online è una quota già pagata del servizio: deve ridurre il saldo
+dell'ordine prodotti, non essere un costo aggiuntivo né un secondo incasso in cassa.
+Prima della scelta degli slot, le campagne che lo richiedono devono indicarne
+l'importo deciso dall'admin e spiegare che serve come impegno, per limitare
+le assenze e consentire a tutti di partecipare all'evento.
+
+**Why:** il titolare ha richiesto chiarezza prima della prenotazione e ha segnalato
+che vedere zero pagato sull'ordine dopo un acconto PayPal è fuorviante.
+
+**How to apply:** mantenere coerenti comunicazione cliente e saldo amministrativo;
+distinguere pagamento immediato da link inviato dopo approvazione. Usare il
+marchio PayPal ufficiale senza inventare certificazioni o garanzie.
+
+## Avanzamento automatico del workflow
+
+Quando viene creato il primo ordine collegato a una prenotazione in stato
+“Shooting da svolgere” (o priva di stato), lo shooting passa a “Shooting
+completato”. Non retrocedere mai stati già successivi come “In attesa
+selezione”, “In lavorazione”, “Pronto per il ritiro” o “Consegnato”.
+
+**Why:** per questo studio la creazione dell’ordine avviene dopo lo shooting;
+lasciare la prenotazione in “Da svolgere” rende incoerenti lista e avanzamento.
+
+**How to apply:** applicare la transizione dopo il salvataggio riuscito
+dell’ordine, aggiornare prenotazione e ordine collegato, invalidare i dati
+visualizzati e segnalare chiaramente se l’aggiornamento non è riuscito.

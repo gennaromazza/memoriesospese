@@ -729,6 +729,14 @@ export async function updateWorkflowState(
   }
 }
 
+/** Creating the first order marks only an upcoming shooting as completed; later workflow stages never move backwards. */
+export function getWorkflowStateAfterOrderCreation(currentState?: WorkflowState): WorkflowState | null {
+  if (!currentState || currentState === WorkflowState.SHOOTING_DA_SVOLGERE) {
+    return WorkflowState.SHOOTING_COMPLETATO;
+  }
+  return null;
+}
+
 /**
  * Invia email automatica in base al nuovo stato workflow
  */

@@ -27,6 +27,17 @@ import { expandOrderProductsToRequirements, getRequiredGalleryPhotoCount } from 
 
 const COLLECTION = "orders";
 
+async function reconcileBookingDeposits(docs: Array<{ id: string; data(): any }>): Promise<boolean> {
+  const ids = docs.filter(snapshot => snapshot.data().bookingId && !isManagedOrderType(snapshot.data().orderType)).map(snapshot => snapshot.id);
+  let changed = false;
+  for (let offset = 0; offset < ids.length; offset += 50) {
+    const response = await apiRequest("POST", "/api/orders/reconcile-booking-deposits", { orderIds: ids.slice(offset, offset + 50) });
+    const result = await response.json();
+    changed = changed || result.updated > 0;
+  }
+  return changed;
+}
+
 /**
  * Helper: Rimuove campi undefined da un oggetto
  * Firestore non accetta valori undefined
@@ -150,7 +161,8 @@ function ensureProdottiArray(orderData: any): any {
 export async function getAllOrders(): Promise<Order[]> {
   const q = query(collection(db, COLLECTION), orderBy("createdAt", "desc"));
 
-  const snapshot = await getDocs(q);
+  let snapshot = await getDocs(q);
+  if (await reconcileBookingDeposits(snapshot.docs)) snapshot = await getDocs(q);
 
   // Gli ordini degli shop online (stampe e vetrina prodotti) hanno un workflow
   // dedicato con PayPal, retention e foto: non devono finire nel manager legacy
@@ -168,7 +180,7 @@ export async function getAllOrders(): Promise<Order[]> {
  */
 export async function getOrderById(id: string): Promise<Order | null> {
   const docRef = doc(db, COLLECTION, id);
-  const docSnap = await getDoc(docRef);
+  let docSnap = await getDoc(docRef);
 
   if (!docSnap.exists()) {
     return null;
@@ -178,6 +190,7 @@ export async function getOrderById(id: string): Promise<Order | null> {
     return null;
   }
 
+  if (await reconcileBookingDeposits([docSnap])) docSnap = await getDoc(docRef);
   return {
     id: docSnap.id,
     ...ensureProdottiArray(docSnap.data()),
@@ -194,7 +207,8 @@ export async function getOrdersByGallery(galleryId: string): Promise<Order[]> {
     orderBy("createdAt", "desc"),
   );
 
-  const snapshot = await getDocs(q);
+  let snapshot = await getDocs(q);
+  if (await reconcileBookingDeposits(snapshot.docs)) snapshot = await getDocs(q);
 
   return snapshot.docs.map((doc) => ({
     id: doc.id,
@@ -212,7 +226,8 @@ export async function getOrdersByBooking(bookingId: string): Promise<Order[]> {
     orderBy("createdAt", "desc"),
   );
 
-  const snapshot = await getDocs(q);
+  let snapshot = await getDocs(q);
+  if (await reconcileBookingDeposits(snapshot.docs)) snapshot = await getDocs(q);
 
   return snapshot.docs.map((doc) => ({
     id: doc.id,
@@ -230,7 +245,8 @@ export async function getOrdersByJobId(jobId: string): Promise<Order[]> {
     orderBy("createdAt", "desc"),
   );
 
-  const snapshot = await getDocs(q);
+  let snapshot = await getDocs(q);
+  if (await reconcileBookingDeposits(snapshot.docs)) snapshot = await getDocs(q);
 
   return snapshot.docs.map((doc) => ({
     id: doc.id,
