@@ -90,6 +90,7 @@ export type PaymentMethod = 'contante' | 'carta' | 'bonifico' | 'paypal' | 'altr
  */
 export interface CollaboratorPayment {
   id: string;
+  idempotencyKey?: string;
   tipo: CollaboratorPaymentType;
   importo: number;
   data: Timestamp;

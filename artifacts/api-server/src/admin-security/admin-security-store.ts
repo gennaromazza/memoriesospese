@@ -17,6 +17,8 @@ export const MAX_FAILED_ATTEMPTS = 5;
 export const LOCKOUT_MS = 15 * 60 * 1000;
 export const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 export const RECOVERY_CODE_COUNT = 8;
+export const DEVICE_ENROLLMENT_RETENTION_MS = 24 * 60 * 60 * 1000;
+export const REMEMBERED_DEVICE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 export type ChallengeKind = 'registration' | 'authentication';
 
@@ -55,6 +57,27 @@ export interface DesktopHandoff {
   finalizedAuthTime: number | null;
 }
 
+export type DeviceEnrollmentStatus = 'pending' | 'approved' | 'registered' | 'rejected' | 'cancelled';
+export type DeviceEnrollmentChallengeKind = 'approval' | 'registration';
+
+export interface DeviceEnrollmentRequest {
+  uid: string;
+  verifierHash: string;
+  requesterAuthTime: number;
+  deviceLabel: string;
+  rpId: string;
+  origin: string;
+  createdAt: number;
+  expiresAt: number;
+  status: DeviceEnrollmentStatus;
+  terminalAt?: number | null;
+  approvalChallenge: DesktopHandoffChallenge | null;
+  registrationChallenge: DesktopHandoffChallenge | null;
+  approvedAt: number | null;
+  approvedByCredentialId: string | null;
+  registeredAt: number | null;
+}
+
 export interface ActivationProof {
   authTime: number;
   origin: string;
@@ -70,12 +93,23 @@ export interface RecoveryCodeRecord {
 export interface AdminSecurityState {
   passkeyRequired: boolean;
   verificationsValidAfter: number;
+  rememberedDevicesValidAfter: number;
   failedAttempts: number;
   lockedUntil: number | null;
   challenge: PendingChallenge | null;
   activationProof: ActivationProof | null;
   recoveryCodes: RecoveryCodeRecord[];
   recoveryCodesGeneratedAt: number | null;
+}
+
+export interface RememberedDevice {
+  id: string;
+  label: string;
+  secretHash: string;
+  createdAt: number;
+  expiresAt: number;
+  lastUsedAt: number | null;
+  revokedAt: number | null;
 }
 
 export interface StoredPasskey {
@@ -101,13 +135,19 @@ export type SecurityEventType =
   | 'recovery_code_failed'
   | 'enforcement_enabled'
   | 'enforcement_disabled'
-  | 'lockout';
+  | 'lockout'
+  | 'device_enrollment_created'
+  | 'device_enrollment_approved'
+  | 'device_enrollment_rejected'
+  | 'device_enrollment_cancelled'
+  | 'device_enrollment_registered';
 
 const COLLECTION = 'adminSecurity';
 
 const defaultState = (): AdminSecurityState => ({
   passkeyRequired: false,
   verificationsValidAfter: 0,
+  rememberedDevicesValidAfter: 0,
   failedAttempts: 0,
   lockedUntil: null,
   challenge: null,
@@ -124,6 +164,14 @@ function desktopHandoffDoc(uid: string, handoffId: string) {
   return stateDoc(uid).collection('desktopHandoffs').doc(handoffId);
 }
 
+function deviceEnrollmentDoc(uid: string, enrollmentId: string) {
+  return stateDoc(uid).collection('deviceEnrollments').doc(enrollmentId);
+}
+
+function rememberedDeviceDoc(uid: string, deviceId: string) {
+  return stateDoc(uid).collection('rememberedDevices').doc(deviceId);
+}
+
 function normalizeState(data: FirebaseFirestore.DocumentData | undefined): AdminSecurityState {
   const base = defaultState();
   if (!data) return base;
@@ -131,6 +179,8 @@ function normalizeState(data: FirebaseFirestore.DocumentData | undefined): Admin
     passkeyRequired: data.passkeyRequired === true,
     verificationsValidAfter:
       typeof data.verificationsValidAfter === 'number' ? data.verificationsValidAfter : 0,
+    rememberedDevicesValidAfter:
+      typeof data.rememberedDevicesValidAfter === 'number' ? data.rememberedDevicesValidAfter : 0,
     failedAttempts: typeof data.failedAttempts === 'number' ? data.failedAttempts : 0,
     lockedUntil: typeof data.lockedUntil === 'number' ? data.lockedUntil : null,
     challenge:
@@ -168,6 +218,7 @@ export async function loadState(uid: string): Promise<AdminSecurityState> {
 export interface GuardSnapshot {
   passkeyRequired: boolean;
   verificationsValidAfter: number;
+  rememberedDevicesValidAfter: number;
 }
 
 export async function loadGuardSnapshot(uid: string, _now = Date.now()): Promise<GuardSnapshot> {
@@ -175,6 +226,7 @@ export async function loadGuardSnapshot(uid: string, _now = Date.now()): Promise
   return {
     passkeyRequired: state.passkeyRequired,
     verificationsValidAfter: state.verificationsValidAfter,
+    rememberedDevicesValidAfter: state.rememberedDevicesValidAfter,
   };
 }
 
@@ -223,6 +275,66 @@ export async function updateState(uid: string, patch: Partial<AdminSecurityState
   await stateDoc(uid).set({ ...patch, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
 }
 
+export async function createRememberedDevice(
+  uid: string,
+  device: RememberedDevice,
+): Promise<void> {
+  const { id, ...data } = device;
+  await rememberedDeviceDoc(uid, id).set(data);
+}
+
+export async function getRememberedDevice(
+  uid: string,
+  deviceId: string,
+): Promise<RememberedDevice | null> {
+  const snap = await rememberedDeviceDoc(uid, deviceId).get();
+  if (!snap.exists) return null;
+  return { id: snap.id, ...(snap.data() as Omit<RememberedDevice, 'id'>) };
+}
+
+export async function listRememberedDevices(uid: string): Promise<RememberedDevice[]> {
+  const snap = await stateDoc(uid).collection('rememberedDevices').get();
+  return snap.docs
+    .map((document) => ({ id: document.id, ...(document.data() as Omit<RememberedDevice, 'id'>) }))
+    .sort((a, b) => b.createdAt - a.createdAt);
+}
+
+export async function touchRememberedDevice(
+  uid: string,
+  deviceId: string,
+  now: number,
+): Promise<boolean> {
+  return db.runTransaction(async (tx) => {
+    const ref = rememberedDeviceDoc(uid, deviceId);
+    const snap = await tx.get(ref);
+    if (!snap.exists) return false;
+    const device = snap.data() as Omit<RememberedDevice, 'id'>;
+    if (device.revokedAt !== null || device.expiresAt <= now) return false;
+    tx.set(ref, { lastUsedAt: now }, { merge: true });
+    return true;
+  });
+}
+
+export async function revokeRememberedDevice(
+  uid: string,
+  deviceId: string,
+  now: number,
+): Promise<boolean> {
+  return db.runTransaction(async (tx) => {
+    const ref = rememberedDeviceDoc(uid, deviceId);
+    const snap = await tx.get(ref);
+    if (!snap.exists) return false;
+    const device = snap.data() as Omit<RememberedDevice, 'id'>;
+    if (device.revokedAt !== null) return true;
+    tx.set(ref, { revokedAt: now }, { merge: true });
+    return true;
+  });
+}
+
+export async function revokeAllRememberedDevices(uid: string, now: number): Promise<void> {
+  await updateState(uid, { rememberedDevicesValidAfter: now + 1 });
+}
+
 export async function createDesktopHandoff(
   uid: string,
   handoffId: string,
@@ -239,6 +351,208 @@ export async function getDesktopHandoff(uid: string, handoffId: string): Promise
   const snap = await desktopHandoffDoc(uid, handoffId).get();
   if (!snap.exists) return null;
   return { uid, ...(snap.data() as Omit<DesktopHandoff, 'uid'>) };
+}
+
+export async function createDeviceEnrollment(
+  uid: string,
+  enrollmentId: string,
+  request: Omit<DeviceEnrollmentRequest, 'uid'>,
+): Promise<void> {
+  await deviceEnrollmentDoc(uid, enrollmentId).set({ ...request, uid });
+}
+
+function isTerminalDeviceEnrollmentStatus(status: unknown): status is 'registered' | 'rejected' | 'cancelled' {
+  return status === 'registered' || status === 'rejected' || status === 'cancelled';
+}
+
+/**
+ * Rimuove soltanto enrollment scaduti da almeno un giorno o conclusi da almeno
+ * un giorno. Ogni cancellazione ricontrolla lo stato attuale in transazione;
+ * la sottocollezione degli eventi di audit non viene mai letta o modificata.
+ */
+export async function cleanupDeviceEnrollments(now = Date.now()): Promise<number> {
+  const accounts = await db.collection(COLLECTION).get();
+  let deletedCount = 0;
+
+  for (const account of accounts.docs) {
+    const uid = account.id;
+    const enrollments = await stateDoc(uid).collection('deviceEnrollments').get();
+    for (const enrollment of enrollments.docs) {
+      const ref = deviceEnrollmentDoc(uid, enrollment.id);
+      const deleted = await db.runTransaction(async (tx) => {
+        const current = await tx.get(ref);
+        if (!current.exists) return false;
+
+        const request = current.data() as Partial<DeviceEnrollmentRequest> | undefined;
+        if (!request || !Number.isFinite(request.expiresAt)) return false;
+
+        let inactiveSince: number;
+        if (request.status === 'pending' || request.status === 'approved') {
+          inactiveSince = request.expiresAt!;
+        } else if (isTerminalDeviceEnrollmentStatus(request.status)) {
+          const terminalAt = request.terminalAt ?? request.registeredAt ?? request.createdAt;
+          if (typeof terminalAt !== 'number' || !Number.isFinite(terminalAt)) return false;
+          inactiveSince = terminalAt;
+        } else {
+          return false;
+        }
+
+        if (inactiveSince + DEVICE_ENROLLMENT_RETENTION_MS > now) return false;
+        tx.delete(ref);
+        return true;
+      });
+      if (deleted) deletedCount += 1;
+    }
+  }
+
+  return deletedCount;
+}
+
+export async function getDeviceEnrollment(
+  uid: string,
+  enrollmentId: string,
+): Promise<DeviceEnrollmentRequest | null> {
+  const snap = await deviceEnrollmentDoc(uid, enrollmentId).get();
+  if (!snap.exists) return null;
+  return { uid, ...(snap.data() as Omit<DeviceEnrollmentRequest, 'uid'>) };
+}
+
+export async function saveDeviceEnrollmentChallenge(
+  uid: string,
+  enrollmentId: string,
+  kind: DeviceEnrollmentChallengeKind,
+  challenge: DesktopHandoffChallenge,
+  now: number,
+): Promise<boolean> {
+  return db.runTransaction(async (tx) => {
+    const ref = deviceEnrollmentDoc(uid, enrollmentId);
+    const snap = await tx.get(ref);
+    const request = snap.data() as DeviceEnrollmentRequest | undefined;
+    const expectedStatus = kind === 'approval' ? 'pending' : 'approved';
+    if (!request || request.status !== expectedStatus || request.expiresAt <= now) return false;
+    const field = kind === 'approval' ? 'approvalChallenge' : 'registrationChallenge';
+    tx.set(ref, { [field]: challenge }, { merge: true });
+    return true;
+  });
+}
+
+export async function consumeDeviceEnrollmentChallenge(
+  uid: string,
+  enrollmentId: string,
+  kind: DeviceEnrollmentChallengeKind,
+  authTime: number,
+  now: number,
+): Promise<DesktopHandoffChallenge | null> {
+  return db.runTransaction(async (tx) => {
+    const ref = deviceEnrollmentDoc(uid, enrollmentId);
+    const snap = await tx.get(ref);
+    const request = snap.data() as DeviceEnrollmentRequest | undefined;
+    const expectedStatus = kind === 'approval' ? 'pending' : 'approved';
+    const field = kind === 'approval' ? 'approvalChallenge' : 'registrationChallenge';
+    const challenge = request?.[field];
+    if (
+      !request ||
+      request.status !== expectedStatus ||
+      request.expiresAt <= now ||
+      !challenge
+    ) {
+      return null;
+    }
+    tx.set(ref, { [field]: null }, { merge: true });
+    if (challenge.expiresAt <= now || challenge.authTime !== authTime) return null;
+    return challenge;
+  });
+}
+
+export async function transitionDeviceEnrollment(
+  uid: string,
+  enrollmentId: string,
+  expectedStatus: DeviceEnrollmentStatus,
+  patch: Partial<DeviceEnrollmentRequest>,
+  now: number,
+): Promise<DeviceEnrollmentRequest | null> {
+  return db.runTransaction(async (tx) => {
+    const ref = deviceEnrollmentDoc(uid, enrollmentId);
+    const snap = await tx.get(ref);
+    if (!snap.exists) return null;
+    const request = { uid, ...(snap.data() as Omit<DeviceEnrollmentRequest, 'uid'>) };
+    if (request.status !== expectedStatus || request.expiresAt <= now) return null;
+    tx.set(
+      ref,
+      {
+        ...patch,
+        ...(isTerminalDeviceEnrollmentStatus(patch.status) ? { terminalAt: now } : {}),
+      },
+      { merge: true },
+    );
+    return request;
+  });
+}
+
+export async function approveDeviceEnrollment(
+  uid: string,
+  enrollmentId: string,
+  credentialId: string,
+  patch: Partial<DeviceEnrollmentRequest>,
+  now: number,
+): Promise<DeviceEnrollmentRequest | null> {
+  return db.runTransaction(async (tx) => {
+    const enrollmentRef = deviceEnrollmentDoc(uid, enrollmentId);
+    const passkeyRef = stateDoc(uid).collection('passkeys').doc(credentialId);
+    const [enrollmentSnap, passkeySnap] = await Promise.all([
+      tx.get(enrollmentRef),
+      tx.get(passkeyRef),
+    ]);
+    if (!enrollmentSnap.exists || !passkeySnap.exists) return null;
+
+    const request = { uid, ...(enrollmentSnap.data() as Omit<DeviceEnrollmentRequest, 'uid'>) };
+    if (request.status !== 'pending' || request.expiresAt <= now) return null;
+
+    tx.set(
+      enrollmentRef,
+      {
+        ...patch,
+        ...(isTerminalDeviceEnrollmentStatus(patch.status) ? { terminalAt: now } : {}),
+      },
+      { merge: true },
+    );
+    return request;
+  });
+}
+
+export async function commitDeviceEnrollmentPasskey(
+  uid: string,
+  enrollmentId: string,
+  passkey: StoredPasskey,
+  now: number,
+): Promise<boolean> {
+  return db.runTransaction(async (tx) => {
+    const enrollmentRef = deviceEnrollmentDoc(uid, enrollmentId);
+    const passkeyRef = stateDoc(uid).collection('passkeys').doc(passkey.id);
+    const [enrollmentSnap, passkeySnap] = await Promise.all([
+      tx.get(enrollmentRef),
+      tx.get(passkeyRef),
+    ]);
+    const request = enrollmentSnap.data() as DeviceEnrollmentRequest | undefined;
+    if (
+      !request ||
+      request.status !== 'approved' ||
+      request.expiresAt <= now ||
+      request.registrationChallenge !== null ||
+      passkeySnap.exists
+    ) {
+      return false;
+    }
+    const { id, ...passkeyData } = passkey;
+    tx.set(passkeyRef, passkeyData);
+    tx.set(enrollmentRef, {
+      status: 'registered',
+      registeredAt: now,
+      terminalAt: now,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return true;
+  });
 }
 
 export async function saveDesktopHandoffChallenge(
@@ -329,12 +643,18 @@ export async function savePasskey(uid: string, passkey: StoredPasskey): Promise<
   await stateDoc(uid).collection('passkeys').doc(id).set(data);
 }
 
-export async function updatePasskey(
+export async function updatePasskeyIfExists(
   uid: string,
   credentialId: string,
   patch: Partial<Omit<StoredPasskey, 'id'>>,
-): Promise<void> {
-  await stateDoc(uid).collection('passkeys').doc(credentialId).set(patch, { merge: true });
+): Promise<boolean> {
+  return db.runTransaction(async (tx) => {
+    const ref = stateDoc(uid).collection('passkeys').doc(credentialId);
+    const snap = await tx.get(ref);
+    if (!snap.exists) return false;
+    tx.set(ref, patch, { merge: true });
+    return true;
+  });
 }
 
 export async function deletePasskey(uid: string, credentialId: string): Promise<void> {

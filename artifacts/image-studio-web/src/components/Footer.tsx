@@ -6,11 +6,13 @@ import { createUrl } from '@/lib/basePath';
 import { getFooterItems } from '@/config/navigation';
 import { useGiftShopAvailable } from '@/hooks/useGiftShopAvailable';
 import { useShopAvailable } from '@/hooks/useShopAvailable';
+import { usePrintShopAvailable } from '@/hooks/usePrintShopAvailable';
 
 export default function Footer() {
   const { studioSettings } = useStudio();
   const giftShop = useGiftShopAvailable();
   const shop = useShopAvailable();
+  const printShop = usePrintShopAvailable();
   const currentYear = new Date().getFullYear();
   
   return (
@@ -55,7 +57,7 @@ export default function Footer() {
         </div>
         
         <nav className="flex flex-wrap justify-center mb-8">
-          {getFooterItems({ giftShop, shop }).map((item) => (
+          {getFooterItems({ giftShop, shop, printShop }).map((item) => (
             <div key={item.href} className="px-5 py-2">
               {item.href.includes('#') ? (
                 <a href={item.href} className="text-base text-off-white hover:text-cream">

@@ -5,6 +5,8 @@ const h = vi.hoisted(() => ({
   platform: [] as any[],
   pending: [] as any[],
   confirmed: [] as any[],
+  holds: [] as any[],
+  reschedules: [] as any[],
 }));
 
 vi.mock('../calendar-engine/google-sync.js', () => ({
@@ -32,7 +34,7 @@ import { getAllExistingBookingEvents } from './calendar-adapter.js';
 function fakeDb() {
   return {
     collection: (name: string) => {
-      if (name !== 'bookings') throw new Error(`collezione inattesa: ${name}`);
+      if (!['bookings', 'bookingCheckoutHolds', 'bookingRescheduleJobs', 'bookingCancellationJobs'].includes(name)) throw new Error(`collezione inattesa: ${name}`);
       let state = '';
       const chain: any = {
         where: (field: string, _operator: string, value: unknown) => {
@@ -40,7 +42,7 @@ function fakeDb() {
           return chain;
         },
         get: async () => {
-          const docs = state === 'in_attesa' ? h.pending : h.confirmed;
+          const docs = name === 'bookingRescheduleJobs' ? h.reschedules : name === 'bookingCheckoutHolds' ? h.holds : state === 'in_attesa' ? h.pending : h.confirmed;
           return { docs, size: docs.length };
         },
       };
@@ -59,6 +61,45 @@ describe('getAllExistingBookingEvents', () => {
     h.platform = [];
     h.pending = [];
     h.confirmed = [];
+    h.holds = [];
+    h.reschedules = [];
+  });
+
+  it('blocca anche le destinazioni di cambi in verifica e conserva esclusivamente il proprio cambio', async () => {
+    const start = new Date('2030-12-10T09:00:00Z'), end = new Date('2030-12-10T09:30:00Z');
+    h.reschedules = [{ ...booking('moving', start, end), data: () => ({
+      ...booking('', start, end).data(), status: 'pending',
+    }) }];
+    expect((await getAllExistingBookingEvents(start, end, fakeDb())).map(event => event.id)).toEqual(['reschedule-moving']);
+    expect(await getAllExistingBookingEvents(start, end, fakeDb(), 'moving')).toEqual([]);
+  });
+
+  it('include solo riserve attive e non scadute, anche di altre campagne', async () => {
+    const start = new Date('2030-12-10T09:00:00Z'), end = new Date('2030-12-10T09:30:00Z');
+    const deadline = Date.now() + 60_000, expired = Date.now() - 1;
+    const future = { toMillis: () => deadline };
+    h.holds = [
+      { ...booking('active', start, end), data: () => ({ ...booking('', start, end).data(), campaignId: 'other', status: 'active', expiresAt: future }) },
+      { ...booking('expired', start, end), data: () => ({ ...booking('', start, end).data(), status: 'active', expiresAt: { toMillis: () => expired } }) },
+      { ...booking('cancelled', start, end), data: () => ({ ...booking('', start, end).data(), status: 'cancelled', expiresAt: future }) },
+    ];
+    expect((await getAllExistingBookingEvents(start, end, fakeDb())).map(event => event.id)).toEqual(['checkout-active']);
+    expect(await getAllExistingBookingEvents(start, end, fakeDb(), 'active')).toHaveLength(0);
+  });
+
+  it('esclude le richieste scadute senza aspettare la pulizia ma conserva gli incassi confermati', async () => {
+    const start = new Date('2030-12-10T09:00:00Z'), end = new Date('2030-12-10T09:30:00Z');
+    const current = Date.now();
+    const request = { status: 'pending', requestedAt: { toMillis: () => current - 3_600_000 },
+      expiresAt: { toMillis: () => current } };
+    h.pending = [{ ...booking('expired', start, end), data: () => ({
+      ...booking('', start, end).data(), depositPaymentRequest: request,
+    }) }];
+    h.confirmed = [{ ...booking('paid', start, end), data: () => ({
+      ...booking('', start, end).data(), depositPaymentRequest: request,
+      depositPayment: { status: 'paid', paypalCaptureId: 'CAPTURE' },
+    }) }];
+    expect((await getAllExistingBookingEvents(start, end, fakeDb())).map(event => event.id)).toEqual(['paid']);
   });
 
   it('centralizza Google, consulenze, Job e prenotazioni pendenti/confermate', async () => {

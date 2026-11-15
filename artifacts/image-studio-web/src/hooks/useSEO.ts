@@ -1,9 +1,8 @@
 import { useEffect } from 'react';
 import {
   canonicalUrl,
-  resolveSocialImage,
+  pageSocialImage,
   staticPageMetadata,
-  staticSocialImage,
   type SocialImageSource,
 } from '@shared/social-metadata';
 
@@ -81,7 +80,7 @@ export function useSEO({
     const sharedPage = staticPageMetadata(fullCanonical);
     const effectiveTitle = sharedPage?.title || title;
     const effectiveDescription = sharedPage?.description || description;
-    const socialImage = resolveSocialImage([
+    const socialImage = pageSocialImage(fullCanonical, [
       {
         url: ogImage,
         alt: ogImageAlt || effectiveTitle,
@@ -90,7 +89,6 @@ export function useSEO({
         type: ogImageType,
         source: ogImageSource,
       },
-      staticSocialImage(fullCanonical),
     ]);
 
     document.title = effectiveTitle;

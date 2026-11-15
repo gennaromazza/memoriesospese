@@ -906,6 +906,7 @@ export interface BlogPost extends EditorialCoverPositions {
   seoContent?: string; // Plain-text copy for server rendering and AI/search crawlers
   coverImage?: string; // Featured image URL
   coverImageAlt?: string; // Accessible description for the featured image
+  coverImageType?: 'image/jpeg' | 'image/png' | 'image/webp'; // Stored MIME type for crawler metadata
   coverImagePath?: string; // Storage path, used for safe cleanup
   status: BlogPostStatus;
   category?: string; // Optional category (Matrimoni, Consigli, Tutorial...)

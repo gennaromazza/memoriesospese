@@ -24,13 +24,14 @@ export interface NavItem {
   mobileOrder?: number;
   highlight?: boolean;
   /** Si mostra solo quando la funzione è disponibile (per esempio con almeno un regalo in vendita). */
-  requires?: 'giftShop' | 'shop';
+  requires?: 'giftShop' | 'shop' | 'printShop';
 }
 
 /** Funzioni del sito che possono essere spente: le voci collegate compaiono solo se attive. */
 export interface NavAvailability {
   giftShop?: boolean;
   shop?: boolean;
+  printShop?: boolean;
 }
 
 const isAvailable = (item: NavItem, availability: NavAvailability) =>
@@ -158,6 +159,7 @@ export const discoverNavGroups: DiscoverNavGroup[] = [
         icon: Printer,
         description: 'Carica i JPG, configura, paga con PayPal e ritira in sede.',
         showInFooter: true,
+        requires: 'printShop',
       },
       {
         label: 'Vision',
@@ -213,9 +215,12 @@ export const getHeaderItems = (availability: NavAvailability = {}) =>
   mainNavItems.filter(item => item.showInHeader && isAvailable(item, availability));
 export const getFooterItems = (availability: NavAvailability = {}) => [
   ...mainNavItems.filter(item => item.showInFooter && isAvailable(item, availability)),
-  ...discoverNavGroups.flatMap(group => group.items).filter(item => item.showInFooter),
+  ...discoverNavGroups.flatMap(group => group.items).filter(item => item.showInFooter && isAvailable(item, availability)),
 ];
-export const getDiscoverGroups = () => discoverNavGroups;
+export const getDiscoverGroups = (availability: NavAvailability = {}) =>
+  discoverNavGroups
+    .map(group => ({ ...group, items: group.items.filter(item => isAvailable(item, availability)) }))
+    .filter(group => group.items.length > 0);
 export const getMobileItems = (availability: NavAvailability = {}) =>
   mainNavItems
     .filter(item => item.showInMobile && isAvailable(item, availability))

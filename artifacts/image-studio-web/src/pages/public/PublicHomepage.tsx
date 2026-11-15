@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import {
   collection,
   getDocs,
@@ -20,7 +20,6 @@ import {
   Phone,
   Mail,
   MapPin,
-  Clock,
   Sparkles,
   Lock,
   ChevronRight,
@@ -32,12 +31,11 @@ import {
 } from "lucide-react";
 import { useStudio } from "@/context/StudioContext";
 import HeroSlideshow from "@/components/HeroSlideshow";
+import ActiveBookingCampaigns from "@/components/ActiveBookingCampaigns";
 import Navigation from "@/components/Navigation";
 import type { BookingCampaignFE } from "@shared/booking-types";
 import { BlogPostStatus, WeddingVideo } from "@shared/schema";
-import useEmblaCarousel from "embla-carousel-react";
-import Autoplay from "embla-carousel-autoplay";
-import { FloralDivider, FloralCorner } from "@/components/WeddingIllustrations";
+import { FloralCorner } from "@/components/WeddingIllustrations";
 
 
 import ReviewsWidget from "@/components/ReviewsWidget";
@@ -113,7 +111,6 @@ export default function PublicHomepage() {
   const whatsappNumber = (publicWhatsapp || publicPhone).replace(/\D/g, "");
   const homepageContent = resolveHomepageContent(studioSettings.homepageContent);
   const instagramProfile = getInstagramProfile(studioSettings.socialLinks?.instagram);
-  const [, navigate] = useLocation();
   const [portfolioPhotos, setPortfolioPhotos] = useState<PortfolioPhoto[]>([]);
   const [portfolioPreviewMode, setPortfolioPreviewMode] =
     useState<PortfolioPreviewMode>("wedding");
@@ -136,10 +133,6 @@ export default function PublicHomepage() {
     canonical: "/",
     keywords: WEDDING_HOME_SEO.keywords,
   });
-
-  const [emblaRef] = useEmblaCarousel({ loop: true, align: "center" }, [
-    Autoplay({ delay: 5000, stopOnInteraction: false }),
-  ]);
 
   useEffect(() => {
     loadPortfolioPreview();
@@ -384,12 +377,14 @@ export default function PublicHomepage() {
                 </Link>
               </div>
             </div>
-            <div className="relative isolate mx-auto h-[280px] w-full min-w-0 max-w-full overflow-hidden rounded-xl shadow-lg sm:h-[400px] sm:rounded-2xl sm:shadow-2xl md:mx-0 md:h-[500px] md:animate-slide-up">
+            <div className="relative isolate mx-auto aspect-[3/2] w-full min-w-0 max-w-full overflow-hidden rounded-xl shadow-lg sm:rounded-2xl sm:shadow-2xl md:mx-0 md:animate-slide-up">
               <HeroSlideshow />
             </div>
           </div>
         </div>
       </section>
+
+      <ActiveBookingCampaigns campaigns={activeCampaigns} />
 
       {/* Image Vision Section */}
       <section className="py-12 sm:py-16 md:py-20 bg-light-mint text-blue-gray px-4">
@@ -434,7 +429,7 @@ export default function PublicHomepage() {
                         <img
                           src={video.thumbnailUrl}
                           alt={video.title}
-                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                          className="w-full h-full object-contain"
                           loading="lazy"
                         />
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
@@ -513,11 +508,11 @@ export default function PublicHomepage() {
                 </Link>
               </div>
             </div>
-            <div className="relative min-h-[260px] overflow-hidden md:min-h-[360px]">
+            <div className="relative flex min-h-[260px] items-center justify-center overflow-hidden bg-[hsl(200_21%_34%)] md:min-h-[360px]">
               <img
                 src="/images/image-experience/coppia-configura-servizio-matrimonio-1024.webp"
                 alt="Una coppia configura insieme il servizio fotografico del matrimonio"
-                className="absolute inset-0 h-full w-full object-cover"
+                className="max-h-full w-full object-contain"
                 loading="lazy"
               />
               <div className="absolute bottom-5 right-5 rounded-full bg-off-white px-4 py-2 text-sm font-semibold text-[hsl(200_21%_34%)] shadow-lg">
@@ -591,7 +586,7 @@ export default function PublicHomepage() {
                     <img
                       src={photo.photoUrl}
                       alt={`${photo.galleryName} - ${photo.jobType}`}
-                      className="w-full h-auto object-cover group-hover:scale-110 transition-transform duration-300"
+                      className="w-full h-auto object-contain"
                       loading="lazy"
                       onError={(e) => {
                         console.error(
@@ -696,7 +691,7 @@ export default function PublicHomepage() {
                 <img
                   src="/images/print-service/printed-memories-table.jpg"
                   alt="Stampe fotografiche disposte su un tavolo"
-                  className="aspect-[4/3] w-full rounded-[1.5rem] object-cover"
+                  className="aspect-[4/3] w-full rounded-[1.5rem] object-contain"
                   loading="lazy"
                 />
               </div>
@@ -704,7 +699,7 @@ export default function PublicHomepage() {
                 <img
                   src="/images/print-service/printed-memories-table.jpg"
                   alt="Fotografie di viaggio stampate su carta fotografica"
-                  className="aspect-square w-full rounded-lg object-cover"
+                  className="aspect-square w-full rounded-lg object-contain"
                   loading="lazy"
                 />
                 <p className="px-1 pb-1 pt-2 text-center font-playfair text-xs italic text-blue-gray sm:text-sm">
@@ -737,219 +732,6 @@ export default function PublicHomepage() {
         </div>
       </section>
 
-      {/* Active Booking Campaigns */}
-      {activeCampaigns.length > 0 && (
-        <section className="py-20 bg-light-mint/40 relative overflow-hidden">
-          <div className="absolute inset-0 opacity-5">
-            <div
-              className="absolute inset-0"
-               style={{ backgroundColor: "hsl(var(--sage) / 0.05)" }}
-            />
-          </div>
-
-          <div className="relative z-10 max-w-7xl mx-auto px-4">
-            {activeCampaigns.length === 1 ? (
-              // Single campaign display
-              (() => {
-                const campaign = activeCampaigns[0];
-                const formatDate = (date: Date) =>
-                  date.toLocaleDateString("it-IT", {
-                    day: "numeric",
-                    month: "long",
-                    year: "numeric",
-                  });
-                const daysLeft = Math.ceil(
-                  (campaign.dataFine.getTime() - new Date().getTime()) /
-                    (1000 * 60 * 60 * 24),
-                );
-
-                return (
-                  <div className="bg-off-white rounded-3xl shadow-2xl border border-sage/10 overflow-hidden">
-                    {campaign.immagineSlider && (
-                      <div className="w-full">
-                        <img
-                          src={campaign.immagineSlider}
-                          alt={campaign.nome}
-                          className="w-full h-64 md:h-96 object-cover"
-                          loading="lazy"
-                        />
-                      </div>
-                    )}
-
-                    <div className="flex flex-col md:flex-row items-center gap-8 p-8 md:p-12">
-                      <div className="flex-1 text-center md:text-left space-y-6">
-                        <div className="inline-flex items-center gap-2 bg-sage/10 px-4 py-2 rounded-full">
-                          <Sparkles className="w-4 h-4 text-sage" />
-                          <span className="text-xs font-semibold uppercase tracking-wider text-sage">
-                            Prenotazioni Aperte
-                          </span>
-                        </div>
-
-                        {!campaign.immagineSlider && (
-                          <h2 className="break-words text-3xl font-playfair leading-tight text-blue-gray sm:text-4xl md:text-5xl">
-                            {campaign.nome}
-                          </h2>
-                        )}
-
-                        <div className="flex flex-wrap gap-4 justify-center md:justify-start">
-                          <div className="flex items-center gap-2 bg-sage/5 px-4 py-2 rounded-xl border border-sage/10">
-                            <Calendar className="w-4 h-4 text-sage" />
-                            <span className="text-sm font-medium text-blue-gray">
-                              {formatDate(campaign.dataInizio)} —{" "}
-                              {formatDate(campaign.dataFine)}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 bg-cream/50 px-4 py-2 rounded-xl border border-terracotta/30">
-                            <Clock className="w-4 h-4 text-terracotta" />
-                            <span className="text-sm font-bold text-dark-sage">
-                              {daysLeft} giorni rimasti
-                            </span>
-                          </div>
-                        </div>
-
-                        {campaign.descrizione && (
-                          <p className="text-lg text-dark-sage leading-relaxed">
-                            {campaign.descrizione}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="flex-shrink-0">
-                        <Button
-                          onClick={() => navigate(`/prenota/${campaign.code}`)}
-                          size="lg"
-                          className="bg-[hsl(120_7%_38%)] hover:bg-[hsl(120_7%_34%)] text-off-white text-lg font-bold px-8 py-6 shadow-lg hover:shadow-xl transition-all"
-                          data-testid={`button-book-campaign-${campaign.id}`}
-                        >
-                          <Calendar className="w-5 h-5 mr-2" />
-                          Prenota Subito
-                        </Button>
-                        <p className="text-center text-xs text-blue-gray/80 mt-3">
-                          Posti limitati disponibili
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex justify-center pb-6">
-                      <FloralDivider className="w-32 h-8 text-sage/20" />
-                    </div>
-                  </div>
-                );
-              })()
-            ) : (
-              // Multiple campaigns carousel
-              <div>
-                <div className="text-center mb-12">
-                  <div className="inline-flex items-center gap-2 bg-sage/10 px-6 py-3 rounded-full mb-6">
-                    <Sparkles className="w-5 h-5 text-sage" />
-                    <span className="text-sm font-semibold uppercase tracking-wider text-sage">
-                      Prenotazioni Aperte
-                    </span>
-                  </div>
-                  <h2 className="text-3xl sm:text-4xl font-playfair text-blue-gray mb-2">
-                    Offerte Speciali
-                  </h2>
-                    <p className="text-xl text-dark-sage">
-                    Approfitta delle nostre promozioni stagionali
-                  </p>
-                </div>
-
-                <div className="overflow-hidden" ref={emblaRef}>
-                  <div className="flex">
-                    {activeCampaigns.map((campaign) => {
-                      const formatDate = (date: Date) =>
-                        date.toLocaleDateString("it-IT", {
-                          day: "numeric",
-                          month: "long",
-                          year: "numeric",
-                        });
-                      const daysLeft = Math.ceil(
-                        (campaign.dataFine.getTime() - new Date().getTime()) /
-                          (1000 * 60 * 60 * 24),
-                      );
-
-                      return (
-                        <div
-                          key={campaign.id}
-                          className="flex-[0_0_100%] min-w-0 px-4"
-                        >
-                          <div className="bg-off-white rounded-3xl shadow-xl border border-sage/10 overflow-hidden">
-                            {campaign.immagineSlider && (
-                              <img
-                                src={campaign.immagineSlider}
-                                alt={campaign.nome}
-                                className="w-full h-56 md:h-80 object-cover"
-                                loading="lazy"
-                              />
-                            )}
-
-                            <div className="p-8 md:p-12 text-center">
-                              {!campaign.immagineSlider && (
-                                <h3 className="break-words text-2xl font-playfair leading-tight text-blue-gray sm:text-3xl md:text-4xl mb-4">
-                                  {campaign.nome}
-                                </h3>
-                              )}
-
-                              <div className="flex flex-wrap gap-3 justify-center mb-6">
-                                <div className="flex items-center gap-2 bg-sage/5 px-4 py-2 rounded-xl border border-sage/10">
-                                  <Calendar className="w-4 h-4 text-sage" />
-                                  <span className="text-sm font-medium text-blue-gray">
-                                    {formatDate(campaign.dataInizio)} —{" "}
-                                    {formatDate(campaign.dataFine)}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-2 bg-cream/50 px-4 py-2 rounded-xl border border-terracotta/30">
-                                  <Clock className="w-4 h-4 text-terracotta" />
-                                  <span className="text-sm font-bold text-dark-sage">
-                                    {daysLeft} giorni rimasti
-                                  </span>
-                                </div>
-                              </div>
-
-                              {campaign.descrizione && (
-                                <p className="text-lg text-dark-sage mb-8 leading-relaxed">
-                                  {campaign.descrizione}
-                                </p>
-                              )}
-
-                              <Button
-                                onClick={() =>
-                                  navigate(`/prenota/${campaign.code}`)
-                                }
-                                size="lg"
-                                className="bg-[hsl(120_7%_38%)] hover:bg-[hsl(120_7%_34%)] text-off-white font-bold px-8 py-4 shadow-lg hover:shadow-xl transition-all"
-                                data-testid={`button-book-campaign-${campaign.id}`}
-                              >
-                                <Calendar className="w-5 h-5 mr-2" />
-                                Prenota Subito
-                              </Button>
-                            </div>
-
-                            <div className="flex justify-center pb-6">
-                              <FloralDivider className="w-32 h-8 text-sage/20" />
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Carousel indicators */}
-                <div className="flex justify-center gap-2 mt-8">
-                  {activeCampaigns.map((_, idx) => (
-                    <div
-                      key={idx}
-                      className="w-2 h-2 rounded-full bg-sage/30 hover:bg-sage/60 transition-colors cursor-pointer"
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </section>
-      )}
-
       {/* About Preview */}
       <section className="py-12 sm:py-16 md:py-20 bg-cream/30 px-4">
         <div className="max-w-7xl mx-auto">
@@ -959,7 +741,7 @@ export default function PublicHomepage() {
                 <img
                   src={storyImageUrl}
                   alt="Gennaro Mazzacane - Fotografo Professionista"
-                  className="w-full h-auto object-cover transition-transform duration-500 group-hover:scale-105"
+                  className="w-full h-auto object-contain"
                   loading="lazy"
                   onError={() => setStoryImageFailed(true)}
                 />
@@ -1108,7 +890,7 @@ export default function PublicHomepage() {
                 <img
                   src={`${import.meta.env.BASE_URL || '/'}images/libro-copertina.jpg`}
                   alt="Lasciati Trasportare - Copertina del Libro"
-                  className="relative w-full max-w-sm rounded-2xl shadow-2xl transform group-hover:scale-105 transition-transform duration-300"
+                  className="relative w-full max-w-sm rounded-2xl shadow-2xl"
                 />
               </div>
             </div>
@@ -1205,7 +987,7 @@ export default function PublicHomepage() {
                           <img
                             src={post.coverImage}
                             alt={post.title}
-                             className="wedding-cover-card-image w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                             className="wedding-cover-card-image w-full h-full bg-cream/40 object-contain"
                              style={weddingCoverPositionStyle(
                                post.kind === 'blog' ? post.coverImagePosition : post.coverPhotoPosition,
                                post.kind === 'blog' ? post.coverImageMobilePosition : post.coverPhotoMobilePosition,

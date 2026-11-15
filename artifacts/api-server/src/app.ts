@@ -41,6 +41,7 @@ import shopRoutes from "./shop";
 import desktopGalleryRoutes from "./desktop-gallery-routes";
 import clientAreaRoutes from "./client-area-routes";
 import { generateDynamicSitemap } from "./sitemap-generator";
+import { createBulkEmailJsonParser } from "./bulk-email-body-parser";
 
 const app: Express = express();
 
@@ -64,6 +65,7 @@ app.use(
   }),
 );
 app.use(cors());
+app.use("/api/bulk-email", createBulkEmailJsonParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

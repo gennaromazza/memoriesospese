@@ -21,6 +21,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Plus, Edit, Trash2, FileText, Loader2, Eye, Calendar, Trash, Upload, ImagePlus, Code, FileJson } from 'lucide-react';
 import { BlogPost, BlogPostStatus, insertBlogPostSchema } from '@shared/schema';
 import type { EditorialCoverPosition, EditorialCoverPositions } from '@shared/editorial-cover';
+import { getBlogCoverImageFormat } from '@shared/blog-cover-image';
 import EditorialCoverPositionEditor from '@/components/EditorialCoverPositionEditor';
 import WordPressImporter from './WordPressImporter';
 import { compressImage } from '@/lib/imageCompression';
@@ -30,6 +31,8 @@ import {
   normalizeBlogSlug,
   writeBlogPostWithSlugReservation,
 } from '@/lib/blog-slugs';
+import { blogSocialImage } from '@shared/social-metadata';
+import SocialCardPreview from '@/components/admin/SocialCardPreview';
 
 const FALLBACK_AUTHOR = 'Gennaro Mazzacane';
 const SEO_CONTENT_LIMIT = 50000;
@@ -104,6 +107,7 @@ export default function BlogManager({
   const [showHtmlSource, setShowHtmlSource] = useState(false);
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
   const [coverImagePath, setCoverImagePath] = useState('');
+  const [coverImageType, setCoverImageType] = useState('');
   const [coverPositions, setCoverPositions] = useState<EditorialCoverPositions>({
     coverImagePosition: DEFAULT_COVER_POSITION,
     coverImageMobilePosition: DEFAULT_COVER_POSITION,
@@ -148,6 +152,13 @@ export default function BlogManager({
     author: 'Gennaro Mazzacane',
     metaTitle: '',
     metaDescription: ''
+  });
+  const socialImage = blogSocialImage({
+    title: formData.title,
+    coverImage: formData.coverImage,
+    coverImageAlt: formData.coverImageAlt,
+    coverImageType: coverImageType || undefined,
+    content: formData.content,
   });
 
   useEffect(() => {
@@ -203,6 +214,7 @@ export default function BlogManager({
     setEditingPost(null);
     setSlugManuallyEdited(false);
     setCoverImagePath('');
+    setCoverImageType('');
     setCoverPositions({
       coverImagePosition: DEFAULT_COVER_POSITION,
       coverImageMobilePosition: DEFAULT_COVER_POSITION,
@@ -293,6 +305,7 @@ export default function BlogManager({
     setEditingPost(null);
     setSlugManuallyEdited(Boolean(typeof data.slug === 'string' && data.slug.trim()));
     setCoverImagePath('');
+    setCoverImageType('');
     setContentImagePaths([]);
     contentImageAltMapRef.current.clear();
     draftStorageKeyRef.current = doc(collection(db, 'blogPosts')).id;
@@ -374,6 +387,7 @@ export default function BlogManager({
       setEditingPost(post);
       setSlugManuallyEdited(true);
       setCoverImagePath((post as any).coverImagePath || '');
+      setCoverImageType((post as any).coverImageType || '');
       setContentImagePaths(Array.isArray((post as any).contentImagePaths) ? (post as any).contentImagePaths : []);
       contentImageAltMapRef.current.clear();
       let content = post.content || '';
@@ -441,10 +455,10 @@ export default function BlogManager({
     if (!e.target.files || e.target.files.length === 0) return;
 
     const file = e.target.files[0];
-    if (!file.type.startsWith('image/')) {
+    if (!getBlogCoverImageFormat(file.type)) {
       toast({
         title: "Tipo di file non supportato",
-        description: "Carica solo immagini (JPEG, PNG, ecc.)",
+        description: "Carica un'immagine JPEG, PNG o WebP.",
         variant: "destructive"
       });
       return;
@@ -456,14 +470,18 @@ export default function BlogManager({
       
       // Comprimi l'immagine
       const compressedFile = await compressImage(file);
+      const imageFormat = getBlogCoverImageFormat(compressedFile.type);
+      if (!imageFormat) {
+        throw new Error(`Formato copertina non supportato dopo la compressione: ${compressedFile.type}`);
+      }
       
       // Upload su Firebase Storage
       const timestamp = Date.now();
       const sanitizedSlug = formData.slug || 'draft';
-      const storagePath = `blog-covers/${sanitizedSlug}-${timestamp}.jpg`;
+      const storagePath = `blog-covers/${sanitizedSlug}-${timestamp}${imageFormat.extension}`;
       const storageRef = ref(storage, storagePath);
       
-      await uploadBytesResumable(storageRef, compressedFile);
+      await uploadBytesResumable(storageRef, compressedFile, { contentType: imageFormat.contentType });
       const downloadUrl = await getDownloadURL(storageRef);
       if (sessionId !== editorSessionRef.current) {
         await deleteStoragePaths([storagePath]);
@@ -474,6 +492,7 @@ export default function BlogManager({
       // Aggiorna form data
       setFormData(prev => ({ ...prev, coverImage: downloadUrl }));
       setCoverImagePath(storagePath);
+      setCoverImageType(imageFormat.contentType);
       
       toast({
         title: "Immagine caricata",
@@ -766,6 +785,9 @@ export default function BlogManager({
         seoContent: buildSeoContent(sanitizedContent),
         updatedAt: Timestamp.now()
       };
+      if (formData.coverImage?.trim()) {
+        postData.coverImageType = coverImageType || deleteField();
+      }
 
       const targetId = editingPost?.id || doc(collection(db, 'blogPosts')).id;
       const oldContentPath = editingPost
@@ -787,6 +809,7 @@ export default function BlogManager({
       if (editingPost?.coverImage && !formData.coverImage.trim()) {
         postData.coverImage = deleteField();
         postData.coverImageAlt = deleteField();
+        postData.coverImageType = deleteField();
         postData.coverImagePath = deleteField();
         postData.coverImagePosition = deleteField();
         postData.coverImageMobilePosition = deleteField();
@@ -1138,10 +1161,11 @@ export default function BlogManager({
             </DialogHeader>
 
             <Tabs defaultValue="content" className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
+              <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="content">Contenuto</TabsTrigger>
                 <TabsTrigger value="seo">SEO</TabsTrigger>
                 <TabsTrigger value="preview">Anteprima</TabsTrigger>
+                <TabsTrigger value="social">Social</TabsTrigger>
               </TabsList>
 
               <TabsContent value="content" className="space-y-4 py-4">
@@ -1339,7 +1363,7 @@ export default function BlogManager({
                         <Input
                           id="cover-upload"
                           type="file"
-                          accept="image/*"
+                          accept="image/jpeg,image/png,image/webp"
                           onChange={handleCoverImageUpload}
                           className="hidden"
                         />
@@ -1349,6 +1373,7 @@ export default function BlogManager({
                             const nextUrl = e.target.value;
                             const originalPath = (editingPost as any)?.coverImagePath || '';
                             setCoverImagePath(nextUrl === editingPost?.coverImage ? originalPath : '');
+                            setCoverImageType('');
                             setFormData(prev => ({ ...prev, coverImage: nextUrl }));
                           }}
                           placeholder="oppure incolla URL"
@@ -1482,6 +1507,16 @@ export default function BlogManager({
                     )}
                   </div>
                 </div>
+              </TabsContent>
+
+              <TabsContent value="social" className="py-4">
+                <SocialCardPreview
+                  image={socialImage}
+                  title={formData.metaTitle || `${formData.title} | Blog Image Studio`}
+                  description={formData.metaDescription || formData.excerpt || formData.title}
+                  url={`imagestudiofotografico.com/blog/${formData.slug || 'slug'}`}
+                  testId="blog-social-preview"
+                />
               </TabsContent>
             </Tabs>
 

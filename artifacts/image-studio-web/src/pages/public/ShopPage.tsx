@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Check, Gift, ShoppingBag } from 'lucide-react';
+import { ArrowLeft, Check, Gift, Printer, ShoppingBag } from 'lucide-react';
 import { SHOP_FAQS, SHOP_PATH, SHOP_SEO, SHOP_STEPS, shopCategoryPath, shopCategorySeo } from '@shared/shop-landing-content';
 import { SHOP_TERMS_PATH } from '@shared/shop-legal';
 import {
@@ -14,9 +14,11 @@ import { isShopShippingByWeight, shopFreeShippingProgress, shopShippingPriceRang
 import { getWhatsAppLink } from '@shared/phone-utils';
 import { useStudio } from '@/context/StudioContext';
 import { useSEO } from '@/hooks/useSEO';
+import { shopCategorySocialImage } from '@shared/social-metadata';
 import { GiftCardAmbient } from '@/components/gift-cards/GiftCardArt';
 import { giftCardThemeVars } from '@/components/gift-cards/giftCardThemes';
 import { shopApi } from '@/features/shop/shop-api';
+import { usePrintShopAvailable } from '@/hooks/usePrintShopAvailable';
 import {
   ADDED_FEEDBACK_MS,
   addOutcome,
@@ -32,6 +34,7 @@ import {
   freeShippingMessage,
 } from '@/features/shop/shop-storefront';
 import { useShopCart } from '@/features/shop/useShopCart';
+import { useShopCartStatus } from '@/features/shop/useShopCartStatus';
 import '@/components/gift-cards/gift-cards.css';
 import '@/features/shop/shop-storefront.css';
 
@@ -76,7 +79,9 @@ export default function ShopPage({ categoryValue }: { categoryValue?: string } =
 
   const catalogQuery = useQuery({ queryKey: ['shop-catalog'], queryFn: shopApi.getCatalog, staleTime: 10_000 });
   const catalog = catalogQuery.data;
+  const printShopAvailable = usePrintShopAvailable();
   const { cart, count: cartCount, add } = useShopCart();
+  const cartStatus = useShopCartStatus();
   const [flash, setFlash] = useState<Flash | null>(null);
 
   // Il messaggio "aggiunto" sparisce da solo.
@@ -101,11 +106,21 @@ export default function ShopPage({ categoryValue }: { categoryValue?: string } =
   const pagePath = categoryValue ? shopCategoryPath(categoryValue) : SHOP_PATH;
   const categorySeo = currentCategory ? shopCategorySeo(currentCategory.nome) : null;
   const categoryMissing = Boolean(categoryValue && catalog && !currentCategory);
+  const categoryImage = categoryValue
+    ? shopCategorySocialImage(pagePath, sections.flatMap(section => section.products))
+    : undefined;
 
   useSEO({
     title: categorySeo?.title ?? SHOP_SEO.title,
     description: categorySeo?.description ?? SHOP_SEO.description,
     canonical: pagePath,
+    pending: Boolean(categoryValue && !catalog),
+    ogImage: categoryImage?.url,
+    ogImageAlt: categoryImage?.alt,
+    ogImageSource: categoryImage?.source,
+    ogImageWidth: categoryImage?.width,
+    ogImageHeight: categoryImage?.height,
+    ogImageType: categoryImage?.type,
     noindex: Boolean(catalog && (!catalog.enabled || categoryMissing)),
   });
 
@@ -181,10 +196,10 @@ export default function ShopPage({ categoryValue }: { categoryValue?: string } =
         ) : null}
 
         <section id="prodotti" className="gcx-block" aria-labelledby="gcx-shop-products-t">
-          <h2 id="gcx-shop-products-t" className="gcx-h2">I nostri prodotti</h2>
+          <h2 id="gcx-shop-products-t" className="gcx-h2">I nostri regali personalizzati</h2>
           <p className="gcx-sub">{shippingLine(catalog.shipping)}</p>
           <FreeShippingBanner shipping={catalog.shipping} spentCents={summary.subtotalCents} />
-          {!categoryValue && sections.length > 1 ? <ShopCategoryNav sections={sections} label="Categorie dello shop" /> : null}
+          {!categoryValue && sections.length > 0 ? <ShopCategoryNav sections={sections} label="Categorie dello shop" /> : null}
           {sections.map(section => (
             <div key={section.category.value}>
               {!categoryValue && sections.length > 1 ? (
@@ -241,9 +256,9 @@ export default function ShopPage({ categoryValue }: { categoryValue?: string } =
 
         <aside className="gcx-final">
           <p className="gcx-sub gcx-center-text"><Link href={MY_ORDERS_PATH} className="underline">Hai già ordinato? Vedi i tuoi ordini</Link></p>
-          <h2 className="gcx-h2 gcx-h2-center">Vuoi regalare un servizio?</h2>
-          <p className="gcx-sub gcx-center-text">Shooting, stampe e sconti da usare in studio: scegli una gift card e consegnala quando vuoi.</p>
-          <div className="gcx-cta-row"><Link href="/regala" className="gcx-btn-gold">Vedi le gift card</Link></div>
+          <h2 className="gcx-h2 gcx-h2-center">Vuoi regalare un servizio o un’esperienza?</h2>
+          <p className="gcx-sub gcx-center-text">Con le gift card puoi regalare servizi fotografici, stampe o altre proposte Image Studio. Scegli quella che preferisci e inviala subito o programma la consegna.</p>
+          <div className="gcx-cta-row"><Link href="/regala" className="gcx-btn-gold">Scopri le gift card</Link></div>
         </aside>
       </>
     );
@@ -265,10 +280,18 @@ export default function ShopPage({ categoryValue }: { categoryValue?: string } =
         </a>
       ) : null}
       <ShopTopBar
-        cartCount={catalog ? summary.count : cartCount}
-        showCart={Boolean(catalog?.enabled && catalog.orderingOpen)}
+        cartCount={cartStatus.count || (catalog ? summary.count : cartCount)}
+        showCart={Boolean(cartStatus.count || cartStatus.hasDraft || (catalog?.enabled && catalog.orderingOpen))}
         showOrders={Boolean(catalog?.enabled)}
+        showPrintShop={printShopAvailable}
       />
+      {cartStatus.hasDraft ? (
+        <div className="mx-auto my-4 max-w-5xl px-4">
+          <Link href={ORDER_PATH} className="block rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm font-semibold text-green-950">
+            Hai un ordine da completare. I tuoi articoli e le foto già caricate sono nella bozza: riprendi il carrello →
+          </Link>
+        </div>
+      ) : null}
       <div className="gcx-scene-inner gcx-shop">
         {categoryValue ? (
           <nav className="gcx-shop-crumbs" aria-label="Percorso">
@@ -287,8 +310,8 @@ export default function ShopPage({ categoryValue }: { categoryValue?: string } =
               <a className="gcx-btn-gold" href={`${pagePath}#prodotti`} onClick={event => {
                 event.preventDefault();
                 document.getElementById('prodotti')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              }}>Scegli il prodotto</a>
-              <Link href="/regala" className="gcx-btn-line">Gift card</Link>
+              }}>Scopri i regali</a>
+              <Link href="/regala" className="gcx-btn-line">Scopri le gift card</Link>
             </div>
           ) : null}
           <ul className="gcx-proof">
@@ -296,6 +319,17 @@ export default function ShopPage({ categoryValue }: { categoryValue?: string } =
             <li>Con le tue foto</li>
           </ul>
         </header>
+        {printShopAvailable && <section className="gcx-print-service" aria-labelledby="gcx-print-service-title">
+          <div className="gcx-print-service-icon" aria-hidden="true"><Printer /></div>
+          <div className="gcx-print-service-copy">
+            <p className="gcx-print-service-eyebrow">Per le foto che hai già</p>
+            <h2 id="gcx-print-service-title">Stampale nel formato che preferisci</h2>
+            <p>
+              Carica i tuoi scatti, scegli formato e finitura e ordinali online. Puoi riceverle a casa o ritirarle ad Aversa.
+            </p>
+          </div>
+          <Link href="/stampa-foto-aversa" className="gcx-print-service-cta">Vedi formati e prezzi</Link>
+        </section>}
         {body}
         <footer className="gcx-foot gcx-foot-l">
           <p>{studioName}{studioAddress ? ` · ${studioAddress}` : ''}</p>
@@ -321,7 +355,7 @@ export default function ShopPage({ categoryValue }: { categoryValue?: string } =
 }
 
 /** Barra in alto: tornare al sito, alle gift card, ai propri ordini e al carrello è sempre a un tocco. */
-export function ShopTopBar({ cartCount, showCart, showOrders }: { cartCount: number; showCart: boolean; showOrders: boolean }) {
+export function ShopTopBar({ cartCount, showCart, showOrders, showPrintShop = true }: { cartCount: number; showCart: boolean; showOrders: boolean; showPrintShop?: boolean }) {
   return (
     <nav className="gcx-shop-bar" aria-label="Navigazione dello shop">
       <div className="gcx-shop-bar-in">
@@ -331,6 +365,7 @@ export function ShopTopBar({ cartCount, showCart, showOrders }: { cartCount: num
         </Link>
         <div className="gcx-shop-bar-actions">
           <Link href="/regala" className="gcx-shop-bar-link gcx-shop-bar-link-optional">Gift card</Link>
+          {showPrintShop ? <Link href="/stampa-foto-aversa" className="gcx-shop-bar-link">Stampe fotografiche</Link> : null}
           {showOrders ? <Link href={MY_ORDERS_PATH} className="gcx-shop-bar-link gcx-shop-bar-link-optional">I miei ordini</Link> : null}
           {showCart ? (
             <Link

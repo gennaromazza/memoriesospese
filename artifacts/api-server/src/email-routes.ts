@@ -1578,6 +1578,7 @@ export function createBookingConfirmedEmailHTML(
   studioInfo?: { name: string; email: string; phone: string; address: string },
   calendarLink?: string,
   products?: ProductWithBundle[],
+  managementLink?: string,
 ): string {
   const studio = studioInfo || {
     name: "Image Studio Fotografico",
@@ -1610,6 +1611,22 @@ export function createBookingConfirmedEmailHTML(
         </div>
 
         ${productsHtml}
+
+        ${managementLink ? `
+        <div style="text-align: center; margin: 24px 0; padding: 20px; background: #f2f6f3; border-radius: 10px;">
+          <a href="${managementLink.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}"
+             style="display: inline-block; background: #245246; color: white; padding: 14px 22px; text-decoration: none; border-radius: 7px; font-weight: bold;">
+            Visualizza la tua prenotazione
+          </a>
+          <p style="font-size: 13px; color: #555; line-height: 1.5; margin-bottom: 0;">
+            Conserva questa email: il link è personale e non richiede un account o una password.
+            Non condividerlo con altre persone.
+          </p>
+        </div>` : ''}
+        <p style="font-size: 12px; color: #666; line-height: 1.5;">
+          Comunicazione automatica: ti chiediamo di non rispondere direttamente a questa email.
+          Per informazioni o assistenza usa i contatti dello studio riportati in fondo.
+        </p>
 
         <div style="background: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin: 20px 0;">
           <p style="margin: 0; font-size: 14px; color: #155724;">
@@ -1682,6 +1699,7 @@ export function createAdminNotificationEmailHTML(
   notes?: string,
   studioInfo?: { name: string; email: string; phone: string; address: string },
   products?: ProductWithBundle[],
+  confirmed: boolean = false,
 ): string {
   const studio = studioInfo || {
     name: "Image Studio Fotografico",
@@ -1701,7 +1719,7 @@ export function createAdminNotificationEmailHTML(
           <strong>Attenzione Admin!</strong>
         </p>
         <p style="font-size: 16px; margin-bottom: 20px;">
-          È stata ricevuta una <strong>nuova richiesta di prenotazione</strong> per <strong style="color: #8b5a3c;">${campaignName}</strong>.
+          È stata ricevuta una <strong>${confirmed ? "prenotazione già confermata automaticamente" : "nuova richiesta di prenotazione"}</strong> per <strong style="color: #8b5a3c;">${campaignName}</strong>.
         </p>
 
         <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0;">
@@ -1722,9 +1740,10 @@ export function createAdminNotificationEmailHTML(
 
         <div style="background: #d1ecf1; border-left: 4px solid #17a2b8; padding: 15px; margin: 20px 0;">
           <p style="margin: 0; font-size: 14px; color: #0c5460;">
-            <strong>⏰ Azione Richiesta</strong><br>
+            ${confirmed ? `<strong>Prenotazione confermata</strong><br>
+            Lo slot è stato verificato, l’evento è sul calendario e il cliente ha ricevuto la conferma. Non serve approvarla.` : `<strong>⏰ Azione Richiesta</strong><br>
             Accedi alla dashboard admin per <strong>approvare o gestire</strong> questa prenotazione. 
-            Il cliente ha ricevuto una email di conferma ricezione e attende la tua approvazione.
+            Il cliente ha ricevuto una email di conferma ricezione e attende la tua approvazione.`}
           </p>
         </div>
 

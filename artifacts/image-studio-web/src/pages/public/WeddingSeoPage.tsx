@@ -8,17 +8,22 @@ import WeddingStoryInline from '@/components/WeddingStoryInline';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import { useSEO } from '@/hooks/useSEO';
+import { weddingSocialImage } from '@shared/social-metadata';
 
 function useStoryMetadata(story: PublicWeddingStory | null, missing: boolean) {
+  const image = weddingSocialImage(story?.title || '', story?.photos || []);
   useSEO({
     title: story?.seoTitle || story?.title || 'Real Wedding | Image Studio',
     description: story?.seoDescription || story?.excerpt || 'Real Wedding raccontato da Image Studio.',
     canonical: story ? `/real-wedding/${story.slug}` : window.location.pathname,
     pending: !story && !missing,
     ogType: 'article',
-    ogImage: story?.photos[0]?.url,
-    ogImageAlt: story ? `Copertina del Real Wedding ${story.title}` : undefined,
-    ogImageSource: 'selected-photo',
+    ogImage: image.url,
+    ogImageAlt: image.alt,
+    ogImageWidth: image.width,
+    ogImageHeight: image.height,
+    ogImageType: image.type,
+    ogImageSource: image.source,
     noindex: missing,
   });
 }

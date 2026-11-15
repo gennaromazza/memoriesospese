@@ -22,6 +22,7 @@ const fetch = jsonFetch<{
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express from 'express';
 import type { AddressInfo } from 'node:net';
+import { Readable } from 'node:stream';
 
 const h = vi.hoisted(() => ({
   state: {} as Record<string, Record<string, any>>,
@@ -30,6 +31,7 @@ const h = vi.hoisted(() => ({
   uploadCalls: [] as string[],
   uploadedBodies: new Map<string, string>(),
   failNames: new Set<string>(),
+  remote: new Map<string, { id: string; name: string; bytes: Buffer }>(),
 }));
 
 function applyPatch(target: any, patch: Record<string, any>) {
@@ -53,13 +55,14 @@ function makeDocRef(col: string, id: string) {
     id,
     get: async () => {
       const d = h.state[col]?.[id];
-      return { exists: !!d, id, data: () => (d ? JSON.parse(JSON.stringify(d)) : undefined) };
+      return { exists: !!d, id, ref: makeDocRef(col, id), data: () => (d ? JSON.parse(JSON.stringify(d)) : undefined) };
     },
     update: async (patch: Record<string, any>) => {
       const d = h.state[col]?.[id];
       if (!d) throw new Error('not found');
       applyPatch(d, resolveTimestamps(patch));
     },
+    collection: (name: string) => makeCollection(`${col}/${id}/${name}`),
     delete: async () => {
       delete h.state[col]?.[id];
     },
@@ -114,8 +117,8 @@ vi.mock('./firebase-admin.js', () => ({
     bucket: () => ({
       name: 'test',
       file: (path: string) => ({
-        getMetadata: async () => [{ contentType: 'image/jpeg', size: '1000' }],
-        createReadStream: () => ({ path } as any),
+        getMetadata: async () => [{ contentType: 'image/jpeg', size: String(Buffer.byteLength(path)) }],
+        createReadStream: () => Readable.from(Buffer.from(path)),
       }),
     }),
   },
@@ -127,6 +130,7 @@ vi.mock('./google-drive.js', () => ({
   findOrCreateLabParentFolder: async () => 'parent-folder',
   createShipmentFolder: async () => ({ folderId: 'ship-folder', webViewLink: 'http://drive/x' }),
   deleteDriveFile: async () => undefined,
+  findDriveFilesInFolder: async () => [],
   updateDriveFileContent: async (fileId: string, _mime: string, body: any) => {
     const chunks: Buffer[] = [];
     for await (const chunk of body) chunks.push(Buffer.from(chunk));
@@ -145,6 +149,21 @@ vi.mock('./google-drive.js', () => ({
     return { fileId: `drive-${fileName}`, webViewLink: undefined, size: 1000 };
   },
 }));
+
+vi.mock('./drive-request.js', async importOriginal => {
+  const original = await importOriginal<typeof import('./drive-request.js')>();
+  const { makeDrivePageHttp, drivePageMetadata } = await import('./test-utils/drive-page-http.js');
+  const http = makeDrivePageHttp({
+    inventory: async () => [...h.remote.values()].map(file => drivePageMetadata(file.id, file.name, file.bytes)),
+    commit: async (_folder, metadata, bytes) => {
+      h.uploadCalls.push(metadata.name);
+      await new Promise(resolve => setTimeout(resolve, h.uploadDelayMs));
+      if (h.failNames.has(metadata.name)) throw new Error(`upload fallito ${metadata.name}`);
+      h.remote.set(metadata.id, { id: metadata.id, name: metadata.name, bytes });
+    },
+  });
+  return { ...original, boundedDriveRequest: http.request, driveSessionRequest: http.sessionRequest };
+});
 
 vi.mock('./email-routes.js', () => ({
   authenticateFirebase: (req: any, _res: any, next: any) => {
@@ -238,6 +257,7 @@ describe('POST /api/photobooks/:id/lab-shipment (trasferimento background)', () 
     h.uploadCalls = [];
     h.uploadedBodies = new Map();
     h.failNames = new Set();
+    h.remote.clear();
     seedBook();
     if (!server) await startServer();
   });
@@ -262,6 +282,84 @@ describe('POST /api/photobooks/:id/lab-shipment (trasferimento background)', () 
     const names = h.state.labShipments[shipmentId].files.map((f: any) => f.name);
     expect(names.length).toBe(N + 1);
     expect(new Set(names).size).toBe(N + 1); // pagine + un solo documento istruzioni
+  });
+
+  it('richiede recupero esplicito dopo arresto e adotta le copie Drive non ancora registrate', async () => {
+    const first = await postShipment();
+    const id = first.json.shipment.id;
+    await waitTransferDone(id);
+    const shipment = h.state.labShipments[id];
+    shipment.files = shipment.files.filter((file: any) => !file.name.startsWith('pagina-040-'));
+    shipment.pageTransfer = {
+      id: 'killed-worker', status: 'running',
+      heartbeatAt: { _seconds: Math.floor((Date.now() - 240_000) / 1000) },
+    };
+    h.uploadCalls = [];
+    expect((await postShipment()).status).toBe(409);
+    expect(h.uploadCalls).toEqual([]);
+    const recovered = await postShipment({ recoverAbandoned: true });
+    expect(recovered.status).toBe(202);
+    await waitTransferDone(id);
+    // The remote copy survived the missing Firestore persistence: adopt it.
+    expect(h.uploadCalls.filter(name => name.startsWith('pagina-'))).toEqual([]);
+    expect(shipment.pageTransfer.status).toBe('completed');
+  }, 15_000);
+
+  it('un recupero richiesto contro un worker vivo non avvia un altro upload', async () => {
+    h.uploadDelayMs = 20;
+    const first = await postShipment();
+    const id = first.json.shipment.id;
+    // Even a stale persisted heartbeat cannot override a locally live worker.
+    h.state.labShipments[id].pageTransfer.heartbeatAt = { _seconds: 1 };
+    const second = await postShipment({ recoverAbandoned: true });
+    expect(second.status).toBe(202);
+    expect(second.json.alreadyRunning).toBe(true);
+    await waitTransferDone(id);
+    expect(h.uploadCalls.filter(name => name.startsWith('pagina-'))).toHaveLength(N);
+  });
+
+  it('crea una spedizione del fotolibro autonomo senza collegare un Job', async () => {
+    delete h.state.photobooks.book1.jobId;
+    delete h.state.photobooks.book1.galleryId;
+
+    const result = await postShipment({ descrizione: 'Album autonomo', labNote: 'Copertina opaca' });
+
+    expect(result.status).toBe(202);
+    expect(result.json.totalPages).toBe(N);
+    const shipment = h.state.labShipments[result.json.shipment.id];
+    expect(shipment.sourceType).toBe('photobook');
+    expect(shipment.jobId).toBeUndefined();
+    expect(shipment.labNote).toBe('Copertina opaca');
+    expect(h.state.photobooks.book1.jobId).toBeUndefined();
+    expect(h.state.photobooks.book1.labShipmentId).toBe(result.json.shipment.id);
+    await waitTransferDone(result.json.shipment.id);
+  });
+  it('l’unico fotolibro autonomo resta nella lista dopo il blocco e il trasferimento', async () => {
+    delete h.state.photobooks.book1.jobId;
+    delete h.state.photobooks.book1.galleryId;
+    h.state.photobooks.book1.approval = { version: 1, note: 'Approvato' };
+    const result = await postShipment({ lockPhotobook: true });
+    expect(result.status).toBe(202);
+    await waitTransferDone(result.json.shipment.id);
+    for (let read = 0; read < 2; read++) {
+      const response = await globalThis.fetch(`${baseUrl}/api/photobooks`);
+      const data = await response.json() as { photobooks: any[] };
+      expect(data.photobooks).toHaveLength(1);
+      expect(data.photobooks[0]).toMatchObject({ id: 'book1', locked: true, approval: { version: 1 }, labShipmentId: result.json.shipment.id });
+      expect(data.photobooks[0].jobId).toBeNull();
+    }
+  });
+  it('non blocca il fotolibro né crea spedizioni con un laboratorio non valido', async () => {
+    const result = await postShipment({ lockPhotobook: true, labId: 'inesistente' });
+    expect(result.status).toBe(400);
+    expect(h.state.photobooks.book1.locked).not.toBe(true);
+    expect(h.state.labShipments).toEqual({});
+  });
+  it('rifiuta pagine prive del file originale prima di preparare la stampa', async () => {
+    delete h.state.photobookPages.p2.storagePath;
+    expect((await postShipment({ lockPhotobook: true })).status).toBe(409);
+    expect(h.state.labShipments).toEqual({});
+    expect(h.state.photobooks.book1.locked).not.toBe(true);
   });
 
   it('un secondo POST durante il run non avvia un secondo trasferimento', async () => {

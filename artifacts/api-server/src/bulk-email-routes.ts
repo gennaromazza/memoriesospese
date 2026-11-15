@@ -10,6 +10,29 @@ import { sendGmailEmail, authenticateFirebase } from "./email-routes.js";
 import { FieldValue } from "firebase-admin/firestore";
 import { DateTime } from "luxon";
 import { nowRomeDate } from "./utils/timezone.js";
+import {
+  getResendMarketingStatus,
+  submitResendBroadcast,
+  validateMarketingSender,
+} from "./resend-marketing.js";
+import {
+  appendBulkEmailFooter,
+  BulkEmailFooterConfigurationError,
+} from "./bulk-email-footer.js";
+import {
+  buildBookingMarketingCandidates,
+  bookingRecipientCandidate,
+  campaignEndDateInRome,
+  countUniqueBookingMarketingEmails,
+  dedupeMarketingRecipients,
+  isBookingCampaignEnded,
+  isEligibleBookingForMarketing,
+  normalizeMarketingEmail,
+  parseMarketingRecipientFilters,
+  prepareMarketingSendAudience,
+  type BulkEmailRecipient,
+  type BulkEmailRecipientCandidate,
+} from "./bulk-email-audience.js";
 
 /**
  * Ottiene la data di oggi in formato YYYY-MM-DD usando Europe/Rome
@@ -22,6 +45,260 @@ function getTodayRome(): string {
 const router = Router();
 
 const ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
+
+async function appendConfiguredStudioFooter(body: string): Promise<string> {
+  const snapshot = await db.collection("settings").doc("studio").get();
+  return appendBulkEmailFooter(body, snapshot.exists ? snapshot.data() ?? {} : {});
+}
+
+interface EndedBookingCampaign {
+  id: string;
+  label: string;
+  endDate: DateTime;
+}
+
+async function loadEndedBookingCampaigns(): Promise<EndedBookingCampaign[]> {
+  const now = DateTime.now().setZone("Europe/Rome");
+  const snapshot = await db.collection("booking_campaigns").get();
+
+  return snapshot.docs
+    .flatMap((doc) => {
+      const data = doc.data();
+      const endDate = campaignEndDateInRome(data.dataFine);
+      if (!endDate || !isBookingCampaignEnded(data.dataFine, now)) return [];
+
+      return [{
+        id: doc.id,
+        label: typeof data.nome === "string" && data.nome.trim()
+          ? data.nome.trim()
+          : `Campagna ${doc.id}`,
+        endDate,
+      }];
+    })
+    .sort((a, b) => b.endDate.toMillis() - a.endDate.toMillis());
+}
+
+async function loadClientDocumentsByIds(clientIds: Iterable<string>): Promise<Map<string, any>> {
+  const uniqueIds = Array.from(new Set(Array.from(clientIds).filter(Boolean)));
+  const documents = new Map<string, any>();
+  const refs = uniqueIds.map((id) => db.collection("clienti").doc(id));
+
+  for (let offset = 0; offset < refs.length; offset += 250) {
+    const batch = await db.getAll(...refs.slice(offset, offset + 250));
+    for (const document of batch) {
+      if (document.exists) documents.set(document.id, document);
+    }
+  }
+
+  return documents;
+}
+
+async function loadBookingsByCampaignIds(
+  campaignIds: string[],
+): Promise<Map<string, Array<{ id: string; data: any }>>> {
+  const bookingsByCampaign = new Map(
+    campaignIds.map((campaignId) => [campaignId, [] as Array<{ id: string; data: any }>]),
+  );
+
+  for (let offset = 0; offset < campaignIds.length; offset += 30) {
+    const batchIds = campaignIds.slice(offset, offset + 30);
+    if (batchIds.length === 0) continue;
+
+    const snapshot = await db.collection("bookings")
+      .where("campaignId", "in", batchIds)
+      .get();
+
+    for (const document of snapshot.docs) {
+      const data = document.data();
+      const campaignBookings = bookingsByCampaign.get(data.campaignId);
+      if (campaignBookings) campaignBookings.push({ id: document.id, data });
+    }
+  }
+
+  return bookingsByCampaign;
+}
+
+function clientDocumentToCandidate(document: any): BulkEmailRecipientCandidate {
+  const data = document.data() || {};
+  return {
+    email: data.email,
+    nome: data.nome,
+    cognome: data.cognome,
+    clientId: document.id,
+  };
+}
+
+async function loadCampaignRecipientCandidates(
+  campaignId: string,
+): Promise<{ candidates: BulkEmailRecipientCandidate[]; unlinkedBookingContacts: number }> {
+  const [campaignDocument, bookingsByCampaign] = await Promise.all([
+    db.collection("booking_campaigns").doc(campaignId).get(),
+    loadBookingsByCampaignIds([campaignId]),
+  ]);
+
+  if (!campaignDocument.exists || !isBookingCampaignEnded(campaignDocument.data()?.dataFine)) {
+    return { candidates: [], unlinkedBookingContacts: 0 };
+  }
+
+  const bookings = (bookingsByCampaign.get(campaignId) || []).filter(({ data }) =>
+    isEligibleBookingForMarketing(data.stato) && normalizeMarketingEmail(data.cliente?.email),
+  );
+  const explicitClientIds = bookings
+    .map(({ data }) => typeof data.clienteId === "string" ? data.clienteId : "")
+    .filter(Boolean);
+  const clientDocuments = await loadClientDocumentsByIds(explicitClientIds);
+  const clientByBookingId = new Map<string, any>();
+
+  const bookingIds = bookings.map(({ id }) => id);
+  for (let offset = 0; offset < bookingIds.length; offset += 30) {
+    const batchBookingIds = bookingIds.slice(offset, offset + 30);
+    const linkedClients = await db.collection("clienti")
+      .where("sourceRefs.bookingIds", "array-contains-any", batchBookingIds)
+      .get();
+
+    for (const document of linkedClients.docs) {
+      const linkedBookingIds = document.data()?.sourceRefs?.bookingIds;
+      if (!Array.isArray(linkedBookingIds)) continue;
+      for (const bookingId of linkedBookingIds) {
+        if (batchBookingIds.includes(bookingId) && !clientByBookingId.has(bookingId)) {
+          clientByBookingId.set(bookingId, document);
+        }
+      }
+    }
+  }
+
+  const unresolvedEmails = Array.from(new Set(
+    bookings
+      .filter(({ id, data }) => !clientDocuments.has(data.clienteId) && !clientByBookingId.has(id))
+      .map(({ data }) => normalizeMarketingEmail(data.cliente?.email))
+      .filter((email): email is string => !!email),
+  ));
+  const clientByEmail = new Map<string, any>();
+
+  for (let offset = 0; offset < unresolvedEmails.length; offset += 30) {
+    const emailBatch = unresolvedEmails.slice(offset, offset + 30);
+    if (emailBatch.length === 0) continue;
+    const matchingClients = await db.collection("clienti")
+      .where("email", "in", emailBatch)
+      .get();
+    for (const document of matchingClients.docs) {
+      const email = normalizeMarketingEmail(document.data()?.email);
+      if (email && !clientByEmail.has(email)) clientByEmail.set(email, document);
+    }
+  }
+
+  const bookingSources = bookings.map((booking) => {
+    const email = normalizeMarketingEmail(booking.data.cliente?.email)!;
+    const linkedDocument =
+      clientDocuments.get(booking.data.clienteId) ||
+      clientByBookingId.get(booking.id) ||
+      clientByEmail.get(email);
+
+    return {
+      status: booking.data.stato,
+      contact: booking.data.cliente || {},
+      linkedClient: linkedDocument?.exists ? clientDocumentToCandidate(linkedDocument) : undefined,
+    };
+  });
+
+  return buildBookingMarketingCandidates(bookingSources);
+}
+
+async function getRecipientsForFilters(filters: string[]): Promise<{
+  recipients: BulkEmailRecipient[];
+  duplicatesRemoved: number;
+  unlinkedBookingContacts: number;
+}> {
+  const candidates: BulkEmailRecipientCandidate[] = [];
+  let unlinkedBookingContacts = 0;
+  const selectedCampaignIds: string[] = [];
+  const selectedFilters = Array.from(new Set(filters.map((filter) => filter.trim()).filter(Boolean)));
+
+  for (const filter of selectedFilters) {
+    if (filter === "all") {
+      const snapshot = await db.collection("clienti").get();
+      for (const document of snapshot.docs) candidates.push(clientDocumentToCandidate(document));
+      continue;
+    }
+
+    if (filter === "preventivi_non_firmati") {
+      const jobsSnapshot = await db.collection("jobs")
+        .where("quoteId", "!=", null)
+        .limit(500)
+        .get();
+      const clientIds = new Set<string>();
+
+      for (const jobDocument of jobsSnapshot.docs) {
+        const jobData = jobDocument.data();
+        const isCompleted = jobData.status === "completed" || jobData.status === "cancelled";
+        const hasSignedQuote = jobData.quoteSignedAt ||
+          jobData.quoteStatus === "signed" ||
+          jobData.quoteStatus === "accepted";
+        if (!isCompleted && !hasSignedQuote && !jobData.contractSignedAt && jobData.clienteId) {
+          clientIds.add(jobData.clienteId);
+        }
+      }
+
+      const clients = await loadClientDocumentsByIds(clientIds);
+      for (const document of clients.values()) candidates.push(clientDocumentToCandidate(document));
+      continue;
+    }
+
+    if (filter.startsWith("tipo_")) {
+      const jobType = filter.slice("tipo_".length);
+      if (!jobType) continue;
+      const jobsSnapshot = await db.collection("jobs")
+        .where("jobType", "==", jobType)
+        .limit(500)
+        .get();
+      const clientIds = new Set<string>();
+
+      for (const jobDocument of jobsSnapshot.docs) {
+        const jobData = jobDocument.data();
+        const linkedIds: string[] = Array.isArray(jobData.clientiIds) ? jobData.clientiIds : [];
+        if (linkedIds.length === 0 && typeof jobData.clienteId === "string") {
+          linkedIds.push(jobData.clienteId);
+        }
+        for (const id of linkedIds) if (typeof id === "string" && id) clientIds.add(id);
+      }
+
+      const clients = await loadClientDocumentsByIds(clientIds);
+      for (const document of clients.values()) candidates.push(clientDocumentToCandidate(document));
+      continue;
+    }
+
+    if (filter === "anno_corrente" || /^anno_\d{4}$/.test(filter)) {
+      const year = filter === "anno_corrente"
+        ? DateTime.now().setZone("Europe/Rome").year
+        : Number(filter.slice("anno_".length));
+      const snapshot = await db.collection("clienti").where("anno", "==", year).get();
+      for (const document of snapshot.docs) candidates.push(clientDocumentToCandidate(document));
+      continue;
+    }
+
+    if (filter.startsWith("campagna_")) {
+      const campaignId = filter.slice("campagna_".length).trim();
+      if (campaignId) selectedCampaignIds.push(campaignId);
+    }
+  }
+
+  for (let offset = 0; offset < selectedCampaignIds.length; offset += 5) {
+    const campaignBatch = selectedCampaignIds.slice(offset, offset + 5);
+    const campaignResults = await Promise.all(
+      campaignBatch.map((campaignId) => loadCampaignRecipientCandidates(campaignId)),
+    );
+    for (const campaignResult of campaignResults) {
+      candidates.push(...campaignResult.candidates);
+      unlinkedBookingContacts += campaignResult.unlinkedBookingContacts;
+    }
+  }
+
+  const deduped = dedupeMarketingRecipients(candidates);
+  return {
+    ...deduped,
+    unlinkedBookingContacts,
+  };
+}
 
 function requireAdmin(req: any, res: any, next: any) {
   if (!ADMIN_EMAILS.includes(req.user?.email || '')) {
@@ -41,13 +318,6 @@ const MAX_RETRY_ATTEMPTS = 4; // Tentativi massimi per email (incluso primo)
 const BASE_BACKOFF_MS = 2000; // Backoff base per retry (raddoppia ogni tentativo)
 
 // --- INTERFACCE ---
-interface BulkEmailRecipient {
-  email: string;
-  nome: string;
-  cognome: string;
-  clientId?: string;
-}
-
 interface BulkEmailJob {
   id: string;
   subject: string;
@@ -69,15 +339,24 @@ interface BulkEmailJob {
   retryOf?: string;
   batchIndex?: number;
   totalBatches?: number;
+  provider?: "gmail" | "resend";
+  senderEmail?: string;
+  providerTopicId?: string;
+  providerSegmentId?: string;
+  providerBroadcastId?: string;
+  providerStatus?: string;
+  preparedCount?: number;
+  excludedCount?: number;
+  progressStage?: string;
 }
 
 // --- VARIABILI GLOBALI ---
 let dispatcherRunning = false;
 let dispatcherInterval: NodeJS.Timeout | null = null;
 
-// ============================================================================
+// ---------------------------------------------------------------------------
 // CORE LOGIC: CLEANUP & DISPATCHER
-// ============================================================================
+// ---------------------------------------------------------------------------
 
 /**
  * Cleanup Jobs Stale
@@ -217,9 +496,9 @@ export function stopBulkEmailDispatcher() {
   }
 }
 
-// ============================================================================
+// ---------------------------------------------------------------------------
 // CORE LOGIC: SENDING ENGINE (Optimized)
-// ============================================================================
+// ---------------------------------------------------------------------------
 
 async function sendBulkEmails(jobId: string, quotaDate: string) {
   const jobRef = db.collection("bulkEmailJobs").doc(jobId);
@@ -236,7 +515,54 @@ async function sendBulkEmails(jobId: string, quotaDate: string) {
 
     const recipients = jobData?.recipients || [];
     const subject = jobData?.subject;
-    const body = jobData?.body;
+    const storedBody = jobData?.body;
+    if (typeof storedBody !== "string") {
+      throw new Error("Il contenuto dell’email non è valido.");
+    }
+    const body = await appendConfiguredStudioFooter(storedBody);
+    if (body !== storedBody) {
+      await jobRef.update({ body, lastHeartbeatAt: nowRomeDate() });
+    }
+
+    if (jobData?.provider === "resend") {
+      const result = await submitResendBroadcast({
+        jobId,
+        senderEmail: jobData.senderEmail,
+        subject,
+        body,
+        recipients,
+        existing: {
+          providerTopicId: jobData.providerTopicId,
+          providerSegmentId: jobData.providerSegmentId,
+          providerBroadcastId: jobData.providerBroadcastId,
+          providerStatus: jobData.providerStatus,
+          preparedCount: jobData.preparedCount,
+          excludedCount: jobData.excludedCount,
+          progressStage: jobData.progressStage,
+        },
+        onProgress: async (progress) => {
+          await jobRef.update({
+            ...progress,
+            lastHeartbeatAt: nowRomeDate(),
+          });
+        },
+      });
+
+      await jobRef.update({
+        status: "completed",
+        provider: "resend",
+        providerBroadcastId: result.broadcastId,
+        providerStatus: result.providerStatus,
+        progressStage: "Campagna affidata a Resend",
+        preparedCount: result.eligibleCount,
+        excludedCount: result.excludedCount,
+        sentCount: result.eligibleCount,
+        failedCount: 0,
+        completedAt: nowRomeDate(),
+        lastHeartbeatAt: nowRomeDate(),
+      });
+      return;
+    }
 
     // --- LOOP SEQUENZIALE: 1 EMAIL/SECONDO ---
     // Niente chunking, niente parallelismo - invio strettamente sequenziale
@@ -480,9 +806,9 @@ async function releaseQuotaAtomic(
   }
 }
 
-// ============================================================================
+// ---------------------------------------------------------------------------
 // API ROUTES
-// ============================================================================
+// ---------------------------------------------------------------------------
 
 // GET Quota giornaliera
 router.get("/quota", authenticateFirebase, requireAdmin, async (req: any, res: Response) => {
@@ -508,6 +834,174 @@ router.get("/quota", authenticateFirebase, requireAdmin, async (req: any, res: R
     });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.get("/resend-status", authenticateFirebase, requireAdmin, async (_req: any, res: Response) => {
+  try {
+    const status = await getResendMarketingStatus();
+    res.json({ success: true, ...status });
+  } catch {
+    res.status(503).json({
+      success: false,
+      connected: false,
+      error: "Resend non è disponibile. Controlla il collegamento API.",
+    });
+  }
+});
+
+router.post("/send-resend", authenticateFirebase, requireAdmin, async (req: any, res: Response): Promise<HttpHandlerResult> => {
+  try {
+    const { subject, body, recipients, senderId, senderEmail, confirmMarketingConsent, audienceFilters } = req.body;
+
+    if (
+      typeof subject !== "string" ||
+      !subject.trim() ||
+      typeof body !== "string" ||
+      !body.trim() ||
+      !Array.isArray(recipients) ||
+      recipients.length === 0
+    ) {
+      return res.status(400).json({ success: false, error: "Oggetto, messaggio e destinatari sono obbligatori." });
+    }
+    if (subject.length > 200 || body.length > 250_000) {
+      return res.status(400).json({
+        success: false,
+        error: "L'oggetto o il messaggio supera la dimensione consentita.",
+      });
+    }
+    if (recipients.length > 5000) {
+      return res.status(400).json({ success: false, error: "La campagna supera il limite di 5.000 destinatari." });
+    }
+    if (confirmMarketingConsent !== true) {
+      return res.status(400).json({
+        success: false,
+        error: "Conferma che i destinatari selezionati hanno dato il consenso alle comunicazioni promozionali.",
+      });
+    }
+
+    const selectedAudienceFilters = parseMarketingRecipientFilters(audienceFilters);
+    if (selectedAudienceFilters.length === 0 ||
+        (selectedAudienceFilters.includes("all") && selectedAudienceFilters.length > 1)) {
+      return res.status(400).json({
+        success: false,
+        error: "Seleziona il pubblico prima di inviare. Tutti i clienti non può essere combinato con gruppi specifici.",
+      });
+    }
+    const allowedAudience = await getRecipientsForFilters(selectedAudienceFilters);
+    const allowedEmails = new Set(allowedAudience.recipients.map((recipient) => recipient.email));
+    if (recipients.some((recipient: any) => !allowedEmails.has(normalizeMarketingEmail(recipient?.email) || ""))) {
+      return res.status(400).json({
+        success: false,
+        error: "La lista non corrisponde ai gruppi selezionati. Ricarica i destinatari e conferma il nuovo conteggio.",
+      });
+    }
+
+    const resendStatus = await getResendMarketingStatus();
+    const senderError = validateMarketingSender(
+      typeof senderEmail === "string" ? senderEmail : "",
+      resendStatus.verifiedSendingDomains.map((domain) => ({
+        ...domain,
+        sendingEnabled: true,
+      })),
+    );
+    if (senderError) {
+      return res.status(400).json({ success: false, error: senderError });
+    }
+
+    const outgoingBody = await appendConfiguredStudioFooter(body);
+    const requestedCandidates: BulkEmailRecipientCandidate[] = [];
+    for (const recipient of recipients) {
+      const email = normalizeMarketingEmail(recipient?.email);
+      const clientId = typeof recipient?.clientId === "string"
+        ? recipient.clientId.trim()
+        : "";
+      if (!email) {
+        return res.status(400).json({
+          success: false,
+          error: "La lista contiene un contatto non valido. Ricarica i destinatari e riprova.",
+        });
+      }
+      requestedCandidates.push({
+        email,
+        nome: recipient?.nome,
+        cognome: recipient?.cognome,
+        ...(clientId ? { clientId } : {}),
+      });
+    }
+
+    const uniqueRequestedRecipients = dedupeMarketingRecipients(requestedCandidates).recipients;
+    const clientDocuments = await loadClientDocumentsByIds(
+      uniqueRequestedRecipients.flatMap((recipient) =>
+        typeof recipient.clientId === "string" ? [recipient.clientId] : [],
+      ),
+    );
+    let recipientDataChanged = false;
+    const hydratedCandidates = uniqueRequestedRecipients.map((recipient) => {
+      const clientId = typeof recipient.clientId === "string" ? recipient.clientId : "";
+      const clientDocument = clientDocuments.get(clientId);
+      if (!clientDocument?.exists) {
+        // Contatti presi dallo snapshot di una prenotazione possono non avere
+        // più una scheda cliente: email e nome dello snapshot restano validi.
+        return bookingRecipientCandidate(recipient);
+      }
+
+      const linkedClient = clientDocumentToCandidate(clientDocument);
+      const storedEmail = normalizeMarketingEmail(linkedClient.email);
+      const requestedEmail = normalizeMarketingEmail(recipient.email);
+      if (storedEmail && requestedEmail && storedEmail !== requestedEmail) {
+        recipientDataChanged = true;
+      }
+      return bookingRecipientCandidate(recipient, linkedClient);
+    });
+
+    if (recipientDataChanged) {
+      return res.status(400).json({
+        success: false,
+        error: "I dati dei destinatari sono cambiati. Ricarica la lista prima di inviare.",
+      });
+    }
+
+    const marketingAudience = prepareMarketingSendAudience(hydratedCandidates);
+    const normalizedRecipients = marketingAudience.recipients;
+    const today = getTodayRome();
+    const jobRef = db.collection("bulkEmailJobs").doc();
+    const job: BulkEmailJob = {
+      id: jobRef.id,
+      subject: subject.trim(),
+      body: outgoingBody,
+      recipients: normalizedRecipients,
+      totalRecipients: marketingAudience.totalRecipients,
+      quotaReserved: 0,
+      quotaConsumed: 0,
+      quotaDate: today,
+      sentCount: 0,
+      failedCount: 0,
+      status: "queued",
+      errors: [],
+      createdAt: nowRomeDate(),
+      lastHeartbeatAt: nowRomeDate(),
+      createdBy: senderId || req.user?.email || "admin",
+      provider: "resend",
+      senderEmail: senderEmail.trim().toLowerCase(),
+      providerStatus: "preparing",
+      preparedCount: 0,
+      excludedCount: 0,
+      progressStage: "In attesa di Resend",
+    };
+
+    await jobRef.set(job);
+    res.json({
+      success: true,
+      jobId: jobRef.id,
+      jobs: [{ id: jobRef.id, status: job.status, recipients: marketingAudience.totalRecipients }],
+      message: `Campagna Resend in coda per ${marketingAudience.totalRecipients} destinatari.`,
+    });
+  } catch (error: any) {
+    res.status(error instanceof BulkEmailFooterConfigurationError ? 400 : 500).json({
+      success: false,
+      error: typeof error?.message === "string" ? error.message : "Impossibile preparare la campagna Resend.",
+    });
   }
 });
 
@@ -537,9 +1031,9 @@ router.post("/quota/reset", authenticateFirebase, requireAdmin, async (req: any,
   }
 });
 
-// ============================================================================
+// ---------------------------------------------------------------------------
 // TEMPLATE EMAIL ROUTES
-// ============================================================================
+// ---------------------------------------------------------------------------
 
 // GET Lista template email
 router.get("/templates", authenticateFirebase, requireAdmin, async (req: any, res: Response) => {
@@ -620,9 +1114,9 @@ router.delete("/templates/:id", authenticateFirebase, requireAdmin, async (req: 
   }
 });
 
-// ============================================================================
+// ---------------------------------------------------------------------------
 // FILTER ROUTES
-// ============================================================================
+// ---------------------------------------------------------------------------
 
 // GET Filtri disponibili (anni dinamici + tipi lavoro dai jobs)
 router.get("/filters", authenticateFirebase, requireAdmin, async (req: any, res: Response) => {
@@ -691,10 +1185,29 @@ router.get("/filters", authenticateFirebase, requireAdmin, async (req: any, res:
         label: jobTypeLabels[jobType] || jobType.charAt(0).toUpperCase() + jobType.slice(1)
       }));
 
+    const endedCampaigns = await loadEndedBookingCampaigns();
+    const campaignBookings = await loadBookingsByCampaignIds(endedCampaigns.map(campaign => campaign.id));
+    const bookingCampaignFilters = endedCampaigns.map((campaign) => {
+      const recipientsCount = countUniqueBookingMarketingEmails(
+        (campaignBookings.get(campaign.id) || []).map(({ data }) => ({
+          status: data.stato,
+          email: data.cliente?.email,
+        })),
+      );
+
+      return {
+        value: `campagna_${campaign.id}`,
+        label: campaign.label,
+        endDate: campaign.endDate.toISODate(),
+        recipientsCount,
+      };
+    });
+
     res.json({ 
       success: true, 
       filters: yearFilters,
-      jobTypeFilters
+      jobTypeFilters,
+      bookingCampaignFilters,
     });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -704,6 +1217,23 @@ router.get("/filters", authenticateFirebase, requireAdmin, async (req: any, res:
 router.get("/recipients", authenticateFirebase, requireAdmin, async (req: any, res: Response): Promise<HttpHandlerResult> => {
   try {
     const { filter } = req.query;
+
+    // Nuovo formato multi-filtro: unisce le fonti e deduplica le email in modo case-insensitive.
+    // La query storica `filter=...` resta supportata per i client precedenti.
+    if (req.query.filters !== undefined) {
+      const filters = parseMarketingRecipientFilters(req.query.filters);
+      const result = await getRecipientsForFilters(filters);
+      res.json({
+        success: true,
+        recipients: result.recipients,
+        total: result.recipients.length,
+        uniqueTotal: result.recipients.length,
+        duplicatesRemoved: result.duplicatesRemoved,
+        unlinkedBookingContacts: result.unlinkedBookingContacts,
+      });
+      return;
+    }
+
     const recipients: BulkEmailRecipient[] = [];
     const emailsAdded = new Set<string>();
 
@@ -860,9 +1390,10 @@ router.post("/send", authenticateFirebase, requireAdmin, async (req: any, res: R
   try {
     const { subject, body, recipients, senderId } = req.body;
 
-    if (!subject || !body || !recipients || recipients.length === 0) {
+    if (!subject || typeof body !== "string" || !body.trim() || !recipients || recipients.length === 0) {
       return res.status(400).json({ success: false, error: "Dati mancanti" });
     }
+    const outgoingBody = await appendConfiguredStudioFooter(body);
 
     const today = getTodayRome();
     const quotaRef = db.collection("emailQuota").doc(today);
@@ -897,7 +1428,7 @@ router.post("/send", authenticateFirebase, requireAdmin, async (req: any, res: R
       const job: BulkEmailJob = {
         id: jobRef.id,
         subject,
-        body,
+        body: outgoingBody,
         recipients,
         totalRecipients: recipients.length,
         quotaReserved: recipients.length,
@@ -918,6 +1449,10 @@ router.post("/send", authenticateFirebase, requireAdmin, async (req: any, res: R
 
     res.json({ success: true, jobId: result.jobId, message: "Job in coda" });
   } catch (error: any) {
+    if (error instanceof BulkEmailFooterConfigurationError) {
+      res.status(400).json({ success: false, error: error.message });
+      return;
+    }
     console.error("❌ Errore POST /send:", error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -928,9 +1463,10 @@ router.post("/send-split", authenticateFirebase, requireAdmin, async (req: any, 
   try {
     const { subject, body, recipients, senderId } = req.body;
 
-    if (!subject || !body || !recipients || recipients.length === 0) {
+    if (!subject || typeof body !== "string" || !body.trim() || !recipients || recipients.length === 0) {
       return res.status(400).json({ success: false, error: "Dati mancanti" });
     }
+    const outgoingBody = await appendConfiguredStudioFooter(body);
 
     const today = getTodayRome();
     const quotaRef = db.collection("emailQuota").doc(today);
@@ -968,7 +1504,7 @@ router.post("/send-split", authenticateFirebase, requireAdmin, async (req: any, 
       const job: BulkEmailJob = {
         id: jobRef.id,
         subject,
-        body,
+        body: outgoingBody,
         recipients: chunk,
         totalRecipients: chunk.length,
         quotaReserved: isFirst ? chunk.length : 0,
@@ -1008,6 +1544,10 @@ router.post("/send-split", authenticateFirebase, requireAdmin, async (req: any, 
         : "Job in coda"
     });
   } catch (error: any) {
+    if (error instanceof BulkEmailFooterConfigurationError) {
+      res.status(400).json({ success: false, error: error.message });
+      return;
+    }
     console.error("❌ Errore POST /send-split:", error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -1118,6 +1658,43 @@ router.post("/jobs/:jobId/retry-failed", authenticateFirebase, requireAdmin, asy
     }
     
     const originalJob = originalJobDoc.data();
+    if (originalJob?.provider === "resend") {
+      if (originalJob.status !== "failed") {
+        return res.status(409).json({
+          success: false,
+          error: "Puoi riprendere una campagna Resend solo dopo un errore.",
+        });
+      }
+
+      const originalJobRef = db.collection("bulkEmailJobs").doc(jobId);
+      await db.runTransaction(async (transaction) => {
+        const currentDoc = await transaction.get(originalJobRef);
+        const currentJob = currentDoc.data();
+        if (!currentDoc.exists || currentJob?.provider !== "resend") {
+          throw new Error("La campagna Resend non è più disponibile.");
+        }
+        if (currentJob.status !== "failed") {
+          throw new Error("La campagna è già stata ripresa o è in esecuzione.");
+        }
+
+        transaction.update(originalJobRef, {
+          status: "queued",
+          failedCount: 0,
+          errors: [],
+          completedAt: FieldValue.delete(),
+          progressStage: "Ripresa sicura della campagna Resend",
+          lastHeartbeatAt: nowRomeDate(),
+        });
+      });
+
+      return res.json({
+        success: true,
+        jobId,
+        recipientsCount: originalJob.totalRecipients || 0,
+        resumed: true,
+        message: "Campagna Resend rimessa in coda; lo stato esistente verrà verificato prima di qualsiasi invio.",
+      });
+    }
     const errors = originalJob?.errors || [];
     
     if (errors.length === 0) {
@@ -1200,9 +1777,9 @@ router.post("/jobs/:jobId/retry-failed", authenticateFirebase, requireAdmin, asy
   }
 });
 
-// ============================================================================
+// ---------------------------------------------------------------------------
 // EMAIL HELPER
-// ============================================================================
+// ---------------------------------------------------------------------------
 
 async function sendSingleEmail(
   recipient: BulkEmailRecipient,

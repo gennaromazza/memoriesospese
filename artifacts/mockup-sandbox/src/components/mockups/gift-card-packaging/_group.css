@@ -1,0 +1,130 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Pinyon+Script&family=Playfair+Display:ital,wght@0,500;0,700;1,500;1,700&family=Raleway:wght@500;600;700&display=swap');
+
+:root {
+  --mint: 140 23% 84%;
+  --sage: 120 11% 66%;
+  --blue-gray: 200 21% 47%;
+  --terracotta: 14 37% 63%;
+  --cream: 43 42% 85%;
+  --beige: 41 18% 79%;
+  --off-white: 60 20% 96%;
+  --light-mint: 140 26% 92%;
+  --dark-sage: 120 7% 46%;
+  --background: var(--off-white);
+  --foreground: var(--blue-gray);
+  --muted: var(--beige);
+  --muted-foreground: var(--dark-sage);
+  --popover: var(--off-white);
+  --popover-foreground: var(--blue-gray);
+  --card: var(--off-white);
+  --card-foreground: var(--blue-gray);
+  --border: var(--beige);
+  --input: var(--beige);
+  --primary: var(--blue-gray);
+  --primary-foreground: var(--off-white);
+  --secondary: var(--mint);
+  --secondary-foreground: var(--dark-sage);
+  --accent: var(--light-mint);
+  --accent-foreground: var(--dark-sage);
+  --destructive: 0 84% 60%;
+  --destructive-foreground: var(--off-white);
+  --ring: var(--sage);
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: 240 10% 3.9%;
+  --foreground: 0 0% 98%;
+  --muted: 240 3.7% 15.9%;
+  --muted-foreground: 240 5% 64.9%;
+  --popover: 240 10% 3.9%;
+  --popover-foreground: 0 0% 98%;
+  --card: 240 10% 3.9%;
+  --card-foreground: 0 0% 98%;
+  --border: 240 3.7% 15.9%;
+  --input: 240 3.7% 15.9%;
+  --primary: 207 90% 54%;
+  --primary-foreground: 211 100% 99%;
+  --secondary: 240 3.7% 15.9%;
+  --secondary-foreground: 0 0% 98%;
+  --accent: 240 3.7% 15.9%;
+  --accent-foreground: 0 0% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 0 0% 98%;
+  --ring: 240 4.9% 83.9%;
+}
+
+.giftcard-preview {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #f8f6f0;
+  font-family: 'Raleway', system-ui, sans-serif;
+}
+
+.giftcard-current {
+  display: flex;
+  width: min(100%, 452px);
+  flex-direction: column;
+  overflow: hidden;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  background: #fff0cf;
+  color: #2b0a0e;
+  box-shadow: 0 22px 40px -24px #000;
+}
+
+.giftcard-current-cover {
+  display: grid;
+  aspect-ratio: 4 / 3;
+  place-items: center;
+  overflow: hidden;
+  padding: 12px;
+  background: linear-gradient(165deg, #8e1220 0%, #6e0f1a 50%, #3a0709 100%);
+  color: #fff0cf;
+  text-align: center;
+  font: italic 700 22px / 1.1 'Playfair Display', Georgia, serif;
+}
+
+.giftcard-current-details {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px;
+}
+
+.giftcard-current-details h2 {
+  margin: 0;
+  font: italic 700 24px / 1.15 'Playfair Display', Georgia, serif;
+}
+
+.giftcard-current-details p {
+  margin: 0;
+  color: #5a3a3d;
+  font-size: 14.5px;
+  line-height: 1.5;
+}
+
+.giftcard-current-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 14px;
+}
+
+.giftcard-current-row strong {
+  font-size: 22px;
+}
+
+.giftcard-current-row button {
+  border: 1px solid #1f4f3c;
+  border-radius: 4px;
+  padding: 11px 18px;
+  background: #1f4f3c;
+  color: #fff0cf;
+  font: 700 14px 'Raleway', system-ui, sans-serif;
+}

@@ -417,6 +417,7 @@ export function buildFinanceDashboard(snapshot: FinanceSnapshot, now = new Date(
     warnings.add("Sono presenti registrazioni senza data: restano nel totale storico, ma non sono attribuite a un periodo.");
   return {
     ledger: ledger.sort((a, b) => (b.date?.getTime() ?? 0) - (a.date?.getTime() ?? 0)),
+    printShopMargins: [],
     receivables: receivables.sort((a, b) => (a.date?.getTime() ?? Infinity) - (b.date?.getTime() ?? Infinity)),
     campaigns, labCosts, labPayments, labBalances, warnings: [...warnings], updatedAt: now,
   };
@@ -432,7 +433,13 @@ export function filterFinanceDashboard(data: FinanceDashboard, filter: FinanceFi
   if (unknown && (filter.from || filter.to))
     warnings.push(`${unknown} registrazioni senza data escluse dal periodo: consultare lo storico completo.`);
   return {
-    ...data, ledger, receivables, warnings,
+    ...data,
+    ledger,
+    printShopMargins: filter.source && filter.source !== "print_shop"
+      ? []
+      : data.printShopMargins.filter(row => inFinancePeriod(row.date, filter)),
+    receivables,
+    warnings,
     labCosts: data.labCosts.filter((cost) => inFinancePeriod(cost.date, filter)),
     labPayments: data.labPayments.filter((payment) => inFinancePeriod(payment.date, filter)),
     campaigns: data.campaigns.filter(c => (!filter.campaignId || c.id === filter.campaignId) &&

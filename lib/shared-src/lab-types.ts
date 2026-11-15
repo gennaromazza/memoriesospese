@@ -143,8 +143,25 @@ export interface LabShipmentFile {
   /** Distinta HTML oppure originale JPG; assente sui documenti legacy. */
   kind?: 'manifest' | 'original' | 'note_attachment' | 'supplemental' | 'other';
   mimeType?: string;
+  /** Sorgente esatta dell’originale fotolibro per rilevare sostituzioni nella stessa versione. */
+  sourceStoragePath?: string;
+  sourcePageId?: string;
+  sourcePageNumber?: number;
   webViewLink?: string;  // link diretto al file (opzionale, lo share è a livello cartella)
   uploadedAt: Timestamp;
+}
+
+export interface ObsoletePhotobookPageFile {
+  driveFileId: string;
+  name: string;
+  pageNumber?: number;
+  sourceStoragePath?: string;
+}
+
+export interface MissingPhotobookPageFile {
+  pageNumber: number;
+  name: string;
+  storagePath: string;
 }
 
 /** Copia storica di una nota con foto scelta per il laboratorio. */
@@ -196,6 +213,11 @@ export interface LabShipmentWalkInOrderSnapshot {
 export type LabShipmentPageTransferStatus = 'running' | 'completed' | 'partial' | 'failed';
 
 export interface LabShipmentPageTransfer {
+  /** Reserved before upload; reused after an ambiguous Drive response. */
+  uploadIds?: Record<string, { id: string; storagePath: string }>;
+  phase?: 'copying' | 'verifying' | 'instructions' | null;
+  currentPageNumber?: number | null;
+  instructionsError?: string | null;
   status: LabShipmentPageTransferStatus;
   total: number;
   transferred: number;
@@ -237,7 +259,7 @@ export interface LabShipmentSendState {
  */
 export interface LabShipment {
   /** Riferimento alla copia immutabile del mockup approvato dallo studio. */
-  mockupSnapshot?: { version: number; revision: number; photobookId: string; labId: string; modelName: string; confirmedAt: string; driveFileId: string };
+  mockupSnapshot?: { version: number; revision: number; packageVersion?: number; materialFileNames?: string[]; photobookId: string; labId: string; modelName: string; confirmedAt: string; driveFileId: string };
   mockupTransfer?: { status: 'uploading' | 'attached' | 'needs_review'; revision: number; claim: string };
   mockupDispatching?: boolean;
   id: string;
@@ -285,8 +307,37 @@ export interface LabShipment {
 
   // Trasferimento pagine fotolibro in background (solo spedizioni da fotolibro)
   pageTransfer?: LabShipmentPageTransfer;
+  drivePageVerification?: { status: 'verified' | 'failed'; error?: string };
+  photobookPageCleanup?: {
+    id: string;
+    status: 'running' | 'completed' | 'needs_review';
+    archiveFolderId?: string;
+    obsoleteFileIds?: string[];
+    archivedFileIds?: string[];
+    error?: string;
+    instructionsUpdated?: boolean;
+    startedAt?: Timestamp;
+    finishedAt?: Timestamp;
+  };
+  archivedPhotobookPages?: Array<LabShipmentFile & {
+    archivedAt: Timestamp;
+    archivedBy?: string;
+    archiveFolderId: string;
+  }>;
+  obsoletePhotobookPages?: ObsoletePhotobookPageFile[];
+  missingPhotobookPages?: MissingPhotobookPageFile[];
   /** Fotolibro di origine, quando sourceType='photobook'. */
   photobookId?: string;
+  /** Version of the pages copied to this shipment (legacy shipments may omit it). */
+  photobookVersion?: number;
+  /** Transport failed after invocation; studio must check delivery before retry. */
+  photobookDispatchUncertain?: boolean;
+  /** Server-derived recovery eligibility; mutations recheck transactionally. */
+  photobookRecovery?: {
+    pageTransferAbandoned: boolean;
+    dispatchAbandoned: boolean;
+    pageCleanupAbandoned: boolean;
+  };
   transfer?: LabShipmentTransfer;
 
   createdAt: Timestamp;

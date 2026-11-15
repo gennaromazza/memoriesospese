@@ -596,6 +596,13 @@ describe('modern and legacy photos in an existing gallery', () => {
     expect((await request('/galleries/gallery-1/chapters/reorder', 'POST', { chapterIds: [b, a] })).status).toBe(200);
     expect((await request('/galleries/gallery-1/chapters')).data.chapters.map((c: any) => c.titolo)).toEqual(['Cerimonia', 'Preparazione']);
     expect((await request('/galleries/gallery-1/photos/assign', 'POST', { photoIds: ['modern', 'legacy-old'], chapterId: a })).status).toBe(200);
+    expect((await request('/galleries/gallery-1/photos/assign', 'POST', {
+      photoIds: ['legacy-old'], chapterId: a, positionOffset: 17,
+    })).status).toBe(200);
+    expect(h.docs.get('galleries/gallery-1/photos/old')?.chapterPosition).toBe(17);
+    expect((await request('/galleries/gallery-1/photos/assign', 'POST', {
+      photoIds: ['modern'], chapterId: a, positionOffset: -1,
+    })).status).toBe(400);
     expect((await request('/galleries/other/photos/assign', 'POST', { photoIds: ['modern'], chapterId: null })).status).toBe(404);
     expect((await request('/galleries/gallery-1/photos/assign', 'POST', { photoIds: ['modern'], chapterId: 'missing' })).status).toBe(404);
     const photoUrl = 'https://example.test/modern.jpg';

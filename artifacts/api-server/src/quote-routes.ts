@@ -10,6 +10,7 @@ import { getAuth } from "firebase-admin/auth";
 import { adminPasskeyGate } from "./admin-security/admin-guard.js";
 import { isAdminEmail } from "./admin-security/admin-identity.js";
 import type { Quote, RevokedToken } from "../shared/quotes-types.js";
+import { resolveStudioQuoteTheme } from "@shared/studio-quote-theme";
 import { migrateRequirementRules, findInvalidSelections } from "../shared/quote-requirements.js";
 import type { PaymentSchedule } from "../shared/payment-schedule-types.js";
 import {
@@ -27,8 +28,16 @@ import { recomputeJobQuoteStatus } from "./job-aggregates.js";
 import { recordFollowUpEvent } from "./follow-up-routes.js";
 import { safeErrorMessage } from "./utils/safe-logging.js";
 import { withClientAreaLink } from "./client-area/emails.js";
+import { ensureQuoteSignedAdminNotification } from "./quote-signed-admin-notification.js";
 
 const router = Router();
+
+async function getConfiguredStudioQuoteTheme() {
+  const settingsSnapshot = await db.collection("settings").doc("studio").get();
+  return resolveStudioQuoteTheme(
+    settingsSnapshot.exists ? settingsSnapshot.data() ?? {} : {},
+  );
+}
 
 /**
  * Helper: Calcola il totale corretto per una quote considerando sconti
@@ -2373,6 +2382,7 @@ router.post(
       const completedSteps = {
         jobStatusUpdated: false,
         timelineEventAdded: false,
+        adminNotificationSaved: false,
         clientEmailSent: false,
         adminEmailSent: false,
       };
@@ -2424,7 +2434,24 @@ router.post(
         console.log(`⏭️ Timeline event già esiste per quote ${id}, skip`);
       }
 
-      // 8. Invia email conferma al cliente
+      // 8. Salva una notifica persistente per il campanello del pannello admin.
+      // La chiave deterministica evita duplicati quando il client ritenta la richiesta.
+      try {
+        await ensureQuoteSignedAdminNotification(db, FieldValue.serverTimestamp(), {
+          quoteId: id,
+          jobId: quote.jobId,
+          clientName: quote.signature?.clientName || clientName || "Cliente",
+          eventName: job?.nomeEvento || "Evento",
+          total: correctTotale,
+        });
+        completedSteps.adminNotificationSaved = true;
+        const { invalidateAdminNotificationsCache } = await import("./job-routes.js");
+        invalidateAdminNotificationsCache();
+      } catch (notificationError) {
+        console.warn("⚠️ Notifica firma non salvata nel pannello admin:", notificationError);
+      }
+
+      // 9. Invia email conferma al cliente
       try {
         const studioInfo = await getStudioContactInfo();
         const baseUrl =
@@ -2482,7 +2509,7 @@ router.post(
         // Non blocchiamo per errore email
       }
 
-      // 9. Invia email notifica all'admin
+      // 10. Invia email notifica all'admin
       try {
         const studioInfo = await getStudioContactInfo();
         const adminEmail = studioInfo?.email || "gennaro.mazzacane@gmail.com";
@@ -2573,6 +2600,7 @@ router.get("/quick/:token", async (req: Request, res: Response) => {
 
     const templateDoc = templatesSnapshot.docs[0];
     const template = { id: templateDoc.id, ...templateDoc.data() };
+    const studioQuoteTheme = await getConfiguredStudioQuoteTheme();
 
     const jobTypeDoc = await db
       .collection("jobTypes")
@@ -2606,7 +2634,7 @@ router.get("/quick/:token", async (req: Request, res: Response) => {
           nome: (template as any).nome,
           jobType: (template as any).jobType,
           type: (template as any).type,
-          theme: (template as any).theme,
+          theme: studioQuoteTheme,
           defaultProducts: (template as any).defaultProducts || [],
           defaultClauses: (template as any).defaultClauses || [],
           discountType: (template as any).discountType,
@@ -2672,6 +2700,9 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
         message: "Il nome dell'evento è obbligatorio.",
       });
     }
+
+    // Verifica la configurazione prima di consumare l'OTP o creare dati.
+    const studioQuoteTheme = await getConfiguredStudioQuoteTheme();
 
     // 🔒 Verifica che l'OTP sia stato completato per questa email (anti-bypass)
     // La sessione viene consumata (one-time use) subito dopo il controllo,
@@ -2963,7 +2994,7 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
       type: template.type,
       products: quoteProducts,
       contractClauses: clausesWithIds,
-      theme: template.theme || {},
+      theme: studioQuoteTheme,
       totaleBase: totalBeforeDiscount,
       totalBeforeDiscount,
       totalAfterDiscount,
@@ -3492,6 +3523,7 @@ router.post("/quick/:token/save-draft", async (req: Request, res: Response) => {
     }
 
     const template = templatesSnapshot.docs[0].data();
+    const studioQuoteTheme = await getConfiguredStudioQuoteTheme();
 
     // Se il job esiste già (chiamata ripetuta), restituisci gli ID esistenti
     if (existingJobId) {
@@ -3595,7 +3627,7 @@ router.post("/quick/:token/save-draft", async (req: Request, res: Response) => {
         type: template.type,
         products: draftProducts,
         contractClauses: clausesWithIds,
-        theme: template.theme || {},
+        theme: studioQuoteTheme,
         totaleBase: draftSubtotale,
         totalBeforeDiscount: draftSubtotale,
         totalAfterDiscount: draftTotalAfterDiscount,
@@ -3895,6 +3927,7 @@ router.post(
       }
       const templateDoc = templatesSnap.docs[0];
       const template = templateDoc.data();
+      const studioQuoteTheme = await getConfiguredStudioQuoteTheme();
 
       // 2. Cerca/crea cliente
       let clienteId: string;
@@ -4012,7 +4045,7 @@ router.post(
         type: template.type,
         products,
         contractClauses: clausesWithIds,
-        theme: template.theme || {},
+        theme: studioQuoteTheme,
         totaleBase: subtotale,
         totalBeforeDiscount: subtotale,
         totalAfterDiscount,

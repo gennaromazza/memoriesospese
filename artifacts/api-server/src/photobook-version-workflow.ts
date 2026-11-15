@@ -60,7 +60,7 @@ export async function publishVersion(id: string, version: number, expectedCurren
     for (const asset of assets) tx.set(ref.collection('mockupAssets').doc(asset.id), asset.data);
     if (oldOffer.exists) tx.set(ref.collection('mockupOffers').doc(`v${version}`), oldOffer.data()!);
     if (saved) {
-      const { confirmedAt, reportPath, note, ...previous } = saved;
+      const { confirmedAt, reportPath, note, clientApproval, ...previous } = saved;
       tx.set(ref.collection('mockups').doc(`v${version}`), { ...previous, version, revision: 1, configuration, status: 'draft', updatedBy: 'studio', updatedAt: now });
     }
     tx.update(ref, { currentVersion: version, versions: book.versions.map((v: { version: number }) => v.version === version ? { ...v, status: 'published', publishedAt: now } : v), updatedAt: FieldValue.serverTimestamp() });

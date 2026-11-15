@@ -9,10 +9,30 @@ import { db, FieldValue } from './firebase-admin.js';
 import { nowRomeDate, toRomeDateTime } from './utils/timezone.js';
 import { normalizeEmail } from './utils/normalize.js';
 import { recomputeJobTransactionCount } from './job-aggregates.js';
+import { BOOKING_DEPOSIT_SOURCE, reconcileOrderBookingDeposit } from './booking/order-deposit-credit.js';
+import {
+  expandOrderProductsToRequirements as expandOrderSnapshotToRequirements,
+  getRequiredGalleryPhotoCount,
+} from '@shared/gallery-requirements';
 
 const ADMIN_EMAILS = ["gennaro.mazzacane@gmail.com"];
 
 const router = Router();
+
+router.post('/reconcile-booking-deposits', authenticateFirebase, async (req: any, res: Response) => {
+  if (!ADMIN_EMAILS.includes(req.user?.email)) return res.status(403).json({ error: 'Solo gli admin possono riconciliare acconti' });
+  const ids = req.body?.orderIds;
+  if (!Array.isArray(ids) || ids.length > 50 || ids.some(id => typeof id !== 'string' || !id || id.includes('/'))) {
+    return res.status(400).json({ error: 'Elenco ordini non valido' });
+  }
+  try {
+    let updated = 0;
+    for (const id of new Set<string>(ids)) if (await reconcileOrderBookingDeposit(db, id)) updated++;
+    return res.json({ updated });
+  } catch (error: any) {
+    return res.status(409).json({ error: error.message || 'Acconto da riconciliare' });
+  }
+});
 
 /**
  * Helper: Crea HTML email per notifica aggiornamento ordine
@@ -181,8 +201,6 @@ function createOrderUpdatedEmailHTML(orderData: any, studioInfo: any): string {
  * Replica la stessa logica di espansione bundle usata nella creazione galleria (BookingsManager)
  */
 async function expandOrderProductsToRequirements(prodotti: any[]): Promise<any[]> {
-  const expandedProducts: any[] = [];
-
   // Pre-fetch catalogo prodotti per fallback bundle (come BookingsManager)
   let catalogProducts: Map<string, any> = new Map();
   const productIds = prodotti.filter(p => p.prodottoId && !p.prodottoId.startsWith('custom_')).map(p => p.prodottoId);
@@ -201,9 +219,7 @@ async function expandOrderProductsToRequirements(prodotti: any[]): Promise<any[]
     }
   }
 
-  for (const orderItem of prodotti) {
-    const orderItemQuantity = orderItem.quantita || 1;
-
+  const resolvedProducts = prodotti.map((orderItem) => {
     // PRIORITY: orderItem.bundleItems → fallback a catalogo (come BookingsManager)
     const hasOrderItemBundle = orderItem.isBundle && orderItem.bundleItems && orderItem.bundleItems.length > 0;
     const catalogProduct = catalogProducts.get(orderItem.prodottoId);
@@ -216,58 +232,33 @@ async function expandOrderProductsToRequirements(prodotti: any[]): Promise<any[]
         : null;
     const catalogBundleItems = hasCatalogBundle ? catalogProduct!.bundleItems : null;
     const bundleParentName = orderItem.prodottoNome || catalogProduct?.nome || 'Bundle';
+    const sharedPhotoSourceId = orderItem.prodottoSorgenteFotoId || catalogProduct?.prodottoSorgenteFotoId;
+    const hasSharedPhotos = orderItem.fotoCondivise ?? catalogProduct?.fotoCondivise;
 
-    if (bundleItems && bundleItems.length > 0) {
-      let bundleExpandedCount = 0;
-      for (let orderQty = 0; orderQty < orderItemQuantity; orderQty++) {
-        for (const bundleItem of bundleItems) {
-          if (!bundleItem.quantita || bundleItem.quantita <= 0) continue;
-          if (bundleItem.numeroFoto === undefined || bundleItem.numeroFoto < 0) continue;
+    if (!bundleItems || bundleItems.length === 0) return orderItem;
 
-          let finalNumeroFoto = bundleItem.numeroFoto;
-          if (bundleItem.prodottoId && catalogBundleItems) {
-            const catalogBundleItem = catalogBundleItems.find((cbi: any) => cbi.prodottoId === bundleItem.prodottoId);
-            if (catalogBundleItem && catalogBundleItem.numeroFoto !== undefined) {
-              finalNumeroFoto = catalogBundleItem.numeroFoto;
-            }
-          }
+    const snapshotItems = bundleItems.map((bundleItem: any) => {
+      const catalogBundleItem = bundleItem.prodottoId && catalogBundleItems
+        ? catalogBundleItems.find((item: any) => item.prodottoId === bundleItem.prodottoId)
+        : undefined;
+      return {
+        ...bundleItem,
+        numeroFoto: catalogBundleItem?.numeroFoto ?? bundleItem.numeroFoto,
+      };
+    });
+    return {
+      ...orderItem,
+      prodottoNome: bundleParentName,
+      isBundle: true,
+      bundleItems: snapshotItems,
+      ...(hasSharedPhotos ? {
+        fotoCondivise: true,
+        prodottoSorgenteFotoId: sharedPhotoSourceId,
+      } : {}),
+    };
+  });
 
-          for (let i = 0; i < bundleItem.quantita; i++) {
-            const bundlePrefix = orderItemQuantity > 1
-              ? `[${orderQty + 1}/${orderItemQuantity}] `
-              : '';
-            const req: any = {
-              prodottoNome: bundleItem.quantita > 1
-                ? `${bundlePrefix}${bundleItem.prodottoNome} (${i + 1}/${bundleItem.quantita}) - ${bundleParentName}`
-                : `${bundlePrefix}${bundleItem.prodottoNome} - ${bundleParentName}`,
-              prodottoNumeroFoto: finalNumeroFoto,
-            };
-            if (bundleItem.prodottoId) {
-              req.prodottoId = bundleItem.prodottoId;
-            }
-            expandedProducts.push(req);
-            bundleExpandedCount++;
-          }
-        }
-      }
-      console.log(`📦 Bundle "${bundleParentName}" x${orderItemQuantity} espanso in ${bundleExpandedCount} requirements`);
-    } else {
-      for (let i = 0; i < orderItemQuantity; i++) {
-        const req: any = {
-          prodottoNome: orderItemQuantity > 1
-            ? `${orderItem.prodottoNome} (${i + 1}/${orderItemQuantity})`
-            : orderItem.prodottoNome,
-          prodottoNumeroFoto: orderItem.prodottoNumeroFoto ?? 0,
-        };
-        if (orderItem.prodottoId && !orderItem.prodottoId.startsWith('custom_')) {
-          req.prodottoId = orderItem.prodottoId;
-        }
-        expandedProducts.push(req);
-      }
-    }
-  }
-
-  return expandedProducts;
+  return expandOrderSnapshotToRequirements(resolvedProducts);
 }
 
 /**
@@ -427,9 +418,7 @@ router.patch('/:id', authenticateFirebase, async (req: any, res: Response): Prom
             }
             
             // Aggiorna sempre requiredPhotoCount con il totale
-            galleryUpdate.requiredPhotoCount = newProductRequirements.reduce(
-              (sum: number, r: any) => sum + (r.prodottoNumeroFoto || 0), 0
-            );
+            galleryUpdate.requiredPhotoCount = getRequiredGalleryPhotoCount(newProductRequirements);
             // Multi-product: inizializza photoAssignments se non esiste
             if (newProductRequirements.length > 1 && !galleryData.photoAssignments) {
               galleryUpdate.photoAssignments = {};
@@ -979,6 +968,7 @@ router.post('/:id/register-payment', authenticateFirebase, async (req: any, res:
       return res.status(400).json({ error: 'Tipo pagamento deve essere "acconto" o "saldo"' });
     }
 
+    await reconcileOrderBookingDeposit(db, orderId);
     const orderRef = db.collection('orders').doc(orderId);
     const orderDoc = await orderRef.get();
 
@@ -1001,7 +991,7 @@ router.post('/:id/register-payment', authenticateFirebase, async (req: any, res:
     }
     const totale = orderData.totale || 0;
     const accontoAttuale = orderData.acconto || 0;
-    const saldoAttuale = orderData.saldo || totale - accontoAttuale;
+    const saldoAttuale = orderData.saldo ?? totale - accontoAttuale;
     const transactions = orderData.transactions || [];
     const paymentDate = data ? toRomeDateTime(data).toJSDate() : nowRomeDate();
 
@@ -1148,6 +1138,7 @@ router.post('/:id/delete-payment', authenticateFirebase, async (req: any, res: R
       return res.status(400).json({ error: 'Indice transazione non valido' });
     }
 
+    await reconcileOrderBookingDeposit(db, orderId);
     const orderRef = db.collection('orders').doc(orderId);
     const orderDoc = await orderRef.get();
 
@@ -1175,6 +1166,9 @@ router.post('/:id/delete-payment', authenticateFirebase, async (req: any, res: R
     }
 
     const deletedTransaction = transactions[transactionIndex];
+    if (deletedTransaction.source === BOOKING_DEPOSIT_SOURCE) {
+      return res.status(409).json({ error: 'L’acconto PayPal appartiene alla prenotazione: gestisci l’eventuale rimborso da Annullamento e acconto, non eliminare l’incasso dall’ordine.' });
+    }
     const deletedAmount = deletedTransaction.importo || 0;
 
     if (expectedImporto !== undefined && Math.abs(deletedAmount - expectedImporto) > 0.01) {
@@ -1611,9 +1605,7 @@ router.post('/repair-bundle-galleries', authenticateFirebase, async (req: any, r
           selectionsReset++;
         }
 
-        const totalFoto = newProductRequirements.reduce(
-          (sum: number, r: any) => sum + (r.prodottoNumeroFoto || 0), 0
-        );
+        const totalFoto = getRequiredGalleryPhotoCount(newProductRequirements);
         galleryUpdate.requiredPhotoCount = totalFoto;
 
         await galleryDoc.ref.update(galleryUpdate);

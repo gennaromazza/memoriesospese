@@ -10,11 +10,13 @@ import type { MockupOffer } from '@shared/mockup-workflow';
 type MockupTestResponse = MockupPayload & SavedMockup & MockupPhoto & {
   saved: SavedMockup;
   offer: MockupOffer;
+  options: MockupOffer['options'];
   error: string;
   reportPath: string;
 };
 const fetch = jsonFetch<MockupTestResponse>;
-import { MOCKUP_MODEL, ROTATING_MOCKUP_MODEL, PLAZA_MOCKUP_MODEL } from '../shared/mockup-catalog';
+import { BOX_MOCKUP_MODEL, MOCKUP_MODEL, ROTATING_MOCKUP_MODEL, PLAZA_MOCKUP_MODEL } from '../shared/mockup-catalog';
+import { I_NOBILI_MATERIALS } from '../shared/i-nobili-catalog';
 import peppeLabCatalog from '../../image-studio-web/public/mockups/custodia-v1/peppe-lab-catalog.json';
 import { initialMockupSelection } from '../../image-studio-web/src/components/photobook/mockup-presentation';
 
@@ -80,6 +82,75 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
   afterEach(async () => { await new Promise<void>(resolve => server.close(() => resolve())); });
   const save = (base: string, body: unknown, scope = 'admin', version = 1) => fetch(`${base}/${scope}?version=${version}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
+  it('registra solo l’approvazione cliente della revisione confermata, senza modificare mockup, pagine o stampa', async () => {
+    h.docs.set('photobooks/book', { ...h.docs.get('photobooks/book'), mockupPath: 'studio' });
+    const confirmed = { version: 1, revision: 3, status: 'confirmed', configuration, updatedAt: '2026-10-24T10:00:00Z', reportPath: 'private-report.html' };
+    h.docs.set('photobooks/book/mockups/v1', confirmed);
+    const approve = () => fetch(`${base}/client/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: 3 }) });
+    expect((await fetch(`${base}/client`).then(r => r.json())).clientApprovalAllowed).toBe(true);
+    const first = await approve();
+    expect(first.status).toBe(200);
+    const body = await first.json();
+    expect(body.clientApproval).toEqual({ revision: 3, approvedAt: expect.any(String) });
+    expect(body.reportPath).toBeUndefined();
+    expect(body.revision).toBe(3);
+    expect(body.configuration).toEqual(configuration);
+    expect((await approve()).status).toBe(200);
+    expect(h.docs.get('photobooks/book/mockups/v1').clientApproval).toEqual(body.clientApproval);
+    expect(h.docs.get('photobooks/book').locked).toBe(false);
+    expect(h.docs.get('photobooks/book').approval).toEqual({ version: 1 });
+    expect(notifyClient).not.toHaveBeenCalled();
+    expect((await save(base, { revision: 3, configuration }, 'client')).status).toBe(409);
+    const corrected = await save(base, { revision: 3, configuration: { ...configuration, topText: 'Correzione' } });
+    expect(corrected.status).toBe(200);
+    expect(await corrected.json()).toMatchObject({
+      revision: 4,
+      status: 'submitted',
+      updatedBy: 'studio',
+      configuration: { ...configuration, topText: 'Correzione' },
+    });
+    expect(h.docs.get('photobooks/book/mockupHistory/v1-r3')).toMatchObject({
+      ...confirmed,
+      clientApproval: body.clientApproval,
+    });
+    expect(h.docs.get('photobooks/book/mockups/v1').clientApproval).toBeUndefined();
+  });
+
+  it('non accetta approvazioni di bozze, revisioni superate, admin o token non validi', async () => {
+    h.docs.set('photobooks/book', { ...h.docs.get('photobooks/book'), mockupPath: 'studio' });
+    const post = (scope: string, revision = 3) => fetch(`${base}/${scope}/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision }) });
+    h.docs.set('photobooks/book/mockups/v1', { version: 1, revision: 3, status: 'draft', configuration });
+    expect((await post('client')).status).toBe(409);
+    h.docs.set('photobooks/book/mockups/v1', { version: 1, revision: 3, status: 'confirmed', configuration });
+    expect((await post('client', 2)).status).toBe(409);
+    expect((await post('admin')).status).toBe(403);
+    expect((await post('invalid')).status).toBe(404);
+    h.docs.set('photobooks/book', { ...h.docs.get('photobooks/book'), approval: null });
+    expect(await fetch(`${base}/client`).then(r => r.json())).toMatchObject({
+      editable: false,
+      approvalRequired: true,
+      clientApprovalAllowed: true,
+    });
+    expect((await post('client')).status).toBe(200);
+    expect(h.docs.get('photobooks/book/mockups/v1').clientApproval).toMatchObject({ revision: 3 });
+    expect(h.docs.get('photobooks/book').approval).toBeNull();
+  });
+
+  it('ricontrolla i permessi in transazione e consente di ritentare dopo una risposta persa', async () => {
+    h.docs.set('photobooks/book', { ...h.docs.get('photobooks/book'), mockupPath: 'studio' });
+    h.docs.set('photobooks/book/mockups/v1', { version: 1, revision: 3, status: 'confirmed', configuration });
+    const approve = () => fetch(`${base}/client/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: 3 }) });
+    h.beforeTransaction = () => h.docs.set('photobooks/book', { ...h.docs.get('photobooks/book'), locked: true });
+    expect((await approve()).status).toBe(409);
+    expect(h.docs.get('photobooks/book/mockups/v1').clientApproval).toBeUndefined();
+    h.docs.set('photobooks/book', { ...h.docs.get('photobooks/book'), locked: false });
+    h.failAfterCommit = true;
+    expect((await approve()).status).toBe(500);
+    const approvedAt = h.docs.get('photobooks/book/mockups/v1').clientApproval.approvedAt;
+    expect((await approve()).status).toBe(200);
+    expect(h.docs.get('photobooks/book/mockups/v1').clientApproval.approvedAt).toBe(approvedAt);
+  });
+
   it('salva, rilegge e consente la personalizzazione cliente solo dopo attivazione', async () => {
     expect((await fetch(`${base}/client`).then(r => r.json())).enabled).toBe(false);
     expect((await save(base, { revision: 0, configuration }, 'client')).status).toBe(403);
@@ -95,6 +166,36 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     await save(base, { revision: 0, configuration });
     expect((await save(base, { revision: 0, configuration: { ...configuration, topText: 'Obsoleto' } })).status).toBe(409);
     expect(h.docs.get('photobooks/book/mockups/v1').configuration.topText).toBe('Anna e Marco');
+  });
+  it('Custodia: salva e riapre entrambi i layout, rifiutando foto, rivestimenti e testi non validi', async () => {
+    const first = { ...configuration, coverLayout: 'oblique' };
+    expect((await save(base, { revision: 0, configuration: first })).status).toBe(200);
+    expect((await fetch(`${base}/admin`).then(r => r.json())).saved.configuration).toEqual(first);
+
+    const second = {
+      ...configuration,
+      coverLayout: 'full',
+      topText: 'A'.repeat(50),
+      bottomText: '',
+      crop: { zoom: 2.2, x: 0.25, y: 0.75 },
+    };
+    expect((await save(base, { revision: 1, configuration: second })).status).toBe(200);
+    expect((await fetch(`${base}/admin`).then(r => r.json())).saved.configuration).toEqual(second);
+    expect(h.docs.get('photobooks/book/mockupHistory/v1-r1').configuration).toEqual(first);
+
+    const invalidConfigurations = [
+      { ...second, coverLayout: 'unsupported' },
+      { ...second, photoAssetId: null },
+      { ...second, materialId: 'materiale-non-esistente' },
+      { ...second, appearanceRevision: material.appearanceRevision + 1 },
+      { ...second, topText: 'A'.repeat(51) },
+      { ...second, bottomText: 'B'.repeat(51) },
+    ];
+    for (const invalid of invalidConfigurations) {
+      expect((await save(base, { revision: 2, configuration: invalid })).status).toBe(400);
+    }
+    expect(h.docs.get('photobooks/book/mockups/v1')).toMatchObject({ revision: 2, configuration: second });
+    expect(h.docs.has('photobooks/book/mockupHistory/v1-r2')).toBe(false);
   });
   it('salva i due nomi del monogramma senza reinterpretare scritte o date precedenti', async () => {
     const monogram = { ...configuration, modelId: ROTATING_MOCKUP_MODEL.id, assetRevision: 3, frameFinish: 'wood', coverLayout: 'plaque', photoAssetId: null, backCover: 'fabric', backPhotoAssetId: null, backCrop: { zoom: 1, x: .5, y: .5 }, engravingNames: { first: 'Éléonore', second: 'Gian Marco' } };
@@ -242,6 +343,10 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     expect(response.status).toBe(200);
     const photo = await response.json();
     expect(photo).toMatchObject({ source: 'upload', width: 2048, height: 1024, name: 'cover.png' });
+    const storedAsset = h.docs.get(`photobooks/book/mockupAssets/${photo.id}`);
+    expect(storedAsset).toMatchObject({ storagePath: expect.stringMatching(/\.jpg$/) });
+    expect(storedAsset).not.toHaveProperty('originalStoragePath');
+    expect([...h.files.keys()].filter(path => path.includes(photo.id))).toEqual([storedAsset.storagePath]);
     const download = await fetch(`${base}/admin/photos/${photo.id}`);
     expect(download.status).toBe(200);
     expect(download.headers.get('cache-control')).toBe('private, no-store');
@@ -261,14 +366,309 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
 
   const entryId = '33333333-3333-4333-8333-333333333333';
   const selection = { labId: 'lab', modelId: entryId };
-  async function publish(base: string, selections = [selection]) {
-    h.docs.get('photobooks/book').jobId = 'job';
-    h.docs.set('labs/lab', { nome: 'Laboratorio scelto', attivo: true, mockupCatalog: { revision: 1, materials: [{ id: material.id, label: 'Tessuto scelto', supplierCode: 'LAB-01' }], models: [{ id: entryId, name: 'Custodia personalizzata', supplierCode: 'C-01', rendererId: MOCKUP_MODEL.id, active: true, materialIds: [material.id] }] } });
-    return fetch(`${base}/admin/offer`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: 0, savedRevision: 0, selections }) });
+  const secondSelection = { labId: 'lab', modelId: '66666666-6666-4666-8666-666666666666' };
+  async function publish(base: string, selections = [selection], mode: 'fixed' | 'choice' = 'choice', attachToJob = true) {
+    if (attachToJob) h.docs.get('photobooks/book').jobId = 'job';
+    const models = selections.map((item, index) => ({
+      id: item.modelId,
+      name: index === 0 ? 'Custodia personalizzata' : `Modello alternativo ${index}`,
+      supplierCode: `C-0${index + 1}`,
+      rendererId: MOCKUP_MODEL.id,
+      active: true,
+      materialIds: [material.id],
+    }));
+    h.docs.set('labs/lab', { nome: 'Laboratorio scelto', attivo: true, mockupCatalog: { revision: 1, materials: [{ id: material.id, label: 'Tessuto scelto', supplierCode: 'LAB-01' }], models } });
+    return fetch(`${base}/admin/offer`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: 0, savedRevision: 0, mode, selections }) });
   }
+  it('conferma la configurazione identica anche se Firestore riordina le proprietà', async () => {
+    expect((await publish(base)).status).toBe(200);
+    expect((await save(base, { revision: 0, configuration, selection, offerRevision: 1 })).status).toBe(200);
+    const saved = h.docs.get('photobooks/book/mockups/v1');
+    saved.configuration = Object.fromEntries(Object.entries(saved.configuration).reverse());
+    saved.configuration.crop = { y: .5, x: .5, zoom: 1 };
+    const image = await sharp({ create: { width: 24, height: 24, channels: 3, background: '#708090' } }).jpeg().toBuffer();
+    const response = await fetch(`${base}/admin/confirm`, {
+      method: 'POST', headers: { 'Content-Type': 'application/octet-stream' },
+      body: JSON.stringify({ revision: 1, configuration, previews: Array.from({ length: 8 }, () => ({ label: 'Vista', image: `data:image/jpeg;base64,${image.toString('base64')}` })) }),
+    });
+    expect(response.status).toBe(200);
+    expect((await response.json()).status).toBe('confirmed');
+  });
+
+  it.each(['inviato', 'da_inviare'])('recupera solo la copia salvata per %s senza sbloccare o inviare email', async status => {
+    expect((await publish(base)).status).toBe(200);
+    expect((await save(base, { revision: 0, configuration, selection, offerRevision: 1 })).status).toBe(200);
+    Object.assign(h.docs.get('photobooks/book'), { locked: true, labShipmentId: 'shipment' });
+    h.docs.set('labShipments/shipment', {
+      sourceType: 'photobook', photobookId: 'book', photobookVersion: 1, jobId: 'job',
+      labId: 'lab', driveFolderId: 'folder', status, ...(status === 'inviato' ? { sentAt: 'already-sent' } : {}),
+    });
+    const image = await sharp({ create: { width: 24, height: 24, channels: 3, background: '#708090' } }).jpeg().toBuffer();
+    const body = { revision: 1, configuration, previews: Array.from({ length: 8 }, () => ({ label: 'Vista', image: `data:image/jpeg;base64,${image.toString('base64')}` })) };
+    const confirm = (path: string, payload = body) => fetch(`${base}${path}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: JSON.stringify(payload),
+    });
+    expect((await fetch(`${base}/admin`).then(r => r.json())).deliveryRecoveryAvailable).toBe(true);
+    expect((await confirm('/admin/confirm')).status).toBe(409);
+    expect((await confirm('/client/confirm-for-delivery')).status).toBe(409);
+    expect((await confirm('/admin/confirm-for-delivery', { ...body, configuration: { ...configuration, topText: 'Diverso' } })).status).toBe(409);
+    h.docs.get('labShipments/shipment').status = 'in_stampa';
+    expect((await confirm('/admin/confirm-for-delivery')).status).toBe(409);
+    h.docs.get('labShipments/shipment').status = status;
+    const result = await confirm('/admin/confirm-for-delivery');
+    expect(result.status).toBe(200);
+    expect((await result.json()).status).toBe('confirmed');
+    expect(h.docs.get('photobooks/book').locked).toBe(true);
+    expect(h.docs.get('labShipments/shipment').status).toBe(status);
+    expect(h.docs.get('labShipments/shipment').sentAt).toBe(status === 'inviato' ? 'already-sent' : undefined);
+    expect(notifyClient).not.toHaveBeenCalled();
+    expect(notifySubmission).not.toHaveBeenCalled();
+  });
+
+  it('isola due sessioni admin: rifiuta la proposta obsoleta e accetta la revisione ricaricata', async () => {
+    h.docs.get('photobooks/book').jobId = 'job';
+    const secondModelId = '66666666-6666-4666-8666-666666666666';
+    const second = { labId: 'lab', modelId: secondModelId };
+    h.docs.set('labs/lab', { nome: 'Laboratorio scelto', attivo: true, mockupCatalog: { revision: 1, materials: [{ id: material.id, label: 'Tessuto scelto', supplierCode: 'LAB-01' }], models: [
+      { id: entryId, name: 'Modello sessione A', supplierCode: 'A-01', rendererId: MOCKUP_MODEL.id, active: true, materialIds: [material.id] },
+      { id: secondModelId, name: 'Modello sessione B', supplierCode: 'B-01', rendererId: MOCKUP_MODEL.id, active: true, materialIds: [material.id] },
+    ] } });
+    const savedBefore = {
+      version: 1,
+      revision: 4,
+      status: 'draft',
+      configuration,
+      updatedAt: '2026-10-27T10:00:00.000Z',
+      selection,
+      option: { id: entryId, name: 'Modello precedente', rendererId: MOCKUP_MODEL.id, active: true, materialIds: [material.id], materials: [{ id: material.id, label: 'Tessuto scelto', supplierCode: 'LAB-01' }], labId: 'lab', labName: 'Laboratorio scelto' },
+    };
+    h.docs.set('photobooks/book/mockups/v1', savedBefore);
+
+    // Entrambe le sessioni hanno letto revision=0 e savedRevision=4.
+    const assign = (model: typeof selection, revision: number, savedRevision: number) =>
+      fetch(`${base}/admin/offer`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision, savedRevision, mode: 'fixed', selections: [model] }) });
+    const sessionA = await assign(selection, 0, 4);
+    expect(sessionA.status).toBe(200);
+    const winningOffer = await sessionA.json() as MockupOffer;
+    expect(winningOffer).toMatchObject({ revision: 1, options: [{ id: entryId, name: 'Modello sessione A' }] });
+    expect(h.docs.get('photobooks/book/mockupHistory/v1-r4')).toEqual(savedBefore);
+
+    const staleSessionB = await assign(second, 0, 4);
+    expect(staleSessionB.status).toBe(409);
+    expect(await staleSessionB.json()).toMatchObject({ error: 'Proposta modificata: ricarica prima di proseguire' });
+    expect(h.docs.get('photobooks/book/mockupOffers/v1')).toMatchObject({
+      revision: 1,
+      mode: 'fixed',
+      options: [{ id: entryId, name: 'Modello sessione A' }],
+    });
+    expect(h.docs.get('photobooks/book/mockups/v1')).toMatchObject({
+      revision: 5,
+      configuration,
+      option: savedBefore.option,
+    });
+
+    // Un aggiornamento esplicito legge revision=1/savedRevision=5 e può assegnare B.
+    const refreshed = await fetch(`${base}/admin`).then(response => response.json());
+    expect(refreshed).toMatchObject({ offer: { revision: 1, options: [{ id: entryId }] }, saved: { revision: 5 } });
+    const savedBeforeSecondAssignment = structuredClone(h.docs.get('photobooks/book/mockups/v1'));
+    const refreshedSessionB = await assign(second, refreshed.offer.revision, refreshed.saved.revision);
+    expect(refreshedSessionB.status).toBe(200);
+    expect(await refreshedSessionB.json()).toMatchObject({
+      revision: 2,
+      mode: 'fixed',
+      options: [{ id: secondModelId, name: 'Modello sessione B' }],
+    });
+    expect(h.docs.get('photobooks/book/mockups/v1')).toMatchObject({ revision: 6, configuration });
+    expect(h.docs.get('photobooks/book/mockupHistory/v1-r5')).toEqual(savedBeforeSecondAssignment);
+    expect(h.docs.get('photobooks/book/mockupHistory/v1-r4')).toEqual(savedBefore);
+  });
+
   const action = (base: string, scope: string, path: string, revision: number) => fetch(`${base}/${scope}/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision, note: 'Controlla il ritaglio' }) });
 
-  it.each(['plaque', 'full', 'photo-plaque'].flatMap(coverLayout => ['fabric', 'photo'].flatMap(backCover => ['wood', 'white', 'fabric'].map(frameFinish => ({ coverLayout, backCover, frameFinish })))))('Plaza v4: salva e invia dal cliente con %j', async variant => {
+  it('assegna e salva un mockup per un fotolibro autonomo senza lavoro associato', async () => {
+    const assigned = await publish(base, [selection], 'fixed', false);
+    expect(assigned.status).toBe(200);
+    expect(h.docs.get('photobooks/book').jobId).toBeUndefined();
+
+    const payload = await fetch(`${base}/admin`).then(r => r.json());
+    expect(payload).toMatchObject({
+      editable: true,
+      modelMode: 'fixed',
+      offer: { mode: 'fixed', options: [{ id: entryId, rendererId: MOCKUP_MODEL.id }] },
+    });
+
+    const saved = await save(base, { revision: 0, configuration, selection, offerRevision: 1 });
+    expect(saved.status).toBe(200);
+    expect(await saved.json()).toMatchObject({
+      revision: 1,
+      status: 'draft',
+      selection,
+      configuration,
+    });
+    expect(h.docs.get('photobooks/book').jobId).toBeUndefined();
+  });
+
+  it('percorso studio completo: assegna, prepara dopo, salva, conferma e lascia un link cliente verificabile', async () => {
+    const assigned = await publish(base, [selection], 'fixed');
+    expect(assigned.status).toBe(200);
+    h.docs.get('photobooks/book').mockupPath = 'studio';
+    h.docs.get('photobooks/book').approval = null;
+
+    const initial = await fetch(`${base}/admin`).then(r => r.json());
+    expect(initial).toMatchObject({ offer: { options: [{ id: entryId, rendererId: MOCKUP_MODEL.id }] }, saved: null, approvalRequired: false });
+    expect(h.files.size).toBe(0);
+    expect([...h.docs.keys()].filter(path => path.includes('/mockupAssets/'))).toEqual([`photobooks/book/mockupAssets/${photoId}`]);
+
+    const image = await sharp({ create: { width: 80, height: 60, channels: 3, background: '#87958a' } }).jpeg().toBuffer();
+    const uploaded = await fetch(`${base}/admin/upload?name=bozza-copertina.jpg`, { method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: image });
+    expect(uploaded.status).toBe(200);
+    const photo = await uploaded.json();
+    const studioConfiguration = { ...configuration, photoAssetId: photo.id };
+
+    // Un conflitto recuperabile non perde la foto: si rilegge la revisione e si salva.
+    expect((await save(base, { revision: 0, configuration: studioConfiguration, selection, offerRevision: 99 })).status).toBe(409);
+    const saved = await save(base, { revision: 0, configuration: studioConfiguration, selection, offerRevision: 1 });
+    expect(saved.status).toBe(200);
+    expect(await saved.json()).toMatchObject({ revision: 1, status: 'draft', configuration: studioConfiguration });
+
+    const preview = await sharp({ create: { width: 24, height: 24, channels: 3, background: '#708090' } }).jpeg().toBuffer();
+    const confirmation = await fetch(`${base}/admin/confirm`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: JSON.stringify({ revision: 1, configuration: studioConfiguration, previews: Array.from({ length: 8 }, () => ({ label: 'Vista', image: `data:image/jpeg;base64,${preview.toString('base64')}` })) }),
+    });
+    expect(confirmation.status).toBe(200);
+    expect(await confirmation.json()).toMatchObject({ revision: 2, status: 'confirmed' });
+
+    const clientView = await fetch(`${base}/client?version=1`).then(r => r.json());
+    expect(clientView).toMatchObject({ mockupPath: 'studio', editable: false, clientApprovalAllowed: true, saved: { status: 'confirmed', revision: 2, configuration: studioConfiguration } });
+    expect(clientView.saved.reportPath).toBeUndefined();
+    expect((await fetch(`${base}/client/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: 2 }) })).status).toBe(200);
+    expect(h.docs.get('photobooks/book/mockups/v1').clientApproval).toMatchObject({ revision: 2, approvedAt: expect.any(String) });
+    expect(h.docs.get('photobooks/book').approval).toBeNull();
+    expect(h.docs.get('photobooks/book').locked).toBe(false);
+    expect(notifyClient).toHaveBeenCalledTimes(1); // callback mockato, nessuna email reale
+  });
+
+  it('Album girevole admin: assegna il renderer giusto e conserva fronte, retro, crop e materiali fino alla conferma', async () => {
+    const backMaterial = ROTATING_MOCKUP_MODEL.variants[1];
+    const coverId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const backId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    h.docs.get('photobooks/book').mockupPath = 'studio';
+    h.docs.set('labs/lab', {
+      nome: 'Laboratorio di prova',
+      attivo: true,
+      mockupCatalog: {
+        revision: 1,
+        materials: [
+          { id: material.id, label: 'Tessuto fronte test', supplierCode: 'G-01' },
+          { id: backMaterial.id, label: 'Tessuto retro test', supplierCode: 'G-02' },
+        ],
+        models: [{
+          id: entryId,
+          name: 'Album girevole test',
+          supplierCode: 'G-01',
+          rendererId: ROTATING_MOCKUP_MODEL.id,
+          active: true,
+          materialIds: [material.id, backMaterial.id],
+        }],
+      },
+    });
+    const assigned = await fetch(`${base}/admin/offer`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ revision: 0, savedRevision: 0, mode: 'fixed', selections: [selection] }),
+    });
+    expect(assigned.status).toBe(200);
+    const offer = await assigned.json() as MockupOffer;
+    expect(offer.options[0]).toMatchObject({ id: entryId, rendererId: ROTATING_MOCKUP_MODEL.id });
+
+    h.docs.set(`photobooks/book/mockupAssets/${coverId}`, { version: 1, storagePath: 'test-cover.jpg' });
+    h.docs.set(`photobooks/book/mockupAssets/${backId}`, { version: 1, storagePath: 'test-back.jpg' });
+    h.files.set('test-cover.jpg', Buffer.from('cover-test'));
+    h.files.set('test-back.jpg', Buffer.from('back-test'));
+    const rotating = {
+      modelId: ROTATING_MOCKUP_MODEL.id,
+      assetRevision: ROTATING_MOCKUP_MODEL.assetRevision,
+      materialId: backMaterial.id,
+      appearanceRevision: backMaterial.appearanceRevision,
+      coverLayout: 'split-photo-fabric',
+      frameFinish: 'white',
+      topText: 'Anna',
+      bottomText: 'Marco',
+      engravingNames: { first: 'Anna', second: 'Marco' },
+      photoAssetId: coverId,
+      crop: { zoom: 2.1, x: 0.2, y: 0.7 },
+      backCover: 'photo',
+      backPhotoAssetId: backId,
+      backCrop: { zoom: 1.7, x: 0.65, y: 0.35 },
+    };
+    const savedResponse = await save(base, { revision: 0, configuration: rotating, selection, offerRevision: offer.revision });
+    expect(savedResponse.status).toBe(200);
+    expect(await savedResponse.json()).toMatchObject({ revision: 1, configuration: rotating, selection });
+
+    const reopened = await fetch(`${base}/admin`).then(response => response.json());
+    expect(reopened).toMatchObject({
+      offer: { options: [{ id: entryId, rendererId: 'album-girevole' }] },
+      saved: { revision: 1, configuration: rotating, selection },
+    });
+    expect(h.docs.get('photobooks/book/mockupAssets/' + coverId)).toMatchObject({ version: 1, storagePath: 'test-cover.jpg' });
+    expect(h.docs.get('photobooks/book/mockupAssets/' + backId)).toMatchObject({ version: 1, storagePath: 'test-back.jpg' });
+
+    const preview = await sharp({ create: { width: 24, height: 24, channels: 3, background: '#708090' } }).jpeg().toBuffer();
+    const confirmation = await fetch(`${base}/admin/confirm`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: JSON.stringify({
+        revision: 1,
+        configuration: rotating,
+        previews: Array.from({ length: 8 }, (_, index) => ({
+          label: `Vista girevole ${index + 1}`,
+          image: `data:image/jpeg;base64,${preview.toString('base64')}`,
+        })),
+      }),
+    });
+    expect(confirmation.status).toBe(200);
+    expect(await confirmation.json()).toMatchObject({ revision: 2, status: 'confirmed', configuration: rotating });
+    expect(h.docs.get('photobooks/book/mockups/v1')).toMatchObject({ revision: 2, configuration: rotating, status: 'confirmed' });
+  });
+
+  it('percorso cliente completo: sceglie un modello, collega una foto e invia senza avviare la stampa', async () => {
+    expect((await publish(base, [selection, secondSelection], 'choice')).status).toBe(200);
+    h.docs.get('photobooks/book').mockupPath = 'client';
+    h.photos = [{ id: 'gallery-choice', name: 'Foto dalla galleria', url: 'https://firebasestorage.googleapis.com/v0/b/test-bucket/o/galleries%2Fchoice.jpg?alt=media' }];
+    const galleryImage = await sharp({ create: { width: 90, height: 70, channels: 3, background: '#98765a' } }).jpeg().toBuffer();
+    h.files.set('galleries/choice.jpg', galleryImage);
+
+    const available = await fetch(`${base}/client`).then(r => r.json());
+    expect(available).toMatchObject({ modelMode: 'choice', editable: true, offer: { mode: 'choice', options: [{ id: entryId }, { id: secondSelection.modelId }] }, saved: null });
+
+    const selectedPhotoResponse = await fetch(`${base}/client/gallery-photo`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ photoId: 'gallery-choice' }),
+    });
+    expect(selectedPhotoResponse.status).toBe(200);
+    const selectedPhoto = await selectedPhotoResponse.json();
+    const clientConfiguration = { ...configuration, photoAssetId: selectedPhoto.id };
+    const saved = await save(base, {
+      revision: 0,
+      configuration: clientConfiguration,
+      selection: secondSelection,
+      offerRevision: 1,
+    }, 'client');
+    expect(saved.status).toBe(200);
+    expect(await saved.json()).toMatchObject({ revision: 1, status: 'draft', updatedBy: 'client', selection: secondSelection, configuration: clientConfiguration });
+
+    expect((await action(base, 'client', 'submit', 1)).status).toBe(200);
+    expect((await fetch(`${base}/client`).then(r => r.json())).saved).toMatchObject({ revision: 2, status: 'submitted', selection: secondSelection });
+    expect((await action(base, 'client', 'submit', 2)).status).toBe(409);
+    expect(h.docs.get('photobooks/book').locked).toBe(false);
+    expect(h.docs.get('photobooks/book').approval).toEqual({ version: 1 });
+    expect(notifySubmission).toHaveBeenCalledTimes(1); // callback mockato, nessuna email reale
+  });
+
+  it.each(['plaque', 'full', 'photo-plaque'].flatMap(coverLayout => ['fabric', 'photo'].flatMap(backCover => ['wood', 'white', 'fabric'].map(frameFinish => ({ coverLayout, backCover, frameFinish })))))('Album girevole v4: salva e invia dal cliente con %j', async variant => {
     await publish(base);
     h.docs.get('photobooks/book/mockupOffers/v1').options[0].rendererId = ROTATING_MOCKUP_MODEL.id;
     const rotating = { ...configuration, modelId: ROTATING_MOCKUP_MODEL.id, assetRevision: 4, ...variant,
@@ -285,6 +685,161 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     expect((await save(base, { revision: 2, configuration: rotating, selection, offerRevision: 1 }, 'client')).status).toBe(200);
     expect((await action(base, 'client', 'submit', 3)).status).toBe(200);
     expect(notifySubmission).toHaveBeenCalledTimes(2);
+  });
+
+  it('Quadrobook: formato e copertina li decide lo studio, il cliente non li cambia', async () => {
+    const graphicId = '44444444-4444-4444-8444-444444444444';
+    h.docs.get('photobooks/book').jobId = 'job';
+    h.docs.set(`photobooks/book/mockupAssets/${graphicId}`, { version: 1, storagePath: 'graphic.jpg' });
+    h.files.set('graphic.jpg', Buffer.from('grafica'));
+    h.docs.set('labs/lab', { nome: 'Laboratorio scelto', attivo: true, mockupCatalog: { revision: 1, materials: [{ id: material.id, label: 'Tessuto scelto', supplierCode: 'LAB-01' }], models: [{ id: entryId, name: 'Quadrobook', supplierCode: 'Q-01', rendererId: 'scatola-cornice', active: true, materialIds: [material.id] }] } });
+    const offerBody = (setup?: unknown) => JSON.stringify({ revision: 0, savedRevision: 0, mode: 'fixed', selections: [{ ...selection, ...(setup ? { setup } : {}) }] });
+    const put = (body: string) => fetch(`${base}/admin/offer?version=1`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body });
+    // Senza formato e copertina lo studio non può pubblicare il Quadrobook; con la grafica mancante nemmeno.
+    expect((await put(offerBody())).status).toBe(400);
+    expect((await put(offerBody({ format: { w: 25, h: 35 }, cover: { mode: 'graphic', graphicAssetId: '55555555-5555-4555-8555-555555555555' } }))).status).toBe(400);
+    const setup = { format: { w: 30, h: 20 }, cover: { mode: 'choice', graphicAssetId: graphicId } };
+    const published = await put(offerBody(setup));
+    expect(published.status).toBe(200);
+    expect((await published.json()).options[0].setup).toEqual(setup);
+    const box = { modelId: 'scatola-cornice', assetRevision: 1, materialId: material.id, appearanceRevision: material.appearanceRevision, albumMaterialId: material.id, albumAppearanceRevision: material.appearanceRevision, coverLayout: 'photo', format: { w: 30, h: 20 }, photoAssetId: photoId, lidPhotoAssetId: photoId, coverPhotoAssetId: photoId };
+    const mine = { selection, offerRevision: 1 };
+    // Il cliente non può cambiare il formato deciso dallo studio.
+    expect((await save(base, { revision: 0, configuration: { ...box, format: { w: 25, h: 35 } }, ...mine }, 'client')).status).toBe(409);
+    // Può scegliere foto o grafica perché la copertina è lasciata a lui.
+    expect((await save(base, { revision: 0, configuration: box, ...mine }, 'client')).status).toBe(200);
+    expect((await save(base, { revision: 1, configuration: { ...box, coverLayout: 'graphic', coverPhotoAssetId: null }, ...mine }, 'client')).status).toBe(200);
+    // La grafica dello studio si legge dal link cliente e segue la proposta.
+    const graphic = await globalThis.fetch(`${base}/client/cover-graphic?version=1`);
+    expect(graphic.status).toBe(200);
+    expect(Buffer.from(await graphic.arrayBuffer()).toString()).toBe('grafica');
+    expect((await action(base, 'client', 'submit', 2)).status).toBe(200);
+  });
+
+  it('Quadrobook admin: conserva superfici e tessuti separati fino alla conferma', async () => {
+    const albumMaterial = BOX_MOCKUP_MODEL.variants[1];
+    const lidPhotoId = '77777777-7777-4777-8777-777777777777';
+    const coverPhotoId = '88888888-8888-4888-8888-888888888888';
+    h.docs.get('photobooks/book').jobId = 'job';
+    h.docs.set(`photobooks/book/mockupAssets/${lidPhotoId}`, { version: 1, storagePath: 'lid.jpg' });
+    h.docs.set(`photobooks/book/mockupAssets/${coverPhotoId}`, { version: 1, storagePath: 'cover.jpg' });
+    h.docs.set('labs/lab', {
+      nome: 'Laboratorio scelto',
+      attivo: true,
+      mockupCatalog: {
+        revision: 1,
+        materials: [
+          { id: material.id, label: 'Tessuto scatola', supplierCode: 'BOX-01' },
+          { id: albumMaterial.id, label: 'Tessuto album', supplierCode: 'ALBUM-02' },
+        ],
+        models: [{
+          id: entryId, name: 'Quadrobook', supplierCode: 'Q-01',
+          rendererId: BOX_MOCKUP_MODEL.id, active: true,
+          materialIds: [material.id, albumMaterial.id],
+        }],
+      },
+    });
+
+    const setup = { format: { w: 30, h: 20 }, cover: { mode: 'photo' } };
+    const published = await fetch(`${base}/admin/offer`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ revision: 0, savedRevision: 0, mode: 'fixed', selections: [{ ...selection, setup }] }),
+    });
+    expect(published.status).toBe(200);
+
+    const configuration = {
+      modelId: BOX_MOCKUP_MODEL.id,
+      assetRevision: BOX_MOCKUP_MODEL.assetRevision,
+      materialId: material.id,
+      appearanceRevision: material.appearanceRevision,
+      albumMaterialId: albumMaterial.id,
+      albumAppearanceRevision: albumMaterial.appearanceRevision,
+      coverLayout: 'photo',
+      format: { w: 30, h: 20 },
+      photoAssetId: photoId,
+      lidPhotoAssetId: lidPhotoId,
+      coverPhotoAssetId: coverPhotoId,
+    };
+    const saved = await save(base, { revision: 0, configuration, selection, offerRevision: 1 });
+    expect(saved.status).toBe(200);
+    expect((await fetch(`${base}/admin`).then(response => response.json())).saved.configuration).toEqual(configuration);
+
+    const jpeg = await sharp({ create: { width: 8, height: 8, channels: 3, background: '#d8d1c4' } }).jpeg().toBuffer();
+    const previews = Array.from({ length: 8 }, (_, index) => ({
+      label: `Vista ${index + 1}`,
+      image: `data:image/jpeg;base64,${jpeg.toString('base64')}`,
+    }));
+    const confirmed = await globalThis.fetch(`${base}/admin/confirm`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: JSON.stringify({ revision: 1, configuration, previews }),
+    });
+    expect(confirmed.status).toBe(200);
+    const result = await confirmed.json() as SavedMockup;
+    expect(result).toMatchObject({ status: 'confirmed', configuration });
+    const report = h.files.get(result.reportPath!)?.toString('utf8');
+    expect(report).toContain('Tessuto scatola, cornice e piedistallo</th><td>Tessuto scatola');
+    expect(report).toContain('Tessuto album</th><td>Tessuto album');
+    expect(report).toContain('Foto del fondo (da appendere)');
+    expect(report).toContain('Foto del tappo (cornice)');
+  });
+
+  it('ImageBox: formato dallo studio; grafiche solo dallo studio quando prepara lui il mockup', async () => {
+    h.docs.get('photobooks/book').jobId = 'job';
+    h.docs.set('labs/lab', { nome: 'PeppeLab', attivo: true, mockupCatalog: { revision: 1, materials: [{ id: material.id, label: 'Tessuto scelto', supplierCode: 'PL-01' }], models: [{ id: entryId, name: 'ImageBox', supplierCode: 'IB-01', rendererId: 'imagebox', active: true, materialIds: [material.id] }] } });
+    const put = (setup?: unknown) => fetch(`${base}/admin/offer?version=1`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: 0, savedRevision: 0, mode: 'fixed', selections: [{ ...selection, ...(setup ? { setup } : {}) }] }) });
+    // Senza formato, o con un formato fuori elenco, o con le impostazioni del Quadrobook, non si pubblica.
+    expect((await put()).status).toBe(400);
+    expect((await put({ format: { w: 28, h: 35 } })).status).toBe(400);
+    expect((await put({ format: { w: 25, h: 35 }, cover: { mode: 'photo' } })).status).toBe(400);
+    const published = await put({ format: { w: 40, h: 30 } });
+    expect(published.status).toBe(200);
+    expect((await published.json()).options[0].setup).toEqual({ format: { w: 40, h: 30 } });
+
+    const box = { modelId: 'imagebox', assetRevision: 1, materialId: material.id, appearanceRevision: material.appearanceRevision, albumMaterialId: material.id, albumAppearanceRevision: material.appearanceRevision, coverLayout: 'plaque', format: { w: 40, h: 30 }, photoAssetId: photoId, coverPhotoAssetId: null, coverEngraving: { mode: 'text', text: 'Lorenzo' }, glassEngraving: { mode: 'text', text: 'il mio battesimo', color: 'white' } };
+    const mine = { selection, offerRevision: 1 };
+    // Il formato lo decide lo studio; la placchetta richiede la scritta; il fondo richiede la foto.
+    expect((await save(base, { revision: 0, configuration: { ...box, format: { w: 30, h: 20 } }, ...mine }, 'client')).status).toBe(409);
+    expect((await save(base, { revision: 0, configuration: { ...box, coverEngraving: null }, ...mine }, 'client')).status).toBe(400);
+    expect((await save(base, { revision: 0, configuration: { ...box, photoAssetId: null }, ...mine }, 'client')).status).toBe(400);
+    expect((await save(base, { revision: 0, configuration: box, ...mine }, 'client')).status).toBe(200);
+
+    // Grafica: il cliente non la carica e non la usa; lo studio solo nel percorso in cui prepara lui il mockup.
+    const png = await sharp({ create: { width: 40, height: 20, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).png().toBuffer();
+    const upload = (scope: string) => globalThis.fetch(`${base}/${scope}/upload-graphic?version=1&name=logo.png`, { method: 'POST', headers: { 'Content-Type': 'image/png' }, body: png });
+    expect((await upload('client')).status).toBe(403);
+    const uploaded = await upload('admin');
+    expect(uploaded.status).toBe(200);
+    const graphicId = (await uploaded.json() as { id: string }).id;
+    const asset = h.docs.get(`photobooks/book/mockupAssets/${graphicId}`);
+    expect(asset).toMatchObject({ kind: 'graphic', contentType: 'image/png' });
+    expect(asset.storagePath).toMatch(/\.png$/);
+    const served = await globalThis.fetch(`${base}/admin/photos/${graphicId}?version=1`);
+    expect(served.headers.get('content-type')).toContain('image/png');
+    const coverGraphicUpload = await upload('admin');
+    expect(coverGraphicUpload.status).toBe(200);
+    const coverGraphicId = (await coverGraphicUpload.json() as { id: string }).id;
+    const withGraphic = {
+      ...box,
+      coverLayout: 'split-photo-fabric',
+      coverPhotoAssetId: photoId,
+      coverEngraving: { mode: 'graphic', assetId: coverGraphicId },
+      glassEngraving: { mode: 'graphic', assetId: graphicId },
+    };
+    expect((await save(base, { revision: 1, configuration: withGraphic, ...mine }, 'client')).status).toBe(403);
+    // Percorso in cui sceglie il cliente: nemmeno lo studio mette grafiche.
+    expect((await save(base, { revision: 1, configuration: withGraphic, ...mine }, 'admin')).status).toBe(403);
+    h.docs.set('photobooks/book', { ...h.docs.get('photobooks/book'), mockupPath: 'studio' });
+    // Una foto normale non vale come grafica da incidere.
+    expect((await save(base, { revision: 1, configuration: { ...box, coverEngraving: { mode: 'graphic', assetId: photoId } }, ...mine }, 'admin')).status).toBe(400);
+    const studio = await save(base, { revision: 1, configuration: withGraphic, ...mine }, 'admin');
+    expect(studio.status).toBe(200);
+    expect((await studio.json()).configuration).toEqual(withGraphic);
+    // Riaprendo la bozza, foto e grafiche devono restare associate alle superfici corrette.
+    expect((await fetch(`${base}/admin`).then(r => r.json())).saved.configuration).toEqual(withGraphic);
+    expect((await globalThis.fetch(`${base}/admin/photos/${coverGraphicId}?version=1`)).headers.get('content-type')).toContain('image/png');
+    expect((await globalThis.fetch(`${base}/admin/photos/${graphicId}?version=1`)).headers.get('content-type')).toContain('image/png');
   });
 
   it('avvisa lo studio solo dopo l’invio acquisito, mai dopo bozza, rifiuto o richiesta di correzioni', async () => {
@@ -501,6 +1056,63 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     expect(invalid.editable).toBe(false);
     expect((await save(base, { revision: 2, configuration: plaza, selection, offerRevision: 2 }, 'client')).status).toBe(409);
   });
+  it('salva separatamente foto copertina e retro Plaza LED mantenendo entrambi gli stati LED', async () => {
+    await publish(base);
+    const [plazaMaterial, plazaInnerMaterial] = I_NOBILI_MATERIALS;
+    const lab = h.docs.get('labs/lab');
+    lab.nome = 'I Nobili';
+    lab.mockupCatalog.materials = [
+      { id: plazaMaterial.id, label: 'Tessuto Plaza esterno', supplierCode: 'P-01' },
+      { id: plazaInnerMaterial.id, label: 'Tessuto Plaza interno', supplierCode: 'P-02' },
+    ];
+    lab.mockupCatalog.models = [{ id: entryId, name: 'Plaza LED', supplierCode: 'P-01', rendererId: PLAZA_MOCKUP_MODEL.id, active: true, materialIds: [plazaMaterial.id, plazaInnerMaterial.id] }];
+    const published = await fetch(`${base}/admin/offer`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ revision: 1, savedRevision: 0, mode: 'fixed', selections: [selection] }),
+    });
+    expect(published.status).toBe(200);
+
+    const image = await sharp({ create: { width: 40, height: 30, channels: 3, background: '#708090' } }).jpeg().toBuffer();
+    const upload = async (name: string) => fetch(`${base}/admin/upload?name=${encodeURIComponent(name)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'image/jpeg' },
+      body: image,
+    }).then(response => response.json() as Promise<MockupPhoto>);
+    const cover = await upload('copertina-plaza.jpg');
+    const back = await upload('retro-plaza.jpg');
+    expect(cover.source).toBe('upload');
+    expect(back.source).toBe('upload');
+    expect(back.id).not.toBe(cover.id);
+
+    const plaza = {
+      modelId: PLAZA_MOCKUP_MODEL.id,
+      assetRevision: PLAZA_MOCKUP_MODEL.assetRevision,
+      materialId: plazaMaterial.id,
+      appearanceRevision: plazaMaterial.appearanceRevision,
+      innerMaterialId: plazaInnerMaterial.id,
+      innerAppearanceRevision: plazaInnerMaterial.appearanceRevision,
+      coverLayout: 'full',
+      frameFinish: 'fabric',
+      topText: '',
+      bottomText: '',
+      photoAssetId: cover.id,
+      crop: { zoom: 1.4, x: 0.3, y: 0.7 },
+      backCover: 'photo',
+      backPhotoAssetId: back.id,
+      backCrop: { zoom: 1.8, x: 0.2, y: 0.8 },
+      ledEnabled: true,
+    };
+    const plazaSelection = { labId: 'lab', modelId: entryId };
+    const firstSave = await save(base, { revision: 0, configuration: plaza, selection: plazaSelection, offerRevision: 2 });
+    expect(firstSave.status, await firstSave.clone().text()).toBe(200);
+    expect((await fetch(`${base}/admin`).then(response => response.json())).saved.configuration).toEqual(plaza);
+
+    const ledOff = { ...plaza, ledEnabled: false, coverLayout: 'split-photo-fabric' };
+    expect((await save(base, { revision: 1, configuration: ledOff, selection: plazaSelection, offerRevision: 2 })).status).toBe(200);
+    expect((await fetch(`${base}/admin`).then(response => response.json())).saved.configuration).toEqual(ledOff);
+    expect(notifySubmission).not.toHaveBeenCalled();
+  });
   it('nel percorso studio non chiede al cliente correzioni che non può salvare', async () => {
     await publish(base);
     h.docs.get('photobooks/book').mockupPath = 'studio';
@@ -549,7 +1161,7 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     expect(h.docs.get('photobooks/book/mockups/v1').reportPath).toBeUndefined();
     expect(h.docs.get('photobooks/book/mockups/v1').status).toBe('draft');
   });
-  it('rinvia l’email del mockup confermato fino all’approvazione delle pagine', async () => {
+  it('conferma e notifica il mockup senza attendere l’approvazione delle pagine', async () => {
     await publish(base);
     const book = h.docs.get('photobooks/book');
     book.mockupPath = 'studio';
@@ -559,10 +1171,12 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     const body = { revision: 1, configuration, previews: Array.from({ length: 8 }, () => ({ label: 'vista', image: `data:image/jpeg;base64,${image.toString('base64')}` })) };
     const response = await fetch(`${base}/admin/confirm`, { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: JSON.stringify(body) });
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ status: 'confirmed', notificationState: 'waiting-approval' });
-    expect(h.docs.get('photobooks/book').mockupNotifications.confirmed_v1_r2).toMatchObject({ state: 'waiting-approval' });
-    expect(notifyClient).not.toHaveBeenCalled();
-    expect((await fetch(`${base}/admin`).then(r => r.json())).notificationState).toBe('waiting-approval');
+    const result = await response.json();
+    expect(result).toMatchObject({ status: 'confirmed' });
+    expect(result.notificationState).not.toBe('waiting-approval');
+    expect(h.docs.get('photobooks/book').mockupNotifications).toBeUndefined();
+    expect(notifyClient).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ revision: 2, status: 'confirmed' }), 'confirmed');
+    expect((await fetch(`${base}/admin`).then(r => r.json())).notificationState).toBeUndefined();
   });
   it('rifiuta la conferma se cambia la proposta durante la generazione', async () => {
     await publish(base);

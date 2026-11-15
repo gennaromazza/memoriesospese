@@ -32,6 +32,8 @@ export interface AdminPasskeySummary {
 export interface AdminSecurityStatus {
   passkeyRequired: boolean;
   passkeys: AdminPasskeySummary[];
+  rememberedDevices: RememberedDeviceSummary[];
+  rememberedDeviceId: string | null;
   recoveryCodesRemaining: number;
   recoveryCodesGeneratedAt: number | null;
   lockedUntil: number | null;
@@ -39,6 +41,16 @@ export interface AdminSecurityStatus {
   activationReady: boolean;
   verifiedUntil: number | null;
   expectedClaim: ExpectedAdminPasskeyClaim | null;
+}
+
+export interface RememberedDeviceSummary {
+  id: string;
+  label: string;
+  createdAt: number;
+  expiresAt: number;
+  lastUsedAt: number | null;
+  revokedAt: number | null;
+  status: 'active' | 'expired' | 'revoked';
 }
 
 export interface AdminPasskeyClaim {
@@ -63,14 +75,71 @@ export interface PreviewPasskeyHandoff {
   uid: string;
 }
 
+export type DeviceEnrollmentStatus =
+  | 'pending'
+  | 'approved'
+  | 'registered'
+  | 'rejected'
+  | 'cancelled'
+  | 'expired';
+
+export interface DeviceEnrollmentHandoff {
+  enrollmentId: string;
+  verifier: string;
+  approvalUrl: string;
+  expiresAt: number;
+  uid: string;
+}
+
+export interface DeviceEnrollmentApprovalInfo {
+  status: DeviceEnrollmentStatus;
+  deviceLabel: string;
+  expiresAt: number;
+}
+
 /** Matches DESKTOP_HANDOFF_TTL_MS on the server; this is only a local polling limit. */
 export const PREVIEW_HANDOFF_TIMEOUT_MS = 10 * 60 * 1000;
+export const DEVICE_ENROLLMENT_TIMEOUT_MS = 10 * 60 * 1000;
+
+const OFFICIAL_PASSKEY_ORIGINS = new Set([
+  'https://imagestudiofotografico.com',
+  'https://www.imagestudiofotografico.com',
+]);
+
+export function canRestoreRememberedDeviceAtOrigin(origin: string): boolean {
+  return OFFICIAL_PASSKEY_ORIGINS.has(origin);
+}
 
 type PasskeyHandoffStatus = 'pending' | 'verified' | 'expired';
 
 /** Verification and lock state are already evaluated against the server clock. */
 export function isAdminPasskeyVerificationRequired(status: AdminSecurityStatus): boolean {
   return status.passkeyRequired && !status.verified;
+}
+
+/**
+ * Il server conosce le passkey dell'account e del dominio, non quelle presenti
+ * fisicamente nel browser corrente. Perciò una passkey dello stesso RP non
+ * deve nascondere la possibilità di autorizzare un dispositivo nuovo.
+ */
+export function canOfferDeviceEnrollment(status: AdminSecurityStatus, currentRpId: string): boolean {
+  return getDeviceEnrollmentUnavailableReason(status, currentRpId) === null;
+}
+
+export function getDeviceEnrollmentUnavailableReason(
+  status: AdminSecurityStatus,
+  currentRpId: string,
+): string | null {
+  if (!status.passkeyRequired) {
+    return 'Per associare un nuovo dispositivo con il QR, attiva prima l’obbligo passkey nelle impostazioni di Sicurezza.';
+  }
+  if (currentRpId !== 'imagestudiofotografico.com') {
+    return 'Il QR di associazione è disponibile solo sul sito ufficiale. Apri imagestudiofotografico.com sul dispositivo da associare.';
+  }
+  if (!status.passkeys.some((passkey) => passkey.rpId === 'imagestudiofotografico.com')) {
+    return 'Serve una passkey già registrata sul sito ufficiale e disponibile su un dispositivo fidato. Se non puoi usarla, accedi con un codice di recupero e registra una passkey.';
+  }
+  return null;
 }
 
 export function isAdminPasskeyLocked(status: AdminSecurityStatus): boolean {
@@ -213,18 +282,75 @@ export const AdminPasskeyClient = {
     return result.passkey;
   },
 
-  async verify(): Promise<number> {
+  async verify(options?: { rememberDevice?: boolean; deviceLabel?: string }): Promise<number> {
     const optionsJSON = await securityRequest<Parameters<typeof startAuthentication>[0]['optionsJSON']>(
       '/authentication/options',
       { method: 'POST' },
     );
     const response = await startAuthentication({ optionsJSON });
-    const result = await securityRequest<{ verifiedUntil: number; expectedClaim: ExpectedAdminPasskeyClaim }>('/authentication/verify', {
+    const result = await securityRequest<{
+      verifiedUntil: number;
+      expectedClaim: ExpectedAdminPasskeyClaim;
+      customToken?: string;
+      rememberedDevice?: { id: string; expiresAt: number };
+    }>('/authentication/verify', {
       method: 'POST',
-      body: JSON.stringify({ response }),
+      body: JSON.stringify({
+        response,
+        ...(options?.rememberDevice ? {
+          rememberDevice: true,
+          deviceLabel: options.deviceLabel ?? 'Browser personale',
+        } : {}),
+      }),
     });
-    await refreshClaims(result.expectedClaim);
+    if (result.customToken && result.rememberedDevice) {
+      const currentUid = auth.currentUser?.uid;
+      const signedIn = await signInWithCustomToken(auth, result.customToken);
+      if (!currentUid || signedIn.user.uid !== currentUid) {
+        throw new Error('La sessione del dispositivo non corrisponde all’account amministratore.');
+      }
+      const token = await signedIn.user.getIdTokenResult(true);
+      const trust = token.claims.adminDeviceTrust;
+      if (!trust || typeof trust !== 'object' || (trust as Record<string, unknown>).id !== result.rememberedDevice.id) {
+        throw new Error('La sessione non ha ricevuto la fiducia del dispositivo. Ricarica la pagina per riprovare.');
+      }
+    } else {
+      await refreshClaims(result.expectedClaim);
+    }
     return result.verifiedUntil;
+  },
+
+  async restoreRememberedDevice(): Promise<boolean> {
+    const currentUid = auth.currentUser?.uid;
+    if (!currentUid) throw new AdminSecurityError(401, 'unauthenticated', 'Sessione scaduta: accedi di nuovo');
+    const result = await securityRequest<{ restored: boolean; customToken?: string }>('/devices/restore', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+    if (result.customToken) {
+      const signedIn = await signInWithCustomToken(auth, result.customToken);
+      if (signedIn.user.uid !== currentUid) {
+        throw new Error('Il dispositivo ricordato appartiene a un altro account.');
+      }
+      const token = await signedIn.user.getIdTokenResult(true);
+      if (!token.claims.adminDeviceTrust || typeof token.claims.adminDeviceTrust !== 'object') {
+        throw new Error('Non è stato possibile ripristinare la fiducia del dispositivo.');
+      }
+    }
+    return result.restored;
+  },
+
+  forgetRememberedDevice(deviceId: string): Promise<void> {
+    return securityRequest<{ success: boolean }>(`/devices/${encodeURIComponent(deviceId)}`, {
+      method: 'DELETE',
+    }).then(() => undefined);
+  },
+
+  forgetAllRememberedDevices(): Promise<void> {
+    return securityRequest<{ success: boolean }>('/devices/revoke-all', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }).then(() => undefined);
   },
 
   async verifyForDesktopHandoff(handoffId: string): Promise<void> {
@@ -237,6 +363,102 @@ export const AdminPasskeyClient = {
     await securityRequest<{ verifiedAt: number }>(
       `/desktop-handoff/${encodedId}/authentication/verify`,
       { method: 'POST', body: JSON.stringify({ response }) },
+    );
+  },
+
+  async startDeviceEnrollment(deviceLabel: string): Promise<DeviceEnrollmentHandoff> {
+    const user = auth.currentUser;
+    if (!user) throw new AdminSecurityError(401, 'unauthenticated', 'Sessione scaduta: accedi di nuovo');
+    const { verifier, verifierHash } = await createHandoffVerifier();
+    const started = await securityRequest<{
+      enrollmentId: string;
+      approvalUrl: string;
+      expiresAt: number;
+    }>('/device-enrollment/start', {
+      method: 'POST',
+      body: JSON.stringify({ verifierHash, deviceLabel }),
+    });
+    const approvalUrl = new URL(started.approvalUrl);
+    if (
+      approvalUrl.origin !== 'https://imagestudiofotografico.com' ||
+      approvalUrl.pathname !== '/admin/authorize-device' ||
+      approvalUrl.searchParams.get('deviceEnrollment') !== started.enrollmentId ||
+      [...approvalUrl.searchParams.keys()].some((key) => key !== 'deviceEnrollment')
+    ) {
+      throw new Error('Il server ha restituito un indirizzo di autorizzazione non attendibile.');
+    }
+    return { ...started, verifier, uid: user.uid };
+  },
+
+  async getDeviceEnrollmentStatus(
+    handoff: DeviceEnrollmentHandoff,
+  ): Promise<{ status: DeviceEnrollmentStatus; deviceLabel: string; expiresAt: number }> {
+    const user = auth.currentUser;
+    if (!user || user.uid !== handoff.uid) {
+      throw new Error('L’account amministratore è cambiato. Avvia una nuova richiesta.');
+    }
+    return securityRequest<{ status: DeviceEnrollmentStatus; deviceLabel: string; expiresAt: number }>(
+      `/device-enrollment/${encodeURIComponent(handoff.enrollmentId)}/status`,
+      { method: 'POST', body: JSON.stringify({ verifier: handoff.verifier }) },
+    );
+  },
+
+  async cancelDeviceEnrollment(handoff: DeviceEnrollmentHandoff): Promise<void> {
+    const user = auth.currentUser;
+    if (!user || user.uid !== handoff.uid) {
+      throw new Error('L’account amministratore è cambiato. Avvia una nuova richiesta.');
+    }
+    await securityRequest<{ cancelled: boolean }>(
+      `/device-enrollment/${encodeURIComponent(handoff.enrollmentId)}/cancel`,
+      { method: 'POST', body: JSON.stringify({ verifier: handoff.verifier }) },
+    );
+  },
+
+  async registerDeviceEnrollmentPasskey(
+    handoff: DeviceEnrollmentHandoff,
+  ): Promise<AdminPasskeySummary> {
+    const user = auth.currentUser;
+    if (!user || user.uid !== handoff.uid) {
+      throw new Error('L’account amministratore è cambiato. Avvia una nuova richiesta.');
+    }
+    const encodedId = encodeURIComponent(handoff.enrollmentId);
+    const body = JSON.stringify({ verifier: handoff.verifier });
+    const optionsJSON = await securityRequest<Parameters<typeof startRegistration>[0]['optionsJSON']>(
+      `/device-enrollment/${encodedId}/registration/options`,
+      { method: 'POST', body },
+    );
+    const response = await startRegistration({ optionsJSON });
+    const result = await securityRequest<{ passkey: AdminPasskeySummary }>(
+      `/device-enrollment/${encodedId}/registration/verify`,
+      { method: 'POST', body: JSON.stringify({ verifier: handoff.verifier, response }) },
+    );
+    return result.passkey;
+  },
+
+  async getDeviceEnrollmentApprovalInfo(enrollmentId: string): Promise<DeviceEnrollmentApprovalInfo> {
+    return securityRequest<DeviceEnrollmentApprovalInfo>(
+      `/device-enrollment/${encodeURIComponent(enrollmentId)}/approval-info`,
+      { method: 'POST' },
+    );
+  },
+
+  async approveDeviceEnrollment(enrollmentId: string): Promise<void> {
+    const encodedId = encodeURIComponent(enrollmentId);
+    const optionsJSON = await securityRequest<Parameters<typeof startAuthentication>[0]['optionsJSON']>(
+      `/device-enrollment/${encodedId}/authentication/options`,
+      { method: 'POST' },
+    );
+    const response = await startAuthentication({ optionsJSON });
+    await securityRequest<{ approvedAt: number }>(
+      `/device-enrollment/${encodedId}/authentication/verify`,
+      { method: 'POST', body: JSON.stringify({ response }) },
+    );
+  },
+
+  async rejectDeviceEnrollment(enrollmentId: string): Promise<void> {
+    await securityRequest<{ rejected: boolean }>(
+      `/device-enrollment/${encodeURIComponent(enrollmentId)}/reject`,
+      { method: 'POST' },
     );
   },
 

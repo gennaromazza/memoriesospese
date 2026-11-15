@@ -7,20 +7,14 @@
  * (@replit/connectors-sdk): il token OAuth non transita mai da questo modulo.
  */
 
-import { ReplitConnectors } from '@replit/connectors-sdk';
 import { Readable } from 'stream';
+import { boundedDriveRequest, driveSessionRequest } from './drive-request.js';
 
 export interface DriveConnectionStatus {
   connected: boolean;
   email?: string;
   needsReconnection: boolean;
   error?: string;
-}
-
-// Non cachare il client: l'SDK gestisce identità e refresh internamente,
-// l'istanza è comunque leggera e senza stato di sessione.
-function getConnectors(): ReplitConnectors {
-  return new ReplitConnectors();
 }
 
 /**
@@ -31,14 +25,16 @@ async function driveFetch(
   path: string,
   options?: { method?: string; headers?: Record<string, string>; body?: any },
 ): Promise<Response> {
-  const response = await getConnectors().proxy('google-drive', path, options);
-  if (response.status === 401 || response.status === 403) {
-    const text = await response.text().catch(() => '');
-    throw new Error(
-      `GOOGLE_DRIVE_RECONNECTION_NEEDED: Google Drive non connesso o autorizzazione scaduta (${response.status}) ${text.slice(0, 200)}`,
-    );
-  }
-  return response;
+  // createProxyFetch accepts Fetch bodies, unlike proxy() which also serializes
+  // plain objects. Preserve that existing contract for folder/permission calls.
+  const body = options?.body;
+  const jsonBody = body !== null && typeof body === 'object'
+    && (Array.isArray(body) || Object.getPrototypeOf(body) === Object.prototype);
+  const normalized = jsonBody ? {
+    ...options, body: JSON.stringify(body),
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+  } : options;
+  return boundedDriveRequest(path, normalized, !options?.method || options.method === 'GET');
 }
 
 /** Come driveFetch ma lancia anche sugli altri errori HTTP e fa il parse JSON. */
@@ -290,6 +286,57 @@ export async function createShipmentFolder(
   }
 }
 
+/**
+ * Sposta un file fra due cartelle Drive. Il controllo dei parent rende
+ * l'operazione ripetibile se la risposta della prima PATCH è andata persa.
+ */
+export async function moveDriveFile(
+  fileId: string,
+  fromFolderId: string,
+  toFolderId: string,
+): Promise<void> {
+  const encodedId = encodeURIComponent(fileId);
+  const current = await driveJson<{ parents?: string[] }>(
+    `/drive/v3/files/${encodedId}?fields=parents&supportsAllDrives=true`,
+  );
+  const parents = current.parents || [];
+  if (parents.includes(toFolderId) && !parents.includes(fromFolderId)) return;
+
+  const params = new URLSearchParams({ addParents: toFolderId, supportsAllDrives: 'true' });
+  if (parents.includes(fromFolderId)) params.set('removeParents', fromFolderId);
+  await driveJson(
+    `/drive/v3/files/${encodedId}?${params.toString()}&fields=id,parents&supportsAllDrives=true`,
+    { method: 'PATCH' },
+  );
+}
+
+/**
+ * Apre un file soltanto se Drive lo conferma ancora nella cartella privata attesa.
+ * Il contenuto resta in streaming, senza creare una copia pubblica o caricarlo
+ * interamente in memoria.
+ */
+export async function openDriveFileFromFolder(
+  fileId: string,
+  expectedFolderId: string,
+): Promise<{ stream: Readable; mimeType?: string; size?: string } | null> {
+  const metadata = await driveJson<{ parents?: string[]; mimeType?: string; size?: string }>(
+    `/drive/v3/files/${encodeURIComponent(fileId)}?fields=parents,mimeType,size&supportsAllDrives=true`,
+  );
+  if (!metadata.parents?.includes(expectedFolderId)) return null;
+
+  const response = await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`);
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(`Google Drive API error: ${response.status} ${text.slice(0, 300)}`);
+  }
+  if (!response.body) throw new Error('Contenuto Drive non disponibile');
+  return {
+    stream: Readable.fromWeb(response.body as any),
+    ...(metadata.mimeType ? { mimeType: metadata.mimeType } : {}),
+    ...(metadata.size ? { size: metadata.size } : {}),
+  };
+}
+
 /** Rende pubblica-by-link una cartella già persistita con scadenza nel gestionale. */
 export async function shareShipmentFolder(folderId: string): Promise<string | undefined> {
   const existing = await driveJson<{
@@ -458,7 +505,7 @@ export async function uploadStreamToDriveFolder(
     buffer.length,
   );
 
-  const put = await fetch(sessionUri, {
+  const put = await driveSessionRequest(sessionUri, {
     method: 'PUT',
     headers: {
       'Content-Type': mimeType || 'application/octet-stream',
@@ -477,6 +524,38 @@ export async function uploadStreamToDriveFolder(
     webViewLink: data.webViewLink || undefined,
     size: data.size ? parseInt(data.size, 10) : buffer.length,
   };
+}
+
+/** Trova i file con nome esatto in una cartella Drive, incluse le unità condivise. */
+export async function findDriveFilesInFolder(
+  folderId: string,
+  fileName: string,
+): Promise<Array<{ fileId: string; webViewLink?: string; size?: number }>> {
+  const escapeQueryValue = (value: string) => value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  const params = new URLSearchParams({
+    q: `name='${escapeQueryValue(fileName)}' and '${escapeQueryValue(folderId)}' in parents and trashed=false`,
+    fields: 'nextPageToken,files(id,webViewLink,size)',
+    pageSize: '1000',
+    orderBy: 'createdTime',
+    supportsAllDrives: 'true',
+    includeItemsFromAllDrives: 'true',
+  });
+  const matches: Array<{ fileId: string; webViewLink?: string; size?: number }> = [];
+  let pageToken: string | undefined;
+  do {
+    if (pageToken) params.set('pageToken', pageToken);
+    const result = await driveJson<{
+      nextPageToken?: string;
+      files?: Array<{ id: string; webViewLink?: string; size?: string }>;
+    }>(`/drive/v3/files?${params.toString()}`);
+    matches.push(...(result.files || []).map(file => ({
+      fileId: file.id,
+      ...(file.webViewLink ? { webViewLink: file.webViewLink } : {}),
+      ...(file.size ? { size: Number(file.size) } : {}),
+    })));
+    pageToken = result.nextPageToken;
+  } while (pageToken);
+  return matches;
 }
 
 /** Aggiorna il contenuto di un file Drive esistente senza cambiarne ID o nome. */

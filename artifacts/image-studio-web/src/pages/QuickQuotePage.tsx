@@ -147,7 +147,10 @@ export default function QuickQuotePage() {
     queryKey: ['/api/quotes/quick', token],
     queryFn: async () => {
       const response = await fetch(`/api/quotes/quick/${token}`);
-      if (!response.ok) throw new Error('Template non trovato');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || errorData?.error || 'Impossibile caricare il preventivo');
+      }
       return response.json();
     },
     enabled: !!token,
@@ -348,8 +351,8 @@ export default function QuickQuotePage() {
 
   useEffect(() => {
     if (template?.theme) {
-      document.documentElement.style.setProperty('--theme-primary', template.theme.primaryColor || '#8B9A8B');
-      document.documentElement.style.setProperty('--theme-secondary', template.theme.secondaryColor || '#C8D4C8');
+      document.documentElement.style.setProperty('--theme-primary', template.theme.primaryColor);
+      document.documentElement.style.setProperty('--theme-secondary', template.theme.secondaryColor);
     }
     return () => {
       document.documentElement.style.removeProperty('--theme-primary');
@@ -452,8 +455,8 @@ export default function QuickQuotePage() {
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(amount);
 
-  const primaryColor = template?.theme?.primaryColor ?? '#8B9A8B';
-  const secondaryColor = template?.theme?.secondaryColor ?? '#C8D4C8';
+  const primaryColor = template?.theme?.primaryColor ?? 'currentColor';
+  const secondaryColor = template?.theme?.secondaryColor ?? 'currentColor';
 
   const activateMutation = useMutation({
     mutationFn: async (formData: QuickQuoteFormData) => {

@@ -74,10 +74,20 @@ describe('ripristino bozza stampe', () => {
     const order = draft({
       catalogVersion: 3,
       currency: 'EUR',
+      totals: { subtotalCents: 100, discountCents: 25, totalCents: 75 },
       quoteFingerprint: 'a'.repeat(64),
       printShop: {
         assetCount: 1,
         copyCount: 2,
+        coupon: {
+          code: 'SALVATO25',
+          discountType: 'fixed',
+          value: 25,
+          discountCents: 25,
+          scope: 'all',
+          eligibleSkus: [],
+          minPrintQuantity: 0,
+        },
         requestedItems: [{ sku: '10x15', finish: 'matte', fitMode: 'cover', assignments: [{ assetId: 'asset-1', copies: 2 }] }],
         items: [{
           productId: 'p-1', sku: '10x15', productName: '10×15', category: 'classiche',
@@ -91,7 +101,8 @@ describe('ripristino bozza stampe', () => {
     expect(restorePrintDraftQuote(order)).toMatchObject({
       catalogVersion: 3,
       quoteFingerprint: 'a'.repeat(64),
-      totals: { totalCents: 100 },
+      coupon: { code: 'SALVATO25', discountCents: 25 },
+      totals: { subtotalCents: 100, discountCents: 25, totalCents: 75 },
       copyCount: 2,
     });
   });

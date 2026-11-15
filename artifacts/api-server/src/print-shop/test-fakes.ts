@@ -246,6 +246,13 @@ export class FakeStorage {
             ...(file.metadata || {}),
           }];
         },
+        save: async (buffer: Buffer, options: any) => {
+          this.files.set(path, {
+            buffer: Buffer.from(buffer),
+            contentType: options?.metadata?.contentType || 'application/octet-stream',
+            metadata: clone(options?.metadata?.metadata || {}),
+          });
+        },
         setMetadata: async (metadata: Record<string, unknown>) => {
           if (this.failMetadataPaths.has(path)) throw new Error('metadata update failed');
           const file = this.files.get(path);

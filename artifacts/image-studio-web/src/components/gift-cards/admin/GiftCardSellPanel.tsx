@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, Printer } from 'lucide-react';
+import { CheckCircle2, Pencil, Printer } from 'lucide-react';
 import {
   GIFT_CARD_MESSAGE_MAX,
   GIFT_CARD_NAME_MAX,
@@ -20,6 +20,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { GiftCardCartoncino } from '../GiftCardCartoncino';
+import { getAllProducts } from '@/lib/products';
 import {
   PAYMENT_OPTIONS,
   endOfDayIso,
@@ -31,11 +32,18 @@ import {
 
 type ExpiryMode = 'type' | 'date' | 'none';
 
-export default function GiftCardSellPanel({ onCreateType }: { onCreateType?: () => void } = {}) {
+export default function GiftCardSellPanel({
+  onCreateType,
+  onManageTypes,
+}: {
+  onCreateType?: () => void;
+  onManageTypes?: () => void;
+} = {}) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const types = useQuery({ queryKey: ['gift-card-types'], queryFn: giftCardsApi.listTypes });
   const campaigns = useQuery({ queryKey: ['gift-card-campaigns'], queryFn: getAllCampaigns });
+  const products = useQuery({ queryKey: ['gift-card-products'], queryFn: getAllProducts, staleTime: 60_000 });
 
   const sellable = useMemo(() => (types.data ?? []).filter(type => type.active && type.sellInStudio), [types.data]);
   const [typeId, setTypeId] = useState('');
@@ -56,6 +64,7 @@ export default function GiftCardSellPanel({ onCreateType }: { onCreateType?: () 
 
   const type = sellable.find(item => item.id === typeId);
   const campaignList = campaigns.data ?? [];
+  const productsById = useMemo(() => new Map((products.data ?? []).map(product => [product.id, product])), [products.data]);
   const typeDefaultsToNoExpiry = type?.validityMode === 'none';
 
   const previewExpiry = useMemo(() => {
@@ -171,9 +180,17 @@ export default function GiftCardSellPanel({ onCreateType }: { onCreateType?: () 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Nuova vendita al banco</CardTitle>
-          <CardDescription>Il codice nasce quando confermi, e la card è attiva subito.</CardDescription>
+        <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+          <div>
+            <CardTitle className="text-lg">Nuova vendita al banco</CardTitle>
+            <CardDescription>Il codice nasce quando confermi, e la card è attiva subito.</CardDescription>
+          </div>
+          {onManageTypes ? (
+            <Button type="button" size="sm" variant="outline" className="shrink-0" onClick={onManageTypes}>
+              <Pencil className="mr-2 h-4 w-4" aria-hidden="true" />
+              Modifica i tipi
+            </Button>
+          ) : null}
         </CardHeader>
         <CardContent className="space-y-6">
           <fieldset className="space-y-2">
@@ -194,6 +211,60 @@ export default function GiftCardSellPanel({ onCreateType }: { onCreateType?: () 
               </button>
             ))}
           </fieldset>
+          {type?.items.length ? (
+            <section className="space-y-3 rounded-lg border bg-muted/20 p-3" aria-labelledby="gc-sell-includes">
+              <div>
+                <h3 id="gc-sell-includes" className="text-sm font-semibold">Cosa include questa gift card</h3>
+                <p className="text-xs text-muted-foreground">Controlla prodotti e dettagli prima di confermare la vendita.</p>
+              </div>
+              {products.isLoading ? <p className="text-sm text-muted-foreground" role="status">Carico i dettagli dei prodotti…</p> : null}
+              {products.isError ? (
+                <div className="flex flex-wrap items-center justify-between gap-2" role="alert">
+                  <p className="text-sm text-red-600">Non riesco a mostrare i dettagli dei prodotti.</p>
+                  <Button type="button" size="sm" variant="outline" onClick={() => void products.refetch()}>Riprova</Button>
+                </div>
+              ) : null}
+              {!products.isLoading && !products.isError ? (
+                <ul className="space-y-2">
+                  {type.items.map(entry => {
+                    const product = productsById.get(entry.productId);
+                    const bundleContents = product?.isBundle
+                      ? product.bundleItems?.map(bundleItem => `${bundleItem.quantita} × ${bundleItem.prodottoNome}`).join(' · ')
+                      : '';
+                    return (
+                      <li key={entry.productId} className="flex min-w-0 gap-3 rounded-md bg-background p-2">
+                        {product?.immagini?.[0] ? (
+                          <img src={product.immagini[0]} alt="" className="h-12 w-12 shrink-0 rounded object-cover" />
+                        ) : (
+                          <span className="h-12 w-12 shrink-0 rounded bg-muted" aria-hidden="true" />
+                        )}
+                        <span className="min-w-0">
+                          <span className="block text-sm font-medium">
+                            {product?.nome ?? 'Prodotto non più nel catalogo'}
+                            {entry.quantity > 1 ? ` × ${entry.quantity}` : ''}
+                          </span>
+                          {product ? (
+                            <>
+                              <span className="mt-0.5 block whitespace-pre-line text-xs text-muted-foreground">
+                                {product.descrizione || 'Descrizione non presente nel catalogo.'}
+                              </span>
+                              {bundleContents ? <span className="mt-1 block text-xs text-muted-foreground">La bundle contiene: {bundleContents}</span> : null}
+                            </>
+                          ) : (
+                            <span className="mt-0.5 block text-xs text-amber-700">Verifica questo prodotto: non è più disponibile nel catalogo.</span>
+                          )}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
+            </section>
+          ) : type ? (
+            <p className="rounded-lg border bg-muted/20 p-3 text-sm text-muted-foreground">
+              Questo tipo di gift card non ha prodotti del catalogo associati.
+            </p>
+          ) : null}
 
           <fieldset className="space-y-4">
             <legend className="mb-2 text-sm font-semibold">2 · Per chi è</legend>

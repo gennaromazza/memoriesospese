@@ -23,48 +23,23 @@ import { apiRequest } from "@/lib/queryClient";
 import { recomputeJobAggregates } from "@/lib/jobs";
 import type { Order, InsertOrder, Transaction } from "@shared/booking-types";
 import { isManagedOrderType } from "@shared/managed-order-types";
+import { expandOrderProductsToRequirements, getRequiredGalleryPhotoCount } from "@/lib/bundle-photos";
 
 const COLLECTION = "orders";
 
-/**
- * Helper: Espande prodotti ordine (bundle → componenti) per productRequirements galleria
- * Replica la logica server-side di expandOrderProductsToRequirements
- */
-function expandProductsToRequirements(prodotti: any[]): any[] {
-  const expanded: any[] = [];
-  for (const item of prodotti) {
-    const qty = item.quantita || 1;
-    const bundleItems = (item.isBundle && item.bundleItems && item.bundleItems.length > 0) ? item.bundleItems : null;
-    const bundleParentName = item.prodottoNome || 'Bundle';
-
-    if (bundleItems) {
-      for (let orderQty = 0; orderQty < qty; orderQty++) {
-        for (const bi of bundleItems) {
-          if (!bi.quantita || bi.quantita <= 0) continue;
-          if (bi.numeroFoto === undefined || bi.numeroFoto < 0) continue;
-          for (let i = 0; i < bi.quantita; i++) {
-            const prefix = qty > 1 ? `[${orderQty + 1}/${qty}] ` : '';
-            expanded.push({
-              prodottoId: bi.prodottoId || null,
-              prodottoNome: bi.quantita > 1
-                ? `${prefix}${bi.prodottoNome} (${i + 1}/${bi.quantita}) - ${bundleParentName}`
-                : `${prefix}${bi.prodottoNome} - ${bundleParentName}`,
-              prodottoNumeroFoto: bi.numeroFoto,
-            });
-          }
-        }
-      }
-    } else {
-      for (let i = 0; i < qty; i++) {
-        expanded.push({
-          prodottoId: (item.prodottoId && !item.prodottoId.startsWith('custom_')) ? item.prodottoId : null,
-          prodottoNome: qty > 1 ? `${item.prodottoNome} (${i + 1}/${qty})` : item.prodottoNome,
-          prodottoNumeroFoto: item.prodottoNumeroFoto ?? 0,
-        });
-      }
+async function reconcileBookingDeposits(docs: Array<{ id: string; data(): any }>): Promise<boolean> {
+  const ids = docs.filter(snapshot => snapshot.data().bookingId && !isManagedOrderType(snapshot.data().orderType)).map(snapshot => snapshot.id);
+  for (let offset = 0; offset < ids.length; offset += 50) {
+    const orderIds = ids.slice(offset, offset + 50);
+    const response = await apiRequest("POST", "/api/orders/reconcile-booking-deposits", { orderIds });
+    const result = await response.json();
+    if (!result || !Number.isSafeInteger(result.updated) || result.updated < 0 || result.updated > orderIds.length) {
+      throw new Error("Verifica degli acconti non disponibile: risposta del server non valida.");
     }
   }
-  return expanded;
+  // Another reader can reconcile after our initial snapshot and before our POST.
+  // updated: 0 only means this request did not write, not that the snapshot is fresh.
+  return ids.length > 0;
 }
 
 /**
@@ -190,7 +165,8 @@ function ensureProdottiArray(orderData: any): any {
 export async function getAllOrders(): Promise<Order[]> {
   const q = query(collection(db, COLLECTION), orderBy("createdAt", "desc"));
 
-  const snapshot = await getDocs(q);
+  let snapshot = await getDocs(q);
+  if (await reconcileBookingDeposits(snapshot.docs)) snapshot = await getDocs(q);
 
   // Gli ordini degli shop online (stampe e vetrina prodotti) hanno un workflow
   // dedicato con PayPal, retention e foto: non devono finire nel manager legacy
@@ -208,7 +184,7 @@ export async function getAllOrders(): Promise<Order[]> {
  */
 export async function getOrderById(id: string): Promise<Order | null> {
   const docRef = doc(db, COLLECTION, id);
-  const docSnap = await getDoc(docRef);
+  let docSnap = await getDoc(docRef);
 
   if (!docSnap.exists()) {
     return null;
@@ -218,6 +194,7 @@ export async function getOrderById(id: string): Promise<Order | null> {
     return null;
   }
 
+  if (await reconcileBookingDeposits([docSnap])) docSnap = await getDoc(docRef);
   return {
     id: docSnap.id,
     ...ensureProdottiArray(docSnap.data()),
@@ -234,7 +211,8 @@ export async function getOrdersByGallery(galleryId: string): Promise<Order[]> {
     orderBy("createdAt", "desc"),
   );
 
-  const snapshot = await getDocs(q);
+  let snapshot = await getDocs(q);
+  if (await reconcileBookingDeposits(snapshot.docs)) snapshot = await getDocs(q);
 
   return snapshot.docs.map((doc) => ({
     id: doc.id,
@@ -252,7 +230,8 @@ export async function getOrdersByBooking(bookingId: string): Promise<Order[]> {
     orderBy("createdAt", "desc"),
   );
 
-  const snapshot = await getDocs(q);
+  let snapshot = await getDocs(q);
+  if (await reconcileBookingDeposits(snapshot.docs)) snapshot = await getDocs(q);
 
   return snapshot.docs.map((doc) => ({
     id: doc.id,
@@ -270,7 +249,8 @@ export async function getOrdersByJobId(jobId: string): Promise<Order[]> {
     orderBy("createdAt", "desc"),
   );
 
-  const snapshot = await getDocs(q);
+  let snapshot = await getDocs(q);
+  if (await reconcileBookingDeposits(snapshot.docs)) snapshot = await getDocs(q);
 
   return snapshot.docs.map((doc) => ({
     id: doc.id,
@@ -381,7 +361,14 @@ export async function createOrder(data: InsertOrder): Promise<string> {
         ? item.quantita
         : 1,
     ...(item.isCustom ? { isCustom: true } : {}),
-    ...(item.isBundle && item.bundleItems ? { isBundle: true, bundleItems: item.bundleItems } : {}),
+    ...(item.isBundle && item.bundleItems ? {
+      isBundle: true,
+      bundleItems: item.bundleItems,
+      ...(item.fotoCondivise ? {
+        fotoCondivise: true,
+        prodottoSorgenteFotoId: item.prodottoSorgenteFotoId,
+      } : {}),
+    } : {}),
   }));
 
   console.log("📦 Prodotti normalizzati:", normalizedProdotti);
@@ -490,9 +477,9 @@ export async function createOrder(data: InsertOrder): Promise<string> {
         const galleryData = gallerySnap.data();
         // ✅ VINCOLO AUTO: sempre aggiorna productRequirements se ci sono prodotti,
         // indipendentemente da selectionEnabled (che viene forzato a true)
-        const newReqs = expandProductsToRequirements(normalizedProdotti);
+        const newReqs = expandOrderProductsToRequirements(normalizedProdotti);
         if (newReqs.length > 0) {
-          const totalFoto = newReqs.reduce((s: number, r: any) => s + (r.prodottoNumeroFoto || 0), 0);
+          const totalFoto = getRequiredGalleryPhotoCount(newReqs);
           const galleryUpdate: any = {
             productRequirements: newReqs,
             requiredPhotoCount: totalFoto,

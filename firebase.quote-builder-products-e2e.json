@@ -1,0 +1,13 @@
+{
+  "firestore": {
+    "rules": "artifacts/image-studio-web/e2e/quote-builder-products.firestore.rules"
+  },
+  "emulators": {
+    "firestore": {
+      "port": 8089
+    },
+    "ui": {
+      "enabled": false
+    }
+  }
+}

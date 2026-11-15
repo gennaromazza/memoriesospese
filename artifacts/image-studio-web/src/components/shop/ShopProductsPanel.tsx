@@ -4,7 +4,7 @@ import { AlertTriangle, Eye, EyeOff, Loader2, Package, Pencil, Plus } from 'luci
 import { formatShopPrice } from '@shared/shop-types';
 import { shopApi } from '@/features/shop/shop-api';
 import { shopProductRows } from '@/features/shop/shop-products-overview';
-import { getAllProducts } from '@/lib/products';
+import { getAllProductsWithShopCosts } from '@/lib/products';
 import ProductsManager from '@/components/ProductsManager';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,7 @@ export default function ShopProductsPanel() {
   const queryClient = useQueryClient();
   const [action, setAction] = useState<Action | null>(null);
   const settingsQuery = useQuery({ queryKey: ['shop-admin-settings'], queryFn: shopApi.getSettings, staleTime: 30_000 });
-  const productsQuery = useQuery({ queryKey: ['shop-admin-products'], queryFn: getAllProducts });
+  const productsQuery = useQuery({ queryKey: ['shop-admin-products'], queryFn: getAllProductsWithShopCosts });
 
   const settings = settingsQuery.data;
   const rows = settings && productsQuery.data ? shopProductRows(productsQuery.data, settings.categoryValues, settings.shipping.enabled) : [];
@@ -52,14 +52,27 @@ export default function ShopProductsPanel() {
         {settingsQuery.isLoading || productsQuery.isLoading ? (
           <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Caricamento…</div>
         ) : settingsQuery.isError || productsQuery.isError ? (
-          <p className="text-sm text-destructive">Non riesco a caricare i prodotti. Riprova tra poco.</p>
+          <div role="alert" className="flex flex-wrap items-center justify-between gap-3 py-3">
+            <p className="text-sm text-destructive">Non riesco a caricare i prodotti. Riprova tra poco.</p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                void settingsQuery.refetch();
+                void productsQuery.refetch();
+              }}
+            >
+              Riprova
+            </Button>
+          </div>
         ) : rows.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Nessun prodotto nelle categorie dello shop. Crea un prodotto e mettilo in una delle categorie scelte nelle impostazioni.
           </p>
         ) : (
           <ul className="space-y-3">
-            {rows.map(({ product, visible, notes }) => (
+            {rows.map(({ product, visible, notes, finalPriceCents, unitCostCents, unitMarginCents }) => (
               <li key={product.id} className="flex flex-wrap items-center gap-4 rounded-xl border p-3">
                 {product.immagini?.[0] ? (
                   <img src={product.immagini[0]} alt="" className="h-16 w-16 rounded-lg object-cover" loading="lazy" />
@@ -75,10 +88,20 @@ export default function ShopProductsPanel() {
                     </Badge>
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    {formatShopPrice(Math.round((product.prezzoFinale ?? product.prezzo) * 100))}
+                    {finalPriceCents === null ? 'Prezzo non valido' : formatShopPrice(finalPriceCents)}
                     {product.sconto > 0 ? ` (sconto ${product.sconto}%)` : ''}
                     {' · '}{product.numeroFoto > 0 ? `${product.numeroFoto} foto da caricare` : 'nessuna foto richiesta'}
                     {' · '}{product.pesoGrammi && product.pesoGrammi > 0 ? `${product.pesoGrammi} g` : 'peso non indicato'}
+                  </p>
+                  <p
+                    className={`mt-1 text-sm ${unitMarginCents !== null && unitMarginCents < 0 ? 'font-medium text-destructive' : 'text-muted-foreground'}`}
+                    data-testid={`shop-unit-margin-${product.id}`}
+                  >
+                    {unitCostCents === null
+                      ? 'Costo unitario non impostato · margine non calcolabile'
+                      : unitMarginCents === null
+                        ? `Costo ${formatShopPrice(unitCostCents)} · margine non calcolabile senza un prezzo valido`
+                        : `Costo ${formatShopPrice(unitCostCents)} · Margine unitario ${formatShopPrice(unitMarginCents)}`}
                   </p>
                   {notes.map(note => (
                     <p key={note} className="mt-1 flex items-center gap-1 text-xs text-amber-700"><AlertTriangle className="h-3 w-3" aria-hidden="true" />{note}</p>
@@ -105,6 +128,7 @@ export default function ShopProductsPanel() {
             <ProductsManager
               autoCreate={action.kind === 'create'}
               autoEditId={action.kind === 'edit' ? action.id : undefined}
+              showShopCost
               onChanged={refresh}
             />
           ) : null}

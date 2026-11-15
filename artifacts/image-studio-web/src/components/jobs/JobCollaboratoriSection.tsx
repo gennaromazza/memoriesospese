@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Check, X, Euro, Clock, Calendar, Trash2, Link2, CreditCard, Pencil, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -121,6 +121,15 @@ export function JobCollaboratoriSection({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState<JobCollaboratoreAssignment | null>(null);
+  const maxPaymentAmount = selectedAssignment
+    ? Math.max(
+        0,
+        Math.min(
+          selectedAssignment.compenso,
+          selectedAssignment.saldoResiduo ?? selectedAssignment.compenso,
+        ),
+      )
+    : 0;
   const [formData, setFormData] = useState<InsertJobCollaboratoreAssignment>({
     jobId,
     collaboratoreId: '',
@@ -138,10 +147,12 @@ export function JobCollaboratoriSection({
     note: '',
     data: new Date().toISOString().split('T')[0],
   });
+  const paymentIdempotencyKeyRef = useRef<string | null>(null);
   const [isEditCompensoModalOpen, setIsEditCompensoModalOpen] = useState(false);
   const [editCompensoData, setEditCompensoData] = useState({
     assignmentId: '',
     compenso: 0,
+    totalePagato: 0,
     noteModifica: '',
     sendEmail: false,
   });
@@ -207,6 +218,7 @@ export function JobCollaboratoriSection({
       queryClient.invalidateQueries({ queryKey: ['cash-movements'] });
       toast({ title: '✅ Pagamento registrato e movimento cassa creato' });
       setIsPaymentModalOpen(false);
+      paymentIdempotencyKeyRef.current = null;
       setSelectedAssignment(null);
       setPaymentFormData({
         importo: 0,
@@ -216,8 +228,12 @@ export function JobCollaboratoriSection({
         data: new Date().toISOString().split('T')[0],
       });
     },
-    onError: () => {
-      toast({ title: '❌ Errore registrazione pagamento', variant: 'destructive' });
+    onError: (error) => {
+      toast({
+        title: '❌ Errore registrazione pagamento',
+        description: error instanceof Error ? error.message : undefined,
+        variant: 'destructive',
+      });
     },
   });
 
@@ -241,10 +257,14 @@ export function JobCollaboratoriSection({
       queryClient.invalidateQueries({ queryKey: ['job-assignments', jobId] });
       toast({ title: editCompensoData.sendEmail ? '✅ Compenso aggiornato e collaboratore notificato' : '✅ Compenso aggiornato' });
       setIsEditCompensoModalOpen(false);
-      setEditCompensoData({ assignmentId: '', compenso: 0, noteModifica: '', sendEmail: true });
+      setEditCompensoData({ assignmentId: '', compenso: 0, totalePagato: 0, noteModifica: '', sendEmail: true });
     },
-    onError: () => {
-      toast({ title: '❌ Errore aggiornamento compenso', variant: 'destructive' });
+    onError: (error) => {
+      toast({
+        title: '❌ Errore aggiornamento compenso',
+        description: error instanceof Error ? error.message : undefined,
+        variant: 'destructive',
+      });
     },
   });
 
@@ -288,9 +308,13 @@ export function JobCollaboratoriSection({
   };
 
   const handleOpenPaymentModal = (assignment: JobCollaboratoreAssignment) => {
+    paymentIdempotencyKeyRef.current = crypto.randomUUID();
     setSelectedAssignment(assignment);
     setPaymentFormData({
-      importo: assignment.saldoResiduo || assignment.compenso,
+      importo: Math.max(
+        0,
+        Math.min(assignment.compenso, assignment.saldoResiduo ?? assignment.compenso),
+      ),
       tipo: 'acconto',
       metodo: 'bonifico',
       note: '',
@@ -302,9 +326,11 @@ export function JobCollaboratoriSection({
   const handleSubmitPayment = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedAssignment) return;
+    const idempotencyKey = paymentIdempotencyKeyRef.current ?? crypto.randomUUID();
+    paymentIdempotencyKeyRef.current = idempotencyKey;
     addPaymentMutation.mutate({
       assignmentId: selectedAssignment.id,
-      payload: paymentFormData,
+      payload: { ...paymentFormData, idempotencyKey },
     });
   };
 
@@ -350,9 +376,14 @@ export function JobCollaboratoriSection({
   };
 
   const handleOpenEditCompensoModal = (assignment: JobCollaboratoreAssignment) => {
+    const totalePagatoCentesimi = (assignment.pagamenti || []).reduce((sum, payment) => {
+      const importo = Number(payment.importo);
+      return sum + (Number.isFinite(importo) ? Math.round(importo * 100) : 0);
+    }, 0);
     setEditCompensoData({
       assignmentId: assignment.id,
       compenso: assignment.compenso,
+      totalePagato: totalePagatoCentesimi / 100,
       noteModifica: '',
       sendEmail: false,
     });
@@ -402,13 +433,15 @@ export function JobCollaboratoriSection({
     return collab ? `${collab.cognome} ${collab.nome}` : 'N/D';
   };
 
-  const totaleCosti = assignments
-    .filter((a) => a.status === 'accepted')
-    .reduce((sum, a) => sum + a.compenso, 0);
-
   const totalePagato = assignments
-    .filter((a) => a.status === 'accepted')
     .reduce((sum, a) => sum + (a.pagamenti?.reduce((pSum, p) => pSum + p.importo, 0) || 0), 0);
+  const residuoCompensiAccettati = assignments
+    .filter((assignment) => assignment.status === 'accepted')
+    .reduce((sum, assignment) => {
+      const pagato = assignment.pagamenti?.reduce((paymentSum, payment) => paymentSum + payment.importo, 0) || 0;
+      const compenso = Number.isFinite(assignment.compenso) ? assignment.compenso : 0;
+      return sum + Math.max(0, compenso - pagato);
+    }, 0);
 
   return (
     <Card className="min-w-0">
@@ -423,6 +456,25 @@ export function JobCollaboratoriSection({
         </div>
       </CardHeader>
       <CardContent>
+        {!isLoading && (
+          <div
+            className="mb-3 grid grid-cols-3 gap-2 rounded-lg bg-muted/50 p-3"
+            data-testid="collaborator-financial-summary"
+          >
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">Incarichi</p>
+              <p className="text-sm font-semibold">{assignments.length}</p>
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">Pagato</p>
+              <p className="truncate text-sm font-semibold text-green-700">€{totalePagato.toFixed(2)}</p>
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">Residuo accettati</p>
+              <p className="truncate text-sm font-semibold text-orange-700">€{residuoCompensiAccettati.toFixed(2)}</p>
+            </div>
+          </div>
+        )}
         {isLoading ? (
           <div>Caricamento...</div>
         ) : assignments.length === 0 ? (
@@ -430,14 +482,22 @@ export function JobCollaboratoriSection({
             Nessun collaboratore assegnato
           </p>
         ) : (
-          <>
+          <details className="group" data-testid="collaborator-assignments-details">
+            <summary className="cursor-pointer rounded-lg border px-3 py-2.5 text-sm font-medium">
+              Gestisci i {assignments.length} incarichi e i relativi pagamenti
+            </summary>
+            <div className="mt-3 space-y-3">
             {/* ── MOBILE: card per ogni collaboratore ── */}
             <div className="space-y-3 lg:hidden">
               {assignments.map((assignment) => {
                 const pagato = assignment.pagamenti?.reduce((s, p) => s + p.importo, 0) ?? 0;
                 const residuo = assignment.saldoResiduo ?? assignment.compenso;
                 return (
-                  <div key={assignment.id} className="min-w-0 border rounded-lg p-3 sm:p-4 space-y-3 bg-white">
+                  <div
+                    key={assignment.id}
+                    data-testid={`job-collaborator-assignment-${assignment.id}`}
+                    className="min-w-0 border rounded-lg p-3 sm:p-4 space-y-3 bg-white"
+                  >
                     {/* Header: nome + stato + azioni */}
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
@@ -571,7 +631,10 @@ export function JobCollaboratoriSection({
                 </TableHeader>
                 <TableBody>
                   {assignments.map((assignment) => (
-                    <TableRow key={assignment.id}>
+                    <TableRow
+                      key={assignment.id}
+                      data-testid={`job-collaborator-assignment-${assignment.id}`}
+                    >
                       <TableCell className="font-medium">
                         {getCollaboratoreNome(assignment.collaboratoreId)}
                       </TableCell>
@@ -707,27 +770,20 @@ export function JobCollaboratoriSection({
                 </TableBody>
               </Table>
             </div>
-
-            <div className="mt-4 min-w-0 rounded-lg bg-muted p-3 sm:p-4 space-y-2">
-              <div className="flex flex-col gap-1 font-semibold sm:flex-row sm:items-center sm:justify-between">
-                <span className="min-w-0 break-words">💰 Totale Costi Collaboratori (Accettati):</span>
-                <span className="break-words sm:shrink-0">€{totaleCosti.toFixed(2)}</span>
-              </div>
-              <div className="flex flex-col gap-1 text-sm sm:flex-row sm:items-center sm:justify-between">
-                <span>✅ Pagato:</span>
-                <span className="break-words text-green-600 sm:shrink-0">€{totalePagato.toFixed(2)}</span>
-              </div>
-              <div className="flex flex-col gap-1 text-sm sm:flex-row sm:items-center sm:justify-between">
-                <span>⏳ Da Pagare:</span>
-                <span className="break-words text-orange-600 sm:shrink-0">
-                  €{(totaleCosti - totalePagato).toFixed(2)}
-                </span>
-              </div>
             </div>
-          </>
+          </details>
         )}
 
-        <Dialog open={isPaymentModalOpen} onOpenChange={setIsPaymentModalOpen}>
+        <Dialog
+          open={isPaymentModalOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              paymentIdempotencyKeyRef.current = null;
+              setSelectedAssignment(null);
+            }
+            setIsPaymentModalOpen(open);
+          }}
+        >
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Registra Pagamento Collaboratore</DialogTitle>
@@ -735,8 +791,13 @@ export function JobCollaboratoriSection({
 
             <form onSubmit={handleSubmitPayment} className="space-y-4">
               {selectedAssignment && (
-                <div className="text-sm text-muted-foreground">
-                  Compenso totale: €{selectedAssignment.compenso} • Saldo residuo: €{(selectedAssignment.saldoResiduo ?? selectedAssignment.compenso).toFixed(2)}
+                <div className="space-y-1 text-sm text-muted-foreground">
+                  <p>
+                    Compenso concordato: €{selectedAssignment.compenso} • Saldo residuo: €{(selectedAssignment.saldoResiduo ?? selectedAssignment.compenso).toFixed(2)}
+                  </p>
+                  <p data-testid="text-limite-pagamento">
+                    Importo massimo registrabile ora: €{maxPaymentAmount.toFixed(2)}
+                  </p>
                 </div>
               )}
 
@@ -746,6 +807,7 @@ export function JobCollaboratoriSection({
                   id="importo"
                   type="number"
                   step="0.01"
+                  max={maxPaymentAmount}
                   value={paymentFormData.importo}
                   onChange={(e) =>
                     setPaymentFormData({ ...paymentFormData, importo: parseFloat(e.target.value) || 0 })
@@ -846,7 +908,7 @@ export function JobCollaboratoriSection({
                   id="editCompenso"
                   type="number"
                   step="0.01"
-                  min="0"
+                  min={editCompensoData.totalePagato}
                   value={editCompensoData.compenso}
                   onChange={(e) =>
                     setEditCompensoData({ ...editCompensoData, compenso: parseFloat(e.target.value) || 0 })
@@ -854,6 +916,14 @@ export function JobCollaboratoriSection({
                   required
                   data-testid="input-edit-compenso"
                 />
+                <p className="mt-1 text-sm text-muted-foreground" data-testid="edit-compenso-totale-pagato">
+                  Totale già pagato: €{editCompensoData.totalePagato.toFixed(2)}
+                </p>
+                {editCompensoData.compenso < editCompensoData.totalePagato && (
+                  <p className="mt-1 text-sm text-destructive" role="alert" data-testid="edit-compenso-sotto-pagato">
+                    Il compenso non può essere inferiore al totale già pagato.
+                  </p>
+                )}
               </div>
 
               <div>
@@ -890,7 +960,11 @@ export function JobCollaboratoriSection({
                 <Button type="button" variant="outline" onClick={() => setIsEditCompensoModalOpen(false)}>
                   Annulla
                 </Button>
-                <Button type="submit" disabled={updateCompensoMutation.isPending} data-testid="button-submit-edit-compenso">
+                <Button
+                  type="submit"
+                  disabled={updateCompensoMutation.isPending || editCompensoData.compenso < editCompensoData.totalePagato}
+                  data-testid="button-submit-edit-compenso"
+                >
                   {updateCompensoMutation.isPending ? 'Aggiornamento...' : 'Salva Compenso'}
                 </Button>
               </div>

@@ -13,10 +13,11 @@ import {
   getDoc,
   where,
 } from "firebase/firestore";
-import { getAuth, signOut } from "firebase/auth";
 import { db, storage, auth } from "@/lib/firebase";
 import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 import { createUrl } from "@/lib/basePath";
+import { getQuoteColorContrastIssues } from "@/lib/quote-color-contrast";
+import StudioQuoteIdentityPreview from "@/components/StudioQuoteIdentityPreview";
 import { GalleryService, type Gallery } from "@/lib/galleries";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -24,14 +25,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   formatPasswordRequestsForExcel,
   exportToExcel,
@@ -43,7 +36,6 @@ import {
   uploadBytes,
   getDownloadURL,
 } from "firebase/storage";
-import Navigation from "@/components/Navigation";
 import NewGalleryModal from "@/components/NewGalleryModal";
 import SlideshowManager from "@/components/SlideshowManager";
 import ClientiManager from "@/components/ClientiManager";
@@ -98,14 +90,12 @@ import {
   ChevronRight as ChevronRightIcon,
   Grid3x3,
   Upload,
-  Home,
   Palette,
   Camera,
   CheckCircle,
   List,
   Link2,
   AlertCircle,
-  ExternalLink,
   Database,
   HardDrive,
   ClipboardList,
@@ -161,7 +151,9 @@ import BulkEmailSender from "./BulkEmailSender";
 import QuoteTemplatesManager from "@/components/quotes/QuoteTemplatesManager";
 import { AdminCommandPalette } from "@/components/admin/AdminCommandPalette";
 import {
-  ADMIN_NAV_GROUPS,
+  ADMIN_NAVIGATION_REQUEST_EVENT,
+  ADMIN_NAVIGATION_SELECTION_EVENT,
+  findAdminNavigationSelection,
   type NavTarget,
 } from "@/components/admin/adminNavigation";
 import OspitiQrCard from "@/components/admin/OspitiQrCard";
@@ -171,6 +163,7 @@ import {
   resolveHomepageContent,
   type HomepageContent,
 } from "@shared/homepage-content";
+import { INITIAL_STUDIO_QUOTE_THEME } from "@shared/studio-quote-theme";
 import {
   filterAdminGalleries,
   type GalleryTypeFilter,
@@ -252,6 +245,10 @@ interface StudioSettings {
   whatsapp?: string;
   googleReviewUrl?: string;
   homepageContent: HomepageContent;
+  quoteTheme: {
+    primaryColor: string;
+    secondaryColor: string;
+  };
 }
 
 type AdminTab =
@@ -323,6 +320,9 @@ export default function AdminDashboard() {
   const [passwordRequests, setPasswordRequests] = useState<any[]>([]);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
   const [isStoryImageUploading, setIsStoryImageUploading] = useState(false);
+  const [failedLogoPreviewUrl, setFailedLogoPreviewUrl] = useState<string | null>(
+    null,
+  );
   const [activeTab, setActiveTab] = useSessionStorageState<AdminTab>(
     "activeTab",
     "calendario",
@@ -401,6 +401,7 @@ export default function AdminDashboard() {
     whatsapp: "",
     googleReviewUrl: "",
     homepageContent: DEFAULT_HOMEPAGE_CONTENT,
+    quoteTheme: { ...INITIAL_STUDIO_QUOTE_THEME },
     fiscalVia: "",
     fiscalCap: "",
     fiscalComune: "",
@@ -562,7 +563,7 @@ export default function AdminDashboard() {
       }
 
       // Pulisci URL dopo cambio tab (nessun highlight da aspettare)
-      cleanDeeplinkUrl();
+      if (!(mappedTab === 'photobooks' && params.has('photobook'))) cleanDeeplinkUrl();
     }
   }, [navigate, cleanDeeplinkUrl]);
 
@@ -657,6 +658,7 @@ export default function AdminDashboard() {
             ...prev,
             ...settingsData,
             socialLinks: { ...prev.socialLinks, ...(settingsData.socialLinks || {}) },
+            quoteTheme: { ...prev.quoteTheme, ...(settingsData.quoteTheme || {}) },
             homepageContent: resolveHomepageContent(settingsData.homepageContent),
           }));
         }
@@ -824,27 +826,22 @@ export default function AdminDashboard() {
     }
   };
 
-  // Funzione per effettuare il logout
-  const handleLogout = async () => {
-    try {
-      // Esegui logout da Firebase
-      await signOut(auth);
-      // Rimuovi il flag di amministratore
-      localStorage.removeItem("isAdmin");
-      // Reindirizza alla pagina di login usando il percorso assoluto
-      navigate(createUrl("/admin"));
-    } catch (error) {
-      toast({
-        title: "Errore",
-        description: "Si è verificato un errore durante il logout.",
-        variant: "destructive",
-      });
-    }
-  };
-
   // Funzione per salvare le impostazioni dello studio
   const saveStudioSettings = async () => {
     try {
+      const quoteColorPattern = /^#[\da-f]{6}$/i;
+      if (
+        !quoteColorPattern.test(studioSettings.quoteTheme.primaryColor) ||
+        !quoteColorPattern.test(studioSettings.quoteTheme.secondaryColor)
+      ) {
+        toast({
+          title: "Colori preventivi non validi",
+          description: "Scegli un colore valido per entrambi i campi.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const settingsRef = doc(db, "settings", "studio");
       await setDoc(settingsRef, {
         ...studioSettings,
@@ -1202,89 +1199,89 @@ export default function AdminDashboard() {
   const passwordRequestPagination = usePagination(passwordRequests, 10);
 
   // Navigazione unificata: usata dalla barra menu e dalla Command Palette
-  const navigateToTarget = (target: NavTarget) => {
-    if (target.href) {
-      if (target.newTab) {
-        window.open(target.href, "_blank");
-      } else {
-        navigate(target.href);
+  const navigateToTarget = useCallback(
+    (target: NavTarget) => {
+      if (target.href) {
+        if (target.newTab) {
+          window.open(target.href, "_blank", "noopener,noreferrer");
+        } else {
+          navigate(target.href);
+        }
+        return;
       }
-      return;
-    }
-    if (target.tab) {
-      setActiveTab(target.tab as any);
-    }
-    if (target.bookingSection) {
-      setActiveBookingSection(target.bookingSection as any);
-    }
-    if (target.consultationSection) {
-      setActiveConsultationSection(target.consultationSection as any);
-    }
-    if (target.jobSection) {
-      setActiveJobSection(target.jobSection as any);
-    }
-    if (target.settingsSection) {
-      setSettingsSection(target.settingsSection as any);
-    }
-    if (target.sitoSection) {
-      setActiveSitoSection(target.sitoSection as any);
-    }
-  };
+      if (target.tab) {
+        setActiveTab(target.tab as any);
+      }
+      if (target.bookingSection) {
+        setActiveBookingSection(target.bookingSection as any);
+      }
+      if (target.consultationSection) {
+        setActiveConsultationSection(target.consultationSection as any);
+      }
+      if (target.jobSection) {
+        setActiveJobSection(target.jobSection as any);
+      }
+      if (target.settingsSection) {
+        setSettingsSection(target.settingsSection as any);
+      }
+      if (target.sitoSection) {
+        setActiveSitoSection(target.sitoSection as any);
+      }
+    },
+    [
+      navigate,
+      setActiveTab,
+      setActiveBookingSection,
+      setActiveConsultationSection,
+      setActiveJobSection,
+      setSettingsSection,
+      setActiveSitoSection,
+    ],
+  );
 
-  const activeAdminNavGroup =
-    ADMIN_NAV_GROUPS.find((group) => group.tabs.includes(activeTab)) ??
-    ADMIN_NAV_GROUPS[0]!;
-  const activeAdminNavItem = activeAdminNavGroup.items?.find(({ target }) => {
-    if (!target.tab || target.tab !== activeTab) return false;
-    if (
-      target.bookingSection &&
-      target.bookingSection !== activeBookingSection
-    ) {
-      return false;
-    }
-    if (
-      target.consultationSection &&
-      target.consultationSection !== activeConsultationSection
-    ) {
-      return false;
-    }
-    if (target.jobSection && target.jobSection !== activeJobSection) {
-      return false;
-    }
-    if (target.settingsSection && target.settingsSection !== settingsSection) {
-      return false;
-    }
-    if (target.sitoSection && target.sitoSection !== activeSitoSection) {
-      return false;
-    }
-    return true;
-  });
-  const activeAdminNavSection =
-    activeAdminNavItem?.id ??
-    activeAdminNavGroup.items?.[0]?.id ??
-    activeAdminNavGroup.id;
-
-  const handleAdminAreaChange = (groupId: string) => {
-    const group = ADMIN_NAV_GROUPS.find((item) => item.id === groupId);
-    if (!group) return;
-
-    if (group.items?.length) {
-      navigateToTarget(group.items[0].target);
-    } else if (group.target) {
-      navigateToTarget(group.target);
-    }
-  };
-
-  const handleAdminSectionChange = (itemId: string) => {
-    const item = activeAdminNavGroup.items?.find(
-      (navItem) => navItem.id === itemId,
+  useEffect(() => {
+    const handleNavigationRequest = (event: Event) => {
+      const target = (event as CustomEvent<NavTarget>).detail;
+      if (target) navigateToTarget(target);
+    };
+    window.addEventListener(
+      ADMIN_NAVIGATION_REQUEST_EVENT,
+      handleNavigationRequest,
     );
-    if (item) {
-      navigateToTarget(item.target);
-    } else if (activeAdminNavGroup.target) {
-      navigateToTarget(activeAdminNavGroup.target);
-    }
-  };
+    return () =>
+      window.removeEventListener(
+        ADMIN_NAVIGATION_REQUEST_EVENT,
+        handleNavigationRequest,
+      );
+  }, [navigateToTarget]);
+
+  useEffect(() => {
+    const selection = findAdminNavigationSelection({
+      tab: activeTab,
+      bookingSection: activeBookingSection,
+      consultationSection: activeConsultationSection,
+      jobSection: activeJobSection,
+      settingsSection,
+      sitoSection: activeSitoSection,
+    });
+    window.dispatchEvent(
+      new CustomEvent(ADMIN_NAVIGATION_SELECTION_EVENT, {
+        detail: selection,
+      }),
+    );
+  }, [
+    activeTab,
+    activeBookingSection,
+    activeConsultationSection,
+    activeJobSection,
+    settingsSection,
+    activeSitoSection,
+  ]);
+
+  const quoteColorContrastIssues = getQuoteColorContrastIssues(
+    studioSettings.quoteTheme.primaryColor,
+    studioSettings.quoteTheme.secondaryColor,
+  );
 
   // Verifica se l'utente è autenticato
   if (authLoading || !user || !isFirebaseAdmin) {
@@ -1300,9 +1297,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-off-white">
-      <Navigation isAdminNav={true} />
-
-      <header className="bg-white shadow sticky top-0 z-40">
+      <header className="sticky top-14 z-20 bg-white shadow lg:top-0 lg:z-40">
         <div className="max-w-7xl mx-auto py-3 px-3 sm:py-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center gap-2">
             {/* Titolo responsive */}
@@ -1314,38 +1309,7 @@ export default function AdminDashboard() {
             {/* Azioni header - Mobile Optimized */}
             <div className="flex items-center gap-1.5 sm:gap-3">
               <AdminCommandPalette onNavigate={navigateToTarget} />
-              <Link href={createUrl("/")}>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 sm:h-9 px-2 sm:px-3 flex items-center gap-1"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
-                    />
-                  </svg>
-                  <span className="text-xs sm:text-sm">Home</span>
-                </Button>
-              </Link>
               <NotificationBell enabled={notificationsEnabled} />
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleLogout}
-                className="h-8 sm:h-9 px-2 sm:px-3 text-xs sm:text-sm"
-              >
-                Logout
-              </Button>
             </div>
           </div>
         </div>
@@ -1484,152 +1448,6 @@ export default function AdminDashboard() {
             value={activeTab}
             onValueChange={(v) => setActiveTab(v as any)}
           >
-            {/* Navigazione compatta per schermi piccoli */}
-            <nav
-              aria-label="Navigazione amministrazione"
-              className="mx-4 mb-4 rounded-xl border border-border bg-card p-3 shadow-sm lg:hidden"
-            >
-              <div className="grid grid-cols-2 gap-2">
-                <div className="min-w-0">
-                  <p className="mb-1.5 px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                    Area
-                  </p>
-                  <Select
-                    value={activeAdminNavGroup.id}
-                    onValueChange={handleAdminAreaChange}
-                  >
-                    <SelectTrigger
-                      aria-label="Area amministrativa"
-                      className="h-11 w-full rounded-lg bg-background px-2.5 text-xs font-semibold [&>span]:truncate"
-                      data-testid="select-admin-area"
-                    >
-                      <activeAdminNavGroup.icon className="mr-1.5 h-4 w-4 shrink-0 text-primary" />
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent align="start">
-                      {ADMIN_NAV_GROUPS.map((group) => (
-                        <SelectItem
-                          key={group.id}
-                          value={group.id}
-                          data-testid={`select-admin-area-${group.id}`}
-                        >
-                          {group.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="min-w-0">
-                  <p className="mb-1.5 px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                    Sezione
-                  </p>
-                  <Select
-                    value={activeAdminNavSection}
-                    onValueChange={handleAdminSectionChange}
-                  >
-                    <SelectTrigger
-                      aria-label={`Sezione ${activeAdminNavGroup.label}`}
-                      className="h-11 w-full rounded-lg bg-background px-2.5 text-xs font-semibold [&>span]:truncate"
-                      data-testid="select-admin-section"
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent align="end">
-                      {activeAdminNavGroup.items?.length ? (
-                        activeAdminNavGroup.items.map((item) => (
-                          <SelectItem
-                            key={item.id}
-                            value={item.id}
-                            data-testid={`select-admin-section-${item.id}`}
-                          >
-                            {item.label}
-                          </SelectItem>
-                        ))
-                      ) : (
-                        <SelectItem
-                          value={activeAdminNavGroup.id}
-                          data-testid={`select-admin-section-${activeAdminNavGroup.id}`}
-                        >
-                          {activeAdminNavGroup.label}
-                        </SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </nav>
-
-            {/* Barra menu unificata: generata da ADMIN_NAV_GROUPS (adminNavigation.ts) */}
-            <div className="mb-4 sm:mb-6 hidden flex-wrap justify-start gap-0.5 sm:gap-1 h-auto p-1 bg-muted rounded-lg overflow-x-auto touch-manipulation lg:flex">
-              {ADMIN_NAV_GROUPS.map((group) => {
-                const GroupIcon = group.icon;
-                const isActive = group.tabs.includes(activeTab);
-                const triggerClasses =
-                  "flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]";
-
-                if (!group.items) {
-                  return (
-                    <Button
-                      key={group.id}
-                      variant={isActive ? "default" : "ghost"}
-                      className={triggerClasses}
-                      onClick={() =>
-                        group.target && navigateToTarget(group.target)
-                      }
-                      data-testid={`nav-${group.id}`}
-                    >
-                      <GroupIcon className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
-                      <span>{group.label}</span>
-                    </Button>
-                  );
-                }
-
-                return (
-                  <DropdownMenu key={group.id}>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant={isActive ? "default" : "ghost"}
-                        className={triggerClasses}
-                        data-testid={`nav-${group.id}`}
-                      >
-                        <GroupIcon className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
-                        <span>{group.label}</span>
-                        <ChevronDown className="h-2.5 w-2.5 sm:h-3 sm:w-3 ml-0.5 sm:ml-1" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="w-60">
-                      {group.items.map((item, index) => {
-                        const ItemIcon = item.icon;
-                        return (
-                          <div key={item.id}>
-                            {item.sectionLabel && (
-                              <>
-                                {index > 0 && <DropdownMenuSeparator />}
-                                <DropdownMenuLabel className="text-xs text-muted-foreground">
-                                  {item.sectionLabel}
-                                </DropdownMenuLabel>
-                              </>
-                            )}
-                            <DropdownMenuItem
-                              onClick={() => navigateToTarget(item.target)}
-                              data-testid={`nav-item-${item.id}`}
-                            >
-                              <ItemIcon className="h-4 w-4 mr-2" />
-                              <span className="flex-1">{item.label}</span>
-                              {item.target.newTab && (
-                                <ExternalLink className="h-3.5 w-3.5 ml-2 text-muted-foreground" />
-                              )}
-                            </DropdownMenuItem>
-                          </div>
-                        );
-                      })}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                );
-              })}
-            </div>
-
             {/* Contenuto Tab Calendario */}
             <TabsContent value="calendario">
               <div className="space-y-6">
@@ -1720,20 +1538,8 @@ export default function AdminDashboard() {
             </TabsContent>
 
             {/* Contenuto Tab Fotolibri */}
-            <TabsContent value="photobooks">
-              <div className="bg-white shadow sm:rounded-lg p-5">
-                <div className="mb-6">
-                  <h2 className="text-xl font-semibold text-blue-gray mb-2">
-                    Fotolibri
-                  </h2>
-                  <p className="text-sm text-muted-foreground">
-                    Carica le pagine del fotolibro, verifica le foto
-                    riconosciute e condividi il link di revisione con il
-                    cliente.
-                  </p>
-                </div>
-                <PhotobooksManager />
-              </div>
+            <TabsContent value="photobooks" className="mt-0">
+              <PhotobooksManager />
             </TabsContent>
 
             {/* Contenuto Tab Modifiche Fotolibro */}
@@ -2074,83 +1880,7 @@ export default function AdminDashboard() {
 
             {/* Contenuto Tab Lavori */}
             <TabsContent value="lavori">
-              <Tabs
-                value={activeJobSection}
-                onValueChange={(v) => setActiveJobSection(v as any)}
-                className="w-full"
-              >
-                <div className="mb-4 lg:hidden">
-                  <Select
-                    value={activeJobSection}
-                    onValueChange={(value) =>
-                      setActiveJobSection(value as JobSection)
-                    }
-                  >
-                    <SelectTrigger
-                      aria-label="Sezione Lavori"
-                      className="h-11 w-full rounded-xl bg-card px-3 text-sm font-semibold"
-                      data-testid="select-job-section"
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="jobs-list" data-testid="select-job-section-jobs-list">
-                        Lista Lavori
-                      </SelectItem>
-                      <SelectItem value="clienti" data-testid="select-job-section-clienti">
-                        Clienti
-                      </SelectItem>
-                      <SelectItem value="job-types" data-testid="select-job-section-job-types">
-                        Tipi di Lavoro
-                      </SelectItem>
-                      <SelectItem value="laboratori" data-testid="select-job-section-laboratori">
-                        Laboratori
-                      </SelectItem>
-                      <SelectItem value="contract-clauses" data-testid="select-job-section-contract-clauses">
-                        Clausole Contrattuali
-                      </SelectItem>
-                      <SelectItem value="quote-templates" data-testid="select-job-section-quote-templates">
-                        Template Preventivi
-                      </SelectItem>
-                      <SelectItem value="moduli-informativi" data-testid="select-job-section-moduli-informativi">
-                        Moduli Informativi
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <TabsList className="hidden w-full grid-cols-3 gap-1 mb-4 lg:grid lg:grid-cols-7">
-                  <TabsTrigger value="jobs-list" data-testid="subtab-jobs-list">
-                    Lista Lavori
-                  </TabsTrigger>
-                  <TabsTrigger value="clienti" data-testid="subtab-clienti">
-                    Clienti
-                  </TabsTrigger>
-                  <TabsTrigger value="job-types" data-testid="subtab-job-types">
-                    Tipi di Lavoro
-                  </TabsTrigger>
-                  <TabsTrigger value="laboratori" data-testid="subtab-laboratori">
-                    Laboratori
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="contract-clauses"
-                    data-testid="subtab-contract-clauses"
-                  >
-                    Clausole Contrattuali
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="quote-templates"
-                    className="data-[state=active]:bg-sage data-[state=active]:text-white"
-                  >
-                    <FileText className="w-4 h-4 mr-2" />
-                    Template Preventivi
-                  </TabsTrigger>
-                  <TabsTrigger value="moduli-informativi">
-                    <ClipboardList className="w-4 h-4 mr-1.5" />
-                    Moduli Informativi
-                  </TabsTrigger>
-                </TabsList>
-
+              <Tabs value={activeJobSection} className="w-full">
                 <TabsContent value="jobs-list">
                   <div className="bg-white shadow sm:rounded-lg p-5">
                     <JobsManager />
@@ -2306,7 +2036,7 @@ export default function AdminDashboard() {
                           { id: 'studio',       icon: Building2, label: 'Studio',       desc: 'Profilo & contatti' },
                           { id: 'slideshow',    icon: Play,      label: 'Slideshow',    desc: 'Foto homepage' },
                           { id: 'integrations', icon: Link2,     label: 'Integrazioni', desc: 'Calendar & Gmail' },
-                          { id: 'client-area',  icon: CreditCard, label: 'Area clienti', desc: 'IBAN per i pagamenti' },
+                          { id: 'client-area',  icon: CreditCard, label: 'Area clienti', desc: 'Inviti e IBAN' },
                         ] as const).map(({ id, icon: Icon, label, desc }) => (
                           <button
                             key={id}
@@ -2490,13 +2220,18 @@ export default function AdminDashboard() {
                             <div className="space-y-1.5">
                               <Label className="text-xs font-medium text-stone-600 uppercase tracking-wide">Logo dello Studio</Label>
                               <div className="mt-1 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-stone-200 bg-stone-50 p-6 text-center gap-3 hover:border-[#6b7f6b]/40 transition-colors">
-                                {studioSettings.logo ? (
+                                {studioSettings.logo &&
+                                failedLogoPreviewUrl !== studioSettings.logo ? (
                                   <>
                                     <img
                                       src={studioSettings.logo}
                                       alt="Logo dello studio"
                                       className="h-24 w-auto object-contain rounded-lg shadow-sm"
-                                      onError={(e) => { e.currentTarget.style.display = "none"; }}
+                                      onError={() =>
+                                        setFailedLogoPreviewUrl(
+                                          studioSettings.logo ?? "",
+                                        )
+                                      }
                                     />
                                     <p className="text-xs text-stone-400">Logo attuale</p>
                                   </>
@@ -2505,8 +2240,16 @@ export default function AdminDashboard() {
                                     <div className="flex h-14 w-14 items-center justify-center rounded-full bg-stone-200">
                                       <Camera className="h-6 w-6 text-stone-400" />
                                     </div>
-                                    <p className="text-sm text-stone-500">Nessun logo caricato</p>
-                                    <p className="text-xs text-stone-400">PNG, JPG o SVG consigliati</p>
+                                    <p className="text-sm text-stone-500">
+                                      {studioSettings.logo
+                                        ? "Logo non disponibile"
+                                        : "Nessun logo caricato"}
+                                    </p>
+                                    <p className="text-xs text-stone-400">
+                                      {studioSettings.logo
+                                        ? "Carica un nuovo logo per sostituirlo"
+                                        : "PNG, JPG o SVG consigliati"}
+                                    </p>
                                   </>
                                 )}
                                 <Label
@@ -2562,6 +2305,173 @@ export default function AdminDashboard() {
                               </div>
                             </div>
                           </div>
+                        </div>
+                      </div>
+
+                      {/* ── TEMA GLOBALE DEI PREVENTIVI ── */}
+                      <div className="rounded-xl border border-stone-200 bg-white shadow-sm overflow-hidden">
+                        <div className="flex items-center gap-3 px-5 py-3.5 bg-stone-50 border-b border-stone-200">
+                          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-[#6b7f6b]/15">
+                            <span
+                              className="h-3.5 w-3.5 rounded-full border border-[#6b7f6b]"
+                              style={{ backgroundColor: studioSettings.quoteTheme.primaryColor }}
+                            />
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-semibold text-stone-700">Tema dei preventivi</h3>
+                            <p className="text-xs text-stone-400">Aspetto unico per tutti i template e i nuovi preventivi</p>
+                          </div>
+                        </div>
+                        <div className="p-5">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                            <div className="space-y-1.5">
+                              <Label htmlFor="quote-primary-color" className="text-xs font-medium text-stone-600 uppercase tracking-wide">
+                                Colore principale
+                              </Label>
+                              <Input
+                                id="quote-primary-color"
+                                type="color"
+                                value={studioSettings.quoteTheme.primaryColor}
+                                onChange={(e) => handleSettingsChange("quoteTheme", e.target.value, "primaryColor")}
+                                className="h-11 cursor-pointer border-stone-200 p-1"
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label htmlFor="quote-secondary-color" className="text-xs font-medium text-stone-600 uppercase tracking-wide">
+                                Colore secondario
+                              </Label>
+                              <Input
+                                id="quote-secondary-color"
+                                type="color"
+                                value={studioSettings.quoteTheme.secondaryColor}
+                                onChange={(e) => handleSettingsChange("quoteTheme", e.target.value, "secondaryColor")}
+                                className="h-11 cursor-pointer border-stone-200 p-1"
+                              />
+                            </div>
+                          </div>
+                          <div className="mt-6 rounded-lg border border-stone-200 bg-stone-50/80 p-4 sm:p-5">
+                            <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
+                              <div>
+                                <p className="text-sm font-semibold text-stone-700">Anteprima del preventivo</p>
+                                <p className="mt-0.5 text-xs text-stone-500">
+                                  Si aggiorna mentre modifichi colori e identità dello studio; non salva le modifiche.
+                                </p>
+                              </div>
+                              <span className="rounded-full border border-stone-200 bg-white px-2.5 py-1 text-[10px] font-medium text-stone-500">
+                                Esempio
+                              </span>
+                            </div>
+
+                            <div
+                              aria-label="Anteprima del portale preventivo con i colori selezionati"
+                              className="mx-auto max-w-xl overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm"
+                            >
+                              <div
+                                aria-hidden="true"
+                                className="h-1.5"
+                                style={{ backgroundColor: studioSettings.quoteTheme.primaryColor }}
+                              />
+                              <StudioQuoteIdentityPreview
+                                name={studioSettings.name}
+                                logo={studioSettings.logo}
+                              />
+                              <div
+                                className="flex items-center justify-between gap-3 border-b px-4 py-3 sm:px-5"
+                                style={{ borderColor: `${studioSettings.quoteTheme.secondaryColor}70` }}
+                              >
+                                <div className="min-w-0">
+                                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-400">
+                                    Il tuo preventivo
+                                  </p>
+                                  <p className="mt-0.5 truncate text-sm font-semibold text-stone-800">
+                                    Fotografia e video di matrimonio
+                                  </p>
+                                </div>
+                                <span
+                                  className="shrink-0 rounded-full px-2.5 py-1 text-[10px] font-medium text-stone-700"
+                                  style={{ backgroundColor: `${studioSettings.quoteTheme.secondaryColor}30` }}
+                                >
+                                  Proposta
+                                </span>
+                              </div>
+
+                              <div className="space-y-3 p-4 sm:p-5">
+                                <div className="flex items-start justify-between gap-4">
+                                  <div>
+                                    <p className="text-xs text-stone-500">Servizio selezionato</p>
+                                    <p className="mt-1 text-sm font-medium text-stone-800">Servizio fotografico</p>
+                                  </div>
+                                  <span
+                                    className="shrink-0 text-sm font-semibold"
+                                    style={{ color: studioSettings.quoteTheme.primaryColor }}
+                                  >
+                                    € 2.450
+                                  </span>
+                                </div>
+                                <div
+                                  className="flex items-center gap-2 rounded-lg border p-3"
+                                  style={{
+                                    backgroundColor: `${studioSettings.quoteTheme.secondaryColor}18`,
+                                    borderColor: `${studioSettings.quoteTheme.secondaryColor}55`,
+                                  }}
+                                >
+                                  <span
+                                    aria-hidden="true"
+                                    className="h-2 w-2 shrink-0 rounded-full"
+                                    style={{ backgroundColor: studioSettings.quoteTheme.primaryColor }}
+                                  />
+                                  <p className="text-xs leading-relaxed text-stone-600">
+                                    Una proposta pensata per il vostro giorno speciale.
+                                  </p>
+                                </div>
+                                <div className="flex justify-end">
+                                  <span
+                                    className="rounded-md px-3 py-2 text-xs font-semibold text-white"
+                                    style={{ backgroundColor: studioSettings.quoteTheme.primaryColor }}
+                                  >
+                                    Approva preventivo
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            <div
+                              role="status"
+                              aria-live="polite"
+                              className={`mx-auto mt-3 flex max-w-xl items-start gap-2 rounded-lg border p-3 text-xs ${
+                                quoteColorContrastIssues.length > 0
+                                  ? "border-amber-300 bg-amber-50 text-amber-950"
+                                  : "border-emerald-200 bg-emerald-50 text-emerald-900"
+                              }`}
+                            >
+                              {quoteColorContrastIssues.length > 0 ? (
+                                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                              ) : (
+                                <CheckCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                              )}
+                              <div>
+                                <p className="font-semibold">
+                                  {quoteColorContrastIssues.length > 0
+                                    ? "Attenzione: alcuni testi potrebbero essere difficili da leggere."
+                                    : "Contrasto adeguato per i testi dell’anteprima."}
+                                </p>
+                                {quoteColorContrastIssues.length > 0 && (
+                                  <ul className="mt-1 list-inside list-disc space-y-0.5">
+                                    {quoteColorContrastIssues.map((issue) => (
+                                      <li key={issue.label}>
+                                        {issue.label}: {issue.ratio.toFixed(1)}:1 (consigliato almeno 4,5:1)
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                                <p className="mt-1">
+                                  Il controllo è solo informativo: non cambia i colori e non blocca il salvataggio.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                          <p className="mt-4 text-xs leading-relaxed text-stone-500">
+                            Il footer usa il nome dello studio configurato sopra. Dopo aver scelto i colori, salva le impostazioni: i nuovi preventivi e tutti i template useranno questi valori. Quelli già inviati conservano il tema salvato al momento della creazione.
+                          </p>
                         </div>
                       </div>
 

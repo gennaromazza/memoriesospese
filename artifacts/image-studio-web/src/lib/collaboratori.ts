@@ -20,6 +20,7 @@ import type {
   InsertCollaboratore,
   UpdateCollaboratore,
   JobCollaboratoreAssignment,
+  JobAcceptanceStatus,
   InsertJobCollaboratoreAssignment,
   CollaboratoreStats,
   CollaboratorPaymentType,
@@ -249,6 +250,25 @@ export async function updateAssignmentCompenso(
 }
 
 /**
+ * Aggiorna lo stato di accettazione di un incarico tramite endpoint admin.
+ */
+export async function updateAssignmentAcceptanceStatus(
+  assignmentId: string,
+  status: JobAcceptanceStatus,
+): Promise<void> {
+  const response = await apiRequest(
+    "PATCH",
+    `/api/collaboratori/assignments/${assignmentId}/respond`,
+    { status },
+  );
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || "Errore aggiornamento stato incarico");
+  }
+}
+
+/**
  * Get assegnazioni per job
  */
 export async function getJobAssignments(
@@ -429,6 +449,7 @@ export async function addPaymentToAssignment(
     metodo: PaymentMethod;
     note?: string;
     data?: string;
+    idempotencyKey: string;
   },
 ): Promise<void> {
   try {
@@ -438,7 +459,18 @@ export async function addPaymentToAssignment(
       data,
     );
 
-    if (!response.ok) throw new Error("Errore registrazione pagamento");
+    if (!response.ok) {
+      const responseBody = await response.json().catch(() => null) as {
+        code?: unknown;
+        error?: unknown;
+      } | null;
+      throw new Error(
+        responseBody?.code === "PAYMENT_EXCEEDS_COMPENSATION" &&
+          typeof responseBody.error === "string"
+          ? responseBody.error
+          : "Errore registrazione pagamento",
+      );
+    }
 
     console.log("✅ Pagamento registrato:", assignmentId);
   } catch (error) {

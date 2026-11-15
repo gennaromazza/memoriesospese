@@ -1,5 +1,6 @@
 import { SHOP_SEO, shopCategoryPath, shopCategorySeo } from '@shared/shop-landing-content';
 import { formatShopPrice, shopDayKey, type ShopCatalogDto, type ShopProductDto } from '@shared/shop-types';
+import { shopCategorySocialImage, type ResolvedSocialImage } from '@shared/social-metadata';
 
 /**
  * Dati dello shop per Google: elenco dei prodotti leggibile senza JavaScript e
@@ -105,6 +106,7 @@ export interface ShopCategoryPageSeo {
   title: string;
   description: string;
   canonical: string;
+  socialImage: ResolvedSocialImage;
   bodyContent: string;
   jsonLd: object[];
 }
@@ -119,6 +121,7 @@ export function buildShopCategoryPageMeta(catalog: ShopCatalogDto, value: string
     title: seo.title,
     description: seo.description,
     canonical,
+    socialImage: shopCategorySocialImage(canonical, scoped.products),
     bodyContent: `
         <h1>${escapeHtml(seo.h1)}: ${escapeHtml(seo.script)}</h1>
         <p>${escapeHtml(seo.lede)}</p>
@@ -140,10 +143,11 @@ export function buildShopCategoryPageMeta(catalog: ShopCatalogDto, value: string
   };
 }
 
-/** Indirizzi delle categorie da mettere nella mappa del sito: solo quelle con almeno un prodotto, a vetrina accesa. */
-export function shopCategorySitemapPaths(catalog: ShopCatalogDto): string[] {
-  if (!catalog.enabled) return [];
-  return catalog.categories
+/** Indirizzi dello shop da mettere nella mappa: vetrina attiva e solo categorie con prodotti vendibili. */
+export function shopSitemapPaths(catalog: ShopCatalogDto): string[] {
+  if (!catalog.enabled || catalog.products.length === 0) return [];
+  const categories = catalog.categories
     .filter(category => catalog.products.some(product => product.categoria === category.value))
     .map(category => shopCategoryPath(category.value));
+  return ['/online-shop', ...categories];
 }

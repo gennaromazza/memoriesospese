@@ -131,6 +131,123 @@ export interface PrintOrderItemInput {
 export interface PrintShopQuoteInput {
   items: readonly PrintOrderItemInput[];
   fulfillment?: { method: PrintShopDeliveryMethod };
+  couponCode?: string;
+}
+
+export type PrintShopCouponDiscountType = 'percentage' | 'fixed' | 'fixed_total';
+
+/** Snapshot of the coupon applied to a server-calculated quote. */
+export interface PrintShopAppliedCoupon {
+  code: string;
+  discountType: PrintShopCouponDiscountType;
+  value: number;
+  discountCents: number;
+  /** Minimum copies required, or exact package quantity for fixed_total coupons. */
+  minPrintQuantity?: number;
+  /** Missing scope on legacy coupons is interpreted as all formats. */
+  scope?: 'all' | 'selected';
+  eligibleSkus?: readonly string[];
+}
+
+/** Admin-facing coupon contract. Dates are ISO strings at the API boundary. */
+export interface PrintShopCoupon {
+  id: string;
+  code: string;
+  discountType: PrintShopCouponDiscountType;
+  /** Percentage points, fixed discount in cents, or fixed package total in cents. */
+  value: number;
+  startsAt: string;
+  endsAt: string;
+  maxUses: number | null;
+  usedCount: number;
+  reservedCount: number;
+  remainingUses: number | null;
+  active: boolean;
+  /** Coupon visibility on the public print promotions area; missing on legacy docs means hidden. */
+  showOnPromotionsPage: boolean;
+  scope: 'all' | 'selected';
+  eligibleSkus: readonly string[];
+  /** Minimum copies required, or exact package quantity for fixed_total coupons. */
+  minPrintQuantity?: number;
+  /** Grafica promozionale salvata; storagePath è visibile soltanto nell'area admin. */
+  graphic?: PrintShopCouponGraphic;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type PrintShopGraphicTemplateId = 'contact-sheet' | 'darkroom' | 'gallery-label' | 'field-notes';
+export type PrintShopGraphicPlacementId =
+  | 'instagram-organic-34'
+  | 'instagram-organic-square'
+  | 'meta-feed-45'
+  | 'meta-feed-square'
+  | 'stories-reels'
+  | 'whatsapp-status'
+  | 'whatsapp-channel-square'
+  | 'whatsapp-channel-45';
+
+export interface PrintShopCouponGraphic {
+  templateId: PrintShopGraphicTemplateId;
+  placementId: PrintShopGraphicPlacementId;
+  width: number;
+  height: number;
+  contentType: 'image/jpeg';
+  imageUrl: string;
+  storagePath: string;
+  updatedAt?: string;
+}
+
+export type PrintShopCouponInput = Pick<
+  PrintShopCoupon,
+  'code' | 'discountType' | 'value' | 'startsAt' | 'endsAt' | 'maxUses' | 'active' | 'showOnPromotionsPage' | 'scope' | 'eligibleSkus' | 'minPrintQuantity'
+>;
+
+/** Margine riservato alle risposte amministrative; non va aggiunto ai DTO pubblici. */
+export type PrintShopMarginStatus = 'actual' | 'estimated' | 'incomplete';
+
+export interface PrintShopOrderFinancialItem {
+  sku: string;
+  productName: string;
+  copyCount: number;
+  unitCostCents: number | null;
+  lineCostCents: number | null;
+}
+
+export interface PrintShopOrderFinancialRecord {
+  orderId: string;
+  orderNumber: string;
+  customerName: string;
+  date: string | null;
+  paymentMethod: string;
+  paymentStatus: string;
+  fulfillmentMethod: PrintShopDeliveryMethod;
+  revenueCents: number;
+  copyCount: number;
+  items: readonly PrintShopOrderFinancialItem[];
+  estimatedPrintCostCents: number | null;
+  supplierCostCents: number | null;
+  supplierCostComplete: boolean;
+  productionCostCents: number | null;
+  productionCostBasis: 'actual' | 'estimated' | null;
+  paypalFeeCents: number | null;
+  marginCents: number | null;
+  marginStatus: PrintShopMarginStatus;
+  missingReasons: readonly string[];
+}
+
+/** Public, safe-to-display fields for an explicitly promoted print coupon. */
+export interface PrintShopPublicPromotion {
+  code: string;
+  discountType: PrintShopCouponDiscountType;
+  /** Percentage points, fixed discount in cents, or fixed package total in cents. */
+  value: number;
+  startsAt: string;
+  endsAt: string;
+  scope: 'all' | 'selected';
+  eligibleFormats: readonly { sku: string; name: string }[];
+  minPrintQuantity: number;
+  /** URL e dimensioni della creatività pubblicata, mai il percorso interno di Storage. */
+  graphic?: Pick<PrintShopCouponGraphic, 'imageUrl' | 'width' | 'height' | 'contentType'>;
 }
 
 export interface AppliedPrintTier {
@@ -175,6 +292,7 @@ export interface PrintShopQuote {
     shippingCents?: number;
     totalCents: number;
   };
+  coupon?: PrintShopAppliedCoupon;
   /** Numero di file unici, anche se uno stesso asset appare in più righe. */
   assetCount: number;
   copyCount: number;

@@ -1292,6 +1292,9 @@ export default function JobDetailPage() {
           totalePagato={jobFinancials.totalePagato}
           saldoResiduo={jobFinancials.saldoResiduo}
           totaleCosti={jobFinancials.totaleCosti}
+          collaboratorCosts={jobFinancials.collaboratorCosts}
+          collaboratorCostsLoading={jobFinancials.collaboratorCostsLoading}
+          collaboratorCostsError={jobFinancials.collaboratorCostsError}
           className="mb-6 shadow-md"
         />
 
@@ -1399,12 +1402,8 @@ export default function JobDetailPage() {
               <InvoiceSection
                 jobId={job.id}
                 jobName={job.nomeEvento}
-                clienti={clienti.map((cliente) => ({
-                  id: cliente.id,
-                  nome: cliente.nome,
-                  cognome: cliente.cognome,
-                  email: cliente.email,
-                }))}
+                clienti={clienti}
+                onEditCliente={setEditingCliente}
               />
 
               {/* Note Interne / Nota del Cliente */}
@@ -1549,7 +1548,7 @@ export default function JobDetailPage() {
             </div>
 
             {/* Right Column - Secondary Info */}
-            <div className="lg:col-span-5 space-y-6">
+            <div className="lg:col-span-5 space-y-4">
             {/* Stato Preventivi */}
               <Card className="shadow-sm hover:shadow-md transition-shadow">
                 <CardHeader className="bg-gradient-to-r from-terracotta/5 to-transparent">
@@ -1659,7 +1658,7 @@ export default function JobDetailPage() {
                 <CardHeader className="bg-gradient-to-r from-[#8b5a3c]/10 to-transparent">
                   <CardTitle>Tracce Operative</CardTitle>
                 </CardHeader>
-                <CardContent className="pt-6">
+                <CardContent className="pt-4">
                   <OperationalTracksSection jobId={job.id} />
                 </CardContent>
               </Card>
@@ -1669,12 +1668,17 @@ export default function JobDetailPage() {
                 <CardHeader className="bg-gradient-to-r from-orange-50 to-transparent dark:from-orange-950/20">
                   <CardTitle>Costi Lavoro</CardTitle>
                 </CardHeader>
-                <CardContent className="pt-6">
+                <CardContent className="pt-4">
                   <CostiLavoroTable
                     jobId={job.id}
                     jobName={job.nomeEvento}
                     costi={job.costi || []}
                     totalePreventivato={jobFinancials.totalePreventivato}
+                    totaleCostiOverride={jobFinancials.totaleCosti}
+                    collaboratorCosts={jobFinancials.collaboratorCosts}
+                    collaboratorAssignments={jobFinancials.collaboratorAssignments}
+                    collaboratorCostsLoading={jobFinancials.collaboratorCostsLoading}
+                    collaboratorCostsError={jobFinancials.collaboratorCostsError}
                     onAddCosto={handleAddCosto}
                     onUpdateCosto={handleUpdateCosto}
                     onDeleteCosto={handleDeleteCosto}
@@ -1695,9 +1699,20 @@ export default function JobDetailPage() {
                       <Badge variant="outline" className="ml-auto">{timelineEvents.length}</Badge>
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="pt-6">
-                  <div className="space-y-3">
-                    {timelineEvents.slice(0, 10).map((event) => {
+                  <CardContent className="pt-3">
+                    <details className="group" data-testid="recent-activity-details">
+                      <summary className="cursor-pointer rounded-md border bg-muted/20 px-3 py-2 text-sm">
+                        <span className="flex min-w-0 items-center justify-between gap-3">
+                          <span className="min-w-0 truncate text-muted-foreground">
+                            {timelineEvents[0]?.descrizione || 'Attività registrate'}
+                          </span>
+                          <span className="shrink-0 text-xs font-medium">
+                            Mostra {Math.min(5, timelineEvents.length)} di {timelineEvents.length}
+                          </span>
+                        </span>
+                      </summary>
+                      <div className="space-y-2 pt-2">
+                    {timelineEvents.slice(0, 5).map((event) => {
                       // Handle various date formats: Firestore Timestamp, Date, ISO string
                       let eventDate: Date;
                       try {
@@ -1736,7 +1751,7 @@ export default function JobDetailPage() {
                         (event.descrizione || '').toLowerCase().includes('consegnato');
 
                       return (
-                        <div key={event.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors">
+                        <div key={event.id} className="flex items-start gap-2 rounded-lg p-2 hover:bg-muted/50 transition-colors">
                           <div className="flex-shrink-0 mt-0.5">
                             <Icon className={`h-4 w-4 ${tipoEvento === 'email_recensione_inviata' ? 'text-yellow-500' : 'text-primary'}`} />
                           </div>
@@ -1775,6 +1790,7 @@ export default function JobDetailPage() {
                       );
                     })}
                   </div>
+                    </details>
                 </CardContent>
                 </Card>
               )}

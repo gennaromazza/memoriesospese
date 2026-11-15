@@ -10,7 +10,10 @@ const fetch = jsonFetch<{
   photobook: {
     currentVersion: number;
     versions: Array<{ version: number; status?: string }>;
+    approval?: { version: number } | null;
   };
+  pages?: unknown[];
+  page?: { pageNumber: number; fileName: string | null };
 }>;
 // Database isolato: transazioni serializzate e scritture atomiche, nessun accesso Firebase.
 const h = vi.hoisted(() => ({ docs: new Map<string, Record<string, any>>(), queue: Promise.resolve(), beforeTransaction: null as (() => void) | null }));
@@ -62,6 +65,9 @@ function pages(numbers = [1, 2]) {
   numbers.forEach((pageNumber, index) => h.docs.set(`photobookPages/p${index}`, { photobookId: 'book', version: 2, pageNumber }));
   book().versions[1].pageCount = numbers.length;
 }
+function publishedPageOne() {
+  h.docs.set('photobookPages/approved-v1-page-1', { photobookId: 'book', version: 1, pageNumber: 1 });
+}
 beforeEach(() => {
   h.docs.clear(); h.queue = Promise.resolve(); h.beforeTransaction = null;
   h.docs.set('photobooks/book', { currentVersion: 1, token: 'same-token-long', locked: false, versions: [{ version: 1, pageCount: 3 }, { version: 2, status: 'draft', pageCount: 0 }] });
@@ -82,9 +88,64 @@ describe('API reali: link cliente, autorizzazione e notifica pubblicazione', () 
     expect(result.version).toBe(1); expect(result.photobook.versions.map((v: { version: number }) => v.version)).toEqual([1]);
     expect(result.photobook.versions[0].status).toBeUndefined(); // Gli upload legacy restano possibili, non marcarli come immutabili.
   });
+  it('salva l’approvazione di un fotolibro autonomo e la restituisce nella lista admin', async () => {
+    Object.assign(book(), { name: 'Fotolibro autonomo', mockupPath: 'studio' });
+    delete book().galleryId;
+    delete book().jobId;
+    publishedPageOne();
+
+    const approvalResponse = await fetch(`${base}/by-token/same-token-long/approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note: 'Impaginato approvato' }),
+    });
+    expect(approvalResponse.status).toBe(200);
+    expect(await approvalResponse.json()).toMatchObject({ ok: true, approved: true });
+
+    const listResponse = await fetch(base);
+    expect(listResponse.status).toBe(200);
+    const { photobooks } = await listResponse.json() as unknown as {
+      photobooks: Array<{
+        id: string;
+        currentVersion: number;
+        approval: { version: number; note: string | null } | null;
+        jobId: string | null;
+        galleryId?: string;
+      }>;
+    };
+    expect(photobooks).toHaveLength(1);
+    expect(photobooks[0]).toMatchObject({
+      id: 'book',
+      currentVersion: 1,
+      approval: { version: 1, note: 'Impaginato approvato' },
+      jobId: null,
+    });
+    expect(photobooks[0].galleryId).toBeUndefined();
+  });
+  it('rifiuta l’approvazione se una nuova versione viene pubblicata durante la conferma', async () => {
+    Object.assign(book().versions[1], { status: 'published', pageCount: 3 });
+    publishedPageOne();
+    h.beforeTransaction = () => {
+      book().currentVersion = 2;
+    };
+
+    const response = await fetch(`${base}/by-token/same-token-long/approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note: 'Approvato' }),
+    });
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ error: 'Il fotolibro è stato aggiornato nel frattempo: ricarica la pagina.' });
+    expect(book().currentVersion).toBe(2);
+    expect(book().approval).toBeUndefined();
+    expect(h.docs.has('adminNotifications/photobook-approved-book-v1')).toBe(false);
+    expect(sendGmailEmail).not.toHaveBeenCalled();
+  });
   it('percorso cliente: approvazione invia una volta il link diretto, con destinatario del lavoro e recupero email mancante', async () => {
     Object.assign(book(), { mockupPath: 'client', name: 'Album', clientName: 'Anna', jobId: 'job' });
     h.docs.delete('galleries/gallery');
+    publishedPageOne();
     const approve = () => fetch(`${base}/by-token/same-token-long/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
     expect((await approve()).status).toBe(200);
     expect(book().mockupNotifications.approved_v1.state).toBe('missing-email');
@@ -109,6 +170,7 @@ describe('API reali: link cliente, autorizzazione e notifica pubblicazione', () 
   });
   it('percorso studio: approvazione non invita; esito incerto non ripete il trasporto', async () => {
     Object.assign(book(), { mockupPath: 'studio', name: 'Album' });
+    publishedPageOne();
     await fetch(`${base}/by-token/same-token-long/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
     expect(book().mockupNotifications).toBeUndefined();
     expect(sendGmailEmail).toHaveBeenCalledTimes(1); // solo admin
@@ -121,24 +183,90 @@ describe('API reali: link cliente, autorizzazione e notifica pubblicazione', () 
     expect(await (await post(base, 'notify-approved-mockup', {})).json()).toMatchObject({ state: 'sent' });
     expect(sendGmailEmail).toHaveBeenCalledTimes(3);
   });
-  it('percorso studio: conferma prima delle pagine aspetta l’approvazione e poi invia un link visibile', async () => {
+  it('percorso studio: invia il link del mockup confermato anche prima dell’approvazione pagine', async () => {
     Object.assign(book(), { mockupPath: 'studio', name: 'Album', clientName: 'Anna' });
+    publishedPageOne();
+    book().approval = null;
     book().mockupNotifications = { confirmed_v1_r4: { state: 'waiting-approval' } };
     h.docs.set('photobooks/book/mockups/v1', { version: 1, revision: 4, status: 'confirmed' });
-    expect((await post(base, 'notify-confirmed-mockup', {})).status).toBe(409);
-    expect(sendGmailEmail).not.toHaveBeenCalled();
+    expect(await (await post(base, 'notify-confirmed-mockup', {})).json()).toMatchObject({ state: 'sent' });
+    expect(book().mockupNotifications.confirmed_v1_r4.state).toBe('sent');
+    expect(vi.mocked(sendGmailEmail).mock.calls.filter(call => call[0] === 'client@example.test')).toHaveLength(1);
     const response = await fetch(`${base}/by-token/same-token-long/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ approved: true, mockupNotification: 'sent' });
+    expect(await response.json()).toMatchObject({ approved: true });
     const email = vi.mocked(sendGmailEmail).mock.calls.find(call => call[0] === 'client@example.test');
     expect(email).toBeDefined();
     expect(email![2]).toContain('https://example.test/fotolibro/same-token-long');
     expect(email![2]).toContain('contatta lo studio');
     expect(email![2]).not.toContain('inviare una nuova revisione');
-    expect(book().mockupNotifications.confirmed_v1_r4.state).toBe('sent');
     expect(vi.mocked(sendGmailEmail).mock.calls.filter(call => call[0] === 'client@example.test')).toHaveLength(1);
     await fetch(`${base}/by-token/same-token-long/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
     expect(vi.mocked(sendGmailEmail).mock.calls.filter(call => call[0] === 'client@example.test')).toHaveLength(1);
+  });
+  it('consente mockup senza pagine, poi crea e pubblica la prima impaginazione senza approvazioni automatiche', async () => {
+    Object.assign(book(), { name: 'Fotolibro autonomo', mockupPath: 'studio', approval: null });
+    delete book().galleryId;
+    delete book().jobId;
+    book().versions = [{ version: 1, pageCount: 0 }];
+    h.docs.set('photobooks/book/mockups/v1', {
+      version: 1,
+      revision: 3,
+      status: 'confirmed',
+      configuration: {},
+    });
+
+    const sharedMockup = await fetch(`${base}/by-token/same-token-long/mockup?version=1`).then(r => r.json());
+    expect(sharedMockup).toMatchObject({ saved: { status: 'confirmed', revision: 3 }, clientApprovalAllowed: true });
+    const mockupApproval = await fetch(`${base}/by-token/same-token-long/mockup/approve?version=1`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ revision: 3 }),
+    });
+    expect(mockupApproval.status).toBe(200);
+    expect(book().approval).toBeNull();
+    expect(h.docs.get('photobooks/book/mockups/v1')!.clientApproval).toMatchObject({ revision: 3 });
+
+    const clientBook = await fetch(`${base}/by-token/same-token-long?version=1`).then(r => r.json());
+    expect(clientBook.pages).toEqual([]);
+    expect(clientBook.photobook.approval).toBeNull();
+    const pageApproval = await fetch(`${base}/by-token/same-token-long/approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    expect(pageApproval.status).toBe(409);
+    expect(await pageApproval.json()).toMatchObject({ error: expect.stringContaining('Non ci sono pagine') });
+    expect(book().approval).toBeNull();
+
+    const created = await post(base, 'versions', { label: 'Prima impaginazione' });
+    expect(created.status).toBe(200);
+    expect(book().versions[1]).toMatchObject({ version: 2, status: 'draft', pageCount: 0 });
+    const image = await sharp({ create: { width: 600, height: 400, channels: 3, background: '#87958a' } }).jpeg().toBuffer();
+    const uploaded = await fetch(`${base}/book/versions/2/pages?pageNumber=1`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'image/jpeg' },
+      body: image,
+    });
+    expect(uploaded.status).toBe(200);
+    expect(book().versions[1].pageCount).toBe(1);
+    expect(book().currentVersion).toBe(1);
+
+    const published = await post(base, 'publish-version', { version: 2, expectedCurrentVersion: 1, expectedPageCount: 1 });
+    expect(published.status).toBe(200);
+    expect(book().currentVersion).toBe(2);
+    expect(book().approval).toBeNull();
+    expect(h.docs.get('photobooks/book/mockups/v1')).toMatchObject({
+      revision: 3,
+      status: 'confirmed',
+      clientApproval: { revision: 3 },
+    });
+    expect(h.docs.get('photobooks/book/mockups/v2')).toMatchObject({ revision: 1, status: 'draft' });
+    expect(h.docs.get('photobooks/book/mockups/v2')!.clientApproval).toBeUndefined();
+    const publishedClientBook = await fetch(`${base}/by-token/same-token-long`).then(r => r.json());
+    expect(publishedClientBook.version).toBe(2);
+    expect(publishedClientBook.pages).toHaveLength(1);
+    expect(publishedClientBook.photobook.approval).toBeNull();
   });
   it('cambiare percorso su un fotolibro approvato non invia notifiche retroattive', async () => {
     book().mockupPath = 'studio';
@@ -199,7 +327,9 @@ describe('API reali: link cliente, autorizzazione e notifica pubblicazione', () 
   it('upload bozza registra pagina e contatore insieme senza email', async () => {
     const image = await sharp({create:{width:600,height:400,channels:3,background:'#997744'}}).jpeg().toBuffer();
     const response=await fetch(`${base}/book/versions/2/pages?pageNumber=1&fileName=pagina.jpg`,{method:'POST',headers:{'Content-Type':'image/jpeg'},body:image});
-    expect(response.status).toBe(200); expect(book().versions[1].pageCount).toBe(1); expect(book().currentVersion).toBe(1); expect(sendGmailEmail).not.toHaveBeenCalled();
+     expect(response.status).toBe(200); expect(book().versions[1].pageCount).toBe(1); expect(book().currentVersion).toBe(1); expect(sendGmailEmail).not.toHaveBeenCalled();
+     expect((await response.json()).page).toMatchObject({ pageNumber: 1, fileName: 'pagina.jpg' });
+     expect([...h.docs.entries()].find(([path]) => path.startsWith('photobookPages/'))?.[1].fileName).toBe('pagina.jpg');
   });
   it('lock durante upload impedisce scrittura pagina e contatore', async () => {
     const image = await sharp({create:{width:600,height:400,channels:3,background:'#997744'}}).jpeg().toBuffer();
@@ -248,7 +378,7 @@ describe('Versioni fotolibro: bozza, pubblicazione e concorrenza', () => {
 describe('Continuità mockup fra versioni', () => {
   beforeEach(() => {
     pages();
-    h.docs.set('photobooks/book/mockups/v1', { version: 1, revision: 8, status: 'confirmed', confirmedAt: 'yesterday', reportPath: 'private/report', configuration: { photoAssetId: 'front', backPhotoAssetId: 'back', topText: 'Anna e Marco' } });
+    h.docs.set('photobooks/book/mockups/v1', { version: 1, revision: 8, status: 'confirmed', confirmedAt: 'yesterday', reportPath: 'private/report', clientApproval: { revision: 8, approvedAt: 'yesterday' }, configuration: { photoAssetId: 'front', backPhotoAssetId: 'back', topText: 'Anna e Marco' } });
     h.docs.set('photobooks/book/mockupOffers/v1', { revision: 2, options: [{ name: 'Plaza' }] });
     h.docs.set('photobooks/book/mockupAssets/front', { version: 1, storagePath: 'private/front.jpg' });
     h.docs.set('photobooks/book/mockupAssets/back', { version: 1, storagePath: 'private/back.jpg' });
@@ -258,7 +388,7 @@ describe('Continuità mockup fra versioni', () => {
     await publishVersion('book', 2, 1, 2);
     const next = h.docs.get('photobooks/book/mockups/v2')!;
     expect(next).toMatchObject({ version: 2, revision: 1, status: 'draft', configuration: { topText: 'Anna e Marco' } });
-    expect(next.reportPath).toBeUndefined(); expect(next.confirmedAt).toBeUndefined();
+    expect(next.reportPath).toBeUndefined(); expect(next.confirmedAt).toBeUndefined(); expect(next.clientApproval).toBeUndefined();
     expect(h.docs.get('photobooks/book/mockups/v1')).toEqual(old);
     for (const field of ['photoAssetId', 'backPhotoAssetId']) expect(h.docs.get(`photobooks/book/mockupAssets/${next.configuration[field]}`)?.version).toBe(2);
     expect(h.docs.get('photobooks/book/mockupAssets/front')?.version).toBe(1);

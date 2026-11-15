@@ -20,8 +20,10 @@ import {
 } from '@/lib/wedding-seo';
 import { parseWeddingStoryMarkdown, weddingStorySlug } from '@/lib/wedding-story-format';
 import WeddingStoryInline from '@/components/WeddingStoryInline';
+import SocialCardPreview from '@/components/admin/SocialCardPreview';
 import { useToast } from '@/hooks/use-toast';
 import { createUrl } from '@/lib/basePath';
+import { weddingSocialImage } from '@shared/social-metadata';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ToastAction } from '@/components/ui/toast';
@@ -296,6 +298,21 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
     validSelectedPhotoIds
       .map(photoId => [photoId, String(photoAltTexts[photoId] || '').trim().slice(0, 200)] as const)
       .filter(([, alt]) => Boolean(alt)),
+  );
+  const orderedSocialPhotos = validCoverPhotoId
+    ? [
+        ...photos.filter(photo => photo.id === validCoverPhotoId),
+        ...photos.filter(photo => photo.id !== validCoverPhotoId && validSelectedPhotoIds.includes(photo.id)),
+      ]
+    : photos.filter(photo => validSelectedPhotoIds.includes(photo.id));
+  const socialImage = weddingSocialImage(
+    draft.title,
+    orderedSocialPhotos.map(photo => ({
+      url: photo.url,
+      alt: validPhotoAltTexts[photo.id]
+        || gallery.chapters?.find(chapter => chapter.id === photo.chapterId)?.titolo
+        || draft.title,
+    })),
   );
   const displayedVendorReviews = sources
     .filter(source => source.category === 'vendor' && validSelectedSourceIds.includes(source.id))
@@ -600,6 +617,14 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
               ))}
             </div>
           </details>
+
+          <SocialCardPreview
+            image={socialImage}
+            title={draft.seoTitle || draft.title}
+            description={draft.seoDescription || draft.excerpt || 'Real Wedding raccontato da Image Studio.'}
+            url={`imagestudiofotografico.com/real-wedding/${draft.slug || 'slug'}`}
+            testId="wedding-social-preview"
+          />
 
           {/* Le azioni restano accanto al Racconto, prima della griglia foto. */}
           <div className="sticky bottom-3 z-10 flex flex-wrap items-center gap-2 rounded-xl border bg-white/95 p-3 shadow-lg backdrop-blur">

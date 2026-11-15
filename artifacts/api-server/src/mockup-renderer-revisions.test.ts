@@ -23,6 +23,30 @@ describe('Revisione fisica 4 del modello girevole', () => {
     expect(mockupConfigurationSchema.parse(monogram)).toEqual(monogram);
     expect(mockupConfigurationSchema.safeParse({ ...base, engravingNames: { first: 'A'.repeat(51), second: '' } }).success).toBe(false);
   });
+  it('accetta ogni layout, finitura e crop previsti dal Girevole v4', () => {
+    for (const coverLayout of ROTATING_MOCKUP_MODEL.coverLayouts) {
+      for (const frameFinish of ['wood', 'white', 'fabric'] as const) {
+        const configuration = {
+          ...base,
+          coverLayout,
+          frameFinish,
+          photoAssetId: coverLayout === 'plaque' ? null : '11111111-1111-4111-8111-111111111111',
+          backCover: 'photo' as const,
+          backPhotoAssetId: '22222222-2222-4222-8222-222222222222',
+          crop: { zoom: 2.4, x: 0.15, y: 0.85 },
+          backCrop: { zoom: 1.8, x: 0.7, y: 0.25 },
+        };
+        expect(mockupConfigurationSchema.parse(configuration)).toEqual(configuration);
+      }
+    }
+    expect(ROTATING_MOCKUP_MODEL.coverLayouts).toEqual(['full', 'plaque', 'photo-plaque', 'split-photo-fabric']);
+    expect(ROTATING_MOCKUP_MODEL.assetRevision).toBe(4);
+    expect(MOCKUP_RENDERERS.find(renderer => renderer.id === ROTATING_MOCKUP_MODEL.id)).toMatchObject({
+      name: 'Album girevole',
+      path: 'girevole-v4/index.html',
+      assetRevision: 4,
+    });
+  });
   it('richiede la foto soltanto se si sceglie la stampa sul plexiglass', () => {
     expect(mockupConfigurationSchema.safeParse({ ...base, backCover: 'photo' }).success).toBe(false);
     expect(mockupConfigurationSchema.safeParse({ ...base, backCover: 'photo', backPhotoAssetId: '11111111-1111-4111-8111-111111111111' }).success).toBe(true);

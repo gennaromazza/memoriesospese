@@ -222,7 +222,7 @@ async function getGoogleCalendarClient() {
  * Con Service Account, "primary" punta al calendario del SA (vuoto),
  * quindi va sempre risolto al calendario reale dell'utente
  */
-function resolveCalendarId(calendarId: string): string {
+export function resolveCalendarId(calendarId: string): string {
   if (calendarId === 'primary' || !calendarId) {
     return process.env.GOOGLE_CALENDAR_ID || 'primary';
   }
@@ -489,6 +489,7 @@ export function classifyCalendarEvent(event: {
 export async function getEventsWithDetailsAllCalendars(
   timeMin: Date,
   timeMax: Date,
+  options?: { strict?: boolean },
 ): Promise<
   Array<{
     start: string;
@@ -515,6 +516,7 @@ export async function getEventsWithDetailsAllCalendars(
     const calendars = await listCalendars();
 
     if (!calendars || calendars.length === 0) {
+      if (options?.strict) throw new Error('Nessun calendario disponibile per verificare lo spostamento');
       console.warn("[Google Calendar V2] ⚠️ Nessun calendario trovato");
       return [];
     }
@@ -627,6 +629,7 @@ export async function getEventsWithDetailsAllCalendars(
           calError.message
         );
         // Continua con altri calendari
+        if (options?.strict) throw calError;
       }
     }
 
@@ -675,6 +678,7 @@ export async function createEvent(
     startDateStr?: string;
     endDateStr?: string;
     colorId?: string;
+    id?: string;
   },
 ) {
   const calendar = await getGoogleCalendarClient();
@@ -718,6 +722,7 @@ export async function createEvent(
   if (eventData.colorId) {
     requestBody.colorId = eventData.colorId;
   }
+  if (eventData.id) requestBody.id = eventData.id;
 
   const resolvedId = resolveCalendarId(calendarId);
   const response = await calendar.events.insert({

@@ -2,7 +2,7 @@ import type { HttpHandlerResult } from "./http-types.js";
 /**
  * Booking API Routes - Express.js
  * Gestisce endpoint per slot disponibili Google Calendar
- * NOTA: Validazione campagna fatta lato client, server gestisce solo Google Calendar
+ * Le regole della campagna e la disponibilità sono verificate lato server.
  */
 
 import express from "express";
@@ -16,8 +16,41 @@ import type { BookingCampaign } from "../shared/booking-types.js";
 import { normalizeEmail, generateClienteIdFromEmail } from "./utils/normalize.js";
 import { authenticateFirebase } from "./email-routes.js";
 import { GiftCardHttpError, GiftCardService } from "./gift-cards/service.js";
+import {
+  reservePublicBooking, confirmPublicBooking, BookingSlotConflictError, AutomaticConfirmationError,
+} from "./booking/public-creation.js";
+import { checkoutHoldRouter } from './booking/checkout-hold-routes.js';
+import { bookingDepositPaymentRouter } from './booking/deposit-payment-routes.js';
+import { loadCheckoutHoldEvents } from './booking/slot-reservations.js';
+import { hasPaidBookingDeposit, unpaidDepositRequestExpired } from './booking/payment-deadlines.js';
+import { approveBookingWithDeposit } from './booking/approved-deposit-request.js';
+import { CheckoutHoldError } from './booking/checkout-hold-state.js';
+import { bookingAdminPaymentRouter } from './booking/admin-payment-routes.js';
+import { bookingManagementRouter } from './booking/management-routes.js';
+import { ensureBookingManagementLink } from './booking/management-access.js';
+import { bookingConditionsSnapshot } from '../shared/booking-conditions.js';
+import { bookingCancellationRouter } from './booking/cancellation-routes.js';
+import { bookingDepositCents } from './booking/cancellation-policy.js';
 
 const router = express.Router();
+async function requestDepositIfNeeded(req: any, res: express.Response, bookingId: string,
+  booking: { depositPaymentRequest?: { approvedBy?: string } }): Promise<boolean> {
+  // Old/faulty requests must retain their fail-closed guard without looking up other services.
+  if (booking.depositPaymentRequest && !booking.depositPaymentRequest.approvedBy) return false;
+  try {
+    const result = await approveBookingWithDeposit(db, bookingId, req.user?.uid || req.user?.email || 'admin');
+    if (!result) return false;
+    res.json(result); return true;
+  } catch (error) {
+    if (!(error instanceof CheckoutHoldError)) throw error;
+    res.status(error.status).json({ error: error.message }); return true;
+  }
+}
+router.use('/v2/checkout-holds', checkoutHoldRouter(db));
+router.use(bookingDepositPaymentRouter(db));
+router.use(bookingAdminPaymentRouter(db, authenticateFirebase, requireAdmin));
+router.use(bookingManagementRouter(db, authenticateFirebase, requireAdmin));
+router.use(bookingCancellationRouter(db, authenticateFirebase, requireAdmin));
 
 // Riscatto delle gift card nella prenotazione pubblica (stessa base dati, nessuna dipendenza da PayPal)
 const giftCards = new GiftCardService({ db });
@@ -37,6 +70,11 @@ function requireAdmin(req: any, res: express.Response, next: express.NextFunctio
  * un privilegio amministrativo: non deve mai essere deciso dal browser.
  */
 function requireAdminForManualBooking(req: any, res: express.Response, next: express.NextFunction) {
+  for (const field of ["isManual", "isManualBooking"]) {
+    if (req.body?.[field] !== undefined && typeof req.body[field] !== "boolean") {
+      return res.status(400).json({ error: `Parametro ${field} invalido` });
+    }
+  }
   if (req.body?.isManual !== true && req.body?.isManualBooking !== true) {
     return next();
   }
@@ -377,6 +415,7 @@ router.post("/available-slots", async (req, res) => {
         // Verifica che lo slot NON si sovrapponga con nessuna prenotazione
         const hasOverlap = existingBookingsSnapshot.docs.some((doc) => {
           const booking = doc.data();
+          if (unpaidDepositRequestExpired(booking)) return false;
           const bookingStart = booking.dataShootingInizio.toDate();
           const bookingEnd = booking.dataShootingFine.toDate();
 
@@ -423,6 +462,12 @@ router.post("/available-slots", async (req, res) => {
         `[Available Slots] Fallback attivo: ${slots.length} slot da Google Calendar`,
       );
     }
+
+    // Holds are global across campaigns and must never use the legacy fail-open fallback.
+    const heldEvents = await loadCheckoutHoldEvents(
+      db, parseDateForSlots(date).startOf('day').toJSDate(), parseDateForSlots(date).endOf('day').toJSDate(),
+    );
+    slots = slots.filter(slot => !heldEvents.some(hold => slot.start < hold.end && slot.end > hold.start));
 
     // Formatta slot per risposta JSON
     const formattedSlots = slots.map((slot) => ({
@@ -494,6 +539,9 @@ router.post("/available-slots", async (req, res) => {
  * }
  */
 router.post("/create", requireAdminForManualBooking, async (req, res) => {
+  // Public legacy callers must follow the same server-owned campaign policy.
+  // Keep the old admin-only manual flow unchanged.
+  if (req.body?.isManual !== true) return createBookingV2(req, res);
   try {
     const {
       campaignId,
@@ -689,6 +737,7 @@ router.post("/create", requireAdminForManualBooking, async (req, res) => {
 
     const bookingData: any = {
       campaignId,
+      bookingConditions: bookingConditionsSnapshot(req.body.bookingConditionsVersion),
       cliente: {
         nome: cliente.nome.trim(),
         cognome: cliente.cognome.trim(),
@@ -904,7 +953,15 @@ router.patch("/v2/:id/approve", authenticateFirebase, requireAdmin, async (req, 
       });
     }
 
+    if (unpaidDepositRequestExpired(bookingData)) {
+      return res.status(410).json({ error: "La richiesta di acconto è scaduta: occorre una nuova prenotazione" });
+    }
+
     // RIVALIDAZIONE con Calendar Engine V2
+    if (await requestDepositIfNeeded(req, res, id, bookingData)) return;
+    if (bookingData.depositPaymentRequest?.status === 'pending' && !hasPaidBookingDeposit(bookingData)) {
+      return res.status(400).json({ code: "DEPOSIT_PAYMENT_PENDING", error: "Acconto in attesa di pagamento: la scadenza originaria resta invariata" });
+    }
     const slotStart = bookingData.dataShootingInizio.toDate();
     const slotEnd = bookingData.dataShootingFine.toDate();
 
@@ -1125,6 +1182,8 @@ router.patch("/v2/:id/approve", authenticateFirebase, requireAdmin, async (req, 
         bookingData.note,
         studioInfo,
         calendarLink,
+        undefined,
+        await ensureBookingManagementLink(db, bookingRef.id, undefined, bookingData.cliente.email),
       );
 
       await sendGmailEmail(
@@ -1193,7 +1252,15 @@ router.patch("/:id/approve", authenticateFirebase, requireAdmin, async (req, res
       });
     }
 
+    if (unpaidDepositRequestExpired(bookingData)) {
+      return res.status(410).json({ error: "La richiesta di acconto è scaduta: occorre una nuova prenotazione" });
+    }
+
     // RIVALIDAZIONE: Verifica che lo slot sia ancora disponibile prima di creare evento
+    if (await requestDepositIfNeeded(req, res, id, bookingData)) return;
+    if (bookingData.depositPaymentRequest?.status === 'pending' && !hasPaidBookingDeposit(bookingData)) {
+      return res.status(400).json({ code: "DEPOSIT_PAYMENT_PENDING", error: "Acconto in attesa di pagamento: la scadenza originaria resta invariata" });
+    }
     const slotStart = bookingData.dataShootingInizio.toDate();
     const slotEnd = bookingData.dataShootingFine.toDate();
 
@@ -1395,6 +1462,8 @@ router.patch("/:id/approve", authenticateFirebase, requireAdmin, async (req, res
         bookingData.note,
         studioInfo,
         calendarLink,
+        undefined,
+        await ensureBookingManagementLink(db, bookingRef.id, undefined, bookingData.cliente.email),
       );
 
       await sendGmailEmail(
@@ -1456,6 +1525,10 @@ router.patch("/:id/reject", authenticateFirebase, requireAdmin, async (req, res)
     }
 
     // Verifica stato attuale
+    if (bookingDepositCents(bookingData) > 0 || ['pending', 'blocked'].includes(bookingData.customerReschedule?.status)
+      || ['pending', 'working', 'blocked'].includes(bookingData.bookingCancellation?.status)) {
+      return res.status(409).json({ error: "Usa Annullamento e acconto: scegli rimborso integrale o riprogrammazione concordata, oppure attendi l’operazione in corso." });
+    }
     if (bookingData.stato === "annullata") {
       return res.status(400).json({
         error: "Prenotazione già annullata",
@@ -1463,6 +1536,10 @@ router.patch("/:id/reject", authenticateFirebase, requireAdmin, async (req, res)
       });
     }
 
+    if (['pending', 'blocked'].includes(bookingData.customerReschedule?.status)
+      || ['pending', 'working', 'blocked'].includes(bookingData.bookingCancellation?.status)) {
+      return res.status(409).json({ error: 'Attendi la conclusione del cambio o dell’annullamento prima di modificare i dati del cliente.' });
+    }
     // Prepara update data
     // Fix #2: Preserva statoWorkflow esistente per booking annullate (spread-safe)
     const currentWorkflowState = bookingData.statoWorkflow;
@@ -1707,6 +1784,18 @@ router.patch("/:id/status", authenticateFirebase, requireAdmin, async (req, res)
     }
 
     const oldStato = bookingData.stato;
+    if (stato === 'annullata' && bookingDepositCents(bookingData) > 0
+      || ['pending', 'blocked'].includes(bookingData.customerReschedule?.status)
+      || ['pending', 'working', 'blocked'].includes(bookingData.bookingCancellation?.status)) {
+      return res.status(409).json({ error: 'Gestisci l’annullamento dal pannello Annullamento e acconto; attendi eventuali operazioni in corso.' });
+    }
+    if (stato === 'in_attesa' && unpaidDepositRequestExpired(bookingData)) {
+      return res.status(410).json({ error: 'La richiesta di acconto è scaduta. Occorre una nuova prenotazione, non riattivare quella precedente.' });
+    }
+    if (['confermata', 'completata'].includes(stato) && bookingData.depositPaymentRequest && !hasPaidBookingDeposit(bookingData)) {
+      return res.status(400).json({ code: 'DEPOSIT_PAYMENT_PENDING',
+        error: 'L’acconto non è confermato o richiede una verifica. Non è possibile confermare lo shooting da questo comando.' });
+    }
 
     // Fix #2: Sync statoWorkflow basato su nuovo stato (spread-safe)
     const currentWorkflowState = bookingData.statoWorkflow;
@@ -1934,6 +2023,10 @@ router.patch("/:id/update", authenticateFirebase, requireAdmin, async (req, res)
       updatedAt: FieldValue.serverTimestamp(),
     };
 
+    if (['pending', 'blocked'].includes(bookingData.customerReschedule?.status)
+      || ['pending', 'working', 'blocked'].includes(bookingData.bookingCancellation?.status)) {
+      return res.status(409).json({ error: 'Attendi la conclusione del cambio o dell’annullamento prima di modificare i dati del cliente.' });
+    }
     // Aggiorna dati cliente se forniti
     if (cliente) {
       const currentCliente = bookingData.cliente || {};
@@ -2131,6 +2224,11 @@ router.delete("/:bookingId/calendar-event", authenticateFirebase, requireAdmin, 
         error: "L'evento Calendar non corrisponde alla prenotazione",
       });
     }
+    if (bookingData && (bookingDepositCents(bookingData) > 0
+      || ['pending', 'blocked'].includes(bookingData.customerReschedule?.status)
+      || ['pending', 'working', 'blocked'].includes(bookingData.bookingCancellation?.status))) {
+      return res.status(409).json({ error: 'Gestisci il calendario tramite Annullamento e acconto: non cancellare separatamente l’evento.' });
+    }
     const currentState = bookingData?.stato;
     const currentWorkflowState = bookingData?.statoWorkflow;
 
@@ -2289,7 +2387,7 @@ router.delete("/:bookingId/calendar-event", authenticateFirebase, requireAdmin, 
  * 
  * NOTA: Non richiede più workingHours/durataMinuti - vengono presi dalla campaign
  */
-router.post("/v2/create", requireAdminForManualBooking, async (req, res) => {
+async function createBookingV2(req: express.Request, res: express.Response): Promise<HttpHandlerResult> {
   try {
     console.log("[POST /v2/create] 🔵 Calendar Engine V2 - Request");
     
@@ -2338,7 +2436,7 @@ router.post("/v2/create", requireAdminForManualBooking, async (req, res) => {
     const slotStart = new Date(dataShootingInizio);
     const slotEnd = new Date(dataShootingFine);
 
-    if (isNaN(slotStart.getTime()) || isNaN(slotEnd.getTime())) {
+    if (isNaN(slotStart.getTime()) || isNaN(slotEnd.getTime()) || slotEnd <= slotStart) {
       return res.status(400).json({
         error: "Date invalide",
       });
@@ -2355,6 +2453,27 @@ router.post("/v2/create", requireAdminForManualBooking, async (req, res) => {
 
     if (!campaign?.attiva) {
       return res.status(400).json({ error: "Campagna non attiva" });
+    }
+
+    if (!isManual && campaign.richiedeApprovazione === false && campaign.richiedeAcconto === true) {
+      return res.status(400).json({
+        code: 'CHECKOUT_REQUIRED',
+        error: "Questa campagna richiede il checkout con acconto. Nessuna prenotazione è stata creata.",
+        checkoutPath: '/api/booking/v2/checkout-holds',
+      });
+    }
+
+    // Defaults preserve legacy approval. Never trust approval/deposit/state
+    // flags sent by the browser, and never auto-confirm an unpaid deposit.
+    const autoConfirm = !isManual && campaign.richiedeApprovazione === false
+      && campaign.richiedeAcconto !== true;
+    if (!isManual) {
+      const { DateTime } = await import('luxon');
+      const firstDay = DateTime.fromJSDate(campaign.dataInizio.toDate(), { zone: 'Europe/Rome' }).startOf('day');
+      const lastDay = DateTime.fromJSDate(campaign.dataFine.toDate(), { zone: 'Europe/Rome' }).endOf('day');
+      if (slotStart.getTime() <= Date.now() || slotStart < firstDay.toJSDate() || slotEnd > lastDay.toJSDate()) {
+        return res.status(400).json({ error: "Data fuori dal periodo prenotabile della campagna" });
+      }
     }
 
     // Step 2: Import Calendar Engine modules
@@ -2466,7 +2585,7 @@ router.post("/v2/create", requireAdminForManualBooking, async (req, res) => {
     }
 
     // Step 6: Create booking (same as legacy)
-    const workflowUpdate = syncBookingWorkflowState("in_attesa");
+    const workflowUpdate = syncBookingWorkflowState(isManual ? "confermata" : "in_attesa");
 
     const bookingData: any = {
       campaignId,
@@ -2541,12 +2660,27 @@ router.post("/v2/create", requireAdminForManualBooking, async (req, res) => {
 
     let bookingRef: FirebaseFirestore.DocumentReference;
     try {
-      bookingRef = await db.collection("bookings").add(bookingData);
+      bookingRef = isManual
+        ? await db.collection("bookings").add(bookingData)
+        : await reservePublicBooking(db, bookingData, slotStart, slotEnd);
     } catch (createError) {
       if (giftClaim) await giftCards.releaseClaim(giftClaim.code).catch(() => undefined);
       throw createError;
     }
     console.log(`[POST /v2/create] ✅ Booking created: ${bookingRef.id}`);
+
+    if (autoConfirm) {
+      try {
+        await confirmPublicBooking(bookingRef, bookingData, slotStart, slotEnd);
+        bookingData.stato = "confermata";
+      } catch (error) {
+        if (error instanceof AutomaticConfirmationError) {
+          if (giftClaim && !error.bookingRetained) await giftCards.releaseClaim(giftClaim.code).catch(() => undefined);
+          return res.status(error.status).json({ error: error.message, code: "AUTOMATIC_CONFIRMATION_FAILED" });
+        }
+        throw error;
+      }
+    }
 
     if (giftClaim) {
       try {
@@ -2613,15 +2747,27 @@ router.post("/v2/create", requireAdminForManualBooking, async (req, res) => {
       const {
         sendGmailEmail,
         createBookingReceivedEmailHTML,
+        createBookingConfirmedEmailHTML,
         createAdminNotificationEmailHTML,
         getStudioContactInfo,
+        generateGoogleCalendarLink,
       } = await import("./email-routes.js");
 
       const studioInfo = await getStudioContactInfo();
       const clienteName = `${cliente.nome} ${cliente.cognome}`;
 
       // Send client email
-      const emailHTML = createBookingReceivedEmailHTML(
+      const calendarLink = autoConfirm ? generateGoogleCalendarLink({
+        title: `Shooting ${campaignName} - ${clienteName}`,
+        description: `Sessione fotografica: ${campaignName}`,
+        location: studioInfo.address || "Studio fotografico",
+        startDate: slotStart, endDate: slotEnd, isAllDay: false,
+      }) : undefined;
+      const emailHTML = autoConfirm ? createBookingConfirmedEmailHTML(
+        clienteName, campaignName, bookingDate, bookingTime, durationMinutes,
+        prodottoNome, note, studioInfo, calendarLink, undefined,
+        await ensureBookingManagementLink(db, bookingRef.id, undefined, cliente.email),
+      ) : createBookingReceivedEmailHTML(
         clienteName,
         campaignName,
         bookingDate,
@@ -2634,11 +2780,11 @@ router.post("/v2/create", requireAdminForManualBooking, async (req, res) => {
 
       await sendGmailEmail(
         cliente.email,
-        `Prenotazione Ricevuta - ${campaignName}`,
+        `${autoConfirm ? "Prenotazione Confermata" : "Prenotazione Ricevuta"} - ${campaignName}`,
         emailHTML,
       );
 
-      await bookingRef.update({ emailRicevutaInviata: true });
+      await bookingRef.update(autoConfirm ? { emailConfermataInviata: true } : { emailRicevutaInviata: true });
       console.log(`[POST /v2/create] ✅ Email sent to ${cliente.email}`);
 
       // Send admin email
@@ -2653,6 +2799,8 @@ router.post("/v2/create", requireAdminForManualBooking, async (req, res) => {
           prodottoNome,
           note,
           studioInfo,
+          undefined,
+          autoConfirm,
         );
 
         await sendGmailEmail(
@@ -2681,11 +2829,19 @@ router.post("/v2/create", requireAdminForManualBooking, async (req, res) => {
     return res.status(201).json({
       success: true,
       bookingId: bookingRef.id,
+      stato: bookingData.stato,
       message: isManual 
         ? "Prenotazione manuale creata e confermata automaticamente" 
+        : autoConfirm ? "Prenotazione confermata con successo"
         : "Prenotazione creata con successo - in attesa di approvazione admin",
     });
   } catch (error: any) {
+    if (error instanceof BookingSlotConflictError) {
+      return res.status(409).json({ error: "Slot non più disponibile", message: "Scegli un altro orario." });
+    }
+    if (error.code === "CALENDAR_UNAVAILABLE" || error.message?.includes("CALENDAR_UNAVAILABLE")) {
+      return res.status(503).json({ error: "Calendario temporaneamente non disponibile", code: "CALENDAR_UNAVAILABLE" });
+    }
     console.error("[POST /v2/create] ❌ Error:", error);
     
     if (error.message?.includes("Google Calendar")) {
@@ -2700,7 +2856,9 @@ router.post("/v2/create", requireAdminForManualBooking, async (req, res) => {
       message: error.message || "Errore sconosciuto",
     });
   }
-});
+}
+
+router.post("/v2/create", requireAdminForManualBooking, createBookingV2);
 
 router.post("/v2/available-slots", requireAdminForManualBooking, async (req, res): Promise<HttpHandlerResult> => {
   try {
@@ -2943,6 +3101,11 @@ router.post("/resend-confirmation-emails", authenticateFirebase, requireAdmin, a
         let subject: string;
         
         if (booking.stato === "confermata") {
+          const delivery = (await db.collection('bookingConfirmationJobs').doc(bookingId).get()).data();
+          if (delivery && ['pending', 'sending'].includes(delivery.status)) {
+            results.push({ bookingId, success: false, error: 'La conferma automatica è già in coda o in invio. Attendi l’esito prima di reinviarla.' });
+            continue;
+          }
           // Email di conferma (con link calendario)
           // Firma: clienteName, campaignName, bookingDate, bookingTime, duration, productName, notes, studioInfo, calendarLink
           emailHTML = createBookingConfirmedEmailHTML(
@@ -2954,7 +3117,9 @@ router.post("/resend-confirmation-emails", authenticateFirebase, requireAdmin, a
             prodottoNome,
             undefined, // notes
             studioInfo,
-            booking.calendarLink || undefined
+            booking.calendarLink || undefined,
+            undefined,
+            await ensureBookingManagementLink(db, bookingId, undefined, clienteEmail),
           );
           subject = `Prenotazione Confermata - ${campaignName}`;
         } else {
@@ -2974,6 +3139,12 @@ router.post("/resend-confirmation-emails", authenticateFirebase, requireAdmin, a
         }
         
         await sendGmailEmail(clienteEmail, subject, emailHTML);
+        if (booking.stato === 'confermata') {
+          // Delivery succeeded: a bookkeeping failure must not report the message as unsent.
+          await doc.ref.update({ emailConfermataInviata: true }).catch(() => {
+            console.warn('Conferma inviata: aggiornamento del relativo indicatore da verificare');
+          });
+        }
         
         console.log(`✅ Email rinviata a ${clienteEmail} per booking ${bookingId}`);
         
@@ -3037,6 +3208,11 @@ router.delete("/:bookingId/delete", authenticateFirebase, requireAdmin, async (r
 
     const bookingData = docSnap.data();
     const googleCalendarEventId = bookingData?.googleCalendarEventId;
+    if (bookingData && (bookingData.depositPayment || bookingData.depositPaymentRequest || bookingDepositCents(bookingData) > 0
+      || ['pending', 'blocked'].includes(bookingData.customerReschedule?.status)
+      || ['pending', 'working', 'blocked'].includes(bookingData.bookingCancellation?.status))) {
+      return res.status(409).json({ error: 'Questa prenotazione conserva un acconto o un’operazione in corso. Usa Annullamento e acconto invece di eliminarla.' });
+    }
 
     if (googleCalendarEventId) {
       try {

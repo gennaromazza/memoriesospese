@@ -27,6 +27,10 @@ export interface AdminPasskeyClaim {
   sat?: number;
 }
 
+export interface AdminDeviceTrustClaim {
+  id: string;
+}
+
 export function isAdminEmail(email: string | null | undefined): boolean {
   if (!email) return false;
   return ADMIN_EMAILS.includes(email.trim().toLowerCase());
@@ -50,6 +54,14 @@ export function readAuthTime(claims: unknown): number | null {
   if (!claims || typeof claims !== 'object') return null;
   const value = (claims as Record<string, unknown>).auth_time;
   return typeof value === 'number' ? value : null;
+}
+
+export function readAdminDeviceTrustClaim(claims: unknown): AdminDeviceTrustClaim | null {
+  if (!claims || typeof claims !== 'object') return null;
+  const raw = (claims as Record<string, unknown>).adminDeviceTrust;
+  if (!raw || typeof raw !== 'object') return null;
+  const id = (raw as Record<string, unknown>).id;
+  return typeof id === 'string' && /^[A-Za-z0-9_-]{43}$/.test(id) ? { id } : null;
 }
 
 /**

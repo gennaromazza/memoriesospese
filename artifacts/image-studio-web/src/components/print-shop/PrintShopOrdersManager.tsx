@@ -19,15 +19,16 @@ import {
 import { apiRequest } from '@/lib/queryClient';
 import { convertFirestoreTimestamp } from '@/lib/firebase';
 import { POLAROID_FRAME, POLAROID_SKU } from '@shared/print-shop-catalog';
-import type { PrintPolaroidComposition } from '@shared/print-shop-types';
+import type { PrintPolaroidComposition, PrintShopOrderFinancialRecord } from '@shared/print-shop-types';
 import { polaroidCropStyle } from '@/features/print-shop/polaroid-crop';
 import { printOrderPhone, printOrderWhatsAppLink } from '@shared/print-order-contact';
 import { getAllLabs } from '@/lib/labs';
 import { eligiblePrintShopLabs, isLabDpaSigned } from '@/features/print-shop/lab-dpa';
+import { labTransferDisplay } from '@/features/print-shop/lab-transfer-display';
 import { DeferredPaymentPanel } from './DeferredPaymentPanel';
 import { printPaymentAmounts, printPaymentStatusLabel, printPaymentStatusTone } from '@/features/print-shop/order-display';
 import { useToast } from '@/hooks/use-toast';
-import type { Lab, LabShipment } from '@shared/lab-types';
+import { LAB_SHIPMENT_STATUS_LABELS, type Lab, type LabShipment } from '@shared/lab-types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -132,6 +133,7 @@ interface PrintOrderSummary {
     totalSupplierCostCents?: number;
     estimatedMarginCents?: number;
   };
+  printShopFinancials?: PrintShopOrderFinancialRecord;
   createdAt?: unknown;
   updatedAt?: unknown;
 }
@@ -192,6 +194,10 @@ const NEXT_PRODUCTION_STATUSES: Partial<Record<FulfillmentStatus, FulfillmentSta
 
 function euroFromCents(value?: number): string {
   return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format((value || 0) / 100);
+}
+
+function optionalEuroFromCents(value: number | null | undefined): string {
+  return value === null || value === undefined ? 'Non disponibile' : euroFromCents(value);
 }
 
 function orderTotalCents(order: PrintOrderSummary): number {
@@ -347,6 +353,8 @@ export default function PrintShopOrdersManager() {
   const [selectedShipmentId, setSelectedShipmentId] = useState('');
   const [supplierCost, setSupplierCost] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [retryQueuedAt, setRetryQueuedAt] = useState<Record<string, number>>({});
+  const [marginPeriod, setMarginPeriod] = useState<'all' | 'month' | '90days' | 'year'>('all');
 
   useEffect(() => {
     const handleNotificationNavigation = (event: Event) => {
@@ -380,6 +388,15 @@ export default function PrintShopOrdersManager() {
     },
   });
 
+  const financialReportQuery = useQuery<{ orders: PrintShopOrderFinancialRecord[] }>({
+    queryKey: ['/api/print-shop/admin/financial-report'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/print-shop/admin/financial-report');
+      return response.json();
+    },
+    staleTime: 30_000,
+  });
+
   const detailQuery = useQuery<{ order: PrintOrderDetail; assets?: PrintOrderDetail['assets'] }>({
     queryKey: ['/api/print-shop/admin/orders', selectedOrderId],
     enabled: !!selectedOrderId,
@@ -394,11 +411,37 @@ export default function PrintShopOrdersManager() {
   const shipmentsQuery = useQuery<{ shipments: LabShipment[] }>({
     queryKey: ['/api/print-shop/admin/orders', selectedOrderId, 'lab-shipments'],
     enabled: !!selectedOrderId,
+    refetchInterval: (query) => {
+      const shipments = query.state.data?.shipments || [];
+      const hasActiveTransfer = shipments.some((shipment) =>
+        ['pending', 'running'].includes(shipment.transfer?.status || ''),
+      );
+      return hasActiveTransfer || Object.keys(retryQueuedAt).length > 0 ? 2_000 : false;
+    },
     queryFn: async () => {
       const response = await apiRequest('GET', `/api/print-shop/admin/orders/${selectedOrderId}/lab-shipments`);
       return response.json();
     },
   });
+
+  useEffect(() => {
+    const queuedIds = Object.keys(retryQueuedAt);
+    if (!queuedIds.length) return;
+    const shipments = shipmentsQuery.data?.shipments || [];
+    const now = Date.now();
+    const next = { ...retryQueuedAt };
+    for (const shipmentId of queuedIds) {
+      const shipment = shipments.find((entry) => entry.id === shipmentId);
+      const status = shipment?.transfer?.status;
+      const finishedAt = convertFirestoreTimestamp(shipment?.transfer?.finishedAt)?.getTime();
+      const attemptFailed = (status === 'failed' || status === 'partial') &&
+        typeof finishedAt === 'number' && finishedAt >= next[shipmentId];
+      if (status === 'running' || status === 'completed' || attemptFailed || now - next[shipmentId] >= 30_000) {
+        delete next[shipmentId];
+      }
+    }
+    if (Object.keys(next).length !== queuedIds.length) setRetryQueuedAt(next);
+  }, [retryQueuedAt, shipmentsQuery.data]);
 
   const labsQuery = useQuery<Lab[]>({
     queryKey: ['/api/labs', 'active'],
@@ -412,6 +455,8 @@ export default function PrintShopOrdersManager() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['/api/print-shop/admin/orders'] }),
       queryClient.invalidateQueries({ queryKey: ['/api/print-shop/admin/orders', selectedOrderId] }),
+      queryClient.invalidateQueries({ queryKey: ['/api/print-shop/admin/financial-report'] }),
+      queryClient.invalidateQueries({ queryKey: ['finance-dashboard'] }),
     ]);
   };
 
@@ -428,7 +473,7 @@ export default function PrintShopOrdersManager() {
       await invalidateOrder();
       setStatusDialogOpen(false);
       setStatusNote('');
-      toast({ title: 'Stato aggiornato', description: STATUS_LABELS[nextStatus] });
+      toast({ title: 'Stato aggiornato', description: statusLabel(nextStatus, selectedOrder?.fulfillment?.method === 'shipping') });
     },
     onError: (error: Error) => toast({ title: 'Aggiornamento non riuscito', description: error.message, variant: 'destructive' }),
   });
@@ -529,10 +574,39 @@ export default function PrintShopOrdersManager() {
       return response.json();
     },
     onSuccess: async () => {
-      await shipmentsQuery.refetch();
+      await Promise.all([shipmentsQuery.refetch(), invalidateOrder()]);
       toast({ title: 'Ordine inviato al laboratorio', description: 'Il link è stato inviato e lo storico è aggiornato.' });
     },
     onError: (error: Error) => toast({ title: 'Invio non riuscito', description: error.message, variant: 'destructive' }),
+  });
+
+  const retryShipmentTransferMutation = useMutation({
+    mutationFn: async (shipmentId: string) => {
+      if (!selectedOrderId) throw new Error('Ordine non selezionato');
+      const response = await apiRequest(
+        'POST',
+        `/api/print-shop/admin/orders/${selectedOrderId}/lab-shipments/${shipmentId}/transfer`,
+        {},
+      );
+      return response.json() as Promise<{ shipmentId: string; status: string }>;
+    },
+    onSuccess: async (result, shipmentId) => {
+      if (result.status === 'queued') {
+        setRetryQueuedAt((current) => ({ ...current, [shipmentId]: Date.now() }));
+      }
+      await shipmentsQuery.refetch();
+      toast({
+        title: result.status === 'completed' ? 'Trasferimento già completato' : 'Nuovo tentativo avviato',
+        description: result.status === 'completed'
+          ? 'I file sono già disponibili nella cartella del laboratorio.'
+          : 'Controlla qui l’avanzamento; il pulsante si riattiverà solo dopo l’esito del tentativo.',
+      });
+    },
+    onError: (error: Error) => toast({
+      title: 'Nuovo tentativo non avviato',
+      description: error.message,
+      variant: 'destructive',
+    }),
   });
 
   const supplierCostMutation = useMutation({
@@ -552,6 +626,8 @@ export default function PrintShopOrdersManager() {
       await Promise.all([
         shipmentsQuery.refetch(),
         invalidateOrder(),
+        queryClient.invalidateQueries({ queryKey: ['/api/print-shop/admin/financial-report'] }),
+        queryClient.invalidateQueries({ queryKey: ['finance-dashboard'] }),
         queryClient.invalidateQueries({ queryKey: ['cash-movements'] }),
         queryClient.invalidateQueries({ queryKey: ['financial-summary'] }),
         queryClient.invalidateQueries({ queryKey: ['monthly-data'] }),
@@ -559,7 +635,7 @@ export default function PrintShopOrdersManager() {
       setCostDialogOpen(false);
       setSelectedShipmentId('');
       setSupplierCost('');
-      toast({ title: 'Costo laboratorio salvato', description: 'Margine e storico ordine sono stati aggiornati.' });
+      toast({ title: 'Costo laboratorio salvato', description: 'Il consuntivo è registrato una sola volta e aggiorna il margine dell’ordine.' });
     },
     onError: (error: Error) => toast({ title: 'Costo non salvato', description: error.message, variant: 'destructive' }),
   });
@@ -580,8 +656,35 @@ export default function PrintShopOrdersManager() {
     toPrint: orders.filter((order) => ['submitted', 'files_check', 'ready_to_print'].includes(order.fulfillment?.status || '')).length,
     printing: orders.filter((order) => ['sent_to_laboratory', 'printing'].includes(order.fulfillment?.status || '')).length,
     ready: orders.filter((order) => order.fulfillment?.status === 'ready_for_pickup').length,
-    revenueCents: orders.reduce((sum, order) => sum + printPaymentAmounts({ totals: { totalCents: orderTotalCents(order) }, payment: order.payment }).collectedCents, 0),
   }), [orders]);
+
+  const financialRows = useMemo(() => {
+    const rows = financialReportQuery.data?.orders || [];
+    const now = new Date();
+    let start: Date | null = null;
+    if (marginPeriod === 'month') start = new Date(now.getFullYear(), now.getMonth(), 1);
+    if (marginPeriod === '90days') {
+      start = new Date(now);
+      start.setDate(start.getDate() - 90);
+    }
+    if (marginPeriod === 'year') start = new Date(now.getFullYear(), 0, 1);
+    return rows.filter((row) => {
+      if (!start) return true;
+      const date = row.date ? new Date(row.date) : null;
+      return date !== null && !Number.isNaN(date.getTime()) && date >= start && date <= now;
+    });
+  }, [financialReportQuery.data?.orders, marginPeriod]);
+
+  const marginMetrics = useMemo(() => financialRows.reduce((totals, row) => {
+    totals.revenue += row.revenueCents;
+    if (row.productionCostCents !== null) totals.productionCost += row.productionCostCents;
+    if (row.paypalFeeCents !== null) totals.paypalFees += row.paypalFeeCents;
+    if (row.marginCents !== null) {
+      totals.margin += row.marginCents;
+      totals.complete += 1;
+    } else totals.incomplete += 1;
+    return totals;
+  }, { revenue: 0, productionCost: 0, paypalFees: 0, margin: 0, complete: 0, incomplete: 0 }), [financialRows]);
 
   const selectedOrder = detailQuery.data?.order;
   const shipments = shipmentsQuery.data?.shipments || selectedOrder?.labShipments || [];
@@ -595,19 +698,20 @@ export default function PrintShopOrdersManager() {
           <h2 className="text-2xl font-semibold text-stone-900">Stampe online</h2>
           <p className="mt-1 text-sm text-stone-600">Ordini, pagamenti, file, produzione e laboratori in un unico flusso.</p>
         </div>
-        <Button variant="outline" onClick={() => listQuery.refetch()} disabled={listQuery.isFetching}>
-          <RefreshCw className={`mr-2 h-4 w-4 ${listQuery.isFetching ? 'animate-spin' : ''}`} />
+        <Button variant="outline" onClick={() => {
+          void Promise.all([listQuery.refetch(), financialReportQuery.refetch()]);
+        }} disabled={listQuery.isFetching || financialReportQuery.isFetching}>
+          <RefreshCw className={`mr-2 h-4 w-4 ${listQuery.isFetching || financialReportQuery.isFetching ? 'animate-spin' : ''}`} />
           Aggiorna
         </Button>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
           ['Ordini', metrics.total],
           ['Da preparare', metrics.toPrint],
           ['In stampa', metrics.printing],
           ['Pronti', metrics.ready],
-          ['Incassato', euroFromCents(metrics.revenueCents)],
         ].map(([label, value]) => (
           <Card key={String(label)}>
             <CardContent className="p-4">
@@ -617,6 +721,110 @@ export default function PrintShopOrdersManager() {
           </Card>
         ))}
       </div>
+
+      <Card>
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle>Margine ordini stampe</CardTitle>
+            <CardDescription>
+              Margine calcolato su incassi effettivi, costi copie, consuntivi laboratorio e commissioni PayPal.
+              I valori di cassa già registrati non vengono aggiunti una seconda volta.
+            </CardDescription>
+          </div>
+          <Select value={marginPeriod} onValueChange={(value) => setMarginPeriod(value as typeof marginPeriod)}>
+            <SelectTrigger className="w-full sm:w-48" aria-label="Periodo margini stampe"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutto lo storico</SelectItem>
+              <SelectItem value="month">Questo mese</SelectItem>
+              <SelectItem value="90days">Ultimi 90 giorni</SelectItem>
+              <SelectItem value="year">Quest’anno</SelectItem>
+            </SelectContent>
+          </Select>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {financialReportQuery.isLoading ? (
+            <div className="flex min-h-24 items-center justify-center" role="status">
+              <Loader2 className="h-6 w-6 animate-spin text-stone-500" />
+              <span className="sr-only">Caricamento margini stampe</span>
+            </div>
+          ) : financialReportQuery.isError ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">
+              Impossibile caricare i margini: {(financialReportQuery.error as Error).message}
+            </div>
+          ) : (
+            <>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                {[
+                  ['Incassato', euroFromCents(marginMetrics.revenue)],
+                  ['Costi produzione noti', euroFromCents(marginMetrics.productionCost)],
+                  ['Commissioni PayPal note', euroFromCents(marginMetrics.paypalFees)],
+                  ['Margine calcolabile', euroFromCents(marginMetrics.margin)],
+                  ['Da completare', marginMetrics.incomplete],
+                ].map(([label, value]) => (
+                  <div key={String(label)} className="rounded-lg border bg-stone-50 p-3">
+                    <p className="text-xs font-medium text-stone-500">{label}</p>
+                    <p className="mt-1 text-lg font-semibold text-stone-900">{value}</p>
+                    {label === 'Margine calcolabile' && marginMetrics.incomplete > 0 && (
+                      <p className="text-xs text-amber-700">{marginMetrics.complete} ordini calcolabili; gli altri sono esclusi dal totale</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {financialRows.length === 0 ? (
+                <p className="rounded-lg border border-dashed p-6 text-center text-sm text-stone-500">
+                  Nessun ordine nel periodo selezionato.
+                </p>
+              ) : (
+                <div className="max-h-[560px] overflow-auto rounded-lg border">
+                  <table className="min-w-[900px] w-full text-left text-sm">
+                    <thead className="sticky top-0 z-10 bg-stone-100 text-xs uppercase text-stone-600">
+                      <tr>
+                        <th className="p-3">Ordine</th>
+                        <th className="p-3 text-right">Incassato</th>
+                        <th className="p-3 text-right">Copie · stima</th>
+                        <th className="p-3 text-right">Laboratorio · effettivo</th>
+                        <th className="p-3 text-right">PayPal</th>
+                        <th className="p-3 text-right">Margine</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {financialRows.map((row) => (
+                        <tr key={row.orderId} className="align-top hover:bg-stone-50">
+                          <td className="max-w-64 p-3">
+                            <Button variant="link" className="h-auto p-0 font-medium" onClick={() => {
+                              setCompositionPreviewLimit(24);
+                              setSelectedOrderId(row.orderId);
+                            }}>{row.orderNumber}</Button>
+                            <p className="text-xs text-stone-500">{row.customerName || 'Cliente'} · {row.date
+                              ? new Intl.DateTimeFormat('it-IT', { dateStyle: 'short' }).format(new Date(row.date))
+                              : 'Data non disponibile'}</p>
+                          </td>
+                          <td className="p-3 text-right tabular-nums">{euroFromCents(row.revenueCents)}</td>
+                          <td className="p-3 text-right tabular-nums">{optionalEuroFromCents(row.estimatedPrintCostCents)}</td>
+                          <td className="p-3 text-right tabular-nums">{optionalEuroFromCents(row.supplierCostCents)}</td>
+                          <td className="p-3 text-right tabular-nums">{optionalEuroFromCents(row.paypalFeeCents)}</td>
+                          <td className="p-3 text-right">
+                            <span className="font-semibold tabular-nums">{optionalEuroFromCents(row.marginCents)}</span>
+                            <Badge variant="outline" className="ml-2">
+                              {row.marginStatus === 'actual' ? 'Consuntivo' :
+                                row.marginStatus === 'estimated' ? 'Stimato' : 'Incompleto'}
+                            </Badge>
+                            {row.missingReasons.length > 0 && (
+                              <p className="mt-1 max-w-64 text-left text-xs text-amber-700">
+                                {row.missingReasons.join(' ')}
+                              </p>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardContent className="grid gap-3 p-4 md:grid-cols-[1fr_240px]">
@@ -721,9 +929,55 @@ export default function PrintShopOrdersManager() {
                 <Card><CardContent className="p-4"><p className="text-xs text-stone-500">Pagamento</p><p className={`text-xl font-semibold ${printPaymentStatusTone(selectedOrder.payment?.status)}`}>{printPaymentStatusLabel(selectedOrder.payment?.status)}</p></CardContent></Card>
                 <Card><CardContent className="p-4"><p className="text-xs text-stone-500">Fotografie</p><p className="text-xl font-semibold">{selectedOrder.printShop?.assetCount || selectedOrder.assets?.length || 0}</p></CardContent></Card>
                 <Card><CardContent className="p-4"><p className="text-xs text-stone-500">Stampe totali</p><p className="text-xl font-semibold">{selectedOrder.printShop?.copyCount || 0}</p></CardContent></Card>
-                <Card><CardContent className="p-4"><p className="text-xs text-stone-500">Costo laboratorio</p><p className="text-xl font-semibold">{euroFromCents(selectedOrder.printShop?.totalSupplierCostCents)}</p></CardContent></Card>
-                <Card><CardContent className="p-4"><p className="text-xs text-stone-500">Margine stimato</p><p className="text-xl font-semibold">{euroFromCents(selectedOrder.printShop?.estimatedMarginCents ?? orderTotalCents(selectedOrder))}</p></CardContent></Card>
+                <Card><CardContent className="p-4"><p className="text-xs text-stone-500">Costo copie · stima</p><p className="text-xl font-semibold">{optionalEuroFromCents(selectedOrder.printShopFinancials?.estimatedPrintCostCents)}</p></CardContent></Card>
+                <Card><CardContent className="p-4"><p className="text-xs text-stone-500">Laboratorio · consuntivo</p><p className="text-xl font-semibold">{optionalEuroFromCents(selectedOrder.printShopFinancials?.supplierCostCents)}</p></CardContent></Card>
+                <Card><CardContent className="p-4"><p className="text-xs text-stone-500">Commissione PayPal</p><p className="text-xl font-semibold">{optionalEuroFromCents(selectedOrder.printShopFinancials?.paypalFeeCents)}</p></CardContent></Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <p className="text-xs text-stone-500">
+                      {selectedOrder.printShopFinancials?.marginStatus === 'actual' ? 'Margine · consuntivo' :
+                        selectedOrder.printShopFinancials?.marginStatus === 'estimated' ? 'Margine · stimato' : 'Margine · non determinabile'}
+                    </p>
+                    <p className="text-xl font-semibold">{optionalEuroFromCents(selectedOrder.printShopFinancials?.marginCents)}</p>
+                  </CardContent>
+                </Card>
               </div>
+
+              <section className="rounded-xl border p-4">
+                <h3 className="font-semibold text-stone-900">Dettaglio economico</h3>
+                <p className="mt-1 text-sm text-stone-600">
+                  Incassato: {euroFromCents(selectedOrder.printShopFinancials?.revenueCents ?? selectedOrder.payment?.collectedCents ?? 0)}
+                  {selectedOrder.printShopFinancials?.productionCostBasis === 'actual'
+                    ? ' · il margine usa il consuntivo del laboratorio al posto della stima copie.'
+                    : selectedOrder.printShopFinancials?.productionCostBasis === 'estimated'
+                      ? ' · il margine usa una stima basata sui costi unitari salvati.'
+                      : ''}
+                </p>
+                {selectedOrder.printShopFinancials?.items?.length ? (
+                  <div className="mt-3 divide-y rounded-lg border">
+                    {selectedOrder.printShopFinancials.items.map((item, index) => (
+                      <div key={`${item.sku}-${index}`} className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm">
+                        <span className="font-medium">{item.productName} <span className="text-stone-500">({item.sku})</span></span>
+                        <span className="tabular-nums">
+                          {item.unitCostCents === null
+                            ? 'Costo unitario non configurato'
+                            : `${euroFromCents(item.unitCostCents)} × ${item.copyCount} = ${optionalEuroFromCents(item.lineCostCents)}`}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-amber-700">Questo ordine non ha uno snapshot dei costi unitari attendibile; non è stato ricalcolato usando il listino attuale.</p>
+                )}
+                {!!selectedOrder.printShopFinancials?.missingReasons.length && (
+                  <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" role="status">
+                    <p className="font-medium">Margine incompleto</p>
+                    <ul className="mt-1 list-disc space-y-1 pl-5">
+                      {selectedOrder.printShopFinancials.missingReasons.map((reason) => <li key={reason}>{reason}</li>)}
+                    </ul>
+                  </div>
+                )}
+              </section>
 
               <CustomerOrderNotifications
                 notifications={selectedOrder.notifications}
@@ -850,13 +1104,55 @@ export default function PrintShopOrdersManager() {
                 ) : (
                   <div className="space-y-2">
                     {shipments.map((shipment) => {
-                      const transferStatus = (shipment as LabShipment & { transfer?: { status?: string } }).transfer?.status || shipment.pageTransfer?.status;
-                      const canSend = transferStatus === 'completed';
+                      const transferData = shipment.transfer || shipment.pageTransfer;
+                      const transferView = labTransferDisplay(transferData ? {
+                        status: transferData.status,
+                        total: transferData.total,
+                        transferred: transferData.transferred,
+                        lastError: shipment.transfer?.lastError || shipment.pageTransfer?.error,
+                        failed: transferData.failed,
+                      } : undefined);
+                      const retryPending = !!retryQueuedAt[shipment.id];
+                      const retryBusy = retryShipmentTransferMutation.isPending &&
+                        retryShipmentTransferMutation.variables === shipment.id;
+                      const canSend = shipment.transfer?.status === 'completed';
                       return (
                         <div key={shipment.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3 text-sm">
-                          <div>
+                          <div className="min-w-0 flex-1">
                             <p className="font-medium">{shipment.labNome || 'Laboratorio da assegnare'}</p>
-                            <p className="text-stone-500">{shipment.status} · trasferimento {transferStatus || 'preparato'}</p>
+                            <p className="text-stone-500">{LAB_SHIPMENT_STATUS_LABELS[shipment.status]}</p>
+                            <p className="mt-1 font-medium text-stone-800">
+                              {retryPending ? 'Nuovo tentativo in attesa di avvio' : transferView.label}
+                            </p>
+                            {transferData && (
+                              <div className="mt-2 max-w-md">
+                                <div className="mb-1 flex items-center justify-between gap-3 text-xs text-stone-600">
+                                  <span>{transferView.transferred} di {transferView.total} file trasferiti</span>
+                                  <span>{transferView.percent}%</span>
+                                </div>
+                                <div
+                                  role="progressbar"
+                                  aria-label={`Avanzamento trasferimento per ${shipment.labNome || 'il laboratorio'}`}
+                                  aria-valuemin={0}
+                                  aria-valuemax={100}
+                                  aria-valuenow={transferView.percent}
+                                  className="h-2 overflow-hidden rounded-full bg-stone-200"
+                                >
+                                  <div
+                                    className={`h-full rounded-full transition-[width] ${
+                                      transferView.error ? 'bg-red-500' :
+                                        transferView.percent === 100 ? 'bg-emerald-600' : 'bg-sky-600'
+                                    }`}
+                                    style={{ width: `${transferView.percent}%` }}
+                                  />
+                                </div>
+                              </div>
+                            )}
+                            {transferView.error && (
+                              <p className="mt-2 break-words text-xs text-red-700" role="alert">
+                                Dettaglio: {transferView.error}
+                              </p>
+                            )}
                             <p className="mt-1 text-xs text-stone-500">Costo: {typeof shipment.costoImporto === 'number' ? new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(shipment.costoImporto) : 'da inserire'}</p>
                           </div>
                           <div className="flex flex-wrap gap-2">
@@ -867,8 +1163,21 @@ export default function PrintShopOrdersManager() {
                             }}>
                               <WalletCards className="mr-2 h-4 w-4" />Costo
                             </Button>
+                            {transferView.canRetry && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={retryPending || retryBusy || retryShipmentTransferMutation.isPending}
+                                onClick={() => retryShipmentTransferMutation.mutate(shipment.id)}
+                              >
+                                {retryBusy || retryPending
+                                  ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  : <RefreshCw className="mr-2 h-4 w-4" />}
+                                {retryPending ? 'Tentativo in avvio' : 'Riprova trasferimento'}
+                              </Button>
+                            )}
                             {shipment.status === 'da_inviare' && (
-                              <Button size="sm" disabled={!canSend || sendShipmentMutation.isPending} onClick={() => sendShipmentMutation.mutate(shipment.id)}>
+                              <Button size="sm" disabled={!canSend || retryPending || sendShipmentMutation.isPending} onClick={() => sendShipmentMutation.mutate(shipment.id)}>
                                 <Send className="mr-2 h-4 w-4" />Invia link
                               </Button>
                             )}
@@ -889,14 +1198,25 @@ export default function PrintShopOrdersManager() {
                     <Trash2 className="mr-2 h-4 w-4" />Elimina dal pannello
                   </Button>
                 </div>
-                {availableNextStatuses.length > 0 && (
-                  <Button onClick={() => {
-                    setNextStatus(availableNextStatuses[0]);
-                    setStatusDialogOpen(true);
-                  }}>
-                    <PackageCheck className="mr-2 h-4 w-4" />Aggiorna stato
-                  </Button>
-                )}
+                <div className="flex flex-wrap gap-2">
+                  {availableNextStatuses.includes('ready_for_pickup') && (
+                    <Button onClick={() => {
+                      setNextStatus('ready_for_pickup');
+                      setStatusDialogOpen(true);
+                    }}>
+                      <PackageCheck className="mr-2 h-4 w-4" />
+                      {statusLabel('ready_for_pickup', selectedOrder.fulfillment?.method === 'shipping')}
+                    </Button>
+                  )}
+                  {availableNextStatuses.length > 0 && (
+                    <Button variant="outline" onClick={() => {
+                      setNextStatus(availableNextStatuses[0]);
+                      setStatusDialogOpen(true);
+                    }}>
+                      <PackageCheck className="mr-2 h-4 w-4" />Aggiorna stato
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -925,7 +1245,7 @@ export default function PrintShopOrdersManager() {
 
       <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Aggiorna produzione</DialogTitle><DialogDescription>La modifica sarà visibile anche al cliente.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>Aggiorna produzione</DialogTitle><DialogDescription>La modifica sarà visibile anche al cliente. Quando segni l’ordine pronto, il sistema tenta di inviare al cliente l’email di avviso per il ritiro o la spedizione.</DialogDescription></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2"><Label>Nuovo stato</Label><Select value={nextStatus} onValueChange={(value) => setNextStatus(value as FulfillmentStatus)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{availableNextStatuses.map((status) => <SelectItem key={status} value={status}>{statusLabel(status, selectedOrder?.fulfillment?.method === 'shipping')}</SelectItem>)}</SelectContent></Select></div>
             <div className="space-y-2"><Label htmlFor="print-status-note">Nota interna</Label><Textarea id="print-status-note" value={statusNote} onChange={(event) => setStatusNote(event.target.value)} placeholder="Facoltativa" /></div>

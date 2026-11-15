@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Timestamp } from 'firebase-admin/firestore';
 import { FakeFirestore } from '../print-shop/test-fakes';
-import { GiftCardHttpError, GiftCardService } from './service';
+import { GiftCardHttpError, GiftCardService, typeToDto } from './service';
 
 const NOW = new Date('2026-11-20T10:00:00.000Z');
 
@@ -79,6 +79,21 @@ describe('GiftCardService types', () => {
     expect(updated.id).toBe(created.id);
     expect(updated.priceCents).toBe(3500);
     expect(await service.listTypes()).toHaveLength(1);
+  });
+
+  it('salva lo stile scelto e mantiene un fallback per i tipi legacy', async () => {
+    const { service } = makeService();
+    const created = await seedType(service, { visualStyle: 'busta' });
+    expect(created.visualStyle).toBe('busta');
+
+    const legacy = typeToDto('legacy', { ...typeInput, visualStyle: undefined });
+    expect(legacy.visualStyle).toBe('pacchetto');
+  });
+
+  it('rifiuta uno stile visivo sconosciuto', async () => {
+    const { service } = makeService();
+    await expect(service.saveType(null, { ...typeInput, visualStyle: 'neon' }, 'a@b.it'))
+      .rejects.toMatchObject({ status: 422, code: 'invalid_input' });
   });
 });
 

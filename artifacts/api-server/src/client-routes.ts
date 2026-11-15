@@ -1,6 +1,6 @@
 import { shopCategoryValueFromPath } from '@shared/shop-landing-content';
 
-const PUBLIC_STATIC_PATHS = new Set([
+export const PUBLIC_STATIC_PATHS = new Set([
   '/',
   '/portfolio',
   '/storie',
@@ -18,6 +18,7 @@ const PUBLIC_STATIC_PATHS = new Set([
   '/terms',
   '/prenota',
   '/consulenze',
+  '/consultations',
   '/regala',
   '/regala/come-funziona',
   '/online-shop',
@@ -54,7 +55,7 @@ function isGiftShopHidden(path: string): boolean {
 }
 
 /** La vetrina dello shop si apre a Google solo con SHOP_INDEXABLE=true: fino ad allora resta raggiungibile ma non indicizzata. */
-function isShopHidden(path: string): boolean {
+export function isShopHidden(path: string): boolean {
   return (path === '/online-shop' || shopCategoryValueFromPath(path) !== null) && process.env.SHOP_INDEXABLE !== 'true';
 }
 
@@ -70,6 +71,8 @@ export function isPrivateClientPath(pathname: string): boolean {
     || path.startsWith('/admin/')
     || path === '/profile'
     || path === '/area-cliente'
+    || hasOneSegmentAfter('/prenota/acconto', path)
+    || hasOneSegmentAfter('/prenota/gestisci', path)
     || path === '/quote-management-demo'
     || path === '/special-gallery'
     || path === '/accesso-galleria'
@@ -80,6 +83,7 @@ export function isPrivateClientPath(pathname: string): boolean {
     || hasOneSegmentAfter('/quote', path)
     || hasOneSegmentAfter('/preventivo-rapido', path)
     || hasOneSegmentAfter('/fotolibro', path)
+    || /^\/fotolibro\/[^/]+\/mockup$/.test(path)
     || hasOneSegmentAfter('/q', path)
     || hasOneSegmentAfter('/modulo', path)
     || hasOneSegmentAfter('/regalo', path)
@@ -111,6 +115,7 @@ export function isKnownClientPath(pathname: string): boolean {
   // Una pagina per ogni categoria dello shop: l'esistenza della categoria la decide il catalogo.
   if (shopCategoryValueFromPath(path) !== null) return true;
   if (/^\/portfolio\/[^/]+$/.test(path)) return PORTFOLIO_CATEGORIES.has(path.slice('/portfolio/'.length));
+  if (/^\/stampa-foto-aversa\/offerte\/[a-z0-9_-]{3,32}$/i.test(path)) return true;
   if (hasOneSegmentAfter('/real-wedding', path) || hasOneSegmentAfter('/blog', path)) return true;
   if (hasOneSegmentAfter('/prenota', path)) return true;
   if (hasOneSegmentAfter('/consulenze', path)) return true;

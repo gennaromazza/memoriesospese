@@ -45,6 +45,10 @@ export interface StudioSettings {
   whatsappButtonText: string;
   homepageContent?: HomepageContent;
   googleReviewUrl?: string;
+  quoteTheme: {
+    primaryColor: string;
+    secondaryColor: string;
+  };
 }
 
 const defaultSettings: StudioSettings = {
@@ -80,6 +84,7 @@ const defaultSettings: StudioSettings = {
   whatsappText: 'Per ricevere informazioni sui nostri servizi fotografici per matrimoni o per qualsiasi altra domanda, contattaci direttamente su WhatsApp. Riceverai una risposta rapida e personalizzata per le tue esigenze.',
   whatsappButtonText: 'Scrivici su WhatsApp',
   homepageContent: DEFAULT_HOMEPAGE_CONTENT,
+  quoteTheme: { primaryColor: '', secondaryColor: '' },
 };
 
 interface StudioContextType {
@@ -115,6 +120,7 @@ export function StudioProvider({ children }: StudioProviderProps) {
         ...settingsData,
         ...normalizePublicStudioContacts(settingsData),
         socialLinks: { ...defaultSettings.socialLinks, ...(settingsData.socialLinks || {}) },
+        quoteTheme: { ...defaultSettings.quoteTheme, ...(settingsData.quoteTheme || {}) },
         homepageContent: resolveHomepageContent(settingsData.homepageContent),
       });
       setError(null);

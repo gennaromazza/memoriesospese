@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><title>ImageBox</title>
+<link rel="stylesheet" href="../phone-ui.css"><style>
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:#f4f1eb;color:#243d44;font:15px system-ui,sans-serif}
+header{height:72px;padding:16px 28px;display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:1px solid #d9ded8}
+header strong{letter-spacing:3px;font-size:17px}header span{color:#637571;font-size:13px}
+header button{font-size:13px;padding:8px 12px}
+main{display:grid;grid-template-columns:350px minmax(0,1fr);height:calc(100% - 72px);min-height:0}
+aside{padding:20px 20px 0;border-right:1px solid #d9ded8;background:#faf8f3;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+h1{font-size:23px;font-weight:500;margin:0 0 10px;line-height:1.2;outline:none}
+h2{font-size:12px;letter-spacing:1.3px;text-transform:uppercase;margin:6px 0 12px}
+h3{font-size:13px;font-weight:600;margin:16px 0 6px}
+p{line-height:1.5;color:#627471;font-size:14px;margin:6px 0}
+button{font:inherit;color:inherit;cursor:pointer;border:1px solid #d2d9d4;background:#fff;border-radius:9px;padding:10px;transition:background .15s;touch-action:manipulation}
+button:hover:not(:disabled){background:#e8eeeb}
+button:disabled{opacity:.45;cursor:default}
+button:focus-visible,input:focus-visible,textarea:focus-visible,summary:focus-visible,h1:focus-visible{outline:3px solid #458b9b;outline-offset:3px}
+button[aria-pressed=true]{border:2px solid #315f6a;background:#eaf1ef;padding:9px}
+.step-count{margin:0 0 4px;font-size:12px;letter-spacing:1.3px;text-transform:uppercase;color:#637571}
+.progress{display:flex;gap:4px;margin:0 0 14px}.progress i{flex:1;height:4px;border-radius:2px;background:#d9ded8}.progress i.done{background:#315f6a}
+.panel-content{min-height:0;flex:1;overflow:auto;padding-bottom:12px;-webkit-overflow-scrolling:touch}
+.wizard-nav{display:flex;gap:10px;padding:12px 0 max(14px,env(safe-area-inset-bottom,0px));border-top:1px solid #e1e5df;background:#faf8f3}
+.wizard-nav button{flex:1;min-height:48px;font-size:15px}.wizard-nav .primary{background:#335e56;color:#fff;border-color:#335e56}.wizard-nav .primary:hover:not(:disabled){background:#274b45}
+label{display:block;margin:12px 0 6px;font-size:14px}
+input[type=file]{width:100%;font-size:16px}input[type=file]::file-selector-button{min-height:44px;padding:0 16px;margin-right:12px;border:1px solid #d2d9d4;border-radius:9px;background:#fff;color:inherit;font:inherit;cursor:pointer}
+textarea{width:100%;font:inherit;font-size:17px;line-height:1.35;padding:10px 12px;border:1px solid #b7c7c2;border-radius:8px;background:#fff;color:inherit;resize:vertical;min-height:84px}
+.counter{font-size:12px;color:#75817c;margin:4px 0 0;text-align:right}
+.segmented{display:flex;gap:6px;margin:10px 0}.segmented button{flex:1;font-size:13px;min-height:44px}
+.layouts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:4px 0 6px}
+.layouts button{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 6px;font-size:12.5px;min-height:96px}.layouts button[aria-pressed=true]{padding:9px 5px}
+.layouts svg{width:58px;height:42px}
+.material-category{border:1px solid #d2d9d4;border-radius:9px;margin-bottom:10px;overflow:hidden}
+.material-category summary{cursor:pointer;padding:14px 12px;font-size:14px;background:#fff;min-height:48px}
+.material-category[open] summary{border-bottom:1px solid #d2d9d4;background:#eaf1ef}
+.materials{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px}.materials button{font-size:12px;min-height:56px}
+.swatch{display:block;height:31px;border-radius:5px;margin-bottom:5px;background-size:90px}
+.photo-slot{border:1px solid #d2d9d4;border-radius:9px;background:#fff;padding:12px;margin:10px 0}
+.photo-slot button{margin-top:10px;font-size:14px;padding:10px 12px;min-height:44px}
+.photo-slot p{font-size:13px;margin:8px 0 0}
+.note{font-size:12px;margin-top:20px;color:#75817c}
+#configurationSummary{white-space:pre-line}
+.workspace{min-height:0;min-width:0;display:grid;grid-template-rows:minmax(0,1fr) auto}
+.stage{position:relative;min-height:0;overflow:hidden;background:radial-gradient(ellipse at center,#faf8f3,#e1e1d9)}
+#viewport{width:100%;height:100%;display:block;touch-action:none;cursor:grab}#viewport:active{cursor:grabbing}
+.badge{position:absolute;top:14px;left:16px;font-size:11px;letter-spacing:1px;text-transform:uppercase}
+.hint{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);padding:8px 14px;background:#ffffffe8;border:1px solid #d5dcd6;border-radius:30px;white-space:nowrap;font-size:12px;pointer-events:none}
+.zoom{position:absolute;right:14px;bottom:14px;display:flex;gap:6px}.zoom button{width:44px;height:44px;font-size:20px;padding:0}
+.status{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);padding:18px;background:#fff;border-radius:10px}.status:empty{display:none}
+.view-tools{display:grid;grid-template-columns:minmax(260px,1.4fr) minmax(200px,1fr);gap:24px;background:#faf8f3;border-top:1px solid #d9ded8;padding:12px 22px;align-items:start}
+.view-tools h2{margin:0 0 8px}.view-tools .row{display:flex;gap:7px}.view-tools .row button{flex:1;font-size:13px;padding:9px 6px;min-height:44px}.view-tools .row button[aria-pressed=true]{padding:8px 5px}
+#modeText{font-size:13px;margin:8px 0 0;min-height:2.8em}
+dialog{width:min(480px,calc(100% - 32px));max-height:88dvh;overflow:auto;border:1px solid #d2d9d4;border-radius:14px;padding:22px;color:#243d44;background:#faf8f3}
+dialog::backdrop{background:#12292c70}.close-dialog{float:right}dialog h2{margin-top:10px}
+.formats{display:grid;grid-template-columns:1fr 1fr;gap:8px}.formats button{font-size:13px;min-height:44px}
+/* ---- Telefono nella piattaforma: stile STANDARD in ../phone-ui.css. Qui solo ciò che è dell'ImageBox ---- */
+.phone-only{display:none!important}
+.host-status{font-size:13px;margin:10px 0 0;color:#335e56}.host-status:empty{display:none}
+.phone .phone-only{display:revert!important}
+body.mq-phone main{display:block;height:100%}
+body.mq-phone .step-count{margin:0}
+body.mq-phone .panel-content>section>p:first-child{margin:0 0 14px}
+body.mq-phone .photo-slot{border:0;background:none;padding:0;margin:0}
+body.mq-phone .pick-gallery{display:none}
+body.mq-phone .pick-row{display:block}
+body.mq-phone .pick-upload{border:0;background:none;padding:12px 0;min-height:0;margin:0;font-size:14px;text-decoration:underline;color:#335e56}
+body.mq-phone .workspace{display:block}
+body.mq-phone .badge,body.mq-phone .hint,body.mq-phone .zoom,body.mq-phone .view-tools{display:none!important}
+body.mq-phone.mq-3d .zoom{display:flex!important;bottom:96px}
+body.mq-phone.mq-3d .view-tools,body.mq-phone.mq-final .view-tools{display:block!important;position:fixed;left:16px;right:16px;z-index:21;background:none;border:0;padding:0}
+body.mq-phone.mq-3d .view-tools{bottom:max(24px,env(safe-area-inset-bottom,0px))}
+body.mq-phone .view-tools h2,body.mq-phone .view-tools #modeText,body.mq-phone .view-tools>div:last-child{display:none}
+body.mq-phone .view-tools .row button{background:#ffffffe0;border-radius:12px;font-size:12.5px}
+body.mq-phone .view-tools .row button[aria-pressed=true]{background:#1f2a28;color:#fff;border:1px solid #1f2a28;padding:9px 6px}
+body.mq-phone.mq-final .view-tools{top:calc(var(--mq-final-stage) - 56px)}
+body.mq-phone.mq-final .mq-nav{display:none}
+body.mq-phone.mq-final #configurationSummary{font-size:13px}
+.phone-final{gap:10px;margin:14px 0 0}.phone .phone-final{display:flex!important}
+.phone-final button{min-height:52px;border-radius:14px;font-weight:600;font-size:15px}.phone-final .primary{flex:1;background:#335e56;color:#fff;border-color:#335e56}
+[hidden]{display:none!important}
+.host-only{display:none}
+.embedded .host-only{display:inline-block}
+.embedded .local-only,.embedded header,.embedded .note{display:none!important}
+.embedded main{height:100%}
+.pick-row{display:flex;gap:8px;flex-wrap:wrap}.pick-row button{flex:1;min-width:140px}
+.locked .photo-slot,.locked textarea{opacity:.6}
+@media(max-width:760px){
+ header{height:52px;padding:8px 14px}header strong{font-size:14px}header span{display:none}
+ main{display:flex;flex-direction:column;height:calc(100% - 52px)}
+ .workspace{display:block;flex:none}
+ .stage{height:32dvh;min-height:190px;max-height:300px}
+ .view-tools{display:block;padding:6px 12px}
+ .panel-content>section>p:first-child{font-size:13px;margin-top:0}.view-tools>div:last-child,.view-tools h2,#modeText{display:none}
+ .view-tools .row button{font-size:13px;padding:8px 4px}
+ aside{flex:1;min-height:0;padding:12px 14px 0;border:0;border-top:1px solid #d9ded8}
+ h1{font-size:20px;margin-bottom:8px}.progress{margin-bottom:10px}
+ .materials{grid-template-columns:repeat(3,1fr)}
+ .hint{display:none}.zoom{bottom:10px;right:10px}
+}
+</style>
+<script type="importmap">{"imports":{"three":"../custodia-v1/vendor/package/build/three.module.js","three/addons/":"../custodia-v1/vendor/package/examples/jsm/"}}</script></head>
+<body><header><strong>IMAGE STUDIO</strong><span>ImageBox · album in plexiglass</span><button type="button" id="openStudio">Strumenti studio</button></header>
+<main><aside class="mq-panel">
+<div class="phone-top mq-top"><p class="step-count" id="stepCount"></p><button type="button" class="phone-only mq-round" id="closeHost" aria-label="Chiudi">✕</button></div>
+<h1 class="mq-title" id="stepTitle" tabindex="-1"></h1>
+<div class="progress mq-progress" id="progress" aria-hidden="true"></div>
+<div class="panel-content mq-content">
+<section id="stepFabric" data-step hidden><p>Il tessuto della scatola riveste le cornici ai lati e il retro. L’album può avere lo stesso tessuto oppure un altro.</p>
+<div class="segmented" role="group" aria-label="Quanti tessuti"><button type="button" data-fabrics="one" aria-pressed="true">Un tessuto</button><button type="button" data-fabrics="two" aria-pressed="false">Due tessuti</button></div>
+<h3 id="boxFabricTitle">Tessuto di scatola e album</h3><div class="mq-swatches" id="materialsBox"></div>
+<div id="albumFabricBox" hidden><h3>Tessuto dell’album</h3><p>Riveste retro e dorso dell’album e le copertine in tessuto.</p><div class="mq-swatches" id="materialsAlbum"></div></div></section>
+<section id="stepCover" data-step hidden><p>Scegli come è fatta la copertina dell’album.</p>
+<div class="layouts" id="layoutChoice" role="group" aria-label="Copertina dell’album">
+<button type="button" data-layout="full" aria-pressed="true"><svg viewBox="0 0 58 42" aria-hidden="true"><rect x="1" y="1" width="56" height="40" rx="2" fill="#8fa9a2" stroke="#56706a"/></svg>Foto piena</button>
+<button type="button" data-layout="photo-plaque" aria-pressed="false"><svg viewBox="0 0 58 42" aria-hidden="true"><rect x="1" y="1" width="56" height="40" rx="2" fill="#e3dccf" stroke="#9c8f7c"/><rect x="18" y="12" width="22" height="16" fill="#8fa9a2"/></svg>Foto piccola al centro</button>
+<button type="button" data-layout="plaque" aria-pressed="false"><svg viewBox="0 0 58 42" aria-hidden="true"><rect x="1" y="1" width="56" height="40" rx="2" fill="#e3dccf" stroke="#9c8f7c"/><rect x="17" y="14" width="24" height="14" rx="1" fill="#c39a69"/><path d="M22 21h14" stroke="#5a3a1d" stroke-width="1.6"/></svg>Placchetta in legno</button>
+<button type="button" data-layout="split-photo-fabric" aria-pressed="false"><svg viewBox="0 0 58 42" aria-hidden="true"><rect x="1" y="1" width="56" height="40" rx="2" fill="#e3dccf" stroke="#9c8f7c"/><rect x="29" y="1" width="28" height="40" fill="#8fa9a2"/><path d="M8 21h14" stroke="#7d705f" stroke-width="1.6"/></svg>Metà foto, metà tessuto</button>
+</div>
+<p id="layoutText"></p>
+<div id="coverPhotoBox"><h3>Foto di copertina</h3><div class="photo-slot"><input id="albumUpload" class="local-only" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Foto della copertina dell’album"><div class="pick-row host-only"><button type="button" class="pick-gallery" data-pick="album:gallery">Scegli dalla galleria</button><button type="button" class="pick-upload" data-pick="album:upload">Carica una foto</button></div><div class="mq-gallery phone-only" data-gallery="album"></div><p id="albumStatus" role="status"></p></div></div>
+<div id="coverEngravingBox" hidden><h3 id="coverEngravingTitle">Incisione</h3>
+<div class="segmented" role="group" aria-label="Incisione della copertina"><button type="button" data-cover-engraving="none" aria-pressed="false">Nessuna</button><button type="button" data-cover-engraving="text" aria-pressed="true">Scritta</button><button type="button" data-cover-engraving="graphic" aria-pressed="false" class="studio-graphic">Grafica</button></div>
+<div id="coverTextBox"><label for="coverText">Testo da incidere (fino a 3 righe)</label><textarea id="coverText" maxlength="120" rows="3" placeholder="Lorenzo&#10;12 ottobre 2026"></textarea><p class="counter" id="coverTextCount"></p></div>
+<div id="coverGraphicBox" class="photo-slot" hidden><p>La grafica la carichi tu: PNG con sfondo trasparente oppure disegno scuro su fondo bianco.</p><input id="coverGraphicUpload" class="local-only" type="file" accept="image/png,image/jpeg,image/webp" aria-label="Grafica da incidere sulla copertina"><button type="button" class="host-only" data-pick-graphic="coverGraphic">Carica la grafica</button><p id="coverGraphicStatus" role="status"></p></div>
+</div></section>
+<section id="stepBasePhoto" data-step hidden><p>Questa foto è stampata sul fondo della scatola: si vede attraverso il plexiglass quando l’album è fuori.</p><div class="photo-slot"><input id="baseUpload" class="local-only" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Foto sul fondo della scatola"><div class="pick-row host-only"><button type="button" class="pick-gallery" data-pick="base:gallery">Scegli dalla galleria</button><button type="button" class="pick-upload" data-pick="base:upload">Carica una foto</button></div><div class="mq-gallery phone-only" data-gallery="base"></div><p id="baseStatus" role="status"></p></div><p>JPG, PNG o WebP, massimo 20 MB.</p></section>
+<section id="stepGlass" data-step hidden><p>Facoltativa: una scritta sul plexiglass davanti, sopra la copertina dell’album.</p>
+<div class="segmented" role="group" aria-label="Incisione sul plexiglass"><button type="button" data-glass="none" aria-pressed="true">Nessuna</button><button type="button" data-glass="text" aria-pressed="false">Scritta</button><button type="button" data-glass="graphic" aria-pressed="false" class="studio-graphic">Grafica</button></div>
+<div id="glassTextBox" hidden><label for="glassText">Testo (fino a 3 righe)</label><textarea id="glassText" maxlength="120" rows="2" placeholder="il mio battesimo"></textarea><p class="counter" id="glassTextCount"></p>
+<div class="segmented" role="group" aria-label="Colore della scritta"><button type="button" data-glass-color="white" aria-pressed="true">Bianca</button><button type="button" data-glass-color="black" aria-pressed="false">Nera</button></div></div>
+<div id="glassGraphicBox" class="photo-slot" hidden><p>La grafica la carichi tu: PNG con sfondo trasparente, oppure disegno scuro su fondo bianco.</p><input id="glassGraphicUpload" class="local-only" type="file" accept="image/png,image/jpeg,image/webp" aria-label="Grafica sul plexiglass"><button type="button" class="host-only" data-pick-graphic="glassGraphic">Carica la grafica</button><p id="glassGraphicStatus" role="status"></p></div>
+</section>
+<section id="stepSummary" data-step hidden><p id="configurationSummary" aria-live="polite"></p><div class="phone-final phone-only"><button type="button" id="editAgain">Modifica</button><button type="button" id="submitHost" class="primary">Invia allo studio</button></div><p id="hostStatus" class="host-status" role="status"></p><p class="note">Prototipo con geometria semplificata. Misure, texture e scala della trama indicative. Le foto restano in questa prova locale.</p></section>
+</div>
+<nav class="wizard-nav mq-nav" aria-label="Passi"><button type="button" id="prev" class="mq-prev" aria-label="Indietro">Indietro</button><button type="button" id="next" class="primary mq-primary">Avanti</button></nav>
+</aside>
+<div class="workspace">
+<section class="stage mq-stage" aria-label="Modello tridimensionale dell’ImageBox"><div class="badge" id="materialLabel">Caricamento rivestimento…</div><canvas id="viewport" aria-label="ImageBox 3D: trascina per ruotare"></canvas><button type="button" class="mq-pip-open phone-only" id="pipOpen">Vedi in 3D ›</button><button type="button" class="mq-pip-close phone-only" id="pipClose">‹ Torna alle scelte</button><div class="status" id="status" role="status">Caricamento del modello 3D…</div><div class="hint">Trascina per ruotare · rotellina per zoom</div><div class="zoom"><button type="button" id="plus" aria-label="Ingrandisci">+</button><button type="button" id="minus" aria-label="Riduci">−</button></div></section>
+<section class="view-tools" aria-label="Comandi vista 3D"><div>
+<h2>Vista</h2><div class="row"><button type="button" data-mode="closed" aria-pressed="true">Album dentro</button><button type="button" data-mode="open" aria-pressed="false">Album fuori</button><button type="button" data-mode="back" aria-pressed="false">Retro</button></div>
+<p id="modeText" role="status"></p></div>
+<div><h2>Esplora</h2><div class="row"><button type="button" id="rotate" aria-pressed="false">Rotazione automatica</button><button type="button" id="reset">Ripristina vista</button></div></div></section>
+</div></main>
+<dialog id="studioDialog" aria-labelledby="studioTitle"><form method="dialog"><button class="close-dialog" aria-label="Chiudi strumenti studio">Chiudi</button></form><h2 id="studioTitle">Strumenti studio</h2>
+<p>Qui si simulano le scelte che lo studio fa dal pannello admin insieme al modello. Il cliente non le può cambiare.</p>
+<h2>Formato dell’album</h2><div class="formats" id="formatChoice" role="group" aria-label="Formato dell’album"></div>
+<h2>Grafiche</h2><div class="segmented" role="group" aria-label="Grafiche da incidere"><button type="button" id="graphicsOn" aria-pressed="false">Le carica lo studio</button><button type="button" id="graphicsOff" aria-pressed="true">Solo scritte</button></div>
+<p>Le grafiche si caricano solo quando è lo studio a preparare il mockup.</p></dialog>
+<script type="module" src="./viewer.js"></script></body></html>

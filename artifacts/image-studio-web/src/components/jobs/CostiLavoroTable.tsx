@@ -11,10 +11,13 @@ import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getAllLabs } from '@/lib/labs';
+import { getAllCollaboratori, updateAssignmentAcceptanceStatus } from '@/lib/collaboratori';
 import { getDatedCashExpensesForJobCostMatching } from '@/lib/cash';
 import { isSameVerifiedPaymentCandidate } from '@/lib/job-cost-payments';
+import type { CollaboratorCostSummary } from '@/lib/job-collaborator-costs';
+import type { Collaboratore, JobAcceptanceStatus, JobCollaboratoreAssignment } from '@shared/collaboratori-types';
 import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -30,6 +33,11 @@ interface CostiLavoroTableProps {
   jobName: string;
   costi: CostoLavoro[];
   totalePreventivato: number;
+  totaleCostiOverride?: number;
+  collaboratorCosts?: CollaboratorCostSummary;
+  collaboratorAssignments?: JobCollaboratoreAssignment[];
+  collaboratorCostsLoading?: boolean;
+  collaboratorCostsError?: boolean;
   onAddCosto?: (costo: Omit<CostoLavoro, 'id'>) => void;
   onUpdateCosto?: (id: string, costo: Partial<CostoLavoro>) => void;
   onDeleteCosto?: (id: string) => void;
@@ -77,6 +85,11 @@ export default function CostiLavoroTable({
   jobName,
   costi,
   totalePreventivato,
+  totaleCostiOverride,
+  collaboratorCosts,
+  collaboratorAssignments = [],
+  collaboratorCostsLoading = false,
+  collaboratorCostsError = false,
   onAddCosto,
   onUpdateCosto,
   onDeleteCosto,
@@ -84,6 +97,7 @@ export default function CostiLavoroTable({
   onUnlinkCashMovement,
   isAdmin = false
 }: CostiLavoroTableProps) {
+  const [costDetailsOpen, setCostDetailsOpen] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [editingCostoId, setEditingCostoId] = useState<string | null>(null);
   const [formData, setFormData] = useState(nuovoFormData);
@@ -101,6 +115,12 @@ export default function CostiLavoroTable({
     queryFn: () => getAllLabs(),
   });
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { data: collaborators = [] } = useQuery<Collaboratore[]>({
+    queryKey: ['collaboratori', 'attivi'],
+    queryFn: () => getAllCollaboratori(true),
+    enabled: isAdmin,
+  });
   const { data: cashExpenses = [], isLoading: isLoadingCashExpenses, isError: cashExpensesFailed } =
     useQuery<CashMovementFE[]>({
       queryKey: ['cash-movements', 'job-cost-matching'],
@@ -109,11 +129,36 @@ export default function CostiLavoroTable({
       staleTime: 15_000,
       refetchOnWindowFocus: true,
     });
+  const updateAcceptanceMutation = useMutation({
+    mutationFn: ({ assignmentId, status }: { assignmentId: string; status: JobAcceptanceStatus }) =>
+      updateAssignmentAcceptanceStatus(assignmentId, status),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['job-assignments', jobId] }),
+        queryClient.invalidateQueries({ queryKey: ['collaboratoriAssignments'] }),
+      ]);
+      toast({
+        title: 'Stato dell’incarico aggiornato',
+        description: 'Nel margine entrano i pagamenti registrati, indipendentemente dallo stato dell’incarico.',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Errore aggiornamento incarico',
+        description: error instanceof Error ? error.message : 'Riprova tra poco.',
+        variant: 'destructive',
+      });
+    },
+  });
 
-  const totaleCosti = costi.reduce((sum, c) => sum + c.importo, 0);
+  const totaleCosti = totaleCostiOverride ?? costi.reduce((sum, c) => sum + c.importo, 0);
   const margine = totalePreventivato - totaleCosti;
   const marginePerc = totalePreventivato > 0 ? (margine / totalePreventivato) * 100 : 0;
   const editingCosto = costi.find((costo) => costo.id === editingCostoId);
+  const collaboratorsById = new Map(collaborators.map((collaborator) => [collaborator.id, collaborator]));
+  const nonAcceptedAssignmentCount = collaboratorAssignments.filter(
+    (assignment) => assignment.status !== 'accepted',
+  ).length;
   const matchingCashExpenses = linkingCosto
     ? cashExpenses.filter((movement) =>
       !movement.jobCostAssociation &&
@@ -131,6 +176,7 @@ export default function CostiLavoroTable({
 
   const openEdit = (costo: CostoLavoro) => {
     if (costo.cashMovementId || costo.labStatementId) return;
+    setCostDetailsOpen(true);
     setIsAdding(false);
     setEditingCostoId(costo.id);
     setFormData({
@@ -250,24 +296,147 @@ export default function CostiLavoroTable({
       <div className="grid grid-cols-3 gap-2 sm:gap-4">
         <div className="p-3 sm:p-4 bg-blue-50 rounded-lg">
           <p className="text-xs sm:text-sm text-muted-foreground">Totale Costi</p>
-          <p className="text-base sm:text-2xl font-bold text-blue-600">
+          <p className="text-base sm:text-2xl font-bold text-blue-600" data-testid="text-job-total-costs">
             €{totaleCosti.toFixed(2)}
           </p>
         </div>
         <div className="p-3 sm:p-4 bg-green-50 rounded-lg">
           <p className="text-xs sm:text-sm text-muted-foreground">Margine</p>
-          <p className="text-base sm:text-2xl font-bold text-green-600">
+          <p className="text-base sm:text-2xl font-bold text-green-600" data-testid="text-job-margin">
             €{margine.toFixed(2)}
           </p>
         </div>
         <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
           <p className="text-xs sm:text-sm text-muted-foreground">Margine %</p>
-          <p className="text-base sm:text-2xl font-bold">
-            {marginePerc.toFixed(1)}%
+          <p className="text-base sm:text-2xl font-bold" data-testid="text-job-margin-percentage">
+            {marginePerc.toLocaleString('it-IT', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
           </p>
         </div>
       </div>
 
+      {collaboratorCostsLoading && (
+        <p className="text-xs text-muted-foreground" role="status">
+          Aggiornamento dei compensi collaboratori: il margine potrebbe aggiornarsi tra poco.
+        </p>
+      )}
+      {collaboratorCostsError && (
+        <p className="text-xs text-destructive" role="alert">
+          Non è stato possibile caricare gli incarichi: il totale potrebbe non includere i compensi collaboratori.
+        </p>
+      )}
+
+      <details
+        open={costDetailsOpen}
+        onToggle={(event) => setCostDetailsOpen(event.currentTarget.open)}
+        className="rounded-lg border bg-background"
+        data-testid="job-cost-details"
+      >
+        <summary className="cursor-pointer px-3 py-2.5 text-sm font-medium">
+          <span className="flex flex-wrap items-center justify-between gap-2">
+            <span>Dettagli costi, pagamenti e incarichi</span>
+            <span className="text-xs font-normal text-muted-foreground">
+              {costi.length + (collaboratorCosts?.paymentLines.length ?? 0)} voci
+              {collaboratorCosts?.paidTotal
+                ? ` · Pagamenti collaboratori €${collaboratorCosts.paidTotal.toFixed(2)}`
+                : ''}
+            </span>
+          </span>
+        </summary>
+        <div className="space-y-4 border-t p-3">
+      {isAdmin && collaboratorAssignments.length > 0 && (
+        <details
+          className="rounded-lg border bg-background"
+          data-testid="collaborator-acceptance-controls"
+        >
+          <summary className="cursor-pointer list-none px-3 py-2.5 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <span className="flex flex-wrap items-center justify-between gap-2">
+              <span>Stato incarichi collaboratori</span>
+              <Badge variant={nonAcceptedAssignmentCount > 0 ? 'outline' : 'secondary'}>
+                {nonAcceptedAssignmentCount > 0
+                  ? `${nonAcceptedAssignmentCount} non accettati`
+                  : `${collaboratorAssignments.length} accettat${collaboratorAssignments.length === 1 ? 'o' : 'i'}`}
+              </Badge>
+            </span>
+          </summary>
+          <div className="space-y-2 border-t p-3">
+            <p className="text-xs text-muted-foreground">
+              Puoi aggiornare lo stato anche se l’accordo è avvenuto fuori dall’app. Nei costi entrano solo i pagamenti registrati, inclusi gli acconti, indipendentemente dallo stato.
+            </p>
+            {collaboratorAssignments.map((assignment) => {
+              const collaborator = collaboratorsById.get(assignment.collaboratoreId);
+              const collaboratorName = collaborator
+                ? `${collaborator.cognome} ${collaborator.nome}`
+                : `Collaboratore · ${assignment.ruoloInJob}`;
+              const compensationLabel = Number.isFinite(assignment.compenso) && assignment.compenso > 0
+                ? `Compenso €${assignment.compenso.toFixed(2)}`
+                : 'Compenso da definire';
+              const isUpdating = updateAcceptanceMutation.isPending
+                && updateAcceptanceMutation.variables?.assignmentId === assignment.id;
+
+              return (
+                <div
+                  key={assignment.id}
+                  className="flex flex-col gap-2 rounded-md border px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+                  data-testid={`collaborator-acceptance-row-${assignment.id}`}
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{collaboratorName}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {assignment.ruoloInJob} · {compensationLabel}
+                    </p>
+                  </div>
+                  <Select
+                    value={assignment.status || 'pending'}
+                    onValueChange={(value) =>
+                      updateAcceptanceMutation.mutate({
+                        assignmentId: assignment.id,
+                        status: value as JobAcceptanceStatus,
+                      })
+                    }
+                    disabled={isUpdating}
+                  >
+                    <SelectTrigger
+                      className="w-full sm:w-[170px]"
+                      aria-label={`Stato incarico di ${collaboratorName}`}
+                      data-testid={`select-acceptance-${assignment.id}`}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pending">In attesa</SelectItem>
+                      <SelectItem value="accepted">Accettato</SelectItem>
+                      <SelectItem value="declined">Rifiutato</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              );
+            })}
+          </div>
+        </details>
+      )}
+
+      {collaboratorCosts && (collaboratorCosts.paidTotal > 0 || collaboratorCosts.remaining > 0) && (
+        <div className="rounded-lg border bg-muted/20 px-3 py-2.5 text-sm" data-testid="collaborator-cost-summary">
+          <p className="font-medium">
+            Pagamenti collaboratori: €{collaboratorCosts.paidTotal.toFixed(2)} inclusi nei costi
+          </p>
+          {collaboratorCosts.remaining > 0 && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Residuo compensi accettati: €{collaboratorCosts.remaining.toFixed(2)} (non ancora pagato, quindi non incluso nei costi).
+            </p>
+          )}
+          {collaboratorCosts.autoIncluded > 0 && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              €{collaboratorCosts.autoIncluded.toFixed(2)} aggiunti automaticamente come costi dai pagamenti registrati.
+            </p>
+          )}
+          {collaboratorCosts.matchedManual > 0 && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              €{collaboratorCosts.matchedManual.toFixed(2)} già presenti come costo collaboratore: non conteggiati una seconda volta.
+            </p>
+          )}
+        </div>
+      )}
       {/* ── Inline Add Form (fuori dalla tabella) ── */}
       {(isAdding || editingCostoId) && (
         <div className="rounded-lg border border-dashed border-blue-300 bg-blue-50/40 p-4 space-y-3">
@@ -386,7 +555,7 @@ export default function CostiLavoroTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {costi.length === 0 ? (
+              {costi.length === 0 && (collaboratorCosts?.paymentLines.length ?? 0) === 0 ? (
                 <TableRow>
                   <TableCell
                     colSpan={isAdmin ? 5 : 4}
@@ -395,8 +564,43 @@ export default function CostiLavoroTable({
                     Nessun costo inserito
                   </TableCell>
                 </TableRow>
-              ) : (
-                costi.map(costo => {
+              ) : null}
+              {collaboratorCosts?.paymentLines.map((payment) => {
+                const collaborator = collaboratorsById.get(payment.collaboratoreId || '');
+                const collaboratorName = collaborator
+                  ? `${collaborator.cognome} ${collaborator.nome}`
+                  : `Collaboratore${payment.ruoloInJob ? ` · ${payment.ruoloInJob}` : ''}`;
+                const paymentType = payment.tipo === 'acconto'
+                  ? 'Acconto collaboratore'
+                  : payment.tipo === 'saldo'
+                    ? 'Saldo collaboratore'
+                    : 'Pagamento collaboratore';
+                const paymentMeta = [
+                  payment.metodo?.replace(/_/g, ' '),
+                  payment.note,
+                ].filter(Boolean).join(' · ');
+
+                return (
+                  <TableRow
+                    key={`${payment.assignmentId}-${payment.id}`}
+                    data-testid={`row-automatic-collaborator-payment-${payment.id}`}
+                  >
+                    <TableCell>
+                      <p className="font-medium text-sm">{paymentType} · {collaboratorName}</p>
+                      {paymentMeta && (
+                        <p className="mt-0.5 text-xs capitalize text-muted-foreground">{paymentMeta}</p>
+                      )}
+                    </TableCell>
+                    <TableCell className="hidden sm:table-cell">Collaboratore</TableCell>
+                    <TableCell className="font-mono">€{payment.importo.toFixed(2)}</TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      {payment.data ? format(safeToDate(payment.data), 'dd/MM/yyyy', { locale: it }) : '—'}
+                    </TableCell>
+                    {isAdmin && <TableCell />}
+                  </TableRow>
+                );
+              })}
+              {costi.map(costo => {
                   const linkedCashMovement = costo.cashMovementId
                     ? cashExpenses.find((movement) => movement.id === costo.cashMovementId)
                     : undefined;
@@ -513,12 +717,14 @@ export default function CostiLavoroTable({
                     )}
                   </TableRow>
                   );
-                })
-              )}
+                })}
             </TableBody>
           </Table>
         </div>
       </div>
+
+        </div>
+      </details>
 
       {/* Add Button */}
       {isAdmin && !isAdding && !editingCostoId && (
@@ -526,6 +732,7 @@ export default function CostiLavoroTable({
           variant="outline"
           size="sm"
           onClick={() => {
+            setCostDetailsOpen(true);
             setFormData(nuovoFormData());
             setIsAdding(true);
           }}

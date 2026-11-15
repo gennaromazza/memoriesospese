@@ -214,6 +214,8 @@ function updateBack() {
   boxPhoto.visible = boxPhotoBacking.visible = active && configurationRevision >= 4;
   $('backPhotoControls').hidden = !active;
   document.body.dataset.backCover = $('backCover').value;
+  document.body.dataset.backPhotoId = backPhoto?.id || '';
+  document.body.dataset.backPhotoLoaded = String(!!backPhotoMap);
   const ctx = backCanvas.getContext('2d'); ctx.fillStyle = '#e6dfd3'; ctx.fillRect(0, 0, 1600, 1200);
   if (backPhotoMap) {
     const image = backPhotoMap.image, aspect = image.width / image.height, zoom = +$('backZoom').value;
@@ -273,6 +275,7 @@ function setRotation(degrees) { pivot.rotation.y = THREE.MathUtils.degToRad(degr
 $('rotation').oninput = () => { automatic = false; $('rotate').setAttribute('aria-pressed', 'false'); setRotation(+$('rotation').value); };
 $('rotate').onclick = () => { automatic = !automatic; $('rotate').setAttribute('aria-pressed', String(automatic)); };
 function view(direction = [-.5, .32, 1]) {
+  document.body.dataset.view = direction[2] < 0 ? 'back' : 'front';
   if (phoneView) {
     camera.position.copy(controls.target).add(new THREE.Vector3(...direction));
     controls.minDistance = .09;

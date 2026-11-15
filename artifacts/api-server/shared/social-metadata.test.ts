@@ -6,7 +6,7 @@ import {
   normalizePublicImageUrl,
   resolveSocialImage,
   staticSocialImage,
-} from './social-metadata';
+} from '@shared/social-metadata';
 
 describe('social metadata resolver', () => {
   it('normalizes canonicals onto the public production origin', () => {
@@ -58,7 +58,7 @@ describe('social metadata resolver', () => {
   it('assigns curated stable assets to important landing pages', () => {
     expect(staticSocialImage('/image-experience').url)
       .toContain('/images/image-experience/image-experience-social-1200x630.jpg');
-    expect(staticSocialImage('/blog').url).toContain('/assets/og-image.jpg');
+    expect(staticSocialImage('/blog').url).toContain('/images/social/blog.jpg');
     expect(staticSocialImage('/stampa-foto-aversa').url).toContain('/images/print-service/');
     expect(staticSocialImage('/consulenze').url).toContain('/images/couple-flower-bouquet.png');
     expect(staticSocialImage('/portfolio/matrimonio').url).toContain('/images/portfolio/matrimonio.jpg');

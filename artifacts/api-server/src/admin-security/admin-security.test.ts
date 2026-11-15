@@ -10,18 +10,30 @@ const h = vi.hoisted(() => {
   const tokenAuthTimes = new Map<string, number>();
   const tokenClaims = new Map<string, Record<string, any>>();
   const tokenUids = new Map<string, string>();
+  const tokenEmails = new Map<string, string>();
   return {
     docs,
     claims,
     tokenAuthTimes,
     tokenClaims,
     tokenUids,
+    tokenEmails,
     email: 'gennaro.mazzacane@gmail.com',
     uid: 'admin-uid',
     authTime: 1_700_000_000,
     revoked: 0,
     claimsOnToken: {} as Record<string, any>,
     webauthn: false,
+    beforeAuthenticationVerification: null as null | (() => Promise<void>),
+    beforeRegistrationVerification: null as null | (() => Promise<void>),
+    beforeEventWrite: null as null | ((data: any) => Promise<void>),
+    transactionTail: Promise.resolve() as Promise<void>,
+    enrollmentReadBarrier: null as null | {
+      path: string;
+      reads: number;
+      promise: Promise<void>;
+      release: () => void;
+    },
     createdCustomToken: null as { uid: string; claims: Record<string, unknown> } | null,
   };
 });
@@ -30,24 +42,42 @@ vi.mock('@simplewebauthn/server', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@simplewebauthn/server')>();
   return {
     ...actual,
-    verifyRegistrationResponse: async (...args: Parameters<typeof actual.verifyRegistrationResponse>) =>
-      h.webauthn ? {
+    verifyRegistrationResponse: async (...args: Parameters<typeof actual.verifyRegistrationResponse>) => {
+      if (!h.webauthn) return actual.verifyRegistrationResponse(...args);
+      await h.beforeRegistrationVerification?.();
+      return {
         verified: true,
         registrationInfo: {
           credential: { id: 'cred-1', publicKey: new Uint8Array([1, 2, 3]), counter: 0, transports: [] },
           credentialDeviceType: 'multiDevice',
           credentialBackedUp: true,
         },
-      } : actual.verifyRegistrationResponse(...args),
-    verifyAuthenticationResponse: async (...args: Parameters<typeof actual.verifyAuthenticationResponse>) =>
-      h.webauthn ? { verified: true, authenticationInfo: { newCounter: 1 } } : actual.verifyAuthenticationResponse(...args),
+      };
+    },
+    verifyAuthenticationResponse: async (...args: Parameters<typeof actual.verifyAuthenticationResponse>) => {
+      if (!h.webauthn) return actual.verifyAuthenticationResponse(...args);
+      await h.beforeAuthenticationVerification?.();
+      return { verified: true, authenticationInfo: { newCounter: 1 } };
+    },
   };
 });
 
 function makeDoc(path: string) {
   return {
     id: path.split('/').pop()!,
-    get: async () => ({ exists: h.docs.has(path), data: () => h.docs.get(path), id: path.split('/').pop() }),
+    get: async () => {
+      const barrier = h.enrollmentReadBarrier;
+      if (barrier?.path === path && barrier.reads < 2) {
+        barrier.reads += 1;
+        if (barrier.reads === 2) barrier.release();
+        await barrier.promise;
+      }
+      return {
+        exists: h.docs.has(path),
+        data: () => h.docs.get(path),
+        id: path.split('/').pop(),
+      };
+    },
     set: async (data: any, opts?: { merge?: boolean }) => {
       const prev = opts?.merge ? h.docs.get(path) ?? {} : {};
       h.docs.set(path, { ...prev, ...data });
@@ -59,7 +89,10 @@ function makeDoc(path: string) {
 function makeCollection(path: string) {
   return {
     doc: (id: string) => makeDoc(`${path}/${id}`),
-    add: async (data: any) => { h.docs.set(`${path}/${Math.random()}`, data); },
+    add: async (data: any) => {
+      await h.beforeEventWrite?.(data);
+      h.docs.set(`${path}/${Math.random()}`, data);
+    },
     get: async () => ({
       docs: [...h.docs.entries()]
         .filter(([k]) => k.startsWith(`${path}/`) && !k.slice(path.length + 1).includes('/'))
@@ -72,14 +105,23 @@ vi.mock('../firebase-admin.js', () => ({
   db: {
     collection: (name: string) => makeCollection(name),
     runTransaction: async (fn: (tx: any) => Promise<unknown>) => {
-      const writes: Array<() => Promise<void>> = [];
-      const tx = {
-        get: (ref: any) => ref.get(),
-        set: (ref: any, data: any, opts?: any) => { writes.push(() => ref.set(data, opts)); },
-      };
-      const result = await fn(tx);
-      for (const w of writes) await w();
-      return result;
+      const previous = h.transactionTail;
+      let release: () => void = () => undefined;
+      h.transactionTail = new Promise<void>((resolve) => { release = resolve; });
+      await previous;
+      try {
+        const writes: Array<() => Promise<void>> = [];
+        const tx = {
+          get: (ref: any) => ref.get(),
+          set: (ref: any, data: any, opts?: any) => { writes.push(() => ref.set(data, opts)); },
+          delete: (ref: any) => { writes.push(() => ref.delete()); },
+        };
+        const result = await fn(tx);
+        for (const w of writes) await w();
+        return result;
+      } finally {
+        release();
+      }
     },
   },
   FieldValue: { serverTimestamp: () => 'ts' },
@@ -91,7 +133,7 @@ vi.mock('firebase-admin/auth', () => ({
       if (token === 'bad') throw new Error('invalid');
       return {
         uid: h.tokenUids.get(token) ?? h.uid,
-        email: h.email,
+        email: h.tokenEmails.get(token) ?? h.email,
         auth_time: h.tokenAuthTimes.get(token) ?? h.authTime,
         ...h.claimsOnToken,
         ...(h.tokenClaims.get(token) ?? {}),
@@ -131,6 +173,17 @@ const call = (path: string, init: RequestInit = {}) =>
     headers: { Authorization: 'Bearer ok', Origin: ORIGIN, 'Content-Type': 'application/json', ...(init.headers ?? {}) },
   });
 
+async function withAllowedPreviewOrigin<T>(callback: () => Promise<T>): Promise<T> {
+  const previous = process.env.ADMIN_PASSKEY_ALLOWED_ORIGINS;
+  process.env.ADMIN_PASSKEY_ALLOWED_ORIGINS = 'https://preview.replit.dev';
+  try {
+    return await callback();
+  } finally {
+    if (previous === undefined) delete process.env.ADMIN_PASSKEY_ALLOWED_ORIGINS;
+    else process.env.ADMIN_PASSKEY_ALLOWED_ORIGINS = previous;
+  }
+}
+
 beforeEach(() => {
   h.docs.clear();
   h.claims.clear();
@@ -138,9 +191,15 @@ beforeEach(() => {
   h.tokenAuthTimes.clear();
   h.tokenClaims.clear();
   h.tokenUids.clear();
+  h.tokenEmails.clear();
   h.createdCustomToken = null;
   h.revoked = 0;
   h.webauthn = false;
+  h.beforeAuthenticationVerification = null;
+  h.beforeRegistrationVerification = null;
+  h.beforeEventWrite = null;
+  h.transactionTail = Promise.resolve();
+  h.enrollmentReadBarrier = null;
   h.authTime = 1_700_000_000;
   h.email = 'gennaro.mazzacane@gmail.com';
 });
@@ -468,6 +527,14 @@ describe('route di sicurezza', () => {
     expect(h.claims.get(h.uid)?.apk).toBeUndefined();
     expect((await json(await call('/api/admin/security/status'))).activationReady).toBe(false);
 
+    await call('/api/admin/security/authentication/options', { method: 'POST' });
+    res = await call('/api/admin/security/authentication/verify', {
+      method: 'POST',
+      body: JSON.stringify({ response: { id: 'cred-1' } }),
+    });
+    expect(res.status).toBe(200);
+    h.claimsOnToken = { ...h.claims.get(h.uid) };
+
     const codesRes = await call('/api/admin/security/recovery-codes', { method: 'POST' });
     const { codes } = await json(codesRes);
     expect(codes).toHaveLength(8);
@@ -481,7 +548,7 @@ describe('route di sicurezza', () => {
     expect(recovery.expectedClaim).toMatchObject({ req: false, sat: h.authTime });
     h.claimsOnToken = { ...h.claims.get(h.uid) };
     res = await call('/api/admin/security/enforcement', { method: 'POST', body: JSON.stringify({ required: true }) });
-    expect((await json(res)).code).toBe('authentication_required_for_enforcement');
+    expect((await json(res)).code).toBe('fresh_passkey_required');
 
     await call('/api/admin/security/authentication/options', { method: 'POST' });
     res = await call('/api/admin/security/authentication/verify', {
@@ -504,10 +571,11 @@ describe('route di sicurezza', () => {
       method: 'POST', headers: { Origin: 'https://preview.replit.dev' },
       body: JSON.stringify({ required: true }),
     });
-    expect((await json(res)).code).toBe('authentication_required_for_enforcement');
+    expect((await json(res)).code).toBe('fresh_passkey_required');
     h.authTime += 10;
     res = await call('/api/admin/security/enforcement', { method: 'POST', body: JSON.stringify({ required: true }) });
     expect(res.status).toBe(403);
+    expect((await json(res)).code).toBe('fresh_passkey_required');
     h.authTime -= 10;
 
     res = await call('/api/admin/security/enforcement', { method: 'POST', body: JSON.stringify({ required: true }) });
@@ -528,6 +596,10 @@ describe('route di sicurezza', () => {
     // Il codice di recupero concede una verifica breve e vale una sola volta.
     res = await call('/api/admin/security/recovery/verify', { method: 'POST', body: JSON.stringify({ code: codes[0] }) });
     expect(res.status).toBe(400);
+    expect(await json(res)).toMatchObject({
+      error: 'Codice di recupero non valido',
+      code: 'invalid_recovery_code',
+    });
     res = await call('/api/admin/security/recovery/verify', { method: 'POST', body: JSON.stringify({ code: codes[1] }) });
     expect(res.status).toBe(200);
     expect((await json(res)).expectedClaim).toMatchObject({ req: true, sat: h.authTime });
@@ -548,7 +620,14 @@ describe('route di sicurezza', () => {
       label: 'Telefono', deviceType: 'multiDevice', backedUp: true, createdAt: 1, lastUsedAt: null,
     });
     await store.updateState(h.uid, { passkeyRequired: true });
-    h.claimsOnToken = { apk: { req: true, exp: Date.now() + 60_000, at: Date.now(), sat: h.authTime } };
+    h.webauthn = true;
+    await call('/api/admin/security/authentication/options', { method: 'POST' });
+    const freshVerification = await call('/api/admin/security/authentication/verify', {
+      method: 'POST',
+      body: JSON.stringify({ response: { id: 'cred-1' } }),
+    });
+    expect(freshVerification.status).toBe(200);
+    h.claimsOnToken = { ...h.claims.get(h.uid) };
     let res = await call('/api/admin/security/passkeys/cred-1', { method: 'DELETE' });
     expect(res.status).toBe(409);
 
@@ -590,5 +669,830 @@ describe('PasskeyError e claim', () => {
     const stored = h.docs.get(`adminSecurity/${h.uid}`)?.recoveryCodes as { hash: string }[];
     expect(stored.map((c) => c.hash)).not.toContain(codes[0]);
     expect(stored[0].hash).toBe(store.hashRecoveryCode(codes[0].toLowerCase()));
+  });
+});
+
+describe('dispositivi amministrativi ricordati', () => {
+  async function registerRememberedSession(token: string, authTime: number, label: string) {
+    h.tokenAuthTimes.set(token, authTime);
+    const options = await call('/api/admin/security/authentication/options', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(options.status).toBe(200);
+    const verified = await call('/api/admin/security/authentication/verify', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        response: { id: 'remembered-credential' },
+        rememberDevice: true,
+        deviceLabel: label,
+      }),
+    });
+    expect(verified.status).toBe(200);
+    const body = await json(verified);
+    const cookie = verified.headers.get('set-cookie');
+    expect(cookie).toContain('__Host-admin-device=');
+    expect(cookie).toContain('HttpOnly; Secure; SameSite=Lax; Max-Age=2592000');
+    return { id: body.rememberedDevice.id as string, cookie: cookie!.split(';')[0].split('=')[1] };
+  }
+
+  it('mantiene due browser indipendenti e blocca subito i token dopo revoca o reset', async () => {
+    h.webauthn = true;
+    await store.savePasskey(h.uid, {
+      id: 'remembered-credential',
+      publicKey: 'AQID',
+      counter: 0,
+      transports: ['internal'],
+      rpId: 'imagestudiofotografico.com',
+      label: 'Telefono',
+      deviceType: 'multiDevice',
+      backedUp: true,
+      createdAt: 1,
+      lastUsedAt: null,
+    });
+    await store.updateState(h.uid, { passkeyRequired: true, verificationsValidAfter: 1000 });
+
+    const first = await registerRememberedSession('first-login', h.authTime, 'Portatile');
+    const second = await registerRememberedSession('second-login', h.authTime + 10, 'Computer studio');
+
+    const firstClaims = { adminDeviceTrust: { id: first.id } };
+    const secondClaims = { adminDeviceTrust: { id: second.id } };
+    h.tokenClaims.set('first-browser', firstClaims);
+    h.tokenAuthTimes.set('first-browser', h.authTime + 20);
+    h.tokenClaims.set('second-browser', secondClaims);
+    h.tokenAuthTimes.set('second-browser', h.authTime + 30);
+    h.tokenAuthTimes.set('fresh-restore-session', h.authTime + 40);
+    expect((await call('/api/admin-only', { headers: { Authorization: 'Bearer first-browser' } })).status).toBe(200);
+    expect((await call('/api/admin-only', { headers: { Authorization: 'Bearer second-browser' } })).status).toBe(200);
+
+    const restore = await call('/api/admin/security/devices/restore', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer fresh-restore-session',
+        Cookie: `__Host-admin-device=${first.cookie}`,
+      },
+      body: '{}',
+    });
+    expect(await json(restore)).toMatchObject({ restored: true, deviceId: first.id, customToken: 'minted-custom-token' });
+    expect(h.createdCustomToken?.claims).toEqual({ adminDeviceTrust: { id: first.id } });
+
+    h.tokenUids.set('wrong-account-session', 'other-admin');
+    const wrongAccount = await call('/api/admin/security/devices/restore', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer wrong-account-session',
+        Cookie: `__Host-admin-device=${first.cookie}`,
+      },
+      body: '{}',
+    });
+    expect(await json(wrongAccount)).toEqual({ restored: false });
+    expect(wrongAccount.headers.get('set-cookie')).toContain('Max-Age=0');
+
+    await store.revokeRememberedDevice(h.uid, first.id, Date.now());
+    expect((await call('/api/admin-only', { headers: { Authorization: 'Bearer first-browser' } })).status).toBe(403);
+    expect((await call('/api/admin-only', { headers: { Authorization: 'Bearer second-browser' } })).status).toBe(200);
+
+    await store.revokeAllRememberedDevices(h.uid, Date.now());
+    expect((await call('/api/admin-only', { headers: { Authorization: 'Bearer second-browser' } })).status).toBe(403);
+  });
+
+  it('rifiuta la fiducia senza prova fresca e non accetta cookie assenti, alterati o scaduti', async () => {
+    h.webauthn = true;
+    await store.savePasskey(h.uid, {
+      id: 'remembered-credential',
+      publicKey: 'AQID',
+      counter: 0,
+      transports: [],
+      rpId: 'imagestudiofotografico.com',
+      label: 'Telefono',
+      deviceType: 'multiDevice',
+      backedUp: true,
+      createdAt: 1,
+      lastUsedAt: null,
+    });
+    await store.updateState(h.uid, { passkeyRequired: true, verificationsValidAfter: 1000 });
+    const device = await registerRememberedSession('remembered-login', h.authTime, 'Portatile');
+
+    const untrustedOperation = await call('/api/admin/security/devices/revoke-all', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer remembered-login',
+        Cookie: `__Host-admin-device=${device.cookie}`,
+      },
+      body: '{}',
+    });
+    expect(untrustedOperation.status).toBe(403);
+    expect((await json(untrustedOperation)).code).toBe('fresh_passkey_required');
+
+    const absentCookie = await call('/api/admin/security/devices/restore', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer remembered-login' },
+      body: '{}',
+    });
+    expect(await json(absentCookie)).toEqual({ restored: false });
+
+    const alteredCookie = await call('/api/admin/security/devices/restore', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer remembered-login', Cookie: `__Host-admin-device=${device.id}.${'x'.repeat(43)}` },
+      body: '{}',
+    });
+    expect(await json(alteredCookie)).toEqual({ restored: false });
+
+    const recordPath = `adminSecurity/${h.uid}/rememberedDevices/${device.id}`;
+    h.docs.set(recordPath, { ...h.docs.get(recordPath), expiresAt: Date.now() - 1 });
+    const expiredCookie = await call('/api/admin/security/devices/restore', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer remembered-login', Cookie: `__Host-admin-device=${device.cookie}` },
+      body: '{}',
+    });
+    expect(await json(expiredCookie)).toEqual({ restored: false });
+    h.tokenClaims.set('expired-browser', { adminDeviceTrust: { id: device.id } });
+    expect((await call('/api/admin-only', {
+      headers: { Authorization: 'Bearer expired-browser' },
+    })).status).toBe(403);
+  });
+
+  it('in Preview non ripristina la fiducia, ma consente al guard di proseguire con la verifica', async () => {
+    const response = await withAllowedPreviewOrigin(() =>
+      call('/api/admin/security/devices/restore', {
+        method: 'POST',
+        headers: { Origin: 'https://preview.replit.dev' },
+        body: '{}',
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await json(response)).toEqual({ restored: false });
+    expect(h.createdCustomToken).toBeNull();
+  });
+
+  it('in Preview scarta un eventuale cookie locale senza elevarlo a dispositivo fidato', async () => {
+    const response = await withAllowedPreviewOrigin(() =>
+      call('/api/admin/security/devices/restore', {
+        method: 'POST',
+        headers: {
+          Origin: 'https://preview.replit.dev',
+          Cookie: `__Host-admin-device=${'A'.repeat(43)}.${'B'.repeat(43)}`,
+        },
+        body: '{}',
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await json(response)).toEqual({ restored: false });
+    expect(response.headers.get('set-cookie')).toContain('Max-Age=0');
+    expect(h.createdCustomToken).toBeNull();
+  });
+});
+
+describe('autorizzazione QR per una nuova passkey', () => {
+  const verifier = 'A'.repeat(43);
+  const verifierHash = createHash('sha256').update(verifier).digest('base64url');
+
+  async function seedTrustedPasskey() {
+    await store.savePasskey(h.uid, {
+      id: 'old-device-credential',
+      publicKey: 'AQID',
+      counter: 0,
+      transports: ['internal'],
+      rpId: 'imagestudiofotografico.com',
+      label: 'PC fisso',
+      deviceType: 'multiDevice',
+      backedUp: true,
+      createdAt: Date.now(),
+      lastUsedAt: null,
+    });
+    await store.updateState(h.uid, { passkeyRequired: true });
+  }
+
+  async function startRequest() {
+    return call('/api/admin/security/device-enrollment/start', {
+      method: 'POST',
+      body: JSON.stringify({ verifierHash, deviceLabel: 'Portatile' }),
+    });
+  }
+
+  async function prepareApprovedEnrollment() {
+    const started = await json(await startRequest());
+    h.webauthn = true;
+    const approvalOptions = await call(
+      `/api/admin/security/device-enrollment/${started.enrollmentId}/authentication/options`,
+      { method: 'POST' },
+    );
+    expect(approvalOptions.status).toBe(200);
+    const approval = await call(
+      `/api/admin/security/device-enrollment/${started.enrollmentId}/authentication/verify`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ response: { id: 'old-device-credential' } }),
+      },
+    );
+    expect(approval.status).toBe(200);
+    const registrationOptions = await call(
+      `/api/admin/security/device-enrollment/${started.enrollmentId}/registration/options`,
+      { method: 'POST', body: JSON.stringify({ verifier }) },
+    );
+    expect(registrationOptions.status).toBe(200);
+    return started.enrollmentId as string;
+  }
+
+  it('richiede l’approvazione WebAuthn sul dispositivo fidato e autorizza solo la registrazione', async () => {
+    await seedTrustedPasskey();
+    const started = await startRequest();
+    expect(started.status).toBe(200);
+    const request = await json(started);
+    expect(request.enrollmentId).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(new URL(request.approvalUrl).origin).toBe(ORIGIN);
+    expect(new URL(request.approvalUrl).searchParams.get('deviceEnrollment')).toBe(request.enrollmentId);
+
+    const info = await call(
+      `/api/admin/security/device-enrollment/${request.enrollmentId}/approval-info`,
+      { method: 'POST', headers: { Authorization: 'Bearer other-account' } },
+    );
+    expect(info.status).toBe(200);
+    expect(await json(info)).toMatchObject({ status: 'pending', deviceLabel: 'Portatile' });
+
+    h.tokenUids.set('wrong-admin', 'another-admin');
+    // The route lookup is scoped to the authenticated UID, not just the QR id.
+    const wrongAccountRetry = await call(
+      `/api/admin/security/device-enrollment/${request.enrollmentId}/approval-info`,
+      { method: 'POST', headers: { Authorization: 'Bearer wrong-admin' } },
+    );
+    expect(wrongAccountRetry.status).toBe(404);
+    const wrongAccountBody = await json(wrongAccountRetry);
+    expect(wrongAccountBody).toEqual({
+      error: 'Richiesta non valida o scaduta',
+      code: 'device_enrollment_not_found',
+    });
+    expect(wrongAccountBody).not.toHaveProperty('deviceLabel');
+
+    const wrongAccountApproval = await call(
+      `/api/admin/security/device-enrollment/${request.enrollmentId}/authentication/options`,
+      { method: 'POST', headers: { Authorization: 'Bearer wrong-admin' } },
+    );
+    expect(wrongAccountApproval.status).toBe(404);
+
+    h.tokenAuthTimes.set('trusted-device', h.authTime + 60);
+    h.webauthn = true;
+    const optionsResponse = await call(
+      `/api/admin/security/device-enrollment/${request.enrollmentId}/authentication/options`,
+      { method: 'POST', headers: { Authorization: 'Bearer trusted-device' } },
+    );
+    expect(optionsResponse.status).toBe(200);
+    const options = await json(optionsResponse);
+    expect(options.allowCredentials.map((credential: any) => credential.id)).toContain('old-device-credential');
+
+    const approval = await call(
+      `/api/admin/security/device-enrollment/${request.enrollmentId}/authentication/verify`,
+      {
+        method: 'POST',
+        headers: { Authorization: 'Bearer trusted-device' },
+        body: JSON.stringify({ response: { id: 'old-device-credential' } }),
+      },
+    );
+    expect(approval.status).toBe(200);
+    expect((await json(approval)).approvedAt).toEqual(expect.any(Number));
+    expect(h.claims.get(h.uid)?.apk).toBeUndefined();
+
+    const requesterStatus = await call(
+      `/api/admin/security/device-enrollment/${request.enrollmentId}/status`,
+      { method: 'POST', body: JSON.stringify({ verifier }) },
+    );
+    expect(await json(requesterStatus)).toMatchObject({ status: 'approved', deviceLabel: 'Portatile' });
+
+    const optionsForRegistration = await call(
+      `/api/admin/security/device-enrollment/${request.enrollmentId}/registration/options`,
+      { method: 'POST', body: JSON.stringify({ verifier }) },
+    );
+    expect(optionsForRegistration.status).toBe(200);
+    expect((await json(optionsForRegistration)).rp.id).toBe('imagestudiofotografico.com');
+
+    const registration = await call(
+      `/api/admin/security/device-enrollment/${request.enrollmentId}/registration/verify`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ verifier, response: { id: 'new-device-credential' } }),
+      },
+    );
+    expect(registration.status).toBe(200);
+    expect((await json(registration)).passkey.label).toBe('Portatile');
+    expect(await store.getPasskey(h.uid, 'cred-1')).toMatchObject({
+      label: 'Portatile',
+      rpId: 'imagestudiofotografico.com',
+    });
+    expect(h.docs.get(`adminSecurity/${h.uid}/deviceEnrollments/${request.enrollmentId}`)?.terminalAt)
+      .toEqual(expect.any(Number));
+    expect(h.claims.get(h.uid)?.apk).toBeUndefined();
+
+    const completedStatus = await call(
+      `/api/admin/security/device-enrollment/${request.enrollmentId}/status`,
+      { method: 'POST', body: JSON.stringify({ verifier }) },
+    );
+    expect((await json(completedStatus)).status).toBe('registered');
+    const replay = await call(
+      `/api/admin/security/device-enrollment/${request.enrollmentId}/registration/options`,
+      { method: 'POST', body: JSON.stringify({ verifier }) },
+    );
+    expect(replay.status).toBe(409);
+  });
+
+  it('consente una sola registrazione se due verifiche dello stesso QR arrivano insieme', async () => {
+    await seedTrustedPasskey();
+    h.webauthn = true;
+
+    const started = await startRequest();
+    expect(started.status).toBe(200);
+    const request = await json(started);
+    const approvalOptions = await call(
+      `/api/admin/security/device-enrollment/${request.enrollmentId}/authentication/options`,
+      { method: 'POST' },
+    );
+    expect(approvalOptions.status).toBe(200);
+    const approval = await call(
+      `/api/admin/security/device-enrollment/${request.enrollmentId}/authentication/verify`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ response: { id: 'old-device-credential' } }),
+      },
+    );
+    expect(approval.status).toBe(200);
+
+    const registrationOptions = await call(
+      `/api/admin/security/device-enrollment/${request.enrollmentId}/registration/options`,
+      { method: 'POST', body: JSON.stringify({ verifier }) },
+    );
+    expect(registrationOptions.status).toBe(200);
+
+    const registrationUrl =
+      `/api/admin/security/device-enrollment/${request.enrollmentId}/registration/verify`;
+    const registrationBody = JSON.stringify({
+      verifier,
+      response: { id: 'racing-new-device-credential' },
+    });
+    let releaseEnrollmentReads: () => void = () => undefined;
+    const bothEnrollmentReads = new Promise<void>((resolve) => {
+      releaseEnrollmentReads = resolve;
+    });
+    h.enrollmentReadBarrier = {
+      path: `adminSecurity/${h.uid}/deviceEnrollments/${request.enrollmentId}`,
+      reads: 0,
+      promise: bothEnrollmentReads,
+      release: releaseEnrollmentReads,
+    };
+    let attempts: Response[];
+    try {
+      attempts = await Promise.all([
+        call(registrationUrl, { method: 'POST', body: registrationBody }),
+        call(registrationUrl, { method: 'POST', body: registrationBody }),
+      ]);
+    } finally {
+      h.enrollmentReadBarrier = null;
+    }
+
+    expect(attempts!.map((response) => response.status).sort()).toEqual([200, 400]);
+    const results = await Promise.all(attempts!.map(json));
+    expect(results.filter((result) => result.passkey)).toHaveLength(1);
+    expect(results.find((result) => result.code)?.code).toBe('challenge_expired');
+
+    const accountPasskeys = await store.listPasskeys(h.uid);
+    expect(accountPasskeys.map((passkey) => passkey.id).sort()).toEqual([
+      'cred-1',
+      'old-device-credential',
+    ]);
+    expect(h.docs.get(
+      `adminSecurity/${h.uid}/deviceEnrollments/${request.enrollmentId}`,
+    )).toMatchObject({
+      status: 'registered',
+      registrationChallenge: null,
+    });
+  });
+
+  it('se l’annullamento vince durante la verifica WebAuthn non salva la nuova passkey', async () => {
+    await seedTrustedPasskey();
+    const enrollmentId = await prepareApprovedEnrollment();
+
+    let enteredVerification!: () => void;
+    const verificationStarted = new Promise<void>((resolve) => { enteredVerification = resolve; });
+    let releaseVerification!: () => void;
+    const verificationGate = new Promise<void>((resolve) => { releaseVerification = resolve; });
+    h.beforeRegistrationVerification = async () => {
+      enteredVerification();
+      await verificationGate;
+    };
+
+    const registrationPromise = call(
+      `/api/admin/security/device-enrollment/${enrollmentId}/registration/verify`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ verifier, response: { id: 'new-device-credential' } }),
+      },
+    );
+    await verificationStarted;
+
+    try {
+      const cancellation = await call(
+        `/api/admin/security/device-enrollment/${enrollmentId}/cancel`,
+        { method: 'POST', body: JSON.stringify({ verifier }) },
+      );
+      expect(cancellation.status).toBe(200);
+    } finally {
+      releaseVerification();
+    }
+    const registration = await registrationPromise;
+    expect(registration.status).toBe(409);
+    expect((await json(registration)).code).toBe('device_enrollment_not_ready');
+
+    expect((await store.listPasskeys(h.uid)).map(({ id }) => id)).toEqual([
+      'old-device-credential',
+    ]);
+    expect(h.docs.get(`adminSecurity/${h.uid}/deviceEnrollments/${enrollmentId}`)).toMatchObject({
+      status: 'cancelled',
+      registrationChallenge: null,
+    });
+  });
+
+  it('se la registrazione vince, l’annullamento non cancella lo stato né la passkey', async () => {
+    await seedTrustedPasskey();
+    const enrollmentId = await prepareApprovedEnrollment();
+
+    let eventWriteStarted!: () => void;
+    const registeredEventStarted = new Promise<void>((resolve) => { eventWriteStarted = resolve; });
+    let releaseEventWrite!: () => void;
+    const eventWriteGate = new Promise<void>((resolve) => { releaseEventWrite = resolve; });
+    h.beforeEventWrite = async (data) => {
+      if (data.type === 'passkey_registered') {
+        eventWriteStarted();
+        await eventWriteGate;
+      }
+    };
+
+    const registrationPromise = call(
+      `/api/admin/security/device-enrollment/${enrollmentId}/registration/verify`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ verifier, response: { id: 'new-device-credential' } }),
+      },
+    );
+    await registeredEventStarted;
+
+    try {
+      const cancellation = await call(
+        `/api/admin/security/device-enrollment/${enrollmentId}/cancel`,
+        { method: 'POST', body: JSON.stringify({ verifier }) },
+      );
+      expect(cancellation.status).toBe(409);
+      expect((await json(cancellation)).code).toBe('device_enrollment_not_cancellable');
+
+      expect((await store.listPasskeys(h.uid)).map(({ id }) => id).sort()).toEqual([
+        'cred-1',
+        'old-device-credential',
+      ]);
+      expect(h.docs.get(`adminSecurity/${h.uid}/deviceEnrollments/${enrollmentId}`)).toMatchObject({
+        status: 'registered',
+        registrationChallenge: null,
+      });
+    } finally {
+      releaseEventWrite();
+    }
+    const registration = await registrationPromise;
+    expect(registration.status).toBe(200);
+  });
+
+  it('non approva il QR né ripristina la passkey se questa viene revocata durante la verifica', async () => {
+    await seedTrustedPasskey();
+    await store.savePasskey(h.uid, {
+      id: 'backup-device-credential',
+      publicKey: 'BAUG',
+      counter: 0,
+      transports: ['internal'],
+      rpId: 'imagestudiofotografico.com',
+      label: 'Telefono',
+      deviceType: 'multiDevice',
+      backedUp: true,
+      createdAt: Date.now(),
+      lastUsedAt: null,
+    });
+    h.webauthn = true;
+
+    const started = await startRequest();
+    expect(started.status).toBe(200);
+    const request = await json(started);
+    const approvalOptions = await call(
+      `/api/admin/security/device-enrollment/${request.enrollmentId}/authentication/options`,
+      { method: 'POST' },
+    );
+    expect(approvalOptions.status).toBe(200);
+
+    let enteredVerification!: () => void;
+    const verificationStarted = new Promise<void>((resolve) => { enteredVerification = resolve; });
+    let releaseVerification!: () => void;
+    const verificationGate = new Promise<void>((resolve) => { releaseVerification = resolve; });
+    h.beforeAuthenticationVerification = async () => {
+      enteredVerification();
+      await verificationGate;
+    };
+
+    const verificationPromise = call(
+      `/api/admin/security/device-enrollment/${request.enrollmentId}/authentication/verify`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ response: { id: 'old-device-credential' } }),
+      },
+    );
+    await verificationStarted;
+    await service.revokePasskey(
+      { uid: h.uid, email: h.email, authTime: h.authTime },
+      'old-device-credential',
+    );
+    releaseVerification();
+
+    const verification = await verificationPromise;
+    expect(verification.status).toBe(400);
+    expect((await json(verification)).code).toBe('unknown_credential');
+    expect(await store.getPasskey(h.uid, 'old-device-credential')).toBeNull();
+    expect((await store.listPasskeys(h.uid)).map(({ id }) => id)).toEqual([
+      'backup-device-credential',
+    ]);
+
+    const enrollment = h.docs.get(
+      `adminSecurity/${h.uid}/deviceEnrollments/${request.enrollmentId}`,
+    );
+    expect(enrollment).toMatchObject({
+      status: 'pending',
+      approvedAt: null,
+      approvedByCredentialId: null,
+    });
+    const requesterStatus = await call(
+      `/api/admin/security/device-enrollment/${request.enrollmentId}/status`,
+      { method: 'POST', body: JSON.stringify({ verifier }) },
+    );
+    expect(await json(requesterStatus)).toMatchObject({
+      status: 'pending',
+      deviceLabel: 'Portatile',
+    });
+    expect(await store.getPasskey(h.uid, 'cred-1')).toBeNull();
+  });
+
+  it('rifiuta l’approvazione QR da un altro account amministratore', async () => {
+    await seedTrustedPasskey();
+
+    const otherUid = 'another-admin-uid';
+    const otherCredentialId = 'other-admin-credential';
+    h.tokenUids.set('other-admin', otherUid);
+    h.tokenEmails.set('other-admin', h.email);
+    await store.savePasskey(otherUid, {
+      id: otherCredentialId,
+      publicKey: 'BAUG',
+      counter: 0,
+      transports: ['internal'],
+      rpId: 'imagestudiofotografico.com',
+      label: 'Telefono altro admin',
+      deviceType: 'multiDevice',
+      backedUp: true,
+      createdAt: Date.now(),
+      lastUsedAt: null,
+    });
+    await store.updateState(otherUid, { passkeyRequired: true });
+
+    const started = await json(await startRequest());
+    const approvalOptions = await call(
+      `/api/admin/security/device-enrollment/${started.enrollmentId}/authentication/options`,
+      { method: 'POST', headers: { Authorization: 'Bearer other-admin' } },
+    );
+    expect(approvalOptions.status).toBe(404);
+    expect(await json(approvalOptions)).toEqual({
+      error: 'Richiesta non valida o scaduta',
+      code: 'device_enrollment_not_found',
+    });
+
+    const approvalInfo = await call(
+      `/api/admin/security/device-enrollment/${started.enrollmentId}/approval-info`,
+      { method: 'POST', headers: { Authorization: 'Bearer other-admin' } },
+    );
+    expect(approvalInfo.status).toBe(404);
+    expect(await json(approvalInfo)).not.toHaveProperty('deviceLabel');
+
+    const registrationOptions = await call(
+      `/api/admin/security/device-enrollment/${started.enrollmentId}/registration/options`,
+      {
+        method: 'POST',
+        headers: { Authorization: 'Bearer other-admin' },
+        body: JSON.stringify({ verifier }),
+      },
+    );
+    expect(registrationOptions.status).toBe(404);
+
+    expect((await store.listPasskeys(otherUid)).map((passkey) => passkey.id))
+      .toEqual([otherCredentialId]);
+    expect((await store.getPasskey(h.uid, 'cred-1'))).toBeNull();
+    expect(h.docs.get(`adminSecurity/${h.uid}/deviceEnrollments/${started.enrollmentId}`))
+      .toMatchObject({ status: 'pending', approvedByCredentialId: null });
+    expect(h.claims.get(otherUid)?.apk).toBeUndefined();
+    expect(h.createdCustomToken).toBeNull();
+    expect((await call('/api/admin-only', {
+      headers: { Authorization: 'Bearer other-admin' },
+    })).status).toBe(403);
+  });
+
+  it('non accetta segreti diversi, richieste non approvate o origini Preview', async () => {
+    await seedTrustedPasskey();
+    const started = await json(await startRequest());
+    const wrongVerifier = await call(
+      `/api/admin/security/device-enrollment/${started.enrollmentId}/status`,
+      { method: 'POST', body: JSON.stringify({ verifier: 'B'.repeat(43) }) },
+    );
+    expect(wrongVerifier.status).toBe(404);
+
+    h.tokenAuthTimes.set('different-login', h.authTime + 1);
+    const wrongAuthTime = await call(
+      `/api/admin/security/device-enrollment/${started.enrollmentId}/status`,
+      {
+        method: 'POST',
+        headers: { Authorization: 'Bearer different-login' },
+        body: JSON.stringify({ verifier }),
+      },
+    );
+    expect(wrongAuthTime.status).toBe(404);
+
+    const earlyRegistration = await call(
+      `/api/admin/security/device-enrollment/${started.enrollmentId}/registration/options`,
+      { method: 'POST', body: JSON.stringify({ verifier }) },
+    );
+    expect(earlyRegistration.status).toBe(409);
+
+    const previewStart = await call('/api/admin/security/device-enrollment/start', {
+      method: 'POST',
+      headers: { Origin: 'https://preview.replit.dev' },
+      body: JSON.stringify({ verifierHash, deviceLabel: 'Preview' }),
+    });
+    expect(previewStart.status).toBe(400);
+    expect((await json(previewStart)).code).toBe('origin_not_allowed');
+  });
+
+  it('scade lato server e non permette di registrare dopo la scadenza', async () => {
+    await seedTrustedPasskey();
+    const started = await json(await startRequest());
+    const requestPath = `adminSecurity/${h.uid}/deviceEnrollments/${started.enrollmentId}`;
+    const saved = h.docs.get(requestPath)!;
+    h.docs.set(requestPath, { ...saved, expiresAt: Date.now() - 1 });
+
+    const status = await call(
+      `/api/admin/security/device-enrollment/${started.enrollmentId}/status`,
+      { method: 'POST', body: JSON.stringify({ verifier }) },
+    );
+    expect((await json(status)).status).toBe('expired');
+    const approvalInfo = await call(
+      `/api/admin/security/device-enrollment/${started.enrollmentId}/approval-info`,
+      { method: 'POST' },
+    );
+    expect(await json(approvalInfo)).toMatchObject({
+      status: 'expired',
+      deviceLabel: 'Portatile',
+    });
+    const approvalOptions = await call(
+      `/api/admin/security/device-enrollment/${started.enrollmentId}/authentication/options`,
+      { method: 'POST' },
+    );
+    expect(approvalOptions.status).toBe(404);
+    const registration = await call(
+      `/api/admin/security/device-enrollment/${started.enrollmentId}/registration/options`,
+      { method: 'POST', body: JSON.stringify({ verifier }) },
+    );
+    expect(registration.status).toBe(410);
+  });
+
+  it('consente al proprietario di annullare e al dispositivo fidato di rifiutare una richiesta', async () => {
+    await seedTrustedPasskey();
+    const started = await json(await startRequest());
+    h.webauthn = true;
+    await call('/api/admin/security/authentication/options', { method: 'POST' });
+    const freshVerification = await call('/api/admin/security/authentication/verify', {
+      method: 'POST',
+      body: JSON.stringify({ response: { id: 'old-device-credential' } }),
+    });
+    expect(freshVerification.status).toBe(200);
+    h.claimsOnToken = { ...h.claims.get(h.uid) };
+    const rejected = await call(
+      `/api/admin/security/device-enrollment/${started.enrollmentId}/reject`,
+      { method: 'POST' },
+    );
+    expect(rejected.status).toBe(200);
+    expect(h.docs.get(`adminSecurity/${h.uid}/deviceEnrollments/${started.enrollmentId}`)?.terminalAt)
+      .toEqual(expect.any(Number));
+    const rejectedStatus = await call(
+      `/api/admin/security/device-enrollment/${started.enrollmentId}/status`,
+      { method: 'POST', body: JSON.stringify({ verifier }) },
+    );
+    expect((await json(rejectedStatus)).status).toBe('rejected');
+    const rejectedApprovalOptions = await call(
+      `/api/admin/security/device-enrollment/${started.enrollmentId}/authentication/options`,
+      { method: 'POST' },
+    );
+    expect(rejectedApprovalOptions.status).toBe(404);
+
+    const another = await json(await startRequest());
+    const cancelled = await call(
+      `/api/admin/security/device-enrollment/${another.enrollmentId}/cancel`,
+      { method: 'POST', body: JSON.stringify({ verifier }) },
+    );
+    expect(cancelled.status).toBe(200);
+    expect(h.docs.get(`adminSecurity/${h.uid}/deviceEnrollments/${another.enrollmentId}`)?.terminalAt)
+      .toEqual(expect.any(Number));
+    const cancelledStatus = await call(
+      `/api/admin/security/device-enrollment/${another.enrollmentId}/status`,
+      { method: 'POST', body: JSON.stringify({ verifier }) },
+    );
+    expect((await json(cancelledStatus)).status).toBe('cancelled');
+    const cancelledApprovalInfo = await call(
+      `/api/admin/security/device-enrollment/${another.enrollmentId}/approval-info`,
+      { method: 'POST' },
+    );
+    expect(await json(cancelledApprovalInfo)).toMatchObject({
+      status: 'cancelled',
+      deviceLabel: 'Portatile',
+    });
+    const cancelledApprovalOptions = await call(
+      `/api/admin/security/device-enrollment/${another.enrollmentId}/authentication/options`,
+      { method: 'POST' },
+    );
+    expect(cancelledApprovalOptions.status).toBe(404);
+  });
+});
+
+describe('retention delle richieste QR', () => {
+  it('rimuove solo richieste inattive da almeno 24 ore e conserva gli eventi di audit', async () => {
+    const now = 2_000_000_000_000;
+    const retention = store.DEVICE_ENROLLMENT_RETENTION_MS;
+    await store.updateState(h.uid, { passkeyRequired: true });
+
+    const seed = (
+      id: string,
+      status: string,
+      expiresAt: number,
+      terminalAt: number | null = null,
+    ) => {
+      h.docs.set(`adminSecurity/${h.uid}/deviceEnrollments/${id}`, {
+        uid: h.uid,
+        verifierHash: `verifier-${id}`,
+        requesterAuthTime: h.authTime,
+        deviceLabel: `device-${id}`,
+        rpId: 'imagestudiofotografico.com',
+        origin: ORIGIN,
+        createdAt: now - retention * 3,
+        expiresAt,
+        status,
+        terminalAt,
+        registeredAt: status === 'registered' ? terminalAt : null,
+        approvalChallenge: null,
+        registrationChallenge: null,
+        approvedAt: null,
+        approvedByCredentialId: null,
+      });
+    };
+
+    // Expired requests are retained for one day after expiry.
+    seed('expired-pending', 'pending', now - retention);
+    seed('expired-approved', 'approved', now - retention);
+    seed('recently-expired', 'pending', now - retention + 1);
+
+    // Successful and declined requests use their actual completion time.
+    seed('old-registered', 'registered', now - retention * 3, now - retention);
+    seed('old-rejected', 'rejected', now - retention * 3, now - retention);
+    seed('old-cancelled', 'cancelled', now - retention * 3, now - retention);
+    seed('recently-rejected', 'rejected', now - retention * 3, now - retention + 1);
+
+    // These remain usable and must not be removed, even if another request is cleaned.
+    seed('active-pending', 'pending', now + 60_000);
+    seed('active-approved', 'approved', now + 60_000);
+    h.docs.set(`adminSecurity/${h.uid}/events/audit-entry`, {
+      type: 'device_enrollment_rejected',
+      at: now - retention * 5,
+    });
+
+    const deleted = await store.cleanupDeviceEnrollments(now);
+
+    expect(deleted).toBe(5);
+    for (const id of [
+      'expired-pending',
+      'expired-approved',
+      'old-registered',
+      'old-rejected',
+      'old-cancelled',
+    ]) {
+      expect(h.docs.has(`adminSecurity/${h.uid}/deviceEnrollments/${id}`)).toBe(false);
+    }
+    for (const id of [
+      'recently-expired',
+      'recently-rejected',
+      'active-pending',
+      'active-approved',
+    ]) {
+      expect(h.docs.has(`adminSecurity/${h.uid}/deviceEnrollments/${id}`)).toBe(true);
+    }
+    expect(h.docs.get(`adminSecurity/${h.uid}/events/audit-entry`)).toMatchObject({
+      type: 'device_enrollment_rejected',
+      at: now - retention * 5,
+    });
   });
 });

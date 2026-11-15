@@ -5,6 +5,8 @@
 import type { AvailabilityConfig } from "../../shared/calendar-types.js";
 import type { ConsultationTemplate } from "../../shared/consultation-types.js";
 import { createConsultationDateTime } from "../services/consultation-datetime.js";
+import { loadCheckoutHoldEvents } from '../booking/slot-reservations.js';
+import { unpaidDepositRequestExpired } from '../booking/payment-deadlines.js';
 
 /**
  * Convert consultation template to unified AvailabilityConfig
@@ -431,6 +433,7 @@ export async function getAllExistingEvents(
 
     for (const doc of bookingsSnap.docs) {
       const data = doc.data();
+      if (unpaidDepositRequestExpired(data)) continue;
       const startDate = data.dataShootingInizio.toDate();
       const endDate = data.dataShootingFine?.toDate?.() || startDate;
 
@@ -443,6 +446,10 @@ export async function getAllExistingEvents(
       });
     }
 
+    const checkoutHolds = await loadCheckoutHoldEvents(db, dayStart, dayEnd);
+    existingEvents.push(...checkoutHolds.map(event => ({
+      start: event.start, end: event.end, allDay: false, source: 'booking' as const,
+    })));
     console.log(`[Consultation Adapter] 📸 ${bookingsSnap.size} confirmed bookings (included)`);
   } else {
     console.log(`[Consultation Adapter] 🚫 Bookings EXCLUDED from blocking events`);

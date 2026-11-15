@@ -1,6 +1,11 @@
 import { auth } from '@/lib/firebase';
 import { createUrl } from '@/lib/basePath';
-import type { PrintOrderItemInput, PrintShopDeliveryMethod, PrintShopQuote } from '@shared/print-shop-types';
+import type {
+  PrintOrderItemInput,
+  PrintShopDeliveryMethod,
+  PrintShopPublicPromotion,
+  PrintShopQuote,
+} from '@shared/print-shop-types';
 import type {
   FinalizedPrintAsset,
   PaypalCaptureResult,
@@ -173,6 +178,15 @@ export const printShopApi = {
     return normalizeCatalog(response);
   },
 
+  async getPublicPromotions(signal?: AbortSignal): Promise<PrintShopPublicPromotion[]> {
+    const response = await request<unknown>('/promotions', { authenticated: false, signal });
+    const unwrapped = unwrapResponseBody(response);
+    if (!isRecord(unwrapped) || !Array.isArray(unwrapped.promotions)) {
+      throw new PrintShopApiError('Le promozioni non sono disponibili.', 502, 'INVALID_RESPONSE');
+    }
+    return unwrapped.promotions as PrintShopPublicPromotion[];
+  },
+
   async createDraft(idempotencyKey: string): Promise<PrintShopDraftOrder> {
     const response = await request<unknown>('/orders', {
       method: 'POST',
@@ -231,11 +245,16 @@ export const printShopApi = {
     orderId: string,
     items: PrintOrderItemInput[],
     method: PrintShopDeliveryMethod = 'studio_pickup',
+    couponCode?: string,
     signal?: AbortSignal,
   ): Promise<PrintShopQuote> {
     const response = await request<unknown>(`/orders/${encodeURIComponent(orderId)}/quote`, {
       method: 'POST',
-      body: JSON.stringify({ items, fulfillment: { method } }),
+      body: JSON.stringify({
+        items,
+        fulfillment: { method },
+        ...(couponCode?.trim() ? { couponCode: couponCode.trim() } : {}),
+      }),
       signal,
     });
     const unwrapped = unwrapResponseBody(response);
@@ -333,6 +352,30 @@ export const printShopApi = {
       : typeof unwrapped.id === 'string' ? unwrapped.id : '';
     if (!paypalOrderId) throw new PrintShopApiError('PayPal non ha restituito il codice di pagamento.', 502);
     return { paypalOrderId, orderId };
+  },
+
+  async completeZeroTotalOrder(
+    orderId: string,
+    legalConsents: PrintShopLegalConsents,
+    quote: PrintShopQuote,
+  ): Promise<{ orderId: string }> {
+    if (quote.totals.totalCents !== 0 || !quote.quoteFingerprint) {
+      throw new PrintShopApiError('Il riepilogo non è un ordine gratuito valido.', 409, 'INVALID_ZERO_TOTAL_QUOTE');
+    }
+    const response = await request<unknown>(`/orders/${encodeURIComponent(orderId)}/free/complete`, {
+      method: 'POST',
+      idempotencyKey: `free-complete-${orderId}-${quote.quoteFingerprint}`,
+      body: JSON.stringify({
+        ...legalConsents,
+        expectedQuoteFingerprint: quote.quoteFingerprint,
+        expectedTotalCents: 0,
+      }),
+    });
+    const unwrapped = unwrapResponseBody(response);
+    if (!isRecord(unwrapped) || unwrapped.orderId !== orderId) {
+      throw new PrintShopApiError('Conferma dell’ordine non valida.', 502, 'INVALID_FREE_ORDER_RESPONSE');
+    }
+    return { orderId };
   },
 
   async capturePaypalOrder(orderId: string, paypalOrderId: string): Promise<PaypalCaptureResult> {

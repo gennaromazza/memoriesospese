@@ -15,11 +15,12 @@ import type { NextFunction, Request, Response } from 'express';
 import {
   isAdminEmail,
   isAdminPasskeyClaimValid,
+  readAdminDeviceTrustClaim,
   readAdminPasskeyClaim,
   readAuthTime,
   type AdminPasskeyClaim,
 } from './admin-identity.js';
-import { loadGuardSnapshot } from './admin-security-store.js';
+import { getRememberedDevice, loadGuardSnapshot } from './admin-security-store.js';
 
 export interface AuthenticatedUser {
   uid: string;
@@ -33,6 +34,8 @@ export const ADMIN_PASSKEY_REQUIRED_CODE = 'admin_passkey_required';
 export interface AdminPasskeyEvaluation {
   passkeyRequired: boolean;
   verified: boolean;
+  rememberedDevice: boolean;
+  rememberedDeviceId: string | null;
   /** Scadenza della verifica corrente, se valida. */
   verifiedUntil: number | null;
   claim: AdminPasskeyClaim | null;
@@ -44,18 +47,26 @@ export async function evaluateAdminPasskey(
 ): Promise<AdminPasskeyEvaluation> {
   const snapshot = await loadGuardSnapshot(user.uid, now);
   const claim = readAdminPasskeyClaim(user.claims);
-  const verified =
+  const deviceTrustClaim = readAdminDeviceTrustClaim(user.claims);
+  const [rememberedDeviceRecord] = await Promise.all([
+    deviceTrustClaim ? getRememberedDevice(user.uid, deviceTrustClaim.id) : Promise.resolve(null),
+  ]);
+  const rememberedDevice = !!rememberedDeviceRecord &&
+    rememberedDeviceRecord.revokedAt === null &&
+    rememberedDeviceRecord.createdAt > snapshot.rememberedDevicesValidAfter &&
+    rememberedDeviceRecord.expiresAt > now;
+  const regularVerification =
     (!snapshot.passkeyRequired || claim?.req === true) &&
-    isAdminPasskeyClaimValid(
-      claim,
-      now,
-      snapshot.verificationsValidAfter,
-      readAuthTime(user.claims),
-    );
+    isAdminPasskeyClaimValid(claim, now, snapshot.verificationsValidAfter, readAuthTime(user.claims));
+  const verified = regularVerification || rememberedDevice;
   return {
     passkeyRequired: snapshot.passkeyRequired,
     verified,
-    verifiedUntil: verified && claim ? claim.exp ?? null : null,
+    rememberedDevice,
+    rememberedDeviceId: rememberedDevice ? deviceTrustClaim?.id ?? null : null,
+    verifiedUntil: regularVerification && claim
+      ? claim.exp ?? null
+      : rememberedDeviceRecord?.expiresAt ?? null,
     claim,
   };
 }

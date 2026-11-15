@@ -8,6 +8,902 @@
 import * as zod from 'zod';
 
 
+export const CancelManagedBookingParams = zod.object({
+  "bookingId": zod.coerce.string()
+})
+
+export const cancelManagedBookingBodyTokenRegExp = new RegExp('^[a-f0-9]{64}$');
+
+
+export const CancelManagedBookingBody = zod.object({
+  "token": zod.string().regex(cancelManagedBookingBodyTokenRegExp),
+  "requestId": zod.string().uuid(),
+  "expectedStartsAt": zod.coerce.date()
+})
+
+export const cancelManagedBookingResponseDepositPaidCentsMin = 0;
+
+
+
+export const CancelManagedBookingResponse = zod.object({
+  "success": zod.boolean(),
+  "bookingId": zod.string(),
+  "status": zod.enum(['confirmed', 'completed', 'cancelled', 'cancellation_pending']),
+  "campaignName": zod.string().nullable(),
+  "startsAt": zod.coerce.date().nullable(),
+  "endsAt": zod.coerce.date().nullable(),
+  "customerName": zod.string().nullable(),
+  "productName": zod.string().nullable(),
+  "depositPaidCents": zod.number().int().min(cancelManagedBookingResponseDepositPaidCentsMin).nullable(),
+  "reschedule": zod.object({
+  "canChange": zod.boolean(),
+  "status": zod.enum(['available', 'unavailable', 'pending', 'changed', 'blocked']),
+  "reason": zod.string().nullable(),
+  "firstDate": zod.string().nullable(),
+  "lastDate": zod.string().nullable(),
+  "notificationStatus": zod.union([zod.literal('pending'),zod.literal('preparing'),zod.literal('sending'),zod.literal('sent'),zod.literal('failed'),zod.literal('unknown'),zod.literal('skipped'),zod.literal(null)]).nullable(),
+  "targetStartsAt": zod.coerce.date().nullable(),
+  "targetEndsAt": zod.coerce.date().nullable()
+}),
+  "cancellation": zod.object({
+  "canCancel": zod.boolean(),
+  "reason": zod.string().nullable(),
+  "conditions": zod.string().nullable(),
+  "status": zod.enum(['available', 'unavailable', 'pending', 'complete', 'blocked']),
+  "refundStatus": zod.string(),
+  "notificationStatus": zod.string().nullable()
+}),
+  "studio": zod.object({
+  "name": zod.string().nullable(),
+  "email": zod.string().nullable(),
+  "phone": zod.string().nullable(),
+  "address": zod.string().nullable()
+})
+})
+
+
+export const GetAdminBookingCancellationParams = zod.object({
+  "bookingId": zod.coerce.string()
+})
+
+export const GetAdminBookingCancellationResponse = zod.object({
+  "bookingId": zod.string(),
+  "bookingStatus": zod.string(),
+  "amountCents": zod.number().int(),
+  "status": zod.string(),
+  "refundStatus": zod.string(),
+  "notificationStatus": zod.string().nullable(),
+  "canCancel": zod.boolean(),
+  "canRefund": zod.boolean(),
+  "canVerifyRefund": zod.boolean().optional(),
+  "paypalDeposit": zod.boolean().optional(),
+  "reason": zod.string().nullable(),
+  "refundId": zod.string().nullable()
+})
+
+
+export const ManageAdminBookingCancellationParams = zod.object({
+  "bookingId": zod.coerce.string()
+})
+
+export const manageAdminBookingCancellationBodyExpectedAmountCentsMin = 0;
+
+
+
+export const ManageAdminBookingCancellationBody = zod.object({
+  "action": zod.enum(['cancel_unpaid', 'cancel_refund', 'cancel_reschedule', 'retry_cancellation', 'refund', 'verify_refund', 'review']),
+  "requestId": zod.string().uuid(),
+  "expectedAmountCents": zod.number().int().min(manageAdminBookingCancellationBodyExpectedAmountCentsMin).optional()
+})
+
+export const ManageAdminBookingCancellationResponse = zod.object({
+  "bookingId": zod.string(),
+  "bookingStatus": zod.string(),
+  "amountCents": zod.number().int(),
+  "status": zod.string(),
+  "refundStatus": zod.string(),
+  "notificationStatus": zod.string().nullable(),
+  "canCancel": zod.boolean(),
+  "canRefund": zod.boolean(),
+  "canVerifyRefund": zod.boolean().optional(),
+  "paypalDeposit": zod.boolean().optional(),
+  "reason": zod.string().nullable(),
+  "refundId": zod.string().nullable()
+})
+
+
+export const GetBookingManagementSlotsParams = zod.object({
+  "bookingId": zod.coerce.string()
+})
+
+export const getBookingManagementSlotsBodyTokenRegExp = new RegExp('^[a-f0-9]{64}$');
+export const getBookingManagementSlotsBodyDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const GetBookingManagementSlotsBody = zod.object({
+  "token": zod.string().regex(getBookingManagementSlotsBodyTokenRegExp),
+  "date": zod.string().regex(getBookingManagementSlotsBodyDateRegExp)
+})
+
+export const GetBookingManagementSlotsResponse = zod.object({
+  "slots": zod.array(zod.object({
+  "startsAt": zod.coerce.date(),
+  "endsAt": zod.coerce.date(),
+  "label": zod.string()
+}))
+})
+
+
+export const RescheduleManagedBookingParams = zod.object({
+  "bookingId": zod.coerce.string()
+})
+
+export const rescheduleManagedBookingBodyTokenRegExp = new RegExp('^[a-f0-9]{64}$');
+
+
+export const RescheduleManagedBookingBody = zod.object({
+  "token": zod.string().regex(rescheduleManagedBookingBodyTokenRegExp),
+  "requestId": zod.string().uuid(),
+  "expectedStartsAt": zod.coerce.date(),
+  "startsAt": zod.coerce.date(),
+  "endsAt": zod.coerce.date()
+})
+
+export const rescheduleManagedBookingResponseDepositPaidCentsMin = 0;
+
+
+
+export const RescheduleManagedBookingResponse = zod.object({
+  "success": zod.boolean(),
+  "bookingId": zod.string(),
+  "status": zod.enum(['confirmed', 'completed', 'cancelled', 'cancellation_pending']),
+  "campaignName": zod.string().nullable(),
+  "startsAt": zod.coerce.date().nullable(),
+  "endsAt": zod.coerce.date().nullable(),
+  "customerName": zod.string().nullable(),
+  "productName": zod.string().nullable(),
+  "depositPaidCents": zod.number().int().min(rescheduleManagedBookingResponseDepositPaidCentsMin).nullable(),
+  "reschedule": zod.object({
+  "canChange": zod.boolean(),
+  "status": zod.enum(['available', 'unavailable', 'pending', 'changed', 'blocked']),
+  "reason": zod.string().nullable(),
+  "firstDate": zod.string().nullable(),
+  "lastDate": zod.string().nullable(),
+  "notificationStatus": zod.union([zod.literal('pending'),zod.literal('preparing'),zod.literal('sending'),zod.literal('sent'),zod.literal('failed'),zod.literal('unknown'),zod.literal('skipped'),zod.literal(null)]).nullable(),
+  "targetStartsAt": zod.coerce.date().nullable(),
+  "targetEndsAt": zod.coerce.date().nullable()
+}),
+  "cancellation": zod.object({
+  "canCancel": zod.boolean(),
+  "reason": zod.string().nullable(),
+  "conditions": zod.string().nullable(),
+  "status": zod.enum(['available', 'unavailable', 'pending', 'complete', 'blocked']),
+  "refundStatus": zod.string(),
+  "notificationStatus": zod.string().nullable()
+}),
+  "studio": zod.object({
+  "name": zod.string().nullable(),
+  "email": zod.string().nullable(),
+  "phone": zod.string().nullable(),
+  "address": zod.string().nullable()
+})
+})
+
+
+export const authorizeBookingManagementAccessPathBookingIdMax = 200;
+
+
+
+export const AuthorizeBookingManagementAccessParams = zod.object({
+  "bookingId": zod.coerce.string().min(1).max(authorizeBookingManagementAccessPathBookingIdMax)
+})
+
+export const authorizeBookingManagementAccessBodyTokenRegExp = new RegExp('^[a-f0-9]{64}$');
+
+
+export const AuthorizeBookingManagementAccessBody = zod.object({
+  "token": zod.string().regex(authorizeBookingManagementAccessBodyTokenRegExp)
+})
+
+export const authorizeBookingManagementAccessResponseDepositPaidCentsMin = 0;
+
+
+
+export const AuthorizeBookingManagementAccessResponse = zod.object({
+  "success": zod.boolean(),
+  "bookingId": zod.string(),
+  "status": zod.enum(['confirmed', 'completed', 'cancelled', 'cancellation_pending']),
+  "campaignName": zod.string().nullable(),
+  "startsAt": zod.coerce.date().nullable(),
+  "endsAt": zod.coerce.date().nullable(),
+  "customerName": zod.string().nullable(),
+  "productName": zod.string().nullable(),
+  "depositPaidCents": zod.number().int().min(authorizeBookingManagementAccessResponseDepositPaidCentsMin).nullable(),
+  "reschedule": zod.object({
+  "canChange": zod.boolean(),
+  "status": zod.enum(['available', 'unavailable', 'pending', 'changed', 'blocked']),
+  "reason": zod.string().nullable(),
+  "firstDate": zod.string().nullable(),
+  "lastDate": zod.string().nullable(),
+  "notificationStatus": zod.union([zod.literal('pending'),zod.literal('preparing'),zod.literal('sending'),zod.literal('sent'),zod.literal('failed'),zod.literal('unknown'),zod.literal('skipped'),zod.literal(null)]).nullable(),
+  "targetStartsAt": zod.coerce.date().nullable(),
+  "targetEndsAt": zod.coerce.date().nullable()
+}),
+  "cancellation": zod.object({
+  "canCancel": zod.boolean(),
+  "reason": zod.string().nullable(),
+  "conditions": zod.string().nullable(),
+  "status": zod.enum(['available', 'unavailable', 'pending', 'complete', 'blocked']),
+  "refundStatus": zod.string(),
+  "notificationStatus": zod.string().nullable()
+}),
+  "studio": zod.object({
+  "name": zod.string().nullable(),
+  "email": zod.string().nullable(),
+  "phone": zod.string().nullable(),
+  "address": zod.string().nullable()
+})
+})
+
+
+export const getAdminBookingManagementLinkPathBookingIdMax = 200;
+
+
+
+export const GetAdminBookingManagementLinkParams = zod.object({
+  "bookingId": zod.coerce.string().min(1).max(getAdminBookingManagementLinkPathBookingIdMax)
+})
+
+export const getAdminBookingManagementLinkResponseVersionMin = 0;
+
+
+
+export const GetAdminBookingManagementLinkResponse = zod.object({
+  "status": zod.enum(['not_issued', 'active', 'revoked']),
+  "version": zod.number().int().min(getAdminBookingManagementLinkResponseVersionMin),
+  "canIssue": zod.boolean(),
+  "canRevoke": zod.boolean(),
+  "reason": zod.string().nullable()
+})
+
+
+export const changeAdminBookingManagementLinkPathBookingIdMax = 200;
+
+
+
+export const ChangeAdminBookingManagementLinkParams = zod.object({
+  "bookingId": zod.coerce.string().min(1).max(changeAdminBookingManagementLinkPathBookingIdMax)
+})
+
+export const changeAdminBookingManagementLinkBodyExpectedVersionMin = 0;
+
+
+
+export const ChangeAdminBookingManagementLinkBody = zod.object({
+  "action": zod.enum(['rotate', 'revoke']),
+  "requestId": zod.string().uuid(),
+  "expectedVersion": zod.number().int().min(changeAdminBookingManagementLinkBodyExpectedVersionMin)
+})
+
+export const changeAdminBookingManagementLinkResponseOneVersionMin = 0;
+
+
+
+export const ChangeAdminBookingManagementLinkResponse = zod.object({
+  "status": zod.enum(['not_issued', 'active', 'revoked']),
+  "version": zod.number().int().min(changeAdminBookingManagementLinkResponseOneVersionMin),
+  "canIssue": zod.boolean(),
+  "canRevoke": zod.boolean(),
+  "reason": zod.string().nullable()
+}).and(zod.object({
+  "url": zod.string().nullable()
+}))
+
+
+export const GetAdminBookingPaymentCheckoutsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "bookingId": zod.string(),
+  "campaignId": zod.string(),
+  "campaignName": zod.string(),
+  "stage": zod.string(),
+  "flow": zod.enum(['approved', 'immediate', 'none']),
+  "amountCents": zod.number().int().nullable(),
+  "paidAmountCents": zod.number().int().nullable(),
+  "currency": zod.enum(['EUR']),
+  "expiresAt": zod.coerce.date().nullable(),
+  "serverTime": zod.coerce.date(),
+  "paymentStatus": zod.enum(['not_required', 'unpaid', 'processing', 'paid', 'review']),
+  "method": zod.enum(['paypal', 'manual']).nullable(),
+  "paypalOrderId": zod.string().nullable(),
+  "paypalCaptureId": zod.string().nullable(),
+  "paypalFeeCents": zod.number().int().nullable(),
+  "netCents": zod.number().int().nullable(),
+  "providerStatus": zod.string().nullable(),
+  "emailStatus": zod.string().nullable(),
+  "canResend": zod.boolean(),
+  "resendReason": zod.string().nullable(),
+  "resendAvailableAt": zod.coerce.date().nullable(),
+  "canVerify": zod.boolean(),
+  "payable": zod.boolean(),
+  "payabilityReason": zod.string().nullable(),
+  "customerName": zod.string(),
+  "customerEmail": zod.string(),
+  "shootingStart": zod.coerce.date().nullable(),
+  "shootingEnd": zod.coerce.date().nullable()
+})),
+  "truncated": zod.boolean()
+})
+
+
+export const getAdminBookingPaymentPathBookingIdMax = 200;
+
+
+
+export const GetAdminBookingPaymentParams = zod.object({
+  "bookingId": zod.coerce.string().min(1).max(getAdminBookingPaymentPathBookingIdMax)
+})
+
+export const GetAdminBookingPaymentResponse = zod.object({
+  "bookingId": zod.string(),
+  "campaignId": zod.string(),
+  "campaignName": zod.string(),
+  "stage": zod.string(),
+  "flow": zod.enum(['approved', 'immediate', 'none']),
+  "amountCents": zod.number().int().nullable(),
+  "paidAmountCents": zod.number().int().nullable(),
+  "currency": zod.enum(['EUR']),
+  "expiresAt": zod.coerce.date().nullable(),
+  "serverTime": zod.coerce.date(),
+  "paymentStatus": zod.enum(['not_required', 'unpaid', 'processing', 'paid', 'review']),
+  "method": zod.enum(['paypal', 'manual']).nullable(),
+  "paypalOrderId": zod.string().nullable(),
+  "paypalCaptureId": zod.string().nullable(),
+  "paypalFeeCents": zod.number().int().nullable(),
+  "netCents": zod.number().int().nullable(),
+  "providerStatus": zod.string().nullable(),
+  "emailStatus": zod.string().nullable(),
+  "canResend": zod.boolean(),
+  "resendReason": zod.string().nullable(),
+  "resendAvailableAt": zod.coerce.date().nullable(),
+  "canVerify": zod.boolean(),
+  "payable": zod.boolean(),
+  "payabilityReason": zod.string().nullable(),
+  "customerName": zod.string(),
+  "customerEmail": zod.string(),
+  "shootingStart": zod.coerce.date().nullable(),
+  "shootingEnd": zod.coerce.date().nullable()
+})
+
+
+export const verifyAdminBookingPaymentPathBookingIdMax = 200;
+
+
+
+export const VerifyAdminBookingPaymentParams = zod.object({
+  "bookingId": zod.coerce.string().min(1).max(verifyAdminBookingPaymentPathBookingIdMax)
+})
+
+export const VerifyAdminBookingPaymentResponse = zod.object({
+  "bookingId": zod.string(),
+  "campaignId": zod.string(),
+  "campaignName": zod.string(),
+  "stage": zod.string(),
+  "flow": zod.enum(['approved', 'immediate', 'none']),
+  "amountCents": zod.number().int().nullable(),
+  "paidAmountCents": zod.number().int().nullable(),
+  "currency": zod.enum(['EUR']),
+  "expiresAt": zod.coerce.date().nullable(),
+  "serverTime": zod.coerce.date(),
+  "paymentStatus": zod.enum(['not_required', 'unpaid', 'processing', 'paid', 'review']),
+  "method": zod.enum(['paypal', 'manual']).nullable(),
+  "paypalOrderId": zod.string().nullable(),
+  "paypalCaptureId": zod.string().nullable(),
+  "paypalFeeCents": zod.number().int().nullable(),
+  "netCents": zod.number().int().nullable(),
+  "providerStatus": zod.string().nullable(),
+  "emailStatus": zod.string().nullable(),
+  "canResend": zod.boolean(),
+  "resendReason": zod.string().nullable(),
+  "resendAvailableAt": zod.coerce.date().nullable(),
+  "canVerify": zod.boolean(),
+  "payable": zod.boolean(),
+  "payabilityReason": zod.string().nullable(),
+  "customerName": zod.string(),
+  "customerEmail": zod.string(),
+  "shootingStart": zod.coerce.date().nullable(),
+  "shootingEnd": zod.coerce.date().nullable()
+})
+
+
+export const resendAdminBookingDepositPathBookingIdMax = 200;
+
+
+
+export const ResendAdminBookingDepositParams = zod.object({
+  "bookingId": zod.coerce.string().min(1).max(resendAdminBookingDepositPathBookingIdMax)
+})
+
+export const ResendAdminBookingDepositBody = zod.object({
+  "requestId": zod.string().uuid()
+})
+
+export const ResendAdminBookingDepositResponse = zod.object({
+  "bookingId": zod.string(),
+  "campaignId": zod.string(),
+  "campaignName": zod.string(),
+  "stage": zod.string(),
+  "flow": zod.enum(['approved', 'immediate', 'none']),
+  "amountCents": zod.number().int().nullable(),
+  "paidAmountCents": zod.number().int().nullable(),
+  "currency": zod.enum(['EUR']),
+  "expiresAt": zod.coerce.date().nullable(),
+  "serverTime": zod.coerce.date(),
+  "paymentStatus": zod.enum(['not_required', 'unpaid', 'processing', 'paid', 'review']),
+  "method": zod.enum(['paypal', 'manual']).nullable(),
+  "paypalOrderId": zod.string().nullable(),
+  "paypalCaptureId": zod.string().nullable(),
+  "paypalFeeCents": zod.number().int().nullable(),
+  "netCents": zod.number().int().nullable(),
+  "providerStatus": zod.string().nullable(),
+  "emailStatus": zod.string().nullable(),
+  "canResend": zod.boolean(),
+  "resendReason": zod.string().nullable(),
+  "resendAvailableAt": zod.coerce.date().nullable(),
+  "canVerify": zod.boolean(),
+  "payable": zod.boolean(),
+  "payabilityReason": zod.string().nullable(),
+  "customerName": zod.string(),
+  "customerEmail": zod.string(),
+  "shootingStart": zod.coerce.date().nullable(),
+  "shootingEnd": zod.coerce.date().nullable()
+})
+
+
+export const approveLegacyBookingRequestPathBookingIdMax = 200;
+
+
+
+export const ApproveLegacyBookingRequestParams = zod.object({
+  "bookingId": zod.coerce.string().min(1).max(approveLegacyBookingRequestPathBookingIdMax)
+})
+
+
+
+
+export const ApproveLegacyBookingRequestResponse = zod.object({
+  "success": zod.boolean(),
+  "bookingId": zod.string().optional(),
+  "paymentRequired": zod.boolean().optional(),
+  "stato": zod.enum(['in_attesa_pagamento', 'confermata']).optional(),
+  "amountCents": zod.number().int().min(1).optional(),
+  "currency": zod.enum(['EUR']).optional(),
+  "expiresAt": zod.coerce.date().optional(),
+  "emailStatus": zod.enum(['pending', 'sending', 'sent', 'failed', 'unknown']).optional()
+})
+
+
+export const approveBookingRequestPathBookingIdMax = 200;
+
+
+
+export const ApproveBookingRequestParams = zod.object({
+  "bookingId": zod.coerce.string().min(1).max(approveBookingRequestPathBookingIdMax)
+})
+
+
+
+
+export const ApproveBookingRequestResponse = zod.object({
+  "success": zod.boolean(),
+  "bookingId": zod.string().optional(),
+  "paymentRequired": zod.boolean().optional(),
+  "stato": zod.enum(['in_attesa_pagamento', 'confermata']).optional(),
+  "amountCents": zod.number().int().min(1).optional(),
+  "currency": zod.enum(['EUR']).optional(),
+  "expiresAt": zod.coerce.date().optional(),
+  "emailStatus": zod.enum(['pending', 'sending', 'sent', 'failed', 'unknown']).optional()
+})
+
+
+export const GetBookingPayPalConfigResponse = zod.object({
+  "enabled": zod.boolean(),
+  "clientId": zod.string().nullable(),
+  "environment": zod.enum(['sandbox', 'live']),
+  "currency": zod.enum(['EUR'])
+})
+
+
+/**
+ * @summary Reconcile a receipt without starting a charge
+ */
+export const getBookingDepositStatusPathBookingIdRegExp = new RegExp('^[A-Za-z0-9_-]{1,200}$');
+
+
+export const GetBookingDepositStatusParams = zod.object({
+  "bookingId": zod.coerce.string().regex(getBookingDepositStatusPathBookingIdRegExp)
+})
+
+export const getBookingDepositStatusBodyTokenRegExp = new RegExp('^[a-f0-9]{64}$');
+
+
+export const GetBookingDepositStatusBody = zod.object({
+  "token": zod.string().regex(getBookingDepositStatusBodyTokenRegExp)
+})
+
+
+export const getBookingDepositStatusResponsePaymentPaypalFeeCentsMin = 0;
+
+
+
+export const GetBookingDepositStatusResponse = zod.object({
+  "bookingId": zod.string(),
+  "status": zod.enum(['unpaid', 'processing', 'paid', 'paid_action_required']),
+  "dataShootingInizio": zod.coerce.date(),
+  "dataShootingFine": zod.coerce.date(),
+  "campaignId": zod.string(),
+  "flow": zod.enum(['immediate', 'approved']),
+  "payment": zod.object({
+  "bookingId": zod.string(),
+  "paypalOrderId": zod.string(),
+  "paypalCaptureId": zod.string(),
+  "status": zod.enum(['paid', 'paid_action_required']),
+  "amountCents": zod.number().int().min(1),
+  "currency": zod.enum(['EUR']),
+  "paypalFeeCents": zod.number().int().min(getBookingDepositStatusResponsePaymentPaypalFeeCentsMin).optional(),
+  "duplicate": zod.boolean(),
+  "bookingConfirmed": zod.boolean()
+}).optional()
+})
+
+
+/**
+ * @summary Verify a PayPal deposit and atomically record it once
+ */
+export const captureBookingDepositPathBookingIdRegExp = new RegExp('^[A-Za-z0-9_-]{1,200}$');
+
+
+export const CaptureBookingDepositParams = zod.object({
+  "bookingId": zod.coerce.string().regex(captureBookingDepositPathBookingIdRegExp)
+})
+
+export const captureBookingDepositBodyTokenRegExp = new RegExp('^[a-f0-9]{64}$');
+
+
+export const CaptureBookingDepositBody = zod.object({
+  "token": zod.string().regex(captureBookingDepositBodyTokenRegExp)
+})
+
+
+export const captureBookingDepositResponsePaypalFeeCentsMin = 0;
+
+
+
+export const CaptureBookingDepositResponse = zod.object({
+  "bookingId": zod.string(),
+  "paypalOrderId": zod.string(),
+  "paypalCaptureId": zod.string(),
+  "status": zod.enum(['paid', 'paid_action_required']),
+  "amountCents": zod.number().int().min(1),
+  "currency": zod.enum(['EUR']),
+  "paypalFeeCents": zod.number().int().min(captureBookingDepositResponsePaypalFeeCentsMin).optional(),
+  "duplicate": zod.boolean(),
+  "bookingConfirmed": zod.boolean()
+})
+
+
+/**
+ * @summary Verify PayPal signature before reconciling booking captures
+ */
+export const ReceiveBookingPayPalWebhookBody = zod.record(zod.string(), zod.unknown())
+
+export const ReceiveBookingPayPalWebhookResponse = zod.unknown()
+
+
+/**
+ * @summary Create or resume a PayPal order using an owned checkout and its fixed deposit
+ */
+export const createBookingDepositOrderPathBookingIdRegExp = new RegExp('^[A-Za-z0-9_-]{1,200}$');
+
+
+export const CreateBookingDepositOrderParams = zod.object({
+  "bookingId": zod.coerce.string().regex(createBookingDepositOrderPathBookingIdRegExp)
+})
+
+export const createBookingDepositOrderBodyTokenRegExp = new RegExp('^[a-f0-9]{64}$');
+
+
+export const CreateBookingDepositOrderBody = zod.object({
+  "token": zod.string().regex(createBookingDepositOrderBodyTokenRegExp)
+})
+
+
+
+
+export const CreateBookingDepositOrderResponse = zod.object({
+  "bookingId": zod.string(),
+  "paypalOrderId": zod.string(),
+  "depositAmountCents": zod.number().int().min(1),
+  "currency": zod.enum(['EUR']),
+  "expiresAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Reserve a slot for ten minutes before an immediate deposit checkout
+ */
+export const createBookingCheckoutHoldBodyBookingConditionsVersionMax = 50;
+
+export const createBookingCheckoutHoldBodyCampaignIdMax = 200;
+
+
+export const createBookingCheckoutHoldBodyCampaignIdRegExp = new RegExp('^[^/]+$');
+export const createBookingCheckoutHoldBodyClienteNomeMax = 120;
+
+export const createBookingCheckoutHoldBodyClienteCognomeMax = 120;
+
+export const createBookingCheckoutHoldBodyClienteEmailMax = 254;
+
+export const createBookingCheckoutHoldBodyClienteWhatsappMin = 8;
+export const createBookingCheckoutHoldBodyClienteWhatsappMax = 50;
+
+export const createBookingCheckoutHoldBodyProdottoIdMax = 200;
+
+
+export const createBookingCheckoutHoldBodyProdottoIdRegExp = new RegExp('^[^/]+$');
+export const createBookingCheckoutHoldBodyNoteMax = 4000;
+
+
+
+export const CreateBookingCheckoutHoldBody = zod.object({
+  "bookingConditionsVersion": zod.string().max(createBookingCheckoutHoldBodyBookingConditionsVersionMax).optional(),
+  "campaignId": zod.string().min(1).max(createBookingCheckoutHoldBodyCampaignIdMax).regex(createBookingCheckoutHoldBodyCampaignIdRegExp),
+  "cliente": zod.object({
+  "nome": zod.string().min(1).max(createBookingCheckoutHoldBodyClienteNomeMax),
+  "cognome": zod.string().min(1).max(createBookingCheckoutHoldBodyClienteCognomeMax),
+  "email": zod.string().email().max(createBookingCheckoutHoldBodyClienteEmailMax),
+  "whatsapp": zod.string().min(createBookingCheckoutHoldBodyClienteWhatsappMin).max(createBookingCheckoutHoldBodyClienteWhatsappMax)
+}),
+  "dataShootingInizio": zod.coerce.date(),
+  "dataShootingFine": zod.coerce.date(),
+  "prodottoId": zod.string().min(1).max(createBookingCheckoutHoldBodyProdottoIdMax).regex(createBookingCheckoutHoldBodyProdottoIdRegExp).optional(),
+  "note": zod.string().max(createBookingCheckoutHoldBodyNoteMax).optional()
+})
+
+
+
+
+export const CreateBookingCheckoutHoldResponse = zod.object({
+  "bookingId": zod.string(),
+  "campaignId": zod.string(),
+  "flow": zod.enum(['immediate', 'approved']),
+  "status": zod.enum(['active']),
+  "expiresAt": zod.coerce.date(),
+  "serverTime": zod.coerce.date(),
+  "dataShootingInizio": zod.coerce.date(),
+  "dataShootingFine": zod.coerce.date(),
+  "depositAmountCents": zod.number().int().min(1),
+  "currency": zod.enum(['EUR'])
+}).and(zod.object({
+  "token": zod.string()
+}))
+
+
+/**
+ * @summary Read an active checkout without extending its server deadline
+ */
+export const resumeBookingCheckoutHoldPathBookingIdRegExp = new RegExp('^[A-Za-z0-9_-]{1,200}$');
+
+
+export const ResumeBookingCheckoutHoldParams = zod.object({
+  "bookingId": zod.coerce.string().regex(resumeBookingCheckoutHoldPathBookingIdRegExp)
+})
+
+export const resumeBookingCheckoutHoldBodyTokenRegExp = new RegExp('^[a-f0-9]{64}$');
+
+
+export const ResumeBookingCheckoutHoldBody = zod.object({
+  "token": zod.string().regex(resumeBookingCheckoutHoldBodyTokenRegExp)
+})
+
+
+
+
+export const ResumeBookingCheckoutHoldResponse = zod.object({
+  "bookingId": zod.string(),
+  "campaignId": zod.string(),
+  "flow": zod.enum(['immediate', 'approved']),
+  "status": zod.enum(['active']),
+  "expiresAt": zod.coerce.date(),
+  "serverTime": zod.coerce.date(),
+  "dataShootingInizio": zod.coerce.date(),
+  "dataShootingFine": zod.coerce.date(),
+  "depositAmountCents": zod.number().int().min(1),
+  "currency": zod.enum(['EUR'])
+})
+
+
+/**
+ * @summary Abandon an owned checkout without cancelling a paid booking
+ */
+export const releaseBookingCheckoutHoldPathBookingIdRegExp = new RegExp('^[A-Za-z0-9_-]{1,200}$');
+
+
+export const ReleaseBookingCheckoutHoldParams = zod.object({
+  "bookingId": zod.coerce.string().regex(releaseBookingCheckoutHoldPathBookingIdRegExp)
+})
+
+export const releaseBookingCheckoutHoldBodyTokenRegExp = new RegExp('^[a-f0-9]{64}$');
+
+
+export const ReleaseBookingCheckoutHoldBody = zod.object({
+  "token": zod.string().regex(releaseBookingCheckoutHoldBodyTokenRegExp)
+})
+
+export const ReleaseBookingCheckoutHoldResponse = zod.object({
+  "bookingId": zod.string(),
+  "status": zod.enum(['cancelled', 'expired', 'payment_failed'])
+})
+
+
+/**
+ * @summary Create a catalog product and its private cost atomically
+ */
+export const createAdminCatalogProductBodyPrezzoMin = 0;
+
+export const createAdminCatalogProductBodyScontoMin = 0;
+export const createAdminCatalogProductBodyScontoMax = 100;
+
+export const createAdminCatalogProductBodyNumeroFotoMin = 0;
+
+export const createAdminCatalogProductBodyImmaginiMax = 5;
+
+export const createAdminCatalogProductBodyCostoUnitarioMin = 0;
+
+export const createAdminCatalogProductBodyPesoGrammiMin = 0;
+
+
+export const createAdminCatalogProductBodyBundleItemsItemNumeroFotoMin = 0;
+
+
+
+export const CreateAdminCatalogProductBody = zod.object({
+  "nome": zod.string().optional(),
+  "descrizione": zod.string().optional(),
+  "prezzo": zod.number().min(createAdminCatalogProductBodyPrezzoMin).optional(),
+  "sconto": zod.number().min(createAdminCatalogProductBodyScontoMin).max(createAdminCatalogProductBodyScontoMax).optional(),
+  "numeroFoto": zod.number().int().min(createAdminCatalogProductBodyNumeroFotoMin).optional(),
+  "categoria": zod.string().optional(),
+  "attivo": zod.boolean().optional(),
+  "immagini": zod.array(zod.string()).max(createAdminCatalogProductBodyImmaginiMax).optional(),
+  "costoUnitario": zod.number().min(createAdminCatalogProductBodyCostoUnitarioMin).nullish(),
+  "pesoGrammi": zod.number().int().min(createAdminCatalogProductBodyPesoGrammiMin).optional(),
+  "isBundle": zod.boolean().optional(),
+  "fotoCondivise": zod.boolean().optional(),
+  "prodottoSorgenteFotoId": zod.string().optional(),
+  "bundleItems": zod.array(zod.object({
+  "prodottoId": zod.string(),
+  "prodottoNome": zod.string(),
+  "prodottoCategoria": zod.string().optional(),
+  "quantita": zod.number().int().min(1),
+  "numeroFoto": zod.number().int().min(createAdminCatalogProductBodyBundleItemsItemNumeroFotoMin)
+})).optional()
+}).describe('Fields to save; creation requires name, description, price, discount, photo count, category and active flag. Omitted cost is unchanged, null removes it.')
+
+export const CreateAdminCatalogProductResponse = zod.object({
+  "id": zod.string()
+})
+
+
+/**
+ * @summary Update catalog fields and private cost atomically
+ */
+export const UpdateAdminCatalogProductParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const updateAdminCatalogProductBodyPrezzoMin = 0;
+
+export const updateAdminCatalogProductBodyScontoMin = 0;
+export const updateAdminCatalogProductBodyScontoMax = 100;
+
+export const updateAdminCatalogProductBodyNumeroFotoMin = 0;
+
+export const updateAdminCatalogProductBodyImmaginiMax = 5;
+
+export const updateAdminCatalogProductBodyCostoUnitarioMin = 0;
+
+export const updateAdminCatalogProductBodyPesoGrammiMin = 0;
+
+
+export const updateAdminCatalogProductBodyBundleItemsItemNumeroFotoMin = 0;
+
+
+
+export const UpdateAdminCatalogProductBody = zod.object({
+  "nome": zod.string().optional(),
+  "descrizione": zod.string().optional(),
+  "prezzo": zod.number().min(updateAdminCatalogProductBodyPrezzoMin).optional(),
+  "sconto": zod.number().min(updateAdminCatalogProductBodyScontoMin).max(updateAdminCatalogProductBodyScontoMax).optional(),
+  "numeroFoto": zod.number().int().min(updateAdminCatalogProductBodyNumeroFotoMin).optional(),
+  "categoria": zod.string().optional(),
+  "attivo": zod.boolean().optional(),
+  "immagini": zod.array(zod.string()).max(updateAdminCatalogProductBodyImmaginiMax).optional(),
+  "costoUnitario": zod.number().min(updateAdminCatalogProductBodyCostoUnitarioMin).nullish(),
+  "pesoGrammi": zod.number().int().min(updateAdminCatalogProductBodyPesoGrammiMin).optional(),
+  "isBundle": zod.boolean().optional(),
+  "fotoCondivise": zod.boolean().optional(),
+  "prodottoSorgenteFotoId": zod.string().optional(),
+  "bundleItems": zod.array(zod.object({
+  "prodottoId": zod.string(),
+  "prodottoNome": zod.string(),
+  "prodottoCategoria": zod.string().optional(),
+  "quantita": zod.number().int().min(1),
+  "numeroFoto": zod.number().int().min(updateAdminCatalogProductBodyBundleItemsItemNumeroFotoMin)
+})).optional()
+}).describe('Fields to save; creation requires name, description, price, discount, photo count, category and active flag. Omitted cost is unchanged, null removes it.')
+
+export const UpdateAdminCatalogProductResponse = zod.object({
+  "id": zod.string()
+})
+
+
+/**
+ * @summary Delete an ordinary catalog product and its private cost atomically
+ */
+export const DeleteAdminCatalogProductParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const DeleteAdminCatalogProductResponse = zod.object({
+  "id": zod.string()
+})
+
+
+/**
+ * @summary Reorder ordinary catalog products atomically
+ */
+export const reorderAdminCatalogProductsBodyIdsItemMax = 200;
+
+
+export const reorderAdminCatalogProductsBodyIdsItemRegExp = new RegExp('^[^/]+$');
+export const reorderAdminCatalogProductsBodyIdsMax = 500;
+
+
+
+export const ReorderAdminCatalogProductsBody = zod.object({
+  "ids": zod.array(zod.string().min(1).max(reorderAdminCatalogProductsBodyIdsItemMax).regex(reorderAdminCatalogProductsBodyIdsItemRegExp)).max(reorderAdminCatalogProductsBodyIdsMax)
+})
+
+export const reorderAdminCatalogProductsResponseUpdatedMin = 0;
+
+
+
+export const ReorderAdminCatalogProductsResponse = zod.object({
+  "updated": zod.number().int().min(reorderAdminCatalogProductsResponseUpdatedMin)
+})
+
+
+/**
+ * Admin-only binary image upload for the homepage slider or booking page. Accepts JPEG, PNG, or WebP images up to 5 MB.
+ * @summary Upload a booking campaign cover image
+ */
+export const uploadBookingCampaignImagePathCampaignIdMax = 128;
+
+
+export const uploadBookingCampaignImagePathCampaignIdRegExp = new RegExp('^[A-Za-z0-9_-]+$');
+
+
+export const UploadBookingCampaignImageParams = zod.object({
+  "campaignId": zod.coerce.string().min(1).max(uploadBookingCampaignImagePathCampaignIdMax).regex(uploadBookingCampaignImagePathCampaignIdRegExp).describe('Existing campaign ID, or temp while creating a campaign.'),
+  "imageKind": zod.enum(['slider', 'booking'])
+})
+
+export const UploadBookingCampaignImageResponse = zod.object({
+  "downloadUrl": zod.string().url(),
+  "storagePath": zod.string()
+})
+
+
 /**
  * Admin-only. Returns up to 100 actual sends, newest first; never assigns costs or jobs.
  * @summary Recent confirmed sends to a laboratory

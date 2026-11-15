@@ -12,3 +12,4 @@
 # Historical backup and desktop release binaries are not used by the web deployment.
 .migration-backup
 artifacts/image-studio-desktop/release
+generated-artifacts

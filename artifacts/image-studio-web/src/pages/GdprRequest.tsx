@@ -9,10 +9,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { createUrl } from '@/lib/basePath';
 import { apiRequest } from '@/lib/queryClient';
+import { useSEO } from '@/hooks/useSEO';
 
 type RequestType = 'deletion' | 'export' | null;
 
 export default function GdprRequest() {
+  useSEO({
+    title: 'Richieste GDPR | Image Studio',
+    description: 'Invia una richiesta di accesso, esportazione o cancellazione dei dati personali trattati da Image Studio.',
+    canonical: '/gdpr',
+  });
   const { toast } = useToast();
   const [requestType, setRequestType] = useState<RequestType>(null);
   const [formData, setFormData] = useState({

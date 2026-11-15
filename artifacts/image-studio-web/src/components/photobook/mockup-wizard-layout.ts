@@ -17,6 +17,26 @@ export function installMockupWizard(doc: Document, mobile = false) {
   const controlsSlot = doc.createElement("div");
   controlsSlot.id = "wizard-controls-slot";
 
+  // Telefono: stesso standard di tutti i modelli (public/mockups/phone-ui.css).
+  // Scelte a schermo pieno, 3D in miniatura, un solo pulsante principale.
+  const panel = content.parentElement;
+  let topSlot: HTMLElement | null = null;
+  let phoneLink: HTMLLinkElement | null = null;
+  if (mobile) {
+    doc.body.classList.add("mq-phone");
+    panel?.classList.add("mq-panel");
+    content.classList.add("mq-content");
+    stage.classList.add("mq-stage");
+    topSlot = doc.createElement("div");
+    topSlot.id = "wizard-top-slot";
+    content.before(topSlot);
+    phoneLink = doc.createElement("link");
+    phoneLink.rel = "stylesheet";
+    phoneLink.href = new URL("../phone-ui.css", doc.baseURI).href;
+    phoneLink.dataset.mockupPhoneUi = "true";
+    doc.head.append(phoneLink);
+  }
+
   content.parentElement?.append(actionsSlot);
   stage.append(controlsSlot);
 
@@ -431,6 +451,7 @@ export function installMockupWizard(doc: Document, mobile = false) {
       background-position: center;
     }
 
+    body[data-wizard][data-wizard-single-family="true"] .wizard-family-breadcrumb { display: none !important; }
     /* CAMBIA COLLEZIONE BREADCRUMB */
     body[data-wizard] .wizard-family-breadcrumb {
       display: flex;
@@ -741,6 +762,63 @@ export function installMockupWizard(doc: Document, mobile = false) {
       body[data-wizard-mobile] {
         -webkit-tap-highlight-color: transparent;
       }
+      /* Adattatore allo standard telefono: annulla la divisione verticale 3D/pannello del desktop */
+      body[data-wizard-mobile] .workspace { display: contents !important; }
+      body[data-wizard-mobile] .stage.mq-stage {
+        position: fixed !important;
+        width: var(--mq-pip) !important;
+        height: var(--mq-pip) !important;
+      }
+      body[data-wizard-mobile].mq-3d .stage.mq-stage {
+        position: fixed !important;
+        inset: 0 !important;
+        width: auto !important;
+        height: auto !important;
+        max-width: none !important;
+        max-height: none !important;
+      }
+      body[data-wizard-mobile].mq-final .stage.mq-stage { width: auto !important; height: var(--mq-final-stage) !important; }
+      body[data-wizard-mobile].mq-final.mq-3d .stage.mq-stage {
+        position: fixed !important;
+        inset: 0 !important;
+        width: auto !important;
+        height: auto !important;
+        max-width: none !important;
+        max-height: none !important;
+      }
+      body[data-wizard-mobile] aside.mq-panel {
+        padding: 12px 16px 0 !important;
+        border: 0 !important;
+        background: var(--mq-bg) !important;
+      }
+      body[data-wizard-mobile] .panel-content.mq-content {
+        padding: 0 0 calc(var(--mq-nav) + var(--mq-pip) + 24px) !important;
+      }
+      body[data-wizard-mobile].mq-final .panel-content.mq-content {
+        padding-bottom: calc(var(--mq-nav) + 12px) !important;
+      }
+      body[data-wizard-mobile] #wizard-actions-slot {
+        padding: 0 !important;
+        border: 0 !important;
+        background: none !important;
+      }
+      body[data-wizard-mobile] .wizard-mobile-actions { display: block; }
+      body[data-wizard-mobile] .wizard-step-heading,
+      body[data-wizard-mobile] #wizard-slot h3 { display: none !important; }
+      body[data-wizard-mobile] #wizard-slot { margin: 0; }
+      /* Un passo = una scelta: niente schede interne né titoli di sezione del visualizzatore */
+      body[data-wizard-mobile] [data-detail-tab],
+      body[data-wizard-mobile] .panel-content h2 { display: none !important; }
+      body[data-wizard-mobile] .wizard-help { top: max(12px, env(safe-area-inset-top, 0px)); right: 16px; }
+      body[data-wizard-mobile] .wizard-gesture-guide { top: calc(max(12px, env(safe-area-inset-top, 0px)) + 52px); left: 16px; right: 16px; max-width: none; }
+      body[data-wizard-mobile] .wizard-view-message { top: calc(max(12px, env(safe-area-inset-top, 0px)) + 52px); left: 16px; }
+      body[data-wizard-mobile].mq-final .wizard-help { top: 12px; }
+      body[data-wizard-mobile] #wizard-slot p { color: var(--mq-muted); font-size: 13.5px; }
+      body[data-wizard-mobile] .wizard-cards button,
+      body[data-wizard-mobile] .wizard-family-card { min-height: 56px; border-radius: 14px; }
+      body[data-wizard-mobile] .wizard-photo-actions button {
+        border: 1px solid var(--mq-line); border-radius: 14px; background: #fff; color: var(--mq-ink);
+      }
     `;
     doc.head.append(mobileStyle);
   }
@@ -749,10 +827,19 @@ export function installMockupWizard(doc: Document, mobile = false) {
   const fabricPanel = doc.getElementById("fabricPanel");
   const materialsDiv = doc.getElementById("materials");
   const familyCards: { category: HTMLDetailsElement; button: HTMLButtonElement }[] = [];
-  const syncFamilies = () =>
+  const familyBadges: { category: HTMLDetailsElement; badge: HTMLElement }[] = [];
+  // "11 colori" / "1 colore": il numero reale dei colori disponibili, mai un testo fisso.
+  const updateBadges = () =>
+    familyBadges.forEach(({ category, badge }) => {
+      const count = category.querySelectorAll(".materials button").length;
+      badge.textContent = count ? `${count} ${count === 1 ? "colore" : "colori"} →` : "Scegli →";
+    });
+  const syncFamilies = () => {
     familyCards.forEach(({ category, button }) => {
       button.hidden = category.hidden;
     });
+    updateBadges();
+  };
   const familyObserver = new MutationObserver(syncFamilies);
   let selectedFamily = "";
   let onFamilySelectCallback: ((family: string) => void) | null = null;
@@ -796,6 +883,7 @@ export function installMockupWizard(doc: Document, mobile = false) {
       badge.className = "wizard-family-badge";
       badge.textContent = `${countText || "Scegli"} →`;
       btn.append(info, badge);
+      familyBadges.push({ category: cat, badge });
 
       btn.onclick = () => {
         selectedFamily = familyName;
@@ -1051,6 +1139,12 @@ export function installMockupWizard(doc: Document, mobile = false) {
   }
 
   function refresh() {
+    updateBadges();
+    // Una sola collezione: niente "Cambia tessuto" (non c'è alternativa).
+    const visibleFamilies = familyCards.filter(({ category }) => !category.hidden);
+    doc.body.dataset.wizardSingleFamily = String(visibleFamilies.length <= 1);
+    // Con una sola collezione si salta il passo: i suoi colori devono essere già aperti.
+    if (visibleFamilies.length === 1 && !visibleFamilies[0].category.open) visibleFamilies[0].category.open = true;
     mirrors.forEach(({ select, buttons }) =>
       buttons.forEach((button, index) => {
         button.disabled = select.disabled;
@@ -1096,7 +1190,12 @@ export function installMockupWizard(doc: Document, mobile = false) {
     slot,
     actionsSlot,
     controlsSlot,
+    topSlot,
     refresh,
+    /** Quante collezioni di tessuto sono davvero disponibili (con una sola il passo "tessuto" si salta). */
+    familyCount() {
+      return familyCards.filter(({ category }) => !category.hidden).length;
+    },
     dispose() {
       if (disposed) return;
       disposed = true;
@@ -1107,6 +1206,12 @@ export function installMockupWizard(doc: Document, mobile = false) {
       slot.remove();
       actionsSlot.remove();
       controlsSlot.remove();
+      topSlot?.remove();
+      phoneLink?.remove();
+      doc.body.classList.remove("mq-phone", "mq-3d", "mq-final");
+      panel?.classList.remove("mq-panel");
+      content.classList.remove("mq-content");
+      stage.classList.remove("mq-stage");
       delete doc.body.dataset.wizard;
       delete doc.body.dataset.wizardMobile;
       delete doc.body.dataset.wizardLayout;
@@ -1116,6 +1221,7 @@ export function installMockupWizard(doc: Document, mobile = false) {
       // FIX: chiave allineata al CSS ([data-workspace-expanded])
       delete doc.body.dataset.workspaceExpanded;
       delete doc.body.dataset.wizardReadonly;
+      delete doc.body.dataset.wizardSingleFamily;
     },
     onFamilySelect(callback: (family: string) => void) {
       onFamilySelectCallback = callback;
@@ -1166,8 +1272,14 @@ export function installMockupWizard(doc: Document, mobile = false) {
       refresh();
       content.scrollTop = 0;
     },
+    /** Telefono: apre/chiude il 3D a schermo pieno (la miniatura torna alla scelta). */
+    phone3d(open: boolean) {
+      doc.body.classList.toggle("mq-3d", mobile && open);
+    },
     step(value: number) {
       doc.body.dataset.wizardStep = String(value);
+      doc.body.classList.toggle("mq-final", mobile && value === 9);
+      doc.body.classList.remove("mq-3d");
       const panel = panelForStep[value] || "material";
       doc.body.dataset.wizardPanel = panel;
       selectDetailTab(panel);

@@ -14,6 +14,7 @@ import {
   revokeShipmentFolderPermission,
   shareShipmentFolderWithUser,
   uploadStreamToDriveFolder,
+  findDriveFilesInFolder,
 } from '../google-drive.js';
 import {
   PayPalOrdersClient,
@@ -58,6 +59,7 @@ export const printShopService = new PrintShopService({
     findShipmentFolderByShipmentId,
     deleteDriveFile,
     uploadStreamToDriveFolder,
+    findDriveFilesInFolder,
   },
   mail: {
     async send(to, subject, html, logInfo) {
@@ -150,7 +152,34 @@ const quoteSchema = z.object({
   fulfillment: z.object({
     method: z.enum(['studio_pickup', 'shipping']),
   }).strict().optional(),
+  couponCode: z.string().trim().max(32).optional(),
 }).strict();
+
+const printShopCouponSchema = z.object({
+  code: z.string().trim().min(3).max(32),
+  discountType: z.enum(['percentage', 'fixed', 'fixed_total']),
+  value: z.number().int().positive().max(100_000_000),
+  scope: z.enum(['all', 'selected']),
+  eligibleSkus: z.array(z.string().trim().min(1).max(80)).max(100),
+  minPrintQuantity: z.number().int().min(0).max(100_000).default(0),
+  startsAt: z.iso.datetime({ offset: true }),
+  endsAt: z.iso.datetime({ offset: true }),
+  maxUses: z.number().int().min(1).max(1_000_000).nullable(),
+  active: z.boolean(),
+  showOnPromotionsPage: z.boolean().default(false),
+}).strict().refine(
+  value => value.discountType !== 'percentage' || value.value <= 100,
+  { message: 'La percentuale non può superare il 100%', path: ['value'] },
+).refine(
+  value => value.discountType !== 'fixed_total' || value.minPrintQuantity >= 1,
+  { message: 'Imposta la quantità esatta di stampe del pacchetto', path: ['minPrintQuantity'] },
+).refine(
+  value => Date.parse(value.endsAt) > Date.parse(value.startsAt),
+  { message: 'La scadenza deve essere successiva all’inizio', path: ['endsAt'] },
+).refine(
+  value => value.scope !== 'selected' || value.eligibleSkus.length > 0,
+  { message: 'Seleziona almeno un formato', path: ['eligibleSkus'] },
+);
 
 const shippingAdminSchema = z.object({
   enabled: z.boolean(),
@@ -178,6 +207,13 @@ const paypalCreateSchema = z.object({
   personalizedProductionAccepted: z.literal(true),
   expectedQuoteFingerprint: z.string().regex(/^[a-f0-9]{64}$/i),
   expectedTotalCents: z.number().int().positive(),
+}).strict();
+const zeroTotalOrderSchema = z.object({
+  termsAccepted: z.literal(true),
+  privacyAccepted: z.literal(true),
+  personalizedProductionAccepted: z.literal(true),
+  expectedQuoteFingerprint: z.string().regex(/^[a-f0-9]{64}$/i),
+  expectedTotalCents: z.literal(0),
 }).strict();
 const paypalCaptureSchema = z.object({
   paypalOrderId: z.string().trim().min(8).max(80).optional(),
@@ -264,6 +300,26 @@ const catalogAdminUpdateSchema = z.object({
   printSpec: printSpecAdminSchema,
 }).strict();
 
+const catalogUnitCostSchema = z.object({
+  unitCostCents: z.number().int().min(0).max(100_000_000).nullable(),
+}).strict();
+
+const couponGraphicQuerySchema = z.object({
+  templateId: z.enum(['contact-sheet', 'darkroom', 'gallery-label', 'field-notes']),
+  placementId: z.enum([
+    'instagram-organic-34',
+    'instagram-organic-square',
+    'meta-feed-45',
+    'meta-feed-square',
+    'stories-reels',
+    'whatsapp-status',
+    'whatsapp-channel-square',
+    'whatsapp-channel-45',
+  ]),
+  width: z.coerce.number().int().positive().max(2_000),
+  height: z.coerce.number().int().positive().max(2_000),
+}).strict();
+
 export function createPrintShopRouter(
   overrides: Partial<RouterDependencies> = {},
 ): express.Router {
@@ -300,6 +356,10 @@ export function createPrintShopRouter(
 
   router.get('/catalog', route(async (_req, res) => {
     res.json(await deps.service.publicCatalog());
+  }));
+
+  router.get('/promotions', route(async (_req, res) => {
+    res.json({ promotions: await deps.service.publicPrintShopPromotions() });
   }));
 
   router.get('/paypal/config', (_req, res) => {
@@ -443,6 +503,11 @@ export function createPrintShopRouter(
     res.json(await deps.service.createPaypalOrder(identity(req), req.params.orderId, input));
   }));
 
+  router.post('/orders/:orderId/free/complete', auth, customer, paymentLimiter, route(async (req: any, res) => {
+    const input = zeroTotalOrderSchema.parse(req.body);
+    res.json(await deps.service.completeZeroTotalOrder(identity(req), req.params.orderId, input));
+  }));
+
   router.post('/orders/:orderId/paypal/capture', auth, customer, paymentLimiter, route(async (req: any, res) => {
     const input = paypalCaptureSchema.parse(req.body || {});
     res.json(await deps.service.capturePaypalOrder(identity(req), req.params.orderId, input));
@@ -482,6 +547,25 @@ export function createPrintShopRouter(
     });
   }));
 
+  router.get('/admin/catalog/:sku/cost', auth, admin, route(async (req, res) => {
+    res.json({ cost: await deps.service.adminCatalogUnitCost(req.params.sku) });
+  }));
+
+  router.patch('/admin/catalog/:sku/cost', auth, admin, route(async (req: any, res) => {
+    const input = catalogUnitCostSchema.parse(req.body);
+    res.json({
+      cost: await deps.service.updateAdminCatalogUnitCost(
+        req.params.sku,
+        input.unitCostCents,
+        req.user.email,
+      ),
+    });
+  }));
+
+  router.get('/admin/financial-report', auth, admin, route(async (_req, res) => {
+    res.json({ orders: await deps.service.adminPrintShopFinancialReport() });
+  }));
+
   router.get('/admin/shipping', auth, admin, route(async (_req, res) => {
     res.json({ shipping: await deps.service.shippingConfiguration() });
   }));
@@ -492,6 +576,47 @@ export function createPrintShopRouter(
       shipping: await deps.service.updateShippingConfiguration(input, req.user.email),
     });
   }));
+
+  router.get('/admin/coupons', auth, admin, route(async (_req, res) => {
+    res.json({ coupons: await deps.service.adminPrintShopCoupons() });
+  }));
+
+  router.post('/admin/coupons', auth, admin, route(async (req: any, res) => {
+    const input = printShopCouponSchema.parse(req.body);
+    res.status(201).json({
+      coupon: await deps.service.saveAdminPrintShopCoupon(input, req.user.email),
+    });
+  }));
+
+  router.patch('/admin/coupons/:couponId', auth, admin, route(async (req: any, res) => {
+    const input = printShopCouponSchema.parse(req.body);
+    res.json({
+      coupon: await deps.service.saveAdminPrintShopCoupon(
+        input,
+        req.user.email,
+        req.params.couponId,
+      ),
+    });
+  }));
+
+  router.post(
+    '/admin/coupons/:couponId/graphic',
+    auth,
+    admin,
+    express.raw({ type: 'image/jpeg', limit: '4mb' }),
+    route(async (req: any, res) => {
+      const metadata = couponGraphicQuerySchema.parse(req.query);
+      if (req.get('content-type')?.split(';')[0].trim().toLowerCase() !== 'image/jpeg' || !Buffer.isBuffer(req.body)) {
+        throw new PrintShopHttpError(415, 'invalid_coupon_graphic_type', 'Carica una grafica JPEG valida');
+      }
+      const graphic = await deps.service.saveAdminCouponGraphic(
+        req.params.couponId,
+        { ...metadata, image: req.body },
+        req.user.email,
+      );
+      res.json({ graphic });
+    }),
+  );
 
   router.get('/admin/retention/config', auth, admin, route(async (_req, res) => {
     res.json(await deps.service.retentionConfiguration());
@@ -650,7 +775,11 @@ export function createPrintShopRouter(
       input,
       req.user.email,
     );
-    if (shipment.transfer?.status !== 'completed') {
+    const transferStatus = shipment.transfer?.status;
+    const isFirstTransfer = !shipment.reused && transferStatus !== 'completed';
+    const isRetryableReusedTransfer = shipment.reused &&
+      (transferStatus === 'failed' || transferStatus === 'partial');
+    if (isFirstTransfer || isRetryableReusedTransfer) {
       deps.scheduleBackground(() => deps.service.transferLabShipment(shipment.id));
     }
     res.status(202).json({
@@ -662,8 +791,20 @@ export function createPrintShopRouter(
 
   router.post('/admin/orders/:orderId/lab-shipments/:shipmentId/transfer', auth, admin, route(async (req, res) => {
     const shipments = await deps.service.listLabShipments(req.params.orderId);
-    if (!shipments.some(shipment => shipment.id === req.params.shipmentId)) {
+    const shipment = shipments.find((entry: any) => entry.id === req.params.shipmentId);
+    if (!shipment) {
       throw new PrintShopHttpError(404, 'shipment_not_found', 'Spedizione non trovata');
+    }
+    const status = shipment.transfer?.status;
+    if (status === 'running' || status === 'pending') {
+      throw new PrintShopHttpError(409, 'transfer_running', 'Il trasferimento è già in attesa o in corso');
+    }
+    if (status === 'completed') {
+      res.json({ shipmentId: req.params.shipmentId, status: 'completed' });
+      return;
+    }
+    if (status !== 'failed' && status !== 'partial') {
+      throw new PrintShopHttpError(409, 'transfer_not_retryable', 'Questo trasferimento non può essere ripetuto nello stato attuale');
     }
     deps.scheduleBackground(() => deps.service.transferLabShipment(req.params.shipmentId));
     res.status(202).json({ shipmentId: req.params.shipmentId, status: 'queued' });

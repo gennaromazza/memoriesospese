@@ -5,6 +5,606 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface BookingCancellationInput {
+  /** @pattern ^[a-f0-9]{64}$ */
+  token: string;
+  requestId: string;
+  expectedStartsAt: string;
+}
+
+export type BookingCancellationViewStatus = typeof BookingCancellationViewStatus[keyof typeof BookingCancellationViewStatus];
+
+
+export const BookingCancellationViewStatus = {
+  available: 'available',
+  unavailable: 'unavailable',
+  pending: 'pending',
+  complete: 'complete',
+  blocked: 'blocked',
+} as const;
+
+export interface BookingCancellationView {
+  canCancel: boolean;
+  /** @nullable */
+  reason: string | null;
+  /** @nullable */
+  conditions: string | null;
+  status: BookingCancellationViewStatus;
+  refundStatus: string;
+  /** @nullable */
+  notificationStatus: string | null;
+}
+
+export type AdminBookingCancellationInputAction = typeof AdminBookingCancellationInputAction[keyof typeof AdminBookingCancellationInputAction];
+
+
+export const AdminBookingCancellationInputAction = {
+  cancel_unpaid: 'cancel_unpaid',
+  cancel_refund: 'cancel_refund',
+  cancel_reschedule: 'cancel_reschedule',
+  retry_cancellation: 'retry_cancellation',
+  refund: 'refund',
+  verify_refund: 'verify_refund',
+  review: 'review',
+} as const;
+
+export interface AdminBookingCancellationInput {
+  action: AdminBookingCancellationInputAction;
+  requestId: string;
+  /** @minimum 0 */
+  expectedAmountCents?: number;
+}
+
+export interface AdminBookingCancellation {
+  bookingId: string;
+  bookingStatus: string;
+  amountCents: number;
+  status: string;
+  refundStatus: string;
+  /** @nullable */
+  notificationStatus: string | null;
+  canCancel: boolean;
+  canRefund: boolean;
+  canVerifyRefund?: boolean;
+  paypalDeposit?: boolean;
+  /** @nullable */
+  reason: string | null;
+  /** @nullable */
+  refundId: string | null;
+}
+
+export interface BookingPayPalWebhookEvent { [key: string]: unknown }
+
+export type BookingPayPalConfigEnvironment = typeof BookingPayPalConfigEnvironment[keyof typeof BookingPayPalConfigEnvironment];
+
+
+export const BookingPayPalConfigEnvironment = {
+  sandbox: 'sandbox',
+  live: 'live',
+} as const;
+
+export type BookingPayPalConfigCurrency = typeof BookingPayPalConfigCurrency[keyof typeof BookingPayPalConfigCurrency];
+
+
+export const BookingPayPalConfigCurrency = {
+  EUR: 'EUR',
+} as const;
+
+export interface BookingPayPalConfig {
+  enabled: boolean;
+  /** @nullable */
+  clientId: string | null;
+  environment: BookingPayPalConfigEnvironment;
+  currency: BookingPayPalConfigCurrency;
+}
+
+export type BookingDepositStatusResultStatus = typeof BookingDepositStatusResultStatus[keyof typeof BookingDepositStatusResultStatus];
+
+
+export const BookingDepositStatusResultStatus = {
+  unpaid: 'unpaid',
+  processing: 'processing',
+  paid: 'paid',
+  paid_action_required: 'paid_action_required',
+} as const;
+
+export type BookingDepositStatusResultFlow = typeof BookingDepositStatusResultFlow[keyof typeof BookingDepositStatusResultFlow];
+
+
+export const BookingDepositStatusResultFlow = {
+  immediate: 'immediate',
+  approved: 'approved',
+} as const;
+
+export type BookingDepositCaptureResultStatus = typeof BookingDepositCaptureResultStatus[keyof typeof BookingDepositCaptureResultStatus];
+
+
+export const BookingDepositCaptureResultStatus = {
+  paid: 'paid',
+  paid_action_required: 'paid_action_required',
+} as const;
+
+export type BookingDepositCaptureResultCurrency = typeof BookingDepositCaptureResultCurrency[keyof typeof BookingDepositCaptureResultCurrency];
+
+
+export const BookingDepositCaptureResultCurrency = {
+  EUR: 'EUR',
+} as const;
+
+export interface BookingDepositCaptureResult {
+  bookingId: string;
+  paypalOrderId: string;
+  paypalCaptureId: string;
+  status: BookingDepositCaptureResultStatus;
+  /** @minimum 1 */
+  amountCents: number;
+  currency: BookingDepositCaptureResultCurrency;
+  /** @minimum 0 */
+  paypalFeeCents?: number;
+  duplicate: boolean;
+  bookingConfirmed: boolean;
+}
+
+export interface BookingDepositStatusResult {
+  bookingId: string;
+  status: BookingDepositStatusResultStatus;
+  dataShootingInizio: string;
+  dataShootingFine: string;
+  campaignId: string;
+  flow: BookingDepositStatusResultFlow;
+  payment?: BookingDepositCaptureResult;
+}
+
+export type BookingApprovalResultStato = typeof BookingApprovalResultStato[keyof typeof BookingApprovalResultStato];
+
+
+export const BookingApprovalResultStato = {
+  in_attesa_pagamento: 'in_attesa_pagamento',
+  confermata: 'confermata',
+} as const;
+
+export type BookingApprovalResultCurrency = typeof BookingApprovalResultCurrency[keyof typeof BookingApprovalResultCurrency];
+
+
+export const BookingApprovalResultCurrency = {
+  EUR: 'EUR',
+} as const;
+
+export type BookingApprovalResultEmailStatus = typeof BookingApprovalResultEmailStatus[keyof typeof BookingApprovalResultEmailStatus];
+
+
+export const BookingApprovalResultEmailStatus = {
+  pending: 'pending',
+  sending: 'sending',
+  sent: 'sent',
+  failed: 'failed',
+  unknown: 'unknown',
+} as const;
+
+export interface BookingApprovalResult {
+  success: boolean;
+  bookingId?: string;
+  paymentRequired?: boolean;
+  stato?: BookingApprovalResultStato;
+  /** @minimum 1 */
+  amountCents?: number;
+  currency?: BookingApprovalResultCurrency;
+  expiresAt?: string;
+  emailStatus?: BookingApprovalResultEmailStatus;
+}
+
+export interface BookingApprovalError {
+  error: string;
+  code?: string;
+}
+
+export interface BookingDepositResendInput {
+  requestId: string;
+}
+
+export interface BookingManagementAccessInput {
+  /** @pattern ^[a-f0-9]{64}$ */
+  token: string;
+}
+
+export interface BookingRescheduleSlotsInput {
+  /** @pattern ^[a-f0-9]{64}$ */
+  token: string;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  date: string;
+}
+
+export interface BookingRescheduleInput {
+  /** @pattern ^[a-f0-9]{64}$ */
+  token: string;
+  requestId: string;
+  expectedStartsAt: string;
+  startsAt: string;
+  endsAt: string;
+}
+
+export interface BookingRescheduleSlot {
+  startsAt: string;
+  endsAt: string;
+  label: string;
+}
+
+export interface BookingRescheduleSlots {
+  slots: BookingRescheduleSlot[];
+}
+
+export type BookingRescheduleViewStatus = typeof BookingRescheduleViewStatus[keyof typeof BookingRescheduleViewStatus];
+
+
+export const BookingRescheduleViewStatus = {
+  available: 'available',
+  unavailable: 'unavailable',
+  pending: 'pending',
+  changed: 'changed',
+  blocked: 'blocked',
+} as const;
+
+/**
+ * @nullable
+ */
+export type BookingRescheduleViewNotificationStatus = typeof BookingRescheduleViewNotificationStatus[keyof typeof BookingRescheduleViewNotificationStatus] | null;
+
+
+export const BookingRescheduleViewNotificationStatus = {
+  pending: 'pending',
+  preparing: 'preparing',
+  sending: 'sending',
+  sent: 'sent',
+  failed: 'failed',
+  unknown: 'unknown',
+  skipped: 'skipped',
+} as const;
+
+export interface BookingRescheduleView {
+  canChange: boolean;
+  status: BookingRescheduleViewStatus;
+  /** @nullable */
+  reason: string | null;
+  /** @nullable */
+  firstDate: string | null;
+  /** @nullable */
+  lastDate: string | null;
+  /** @nullable */
+  notificationStatus: BookingRescheduleViewNotificationStatus;
+  /** @nullable */
+  targetStartsAt: string | null;
+  /** @nullable */
+  targetEndsAt: string | null;
+}
+
+export type BookingManagementViewStatus = typeof BookingManagementViewStatus[keyof typeof BookingManagementViewStatus];
+
+
+export const BookingManagementViewStatus = {
+  confirmed: 'confirmed',
+  completed: 'completed',
+  cancelled: 'cancelled',
+  cancellation_pending: 'cancellation_pending',
+} as const;
+
+export type BookingManagementViewStudio = {
+  /** @nullable */
+  name: string | null;
+  /** @nullable */
+  email: string | null;
+  /** @nullable */
+  phone: string | null;
+  /** @nullable */
+  address: string | null;
+};
+
+export interface BookingManagementView {
+  success: boolean;
+  bookingId: string;
+  status: BookingManagementViewStatus;
+  /** @nullable */
+  campaignName: string | null;
+  /** @nullable */
+  startsAt: string | null;
+  /** @nullable */
+  endsAt: string | null;
+  /** @nullable */
+  customerName: string | null;
+  /** @nullable */
+  productName: string | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  depositPaidCents: number | null;
+  reschedule: BookingRescheduleView;
+  cancellation: BookingCancellationView;
+  studio: BookingManagementViewStudio;
+}
+
+export type BookingManagementChangeInputAction = typeof BookingManagementChangeInputAction[keyof typeof BookingManagementChangeInputAction];
+
+
+export const BookingManagementChangeInputAction = {
+  rotate: 'rotate',
+  revoke: 'revoke',
+} as const;
+
+export interface BookingManagementChangeInput {
+  action: BookingManagementChangeInputAction;
+  requestId: string;
+  /** @minimum 0 */
+  expectedVersion: number;
+}
+
+export type AdminBookingManagementLinkStatus = typeof AdminBookingManagementLinkStatus[keyof typeof AdminBookingManagementLinkStatus];
+
+
+export const AdminBookingManagementLinkStatus = {
+  not_issued: 'not_issued',
+  active: 'active',
+  revoked: 'revoked',
+} as const;
+
+export interface AdminBookingManagementLink {
+  status: AdminBookingManagementLinkStatus;
+  /** @minimum 0 */
+  version: number;
+  canIssue: boolean;
+  canRevoke: boolean;
+  /** @nullable */
+  reason: string | null;
+}
+
+export type AdminBookingPaymentFlow = typeof AdminBookingPaymentFlow[keyof typeof AdminBookingPaymentFlow];
+
+
+export const AdminBookingPaymentFlow = {
+  approved: 'approved',
+  immediate: 'immediate',
+  none: 'none',
+} as const;
+
+export type AdminBookingPaymentCurrency = typeof AdminBookingPaymentCurrency[keyof typeof AdminBookingPaymentCurrency];
+
+
+export const AdminBookingPaymentCurrency = {
+  EUR: 'EUR',
+} as const;
+
+export type AdminBookingPaymentPaymentStatus = typeof AdminBookingPaymentPaymentStatus[keyof typeof AdminBookingPaymentPaymentStatus];
+
+
+export const AdminBookingPaymentPaymentStatus = {
+  not_required: 'not_required',
+  unpaid: 'unpaid',
+  processing: 'processing',
+  paid: 'paid',
+  review: 'review',
+} as const;
+
+export type AdminBookingPaymentMethod = typeof AdminBookingPaymentMethod[keyof typeof AdminBookingPaymentMethod] | null;
+
+
+export const AdminBookingPaymentMethod = {
+  paypal: 'paypal',
+  manual: 'manual',
+} as const;
+
+export interface AdminBookingPayment {
+  bookingId: string;
+  campaignId: string;
+  campaignName: string;
+  stage: string;
+  flow: AdminBookingPaymentFlow;
+  amountCents: number | null;
+  paidAmountCents: number | null;
+  currency: AdminBookingPaymentCurrency;
+  expiresAt: string | null;
+  serverTime: string;
+  paymentStatus: AdminBookingPaymentPaymentStatus;
+  method: AdminBookingPaymentMethod;
+  paypalOrderId: string | null;
+  paypalCaptureId: string | null;
+  paypalFeeCents: number | null;
+  netCents: number | null;
+  providerStatus: string | null;
+  emailStatus: string | null;
+  canResend: boolean;
+  resendReason: string | null;
+  resendAvailableAt: string | null;
+  canVerify: boolean;
+  payable: boolean;
+  payabilityReason: string | null;
+  customerName: string;
+  customerEmail: string;
+  shootingStart: string | null;
+  shootingEnd: string | null;
+}
+
+export type BookingDepositPayPalOrderCurrency = typeof BookingDepositPayPalOrderCurrency[keyof typeof BookingDepositPayPalOrderCurrency];
+
+
+export const BookingDepositPayPalOrderCurrency = {
+  EUR: 'EUR',
+} as const;
+
+export interface BookingDepositPayPalOrder {
+  bookingId: string;
+  paypalOrderId: string;
+  /** @minimum 1 */
+  depositAmountCents: number;
+  currency: BookingDepositPayPalOrderCurrency;
+  expiresAt: string;
+}
+
+export interface BookingCheckoutCustomer {
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  nome: string;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  cognome: string;
+  /** @maxLength 254 */
+  email: string;
+  /**
+     * @minLength 8
+     * @maxLength 50
+     */
+  whatsapp: string;
+}
+
+export interface BookingCheckoutHoldInput {
+  /** @maxLength 50 */
+  bookingConditionsVersion?: string;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     * @pattern ^[^/]+$
+     */
+  campaignId: string;
+  cliente: BookingCheckoutCustomer;
+  dataShootingInizio: string;
+  dataShootingFine: string;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     * @pattern ^[^/]+$
+     */
+  prodottoId?: string;
+  /** @maxLength 4000 */
+  note?: string;
+}
+
+export interface BookingCheckoutCredentials {
+  /** @pattern ^[a-f0-9]{64}$ */
+  token: string;
+}
+
+export type BookingCheckoutHoldViewFlow = typeof BookingCheckoutHoldViewFlow[keyof typeof BookingCheckoutHoldViewFlow];
+
+
+export const BookingCheckoutHoldViewFlow = {
+  immediate: 'immediate',
+  approved: 'approved',
+} as const;
+
+export type BookingCheckoutHoldViewStatus = typeof BookingCheckoutHoldViewStatus[keyof typeof BookingCheckoutHoldViewStatus];
+
+
+export const BookingCheckoutHoldViewStatus = {
+  active: 'active',
+} as const;
+
+export type BookingCheckoutHoldViewCurrency = typeof BookingCheckoutHoldViewCurrency[keyof typeof BookingCheckoutHoldViewCurrency];
+
+
+export const BookingCheckoutHoldViewCurrency = {
+  EUR: 'EUR',
+} as const;
+
+export interface BookingCheckoutHoldView {
+  bookingId: string;
+  campaignId: string;
+  flow: BookingCheckoutHoldViewFlow;
+  status: BookingCheckoutHoldViewStatus;
+  expiresAt: string;
+  serverTime: string;
+  dataShootingInizio: string;
+  dataShootingFine: string;
+  /** @minimum 1 */
+  depositAmountCents: number;
+  currency: BookingCheckoutHoldViewCurrency;
+}
+
+export type BookingCheckoutHoldCreated = BookingCheckoutHoldView & {
+  token: string;
+};
+
+export type BookingCheckoutHoldReleaseResultStatus = typeof BookingCheckoutHoldReleaseResultStatus[keyof typeof BookingCheckoutHoldReleaseResultStatus];
+
+
+export const BookingCheckoutHoldReleaseResultStatus = {
+  cancelled: 'cancelled',
+  expired: 'expired',
+  payment_failed: 'payment_failed',
+} as const;
+
+export interface BookingCheckoutHoldReleaseResult {
+  bookingId: string;
+  status: BookingCheckoutHoldReleaseResultStatus;
+}
+
+export interface AdminCatalogProductResult {
+  id: string;
+}
+
+export interface AdminCatalogProductReorder {
+  /**
+     * @maxItems 500
+     * @items.minLength 1
+     * @items.maxLength 200
+     * @items.pattern ^[^/]+$
+     */
+  ids: string[];
+}
+
+export interface AdminCatalogProductReorderResult {
+  /** @minimum 0 */
+  updated: number;
+}
+
+export interface AdminCatalogBundleItem {
+  prodottoId: string;
+  prodottoNome: string;
+  prodottoCategoria?: string;
+  /** @minimum 1 */
+  quantita: number;
+  /** @minimum 0 */
+  numeroFoto: number;
+}
+
+/**
+ * Fields to save; creation requires name, description, price, discount, photo count, category and active flag. Omitted cost is unchanged, null removes it.
+ */
+export interface AdminCatalogProductInput {
+  nome?: string;
+  descrizione?: string;
+  /** @minimum 0 */
+  prezzo?: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  sconto?: number;
+  /** @minimum 0 */
+  numeroFoto?: number;
+  categoria?: string;
+  attivo?: boolean;
+  /** @maxItems 5 */
+  immagini?: string[];
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  costoUnitario?: number | null;
+  /** @minimum 0 */
+  pesoGrammi?: number;
+  isBundle?: boolean;
+  fotoCondivise?: boolean;
+  prodottoSorgenteFotoId?: string;
+  bundleItems?: AdminCatalogBundleItem[];
+}
+
+export interface CampaignImageUploadResult {
+  downloadUrl: string;
+  storagePath: string;
+}
+
 export type RecentLabShipmentSourceType = typeof RecentLabShipmentSourceType[keyof typeof RecentLabShipmentSourceType];
 
 
@@ -53,6 +653,16 @@ export interface CustomerOrderNotificationResendResult {
   sent: boolean;
   skipped: boolean;
 }
+
+export type ChangeAdminBookingManagementLink200 = AdminBookingManagementLink & ({
+  /** @nullable */
+  url: string | null;
+});
+
+export type GetAdminBookingPaymentCheckouts200 = {
+  items: AdminBookingPayment[];
+  truncated: boolean;
+};
 
 export type GetRecentLabShipmentsParams = {
 /**

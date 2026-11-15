@@ -18,6 +18,7 @@ vi.mock('wouter', async () => {
 vi.mock('@/hooks/useSEO', () => ({ useSEO: () => undefined }));
 vi.mock('@/components/gift-cards/GiftCardArt', () => ({ GiftCardAmbient: () => null }));
 vi.mock('@/features/shop/shop-api', () => ({ shopApi: { getCatalog: vi.fn() } }));
+vi.mock('@/hooks/usePrintShopAvailable', () => ({ usePrintShopAvailable: () => true }));
 
 const product = (patch: Partial<ShopProductDto> = {}): ShopProductDto => ({
   id: 'p1',
@@ -66,6 +67,10 @@ describe('uscite verso il sito', () => {
       const html = renderPage(data);
       expect(html).toContain('Navigazione dello shop');
       expect(html).toMatch(/<a [^>]*href="\/"[^>]*>.*?Torna al sito/s);
+    expect(html).toContain('Stampale nel formato che preferisci');
+      expect(html).toContain('href="/stampa-foto-aversa"');
+      expect(html).toContain('Carica i tuoi scatti, scegli formato e finitura e ordinali online.');
+      expect(html).toContain('Vedi formati e prezzi');
     }
   });
 
@@ -80,6 +85,7 @@ describe('uscite verso il sito', () => {
     const open = renderToStaticMarkup(<ShopTopBar cartCount={3} showCart showOrders />);
     expect(open).toContain('href="/online-shop/ordine"');
     expect(open).toContain('Vai al carrello: 3 prodotti');
+    expect(open).toMatch(/<a [^>]*href="\/stampa-foto-aversa"[^>]*>Stampe fotografiche<\/a>/);
     expect(open).toContain('I miei ordini');
     const empty = renderToStaticMarkup(<ShopTopBar cartCount={0} showCart showOrders={false} />);
     expect(empty).toContain('Vai al carrello: vuoto');
@@ -87,6 +93,8 @@ describe('uscite verso il sito', () => {
     const closed = renderToStaticMarkup(<ShopTopBar cartCount={0} showCart={false} showOrders />);
     expect(closed).not.toContain('/online-shop/ordine');
     expect(closed).toContain('Torna al sito');
+    const unavailable = renderToStaticMarkup(<ShopTopBar cartCount={0} showCart={false} showOrders={false} showPrintShop={false} />);
+    expect(unavailable).not.toContain('/stampa-foto-aversa');
   });
 
   it('c\'è un collegamento per saltare ai prodotti, solo se ci sono', () => {
@@ -193,12 +201,12 @@ describe('altre migliorie della vetrina', () => {
 });
 
 describe('collegamento alle gift card', () => {
-  it('il pulsante che porta a /regala si chiama "Gift card", non "Idee regalo"', () => {
+  it('spiega cosa si può regalare e porta alla pagina delle gift card', () => {
     const html = renderPage(catalog());
-    expect(html).toMatch(/<a [^>]*href="\/regala"[^>]*>Gift card<\/a>/);
-    expect(html).toContain('Vedi le gift card');
-    expect(html).not.toContain('>Idee regalo<');
-    expect(html).not.toContain('Vedi le idee regalo');
+    expect(html).toMatch(/<a [^>]*href="\/regala"[^>]*>Scopri le gift card<\/a>/);
+    expect(html).toContain('Vuoi regalare un servizio o un’esperienza?');
+    expect(html).toContain('servizi fotografici, stampe o altre proposte Image Studio');
+    expect(html).toContain('Scegli quella che preferisci e inviala subito o programma la consegna.');
     const bar = renderToStaticMarkup(<ShopTopBar cartCount={0} showCart showOrders />);
     expect(bar).toMatch(/href="\/regala"[^>]*>Gift card</);
   });
@@ -228,10 +236,19 @@ describe('pagine per categoria', () => {
     expect(html).toContain('Tazza rossa');
   });
 
-  it("con una sola categoria non mostra l'elenco né i titoli", () => {
+  it('rende visibile anche una categoria stagionale unica purché abbia prodotti attivi', () => {
     const html = renderPage(catalog());
-    expect(html).not.toContain('Categorie dello shop');
-    expect(html).not.toContain('/online-shop/categoria/');
+    expect(html).toContain('aria-label="Categorie dello shop"');
+    expect(html).toContain('href="/online-shop/categoria/natale"');
+    expect(html).toContain('Natale <span>(1)</span>');
+    expect(renderPage(catalog({ products: [], categories: [] }))).not.toContain('href="/online-shop/categoria/natale"');
+  });
+
+  it('rende navigabile una categoria anche quando è l’unica disponibile', () => {
+    const html = renderPage(catalog());
+    expect(html).toContain('aria-label="Categorie dello shop"');
+    expect(html).toContain('href="/online-shop/categoria/natale"');
+    expect(html).toContain('Natale <span>(1)</span>');
   });
 
   it('la pagina di una categoria mostra solo i suoi prodotti, con titolo e percorso propri', () => {

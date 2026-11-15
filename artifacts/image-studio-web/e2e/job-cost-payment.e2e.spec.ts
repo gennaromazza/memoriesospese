@@ -6,6 +6,9 @@ const authEmulator = "http://127.0.0.1:9099";
 const firestoreEmulator = "http://127.0.0.1:8089";
 const adminEmail = "gennaro.mazzacane@gmail.com";
 const jobId = "e2e-job-cost-payment";
+const advancesJobId = "e2e-job-collaborator-advances";
+const advancesAssignmentId = "e2e-job-collaborator-advances-assignment";
+const advancesCostId = "e2e-job-collaborator-existing-cost";
 const costId = "e2e-job-cost";
 const movementId = "e2e-cash-payment";
 const jobName = "E2E - Abbinamento pagamento";
@@ -34,6 +37,14 @@ type FirestoreRestValue =
   | { nullValue: null }
   | { arrayValue: { values?: FirestoreRestValue[] } }
   | { mapValue: { fields: Record<string, FirestoreRestValue> } };
+
+interface LocalCollaboratorApiState {
+  assignments: Array<Record<string, any>>;
+  assignmentReads: number;
+  paymentWrites: Array<{ assignmentId: string; payload: Record<string, any> }>;
+  paymentRequestCount?: number;
+  failNextPaymentRequests?: number;
+}
 
 function requireLoopback(raw: string, label: string): void {
   const hostname = new URL(raw).hostname.replace(/^\[|\]$/g, "");
@@ -275,6 +286,70 @@ async function seedFixture(idToken: string): Promise<{
   return { job, movement };
 }
 
+async function seedAdvancesFixture(idToken: string): Promise<{
+  job: Record<string, any>;
+  assignment: Record<string, any>;
+}> {
+  const existingCost = {
+    id: advancesCostId,
+    descrizione: "Costi già registrati",
+    importo: 570,
+    tipo: "materiale",
+    data: paymentDate,
+  };
+  const payments = [
+    {
+      id: "e2e-advance-400",
+      tipo: "acconto",
+      importo: 400,
+      data: paymentDate,
+      metodo: "bonifico",
+      note: "Primo acconto",
+    },
+    {
+      id: "e2e-advance-250",
+      tipo: "acconto",
+      importo: 250,
+      data: new Date("2026-10-02T10:00:00.000Z"),
+      metodo: "bonifico",
+      note: "Secondo acconto",
+    },
+  ];
+  const job = {
+    nomeEvento: "E2E - Acconti collaboratore",
+    jobType: "matrimonio",
+    status: "confermato",
+    clientiIds: [],
+    costi: [existingCost],
+    financials: {
+      totalePreventivato: 3000,
+      totaleOrdini: 0,
+      totalePagato: 0,
+      saldoResiduo: 3000,
+    },
+    eventDate: paymentDate,
+    createdAt: paymentDate,
+    updatedAt: paymentDate,
+  };
+  const assignment = {
+    jobId: advancesJobId,
+    collaboratoreId: "e2e-collaborator-advances",
+    ruoloInJob: "fotografo_secondario",
+    compenso: 900,
+    tipoPagamento: "forfait",
+    status: "accepted",
+    isPagato: false,
+    pagamenti: payments,
+    saldoResiduo: 250,
+    dataRichiesta: paymentDate,
+    createdAt: paymentDate,
+    updatedAt: paymentDate,
+  };
+
+  await writeFirestoreDocument(idToken, `jobs/${advancesJobId}`, job);
+  return { job, assignment: { id: advancesAssignmentId, ...assignment } };
+}
+
 async function installLocalRoutes(
   page: Page,
   idToken: string,
@@ -288,6 +363,11 @@ async function installLocalRoutes(
     activationReady: false,
     verifiedUntil: null,
     expectedClaim: null,
+  },
+  localState: LocalCollaboratorApiState = {
+    assignments: [],
+    assignmentReads: 0,
+    paymentWrites: [],
   },
 ): Promise<void> {
   requireLoopback(process.env.JOB_COST_PAYMENT_E2E_BASE_URL || "http://127.0.0.1:4181", "App URL");
@@ -307,7 +387,71 @@ async function installLocalRoutes(
         contentType: "application/json",
         body: JSON.stringify(body),
       });
-    if (route.request().method() !== "GET") {
+    const method = route.request().method();
+    const addPaymentMatch = url.pathname.match(
+      /^\/api\/collaboratori\/assignments\/([^/]+)\/add-payment$/,
+    );
+    if (method === "POST" && addPaymentMatch) {
+      localState.paymentRequestCount = (localState.paymentRequestCount ?? 0) + 1;
+      if ((localState.failNextPaymentRequests ?? 0) > 0) {
+        localState.failNextPaymentRequests = (localState.failNextPaymentRequests ?? 0) - 1;
+        await route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "Errore temporaneo di registrazione." }),
+        });
+        return;
+      }
+
+      const assignmentId = decodeURIComponent(addPaymentMatch[1]);
+      const assignment = localState.assignments.find((item) => item.id === assignmentId);
+      if (!assignment) {
+        await route.fulfill({
+          status: 404,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "Fixture incarico non trovato." }),
+        });
+        return;
+      }
+
+      const payload = route.request().postDataJSON() as {
+        importo: number;
+        tipo: string;
+        metodo: string;
+        note?: string;
+        data: string;
+      };
+      localState.paymentWrites.push({ assignmentId, payload });
+      const paymentDate = new Date(`${payload.data}T12:00:00.000Z`);
+      const payment = {
+        id: `e2e-payment-${localState.paymentWrites.length}`,
+        tipo: payload.tipo,
+        importo: payload.importo,
+        metodo: payload.metodo,
+        ...(payload.note ? { note: payload.note } : {}),
+        data: {
+          _seconds: Math.floor(paymentDate.getTime() / 1000),
+          _nanoseconds: 0,
+        },
+        cashMovementId: `e2e-cash-movement-${localState.paymentWrites.length}`,
+      };
+      const pagamenti = [...(assignment.pagamenti || []), payment];
+      const totalePagato = pagamenti.reduce((sum, item) => sum + item.importo, 0);
+      const saldoResiduo = Math.max(0, assignment.compenso - totalePagato);
+      localState.assignments = localState.assignments.map((item) =>
+        item.id === assignmentId
+          ? {
+              ...item,
+              pagamenti,
+              saldoResiduo,
+              isPagato: assignment.compenso > 0 && saldoResiduo <= 0,
+            }
+          : item,
+      );
+      await json({ success: true });
+      return;
+    }
+    if (method !== "GET") {
       await route.fulfill({
         status: 403,
         contentType: "application/json",
@@ -320,16 +464,28 @@ async function installLocalRoutes(
       await json({ job: { ...job, id: jobId } });
       return;
     }
-    if (url.pathname === `/api/jobs/${jobId}/timeline`) {
+    if (url.pathname === `/api/jobs/${advancesJobId}`) {
+      const job = await readFirestoreDocument(idToken, `jobs/${advancesJobId}`);
+      await json({ job: { ...job, id: advancesJobId } });
+      return;
+    }
+    if (
+      url.pathname === `/api/jobs/${jobId}/timeline`
+      || url.pathname === `/api/jobs/${advancesJobId}/timeline`
+    ) {
       await json({ events: [] });
       return;
     }
-    if (url.pathname === `/api/payment-schedules/job/${jobId}`) {
+    if (url.pathname.startsWith("/api/payment-schedules/job/")) {
       await json([]);
       return;
     }
     if (url.pathname === "/api/admin/security/status") {
       await json(securityStatus);
+      return;
+    }
+    if (url.pathname === "/api/gift-cards/shop") {
+      await json({ types: [] });
       return;
     }
     if (url.pathname === "/api/reminders/status") {
@@ -374,12 +530,20 @@ async function installLocalRoutes(
       ]);
       return;
     }
+    if (url.pathname === "/api/gift-cards/shop") {
+      await json({
+        types: [],
+        paypal: { enabled: false, clientId: null, environment: "sandbox", currency: "EUR" },
+      });
+      return;
+    }
     if (url.pathname === "/api/collaboratori" || url.pathname === "/api/collaboratori/assignments") {
       await json([]);
       return;
     }
     if (url.pathname.startsWith("/api/collaboratori/assignments/job/")) {
-      await json([]);
+      localState.assignmentReads += 1;
+      await json(localState.assignments);
       return;
     }
     if (url.pathname.startsWith("/api/photobooks/mockup-jobs/")) {
@@ -435,11 +599,12 @@ async function installLocalRoutes(
 async function loginAdminSession(
   page: Page,
   securityStatus?: Record<string, unknown>,
+  localState?: LocalCollaboratorApiState,
 ): Promise<{ idToken: string; password: string }> {
   await resetDisposableEmulators();
   const session = await createAdminSession();
   await seedFixture(session.idToken);
-  await installLocalRoutes(page, session.idToken, securityStatus);
+  await installLocalRoutes(page, session.idToken, securityStatus, localState);
 
   await page.goto("/admin");
   const cookieButton = page.getByRole("button", { name: "Solo Necessari" });
@@ -451,12 +616,100 @@ async function loginAdminSession(
   return session;
 }
 
-async function preparePage(page: Page): Promise<{ idToken: string; password: string }> {
-  const session = await loginAdminSession(page);
+async function preparePage(
+  page: Page,
+  localState?: LocalCollaboratorApiState,
+): Promise<{ idToken: string; password: string }> {
+  const session = await loginAdminSession(page, undefined, localState);
   await page.goto(`/admin/jobs/${jobId}`);
   await expect(page.getByTestId(`row-costo-${costId}`)).toContainText(costDescription);
   return session;
 }
+
+test("saved collaborator advances appear as separate costs without mutating payments or compensation", async ({ page }) => {
+  test.setTimeout(120_000);
+  const { idToken } = await loginAdminSession(page);
+  const { assignment } = await seedAdvancesFixture(idToken);
+  const pristineJob = await readFirestoreDocument(idToken, `jobs/${advancesJobId}`);
+  const pristineAssignment = structuredClone(assignment);
+  const unexpectedMutations: string[] = [];
+
+  const asApiTimestamp = (date: Date) => ({
+    _seconds: Math.floor(date.getTime() / 1000),
+    _nanoseconds: (date.getTime() % 1000) * 1_000_000,
+  });
+  await page.route(`**/api/collaboratori/assignments/job/${advancesJobId}`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([{
+        ...assignment,
+        dataRichiesta: asApiTimestamp(assignment.dataRichiesta),
+        createdAt: asApiTimestamp(assignment.createdAt),
+        updatedAt: asApiTimestamp(assignment.updatedAt),
+        pagamenti: assignment.pagamenti.map((payment) => ({
+          ...payment,
+          data: asApiTimestamp(payment.data),
+        })),
+      }]),
+    });
+  });
+
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    const method = request.method();
+    const isRelevantApiWrite = url.pathname.startsWith("/api/collaboratori/assignments")
+      || url.pathname.startsWith("/api/payment-schedules")
+      || (url.pathname === `/api/jobs/${advancesJobId}` && method !== "GET");
+    const isFirestoreDocumentWrite = url.hostname === "127.0.0.1"
+      && url.port === "8089"
+      && method !== "GET"
+      && (url.pathname.endsWith("documents:commit")
+        || url.pathname.endsWith("documents:batchWrite")
+        || (url.pathname.includes("/documents/")
+          && ["PATCH", "PUT", "DELETE"].includes(method)));
+    const firestoreWriteBody = request.postData() || "";
+    const isPaymentOrCompensationWrite = isFirestoreDocumentWrite
+      && (firestoreWriteBody.includes("/documents/jobCollaboratoreAssignments/")
+        || firestoreWriteBody.includes("/documents/paymentSchedules/"));
+    if ((isRelevantApiWrite && method !== "GET") || isPaymentOrCompensationWrite) {
+      unexpectedMutations.push(`${method} ${url.pathname}`);
+    }
+  });
+
+  await page.goto(`/admin/jobs/${advancesJobId}`);
+  await expect(page.getByTestId("card-financial-summary")).toBeVisible();
+  const costDetails = page.getByTestId("job-cost-details");
+  await costDetails.locator(":scope > summary").click();
+
+  const firstPaymentRow = page.getByTestId("row-automatic-collaborator-payment-e2e-advance-400");
+  const secondPaymentRow = page.getByTestId("row-automatic-collaborator-payment-e2e-advance-250");
+  await expect(firstPaymentRow).toContainText("Acconto collaboratore");
+  await expect(firstPaymentRow).toContainText("€400.00");
+  await expect(secondPaymentRow).toContainText("Acconto collaboratore");
+  await expect(secondPaymentRow).toContainText("€250.00");
+  await expect(page.locator('[data-testid^="row-automatic-collaborator-payment-"]')).toHaveCount(2);
+  await expect(page.getByTestId(`row-costo-${advancesCostId}`)).toContainText("€570.00");
+
+  await expect(page.getByTestId("text-job-total-costs")).toHaveText("€1220.00");
+  await expect(page.getByTestId("text-job-margin")).toHaveText("€1780.00");
+  await expect(page.getByTestId("text-job-margin-percentage")).toHaveText("59,3%");
+  expect((await page.getByTestId("text-costi-totali").innerText()).replace(/\D/g, "")).toBe("1220");
+  expect((await page.getByTestId("text-margine").innerText()).replace(/\D/g, "")).toBe("1780");
+  await expect(page.getByTestId("text-margine-percentage")).toContainText("59,3%");
+  await expect(page.getByTestId("text-collaborator-cost-breakdown"))
+    .toContainText(/650\s*€/);
+  await expect(page.getByTestId("text-collaborator-cost-breakdown"))
+    .toContainText("non incluso");
+
+  expect(unexpectedMutations).toEqual([]);
+  expect(await readFirestoreDocument(idToken, `jobs/${advancesJobId}`)).toEqual(pristineJob);
+  expect(assignment).toEqual(pristineAssignment);
+  expect(pristineAssignment).toMatchObject({
+    compenso: assignment.compenso,
+    pagamenti: assignment.pagamenti,
+  });
+});
 
 test("notification bell opens the linked booking, consultation, ecommerce order, and photobook", async ({ page }) => {
   test.setTimeout(120_000);
@@ -697,6 +950,188 @@ test("auth regression: passkey-required Firebase admin remains blocked before da
   await expect(page.getByRole("heading", { name: "Verifica passkey" })).toBeVisible();
   await expect(page.getByTestId("nav-cassa")).toHaveCount(0);
   expect(pageErrors).toEqual([]);
+});
+
+test("customer signature creates one readable admin notification and retries preserve its read state", async ({ page }) => {
+  test.setTimeout(60_000);
+  const { idToken } = await loginAdminSession(page);
+  const quoteId = "e2e-quote-signed-notification";
+  const publicToken = "e2e-quote-signed-notification-token";
+  const notificationDocId = `quote-signed-${quoteId}`;
+  const clientName = "Cliente Firma E2E";
+  const eventName = jobName;
+  const quote = {
+    id: quoteId,
+    jobId,
+    publicToken,
+    type: "fisso",
+    status: "inviato",
+    templateName: "Preventivo di prova",
+    products: [],
+    contractClauses: [],
+    totalAfterDiscount: 450,
+    totaleBase: 450,
+    totalBeforeDiscount: 450,
+  };
+  const jobInfo = { nomeEvento: eventName, eventDate: null, location: "Aversa" };
+  let quoteStatus = "inviato";
+  let postSignatureAttempts = 0;
+  let notificationCreateCount = 0;
+  let signedNotification: Record<string, unknown> | null = null;
+
+  await writeFirestoreDocument(idToken, `quotes/${quoteId}`, quote);
+
+  const browser = page.context().browser();
+  if (!browser) throw new Error("Playwright browser context is unavailable.");
+  const customerContext = await browser.newContext();
+  const customerPage = await customerContext.newPage();
+  const publicQuoteResponse = () => ({
+    success: true,
+    data: {
+      quote: {
+        ...quote,
+        status: quoteStatus,
+        ...(quoteStatus === "firmato"
+          ? { signedAt: new Date().toISOString(), signature: { clientName } }
+          : {}),
+      },
+      jobInfo,
+      clientiInfo: [],
+      appuntamentiClienti: [],
+      jobTypeInfo: null,
+    },
+  });
+
+  await customerPage.route(`**/api/quotes/public/${publicToken}`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(publicQuoteResponse()),
+    });
+  });
+  await customerPage.route(`**/api/quotes/signed/${publicToken}`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          quote: publicQuoteResponse().data.quote,
+          paymentSchedule: null,
+          legacyOrderData: null,
+          jobInfo,
+          clientiInfo: [],
+          appuntamentiClienti: [],
+        },
+      }),
+    });
+  });
+  await customerPage.route(`**/api/quotes/${quoteId}/post-signature`, async (route) => {
+    postSignatureAttempts += 1;
+    quoteStatus = "firmato";
+    if (!signedNotification) {
+      notificationCreateCount += 1;
+      signedNotification = {
+        id: `admin-notification-${notificationDocId}`,
+        adminNotificationId: notificationDocId,
+        type: "quote_signed",
+        title: "Preventivo firmato",
+        description: `${clientName} · ${eventName} (€450.00)`,
+        createdAt: null,
+        isRead: false,
+        resourceId: jobId,
+        deepLink: `/admin/dashboard?tab=lavori&job=${jobId}`,
+      };
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, completedSteps: { adminNotificationSaved: true } }),
+    });
+  });
+  await customerPage.route("https://api.ipify.org/**", async (route) => route.abort());
+
+  try {
+    await customerPage.goto(new URL(`/quote/${publicToken}`, page.url()).toString());
+    const cookieConsentButton = customerPage.getByRole("button", { name: "Solo Necessari" });
+    if (await cookieConsentButton.isVisible().catch(() => false)) {
+      await cookieConsentButton.click();
+    }
+    await expect(customerPage.getByTestId("input-signer-name")).toBeVisible();
+    await customerPage.getByTestId("input-signer-name").fill(clientName);
+    await expect(customerPage.getByTestId("button-submit-signature")).toBeEnabled();
+    await customerPage.getByTestId("button-submit-signature").click();
+    await expect.poll(() => postSignatureAttempts).toBe(1);
+
+    // Reload the signed portal, then explicitly replay the public post-signature
+    // request to cover the same retry path the server must handle idempotently.
+    await customerPage.reload();
+    await expect(customerPage.getByRole("heading", { name: "Contratto Firmato con Successo" })).toBeVisible();
+    expect(postSignatureAttempts).toBe(1);
+
+    await page.goto(new URL("/admin/dashboard", page.url()).toString());
+    await page.route("**/api/jobs/notifications", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          notifications: signedNotification ? [signedNotification] : [],
+        }),
+      });
+    });
+    await page.route(`**/api/jobs/notifications/${notificationDocId}/dismiss`, async (route) => {
+      if (signedNotification) signedNotification.isRead = true;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ success: true }),
+      });
+    });
+    await page.reload();
+    await expect(page.getByTestId("button-notifications")).toBeVisible();
+    await page.getByTestId("button-notifications").click();
+
+    const notificationTestId = `notification-quote_signed-${jobId}`;
+    await expect(page.getByTestId(notificationTestId)).toHaveCount(1);
+    await expect(page.getByTestId(notificationTestId)).toContainText(clientName);
+    await expect(page.getByTestId(notificationTestId)).toContainText(eventName);
+    await expect(page.getByTestId("badge-unread-count")).toHaveText("1");
+
+    await page.getByTestId(notificationTestId).click();
+    await expect(page).toHaveURL(new RegExp(`tab=lavori&job=${jobId}`));
+    await page.goto(new URL("/admin/dashboard", page.url()).toString());
+    await page.reload();
+    await page.getByTestId("button-notifications").click();
+    await expect(page.getByTestId(notificationTestId)).toHaveCount(1);
+    const notificationRow = page.getByTestId(notificationTestId).locator("xpath=..");
+    await notificationRow.getByRole("button").last().click();
+    await expect.poll(() => signedNotification?.isRead).toBe(true);
+    await expect(page.getByTestId("badge-unread-count")).toHaveCount(0);
+
+    const retryStatus = await customerPage.evaluate(async ({ quoteId, publicToken, clientName }) => {
+      const response = await fetch(`/api/quotes/${quoteId}/post-signature`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ publicToken, clientName, totaleSelezionato: 450 }),
+      });
+      return response.status;
+    }, { quoteId, publicToken, clientName });
+
+    expect(retryStatus).toBe(200);
+    expect(postSignatureAttempts).toBe(2);
+    expect(notificationCreateCount).toBe(1);
+    expect(signedNotification?.isRead).toBe(true);
+
+    await page.goto(new URL("/admin/dashboard", page.url()).toString());
+    await page.reload();
+    await page.getByTestId("button-notifications").click();
+    await expect(page.getByTestId(notificationTestId)).toHaveCount(1);
+    await expect(page.getByTestId(notificationTestId)).toContainText(clientName);
+    await expect(page.getByTestId("badge-unread-count")).toHaveCount(0);
+  } finally {
+    await customerContext.close().catch(() => {});
+  }
 });
 
 test("lab drag/drop: resilient multi-file upload, shipment feedback and responsive layout", async ({ page }, testInfo) => {
@@ -1324,4 +1759,122 @@ test("a payment claimed by another cost is rejected without a partial job update
     ...pristineMovement,
     jobCostAssociation: existingAssociation,
   });
+});
+
+test("a failed collaborator advance can be retried without phantom costs or duplicate payments", async ({ page }) => {
+  test.setTimeout(120_000);
+  const assignmentId = "e2e-collaborator-advance";
+  const localState: LocalCollaboratorApiState = {
+    assignments: [
+      {
+        id: assignmentId,
+        jobId,
+        collaboratoreId: "e2e-collaboratore",
+        ruoloInJob: "assistente",
+        status: "pending",
+        compenso: 500,
+        saldoResiduo: 500,
+        isPagato: false,
+        pagamenti: [],
+        prodottiAssegnati: [],
+      },
+    ],
+    assignmentReads: 0,
+    paymentWrites: [],
+    failNextPaymentRequests: 1,
+  };
+  const documentNavigations: string[] = [];
+  page.on("request", (request) => {
+    if (request.isNavigationRequest() && request.resourceType() === "document") {
+      documentNavigations.push(request.url());
+    }
+  });
+
+  await preparePage(page, localState);
+  await expect.poll(() => localState.assignmentReads).toBeGreaterThan(0);
+  await page.getByTestId("job-cost-details").locator("summary").first().click();
+  await expect(page.getByTestId("text-job-total-costs")).toHaveText("€145.50");
+  await expect(page.getByTestId("text-job-margin")).toHaveText("€254.50");
+  await expect(page.getByTestId("text-margine")).toContainText("255");
+
+  await page.getByTestId("collaborator-assignments-details").locator("summary").click();
+  const assignmentRow = page.locator(
+    `[data-testid="job-collaborator-assignment-${assignmentId}"]:visible`,
+  );
+  await expect(assignmentRow).toContainText("€500");
+  const assignmentReadsBeforePayment = localState.assignmentReads;
+  const navigationsBeforePayment = documentNavigations.length;
+  const jobUrlBeforePayment = page.url();
+
+  await page
+    .locator(`[data-testid="button-registra-pagamento-${assignmentId}"]:visible`)
+    .click();
+  await expect(page.getByTestId("text-limite-pagamento")).toHaveText(
+    "Importo massimo registrabile ora: €500.00",
+  );
+  await expect(page.getByTestId("input-importo-pagamento")).toHaveAttribute("max", "500");
+  await page.getByTestId("input-importo-pagamento").fill("100");
+  await page.getByTestId("input-data-pagamento").fill("2026-10-15");
+
+  const paymentResponsePromise = page.waitForResponse((response) => {
+    const request = response.request();
+    return (
+      request.method() === "POST" &&
+      new URL(response.url()).pathname ===
+        `/api/collaboratori/assignments/${assignmentId}/add-payment`
+    );
+  });
+  await page.getByTestId("button-submit-pagamento").click();
+  const failedPaymentResponse = await paymentResponsePromise;
+  expect(failedPaymentResponse.status()).toBe(500);
+  await expect(page.getByText("❌ Errore registrazione pagamento", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("input-importo-pagamento")).toBeVisible();
+  await expect(page.getByTestId("input-importo-pagamento")).toHaveValue("100");
+  await expect(page.getByTestId("input-data-pagamento")).toHaveValue("2026-10-15");
+  await expect(page.getByTestId("row-automatic-collaborator-payment-e2e-payment-1")).toHaveCount(0);
+  await expect(page.getByTestId("text-job-total-costs")).toHaveText("€145.50");
+  await expect(page.getByTestId("text-job-margin")).toHaveText("€254.50");
+  await expect(page.getByTestId("text-margine")).toContainText("255");
+  expect(localState.paymentWrites).toHaveLength(0);
+  expect(localState.assignments[0].pagamenti).toHaveLength(0);
+
+  const assignmentReadsBeforeRetry = localState.assignmentReads;
+  const retryResponsePromise = page.waitForResponse((response) => {
+    const request = response.request();
+    return (
+      request.method() === "POST" &&
+      new URL(response.url()).pathname ===
+        `/api/collaboratori/assignments/${assignmentId}/add-payment`
+    );
+  });
+  await page.getByTestId("button-submit-pagamento").click();
+  const paymentResponse = await retryResponsePromise;
+  expect(paymentResponse.ok()).toBeTruthy();
+  await expect.poll(() => localState.paymentRequestCount).toBe(2);
+  await expect.poll(() => localState.paymentWrites.length).toBe(1);
+  await expect
+    .poll(() => localState.assignmentReads)
+    .toBeGreaterThan(assignmentReadsBeforeRetry);
+
+  const paymentId = "e2e-payment-1";
+  await expect(page.getByTestId(`row-automatic-collaborator-payment-${paymentId}`)).toHaveCount(1);
+  await expect(page.getByTestId("text-job-total-costs")).toHaveText("€245.50");
+  await expect(page.getByTestId("text-job-margin")).toHaveText("€154.50");
+  await expect(page.getByTestId("text-margine")).toContainText("155");
+  await expect(assignmentRow).toContainText("€500");
+  await expect(assignmentRow).toContainText("€400.00");
+  expect(localState.assignments[0].compenso).toBe(500);
+  expect(localState.assignments[0].pagamenti).toHaveLength(1);
+  expect(localState.paymentWrites).toHaveLength(1);
+  expect(localState.paymentWrites[0]).toMatchObject({
+    assignmentId,
+    payload: {
+      importo: 100,
+      tipo: "acconto",
+      metodo: "bonifico",
+      data: "2026-10-15",
+    },
+  });
+  expect(page.url()).toBe(jobUrlBeforePayment);
+  expect(documentNavigations).toHaveLength(navigationsBeforePayment);
 });

@@ -231,7 +231,7 @@ export function useGalleryOrganization(galleryId: string) {
     deleteChapter: useMutation({ mutationFn: (id: string) =>
       fetchApi(`/galleries/${galleryId}/chapters/${id}`, { method: 'DELETE', body: JSON.stringify({ confirm: true }) }), onSuccess: refresh }),
     reorder: mutation<{ chapterIds: string[] }>('/chapters/reorder'),
-    assign: mutation<{ photoIds: string[]; chapterId: string | null }>('/photos/assign'),
+    assign: mutation<{ photoIds: string[]; chapterId: string | null; positionOffset?: number }>('/photos/assign'),
     chapterCover: useMutation({ mutationFn: ({ id, photoId, position }: { id: string; photoId: string | null; position?: { x: number; y: number } }) =>
       fetchApi(`/galleries/${galleryId}/chapters/${id}/cover`, { method: 'POST', body: JSON.stringify({ photoId, position }) }), onSuccess: refresh }),
     galleryCover: mutation<{ kind: 'desktop' | 'mobile'; photoId: string | null; position: { x: number; y: number } }>('/cover', 'PATCH'),

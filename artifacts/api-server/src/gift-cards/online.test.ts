@@ -129,13 +129,17 @@ async function seedType(service: GiftCardService, extra: Record<string, unknown>
 describe('vetrina online', () => {
   it('mostra solo i tipi vendibili online e la configurazione PayPal', async () => {
     const { service, online } = setup();
-    const ok = await seedType(service);
+    const ok = await seedType(service, { visualStyle: 'cornice' });
     await seedType(service, { name: 'Solo studio', sellOnline: false });
     await seedType(service, { name: 'Nascosta', active: false });
     await seedType(service, { name: 'Chiusa', sellUntil: '2026-11-01' });
     const shop = await online.shop();
     expect(shop.types.map(type => type.id)).toEqual([ok.id]);
-    expect(shop.types[0]).toMatchObject({ priceCents: 3000, validUntil: '2026-12-31T22:59:59.999Z' });
+    expect(shop.types[0]).toMatchObject({
+      priceCents: 3000,
+      validUntil: '2026-12-31T22:59:59.999Z',
+      visualStyle: 'cornice',
+    });
     expect(shop.paypal).toEqual({ enabled: true, clientId: 'client123', environment: 'sandbox', currency: 'EUR' });
     expect(JSON.stringify(shop)).not.toContain('admin@studio.test');
   });
@@ -504,5 +508,59 @@ describe('vetrina con i prodotti del catalogo', () => {
       { productId: 'p1', quantity: 1, name: 'Foto di Natale', description: 'Nel set', imageUrls: ['https://img.test/a.jpg'] },
     ]);
     expect(JSON.stringify(shop.types[0].items)).not.toMatch(/45|30|prezzo/i);
+  });
+
+  it('mostra nella vetrina i componenti e le descrizioni di una bundle, senza dati economici', async () => {
+    const { db, service, online } = setup();
+    db.seed('products/jingle', {
+      nome: 'Jingle Bells',
+      descrizione: '',
+      attivo: true,
+      prezzoFinale: 75,
+      costoUnitario: 22,
+      isBundle: true,
+      immagini: ['https://img.test/jingle.jpg'],
+      bundleItems: [
+        { prodottoId: 'shooting', prodottoNome: 'Shooting con Digital Gallery', quantita: 1, numeroFoto: 40 },
+        { prodottoId: 'cornice', prodottoNome: 'Cornice 15x20', quantita: 2, numeroFoto: 1 },
+      ],
+    });
+    db.seed('products/shooting', {
+      nome: 'Shooting con Digital Gallery',
+      descrizione: 'Servizio fotografico con galleria digitale.',
+      prezzoFinale: 40,
+      costoUnitario: 10,
+      immagini: ['https://img.test/shooting.jpg'],
+    });
+    db.seed('products/cornice', {
+      nome: 'Cornice 15x20',
+      descrizione: 'Cornice da tavolo in legno.',
+      prezzoFinale: 8,
+      costoUnitario: 2,
+      immagini: [],
+    });
+    const type = await seedType(service, { items: [{ productId: 'jingle', quantity: 1 }] });
+
+    const shop = await online.shop();
+    const included = shop.types.find(item => item.id === type.id)!.items[0];
+    expect(included).toMatchObject({
+      name: 'Jingle Bells',
+      bundleItems: [
+        {
+          name: 'Shooting con Digital Gallery',
+          quantity: 1,
+          description: 'Servizio fotografico con galleria digitale.',
+          imageUrls: ['https://img.test/shooting.jpg'],
+        },
+        {
+          name: 'Cornice 15x20',
+          quantity: 2,
+          description: 'Cornice da tavolo in legno.',
+        },
+      ],
+    });
+    expect(included).not.toHaveProperty('prezzoFinale');
+    expect(included.bundleItems?.[0]).not.toHaveProperty('costoUnitario');
+    expect(JSON.stringify(included)).not.toMatch(/prezzoFinale|costoUnitario/);
   });
 });

@@ -7,9 +7,11 @@ import type { DocumentSnapshot } from 'firebase-admin/firestore';
 import { db, storage } from './firebase-admin.js';
 import { loadGalleryPhotoDocs } from './photobook-gallery.js';
 import { uidRateLimiter } from './print-shop/rate-limit.js';
-import { mockupConfigurationSchema, mockupEditable, type MockupPhoto, type SavedMockup } from '../shared/mockup-types.js';
-import { catalogAllowedForLab, optionAllowsMaterials, labMockupCatalogSchema, mockupOfferInputSchema, mockupSelectionSchema, mockupWorkflowInputSchema, optionFor, type MockupOffer, type MockupOption, type MockupOfferMode } from '../shared/mockup-workflow.js';
+import { mockupAssetIds, mockupConfigurationSchema, mockupEditable, mockupGraphicAssetIds, type MockupPhoto, type SavedMockup } from '../shared/mockup-types.js';
+import { boxCoverGraphicId, catalogAllowedForLab, optionAllowsBoxSetup, optionAllowsMaterials, labMockupCatalogSchema, mockupOfferInputSchema, mockupSelectionSchema, mockupWorkflowInputSchema, optionFor, rendererNeedsSetup, setupFitsRenderer, type MockupOffer, type MockupOption, type MockupOfferMode } from '../shared/mockup-workflow.js';
 import { buildMockupReport, mockupConfirmSchema } from './mockup-report.js';
+import { isDeepStrictEqual } from 'node:util';
+import { permitsMockupDeliveryRecovery } from './photobook-delivery-recovery.js';
 
 class MockupError extends Error { constructor(public status: number, message: string) { super(message); } }
 const versionSchema = z.coerce.number().int().min(1).max(9999);
@@ -21,7 +23,7 @@ type ClientMockupNotification = (
   event: 'changes_requested' | 'confirmed',
 ) => Promise<void>;
 
-function optionFromLab(lab: DocumentSnapshot, selection: { labId: string; modelId: string }): MockupOption | null {
+function optionFromLab(lab: DocumentSnapshot, selection: { labId: string; modelId: string; setup?: MockupOption['setup'] }): MockupOption | null {
   if (!lab.exists || lab.id !== selection.labId || lab.data()?.attivo === false) return null;
   const parsed = labMockupCatalogSchema.safeParse(lab.data()!.mockupCatalog);
   if (!parsed.success) return null;
@@ -33,6 +35,7 @@ function optionFromLab(lab: DocumentSnapshot, selection: { labId: string; modelI
     materials: catalog.materials.filter(m => model.materialIds.includes(m.id)),
     labId: lab.id,
     labName: String(lab.data()!.nome),
+    ...(selection.setup ? { setup: selection.setup } : {}),
   };
 }
 
@@ -41,7 +44,7 @@ async function validatedPublishedOffer(
   getLab: (labId: string) => Promise<DocumentSnapshot>,
 ): Promise<MockupOffer | null> {
   for (const option of published.options) {
-    const labOption = optionFromLab(await getLab(option.labId), { labId: option.labId, modelId: option.id });
+    const labOption = optionFromLab(await getLab(option.labId), { labId: option.labId, modelId: option.id, setup: option.setup });
     if (!labOption) return null;
   }
   return {
@@ -139,6 +142,9 @@ export function createPhotobookMockupRouter(
     !isAdmin && version === data.currentVersion && data.approval?.version !== version;
   const canEditBook = (data: FirebaseFirestore.DocumentData, version: number) =>
     mockupEditable(data as Parameters<typeof mockupEditable>[0], version) && !needsPageApproval(data, version) && (isAdmin || data.mockupPath !== 'studio');
+  const canApproveBook = (data: FirebaseFirestore.DocumentData, version: number) =>
+    version === data.currentVersion && !data.locked
+    && (data.versions || []).some((v: { version: number; status?: string }) => v.version === version && v.status !== 'draft');
   const writeLimit = uidRateLimiter(60, 10 * 60_000);
   router.use((req, res, next) => req.method === 'GET' ? next() : writeLimit(req, res, next));
   router.use(async (req, res, next) => {
@@ -154,8 +160,9 @@ export function createPhotobookMockupRouter(
       res.locals.book = book;
       res.locals.version = version;
       if (req.method !== 'GET') {
-        const deliveryOnly = isAdmin && version === data.currentVersion && ['/attach', '/reconcile-attachment'].includes(req.path);
-        if (!canEditBook(data, version) && !deliveryOnly) throw new MockupError(409,
+        const deliveryOnly = isAdmin && version === data.currentVersion && ['/attach', '/attach-delivered', '/confirm-for-delivery', '/reconcile-attachment', '/resume-attachment'].includes(req.path);
+        const approvalOnly = !isAdmin && req.method === 'POST' && req.path === '/approve' && canApproveBook(data, version);
+        if (!canEditBook(data, version) && !deliveryOnly && !approvalOnly) throw new MockupError(409,
           !data.locked && needsPageApproval(data, version)
             ? 'Approva prima le pagine della versione attuale per personalizzare album e box.'
             : 'Versione in sola lettura. Contatta lo studio.');
@@ -191,7 +198,43 @@ export function createPhotobookMockupRouter(
       const notificationState = data?.status === 'confirmed'
         ? root.mockupNotifications?.[`confirmed_v${version}_r${data.revision}`]?.state
         : undefined;
-      res.json({ version, mockupPath: root.mockupPath, notificationState, editable: canEditBook(root, version) && !(modelMode === 'fixed' && !offer), enabled: isAdmin || saved.exists || !!offer, approvalRequired: needsPageApproval(root, version), saved: data || null, offer, modelMode, modelSelection, offerError: modelMode === 'fixed' && !offer ? 'Il modello fisso non è più disponibile. Lo studio deve ripubblicare la proposta.' : null, offerInherited: modelMode === 'fixed' && !offerDoc.exists });
+      const attachment = isAdmin && data?.status === 'confirmed'
+        ? (await book.ref.collection('mockupAttachments').doc(`v${version}-r${data.revision}`).get()).data()
+        : undefined;
+      const labAttachment = isAdmin && data?.status === 'confirmed'
+        ? { status: attachment?.status === 'attached' && attachment.packageVersion !== 2 ? 'pending' : attachment?.status || 'pending', ...(attachment?.message ? { message: attachment.message } : {}) }
+        : undefined;
+      const deliveryShipment = isAdmin && root.locked && root.labShipmentId && data
+        ? (await db.collection('labShipments').doc(root.labShipmentId).get()).data() : undefined;
+      const deliveryRecoveryAvailable = !!deliveryShipment && permitsMockupDeliveryRecovery(book.id, root, version, deliveryShipment);
+      res.json({ version, mockupPath: root.mockupPath, notificationState, ...(labAttachment ? { labAttachment } : {}), ...(isAdmin ? { deliveryRecoveryAvailable, deliveryRecoveryAfterDispatch: deliveryRecoveryAvailable && deliveryShipment.status === 'inviato' } : {}), clientApprovalAllowed: !isAdmin && canApproveBook(root, version) && data?.status === 'confirmed', editable: canEditBook(root, version) && !(modelMode === 'fixed' && !offer), enabled: isAdmin || saved.exists || !!offer, approvalRequired: needsPageApproval(root, version), saved: data || null, offer, modelMode, modelSelection, offerError: modelMode === 'fixed' && !offer ? 'Il modello fisso non è più disponibile. Lo studio deve ripubblicare la proposta.' : null, offerInherited: modelMode === 'fixed' && !offerDoc.exists });
+    } catch (error) { next(error); }
+  });
+
+  router.post('/approve', express.json({ limit: '2kb' }), async (req, res, next): Promise<HttpHandlerResult> => {
+    try {
+      if (isAdmin) throw new MockupError(403, 'L’approvazione deve essere data dal cliente tramite il suo link.');
+      const input = z.object({ revision: z.number().int().min(1) }).strict().parse(req.body);
+      const book = res.locals.book as DocumentSnapshot;
+      const version = res.locals.version as number;
+      const ref = book.ref.collection('mockups').doc(`v${version}`);
+      const approved = await db.runTransaction(async tx => {
+        const freshBook = await tx.get(book.ref);
+        const snapshot = await tx.get(ref);
+        if (!freshBook.exists || !canApproveBook(freshBook.data()!, version) || freshBook.data()!.token !== book.data()!.token) {
+          throw new MockupError(409, 'Il fotolibro è cambiato o non è più approvabile. Riapri il link aggiornato.');
+        }
+        const current = snapshot.data() as SavedMockup | undefined;
+        if (!current || current.version !== version || current.status !== 'confirmed' || current.revision !== input.revision) {
+          throw new MockupError(409, 'Il mockup è cambiato: ricarica e controlla la nuova revisione prima di approvarla.');
+        }
+        if (current.clientApproval?.revision === current.revision) return current;
+        const result: SavedMockup = { ...current, clientApproval: { revision: current.revision, approvedAt: new Date().toISOString() } };
+        tx.set(ref, result);
+        return result;
+      });
+      const { reportPath: _reportPath, ...clientResult } = approved;
+      return res.json(clientResult);
     } catch (error) { next(error); }
   });
 
@@ -209,7 +252,6 @@ export function createPhotobookMockupRouter(
       const input = mockupOfferInputSchema.parse(req.body);
       const book = res.locals.book as DocumentSnapshot;
       const version = res.locals.version as number;
-      if (!book.data()!.jobId) throw new MockupError(400, 'Associa prima il fotolibro a un lavoro');
       const result = await db.runTransaction(async tx => {
         await guardCurrent(tx, book, version);
         const ref = book.ref.collection('mockupOffers').doc(`v${version}`);
@@ -229,7 +271,14 @@ export function createPhotobookMockupRouter(
           const model = catalog.models.find(m => m.id === selection.modelId && m.active && m.rendererId);
           if (!model) throw new MockupError(400, 'Modello non disponibile o asset 3D non ancora integrato');
           if (!catalogAllowedForLab({ ...catalog, models: [model] }, lab.data()?.nome)) throw new MockupError(400, 'Plaza LED è disponibile solo per i Nobili');
-          options.push({ ...model, materials: catalog.materials.filter(m => model.materialIds.includes(m.id)), labId: lab.id, labName: String(lab.data()!.nome) });
+          if (rendererNeedsSetup(model.rendererId) && !setupFitsRenderer(model.rendererId, selection.setup)) throw new MockupError(400, model.rendererId === 'imagebox' ? 'Scegli il formato dell’ImageBox prima di pubblicare' : 'Imposta formato e copertina del Quadrobook prima di pubblicare');
+          if (!rendererNeedsSetup(model.rendererId) && selection.setup) throw new MockupError(400, 'Il formato si imposta solo per Quadrobook e ImageBox');
+          const graphicId = boxCoverGraphicId(selection.setup);
+          if (graphicId) {
+            const graphic = await tx.get(book.ref.collection('mockupAssets').doc(graphicId));
+            if (!graphic.exists) throw new MockupError(400, 'Grafica di copertina non trovata: caricala di nuovo');
+          }
+          options.push({ ...model, materials: catalog.materials.filter(m => model.materialIds.includes(m.id)), labId: lab.id, labName: String(lab.data()!.nome), ...(selection.setup ? { setup: selection.setup } : {}) });
         }
         const offer: MockupOffer = { revision: input.revision + 1, options, updatedAt: new Date().toISOString(), mode: input.mode };
         tx.set(ref, offer);
@@ -259,15 +308,18 @@ export function createPhotobookMockupRouter(
         const currentBook = await tx.get(book.ref);
         const offer = await effectiveOfferInTransaction(tx, book, version, currentBook.data()!, offerDoc);
         if (currentBook.data()!.mockupModelMode === 'fixed' && !offer) throw new MockupError(409, 'Il modello fisso non è più disponibile. Lo studio deve ripubblicare la proposta.');
-        const photoIds = [input.configuration.photoAssetId, ...('backPhotoAssetId' in input.configuration ? [input.configuration.backPhotoAssetId] : [])];
-        for (const id of new Set(photoIds.filter((id): id is string => !!id))) {
+        // Le grafiche le carica lo studio, e solo quando è lui a preparare il mockup: il cliente incide solo testo.
+        const graphicIds = new Set(mockupGraphicAssetIds(input.configuration));
+        if (graphicIds.size && (!isAdmin || currentBook.data()!.mockupPath !== 'studio')) throw new MockupError(403, 'Le grafiche da incidere le carica lo studio quando prepara il mockup. Usa una scritta.');
+        for (const id of mockupAssetIds(input.configuration)) {
           const photo = await tx.get(book.ref.collection('mockupAssets').doc(id));
           if (!photo.exists || photo.data()!.version !== version) throw new MockupError(400, 'Foto non appartenente a questa versione del fotolibro');
+          if (graphicIds.has(id) && photo.data()!.kind !== 'graphic') throw new MockupError(400, 'Carica di nuovo la grafica da incidere');
         }
         if ((previous.data()?.revision || 0) !== input.revision) throw new MockupError(409, 'Il mockup è stato modificato in un’altra sessione. Riaprilo per caricare la versione aggiornata.');
         if (!isAdmin && !previous.exists && !offer) throw new MockupError(403, 'Mockup non attivato');
         const option = optionFor(offer, input.selection);
-        if (offer && (offer.revision !== input.offerRevision || !option || option.rendererId !== input.configuration.modelId || !optionAllowsMaterials(option, input.configuration))) throw new MockupError(409, 'Seleziona un modello e un rivestimento inclusi nella proposta aggiornata');
+        if (offer && (offer.revision !== input.offerRevision || !option || option.rendererId !== input.configuration.modelId || !optionAllowsMaterials(option, input.configuration) || !optionAllowsBoxSetup(option, input.configuration))) throw new MockupError(409, 'Seleziona un modello, un rivestimento, un formato e una copertina inclusi nella proposta aggiornata');
         if (!offer && input.selection) throw new MockupError(400, 'Pubblica prima una proposta');
         // Una correzione dello studio non restituisce implicitamente al cliente
         // una proposta in verifica/confermata: serve Richiedi modifiche.
@@ -299,9 +351,9 @@ export function createPhotobookMockupRouter(
         if (currentBook.data()!.mockupModelMode === 'fixed' && !offer) throw new MockupError(409, 'Il modello fisso non è più disponibile. Lo studio deve ripubblicare la proposta.');
         const option = optionFor(offer, previous?.selection);
         if (!previous || previous.revision !== input.revision) throw new MockupError(409, 'Ricarica la proposta aggiornata');
-        if (action === 'submit' && (!option || !optionAllowsMaterials(option, previous.configuration))) throw new MockupError(409, 'Salva prima una scelta inclusa nella proposta dello studio');
+        if (action === 'submit' && (!option || !optionAllowsMaterials(option, previous.configuration) || !optionAllowsBoxSetup(option, previous.configuration))) throw new MockupError(409, 'Salva prima una scelta inclusa nella proposta dello studio');
         if (action === 'submit' && ['submitted', 'confirmed'].includes(previous.status || '')) throw new MockupError(409, 'Proposta già inviata. Salva una modifica prima di inviarla di nuovo.');
-        const { confirmedAt, reportPath, ...draft } = previous;
+        const { confirmedAt, reportPath, clientApproval, ...draft } = previous;
         const result: SavedMockup = { ...draft, revision: previous.revision + 1, status: action === 'submit' ? 'submitted' : 'changes_requested', updatedBy: isAdmin ? 'studio' : 'client', updatedAt: new Date().toISOString(), note: input.note };
         tx.set(book.ref.collection('mockupHistory').doc(`v${version}-r${previous.revision}`), previous);
         tx.set(ref, result);
@@ -329,23 +381,32 @@ export function createPhotobookMockupRouter(
     } catch (error) { next(error); }
   });
 
-  router.post('/confirm', express.raw({ type: 'application/octet-stream', limit: '16mb' }), async (req, res, next): Promise<HttpHandlerResult> => {
+  router.post(['/confirm', '/confirm-for-delivery'], express.raw({ type: 'application/octet-stream', limit: '16mb' }), async (req, res, next): Promise<HttpHandlerResult> => {
     try {
       if (!isAdmin) throw new MockupError(403, 'Solo lo studio può confermare');
       const input = mockupConfirmSchema.parse(Buffer.isBuffer(req.body) ? JSON.parse(req.body.toString('utf8')) : req.body);
       const book = res.locals.book as DocumentSnapshot;
       const version = res.locals.version as number;
+      const deliveryRecovery = req.path === '/confirm-for-delivery';
       const ref = book.ref.collection('mockups').doc(`v${version}`);
       const initial = (await ref.get()).data() as SavedMockup | undefined;
       if (!initial || initial.revision !== input.revision || initial.status === 'confirmed') throw new MockupError(409, 'Ricarica la proposta prima di confermare');
-      if (JSON.stringify(input.configuration) !== JSON.stringify(initial.configuration)) throw new MockupError(409, 'Le viste non corrispondono alla configurazione salvata');
+      if (!isDeepStrictEqual(input.configuration, initial.configuration)) throw new MockupError(409, 'Le viste non corrispondono alla configurazione salvata');
       const offerDoc = await book.ref.collection('mockupOffers').doc(`v${version}`).get();
       const offer = await effectiveOffer(book, version, offerDoc);
-      const option = optionFor(offer || null, initial.selection);
-      if (!option || !optionAllowsMaterials(option, initial.configuration)) throw new MockupError(409, 'Salva prima un modello e un rivestimento inclusi nella proposta');
+      const option = deliveryRecovery ? initial.option : optionFor(offer || null, initial.selection);
+      if (!option || !optionAllowsMaterials(option, initial.configuration) || !optionAllowsBoxSetup(option, initial.configuration)) throw new MockupError(409, 'Salva prima un modello e un rivestimento inclusi nella proposta');
+      if (deliveryRecovery) {
+        const shipment = book.data()?.labShipmentId
+          ? (await db.collection('labShipments').doc(book.data()!.labShipmentId).get()).data() : undefined;
+        if (!permitsMockupDeliveryRecovery(book.id, book.data(), version, shipment, option.labId)) {
+          throw new MockupError(409, 'Il recupero è consentito solo per il mockup salvato di una spedizione in coda o inviata, non ancora in stampa.');
+        }
+      }
       const now = new Date().toISOString();
       const reportPath = `photobook-mockups/${book.id}/v${version}/confirmed-${randomUUID()}.html`;
-      const confirmed: SavedMockup = { ...initial, option, revision: initial.revision + 1, status: 'confirmed', confirmedAt: now, updatedAt: now, updatedBy: 'studio', reportPath };
+      const confirmed: SavedMockup = { ...initial, option, revision: initial.revision + 1, status: 'confirmed', confirmedAt: now, updatedAt: now, updatedBy: 'studio', reportPath,
+        ...(deliveryRecovery ? { deliveryRecovery: { shipmentId: book.data()!.labShipmentId, confirmedAt: now } } : {}) };
       let report: Buffer;
       try { report = await buildMockupReport(confirmed, input.previews); }
       catch { throw new MockupError(400, 'Viste non leggibili: riapri il mockup e riprova la conferma'); }
@@ -353,15 +414,20 @@ export function createPhotobookMockupRouter(
       await file.save(report, { metadata: { contentType: 'text/html', cacheControl: 'private, no-store' } });
       try {
         await db.runTransaction(async tx => {
-          const freshBook = await guardCurrent(tx, book, version);
+          const freshBook = deliveryRecovery ? await tx.get(book.ref) : await guardCurrent(tx, book, version);
+          if (deliveryRecovery) {
+            const shipment = freshBook.data()?.labShipmentId
+              ? (await tx.get(db.collection('labShipments').doc(freshBook.data()!.labShipmentId))).data() : undefined;
+            if (freshBook.data()?.labShipmentId !== book.data()?.labShipmentId
+              || !permitsMockupDeliveryRecovery(book.id, freshBook.data(), version, shipment, option.labId)) {
+              throw new MockupError(409, 'La spedizione è cambiata durante la conferma: nessun recupero applicato.');
+            }
+          }
           const fresh = await tx.get(ref);
           const freshOffer = await effectiveOfferInTransaction(tx, book, version, fresh.data()!, await tx.get(offerDoc.ref));
-          if (fresh.data()?.revision !== input.revision || freshOffer?.revision !== offer?.revision) throw new MockupError(409, 'Proposta cambiata durante la conferma: ricarica e riprova');
+          if (fresh.data()?.revision !== input.revision || (!deliveryRecovery && freshOffer?.revision !== offer?.revision)) throw new MockupError(409, 'Proposta cambiata durante la conferma: ricarica e riprova');
           tx.set(book.ref.collection('mockupHistory').doc(`v${version}-r${initial.revision}`), initial);
           tx.set(ref, confirmed);
-          if (freshBook.data()?.mockupPath !== 'client' && freshBook.data()?.approval?.version !== version) {
-            tx.update(book.ref, { [`mockupNotifications.confirmed_v${version}_r${confirmed.revision}`]: { state: 'waiting-approval' } });
-          }
         });
       } catch (error) {
         // Un errore di rete può arrivare dopo il commit: in quel caso la copia
@@ -369,21 +435,21 @@ export function createPhotobookMockupRouter(
         if (error instanceof MockupError) await file.delete().catch(() => undefined);
         throw error;
       }
-       const freshBook = await book.ref.get();
-       const freshBookData = freshBook.data() || {};
-       const awaitingPageApproval = freshBookData.approval?.version !== version;
-       if (notifyClient && freshBookData.mockupPath !== 'client' && !awaitingPageApproval) {
+      const freshBook = await book.ref.get();
+      const freshBookData = freshBook.data() || {};
+      if (!deliveryRecovery && notifyClient && freshBookData.mockupPath !== 'client') {
         try { await notifyClient(book, confirmed, 'confirmed'); }
         catch {
           console.warn('[photobook-mockup] Esito email conferma al cliente non confermato');
           return res.json({ ...confirmed, notificationWarning: 'Il mockup è confermato, ma l’esito dell’email al cliente non è confermato. Avvisalo manualmente senza ripetere la conferma.' });
         }
       }
-      const notificationState = freshBookData.mockupPath === 'client'
+      const notificationBook = !deliveryRecovery && notifyClient && freshBookData.mockupPath !== 'client'
+        ? await book.ref.get()
+        : freshBook;
+      const notificationState = notificationBook.data()?.mockupPath === 'client'
         ? undefined
-        : awaitingPageApproval
-          ? 'waiting-approval'
-          : freshBookData.mockupNotifications?.[`confirmed_v${version}_r${confirmed.revision}`]?.state;
+        : notificationBook.data()?.mockupNotifications?.[`confirmed_v${version}_r${confirmed.revision}`]?.state;
       res.json({ ...confirmed, ...(notificationState ? { notificationState } : {}) });
     } catch (error) { next(error); }
   });
@@ -411,12 +477,12 @@ export function createPhotobookMockupRouter(
       res.type('text/html').send(buffer);
     } catch (error) { next(error); }
   });
-  router.post('/attach', async (req, res, next) => {
+  router.post(['/attach', '/attach-delivered'], async (req, res, next) => {
     try {
       if (!isAdmin) throw new MockupError(403, 'Solo lo studio può allegare alla spedizione');
       const { revision } = mockupWorkflowInputSchema.parse(req.body);
       const { attachConfirmedMockup, MockupDeliveryError } = await import('./photobook-mockup-delivery.js');
-      try { res.json(await attachConfirmedMockup(res.locals.book as DocumentSnapshot, res.locals.version, revision)); }
+      try { res.json(await attachConfirmedMockup(res.locals.book as DocumentSnapshot, res.locals.version, revision, req.path === '/attach-delivered')); }
       catch (error) { if (error instanceof MockupDeliveryError) throw new MockupError(error.status, error.message); throw error; }
     } catch (error) { next(error); }
   });
@@ -429,41 +495,73 @@ export function createPhotobookMockupRouter(
       catch (error) { if (error instanceof MockupDeliveryError) throw new MockupError(error.status, error.message); throw error; }
     } catch (error) { next(error); }
   });
+  router.post('/resume-attachment', async (req, res, next) => {
+    try {
+      if (!isAdmin) throw new MockupError(403, 'Operazione riservata allo studio');
+      const { revision } = mockupWorkflowInputSchema.parse(req.body);
+      const { resumeMockupAttachment, MockupDeliveryError } = await import('./photobook-mockup-delivery.js');
+      try { res.json(await resumeMockupAttachment(res.locals.book as DocumentSnapshot, res.locals.version, revision)); }
+      catch (error) { if (error instanceof MockupDeliveryError) throw new MockupError(error.status, error.message); throw error; }
+    } catch (error) { next(error); }
+  });
 
-  async function storePhoto(res: Response, input: Buffer, info: { name: string; source: 'upload' | 'gallery'; photoId?: string }) {
+  // Le grafiche da incidere restano PNG: la trasparenza serve a ritagliare la scritta o il disegno.
+  async function storePhoto(res: Response, input: Buffer, info: { name: string; source: 'upload' | 'gallery'; photoId?: string }, kind: 'photo' | 'graphic' = 'photo') {
     if (!input.length || input.length > 20 * 1024 * 1024) throw new MockupError(400, 'La foto deve essere entro 20 MB');
     const image = sharp(input, { limitInputPixels: 40_000_000, animated: false });
+    const graphic = kind === 'graphic';
     let output: Buffer;
+    let originalContentType: string;
     try {
       const metadata = await image.metadata();
       if (!['jpeg','png','webp'].includes(metadata.format || '') || (metadata.pages || 1) > 1) throw new Error();
-      output = await image.rotate().resize(2048, 2048, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 90 }).toBuffer();
+      originalContentType = `image/${metadata.format}`;
+      const resized = image.rotate().resize(2048, 2048, { fit: 'inside', withoutEnlargement: true });
+      output = await (graphic ? resized.png() : resized.jpeg({ quality: 90 })).toBuffer();
     } catch { throw new MockupError(400, 'Foto non leggibile: usa un JPG, PNG o WebP statico entro 40 megapixel.'); }
     const dimensions = await sharp(output).metadata();
     const book = res.locals.book as DocumentSnapshot;
     const version = res.locals.version as number;
     const id = randomUUID();
-    const storagePath = `photobook-mockups/${book.id}/v${version}/${id}.jpg`;
+    const contentType = graphic ? 'image/png' : 'image/jpeg';
+    const storagePath = `photobook-mockups/${book.id}/v${version}/${id}.${graphic ? 'png' : 'jpg'}`;
+    const originalExtension = originalContentType === 'image/png' ? 'png' : originalContentType === 'image/webp' ? 'webp' : 'jpg';
+    const originalStoragePath = graphic ? `photobook-mockups/${book.id}/v${version}/${id}-original.${originalExtension}` : undefined;
     const photo: MockupPhoto = { id, ...info, width: dimensions.width!, height: dimensions.height! };
     const file = storage.bucket().file(storagePath);
-    await file.save(output, { metadata: { contentType: 'image/jpeg', cacheControl: 'private, no-store' } });
+    await file.save(output, { metadata: { contentType, cacheControl: 'private, no-store' } });
     try {
+      if (originalStoragePath) {
+        await storage.bucket().file(originalStoragePath).save(input, { metadata: { contentType: originalContentType, cacheControl: 'private, no-store' } });
+      }
       await db.runTransaction(async tx => {
         await guardCurrent(tx, book, version);
-        tx.set(book.ref.collection('mockupAssets').doc(id), { ...photo, version, storagePath, createdAt: new Date().toISOString() });
+        tx.set(book.ref.collection('mockupAssets').doc(id), { ...photo, version, storagePath, ...(originalStoragePath ? { originalStoragePath, originalContentType } : {}), ...(graphic ? { kind, contentType } : {}), createdAt: new Date().toISOString() });
       });
     } catch (error) {
-      if (error instanceof MockupError) await file.delete().catch(() => undefined);
+      if (error instanceof MockupError) {
+        await file.delete().catch(() => undefined);
+        if (originalStoragePath) await storage.bucket().file(originalStoragePath).delete().catch(() => undefined);
+      }
       throw error;
     }
     return photo;
   }
 
-  router.post('/upload', express.raw({ type: ['image/jpeg','image/png','image/webp'], limit: '20mb' }), async (req, res, next) => {
+  router.post('/upload', express.raw({ type: ['image/jpeg','image/png','image/webp'], limit: '6mb' }), async (req, res, next) => {
     try {
       if (!Buffer.isBuffer(req.body)) throw new MockupError(400, 'Formato immagine non supportato');
       const name = z.string().trim().min(1).max(200).parse(req.query.name);
       res.json(await storePhoto(res, req.body, { name, source: 'upload' }));
+    } catch (error) { next(error); }
+  });
+
+  router.post('/upload-graphic', express.raw({ type: ['image/jpeg','image/png','image/webp'], limit: '20mb' }), async (req, res, next) => {
+    try {
+      if (!isAdmin) throw new MockupError(403, 'Le grafiche da incidere le carica lo studio');
+      if (!Buffer.isBuffer(req.body)) throw new MockupError(400, 'Formato immagine non supportato');
+      const name = z.string().trim().min(1).max(200).parse(req.query.name);
+      res.json(await storePhoto(res, req.body, { name, source: 'upload' }, 'graphic'));
     } catch (error) { next(error); }
   });
 
@@ -489,6 +587,22 @@ export function createPhotobookMockupRouter(
       const book = res.locals.book as DocumentSnapshot;
       const asset = await book.ref.collection('mockupAssets').doc(id).get();
       if (!asset.exists || asset.data()!.version !== res.locals.version) throw new MockupError(404, 'Foto non trovata');
+      const [buffer] = await storage.bucket().file(asset.data()!.storagePath).download();
+      res.type(asset.data()!.contentType === 'image/png' ? 'image/png' : 'image/jpeg').send(buffer);
+    } catch (error) { next(error); }
+  });
+
+  // Grafica di copertina caricata dal fotografo: segue la proposta (anche ereditata da altre versioni),
+  // quindi si serve per id presente nell'offerta corrente e non per versione del file.
+  router.get('/cover-graphic', async (_req, res, next) => {
+    try {
+      const book = res.locals.book as DocumentSnapshot;
+      const version = res.locals.version as number;
+      const offer = await effectiveOffer(book, version);
+      const id = boxCoverGraphicId(offer?.options.find(o => o.rendererId === 'scatola-cornice')?.setup);
+      if (!id) throw new MockupError(404, 'Nessuna grafica di copertina in questa proposta');
+      const asset = await book.ref.collection('mockupAssets').doc(id).get();
+      if (!asset.exists) throw new MockupError(404, 'Grafica non trovata');
       const [buffer] = await storage.bucket().file(asset.data()!.storagePath).download();
       res.type('image/jpeg').send(buffer);
     } catch (error) { next(error); }

@@ -57,7 +57,7 @@ export interface NavItem {
   label: string;
   icon: LucideIcon;
   target: NavTarget;
-  /** Etichetta di sezione mostrata sopra questa voce nel dropdown */
+  /** Etichetta di sezione mostrata sopra questa voce nel sottomenu */
   sectionLabel?: string;
 }
 
@@ -75,7 +75,7 @@ export interface NavGroup {
 
 /**
  * Mappa di navigazione unica del pannello admin.
- * Alimenta sia la barra menu (AdminDashboard) sia la Command Palette (Ctrl+K).
+ * Alimenta la sidebar admin e la Command Palette (Ctrl+K).
  * I valori tab/section corrispondono agli stati esistenti: NON rinominarli
  * senza aggiungere un mapping di compatibilità per sessionStorage e deep-link.
  */
@@ -398,6 +398,59 @@ export interface FlatNavItem {
   icon: LucideIcon;
   target: NavTarget;
   group: string;
+}
+
+export interface AdminNavigationState {
+  tab: string;
+  jobSection?: string;
+  bookingSection?: string;
+  consultationSection?: string;
+  settingsSection?: string;
+  sitoSection?: string;
+}
+
+export interface AdminNavigationSelection {
+  groupId: string;
+  itemId: string;
+}
+
+export const ADMIN_NAVIGATION_REQUEST_EVENT = "admin-navigation-request";
+export const ADMIN_NAVIGATION_SELECTION_EVENT = "admin-navigation-selection";
+
+export function findAdminNavigationSelection(
+  state: AdminNavigationState,
+): AdminNavigationSelection {
+  const group =
+    ADMIN_NAV_GROUPS.find((item) => item.tabs.includes(state.tab)) ??
+    ADMIN_NAV_GROUPS[0]!;
+  const item = group.items?.find(({ target }) => {
+    if (!target.tab || target.tab !== state.tab) return false;
+    if (target.jobSection && target.jobSection !== state.jobSection) return false;
+    if (
+      target.bookingSection &&
+      target.bookingSection !== state.bookingSection
+    ) {
+      return false;
+    }
+    if (
+      target.consultationSection &&
+      target.consultationSection !== state.consultationSection
+    ) {
+      return false;
+    }
+    if (
+      target.settingsSection &&
+      target.settingsSection !== state.settingsSection
+    ) {
+      return false;
+    }
+    if (target.sitoSection && target.sitoSection !== state.sitoSection) {
+      return false;
+    }
+    return true;
+  });
+
+  return { groupId: group.id, itemId: item?.id ?? group.id };
 }
 
 export function getFlatNavItems(): FlatNavItem[] {

@@ -8,6 +8,7 @@ import { installHomeScenes } from '../home-scenes.js';
 import { phoneView, fitPhoneProduct, phoneDetailDistance } from '../mobile-view.js';
 import { getExportSize, setExportProgress, triggerDownload, yieldToBrowser } from '../export-yield.js';
 import { installFabricSampling } from '../fabric-sampling.js';
+import { installPlazaPhotoUpload } from '../plaza-photo-upload.js';
 
 const $ = id => document.getElementById(id);
 const embedded = window.parent !== window;
@@ -95,7 +96,7 @@ inscription.position.set(0, 0, .0322); album.add(inscription);
 const plaqueMaterial = new THREE.MeshStandardMaterial({ color: '#bfc0b8', metalness: .45, roughness: .42 });
 const plaque = box(album, 'Placchetta copertina', [.20, .14, .003], [0, 0, .030], wood);
 const loader = new THREE.TextureLoader(), textureCache = new Map();
-function busy() { const active = pending > 0 || applying || exporting || capturing; $('downloadClient').disabled = active; lock(); notify('busy', { busy: active }); }
+function busy() { const active = pending > 0 || applying || exporting || capturing; $('downloadClient').disabled = active; if ($('backPhotoShortcut')) $('backPhotoShortcut').disabled = locked || active; lock(); notify('busy', { busy: active }); }
 function edited() { configurationRevision = 2; updateBack(); }
 function configuration() {
   const variant = variants.find(v => v.id === selected);
@@ -147,7 +148,7 @@ function updateCover() {
   const ic = inscriptionCanvas.getContext('2d'); ic.clearRect(0, 0, 1600, 1100); ic.fillStyle = '#634120'; ic.textAlign = 'center'; ic.textBaseline = 'middle'; if (isSplit && monogramEnabled) { ic.fillStyle = '#ffffff'; ic.font = 'italic 120px Georgia'; ic.fillText([$('firstName').value, $('secondName').value].filter(Boolean).join(' & '), 800, 550, 1450); } else if (monogramEnabled) drawMonogram(inscriptionCanvas, $('firstName').value, $('secondName').value); else { ic.font = '110px Georgia'; ic.fillText($('topText').value, 800, 470); ic.font = '70px Georgia'; ic.fillText($('bottomText').value, 800, 660); } const preview = $('engravingPreview'); preview.getContext('2d').clearRect(0, 0, preview.width, preview.height); preview.getContext('2d').drawImage(inscriptionCanvas, 0, 0, preview.width, preview.height); inscriptionMap.needsUpdate = true; document.body.dataset.coverLayout = layout; finishFrame(); summary();
 }
 function updateBack() {
-  const active = $('backCover').value === 'photo'; rearPhoto.visible = rearBacking.visible = active; $('backPhotoControls').hidden = !active; document.body.dataset.backCover = $('backCover').value;
+  const active = $('backCover').value === 'photo'; rearPhoto.visible = rearBacking.visible = active; $('backPhotoControls').hidden = !active; document.body.dataset.backCover = $('backCover').value; document.body.dataset.backPhotoId = backPhoto?.id || ''; document.body.dataset.backPhotoLoaded = String(!!backPhotoMap);
   const ctx = rearCanvas.getContext('2d'); ctx.fillStyle = '#e6dfd3'; ctx.fillRect(0, 0, 1600, 1200);
   if (backPhotoMap) { const image = backPhotoMap.image, aspect = image.width / image.height, zoom = +$('backZoom').value, areaAspect = .468 / .352; const sw = image.width * Math.min(1, areaAspect / aspect) / zoom, sh = image.height * Math.min(1, aspect / areaAspect) / zoom; ctx.drawImage(image, (image.width - sw) * +$('backX').value / 100, (image.height - sh) * +$('backY').value / 100, sw, sh, 0, 0, 1600, 1200); } else { ctx.fillStyle = '#867a68'; ctx.font = '55px Georgia'; ctx.textAlign = 'center'; ctx.fillText('La fotografia del telaio', 800, 620); } rearMap.needsUpdate = true; summary();
 }
@@ -192,10 +193,18 @@ for (const button of document.querySelectorAll('[data-panel]')) button.onclick =
 const detailTabs = [...document.querySelectorAll('[data-detail-tab]')], detailSections = [...document.querySelectorAll('[data-detail-panel-section]')]; function selectDetailPanel(panelId) { detailTabs.forEach(tab => tab.setAttribute('aria-selected', String(tab.dataset.detailTab === panelId))); detailSections.forEach(section => { section.hidden = section.id !== panelId; }); } detailTabs.forEach(tab => tab.onclick = () => selectDetailPanel(tab.dataset.detailTab)); selectDetailPanel('structurePanel');
 for (const id of ['coverLayout', 'frameFinish', 'backCover']) $(id).onchange = () => { edited(); updateCover(); if (id === 'backCover') view([0, .1, -1]); }; $('ledEnabled').onchange = () => { edited(); updateLed(); };
 for (const id of ['topText', 'bottomText', 'photoZoom', 'photoX', 'photoY', 'backZoom', 'backX', 'backY']) $(id).oninput = () => { edited(); updateCover(); updateBack(); }; for (const id of ['firstName', 'secondName']) $(id).oninput = () => { edited(); monogramEnabled = true; updateCover(); };
-$('coverUpload').onchange = () => { const file = $('coverUpload').files[0]; if (file && ['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) setPhoto({ blob: file, name: file.name, source: 'local' }).catch(fail); }; $('backUpload').onchange = () => { const file = $('backUpload').files[0]; if (file && ['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) setPhoto({ blob: file, name: file.name, source: 'local' }, 'back').then(() => view([0, .1, -1])).catch(fail); };
+installPlazaPhotoUpload({
+  setPhoto, fail, embedded, viewBack: () => view([0, .1, -1]),
+  canUpload: () => !locked && !pending && !applying && !exporting && !capturing,
+  openBackPanel: () => {
+    document.querySelector('[data-panel="detailPanel"]').click();
+    selectDetailPanel('boxPanel');
+    $('backPhotoControls').hidden = false;
+  },
+});
 function setRotation(degrees) { mobilePivot.rotation.y = THREE.MathUtils.degToRad(degrees); $('rotationValue').value = `${Math.round(degrees)}°`; document.body.dataset.rotation = String(degrees); }
 $('rotation').oninput = () => { automatic = false; $('rotate').setAttribute('aria-pressed', 'false'); setRotation(+$('rotation').value); }; $('rotate').onclick = () => { automatic = !automatic; $('rotate').setAttribute('aria-pressed', String(automatic)); };
-function view(direction = [-.6, .32, 1]) { if (phoneView) { camera.position.copy(controls.target).add(new THREE.Vector3(...direction)); controls.minDistance = .09; if (fitPhoneProduct(product, camera, controls)) return; } const sphere = new THREE.Box3().setFromObject(product).getBoundingSphere(new THREE.Sphere()); controls.target.copy(sphere.center); const distance = Math.max(.3, sphere.radius * 1.1) / Math.sin(Math.min(Math.PI / 10, Math.atan(Math.tan(Math.PI / 10) * camera.aspect))); camera.position.copy(controls.target).add(new THREE.Vector3(...direction).normalize().multiplyScalar(distance)); controls.update(); }
+function view(direction = [-.6, .32, 1]) { document.body.dataset.view = direction[2] < 0 ? 'back' : 'front'; if (phoneView) { camera.position.copy(controls.target).add(new THREE.Vector3(...direction)); controls.minDistance = .09; if (fitPhoneProduct(product, camera, controls)) return; } const sphere = new THREE.Box3().setFromObject(product).getBoundingSphere(new THREE.Sphere()); controls.target.copy(sphere.center); const distance = Math.max(.3, sphere.radius * 1.1) / Math.sin(Math.min(Math.PI / 10, Math.atan(Math.tan(Math.PI / 10) * camera.aspect))); camera.position.copy(controls.target).add(new THREE.Vector3(...direction).normalize().multiplyScalar(distance)); controls.update(); }
 $('front').onclick = () => view([0, .05, 1]); $('back').onclick = () => view([0, .08, -1]); $('spine').onclick = () => { automatic = false; $('rotate').setAttribute('aria-pressed', 'false'); if (+$('extract').value > 0) { $('extract').value = 0; extract(0); } $('rotation').value = -90; setRotation(-90); view([0, .1, 1]); };
 function extract(percent) { automatic = false; $('rotate').setAttribute('aria-pressed', 'false'); $('rotation').disabled = $('rotate').disabled = percent > 0; if (percent > 0) { $('rotation').value = 90; setRotation(90); } album.position.x = dimensions.extraction * percent / 100; $('extractValue').value = `${percent}%`; document.body.dataset.extraction = String(percent); view([-.6, .3, 1]); }
 $('extract').oninput = () => extract(+$('extract').value); $('reset').onclick = () => { $('extract').value = 0; extract(0); $('rotation').value = 18; setRotation(18); view(); };
@@ -235,7 +244,14 @@ if (embedded) {
     try {
       locked = !!data.readOnly;
       if (data.option) { if (!data.configuration) edited(); if (data.option.rendererId !== modelId) throw new Error('Modello non supportato'); option = data.option; for (const b of document.querySelectorAll('[data-finish]')) { const m = option.materials.find(m => m.id === b.dataset.finish); b.hidden = !m; if (m) b.lastChild.textContent = m.label; } for (const section of document.querySelectorAll('.category')) section.hidden = !section.querySelector('[data-finish]:not([hidden])'); if (!data.configuration && option.materials.length && !option.materials.some(m => m.id === selected)) await finish(option.materials[0].id); if (!data.configuration && !option.materials.some(m => m.id === innerSelected)) await finish(selected, 'inner'); }
-      if (data.photo) await setPhoto(data.photo); if (data.backPhoto) await setPhoto(data.backPhoto, 'back'); const c = data.configuration;
+      if (data.photo) await setPhoto(data.photo);
+      if (data.backPhoto) {
+        await setPhoto(data.backPhoto, 'back');
+        // Le nuove selezioni devono mostrare subito il lato posteriore. Nel
+        // ripristino di una configurazione già salvata, invece, mantieni la vista corrente.
+        if (!data.configuration) view([0, .1, -1]);
+      }
+      const c = data.configuration;
       if (c) { if (c.modelId !== modelId || ![1, 2].includes(c.assetRevision)) throw new Error('Revisione del modello non supportata'); configurationRevision = c.assetRevision; monogramEnabled = !!c.engravingNames; $('firstName').value = c.engravingNames?.first || ''; $('secondName').value = c.engravingNames?.second || ''; $('ledEnabled').checked = c.ledEnabled !== false; $('backCover').value = c.backCover || 'fabric'; $('backZoom').value = c.backCrop?.zoom ?? 1; $('backX').value = (c.backCrop?.x ?? .5) * 100; $('backY').value = (c.backCrop?.y ?? .5) * 100; for (const id of ['coverLayout', 'topText', 'bottomText']) $(id).value = c[id] || $(id).value; $('photoZoom').value = c.crop?.zoom ?? 1; $('photoX').value = (c.crop?.x ?? .5) * 100; $('photoY').value = (c.crop?.y ?? .5) * 100; await finish(c.materialId); await finish(c.innerMaterialId || c.materialId, 'inner'); updateLed(); updateBack(); }
       updateCover(); lock(); notify('applied');
     } catch (error) { fail(error); } finally { applying = false; initialized = true; busy(); summary(); }

@@ -1068,35 +1068,60 @@ router.patch('/collaboratori/assignments/:id/compenso', authenticateFirebase, re
   try {
     const { id } = req.params;
     const { compenso, noteModifica, sendEmail = true } = req.body;
-    
-    if (compenso === undefined || compenso < 0) {
+
+    if (compenso == null || compenso === '' || !Number.isFinite(Number(compenso)) || Number(compenso) < 0) {
       return res.status(400).json({ error: 'Compenso non valido' });
     }
-    
-    // Recupera assegnazione attuale
-    const assignmentDoc = await db.collection('jobCollaboratoreAssignments').doc(id).get();
-    if (!assignmentDoc.exists) {
+
+    const compensoCentesimi = Math.round(Number(compenso) * 100);
+    const nuovoCompenso = compensoCentesimi / 100;
+    const assignmentRef = db.collection('jobCollaboratoreAssignments').doc(id);
+    const updateResult = await db.runTransaction(async (transaction) => {
+      const assignmentDoc = await transaction.get(assignmentRef);
+      if (!assignmentDoc.exists) {
+        return { kind: 'not-found' as const };
+      }
+
+      const assignment = assignmentDoc.data() as JobCollaboratoreAssignment;
+      const totalePagatoCentesimi = (assignment.pagamenti || []).reduce((sum, payment) => {
+        const importo = Number(payment.importo);
+        return sum + (Number.isFinite(importo) ? Math.round(importo * 100) : 0);
+      }, 0);
+
+      if (compensoCentesimi < totalePagatoCentesimi) {
+        return { kind: 'below-paid' as const, totalePagatoCentesimi };
+      }
+
+      const vecchioCompenso = Number(assignment.compenso) || 0;
+      const nuovoSaldoResiduo = (compensoCentesimi - totalePagatoCentesimi) / 100;
+      const isPagato = compensoCentesimi > 0 && nuovoSaldoResiduo <= 0;
+      transaction.update(assignmentRef, {
+        compenso: nuovoCompenso,
+        saldoResiduo: nuovoSaldoResiduo,
+        isPagato,
+        updatedAt: Timestamp.now(),
+      });
+
+      return { kind: 'updated' as const, assignment, vecchioCompenso };
+    });
+
+    if (updateResult.kind === 'not-found') {
       return res.status(404).json({ error: 'Assegnazione non trovata' });
     }
-    
-    const assignment = assignmentDoc.data() as JobCollaboratoreAssignment;
-    const vecchioCompenso = assignment.compenso || 0;
-    
-    // Ricalcola saldo residuo (minimo 0 per evitare valori negativi)
-    const totalePagato = (assignment.pagamenti || []).reduce((sum, p) => sum + p.importo, 0);
-    const nuovoSaldoResiduo = Math.max(0, compenso - totalePagato);
-    const isPagato = compenso > 0 && nuovoSaldoResiduo <= 0;
-    
-    // Aggiorna assegnazione
-    await db.collection('jobCollaboratoreAssignments').doc(id).update({
-      compenso: compenso,
-      saldoResiduo: nuovoSaldoResiduo,
-      isPagato: isPagato,
-      updatedAt: Timestamp.now()
-    });
-    
+
+    if (updateResult.kind === 'below-paid') {
+      const totalePagato = updateResult.totalePagatoCentesimi / 100;
+      return res.status(409).json({
+        error: `Il compenso non può essere inferiore al totale già pagato (€${totalePagato.toFixed(2)}).`,
+        code: 'COMPENSATION_BELOW_PAID',
+        totalePagato,
+      });
+    }
+
+    const { assignment, vecchioCompenso } = updateResult;
+
     // Invia email se richiesto e compenso è cambiato
-    if (sendEmail && compenso !== vecchioCompenso) {
+    if (sendEmail && nuovoCompenso !== vecchioCompenso) {
       const [collaboratoreDoc, jobDoc] = await Promise.all([
         db.collection('collaboratori').doc(assignment.collaboratoreId).get(),
         db.collection('jobs').doc(assignment.jobId).get()
@@ -1115,11 +1140,11 @@ router.patch('/collaboratori/assignments/:id/compenso', authenticateFirebase, re
           })
         : 'Data da confermare';
       
-      sendCompensoModificatoEmail(req, collaboratore, jobNome, dataJob, vecchioCompenso, compenso, noteModifica)
+      sendCompensoModificatoEmail(req, collaboratore, jobNome, dataJob, vecchioCompenso, nuovoCompenso, noteModifica)
         .catch(err => console.error('❌ Email modifica compenso fallita (non bloccante):', err));
     }
     
-    const updated = await db.collection('jobCollaboratoreAssignments').doc(id).get();
+    const updated = await assignmentRef.get();
     res.json(serializeAssignment(updated.id, updated.data()));
   } catch (error: any) {
     console.error('❌ Error updating compenso:', error);
@@ -1172,13 +1197,10 @@ router.patch('/collaboratori/assignments/:id/respond', authenticateFirebase, req
     
     const updateData: any = {
       status,
-      dataRisposta: Timestamp.now(),
+      dataRisposta: status === 'pending' ? null : Timestamp.now(),
+      noteRifiuto: status === 'declined' && noteRifiuto ? noteRifiuto : null,
       updatedAt: Timestamp.now()
     };
-    
-    if (noteRifiuto) {
-      updateData.noteRifiuto = noteRifiuto;
-    }
     
     await db.collection('jobCollaboratoreAssignments').doc(id).update(updateData);
     
@@ -1600,17 +1622,26 @@ router.post('/collaboratori/public/assignment/:id/decline', async (req, res) => 
 router.post('/collaboratori/assignments/:id/add-payment', authenticateFirebase, requireAdmin, async (req: any, res): Promise<HttpHandlerResult> => {
   try {
     const { id } = req.params;
-    const { importo, tipo, metodo, note, data } = req.body as {
+    const { importo, tipo, metodo, note, data, idempotencyKey } = req.body as {
       importo: number;
       tipo: CollaboratorPaymentType;
       metodo: PaymentMethod;
       note?: string;
       data?: string;
+      idempotencyKey: string;
     };
+
+    if (typeof idempotencyKey !== 'string' || !idempotencyKey.trim() || idempotencyKey.length > 128) {
+      return res.status(400).json({ error: 'Chiave pagamento non valida' });
+    }
     
     // Validazione input
-    if (!importo || importo <= 0) {
+    if (typeof importo !== 'number' || !Number.isFinite(importo) || importo <= 0) {
       return res.status(400).json({ error: 'Importo non valido' });
+    }
+    const importoCentesimi = Math.round(importo * 100);
+    if (Math.abs(importo * 100 - importoCentesimi) > 1e-7) {
+      return res.status(400).json({ error: 'L’importo può avere al massimo due decimali' });
     }
     if (!tipo || !['acconto', 'saldo'].includes(tipo)) {
       return res.status(400).json({ error: 'Tipo pagamento non valido' });
@@ -1631,6 +1662,38 @@ router.post('/collaboratori/assignments/:id/add-payment', authenticateFirebase, 
       if (!assignmentDoc.exists) return null;
 
       const assignment = assignmentDoc.data() as JobCollaboratoreAssignment;
+      const compenso = Number(assignment.compenso);
+      const compensoCentesimi = Number.isFinite(compenso) && compenso > 0
+        ? Math.round(compenso * 100)
+        : 0;
+      const pagatoCentesimi = (assignment.pagamenti || []).reduce((sum, payment) => {
+        const importoPagato = Number(payment.importo);
+        return sum + (
+          Number.isFinite(importoPagato) && importoPagato > 0
+            ? Math.round(importoPagato * 100)
+            : 0
+        );
+      }, 0);
+      const residuoCentesimi = Math.max(0, compensoCentesimi - pagatoCentesimi);
+      const existingPayment = assignment.pagamenti?.find(
+        (payment) => payment.idempotencyKey === idempotencyKey,
+      );
+      if (existingPayment) {
+        return {
+          isDuplicate: true as const,
+          saldoResiduo: residuoCentesimi / 100,
+          isPagato: residuoCentesimi === 0,
+          cashMovementId: existingPayment.cashMovementId,
+        };
+      }
+
+      if (importoCentesimi > residuoCentesimi) {
+        return {
+          isOverCompensation: true as const,
+          maxImporto: residuoCentesimi / 100,
+        };
+      }
+
       const [collaboratoreDoc, jobDoc] = await Promise.all([
         transaction.get(db.collection('collaboratori').doc(assignment.collaboratoreId)),
         transaction.get(db.collection('jobs').doc(assignment.jobId))
@@ -1663,6 +1726,7 @@ router.post('/collaboratori/assignments/:id/add-payment', authenticateFirebase, 
 
       const pagamento: Omit<CollaboratorPayment, 'data'> & { data: any } = {
         id: paymentId,
+        idempotencyKey,
         tipo,
         importo,
         data: paymentDate,
@@ -1672,8 +1736,8 @@ router.post('/collaboratori/assignments/:id/add-payment', authenticateFirebase, 
       };
 
       const nuoviPagamenti = [...(assignment.pagamenti || []), pagamento];
-      const totalePagato = nuoviPagamenti.reduce((sum, p) => sum + p.importo, 0);
-      const nuovoSaldoResiduo = assignment.compenso - totalePagato;
+      const totalePagato = (pagatoCentesimi + importoCentesimi) / 100;
+      const nuovoSaldoResiduo = Math.max(0, compensoCentesimi - pagatoCentesimi - importoCentesimi) / 100;
       const isPagato = nuovoSaldoResiduo <= 0;
       const assignmentUpdate = {
         pagamenti: nuoviPagamenti,
@@ -1687,6 +1751,7 @@ router.post('/collaboratori/assignments/:id/add-payment', authenticateFirebase, 
       transaction.update(assignmentRef, assignmentUpdate);
 
       return {
+        isDuplicate: false as const,
         collaboratore,
         collaboratoreId: collaboratoreDoc.id,
         job,
@@ -1700,35 +1765,49 @@ router.post('/collaboratori/assignments/:id/add-payment', authenticateFirebase, 
     if (!paymentResult) {
       return res.status(404).json({ error: 'Assegnazione non trovata' });
     }
+    if ('maxImporto' in paymentResult && typeof paymentResult.maxImporto === 'number') {
+      res.status(409).json({
+        error: `L’importo supera il compenso concordato. Il massimo ancora pagabile è €${paymentResult.maxImporto.toFixed(2)}.`,
+        code: 'PAYMENT_EXCEEDS_COMPENSATION',
+        maxImporto: paymentResult.maxImporto,
+      });
+      return;
+    }
     
     // Invia email notifica pagamento (fire-and-forget)
-    const dataJob = paymentResult.job?.eventDate
-      ? formatRomeDateLocale(paymentResult.job.eventDate.toDate(), {
-          weekday: 'long',
-          day: 'numeric',
-          month: 'long',
-          year: 'numeric'
-        }) 
-      : 'Data da confermare';
-    
-    sendPaymentRegisteredEmail(
-      req,
-      { ...paymentResult.collaboratore, id: paymentResult.collaboratoreId },
-      paymentResult.nomeJob,
-      dataJob,
-      importo,
-      tipo,
-      metodo,
-      paymentResult.totalePagato,
-      paymentResult.nuovoSaldoResiduo,
-      note
-    ).catch(err => console.error('❌ Email pagamento fallita (non bloccante):', err));
+    if (!paymentResult.isDuplicate) {
+      const dataJob = paymentResult.job?.eventDate
+        ? formatRomeDateLocale(paymentResult.job.eventDate.toDate(), {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+          })
+        : 'Data da confermare';
+
+      sendPaymentRegisteredEmail(
+        req,
+        { ...paymentResult.collaboratore, id: paymentResult.collaboratoreId },
+        paymentResult.nomeJob,
+        dataJob,
+        importo,
+        tipo,
+        metodo,
+        paymentResult.totalePagato,
+        paymentResult.nuovoSaldoResiduo,
+        note
+      ).catch(err => console.error('❌ Email pagamento fallita (non bloccante):', err));
+    }
     
     res.json({ 
       success: true,
-      saldoResiduo: paymentResult.nuovoSaldoResiduo,
+      saldoResiduo: paymentResult.isDuplicate
+        ? paymentResult.saldoResiduo
+        : paymentResult.nuovoSaldoResiduo,
       isPagato: paymentResult.isPagato,
-      cashMovementId: cashMovementRef.id
+      cashMovementId: paymentResult.isDuplicate
+        ? paymentResult.cashMovementId
+        : cashMovementRef.id
     });
   } catch (error: any) {
     console.error('❌ Error adding payment:', error);

@@ -25,11 +25,16 @@ const EMPTY_EXAMPLES: readonly MockupCoverExample[] = [];
 
 export function mockupCoverExamples(
   rendererId: MockupOption["rendererId"],
+  setup?: MockupOption["setup"],
 ): readonly MockupCoverExample[] {
-  return (
+  const examples =
     MOCKUP_RENDERERS.find((renderer) => renderer.id === rendererId)
-      ?.coverExamples ?? EMPTY_EXAMPLES
-  );
+      ?.coverExamples ?? EMPTY_EXAMPLES;
+  // Quadrobook: se lo studio ha imposto foto o grafica, il cliente vede solo quella.
+  const mode = setup && "cover" in setup ? setup.cover.mode : undefined;
+  return mode === "photo" || mode === "graphic"
+    ? examples.filter((example) => example.layout === mode)
+    : examples;
 }
 
 export interface MockupModelChooserProps {
@@ -38,6 +43,7 @@ export interface MockupModelChooserProps {
   fixed?: boolean;
   onChoose: (option: MockupOption, coverLayout: string) => void;
   onCancel?: () => void;
+  onRetry?: () => void;
 }
 
 const optionKey = (option: MockupOption) => `${option.labId}/${option.id}`;
@@ -53,13 +59,14 @@ export default function MockupModelChooser({
   fixed = false,
   onChoose,
   onCancel,
+  onRetry,
 }: MockupModelChooserProps) {
   // ---- Derivazioni memoizzate --------------------------------------------
   const available = useMemo(
     () =>
       options.filter(
         (option) =>
-          option.active && mockupCoverExamples(option.rendererId).length > 0,
+          option.active && mockupCoverExamples(option.rendererId, option.setup).length > 0,
       ),
     [options],
   );
@@ -119,7 +126,7 @@ export default function MockupModelChooser({
     (option) => optionKey(option) === selectedKey,
   );
   const examples = selected
-    ? mockupCoverExamples(selected.rendererId)
+    ? mockupCoverExamples(selected.rendererId, selected.setup)
     : EMPTY_EXAMPLES;
 
   const examplesSignature = useMemo(
@@ -285,6 +292,11 @@ export default function MockupModelChooser({
       >
         <h2>Nessun modello disponibile</h2>
         <p>Chiedi allo studio di aggiornare la proposta.</p>
+        {onRetry && (
+          <button type="button" onClick={onRetry} data-testid="button-retry-model-offer">
+            Aggiorna proposta
+          </button>
+        )}
         {onCancel && (
           <button type="button" onClick={onCancel}>
             Torna al tuo album
@@ -373,6 +385,7 @@ export default function MockupModelChooser({
               {visibleOptions.map((option, itemIndex) => {
                 const representative = mockupCoverExamples(
                   option.rendererId,
+                  option.setup,
                 )[0];
                 const key = optionKey(option);
                 const isSelected = selectedKey === key;

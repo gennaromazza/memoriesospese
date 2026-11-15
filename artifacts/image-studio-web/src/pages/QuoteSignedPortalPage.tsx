@@ -11,12 +11,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { Loader2, CheckCircle2, FileText, Calendar, CreditCard, User, Mail, Phone, MapPin, Download, ExternalLink } from 'lucide-react';
+import { Loader2, CheckCircle2, FileText, Calendar, CreditCard, User, Mail, Phone, MapPin, Download, ExternalLink, Copy } from 'lucide-react';
 import placeholderUrl from '@/assets/generated_images/Custom_product_placeholder_image_f076e89e.png';
 import type { Quote, QuoteSignature } from '@shared/quotes-types';
 import type { PaymentSchedule } from '@shared/payment-schedule-types';
 import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import DOMPurify from 'dompurify';
 import html2pdf from 'html2pdf.js';
 import { formatPhoneForWhatsApp } from '@shared/phone-utils';
 import { formatQuotePortalDate as formatDate } from '@/lib/quote-portal-date';
@@ -56,7 +57,11 @@ interface QuoteSignedPortalData {
 export default function QuoteSignedPortalPage() {
   const params = useParams();
   const token = params.token;
-  const [studioSettings, setStudioSettings] = useState<{ phone?: string } | null>(null);
+  const [portalLinkCopied, setPortalLinkCopied] = useState(false);
+  const [studioSettings, setStudioSettings] = useState<{
+    phone?: string;
+    quoteTheme?: { primaryColor?: string; secondaryColor?: string };
+  } | null>(null);
   const [studioLogo, setStudioLogo] = useState<string | null>(null);
 
   // Fetch quote signed data
@@ -102,15 +107,23 @@ export default function QuoteSignedPortalPage() {
 
   // Set theme colors
   useEffect(() => {
-    if (quote?.theme) {
-      document.documentElement.style.setProperty('--theme-primary', quote.theme.primaryColor);
-      document.documentElement.style.setProperty('--theme-secondary', quote.theme.secondaryColor);
+    const primaryColor = quote?.theme?.primaryColor || studioSettings?.quoteTheme?.primaryColor;
+    const secondaryColor = quote?.theme?.secondaryColor || studioSettings?.quoteTheme?.secondaryColor;
+    if (primaryColor) {
+      document.documentElement.style.setProperty('--theme-primary', primaryColor);
+    }
+    if (secondaryColor) {
+      document.documentElement.style.setProperty('--theme-secondary', secondaryColor);
     }
     return () => {
       document.documentElement.style.removeProperty('--theme-primary');
       document.documentElement.style.removeProperty('--theme-secondary');
     };
-  }, [quote?.theme]);
+  }, [
+    quote?.theme,
+    studioSettings?.quoteTheme?.primaryColor,
+    studioSettings?.quoteTheme?.secondaryColor,
+  ]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('it-IT', {
@@ -206,11 +219,32 @@ export default function QuoteSignedPortalPage() {
     }
   };
 
+  const handleCopyPortalLink = async () => {
+    const shareUrl = new URL(`/quote/${encodeURIComponent(token || '')}`, window.location.origin).toString();
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setPortalLinkCopied(true);
+      window.setTimeout(() => setPortalLinkCopied(false), 2500);
+    } catch (error) {
+      console.error('Unable to copy signed quote link:', error);
+      window.prompt('Copia il link al contratto firmato:', shareUrl);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 p-4 py-8">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Download PDF Button */}
-        <div className="flex justify-end">
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button
+            variant="outline"
+            onClick={handleCopyPortalLink}
+            className="border-blue-gray/30 text-blue-gray"
+            data-testid="copy-signed-quote-link-button"
+          >
+            <Copy className="w-4 h-4 mr-2" />
+            {portalLinkCopied ? 'Link copiato' : 'Copia link al contratto'}
+          </Button>
           <Button
             onClick={handleDownloadPDF}
             className="bg-blue-gray hover:bg-blue-gray/90 text-white shadow-lg"
@@ -491,7 +525,11 @@ export default function QuoteSignedPortalPage() {
                         {product.numeroFoto && (
                           <div className="flex items-center gap-2 text-xs sm:text-sm text-blue-gray bg-mint/30 px-2 sm:px-3 py-1 rounded-full w-fit">
                             <Calendar className="w-3 h-3 sm:w-4 sm:h-4" />
-                            <span className="font-medium">{product.numeroFoto} foto incluse</span>
+                            <span className="font-medium">
+                              {product.numeroFoto} foto{product.fotoCondivise
+                                ? ` nella galleria di ${product.bundleItems?.find((item) => item.prodottoId === product.prodottoSorgenteFotoId)?.prodottoNome || 'un prodotto incluso'}`
+                                : ' incluse'}
+                            </span>
                           </div>
                         )}
                         {/* Omaggio indicator */}
@@ -517,7 +555,13 @@ export default function QuoteSignedPortalPage() {
                                 <span>{item.prodottoNome}</span>
                                 {item.quantita > 1 && <span className="text-gray-500">x{item.quantita}</span>}
                                 {item.numeroFoto && item.numeroFoto > 0 && (
-                                  <span className="text-blue-600">({item.numeroFoto} foto)</span>
+                                  <span className="text-blue-600">
+                                    ({item.numeroFoto} foto{product.fotoCondivise
+                                      ? item.prodottoId === product.prodottoSorgenteFotoId
+                                        ? ' · galleria sorgente'
+                                        : ' per prodotto · stessa galleria'
+                                      : ''})
+                                  </span>
                                 )}
                               </div>
                             ))}
@@ -823,7 +867,7 @@ export default function QuoteSignedPortalPage() {
         {quote.theme?.footerText && (
           <Card className="bg-cream border-beige shadow-sm">
             <CardContent className="pt-4 sm:pt-6 px-4 sm:px-6 text-center">
-              <p className="text-xs sm:text-sm text-dark-sage leading-relaxed" dangerouslySetInnerHTML={{ __html: quote.theme.footerText }} />
+              <p className="text-xs sm:text-sm text-dark-sage leading-relaxed" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(quote.theme.footerText) }} />
             </CardContent>
           </Card>
         )}

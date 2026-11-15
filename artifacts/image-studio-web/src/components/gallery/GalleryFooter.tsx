@@ -1,4 +1,8 @@
 import React from "react";
+import { Link } from "wouter";
+import { createUrl } from "@/lib/basePath";
+import { useShopAvailable } from "@/hooks/useShopAvailable";
+import { usePrintShopAvailable } from "@/hooks/usePrintShopAvailable";
 import {
   FloralCorner,
   FloralDivider,
@@ -21,6 +25,9 @@ interface GalleryFooterProps {
 }
 
 export default function GalleryFooter({ studioSettings }: GalleryFooterProps) {
+  const shopAvailable = useShopAvailable();
+  const printShopAvailable = usePrintShopAvailable();
+
   return (
     <footer className="relative overflow-hidden bg-sage/10 border-t border-sage/20 py-12 mt-10">
       {/* Decorazioni floreali */}
@@ -143,6 +150,32 @@ export default function GalleryFooter({ studioSettings }: GalleryFooterProps) {
             </div>
           </div>
         </div>
+
+        {(printShopAvailable || shopAvailable) && (
+          <nav
+            aria-label="Altri prodotti Image Studio"
+            className="mt-8 flex flex-wrap justify-center gap-3"
+          >
+            {printShopAvailable && (
+              <Link
+                to={createUrl("/stampa-foto-aversa")}
+                className="rounded-full border border-sage/30 bg-white px-5 py-3 text-sm font-semibold text-blue-gray transition hover:bg-sage/10"
+              >
+                Stampa altre foto
+                <span className="sr-only"> — caricale separatamente dal tuo dispositivo</span>
+              </Link>
+            )}
+            {shopAvailable && (
+              <Link
+                to={createUrl("/online-shop")}
+                className="rounded-full border border-sage/30 bg-white px-5 py-3 text-sm font-semibold text-blue-gray transition hover:bg-sage/10"
+              >
+                Shop online
+                <span className="sr-only"> — ordini e carrelli sono separati dalla galleria</span>
+              </Link>
+            )}
+          </nav>
+        )}
 
         {/* Divider e credits */}
         <div className="mt-12 pt-6 border-t border-sage/20 text-center text-gray-600 text-sm">

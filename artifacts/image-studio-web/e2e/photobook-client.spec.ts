@@ -131,8 +131,18 @@ function rendererTestPage() {
         window.addEventListener("message", event => {
           if (event.source !== parent || event.data?.channel !== channel || event.data.type !== "apply") return;
           const rendererId = event.data.option?.rendererId || "${custodiaId}";
-          send("change", { configuration: event.data.configuration || configurations[rendererId] || configurations["${custodiaId}"] });
+        const configuration = event.data.configuration || configurations[rendererId] || configurations["${custodiaId}"];
+        document.body.dataset.appliedModel = configuration.modelId;
+        document.body.dataset.appliedBottomText = configuration.bottomText || "";
+        document.body.dataset.appliedPhotoId = configuration.photoAssetId || "";
+        send("change", { configuration });
           send("busy", { busy: false });
+        });
+        window.testChangeConfiguration = () => send("change", {
+          configuration: { ...configurations["album-girevole"], bottomText: "Scelta mobile salvata" }
+        });
+        window.testChangeCustodiaConfiguration = () => send("change", {
+          configuration: { ...configurations["${custodiaId}"], topText: "Anna", bottomText: "Marco" }
         });
         send("ready");
         send("busy", { busy: false });
@@ -140,7 +150,11 @@ function rendererTestPage() {
     </body></html>`;
 }
 
-async function mockPhotobookApi(page: Page, mockupResponse: (route: Route) => Promise<void>) {
+async function mockPhotobookApi(
+  page: Page,
+  mockupResponse: (route: Route) => Promise<void>,
+  photobookResponse?: (route: Route) => Promise<void>,
+) {
   let mockupRequests = 0;
 
   await page.route("**/*", async route => {
@@ -173,6 +187,10 @@ async function mockPhotobookApi(page: Page, mockupResponse: (route: Route) => Pr
     }
 
     if (url.pathname === `/api/photobooks/by-token/${token}`) {
+      if (photobookResponse) {
+        await photobookResponse(route);
+        return;
+      }
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -227,6 +245,62 @@ async function fulfillMockup(route: Route, body: object) {
   });
 }
 
+function confirmedMockupPayload() {
+  return {
+    version: 1,
+    mockupPath: "studio",
+    editable: false,
+    enabled: true,
+    approvalRequired: false,
+    clientApprovalAllowed: true,
+    saved: {
+      revision: 7,
+      status: "confirmed",
+      updatedAt: "2026-10-01T10:00:00.000Z",
+      updatedBy: "studio",
+      selection: { labId: "studio", modelId: custodiaId },
+      configuration: {
+        modelId: custodiaId,
+        assetRevision: 2,
+        materialId,
+        appearanceRevision: 4,
+        coverLayout: "oblique",
+        topText: "",
+        bottomText: "",
+        photoAssetId: null,
+        crop,
+      },
+      option: custodiaOption,
+    },
+    offer: null,
+    modelMode: "fixed",
+    modelSelection: { labId: "studio", modelId: custodiaId },
+    offerError: null,
+  };
+}
+
+async function openConfirmedSharedMockup(page: Page) {
+  const versionRequest = page.waitForRequest(request => {
+    const url = new URL(request.url());
+    return url.pathname === `/api/photobooks/by-token/${token}` && url.searchParams.get("version") === "1";
+  });
+  await page.goto(`/fotolibro/${token}/mockup?version=1`);
+  await versionRequest;
+
+  const dialog = page.getByRole("dialog", { name: "Custodia" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText("Questa versione è in sola lettura")).toBeVisible();
+  const renderer = page.frameLocator('iframe[title^="Configuratore 3D"]');
+  await expect(renderer.locator('body[data-wizard-readonly="true"]')).toBeVisible();
+  await expect(renderer.getByRole("button", {
+    name: /Personalizza|Modifica|Salva|Invia|Richiedi|Stampa|Cambia modello/i,
+  })).toHaveCount(0);
+  await expect(page.getByRole("button", {
+    name: /Personalizza|Salva bozza|Invia allo studio per verifica|Richiedi modifiche|Stampa/i,
+  })).toHaveCount(0);
+  return dialog;
+}
+
 test("su mobile il mockup ha un solo accesso e un errore di caricamento recuperabile", async ({ page }) => {
   let allowMockupRetry = false;
   const getMockupRequests = await mockPhotobookApi(page, async route => {
@@ -253,9 +327,135 @@ test("su mobile il mockup ha un solo accesso e un errore di caricamento recupera
   allowMockupRetry = true;
   await card.getByRole("button", { name: "Riprova" }).click();
 
-  await expect(card.getByText("Personalizzazione in preparazione")).toBeVisible();
-  await expect(page.getByText("Personalizzazione in preparazione")).toHaveCount(1);
+  await expect(card.getByTestId("mockup-not-enabled")).toContainText("La proposta non è ancora pronta");
+  await expect(page.getByTestId("mockup-not-enabled")).toHaveCount(1);
   expect(getMockupRequests()).toBeGreaterThan(1);
+});
+
+test("un link a una revisione non disponibile mostra l’errore e riprova solo quella revisione", async ({ page }) => {
+  const versionRequests: string[] = [];
+  const fallbackVersionRequests: string[] = [];
+  const mutationRequests: string[] = [];
+  const emailRequests: string[] = [];
+
+  page.on("request", request => {
+    const url = new URL(request.url());
+    if (url.pathname === `/api/photobooks/by-token/${token}`) {
+      versionRequests.push(url.search);
+      if (url.searchParams.get("version") !== "7") fallbackVersionRequests.push(url.search);
+    }
+    if (url.pathname.startsWith("/api/") && !["GET", "HEAD"].includes(request.method())) {
+      mutationRequests.push(`${request.method()} ${url.pathname}`);
+    }
+    if (url.pathname.startsWith("/api/email/")) emailRequests.push(`${request.method()} ${url.pathname}`);
+  });
+
+  await mockPhotobookApi(
+    page,
+    route => fulfillMockup(route, confirmedMockupPayload()),
+    async route => {
+      const url = new URL(route.request().url());
+      if (url.searchParams.get("version") === "7") {
+        await route.fulfill({
+          status: 404,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "Questa revisione non è disponibile" }),
+        });
+        return;
+      }
+
+      // A fallback to the current version would succeed, making the test catch
+      // any behavior that silently opens a different version.
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          photobook: {
+            id: "e2e-photobook",
+            name: "Fotolibro di prova",
+            galleryId: "e2e-gallery",
+            token,
+            currentVersion: 1,
+            versions: [{ version: 1, pageCount: 0 }],
+            approval: { version: 1 },
+            mockupPath: "client",
+          },
+          version: 1,
+          pages: [],
+          requests: [],
+        }),
+      });
+    },
+  );
+
+  await page.goto(`/fotolibro/${token}/mockup?version=7`);
+
+  const unavailable = page.getByRole("alert");
+  await expect(unavailable.getByRole("heading", { name: "Link mockup non disponibile" })).toBeVisible();
+  await expect(unavailable).toContainText("questa revisione non è disponibile");
+  const retry = unavailable.getByRole("button", { name: "Ricarica anteprima" });
+  await expect(retry).toBeVisible();
+  await expect(page.getByTestId("photobook-mockup")).toHaveCount(0);
+  await expect(page.getByTestId("status-photobook-approval")).toHaveCount(0);
+  await expect(page.getByText("Versione fotolibro v1")).toHaveCount(0);
+  expect(fallbackVersionRequests).toEqual([]);
+
+  const retryResponse = page.waitForResponse(response => {
+    const url = new URL(response.url());
+    return response.request().method() === "GET" &&
+      url.pathname === `/api/photobooks/by-token/${token}` &&
+      url.searchParams.get("version") === "7";
+  });
+  await retry.click();
+  await retryResponse;
+
+  await expect(unavailable).toBeVisible();
+  await expect(page.getByTestId("photobook-mockup")).toHaveCount(0);
+  await expect.poll(() => versionRequests).toEqual(["?version=7", "?version=7"]);
+  expect(fallbackVersionRequests).toEqual([]);
+  expect(mutationRequests).toEqual([]);
+  expect(emailRequests).toEqual([]);
+});
+
+test("il mockup condiviso senza pagine non viene presentato come impaginato approvato o da approvare", async ({ page }) => {
+  await mockPhotobookApi(
+    page,
+    route => fulfillMockup(route, confirmedMockupPayload()),
+    route => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        photobook: {
+          id: "e2e-standalone-empty",
+          name: "Fotolibro autonomo senza pagine",
+          token,
+          currentVersion: 1,
+          versions: [{ version: 1, pageCount: 0 }],
+          approval: null,
+          locked: false,
+          mockupPath: "studio",
+        },
+        version: 1,
+        pages: [],
+        requests: [],
+      }),
+    }),
+  );
+
+  await page.goto(`/fotolibro/${token}/mockup?version=1`);
+  const mockupStatus = page.getByTestId("status-photobook-approval");
+  await expect(mockupStatus).toContainText("L’impaginato non è ancora stato caricato");
+  await expect(mockupStatus).toContainText("non approva le pagine");
+  await expect(mockupStatus).not.toContainText("non è ancora approvato");
+  await expect(page.getByTestId("button-approve-mockup")).toBeVisible();
+  await expect(page.getByRole("button", { name: /Approva l'impaginato/i })).toHaveCount(0);
+  await expect(page.locator('iframe[title^="Configuratore 3D"]')).toBeVisible();
+
+  await page.goto(`/fotolibro/${token}`);
+  await expect(page.getByTestId("photobook-no-pages")).toContainText("questa conferma non approva le pagine");
+  await expect(page.getByTestId("photobook-client-progress")).toContainText("Impaginato da preparare");
+  await expect(page.getByTestId("button-open-approve")).toHaveCount(0);
+  await expect(page.getByTestId("card-approve")).toHaveCount(0);
 });
 
 test("su mobile il cliente vede un solo pulsante per aprire un mockup pronto", async ({ page }) => {
@@ -272,7 +472,7 @@ test("su mobile il cliente vede un solo pulsante per aprire un mockup pronto", a
   expect(getMockupRequests()).toBe(1);
 });
 
-test("il cliente confronta tutti i modelli e recupera la scelta salvata anche con una vecchia assegnazione fissa", async ({ page }) => {
+async function exerciseClientModelChoice(page: Page) {
   const studioDraft = {
     revision: 1,
     status: "draft",
@@ -284,9 +484,11 @@ test("il cliente confronta tutti i modelli e recupera la scelta salvata anche co
   };
   let payload = multiModelClientPayload(studioDraft);
   let saveRequest: { revision: number; configuration: typeof girevoleConfiguration; selection: typeof oldModelSelection; offerRevision: number } | undefined;
+  let saveRequests = 0;
 
   await mockPhotobookApi(page, async route => {
     if (route.request().method() === "PUT") {
+      saveRequests += 1;
       saveRequest = route.request().postDataJSON() as typeof saveRequest;
       const selection = saveRequest?.selection;
       const chosenOption = [custodiaOption, girevoleOption].find(option =>
@@ -329,10 +531,54 @@ test("il cliente confronta tutti i modelli e recupera la scelta salvata anche co
 
   await girevoleCard.click();
   await expect(chooser).toHaveAttribute("data-chooser-stage", "styles");
+  const chooserBox = await chooser.boundingBox();
+  expect(chooserBox).not.toBeNull();
+  expect(chooserBox!.x).toBeGreaterThanOrEqual(0);
+  expect(chooserBox!.x + chooserBox!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
   await page.getByTestId("choose-mockup-example-plaque").click();
-  await chooser.getByRole("button", { name: /Continua/ }).click();
+  const continueButton = chooser.getByRole("button", { name: /Continua/ });
+  await expect(continueButton).toHaveCount(1);
+  page.once("dialog", dialog => dialog.accept());
+  await continueButton.click();
 
   const rendererFrame = page.frameLocator('iframe[title="Configuratore 3D Album girevole"]');
+  await expect(page.getByTestId("mockup-model-chooser")).toHaveCount(0);
+  await expect(rendererFrame.locator('body[data-wizard="true"]')).toBeVisible();
+  await expect(rendererFrame.locator(".wizard-primary")).toHaveCount(1);
+  if ((page.viewportSize()?.width ?? 0) < 768) {
+    await rendererFrame.locator("body").evaluate(body => {
+      (body.ownerDocument.defaultView as (Window & { testChangeConfiguration: () => void }) | null)?.testChangeConfiguration();
+    });
+    const saveResponse = page.waitForResponse(response =>
+      response.request().method() === "PUT" &&
+      response.url().includes(`/photobooks/by-token/${token}/mockup`),
+    );
+    const nextStep = rendererFrame.locator(".mq-nav .mq-primary");
+    await expect(nextStep).toBeEnabled();
+    await nextStep.click();
+    await saveResponse;
+    expect(saveRequests).toBe(1);
+    expect(saveRequest?.configuration.bottomText).toBe("Scelta mobile salvata");
+    expect(saveRequest?.selection).toEqual({ labId: "studio", modelId: girevoleId });
+    await expect.poll(() => (payload.saved as { updatedBy: string } | undefined)?.updatedBy).toBe("client");
+
+    await page.reload();
+    const reopenedMockup = page.getByTestId("photobook-mockup");
+    await expect(reopenedMockup).toBeVisible();
+    await reopenedMockup.getByRole("button").click();
+    const restoredFrame = page.frameLocator('iframe[title="Configuratore 3D Album girevole"]');
+    await expect(restoredFrame.locator(".mq-title")).toHaveText("Ecco il tuo album");
+    await expect(restoredFrame.locator("body")).toHaveAttribute("data-applied-model", "album-girevole");
+    await expect(restoredFrame.locator("body")).toHaveAttribute("data-applied-bottom-text", "Scelta mobile salvata");
+    const changeModel = restoredFrame.getByRole("button", { name: "Cambia modello", exact: true });
+    await expect(changeModel).toBeEnabled();
+    await changeModel.click();
+    await expect(page.getByTestId(`mockup-model-${custodiaId}`)).toHaveAttribute("aria-pressed", "false");
+    await expect(page.getByTestId(`mockup-model-${girevoleId}`)).toHaveAttribute("aria-pressed", "true");
+    expect(saveRequests).toBe(1);
+    return;
+  }
+
   const saveDraft = rendererFrame.getByRole("button", { name: /Salva bozza/ });
   await expect(saveDraft).toBeEnabled();
   const savedStateRefresh = page.waitForResponse(response =>
@@ -349,10 +595,355 @@ test("il cliente confronta tutti i modelli e recupera la scelta salvata anche co
   await expect(reopenedMockup).toBeVisible();
   await reopenedMockup.getByRole("button").click();
   await expect(page.getByTestId("mockup-model-chooser")).toHaveCount(0);
-  const changeModel = page.getByRole("button", { name: "Cambia", exact: true });
+  const changeModelLabel = (page.viewportSize()?.width ?? 0) < 768 ? "Cambia" : "Cambia modello";
+  const changeModel = page.getByRole("button", { name: changeModelLabel, exact: true });
+  await expect(changeModel).toHaveCount(1);
   await expect(changeModel).toBeEnabled();
   await changeModel.click();
 
   await expect(page.getByTestId(`mockup-model-${custodiaId}`)).toHaveAttribute("aria-pressed", "false");
   await expect(page.getByTestId(`mockup-model-${girevoleId}`)).toHaveAttribute("aria-pressed", "true");
+}
+
+test("su telefono il cliente sceglie il modello e apre il configuratore", async ({ page }) => {
+  await exerciseClientModelChoice(page);
+});
+
+test.describe("flusso mockup su desktop", () => {
+  test.use({
+    viewport: { width: 1280, height: 900 },
+    isMobile: false,
+    hasTouch: false,
+    deviceScaleFactor: 1,
+  });
+
+  test("su desktop il cliente salva e recupera la scelta dopo una ricarica", async ({ page }) => {
+    await exerciseClientModelChoice(page);
+  });
+
+  test("su desktop il cliente recupera la Custodia assegnata dopo il salvataggio", async ({ page }) => {
+    const photoAssetId = "11111111-1111-4111-8111-111111111111";
+    const option = { ...custodiaOption };
+    let saved: Record<string, unknown> | null = null;
+    let payload: Record<string, unknown> = {
+      version: 1,
+      mockupPath: "client",
+      editable: true,
+      enabled: true,
+      approvalRequired: false,
+      saved,
+      offer: { revision: 1, mode: "fixed", options: [option] },
+      modelMode: "fixed",
+      modelSelection: { labId: option.labId, modelId: option.id },
+      offerError: null,
+    };
+    let submitRequests = 0;
+    page.on("request", request => {
+      if (new URL(request.url()).pathname === `/api/photobooks/by-token/${token}/mockup/submit`) {
+        submitRequests += 1;
+      }
+    });
+
+    await mockPhotobookApi(page, async route => {
+      if (route.request().method() === "PUT") {
+        const body = route.request().postDataJSON() as {
+          revision: number;
+          configuration: Record<string, unknown>;
+          selection?: { labId: string; modelId: string };
+        };
+        saved = {
+          revision: body.revision + 1,
+          status: "draft",
+          updatedAt: "2026-10-01T10:05:00.000Z",
+          updatedBy: "client",
+          selection: body.selection || { labId: option.labId, modelId: option.id },
+          configuration: body.configuration,
+          option,
+        };
+        payload = { ...payload, saved };
+        await fulfillMockup(route, saved);
+        return;
+      }
+      await fulfillMockup(route, payload);
+    });
+    await page.route(`**/api/photobooks/by-token/${token}/mockup/photos/${photoAssetId}`, route =>
+      route.fulfill({ status: 200, contentType: "image/jpeg", body: Buffer.from([0xff, 0xd8, 0xff, 0xd9]) }),
+    );
+
+    await page.goto(`/fotolibro/${token}`);
+    const mockup = page.getByTestId("photobook-mockup");
+    await expect(mockup).toBeVisible();
+    await mockup.getByRole("button").first().click();
+
+    const renderer = page.frameLocator(`iframe[title="Configuratore 3D ${option.name}"]`);
+    await expect(renderer.locator('body[data-wizard="true"]')).toBeVisible();
+    await renderer.locator("body").evaluate(body => {
+      const viewer = body.ownerDocument.defaultView as (Window & { testChangeCustodiaConfiguration: () => void }) | null;
+      viewer?.testChangeCustodiaConfiguration();
+    });
+    const saveButton = renderer.getByRole("button", { name: /Salva bozza/ });
+    await expect(saveButton).toBeEnabled();
+    const saveResponse = page.waitForResponse(response =>
+      response.request().method() === "PUT" && response.url().includes(`/photobooks/by-token/${token}/mockup`),
+    );
+    await saveButton.click();
+    await saveResponse;
+    expect(saved?.configuration).toMatchObject({
+      modelId: custodiaId,
+      topText: "Anna",
+      bottomText: "Marco",
+      photoAssetId: photoAssetId,
+      coverLayout: "oblique",
+    });
+
+    await page.reload();
+    const reopened = page.getByTestId("photobook-mockup");
+    await expect(reopened).toBeVisible();
+    await reopened.getByRole("button").first().click();
+    const restored = page.frameLocator(`iframe[title="Configuratore 3D ${option.name}"]`);
+    await expect(restored.locator("body")).toHaveAttribute("data-applied-model", custodiaId);
+    await expect(restored.locator("body")).toHaveAttribute("data-applied-bottom-text", "Marco");
+    await expect(restored.locator("body")).toHaveAttribute("data-applied-photo-id", photoAssetId);
+    expect(submitRequests).toBe(0);
+  });
+
+  test("lo studio copia una sola volta il link del mockup confermato", async ({ page }) => {
+    await exerciseStudioSharing(page);
+  });
+
+  test("il link condiviso apre la revisione confermata in sola lettura", async ({ page }) => {
+    const mutationRequests: string[] = [];
+    page.on("request", request => {
+      if (new URL(request.url()).pathname.startsWith("/api/") && !["GET", "HEAD"].includes(request.method())) {
+        mutationRequests.push(`${request.method()} ${new URL(request.url()).pathname}`);
+      }
+    });
+
+    await mockPhotobookApi(page, route => fulfillMockup(route, confirmedMockupPayload()));
+    const dialog = await openConfirmedSharedMockup(page);
+    await dialog.getByRole("button", { name: "Chiudi mockup" }).click();
+
+    await expect(page.getByRole("heading", { name: /La vostra anteprima.*Fotolibro di prova/ })).toBeVisible();
+    await expect(page.getByTestId("status-photobook-approval")).toContainText("L’impaginato non è ancora stato caricato");
+    await expect(page.getByTestId("status-photobook-approval")).toContainText("non approva le pagine");
+    const mockup = page.getByTestId("photobook-mockup");
+    await expect(mockup.locator(".mockup-status-card")).toContainText("confermato");
+    await expect(mockup.locator(".mockup-status-card")).toContainText("revisione 7");
+    expect(mutationRequests).toEqual([]);
+  });
+});
+
+test("su telefono il link condiviso mostra la revisione confermata in sola lettura senza invii", async ({ page }) => {
+  const viewportWidth = page.viewportSize()?.width;
+  expect(viewportWidth).toBeDefined();
+  expect(viewportWidth).toBeLessThan(768);
+
+  const mutationRequests: string[] = [];
+  const emailRequests: string[] = [];
+  page.on("request", request => {
+    const url = new URL(request.url());
+    if (url.pathname.startsWith("/api/") && !["GET", "HEAD"].includes(request.method())) {
+      mutationRequests.push(`${request.method()} ${url.pathname}`);
+    }
+    if (url.pathname.startsWith("/api/email/")) emailRequests.push(`${request.method()} ${url.pathname}`);
+  });
+
+  await mockPhotobookApi(page, route => fulfillMockup(route, confirmedMockupPayload()));
+  const dialog = await openConfirmedSharedMockup(page);
+  const dialogBox = await dialog.boundingBox();
+  expect(dialogBox).not.toBeNull();
+  expect(dialogBox!.x).toBeGreaterThanOrEqual(0);
+  expect(dialogBox!.x + dialogBox!.width).toBeLessThanOrEqual(viewportWidth!);
+  await expect(dialog).toHaveText(/versione fotolibro 1/i);
+  await expect(dialog.locator("iframe[title^='Configuratore 3D']")).toBeVisible();
+  await expect.poll(() => dialog.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await expect(page.getByRole("button", {
+    name: /Personalizza|Modifica|Salva|Invia|Richiedi|Stampa/i,
+  })).toHaveCount(0);
+  await page.frameLocator('iframe[title^="Configuratore 3D"]').getByRole("button", { name: "Chiudi mockup" }).click();
+  await expect(page.getByTestId("photobook-mockup").locator(".mockup-status-card")).toContainText("confermato");
+  await expect(page.getByTestId("photobook-mockup").locator(".mockup-status-card")).toContainText("revisione 7");
+
+  expect(mutationRequests).toEqual([]);
+  expect(emailRequests).toEqual([]);
+});
+
+async function exerciseStudioSharing(page: Page) {
+  let apiRequests = 0;
+  await page.route("**/api/**", async route => {
+    apiRequests += 1;
+    await route.abort();
+  });
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto("/admin/__e2e/photobook-mockup-sharing");
+  const cookieDismiss = page.getByTestId("cookie-reject-btn");
+  if (await cookieDismiss.isVisible().catch(() => false)) await cookieDismiss.click();
+
+  const flow = page.getByTestId("mockup-admin-flow");
+  await expect(flow).toBeVisible();
+  await flow.getByRole("radio", { name: /Io preparo e confermo/ }).check();
+
+  const shareButton = flow.getByTestId("button-copy-mockup-link");
+  await expect(shareButton).toHaveCount(1);
+  await expect(shareButton).toHaveAccessibleName(
+    `Copia link mockup: ${localOrigin}/fotolibro/e2e-share-token/mockup?version=1`,
+  );
+  await expect(flow.getByText("Copia link mockup", { exact: true })).toHaveCount(1);
+  await expect(flow.getByRole("button", { name: /Invia email|Invia allo studio/ })).toHaveCount(0);
+  await expect(flow.getByText(/La stampa non parte automaticamente/)).toBeVisible();
+  await expect.poll(() => flow.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+
+  const buttonBox = await shareButton.boundingBox();
+  expect(buttonBox).not.toBeNull();
+  expect(buttonBox!.x + buttonBox!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+
+  await shareButton.click();
+  await expect(shareButton).toContainText("Copiato");
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(
+    `${localOrigin}/fotolibro/e2e-share-token/mockup?version=1`,
+  );
+  expect(apiRequests).toBe(0);
+}
+
+test("lo studio copia una sola volta il link del mockup confermato su telefono", async ({ page }) => {
+  await exerciseStudioSharing(page);
+});
+
+test.describe("approvazione di un fotolibro autonomo", () => {
+  test.use({
+    viewport: { width: 1280, height: 900 },
+    isMobile: false,
+    hasTouch: false,
+    deviceScaleFactor: 1,
+  });
+
+  test("il cliente approva le pagine caricate e lo studio vede lo stato nella sezione autonoma", async ({ page }) => {
+    const standaloneToken = "e2e-standalone-approval-token";
+    const standaloneId = "e2e-standalone-approval-book";
+    const imageUrl = (label: string, color: string) =>
+      `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1100"><rect width="100%" height="100%" fill="${color}"/><text x="50%" y="50%" text-anchor="middle" font-size="64" fill="white">${label}</text></svg>`)}`;
+    const pageOneUrl = imageUrl("PAGINA UNO", "#70594b");
+    const pageTwoUrl = imageUrl("PAGINA DUE", "#4f6d61");
+    const pages = [
+      {
+        id: "e2e-standalone-page-1",
+        photobookId: standaloneId,
+        version: 3,
+        pageNumber: 1,
+        fileName: "pagina-1.jpg",
+        url: pageOneUrl,
+        storagePath: "e2e/standalone/v3/pagina-1.jpg",
+        width: 800,
+        height: 1100,
+        createdAt: "2026-10-27T09:00:00.000Z",
+      },
+      {
+        id: "e2e-standalone-page-2",
+        photobookId: standaloneId,
+        version: 3,
+        pageNumber: 2,
+        fileName: "pagina-2.jpg",
+        url: pageTwoUrl,
+        storagePath: "e2e/standalone/v3/pagina-2.jpg",
+        width: 800,
+        height: 1100,
+        createdAt: "2026-10-27T09:01:00.000Z",
+      },
+    ];
+    const book: Record<string, any> = {
+      id: standaloneId,
+      name: "Fotolibro autonomo E2E",
+      token: standaloneToken,
+      currentVersion: 3,
+      versions: [{ version: 3, status: "published", pageCount: pages.length, createdAt: "2026-10-27T09:00:00.000Z" }],
+      approval: null,
+      locked: false,
+      mockupPath: "studio",
+      createdAt: "2026-10-27T09:00:00.000Z",
+      updatedAt: "2026-10-27T09:00:00.000Z",
+    };
+    let galleryPhotoRequestCount = 0;
+    let approvalRequestCount = 0;
+    let approvedRevision: number | undefined;
+
+    await page.route("**/api/**", async route => {
+      const request = route.request();
+      const url = new URL(request.url());
+      const json = (body: unknown) => route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(body),
+      });
+
+      if (url.pathname === `/api/photobooks/by-token/${standaloneToken}/gallery-photos`) {
+        galleryPhotoRequestCount += 1;
+        await json({ photos: [], chapters: [] });
+        return;
+      }
+      if (url.pathname === `/api/photobooks/by-token/${standaloneToken}/approve` && request.method() === "POST") {
+        approvalRequestCount += 1;
+        approvedRevision = book.currentVersion;
+        book.approval = {
+          version: approvedRevision,
+          approvedAt: "2026-10-27T09:10:00.000Z",
+          note: null,
+        };
+        await json({ ok: true, approved: true, mockupNotification: "not-configured" });
+        return;
+      }
+      if (url.pathname === `/api/photobooks/by-token/${standaloneToken}`) {
+        await json({
+          photobook: book,
+          version: book.currentVersion,
+          pages,
+          requests: [],
+        });
+        return;
+      }
+      if (url.pathname === "/api/photobooks" && request.method() === "GET") {
+        await json({ photobooks: [book] });
+        return;
+      }
+      if (url.pathname === "/api/photobooks/requests" && request.method() === "GET") {
+        await json({ requests: [] });
+        return;
+      }
+
+      await route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: JSON.stringify({ error: `Unexpected API request: ${request.method()} ${url.pathname}` }),
+      });
+    });
+
+    await page.goto(`/fotolibro/${standaloneToken}`);
+    await expect(page.getByTestId("text-photobook-name")).toHaveText("Fotolibro autonomo E2E");
+    const firstPage = page.locator('img[alt="Pagina 1"]');
+    const secondPage = page.locator('img[alt="Pagina 2"]');
+    await expect(firstPage).toHaveAttribute("src", pageOneUrl);
+    await expect(secondPage).toHaveAttribute("src", pageTwoUrl);
+    await expect.poll(() => Promise.all([firstPage, secondPage].map(img =>
+      img.evaluate(element => (element as HTMLImageElement).naturalWidth),
+    ))).toEqual([800, 800]);
+    await expect(page.getByRole("button", { name: /sostituisci/i })).toHaveCount(0);
+    expect(galleryPhotoRequestCount).toBeGreaterThan(0);
+
+    await page.getByTestId("button-open-approve").click();
+    await expect(page.getByRole("dialog", { name: "Approvi l'impaginato?" })).toBeVisible();
+    await page.getByTestId("button-confirm-approve").click();
+    await expect(page.getByTestId("photobook-client-progress")).toContainText("Pagine approvate");
+    expect(approvalRequestCount).toBe(1);
+    expect(approvedRevision).toBe(3);
+    expect(book.approval.version).toBe(book.currentVersion);
+
+    await page.goto("/admin/__e2e/photobook-job-gallery");
+    const standaloneSection = page.getByTestId("section-standalone-photobooks");
+    await expect(standaloneSection).toBeVisible();
+    const standaloneCard = page.getByTestId(`card-photobook-${standaloneId}`);
+    await expect(standaloneCard).toBeVisible();
+    await expect(standaloneCard).toContainText("Fotolibro autonomo");
+    await expect(standaloneCard.getByTestId(`badge-approved-${standaloneId}`)).toBeVisible();
+    await expect(standaloneCard).toContainText("v3");
+    await expect(page.getByTestId("section-linked-photobooks")).toHaveCount(0);
+  });
 });

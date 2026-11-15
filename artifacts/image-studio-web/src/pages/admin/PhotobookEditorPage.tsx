@@ -5,11 +5,13 @@
  * quindi non c'è più riconoscimento slot o matching automatico.
  */
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { assignPageNumbers } from '@/lib/photobook-page-numbers';
+import { photobookPageName } from '@/lib/photobook-page-name';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import PhotobookMockup from '@/components/photobook/PhotobookMockup';
+import MockupAdminFlow from '@/components/photobook/MockupAdminFlow';
 import PhotobookConfirmDialog from '@/components/photobook/PhotobookConfirmDialog';
 import {
   CopyFeedbackButton,
@@ -61,6 +63,9 @@ export default function PhotobookEditorPage() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [assignmentRequested] = useState(() =>
+    typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('mockupTab') === 'offer',
+  );
 
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
@@ -79,6 +84,13 @@ export default function PhotobookEditorPage() {
     queryFn: () => getPhotobook(id),
     enabled: !!id,
   });
+
+  useEffect(() => {
+    if (!assignmentRequested) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete('mockupTab');
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  }, [assignmentRequested]);
 
   const version = selectedVersion ?? book?.versions.filter(v => v.status === 'draft').at(-1)?.version ?? book?.currentVersion ?? 1;
 
@@ -241,7 +253,6 @@ export default function PhotobookEditorPage() {
     ? `approved_v${book.currentVersion}`
     : Object.keys(book?.mockupNotifications || {}).filter(key => key.startsWith(`confirmed_v${book?.currentVersion}_r`)).sort((a, b) => Number(b.split('_r')[1]) - Number(a.split('_r')[1]))[0];
   const notification = notificationKey ? book?.mockupNotifications?.[notificationKey] : undefined;
-  const waitingForPageApproval = notification?.state === 'waiting-approval' && book?.approval?.version !== book?.currentVersion;
   async function handleNotification(action: 'send' | 'delivered' | 'not-delivered') {
     if (!book || !notificationKey) return;
     setNotificationBusy(true);
@@ -292,7 +303,12 @@ export default function PhotobookEditorPage() {
           <div className="min-w-0 flex-1">
             <h1 className="text-lg font-semibold truncate">{book.name}</h1>
             <p className="text-xs text-muted-foreground truncate">
-              {book.galleryName} {book.clientName ? `· ${book.clientName}` : ''} · {photos.length} foto in galleria
+              {book.galleryName ||
+                book.galleryId ||
+                (book.jobId ? 'Senza galleria · lavoro collegato' : 'Fotolibro autonomo')}
+              {book.clientName ? ` · ${book.clientName}` : ''}
+              {' · '}
+              {book.galleryId ? `${photos.length} foto in galleria` : 'nessuna galleria sorgente'}
             </p>
             {photosError && (
               <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-destructive" role="alert">
@@ -311,25 +327,6 @@ export default function PhotobookEditorPage() {
         </div>
 
         {/* Barra versioni + upload (accetta anche il trascinamento dei file) */}
-        <PhotobookMockup key={`${id}-${version}`} photobookId={id} version={version} readOnly={book.currentVersion !== version} />
-         <Card><CardContent className="pt-4 space-y-3">
-           <label className="block text-sm font-medium" htmlFor="mockup-path">Percorso mockup di questo fotolibro</label>
-           <select id="mockup-path" className="rounded border p-2 w-full max-w-lg" value={book.mockupPath || 'studio'} onChange={async e => {
-             try {
-               await updatePhotobook(id, { mockupPath: e.target.value as 'client' | 'studio' });
-               await refetchBook();
-               toast({ title: 'Percorso aggiornato', description: 'Nessuna email retroattiva inviata.' });
-             } catch (error) { toast({ title: 'Percorso non aggiornato', description: (error as Error).message, variant: 'destructive' }); }
-           }}>
-             <option value="client">Cliente configura dopo l’approvazione delle pagine</option>
-             <option value="studio">Lo studio prepara e conferma prima di avvisare</option>
-           </select>
-           <p className="text-sm">Email mockup: {waitingForPageApproval ? 'in attesa dell’approvazione delle pagine' : notification?.state === 'waiting-approval' ? 'approvazione completata: invio da verificare' : notification?.state === 'sent' || (notification && !notification.state) ? 'inviata' : notification?.state === 'missing-email' ? 'non inviata: manca l’indirizzo cliente' : notification?.state === 'not-delivered' ? 'non consegnata (verificata)' : notification?.state === 'pending' || notification?.state === 'uncertain' ? 'esito incerto: verifica la posta inviata' : 'non ancora prevista o inviata'}</p>
-           {notification?.state === 'missing-email' && <p className="text-sm text-amber-700">Completa l’email nella galleria o nel cliente del lavoro, poi usa “Verifica e invia”.</p>}
-           {(notification?.state === 'uncertain' || notification?.state === 'pending') && <p className="text-sm text-amber-700">Controlla la posta inviata prima di indicare se è stata consegnata. Non viene ritentata automaticamente.</p>}
-            {(notification?.state === 'uncertain' || notification?.state === 'pending') && <div className="flex gap-2 flex-wrap"><Button variant="outline" disabled={notificationBusy} onClick={() => void handleNotification('delivered')}>Verificata: consegnata</Button><Button variant="outline" disabled={notificationBusy} onClick={() => void handleNotification('not-delivered')}>Verificata: non consegnata</Button></div>}
-           {(['missing-email', 'not-delivered'].includes(notification?.state || '') || !notification || (notification?.state === 'waiting-approval' && !waitingForPageApproval && book.mockupPath !== 'client')) && (book.mockupPath === 'client' ? book.approval?.version === book.currentVersion : !!notificationKey && !waitingForPageApproval) && <Button variant="outline" disabled={notificationBusy} onClick={() => void handleNotification('send')}>Verifica e invia email mockup</Button>}
-         </CardContent></Card>
         <Card>
           <p className="px-4 pt-4 text-sm">1. Crea una nuova bozza. 2. Carica tutte le pagine e controllale. 3. Pubblica: solo allora il cliente vedrà la nuova versione e riceverà l’email.</p>
           <CardContent className="pt-4 flex items-center gap-3 flex-wrap">
@@ -378,7 +375,7 @@ export default function PhotobookEditorPage() {
             {version === book.currentVersion && version > 1 && <Button variant="outline" disabled={busy || book.locked} onClick={async () => {
               try { const result = await notifyPhotobookVersion(id, version); toast({ title: result.notified ? 'Email inviata' : result.alreadyNotified ? 'Cliente già avvisato' : 'Email cliente assente', description: result.skipped === 'no-client-email' ? 'Completa l’email del cliente nel lavoro o nella galleria, poi riprova.' : undefined }); }
               catch (error) { toast({ title: 'Verifica email', description: (error as Error).message, variant: 'destructive' }); }
-            }}>Avvisa cliente / verifica invio</Button>}
+            }}>Invia email: nuove pagine</Button>}
             <input
               ref={fileInputRef}
               type="file"
@@ -403,6 +400,41 @@ export default function PhotobookEditorPage() {
             </Button>
           </CardContent>
         </Card>
+
+        {/* Mockup dell'album: dopo le versioni, prima della griglia delle pagine */}
+        <PhotobookMockup
+          key={`${id}-${version}`}
+          photobookId={id}
+          version={version}
+          readOnly={book.currentVersion !== version}
+          initialAdminTab={assignmentRequested ? 'offer' : undefined}
+          headless
+        />
+         <MockupAdminFlow
+           photobookId={id}
+           clientLink={photobookClientLink(book)}
+           version={version}
+           currentVersion={book.currentVersion}
+           pagesApproved={book.approval?.version === book.currentVersion}
+            hasPublishedPages={(book.versions.find(v => v.version === book.currentVersion)?.pageCount || 0) > 0}
+           mockupPath={book.mockupPath || 'studio'}
+           pathBusy={busy}
+           readOnly={book.currentVersion !== version || !!book.locked}
+           onSelectVersion={v => { if (!busy) { setSelectedVersion(v); setSelectedPageIds(new Set()); } }}
+           onPathChange={async path => {
+             try {
+               await updatePhotobook(id, { mockupPath: path });
+               await refetchBook();
+               toast({ title: 'Percorso aggiornato', description: 'Nessuna email retroattiva inviata.' });
+             } catch (error) { toast({ title: 'Percorso non aggiornato', description: (error as Error).message, variant: 'destructive' }); }
+           }}
+            emailStatus={notification?.state === 'sent' || (notification && !notification.state) ? 'inviata' : notification?.state === 'missing-email' ? 'non inviata: manca l’indirizzo cliente' : notification?.state === 'not-delivered' ? 'non consegnata (verificata)' : notification?.state === 'pending' || notification?.state === 'uncertain' ? 'esito incerto: verifica la posta inviata' : notification?.state === 'waiting-approval' ? 'da inviare' : 'non ancora prevista o inviata'}
+           emailNote={notification?.state === 'missing-email' ? 'Completa l’email nella galleria o nel cliente del lavoro, poi usa “Verifica e invia”.' : notification?.state === 'uncertain' || notification?.state === 'pending' ? 'Controlla la posta inviata prima di indicare se è stata consegnata. Non viene ritentata automaticamente.' : undefined}
+           emailActions={<>
+             {(notification?.state === 'uncertain' || notification?.state === 'pending') && <><Button variant="outline" disabled={notificationBusy} onClick={() => void handleNotification('delivered')}>Verificata: consegnata</Button><Button variant="outline" disabled={notificationBusy} onClick={() => void handleNotification('not-delivered')}>Verificata: non consegnata</Button></>}
+              {(['missing-email', 'not-delivered', 'waiting-approval'].includes(notification?.state || '') || !notification) && (book.mockupPath === 'client' ? book.approval?.version === book.currentVersion : !!notificationKey) && <Button variant="outline" disabled={notificationBusy} onClick={() => void handleNotification('send')}>Invia email: mockup pronto</Button>}
+           </>}
+         />
 
         {canUpload && (
           <button
@@ -483,12 +515,12 @@ export default function PhotobookEditorPage() {
                     type="button"
                     onClick={() => setViewerIndex(pages.findIndex((p) => p.id === page.id))}
                     className="group relative block w-full rounded-md overflow-hidden border bg-muted cursor-zoom-in"
-                    aria-label={`Ingrandisci pagina ${page.pageNumber}`}
+                    aria-label={`Ingrandisci ${photobookPageName(page.fileName, page.pageNumber)}`}
                     data-testid={`button-view-page-${page.pageNumber}`}
                   >
                     <img
                       src={page.displayUrl || page.url}
-                      alt={`Pagina ${page.pageNumber}`}
+                      alt={`${photobookPageName(page.fileName, page.pageNumber)} · pagina ${page.pageNumber}`}
                       loading="lazy"
                       className="w-full h-auto"
                     />
@@ -497,15 +529,18 @@ export default function PhotobookEditorPage() {
                     </span>
                   </button>
                   <div className="flex items-center justify-between gap-2">
-                    <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                    <label className="flex min-w-0 items-center gap-2 text-sm font-medium cursor-pointer">
                       <Checkbox
                         checked={selectedPageIds.has(page.id)}
                         onCheckedChange={() => togglePageSelected(page.id)}
                         disabled={busy || book.locked}
-                        aria-label={`Seleziona pagina ${page.pageNumber}`}
+                        aria-label={`Seleziona ${photobookPageName(page.fileName, page.pageNumber)}`}
                         data-testid={`checkbox-page-${page.pageNumber}`}
                       />
-                      Pagina {page.pageNumber}
+                      <span className="truncate" title={photobookPageName(page.fileName, page.pageNumber)}>
+                        {photobookPageName(page.fileName, page.pageNumber)}
+                      </span>
+                      <span className="shrink-0 text-xs text-muted-foreground">Pagina {page.pageNumber}</span>
                     </label>
                     <Button
                       size="sm"
@@ -538,7 +573,7 @@ export default function PhotobookEditorPage() {
           {viewerIndex !== null && pages[viewerIndex] && (
             <>
               <DialogTitle className="text-sm">
-                Pagina {pages[viewerIndex].pageNumber} di {pages.length}
+                {photobookPageName(pages[viewerIndex].fileName, pages[viewerIndex].pageNumber)} · Pagina {pages[viewerIndex].pageNumber} di {pages.length}
               </DialogTitle>
               <DialogDescription className="sr-only">
                 Anteprima ingrandita della pagina. Usa le frecce per scorrere le pagine.
@@ -556,7 +591,7 @@ export default function PhotobookEditorPage() {
                 </Button>
                 <img
                   src={pages[viewerIndex].url}
-                  alt={`Pagina ${pages[viewerIndex].pageNumber}`}
+                  alt={`${photobookPageName(pages[viewerIndex].fileName, pages[viewerIndex].pageNumber)} · pagina ${pages[viewerIndex].pageNumber}`}
                   className="max-h-[82vh] max-w-[80vw] object-contain mx-auto"
                   data-testid="img-viewer-page"
                 />

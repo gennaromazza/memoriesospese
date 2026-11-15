@@ -4,11 +4,11 @@ import { getDiscoverGroups, getFooterItems, getHeaderItems, getMobileItems } fro
 describe('public navigation', () => {
   it('mantiene l’header essenziale e sposta Stampa foto nel menu Scopri', () => {
     const headerLabels = getHeaderItems().map((item) => item.label);
-    const discoverLabels = getDiscoverGroups().flatMap((group) => group.items.map((item) => item.label));
+    const discoverLabels = getDiscoverGroups({ printShop: true }).flatMap((group) => group.items.map((item) => item.label));
 
     expect(headerLabels).toEqual(['Portfolio', 'Blog', 'Recensioni', 'Prenota una chiamata']);
     expect(getHeaderItems().find((item) => item.label === 'Recensioni')?.href).toBe('/#recensioni');
-    expect(getDiscoverGroups().map((group) => group.label)).toEqual(['Il nostro mondo', 'Esperienze', 'Il tuo spazio']);
+    expect(getDiscoverGroups({ printShop: true }).map((group) => group.label)).toEqual(['Il nostro mondo', 'Esperienze', 'Il tuo spazio']);
     expect(discoverLabels).toContain('Stampa le tue foto');
     expect(discoverLabels).toContain('Gennaro e Image Studio');
     expect(discoverLabels).toContain('Il libro · Lasciati Trasportare');
@@ -38,8 +38,17 @@ describe('public navigation', () => {
     expect(mobile).toEqual(['Portfolio', 'Blog', 'Idee regalo', 'Shop online', 'Recensioni', 'Prenota una chiamata']);
   });
 
+  it('mostra la stampa fotografica nel menu Scopri e nel footer solo se il catalogo è attivo', () => {
+    const discover = (availability: { printShop?: boolean }) =>
+      getDiscoverGroups(availability).flatMap(group => group.items);
+    expect(discover({}).some(item => item.href === '/stampa-foto-aversa')).toBe(false);
+    expect(getFooterItems().some(item => item.href === '/stampa-foto-aversa')).toBe(false);
+    expect(discover({ printShop: true }).some(item => item.href === '/stampa-foto-aversa')).toBe(true);
+    expect(getFooterItems({ printShop: true }).some(item => item.href === '/stampa-foto-aversa')).toBe(true);
+  });
+
   it('collega tutte le destinazioni editoriali senza esporre le route private o QR', () => {
-    const discoverPaths = getDiscoverGroups().flatMap((group) => group.items.map((item) => item.href));
+    const discoverPaths = getDiscoverGroups({ printShop: true }).flatMap((group) => group.items.map((item) => item.href));
 
     expect(discoverPaths).toEqual([
       '/storie',

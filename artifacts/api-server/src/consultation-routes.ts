@@ -8,6 +8,7 @@ import express, { Request, Response } from "express";
 import { z } from "zod/v4";
 import axios from "axios";
 import { createHash } from "node:crypto";
+import { logger } from "./lib/logger.js";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { DateTime } from "luxon";
@@ -198,6 +199,45 @@ async function releaseManualConsultationLock(ref: any): Promise<void> {
       "[manual consultation] Impossibile rilasciare il lock:",
       error.message,
     );
+  }
+}
+
+/**
+ * Only scan processing requests (single-field index). Re-read each candidate
+ * transactionally so a renewed lease or a completed request cannot be deleted
+ * using the stale query snapshot. Missing/invalid leases are left for diagnosis.
+ */
+export async function cleanupExpiredManualConsultationLocks(): Promise<number> {
+  const cutoff = Date.now();
+  let removed = 0;
+  let scanned = 0;
+  try {
+    const candidates = await db.collection("manual_consultation_requests")
+      .where("status", "==", "processing")
+      .get();
+    scanned = candidates.docs.length;
+
+    for (const candidate of candidates.docs) {
+      const deleted = await db.runTransaction(async (transaction: any) => {
+        const snapshot = await transaction.get(candidate.ref);
+        if (!snapshot.exists) return false;
+        const current = snapshot.data();
+        if (current?.status !== "processing" || !current.lockLeaseUntil) return false;
+        const leaseDate = typeof current.lockLeaseUntil.toDate === "function"
+          ? current.lockLeaseUntil.toDate()
+          : new Date(current.lockLeaseUntil);
+        if (!Number.isFinite(leaseDate.getTime()) || leaseDate.getTime() > cutoff) return false;
+        transaction.delete(candidate.ref);
+        return true;
+      });
+      if (deleted) removed++;
+    }
+
+    logger.info({ scanned, removed }, "Manual consultation lock cleanup completed");
+    return removed;
+  } catch (err) {
+    logger.error({ err, scanned, removed }, "Manual consultation lock cleanup failed");
+    throw err;
   }
 }
 

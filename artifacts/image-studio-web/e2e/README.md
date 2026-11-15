@@ -24,3 +24,17 @@ the network guard observes a local write. External traffic is aborted.
 
 This setup tests the selectors and form-field updates without production data,
 Firebase access, payment registration, or job changes.
+
+## Quote product identity and upload checks
+
+Run the quote builder regression checks from the workspace root:
+
+```sh
+pnpm test:quote-builder-products
+```
+
+The development-only `/admin/__e2e/quote-builder-products` route mounts the real
+quote builder with duplicate-name custom product fixtures. The browser test
+saves to an isolated Firestore emulator and delays a mocked Storage upload while
+its product row is removed. External requests are blocked, so the test does not
+access or modify production data.

@@ -109,12 +109,17 @@ describe('production web runtime', () => {
     for (const slug of ['missing', 'draft']) {
       expect((await fetch(`${baseUrl}/blog/${slug}`)).status).toBe(404);
     }
-    for (const route of ['/admin/dashboard', '/gallery/private', '/quote/private', '/consulenze/template/session/prenota']) {
+    for (const route of ['/admin/dashboard', '/gallery/private', '/quote/private', '/prenota/acconto/booking-test', '/prenota/gestisci/booking-test', '/consulenze/template/session/prenota']) {
       const response = await fetch(`${baseUrl}${route}`);
       expect(response.status).toBe(200);
       expect(response.headers.get('x-robots-tag')).toContain('noindex');
       expect(await response.text()).not.toContain('data-seo-prerender');
     }
+
+    const retainedConsultationFlow = await fetch(`${baseUrl}/consultations/book`);
+    expect(retainedConsultationFlow.status).toBe(200);
+    expect(retainedConsultationFlow.headers.get('x-robots-tag')).toContain('noindex');
+    expect(await retainedConsultationFlow.text()).not.toContain('data-seo-prerender');
   });
 
   it('returns a temporary error rather than a false homepage when content cannot be read', async () => {
@@ -130,6 +135,26 @@ describe('production web runtime', () => {
     expect(response.status).toBe(503);
     expect(response.headers.get('retry-after')).toBe('60');
     expect(await response.text()).not.toContain('production-spa');
+  });
+
+  it('mounts permanent redirects for retained public aliases before rendering', async () => {
+    const { root } = await createFixture();
+    const app = express();
+    mountProductionClient(app, { cwd: root });
+    const baseUrl = await listen(app);
+
+    for (const [pathname, expectedLocation] of [
+      ['/esperienza?utm_source=old-link', '/image-experience?utm_source=old-link'],
+      ['/consultations/?utm_campaign=legacy', '/consulenze?utm_campaign=legacy'],
+      ['/shop-natale/ordine/conferma?order=123', '/online-shop/ordine/conferma?order=123'],
+      ['/?p=123', '/'],
+    ]) {
+      const response = await fetch(`${baseUrl}${pathname}`, { redirect: 'manual' });
+      expect(response.status).toBe(301);
+      expect(response.headers.get('location')).toBe(expectedLocation);
+      expect(response.headers.get('cache-control')).toContain('max-age=86400');
+      expect(await response.text()).not.toContain('production-spa');
+    }
   });
 
   it('labels the health runtime without importing secrets or starting the app', () => {
@@ -181,9 +206,30 @@ describe('production web runtime', () => {
     expect(validTokenRoute.status).toBe(200);
     expect(validTokenRoute.headers.get('x-robots-tag')).toBe('noindex, nofollow, noarchive');
 
+    // Il link condiviso deve funzionare anche aperto direttamente, non solo
+    // dopo una navigazione interna alla SPA.
+    for (const pathname of ['/fotolibro/customer-token/mockup?version=1', '/fotolibro/customer-token/mockup/']) {
+      const mockup = await fetch(`${baseUrl}${pathname}`);
+      expect(mockup.status).toBe(200);
+      expect(mockup.headers.get('content-type')).toContain('text/html');
+      expect(mockup.headers.get('cache-control')).toBe('no-cache, no-store, must-revalidate');
+      expect(mockup.headers.get('x-robots-tag')).toBe('noindex, nofollow, noarchive');
+      expect(await mockup.text()).toContain('production-spa');
+    }
+    expect((await fetch(`${baseUrl}/fotolibro/customer-token/unknown`)).status).toBe(404);
+    expect((await fetch(`${baseUrl}/fotolibro/customer-token/mockup/extra`)).status).toBe(404);
+
     const unknownRoute = await fetch(`${baseUrl}/route-that-does-not-exist`);
     expect(unknownRoute.status).toBe(404);
     expect(await unknownRoute.text()).not.toContain('production-spa');
+
+    const removedAliasTarget = await fetch(`${baseUrl}/online-shop/vecchia-categoria`);
+    expect(removedAliasTarget.status).toBe(404);
+    expect(await removedAliasTarget.text()).not.toContain('production-spa');
+
+    const malformedLegacyPrefix = await fetch(`${baseUrl}/esperienza/vecchio-percorso`);
+    expect(malformedLegacyPrefix.status).toBe(404);
+    expect(await malformedLegacyPrefix.text()).not.toContain('production-spa');
 
     const missingAsset = await fetch(`${baseUrl}/assets/missing.js`);
     expect(missingAsset.status).toBe(404);

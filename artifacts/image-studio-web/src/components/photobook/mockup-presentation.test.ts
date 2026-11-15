@@ -1,13 +1,149 @@
 import { describe, expect, it } from 'vitest';
-import { initialMockupSelection, mockupPresentation, needsClientModelChoice } from './mockup-presentation';
+import { initialMockupSelection, mockupPresentation, needsClientModelChoice, shouldStartClientMockupIn3d } from './mockup-presentation';
 import type { MockupPayload } from '@shared/mockup-types';
+import { MOCKUP_MODEL, ROTATING_MOCKUP_MODEL } from '@shared/mockup-catalog';
 
 describe('modello mostrato nel link cliente', () => {
   const plaza = { labId: 'nobili', id: 'plaza', name: 'Plaza LED', rendererId: 'plaza-led' };
+  it('avvia in 3D i link cliente confermati su smartphone, ma non il configuratore', () => {
+    expect(shouldStartClientMockupIn3d({ confirmedOnly: true, mobile: true, choosing: false })).toBe(true);
+    expect(shouldStartClientMockupIn3d({ confirmedOnly: false, mobile: true, choosing: false })).toBe(false);
+    expect(shouldStartClientMockupIn3d({ confirmedOnly: true, mobile: false, choosing: false })).toBe(false);
+    expect(shouldStartClientMockupIn3d({ confirmedOnly: true, mobile: true, choosing: true })).toBe(false);
+  });
+
+  it('nel recupero conserva il modello salvato senza migrare alla proposta attuale', () => {
+    const selection = { labId: 'old-lab', modelId: 'old-model' };
+    const payload = {
+      deliveryRecoveryAvailable: true, modelMode: 'fixed',
+      offer: { options: [plaza] },
+      saved: { selection, configuration: { modelId: MOCKUP_MODEL.id }, option: { name: 'Modello salvato' } },
+    } as unknown as MockupPayload;
+    expect(mockupPresentation(payload, { labId: plaza.labId, modelId: plaza.id })).toMatchObject({
+      rendererId: MOCKUP_MODEL.id, staleFixedSave: false, title: 'Modello salvato',
+    });
+    expect(initialMockupSelection(payload)).toEqual(selection);
+  });
+  it('non risolve un renderer mentre i dati non sono ancora caricati', () => {
+    expect(mockupPresentation(undefined)).toMatchObject({ title: 'Scegli un modello', rendererId: undefined, savedRendererUnavailable: false });
+  });
+  it('non avvia Custodia quando non ci sono né proposta né configurazione salvata', () => {
+    for (const offer of [null, { revision: 0, options: [] }]) {
+      const payload = { offer, saved: null } as unknown as MockupPayload;
+       expect(mockupPresentation(payload)).toMatchObject({ title: 'Scegli un modello', rendererId: undefined, savedRendererUnavailable: false });
+      expect(initialMockupSelection(payload)).toBeUndefined();
+    }
+  });
+  it.each([MOCKUP_MODEL.id, ROTATING_MOCKUP_MODEL.id, 'plaza-led', 'scatola-cornice', 'imagebox'])(
+    'conserva il renderer salvato %s anche senza una proposta',
+    rendererId => {
+      const payload = { offer: null, saved: { configuration: { modelId: rendererId }, option: { name: 'Modello salvato' } } } as unknown as MockupPayload;
+      expect(mockupPresentation(payload)).toMatchObject({ title: 'Modello salvato', rendererId, staleFixedSave: false, savedRendererUnavailable: false });
+    },
+  );
+  it('collega l’assegnazione fissa Custodia alla sua anteprima 3D', () => {
+    const option = {
+      labId: 'peppe-lab',
+      id: 'custodia-del-laboratorio',
+      name: 'Custodia personalizzata',
+      rendererId: MOCKUP_MODEL.id,
+    };
+    const payload = {
+      modelMode: 'fixed',
+      offer: { revision: 1, mode: 'fixed', options: [option] },
+      saved: null,
+    } as unknown as MockupPayload;
+
+    const selection = initialMockupSelection(payload);
+    expect(selection).toEqual({ labId: option.labId, modelId: option.id });
+    expect(mockupPresentation(payload, selection)).toMatchObject({
+      title: option.name,
+      rendererId: MOCKUP_MODEL.id,
+      staleFixedSave: false,
+    });
+  });
+
+  it('collega l’assegnazione fissa Girevole al renderer girevole e non a Custodia', () => {
+    const option = {
+      labId: 'laboratorio-test',
+      id: 'girevole-del-laboratorio',
+      name: 'Album girevole test',
+      rendererId: ROTATING_MOCKUP_MODEL.id,
+    };
+    const payload = {
+      modelMode: 'fixed',
+      offer: { revision: 1, mode: 'fixed', options: [option] },
+      saved: null,
+    } as unknown as MockupPayload;
+
+    const selection = initialMockupSelection(payload);
+    expect(selection).toEqual({ labId: option.labId, modelId: option.id });
+    expect(mockupPresentation(payload, selection)).toMatchObject({
+      title: option.name,
+      rendererId: ROTATING_MOCKUP_MODEL.id,
+      staleFixedSave: false,
+      savedRendererUnavailable: false,
+    });
+  });
+
+  it('spiega quando una bozza salvata usa un renderer sconosciuto senza alterare la configurazione', () => {
+    const configuration = { modelId: 'renderer-ritirato', coverText: 'Alice e Marco', photoAssetId: 'cover-1' };
+    const payload = {
+      offer: null,
+      saved: { configuration, option: { name: 'Modello storico' }, revision: 4 },
+    } as unknown as MockupPayload;
+
+    expect(mockupPresentation(payload)).toMatchObject({
+      title: 'Visualizzatore non disponibile',
+      rendererId: undefined,
+      savedRendererUnavailable: true,
+    });
+    expect(payload.saved?.configuration).toEqual(configuration);
+    expect(payload.saved?.revision).toBe(4);
+  });
+  it('segnala il renderer salvato non supportato anche se è già disponibile una nuova proposta', () => {
+    const payload = {
+      modelMode: 'fixed',
+      offer: { revision: 2, mode: 'fixed', options: [plaza] },
+      saved: {
+        configuration: { modelId: 'renderer-ritirato' },
+        selection: { labId: 'archivio', modelId: 'old-model' },
+        option: { name: 'Modello storico' },
+      },
+    } as unknown as MockupPayload;
+
+    expect(mockupPresentation(payload)).toMatchObject({
+      savedRendererUnsupported: true,
+      savedRendererUnavailable: false,
+      rendererId: 'plaza-led',
+    });
+  });
+  it('usa un modello valido assegnato esplicitamente anche se la bozza precedente ha un renderer sconosciuto', () => {
+    const payload = {
+      modelMode: 'fixed',
+      offer: { revision: 2, mode: 'fixed', options: [plaza] },
+      saved: { selection: { labId: 'archivio', modelId: 'old-model' }, configuration: { modelId: 'renderer-ritirato' }, option: { name: 'Modello storico' } },
+    } as unknown as MockupPayload;
+
+    expect(mockupPresentation(payload)).toMatchObject({
+      title: 'Plaza LED',
+      rendererId: 'plaza-led',
+      staleFixedSave: true,
+      savedRendererUnavailable: false,
+    });
+  });
+  it('mostra ImageBox dopo l’assegnazione fissa, anche al posto di una vecchia Custodia', () => {
+    const imagebox = { labId: 'peppe', id: 'imagebox-model', name: 'ImageBox', rendererId: 'imagebox', setup: { format: { w: 30, h: 20 } } };
+    for (const saved of [null, { configuration: { modelId: MOCKUP_MODEL.id }, selection: { labId: 'peppe', modelId: 'old-model' } }]) {
+      const payload = { modelMode: 'fixed', offer: { mode: 'fixed', revision: 2, options: [imagebox] }, saved } as unknown as MockupPayload;
+      expect(initialMockupSelection(payload)).toEqual({ labId: 'peppe', modelId: 'imagebox-model' });
+      expect(mockupPresentation(payload, initialMockupSelection(payload), null)).toMatchObject({ title: 'ImageBox', rendererId: 'imagebox' });
+    }
+  });
   it('mostra solo Plaza LED anche se la vecchia bozza usava Custodia', () => {
     const payload = {
       modelMode: 'fixed', offer: { revision: 2, mode: 'fixed', options: [plaza] },
-      saved: { selection: { labId: 'other', modelId: 'custodia' }, configuration: { modelId: 'custodia' }, option: { name: 'Custodia' } },
+      saved: { selection: { labId: 'other', modelId: MOCKUP_MODEL.id }, configuration: { modelId: MOCKUP_MODEL.id }, option: { name: 'Custodia' } },
     } as unknown as MockupPayload;
     expect(mockupPresentation(payload)).toMatchObject({ title: 'Plaza LED', rendererId: 'plaza-led', staleFixedSave: true });
     expect(initialMockupSelection(payload)).toEqual({ labId: 'nobili', modelId: 'plaza' });
@@ -21,7 +157,7 @@ describe('modello mostrato nel link cliente', () => {
     expect(mockupPresentation(payload).title).toBe('Modello non disponibile');
   });
   it('continua a chiedere al cliente di scegliere quando la bozza è stata preparata dallo studio', () => {
-    const custodia = { labId: 'peppe', id: 'custodia', name: 'Custodia', rendererId: 'custodia' };
+    const custodia = { labId: 'peppe', id: MOCKUP_MODEL.id, name: 'Custodia', rendererId: MOCKUP_MODEL.id };
     const payload = {
       modelMode: 'choice',
       offer: { revision: 3, mode: 'choice', options: [custodia, plaza] },
@@ -35,7 +171,7 @@ describe('modello mostrato nel link cliente', () => {
 
     expect(needsClientModelChoice(payload)).toBe(true);
     expect(initialMockupSelection(payload)).toBeUndefined();
-    expect(mockupPresentation(payload)).toMatchObject({ title: 'Custodia', rendererId: 'custodia' });
+    expect(mockupPresentation(payload)).toMatchObject({ title: 'Custodia', rendererId: MOCKUP_MODEL.id });
   });
   it('ripristina la scelta già salvata dal cliente se è ancora inclusa nella proposta', () => {
     const payload = {

@@ -16,6 +16,7 @@ import { useStudio } from '@/context/StudioContext';
 import { useSEO } from '@/hooks/useSEO';
 import { giftCardShareUrl } from '@/components/gift-cards/GiftCardCartoncino';
 import { GiftCardAmbient, GiftCardFull, GiftCardSeal } from '@/components/gift-cards/GiftCardArt';
+import { GiftCardCatalogCard } from '@/components/gift-cards/GiftCardCatalogCard';
 import { GIFT_CARD_THEMES, giftCardThemeVars } from '@/components/gift-cards/giftCardThemes';
 import { GiftCardApiError, giftCardsApi } from '@/features/gift-cards/gift-cards-api';
 import { GiftCardPayPalButtons } from '@/features/gift-cards/GiftCardPayPalButtons';
@@ -293,31 +294,15 @@ export default function GiftCardShopPage() {
           <h2 id="gcx-ideas-t" className="gcx-h2">Le nostre idee regalo</h2>
           <p className="gcx-sub">Scegli quella che farà felice chi ami: la vedi qui sotto con il tuo messaggio prima di pagare.</p>
           <div className="gcx-ideas">
-            {types.map(item => {
-              const cover = item.items.find(entry => entry.imageUrls[0])?.imageUrls[0];
-              const selected = item.id === type?.id;
-              return (
-                <article key={item.id} className={`gcx-idea${selected ? ' gcx-idea-on' : ''}`}>
-                  <div className="gcx-idea-ph" style={cover ? undefined : { background: GIFT_CARD_THEMES[item.theme].bg }}>
-                    {cover ? <img src={cover} alt="" loading="lazy" /> : <span>{item.title}</span>}
-                  </div>
-                  <div className="gcx-idea-body">
-                    <h3>{item.title}</h3>
-                    {item.line2 ? <p className="gcx-idea-line">{item.line2}</p> : null}
-                    {item.description ? <p>{item.description}</p> : null}
-                    {item.items.length ? (
-                      <p className="gcx-idea-incl">Include: {item.items.map(entry => (entry.quantity > 1 ? `${entry.name} × ${entry.quantity}` : entry.name)).join(', ')}</p>
-                    ) : null}
-                    <div className="gcx-idea-row">
-                      <b>{formatGiftCardPrice(item.priceCents)}</b>
-                      <button type="button" className="gcx-btn-gold" aria-pressed={selected} onClick={() => goToPurchase(item.id)}>
-                        {selected ? 'Scelto' : 'Scegli'}
-                      </button>
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
+            {types.map(item => (
+              <GiftCardCatalogCard
+                key={item.id}
+                item={item}
+                studioName={studioName}
+                selected={item.id === type?.id}
+                onSelect={() => goToPurchase(item.id)}
+              />
+            ))}
           </div>
         </section>
 
