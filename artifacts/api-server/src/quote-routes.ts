@@ -26,6 +26,7 @@ import { normalizeEmail } from "./utils/normalize.js";
 import { recomputeJobQuoteStatus } from "./job-aggregates.js";
 import { recordFollowUpEvent } from "./follow-up-routes.js";
 import { safeErrorMessage } from "./utils/safe-logging.js";
+import { withClientAreaLink } from "./client-area/emails.js";
 
 const router = Router();
 
@@ -1409,7 +1410,7 @@ router.post("/send-quote", async (req: Request, res: Response) => {
     const subject = `La tua proposta per ${quote.jobInfo?.nomeEvento || "Evento"} è pronta`;
 
     // Invia email a TUTTI i clienti
-    await sendGmailEmail(recipientEmails, subject, htmlContent);
+    await sendGmailEmail(recipientEmails, subject, withClientAreaLink(htmlContent, baseUrl));
 
     // Update quote con tracking invio
     // FIX: Non sovrascrivere status se il preventivo è in stato avanzato (firmato, visionato)
@@ -1579,7 +1580,7 @@ router.post(
       const subject = `Preventivo Firmato - ${quote.jobInfo?.nomeEvento || "Evento"}`;
 
       // Invia email a TUTTI i clienti
-      await sendGmailEmail(recipientEmails, subject, htmlContent);
+      await sendGmailEmail(recipientEmails, subject, withClientAreaLink(htmlContent, baseUrl));
 
       console.log(
         `✅ Notifica firma preventivo ${quoteId} inviata a ${recipientEmails.join(", ")}`,
@@ -1834,7 +1835,7 @@ router.post("/payment-reminder", async (req: Request, res: Response) => {
       : `Promemoria Pagamento - ${quote.jobInfo?.nomeEvento || "Evento"}`;
 
     // Invia email a TUTTI i clienti
-    await sendGmailEmail(recipientEmails, subject, htmlContent);
+    await sendGmailEmail(recipientEmails, subject, withClientAreaLink(htmlContent, baseUrl));
 
     console.log(
       `✅ Promemoria pagamento inviato a ${recipientEmails.join(", ")} per scadenzario ${paymentScheduleId}`,

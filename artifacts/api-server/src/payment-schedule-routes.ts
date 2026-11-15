@@ -9,7 +9,8 @@ import { db } from './firebase-admin';
 import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { nanoid } from 'nanoid';
 import { DateTime } from 'luxon';
-import { authenticateFirebase } from './email-routes.js';
+import { authenticateFirebase, getSiteBaseUrl } from './email-routes.js';
+import { clientAreaUrl } from './client-area/emails.js';
 import { nowRomeDate, daysFromNowRome, toRomeDateTime } from './utils/timezone.js';
 
 const ADMIN_EMAILS = ["gennaro.mazzacane@gmail.com"];
@@ -1733,7 +1734,7 @@ router.post('/send-reminders', authenticateFirebase, requireAdmin, async (req: a
               payment.tipo,
               daysUntilDue,
               isOverdue,
-              undefined, // portalUrl - TODO: implementare portale cliente
+              clientAreaUrl(getSiteBaseUrl(req)), // portalUrl: area cliente con rate e IBAN
               studioInfo
             );
             

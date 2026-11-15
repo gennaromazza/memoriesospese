@@ -16,6 +16,7 @@ import { formatPhoneForWhatsApp } from "../shared/phone-utils.js";
 import { nowRomeDate, formatRomeDateLocale, toRomeDateTime } from "./utils/timezone.js";
 import { generateGallerySelectionCopyEmail } from "./email-templates/gallery-selection-copy.js";
 import { safeErrorMessage } from "./utils/safe-logging.js";
+import { withClientAreaLink } from "./client-area/emails.js";
 
 const router = Router();
 
@@ -1163,7 +1164,7 @@ router.post("/send-gallery-password", async (req, res): Promise<HttpHandlerResul
 
     const subject = `Password per la galleria "${galleryName}"`;
 
-    await sendGmailEmail(recipientEmail, subject, htmlContent);
+    await sendGmailEmail(recipientEmail, subject, withClientAreaLink(htmlContent, getSiteBaseUrl(req)));
 
     console.log(
       `✅ Password inviata via email a ${recipientEmail} per galleria ${galleryCode}`,
@@ -1416,7 +1417,7 @@ router.post("/send-booking-received", async (req, res): Promise<HttpHandlerResul
 
     const subject = `Prenotazione Ricevuta - ${campaignNome}`;
 
-    await sendGmailEmail(recipientEmail, subject, htmlContent);
+    await sendGmailEmail(recipientEmail, subject, withClientAreaLink(htmlContent, getSiteBaseUrl(req)));
 
     console.log(
       `✅ Email "Prenotazione Ricevuta" inviata a ${recipientEmail} per campagna ${campaignNome}`,
@@ -1484,7 +1485,7 @@ router.post("/send-booking-confirmed", async (req, res): Promise<HttpHandlerResu
 
     const subject = `Prenotazione Confermata - ${campaignNome}`;
 
-    await sendGmailEmail(recipientEmail, subject, htmlContent);
+    await sendGmailEmail(recipientEmail, subject, withClientAreaLink(htmlContent, getSiteBaseUrl(req)));
 
     console.log(
       `✅ Email "Prenotazione Confermata" inviata a ${recipientEmail} per campagna ${campaignNome}`,
@@ -2432,7 +2433,7 @@ router.post("/order-created", async (req, res): Promise<HttpHandlerResult> => {
 
     const subject = `Nuovo Ordine Creato - ${prodottoNome}`;
 
-    await sendGmailEmail(recipientEmail, subject, htmlContent);
+    await sendGmailEmail(recipientEmail, subject, withClientAreaLink(htmlContent, getSiteBaseUrl(req)));
 
     console.log(
       `✅ Email "Ordine Creato" inviata a ${recipientEmail} per ordine ${prodottoNome}`,
@@ -2556,7 +2557,7 @@ router.post("/saldo-received", async (req, res): Promise<HttpHandlerResult> => {
 
     const subject = `Saldo Completato - ${prodottoNome}`;
 
-    await sendGmailEmail(recipientEmail, subject, htmlContent);
+    await sendGmailEmail(recipientEmail, subject, withClientAreaLink(htmlContent, getSiteBaseUrl(req)));
 
     console.log(
       `✅ Email "Saldo Completato" inviata a ${recipientEmail} per ordine ${prodottoNome}`,
@@ -2781,7 +2782,7 @@ router.post("/gallery-password-notification", async (req, res): Promise<HttpHand
     await sendGmailEmail(
       clientEmail,
       subject.replace(/[^\x00-\x7F]/g, ""),
-      htmlContent,
+      withClientAreaLink(htmlContent, getSiteBaseUrl(req)),
     );
 
     console.log("✅ Email password inviata con successo");
@@ -3141,7 +3142,7 @@ router.post("/shooting-completed", async (req, res): Promise<HttpHandlerResult> 
 
     const subject = `Shooting Completato - ${campaignName}`;
 
-    await sendGmailEmail(recipientEmail, subject, htmlContent);
+    await sendGmailEmail(recipientEmail, subject, withClientAreaLink(htmlContent, getSiteBaseUrl(req)));
 
     console.log(`✅ Email "Shooting Completato" inviata a ${recipientEmail}`);
 
@@ -3229,7 +3230,7 @@ router.post("/order-ready", async (req, res): Promise<HttpHandlerResult> => {
 
     const subject = `Il tuo ordine e' pronto per il ritiro - ${prodottoNome}`;
 
-    await sendGmailEmail(recipientEmail, subject, htmlContent);
+    await sendGmailEmail(recipientEmail, subject, withClientAreaLink(htmlContent, getSiteBaseUrl(req)));
 
     console.log(
       `✅ Email "Ordine Pronto" inviata a ${recipientEmail} per ${prodottoNome}`,
@@ -5328,7 +5329,7 @@ router.post("/send-consultation-received", async (req, res): Promise<HttpHandler
 
     const subject = `Richiesta Consulenza Ricevuta - ${jobType}`;
 
-    await sendGmailEmail(recipientEmail, subject, htmlContent);
+    await sendGmailEmail(recipientEmail, subject, withClientAreaLink(htmlContent, getSiteBaseUrl(req)));
 
     console.log(
       `✅ Email "Consulenza Ricevuta" inviata a ${recipientEmail} per ${jobType}`,
@@ -5389,7 +5390,7 @@ router.post("/send-consultation-approved", async (req, res): Promise<HttpHandler
 
     const subject = `Consulenza Confermata - ${jobType}`;
 
-    await sendGmailEmail(recipientEmail, subject, htmlContent);
+    await sendGmailEmail(recipientEmail, subject, withClientAreaLink(htmlContent, getSiteBaseUrl(req)));
 
     console.log(
       `✅ Email "Consulenza Approvata" inviata a ${recipientEmail} per ${jobType}`,

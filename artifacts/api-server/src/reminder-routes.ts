@@ -17,6 +17,7 @@ import {
   authenticateFirebase
 } from "./email-routes.js";
 import { DateTime } from "luxon";
+import { withClientAreaLink } from "./client-area/emails.js";
 import { formatPhoneForWhatsApp } from '../shared/phone-utils.js';
 import {
   createConsultationDateTime,
@@ -870,7 +871,7 @@ export async function runVisioneAutoInviteCheck(): Promise<{
         nextStep.number === 0
           ? `Prenota la tua ${template.nome}`
           : `Promemoria: prenota la tua ${template.nome}`,
-        emailHTML,
+        withClientAreaLink(emailHTML, baseUrl),
         undefined,
         {
           type: nextStep.number === 0

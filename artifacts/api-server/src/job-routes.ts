@@ -9,6 +9,7 @@ import { DateTime } from 'luxon';
 import { getEvents, createEvent, updateEvent, createEuropeRomeDate, getEventById } from './google-calendar.js';
 import { db, Timestamp, FieldValue } from './firebase-admin.js';
 import { sendGmailEmail, getStudioContactInfo, getSiteBaseUrl, authenticateFirebase } from './email-routes.js';
+import { withClientAreaLink } from './client-area/emails.js';
 import { formatPhoneForWhatsApp } from '../shared/phone-utils.js';
 import { recomputeJobAggregates } from './job-aggregates.js';
 import { getJobClientIds } from '../shared/gallery-association.js';
@@ -1091,7 +1092,7 @@ router.post('/:id/send-consultation-request', authenticateFirebase, requireAdmin
     
     if (channel === 'email') {
       try {
-        await sendGmailEmail(cliente.email, emailSubject!, emailHtml!);
+        await sendGmailEmail(cliente.email, emailSubject!, withClientAreaLink(emailHtml!, baseUrl));
       } catch (emailError: any) {
         // Invio fallito DOPO la scrittura del record di dedup: rollback così lo scheduler
         // potrà riprovare l'invio automatico al ciclo successivo (meglio un invio mancato
