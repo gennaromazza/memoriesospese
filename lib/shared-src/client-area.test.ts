@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  bankDetailsFromSettings, causaleFor, computeMilestones, formatIban, isJobVisibleToClient, isValidIban,
-  toClientBooking, toClientGallery, toClientJob, toClientPaymentPlan, toClientQuote,
+  bankDetailsFromSettings, causaleFor, computeJobSteps, formatIban, invitePath, isJobVisibleToClient, isValidIban,
+  openInvitesForJob, toClientAppointment, toClientBooking, toClientGallery, toClientJob, toClientPaymentPlan,
+  toClientQuote, bookableTemplatesForJob,
 } from './client-area';
 
 const ts = (iso: string) => ({ toDate: () => new Date(iso) });
@@ -69,7 +70,7 @@ describe('gallerie', () => {
       selectionSnapshots: [{ timestamp: '2026-06-01T10:00:00Z' }, { timestamp: '2026-06-03T10:00:00Z' }],
     });
     expect(gallery).toEqual({
-      id: 'g1', accessKey: 'ABC', name: 'Matrimonio', photoCount: 400,
+      id: 'g1', accessKey: 'ABC', name: 'Matrimonio', photoCount: 400, photobooks: [],
       selection: {
         status: 'completed', unlimited: false, selectedCount: 2, photoNotesCount: 1,
         requiredPhotoCount: 80, completedAt: '2026-06-03T10:00:00.000Z', notes: 'Più foto in bianco e nero',
@@ -90,51 +91,121 @@ describe('prenotazioni', () => {
   });
 });
 
-describe('tappe automatiche', () => {
-  const now = new Date('2026-07-01T00:00:00Z');
-  const signedQuote = { id: 'q', status: 'firmato' as const, total: 1, signedAt: '2026-02-10T00:00:00.000Z', url: '/quote/x' };
+describe('consulenze e inviti', () => {
+  const link = 'https://www.esempio.it/consulenze/matrimonio/tpl-visione/prenota?jobId=j1&dateFrom=2026-07-01';
 
-  it('calcola le tappe dai dati esistenti', () => {
-    const milestones = computeMilestones({
-      job: { createdAt: ts('2026-01-05T00:00:00Z'), eventDate: ts('2026-06-20T00:00:00Z'), status: 'produzione' },
-      quotes: [signedQuote],
-      galleries: [{ createdAt: ts('2026-06-25T00:00:00Z'), selectionEnabled: true, selectionStatus: 'pending' }],
-      photobooks: [],
-      now,
+  it('accetta solo link di prenotazione consulenze e li rende relativi', () => {
+    expect(invitePath(link)).toBe('/consulenze/matrimonio/tpl-visione/prenota?jobId=j1&dateFrom=2026-07-01');
+    expect(invitePath('https://altro.it/phishing')).toBeUndefined();
+    expect(invitePath(undefined)).toBeUndefined();
+  });
+
+  it('mostra l’ultimo invito per modello finché non c’è una consulenza attiva', () => {
+    const job = {
+      nomeEvento: 'Matrimonio Rossi',
+      workflowEvents: [
+        { tipo: 'consulenza_inviata', data: ts('2026-07-01T00:00:00Z'), metadata: { templateId: 'tpl-visione', templateNome: 'Visione foto', consultationLink: link } },
+        { tipo: 'consulenza_inviata', data: ts('2026-07-10T00:00:00Z'), metadata: { templateId: 'tpl-visione', templateNome: 'Visione foto', consultationLink: `${link}&r=2` } },
+        { tipo: 'status_change', data: ts('2026-07-11T00:00:00Z') },
+      ],
+    };
+    const open = openInvitesForJob('j1', job, []);
+    expect(open).toHaveLength(1);
+    expect(open[0]).toMatchObject({ title: 'Visione foto', nomeEvento: 'Matrimonio Rossi', sentAt: '2026-07-10T00:00:00.000Z' });
+    expect(open[0].url).toContain('r=2');
+    expect(openInvitesForJob('j1', job, [{ templateId: 'tpl-visione', stato: 'in_attesa' }])).toEqual([]);
+    expect(openInvitesForJob('j1', job, [{ templateId: 'tpl-visione', stato: 'annullata' }])).toHaveLength(1);
+  });
+
+  it('elenca gli appuntamenti attivi senza note o dati del calendario', () => {
+    expect(toClientAppointment('c', { stato: 'annullata' }, {})).toBeNull();
+    expect(toClientAppointment('c', {
+      stato: 'confermata', templateNome: 'Visione foto', dataConsulenza: ts('2026-07-20T09:00:00Z'),
+      orarioInizio: '11:00', orarioFine: '12:00', linkedJobId: 'j1', googleCalendarEventId: 'x', note: 'interna',
+    }, { j1: 'Matrimonio Rossi' })).toEqual({
+      id: 'c', title: 'Visione foto', stato: 'confermata', start: '2026-07-20T09:00:00.000Z',
+      orarioInizio: '11:00', orarioFine: '12:00', jobId: 'j1', nomeEvento: 'Matrimonio Rossi',
     });
-    expect(milestones.map(m => [m.id, m.done])).toEqual([
-      ['creato', true], ['contratto', true], ['servizio', true], ['galleria', true], ['selezione', false], ['consegnato', false],
-    ]);
-    expect(milestones[1].date).toBe('2026-02-10T00:00:00.000Z');
+  });
+});
+
+describe('tappe del lavoro: contratto, visione, ritiro', () => {
+  const quote = (status: string, extra = {}) => ({ id: 'q', status: status as any, total: 1, url: '/quote/x', ...extra });
+  const invite = { id: 'i', templateId: 't', title: 'Visione foto', jobId: 'j', nomeEvento: 'M', url: '/consulenze/m/t/prenota?jobId=j' };
+  const steps = (input: Partial<Parameters<typeof computeJobSteps>[0]>) =>
+    computeJobSteps({ job: {}, quotes: [], consultations: [], invites: [], ...input });
+
+  it('ha sempre e solo tre tappe', () => {
+    expect(steps({}).map(s => s.id)).toEqual(['contratto', 'visione', 'ritiro']);
+    expect(steps({}).map(s => s.state)).toEqual(['todo', 'todo', 'todo']);
   });
 
-  it('non mostra servizio, galleria e fotolibro quando non esistono', () => {
-    const milestones = computeMilestones({ job: { dataNonDefinita: true, eventDate: ts('2026-06-20T00:00:00Z') }, quotes: [], galleries: [{ status: 'draft' }], photobooks: [], now });
-    expect(milestones.map(m => m.id)).toEqual(['creato', 'contratto', 'consegnato']);
+  it('contratto: da firmare con link, poi firmato con data', () => {
+    expect(steps({ quotes: [quote('visionato')] })[0]).toMatchObject({ state: 'action', status: 'Da firmare', actionUrl: '/quote/x' });
+    expect(steps({ quotes: [quote('firmato', { signedAt: '2026-02-10T00:00:00.000Z' })] })[0])
+      .toMatchObject({ state: 'done', status: 'Firmato', date: '2026-02-10T00:00:00.000Z' });
+    expect(steps({ quotes: [quote('rifiutato')] })[0]).toMatchObject({ state: 'closed', status: 'Rifiutato' });
   });
 
-  it('segna il fotolibro approvato solo se è approvata la versione corrente', () => {
-    const job = { status: 'consegnato' };
-    const pending = computeMilestones({ job, quotes: [], galleries: [], photobooks: [{ currentVersion: 2, approval: { version: 1 } }], now });
-    expect(pending.find(m => m.id === 'fotolibro')?.done).toBe(false);
-    const approved = computeMilestones({ job, quotes: [], galleries: [], photobooks: [{ currentVersion: 2, approval: { version: 2, approvedAt: '2026-06-30T00:00:00Z' } }], now });
-    expect(approved.find(m => m.id === 'fotolibro')).toMatchObject({ done: true, date: '2026-06-30T00:00:00.000Z' });
-    expect(approved.at(-1)).toMatchObject({ id: 'consegnato', done: true });
+  it('visione: da prenotare, richiesta, programmata, svolta', () => {
+    expect(steps({ invites: [invite] })[1]).toMatchObject({ state: 'action', actionUrl: invite.url, actionLabel: 'Prenota la visione' });
+    expect(steps({ invites: [invite], consultations: [{ stato: 'in_attesa', dataConsulenza: ts('2026-07-20T09:00:00Z') }] })[1])
+      .toMatchObject({ state: 'waiting', status: 'Richiesta inviata, in attesa di conferma' });
+    expect(steps({ consultations: [{ stato: 'confermata', dataConsulenza: ts('2026-07-20T09:00:00Z') }] })[1])
+      .toMatchObject({ state: 'waiting', status: 'Programmata', date: '2026-07-20T09:00:00.000Z' });
+    expect(steps({ consultations: [{ stato: 'confermata' }, { stato: 'completata', dataConsulenza: ts('2026-07-20T09:00:00Z') }] })[1])
+      .toMatchObject({ state: 'done', status: 'Svolta' });
+    expect(steps({ consultations: [{ stato: 'annullata' }] })[1].state).toBe('todo');
+    const bookable = [{ templateId: 'v', title: 'Visione foto', url: '/consulenze/m/v/prenota?jobId=j' }];
+    expect(steps({ bookable })[1]).toMatchObject({ state: 'todo', actionUrl: bookable[0].url, actionLabel: 'Prenota la visione' });
+    expect(steps({ bookable: [{ templateId: 'a', title: 'Scelta album', url: '/x' }] })[1].actionUrl).toBeUndefined();
+  });
+
+  it('ritiro: fatto quando il lavoro è consegnato, con la data del cambio stato', () => {
+    expect(steps({ job: { status: 'produzione' } })[2]).toMatchObject({ state: 'todo' });
+    expect(steps({ job: { status: 'consegnato', workflowEvents: [
+      { tipo: 'status_change', descrizione: 'Stato cambiato in: consegnato', data: ts('2026-09-01T00:00:00Z') },
+    ] } })[2]).toMatchObject({ state: 'done', status: 'Ritirato', date: '2026-09-01T00:00:00.000Z' });
   });
 
   it('nasconde lavori eliminati e contatti senza preventivo inviato', () => {
     expect(isJobVisibleToClient({ deletedAt: new Date() }, [])).toBe(false);
     expect(isJobVisibleToClient({ status: 'lead' }, [])).toBe(false);
-    expect(isJobVisibleToClient({ status: 'lead' }, [signedQuote])).toBe(true);
+    expect(isJobVisibleToClient({ status: 'lead' }, [quote('inviato')])).toBe(true);
   });
 
-  it('il lavoro esposto non contiene costi, note interne o collaboratori', () => {
+  it('il lavoro esposto non contiene costi, note interne, collaboratori o gallerie', () => {
     const job = toClientJob('j', {
       nomeEvento: 'Matrimonio Rossi', costi: [{ importo: 300 }], noteInterne: 'x', financials: { totale: 1 },
-      collaboratori: ['a'], galleryIds: ['g1'], eventLocation: 'Villa',
-    }, { quotes: [], paymentPlans: [], galleries: [], photobooks: [], now });
-    expect(Object.keys(job).sort()).toEqual(
-      ['eventLocation', 'galleryIds', 'id', 'milestones', 'nomeEvento', 'paymentPlans', 'photobooks', 'quotes'].sort(),
-    );
+      collaboratori: ['a'], galleryIds: ['g1'], eventLocation: 'Villa', workflowEvents: [{ tipo: 'nota_aggiunta' }],
+    }, { quotes: [], paymentPlans: [], consultations: [], invites: [] });
+    expect(Object.keys(job).sort()).toEqual(['bookable', 'eventLocation', 'id', 'nomeEvento', 'paymentPlans', 'quotes', 'steps'].sort());
+  });
+});
+
+describe('prenotazione autonoma per lavoro', () => {
+  const templates = [
+    { id: 'visione', data: { attiva: true, jobType: 'matrimonio', nome: 'Visione foto', durataMinuti: 90, ordine: 2 } },
+    { id: 'album', data: { attiva: true, jobType: 'matrimonio', nome: 'Scelta album', ordine: 1 } },
+    { id: 'spenta', data: { attiva: false, jobType: 'matrimonio', nome: 'Vecchia' } },
+    { id: 'battesimo', data: { attiva: true, jobType: 'battesimo', nome: 'Altro tipo' } },
+  ];
+
+  it('propone i modelli attivi dello stesso tipo di lavoro, con il link collegato al job', () => {
+    const list = bookableTemplatesForJob('j 1', { jobType: 'matrimonio' }, templates, []);
+    expect(list.map(t => t.templateId)).toEqual(['album', 'visione']);
+    expect(list[1]).toEqual({ templateId: 'visione', title: 'Visione foto', durataMinuti: 90, url: '/consulenze/matrimonio/visione/prenota?jobId=j%201' });
+  });
+
+  it('nasconde i modelli già prenotati e in attesa o confermati per quel lavoro', () => {
+    const list = bookableTemplatesForJob('j', { jobType: 'matrimonio' }, templates, [
+      { templateId: 'visione', stato: 'confermata' }, { templateId: 'album', stato: 'annullata' },
+    ]);
+    expect(list.map(t => t.templateId)).toEqual(['album']);
+  });
+
+  it('non propone nulla per lavori archiviati o senza tipo', () => {
+    expect(bookableTemplatesForJob('j', { jobType: 'matrimonio', status: 'archiviato' }, templates, [])).toEqual([]);
+    expect(bookableTemplatesForJob('j', {}, templates, [])).toEqual([]);
   });
 });

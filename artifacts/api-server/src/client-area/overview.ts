@@ -6,17 +6,22 @@
  *  2. job con quei clienti in `clientiIds` (o `clienteId` legacy);
  *  3. gallerie collegate ai clienti (`clientiIds`/`clientIds`/`clienteId`)
  *     oppure elencate in `galleryIds` di uno dei loro job;
- *  4. preventivi, piani di pagamento e fotolibri dei job;
- *  5. prenotazioni con `clienteId` o con la stessa email.
+ *  4. preventivi e piani di pagamento dei job;
+ *  5. consulenze/appuntamenti del cliente (per `clienteId`, email o
+ *     `linkedJobId` di un suo lavoro) e inviti a prenotare ancora aperti;
+ *  6. fotolibri delle gallerie;
+ *  7. prenotazioni delle campagne con `clienteId` o con la stessa email.
  *
  * Tutto passa dalle funzioni `toClient*` di @shared/client-area, che
  * copiano solo i campi consentiti.
  */
 import type { DocumentData, DocumentSnapshot, Firestore, Query } from 'firebase-admin/firestore';
 import {
-  bankDetailsFromSettings, galleryClientIdsOf, isGalleryVisibleToClient, isJobVisibleToClient,
-  toClientBooking, toClientGallery, toClientJob, toClientPaymentPlan, toClientQuote,
-  type ClientAreaOverview, type ClientAreaQuote, type ClientAreaSettings,
+  bankDetailsFromSettings, bookableTemplatesForJob, consultationJobId, galleryClientIdsOf, isGalleryVisibleToClient, isJobVisibleToClient,
+  openInvitesForJob, toClientAppointment, toClientBooking, toClientGallery, toClientJob, toClientPaymentPlan,
+  toClientPhotobook, toClientQuote,
+  type ClientAreaAppointment, type ClientAreaInvite, type ClientAreaOverview, type ClientAreaPhotobook,
+  type ClientAreaQuote, type ClientAreaSettings,
 } from '@shared/client-area';
 
 const IN_LIMIT = 30;
@@ -62,7 +67,7 @@ export async function findClientRecords(db: Firestore, email: string, uid?: stri
 
 export async function loadClientAreaOverview(
   db: Firestore,
-  { email, uid, now = new Date() }: { email: string; uid: string; now?: Date },
+  { email, uid }: { email: string; uid: string },
 ): Promise<ClientAreaOverview> {
   const clienti = await findClientRecords(db, email, uid);
   const clienteIds = clienti.map(c => c.id);
@@ -77,11 +82,18 @@ export async function loadClientAreaOverview(
     db.collection('bookings').where('cliente.email', '==', email),
   ]);
 
+  const consultationsByClient = await runQueries([
+    ...inQueries(db, 'consultations', 'clienteId', clienteIds),
+    db.collection('consultations').where('cliente.email', '==', email),
+  ]);
+
   if (clienteIds.length === 0) {
     return {
       cliente: { nome: '', cognome: '', email },
       jobs: [],
       galleries: [],
+      appointments: appointmentsFor(consultationsByClient, {}),
+      invites: [],
       bookings: await bookingsFor(db, bookingDocs),
       bankDetails,
     };
@@ -104,23 +116,25 @@ export async function loadClientAreaOverview(
   const allGalleries = [...directGalleries, ...await getByIds(db, 'galleries', jobGalleryIds)];
 
   const quoteIdsFromJobs = unique(jobDocs.flatMap(j => (Array.isArray(j.data.quoteIds) ? j.data.quoteIds : [])));
-  const [quoteDocsByClient, quoteDocsByJob, scheduleDocs, photobookDocs] = await Promise.all([
+  const [quoteDocsByClient, quoteDocsByJob, scheduleDocs, photobookDocs, consultationsByJob] = await Promise.all([
     runQueries(inQueries(db, 'quotes', 'clienteId', clienteIds)),
     getByIds(db, 'quotes', quoteIdsFromJobs),
     runQueries(inQueries(db, 'paymentSchedules', 'jobId', jobIds)),
-    runQueries([
-      ...inQueries(db, 'photobooks', 'jobId', jobIds),
-      ...inQueries(db, 'photobooks', 'galleryId', allGalleries.map(g => g.id)),
-    ]),
+    runQueries(inQueries(db, 'photobooks', 'galleryId', allGalleries.map(g => g.id))),
+    runQueries(inQueries(db, 'consultations', 'linkedJobId', jobIds)),
   ]);
+  // Modelli prenotabili: gli stessi del sito pubblico (attivi), filtrati per tipo di lavoro.
+  const jobTypes = unique(jobDocs.map(j => j.data.jobType));
+  const templateDocs = (await runQueries(inQueries(db, 'consultationTemplates', 'jobType', jobTypes)))
+    .filter(t => t.data.attiva === true);
+  const consultations = new Map<string, Doc>();
+  for (const c of [...consultationsByClient, ...consultationsByJob]) consultations.set(c.id, c);
   const quoteDocs = new Map<string, Doc>();
   for (const q of [...quoteDocsByClient, ...quoteDocsByJob]) quoteDocs.set(q.id, q);
 
   const galleriesById = new Map(allGalleries.map(g => [g.id, g]));
+  const invites: ClientAreaInvite[] = [];
   const jobs = jobDocs.map(job => {
-    const jobGalleries = allGalleries.filter(g =>
-      g.data.jobId === job.id || (Array.isArray(job.data.galleryIds) && job.data.galleryIds.includes(g.id)));
-    const jobGalleryIdSet = new Set(jobGalleries.map(g => g.id));
     const quotes: ClientAreaQuote[] = [...quoteDocs.values()]
       .filter(q => q.data.jobId === job.id || (Array.isArray(job.data.quoteIds) && job.data.quoteIds.includes(q.id)))
       .map(q => toClientQuote(q.id, q.data))
@@ -129,14 +143,19 @@ export async function loadClientAreaOverview(
       .filter(s => s.data.jobId === job.id)
       .map(s => toClientPaymentPlan(s.id, s.data))
       .filter(plan => plan.payments.length > 0);
-    const photobooks = photobookDocs
-      .filter(p => p.data.jobId === job.id || jobGalleryIdSet.has(p.data.galleryId))
-      .map(p => ({ id: p.id, data: p.data }));
+    const jobConsultations = [...consultations.values()]
+      .filter(c => consultationJobId(c.data) === job.id)
+      .map(c => c.data);
+    const jobInvites = openInvitesForJob(job.id, job.data, jobConsultations);
+    const visible = isJobVisibleToClient(job.data, quotes);
+    if (visible) invites.push(...jobInvites);
     return {
-      visible: isJobVisibleToClient(job.data, quotes),
+      visible,
       job: toClientJob(job.id, job.data, {
-        quotes, paymentPlans, photobooks, now,
-        galleries: jobGalleries.map(g => g.data),
+        quotes, paymentPlans, consultations: jobConsultations, invites: jobInvites,
+        // Se c'è un invito aperto per un modello, vale l'invito (rispetta le date scelte dallo studio).
+        bookable: bookableTemplatesForJob(job.id, job.data, templateDocs, jobConsultations)
+          .filter(b => !jobInvites.some(i => i.templateId === b.templateId)),
       }),
     };
   }).filter(j => j.visible).map(j => j.job);
@@ -145,12 +164,24 @@ export async function loadClientAreaOverview(
   // senza preventivo) restano visibili solo se collegate direttamente al cliente.
   const visibleJobIds = new Set(jobs.map(j => j.id));
   const clienteIdSet = new Set(clienteIds);
+  const visibleJobGalleryIds = new Set(jobDocs
+    .filter(j => visibleJobIds.has(j.id))
+    .flatMap(j => (Array.isArray(j.data.galleryIds) ? j.data.galleryIds : [])));
   const galleries = [...galleriesById.values()]
     .filter(g => isGalleryVisibleToClient(g.data))
     .filter(g => galleryClientIdsOf(g.data).some(id => clienteIdSet.has(id))
-      || jobs.some(j => j.galleryIds.includes(g.id)) || visibleJobIds.has(g.data.jobId))
-    .map(g => toClientGallery(g.id, g.data))
+      || visibleJobGalleryIds.has(g.id) || visibleJobIds.has(g.data.jobId))
+    .map(g => {
+      const gallery = toClientGallery(g.id, g.data);
+      gallery.photobooks = photobookDocs
+        .filter(p => p.data.galleryId === g.id)
+        .map(p => toClientPhotobook(p.id, p.data))
+        .filter((p): p is ClientAreaPhotobook => Boolean(p));
+      return gallery;
+    })
     .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  const jobNames: Record<string, string> = {};
+  for (const job of jobs) jobNames[job.id] = job.nomeEvento;
 
   return {
     cliente: {
@@ -160,9 +191,18 @@ export async function loadClientAreaOverview(
     },
     jobs: jobs.sort((a, b) => (b.eventDate || '').localeCompare(a.eventDate || '')),
     galleries,
+    appointments: appointmentsFor([...consultations.values()], jobNames),
+    invites,
     bookings: await bookingsFor(db, bookingDocs),
     bankDetails,
   };
+}
+
+function appointmentsFor(docs: Doc[], jobNames: Record<string, string>): ClientAreaAppointment[] {
+  return docs
+    .map(c => toClientAppointment(c.id, c.data, jobNames))
+    .filter((a): a is ClientAreaAppointment => Boolean(a))
+    .sort((a, b) => (b.start || '').localeCompare(a.start || ''));
 }
 
 async function bookingsFor(db: Firestore, bookingDocs: Doc[]) {

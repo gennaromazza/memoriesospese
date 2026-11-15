@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 're
 import { useQuery } from '@tanstack/react-query';
 import type { User } from 'firebase/auth';
 import {
-  BookOpen, Calendar, CalendarDays, Camera, Check, CheckCircle2, Circle, Copy, Download, FileSignature,
-  Images, Landmark, Loader2, LogOut, Mail, MapPin, MessageSquareText, Wallet,
+  AlertCircle, BookOpen, Calendar, CalendarClock, CalendarDays, Camera, Check, CheckCircle2, Circle, Clock, Copy,
+  Download, FileSignature, Landmark, Loader2, LogOut, Mail, MapPin, MessageSquareText, Wallet, XCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,8 +15,8 @@ import {
   requestLoginCode, verifyLoginCode, watchClientAreaUser,
 } from '@/lib/client-area-session';
 import {
-  causaleFor, type ClientAreaBankDetails, type ClientAreaBooking, type ClientAreaGallery, type ClientAreaJob,
-  type ClientAreaOverview, type ClientAreaPaymentPlan,
+  causaleFor, type ClientAreaAppointment, type ClientAreaBankDetails, type ClientAreaBooking, type ClientAreaGallery,
+  type ClientAreaInvite, type ClientAreaJob, type ClientAreaJobStep, type ClientAreaOverview, type ClientAreaPaymentPlan,
 } from '@shared/client-area';
 
 // ─── Formattazione ─────────────────────────────────────────────────────────
@@ -33,6 +33,7 @@ const QUOTE_LABEL: Record<string, string> = {
 const PAYMENT_LABEL: Record<string, string> = { atteso: 'Da pagare', pagato: 'Pagato', parziale: 'Pagato in parte', scaduto: 'Scaduto' };
 const PAYMENT_TYPE: Record<string, string> = { acconto: 'Acconto', saldo: 'Saldo', rata: 'Rata' };
 const BOOKING_LABEL: Record<string, string> = { in_attesa: 'In attesa di conferma', confermata: 'Confermata', completata: 'Completata' };
+const APPOINTMENT_LABEL: Record<string, string> = { in_attesa: 'In attesa di conferma', confermata: 'Confermato', completata: 'Svolto' };
 
 function Pill({ tone, children }: { tone: 'ok' | 'wait' | 'warn' | 'muted'; children: ReactNode }) {
   const tones = {
@@ -194,20 +195,40 @@ function InstallHint() {
 
 // ─── Lavori ────────────────────────────────────────────────────────────────
 
-function Milestones({ job }: { job: ClientAreaJob }) {
+const STEP_ICON: Record<ClientAreaJobStep['state'], ReactNode> = {
+  done: <CheckCircle2 className="relative h-5 w-5 flex-none text-[#6b7f6b]" />,
+  action: <AlertCircle className="relative h-5 w-5 flex-none text-amber-600" />,
+  waiting: <Clock className="relative h-5 w-5 flex-none text-[#6b7f6b]" />,
+  closed: <XCircle className="relative h-5 w-5 flex-none text-stone-400" />,
+  todo: <Circle className="relative h-5 w-5 flex-none text-stone-300" />,
+};
+
+function stepDate(step: ClientAreaJobStep): string {
+  if (!step.date) return '';
+  if (step.id === 'visione' && step.state !== 'done') return fmtDateTime(step.date);
+  return fmtDate(step.date);
+}
+
+function Steps({ job }: { job: ClientAreaJob }) {
   return (
-    <ol className="space-y-0">
-      {job.milestones.map((m, index) => {
-        const last = index === job.milestones.length - 1;
+    <ol>
+      {job.steps.map((step, index) => {
+        const last = index === job.steps.length - 1;
+        const date = stepDate(step);
         return (
-          <li key={m.id} className="relative flex gap-3 pb-4 last:pb-0">
-            {!last && <span className={`absolute left-[9px] top-6 h-[calc(100%-1rem)] w-px ${m.done ? 'bg-[#6b7f6b]' : 'bg-stone-200'}`} />}
-            {m.done
-              ? <CheckCircle2 className="relative h-5 w-5 flex-none text-[#6b7f6b]" />
-              : <Circle className="relative h-5 w-5 flex-none text-stone-300" />}
-            <div className="min-w-0">
-              <p className={`text-sm ${m.done ? 'font-medium text-stone-900' : 'text-stone-500'}`}>{m.label}</p>
-              {m.date && <p className="text-xs text-stone-500">{m.done ? fmtDate(m.date) : `Previsto il ${fmtDate(m.date)}`}</p>}
+          <li key={step.id} className="relative flex gap-3 pb-5 last:pb-0">
+            {!last && <span className={`absolute left-[9px] top-6 h-[calc(100%-1rem)] w-px ${step.state === 'done' ? 'bg-[#6b7f6b]' : 'bg-stone-200'}`} />}
+            {STEP_ICON[step.state]}
+            <div className="min-w-0 flex-1">
+              <p className={`text-sm font-medium ${step.state === 'todo' ? 'text-stone-500' : 'text-stone-900'}`}>{step.label}</p>
+              <p className={`text-sm ${step.state === 'action' ? 'font-medium text-amber-700' : 'text-stone-600'}`}>
+                {step.status}{date ? ` · ${date}` : ''}
+              </p>
+              {step.actionUrl && (
+                <Button asChild size="sm" className="mt-2 bg-[#6b7f6b] hover:bg-[#5a6e5a]">
+                  <a href={createUrl(step.actionUrl)}>{step.actionLabel || 'Apri'}</a>
+                </Button>
+              )}
             </div>
           </li>
         );
@@ -283,13 +304,7 @@ function PaymentPlan({ plan }: { plan: ClientAreaPaymentPlan }) {
   );
 }
 
-function JobCard({ job, galleries, bank, onOpenGallery }: {
-  job: ClientAreaJob;
-  galleries: ClientAreaGallery[];
-  bank: ClientAreaBankDetails | null;
-  onOpenGallery: (gallery: ClientAreaGallery) => void;
-}) {
-  const jobGalleries = galleries.filter(g => job.galleryIds.includes(g.id) || g.jobId === job.id);
+function JobCard({ job, bank }: { job: ClientAreaJob; bank: ClientAreaBankDetails | null }) {
   const hasOpenPayments = job.paymentPlans.some(p => p.saldoResiduo > 0);
   return (
     <article className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
@@ -302,8 +317,24 @@ function JobCard({ job, galleries, bank, onOpenGallery }: {
       </header>
       <div className="space-y-6 p-5">
         <Section icon={<CheckCircle2 className="h-4 w-4" />} title="A che punto siamo">
-          <Milestones job={job} />
+          <Steps job={job} />
         </Section>
+
+        {job.bookable.length > 0 && (
+          <Section icon={<CalendarClock className="h-4 w-4" />} title="Prenota un appuntamento">
+            <ul className="space-y-2">
+              {job.bookable.map(b => (
+                <li key={b.templateId} className="flex items-center justify-between gap-3 rounded-xl border border-stone-200 px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-stone-900">{b.title}</p>
+                    {b.durataMinuti && <p className="text-xs text-stone-500">Circa {b.durataMinuti} minuti</p>}
+                  </div>
+                  <Button asChild size="sm" variant="outline"><a href={createUrl(b.url)}>Prenota</a></Button>
+                </li>
+              ))}
+            </ul>
+          </Section>
+        )}
 
         {job.quotes.length > 0 && (
           <Section icon={<FileSignature className="h-4 w-4" />} title="Preventivo e contratto">
@@ -331,20 +362,6 @@ function JobCard({ job, galleries, bank, onOpenGallery }: {
           </Section>
         )}
 
-        {(jobGalleries.length > 0 || job.photobooks.length > 0) && (
-          <Section icon={<Images className="h-4 w-4" />} title="Foto e fotolibro">
-            <div className="flex flex-wrap gap-2">
-              {jobGalleries.map(g => (
-                <Button key={g.id} variant="outline" size="sm" onClick={() => onOpenGallery(g)}><Camera className="h-4 w-4" />{g.name}</Button>
-              ))}
-              {job.photobooks.map(p => (
-                <Button key={p.id} asChild variant="outline" size="sm">
-                  <a href={createUrl(p.url)}><BookOpen className="h-4 w-4" />{p.name}{p.approved ? ' · approvato' : ''}</a>
-                </Button>
-              ))}
-            </div>
-          </Section>
-        )}
       </div>
     </article>
   );
@@ -401,8 +418,74 @@ function GalleryCard({ gallery, onOpen }: { gallery: ClientAreaGallery; onOpen: 
         <Button onClick={onOpen} className="w-full bg-[#6b7f6b] hover:bg-[#5a6e5a]">
           {sel?.status === 'pending' ? 'Apri e scegli le foto' : 'Apri la galleria'}
         </Button>
+        {gallery.photobooks.map(p => (
+          <Button key={p.id} asChild variant="outline" className="w-full">
+            <a href={createUrl(p.url)}><BookOpen className="h-4 w-4" />{p.name}{p.approved ? ' · approvato' : ''}</a>
+          </Button>
+        ))}
       </div>
     </article>
+  );
+}
+
+function InviteRow({ invite }: { invite: ClientAreaInvite }) {
+  return (
+    <li className="rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-3">
+      <p className="font-medium text-stone-900">{invite.title}</p>
+      <p className="text-sm text-stone-600">{invite.nomeEvento}{invite.sentAt ? ` · invito del ${fmtDate(invite.sentAt)}` : ''}</p>
+      <Button asChild size="sm" className="mt-2 bg-[#6b7f6b] hover:bg-[#5a6e5a]">
+        <a href={createUrl(invite.url)}><CalendarClock className="h-4 w-4" />Scegli giorno e orario</a>
+      </Button>
+    </li>
+  );
+}
+
+function AppointmentRow({ appointment }: { appointment: ClientAreaAppointment }) {
+  const time = appointment.orarioInizio
+    ? `${appointment.orarioInizio}${appointment.orarioFine ? `–${appointment.orarioFine}` : ''}`
+    : '';
+  return (
+    <li className="rounded-xl border border-stone-200 bg-white px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="font-medium text-stone-900">{appointment.title}</p>
+        <Pill tone={appointment.stato === 'in_attesa' ? 'wait' : appointment.stato === 'completata' ? 'muted' : 'ok'}>
+          {APPOINTMENT_LABEL[appointment.stato]}
+        </Pill>
+      </div>
+      <p className="mt-1 text-sm text-stone-600">{[fmtDate(appointment.start), time].filter(Boolean).join(' · ')}</p>
+      {appointment.nomeEvento && <p className="text-xs text-stone-500">{appointment.nomeEvento}</p>}
+    </li>
+  );
+}
+
+function Appointments({ data }: { data: ClientAreaOverview }) {
+  const now = new Date().toISOString();
+  const upcoming = data.appointments.filter(a => a.stato !== 'completata' && (!a.start || a.start >= now.slice(0, 10)))
+    .sort((a, b) => (a.start || '').localeCompare(b.start || ''));
+  const past = data.appointments.filter(a => !upcoming.includes(a));
+  return (
+    <div className="space-y-6">
+      {data.invites.length > 0 && (
+        <Section icon={<CalendarClock className="h-4 w-4" />} title="Da prenotare">
+          <ul className="space-y-2">{data.invites.map(i => <InviteRow key={i.id} invite={i} />)}</ul>
+        </Section>
+      )}
+      {upcoming.length > 0 && (
+        <Section icon={<CalendarDays className="h-4 w-4" />} title="Prossimi appuntamenti">
+          <ul className="space-y-2">{upcoming.map(a => <AppointmentRow key={a.id} appointment={a} />)}</ul>
+        </Section>
+      )}
+      {data.bookings.length > 0 && (
+        <Section icon={<Camera className="h-4 w-4" />} title="Prenotazioni servizi">
+          <ul className="space-y-2">{data.bookings.map(b => <BookingRow key={b.id} booking={b} />)}</ul>
+        </Section>
+      )}
+      {past.length > 0 && (
+        <Section icon={<Check className="h-4 w-4" />} title="Appuntamenti passati">
+          <ul className="space-y-2">{past.map(a => <AppointmentRow key={a.id} appointment={a} />)}</ul>
+        </Section>
+      )}
+    </div>
   );
 }
 
@@ -429,13 +512,13 @@ function BookingRow({ booking }: { booking: ClientAreaBooking }) {
 
 // ─── Pagina ────────────────────────────────────────────────────────────────
 
-type Tab = 'jobs' | 'galleries' | 'bookings';
+type Tab = 'jobs' | 'galleries' | 'appointments';
 
 function Overview({ data, onLogout }: { data: ClientAreaOverview; onLogout: () => void }) {
   const tabs = useMemo(() => ([
     { id: 'jobs' as const, label: 'Lavori', count: data.jobs.length },
     { id: 'galleries' as const, label: 'Gallerie', count: data.galleries.length },
-    { id: 'bookings' as const, label: 'Prenotazioni', count: data.bookings.length },
+    { id: 'appointments' as const, label: 'Appuntamenti', count: data.invites.length + data.appointments.length + data.bookings.length },
   ]).filter(t => t.count > 0), [data]);
   const [tab, setTab] = useState<Tab>(tabs[0]?.id || 'jobs');
   const openGallery = (gallery: ClientAreaGallery) => { window.location.href = openOwnedGallery(gallery, data.cliente); };
@@ -466,7 +549,7 @@ function Overview({ data, onLogout }: { data: ClientAreaOverview; onLogout: () =
               {tabs.map(t => (
                 <button
                   key={t.id} type="button" onClick={() => setTab(t.id)}
-                  className={`rounded-lg px-2 py-2 text-sm font-medium transition ${tab === t.id ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600'}`}
+                  className={`whitespace-nowrap rounded-lg px-1.5 py-2 text-[13px] font-medium transition sm:text-sm ${tab === t.id ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600'}`}
                 >
                   {t.label} <span className="text-stone-400">{t.count}</span>
                 </button>
@@ -474,14 +557,14 @@ function Overview({ data, onLogout }: { data: ClientAreaOverview; onLogout: () =
             </nav>
           )}
           {tab === 'jobs' && data.jobs.map(job => (
-            <JobCard key={job.id} job={job} galleries={data.galleries} bank={data.bankDetails} onOpenGallery={openGallery} />
+            <JobCard key={job.id} job={job} bank={data.bankDetails} />
           ))}
           {tab === 'galleries' && (
             <div className="grid gap-4 sm:grid-cols-2">
               {data.galleries.map(g => <GalleryCard key={g.id} gallery={g} onOpen={() => openGallery(g)} />)}
             </div>
           )}
-          {tab === 'bookings' && <ul className="space-y-2">{data.bookings.map(b => <BookingRow key={b.id} booking={b} />)}</ul>}
+          {tab === 'appointments' && <Appointments data={data} />}
         </>
       )}
     </div>
