@@ -14,6 +14,7 @@ import {
   ClientAreaSessionError, fetchClientAreaOverview, logoutClientArea, openOwnedGallery,
   requestLoginCode, verifyLoginCode, watchClientAreaUser,
 } from '@/lib/client-area-session';
+import { clearClientAreaVisit, markClientAreaVisit } from '@/lib/client-area-return';
 import {
   causaleFor, type ClientAreaAppointment, type ClientAreaBankDetails, type ClientAreaBooking, type ClientAreaGallery,
   type ClientAreaInvite, type ClientAreaJob, type ClientAreaJobStep, type ClientAreaOverview, type ClientAreaPaymentPlan,
@@ -521,6 +522,7 @@ function Overview({ data, onLogout }: { data: ClientAreaOverview; onLogout: () =
     { id: 'appointments' as const, label: 'Appuntamenti', count: data.invites.length + data.appointments.length + data.bookings.length },
   ]).filter(t => t.count > 0), [data]);
   const [tab, setTab] = useState<Tab>(tabs[0]?.id || 'jobs');
+  useEffect(() => { markClientAreaVisit(); }, []);
   const openGallery = (gallery: ClientAreaGallery) => { window.location.href = openOwnedGallery(gallery, data.cliente); };
   const greeting = data.cliente.nome ? `Ciao ${data.cliente.nome}` : 'Benvenuto';
 
@@ -600,7 +602,7 @@ export default function ClientAreaPage() {
           <Button onClick={() => overview.refetch()} className="bg-[#6b7f6b] hover:bg-[#5a6e5a]">Riprova</Button>
         </div>
       ) : overview.data ? (
-        <Overview data={overview.data} onLogout={() => void logoutClientArea()} />
+        <Overview data={overview.data} onLogout={() => { clearClientAreaVisit(); void logoutClientArea(); }} />
       ) : null}
     </main>
   );

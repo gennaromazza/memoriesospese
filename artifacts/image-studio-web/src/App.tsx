@@ -88,6 +88,7 @@ const QuestionnaireManager = lazyWithRetry(() => import("./pages/admin/Questionn
 const DeleteGalleryPage = lazyWithRetry(() => import("./pages/DeleteGalleryPage"));
 const UserProfile = lazyWithRetry(() => import("./pages/UserProfile"));
 const ClientAreaPage = lazyWithRetry(() => import("./pages/ClientAreaPage"));
+const ClientAreaReturnLink = lazyWithRetry(() => import("./components/ClientAreaReturnLink"));
 const GalleryManagementWorkspace = lazyWithRetry(() => import("./pages/GalleryManagementWorkspace"));
 const JobDetailPage = lazyWithRetry(() => import("./pages/JobDetailPage"));
 const JobsListPage = lazyWithRetry(() => import("./pages/JobsListPage"));
@@ -340,6 +341,7 @@ function App() {
               <StudioProvider>
                 <Toaster />
                 <AppRoutes />
+                <Suspense fallback={null}><ClientAreaReturnLink /></Suspense>
                 <ProfileImageWelcomeProvider />
                 <CookieBanner />
                 {import.meta.env.MODE === "development" && (
