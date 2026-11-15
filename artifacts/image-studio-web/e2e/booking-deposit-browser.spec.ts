@@ -73,7 +73,10 @@ async function approveAndOpenPaymentEmail(page: Page, scenario = "success") {
 }
 
 async function calls(page: Page) {
-  return page.evaluate(() => window.__bookingPaymentHarness?.calls || []);
+  return page.evaluate(() => {
+    const saved = JSON.parse(localStorage.getItem("booking-deposit-browser-harness") || "{}");
+    return saved.calls || window.__bookingPaymentHarness?.calls || [];
+  });
 }
 
 function expectNoUnexpectedExternalTraffic() {
@@ -322,5 +325,97 @@ test("un esito PayPal incerto viene verificato senza ripetere la cattura", async
   const recorded = await calls(page);
   expect(recorded.filter(call => call.name === "capture")).toHaveLength(1);
   expect(recorded.filter(call => call.name === "release-hold")).toHaveLength(0);
+  expectNoUnexpectedExternalTraffic();
+});
+
+test("la lista admin distingue i checkout aperti e gli incassi da riconciliare, anche su mobile", async ({ browser }) => {
+  for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+    const page = await browser.newPage({ viewport });
+    await isolateNetwork(page);
+    await page.goto("/test/admin-payment-recovery");
+    await expect(page.getByRole("region", { name: "Checkout senza prenotazione confermata" })).toBeVisible();
+    await expect(page.getByText("Cliente con checkout aperto")).toBeVisible();
+    await expect(page.getByText("Cliente con pagamento da riconciliare")).toBeVisible();
+    await expect(page.getByText("In attesa di pagamento · 25.00 €")).toBeVisible();
+    await expect(page.getByText("Pagamento da riconciliare · 25.00 €")).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+
+    await page.getByRole("button", { name: "Dettagli pagamento" }).first().click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await expect(page.getByTestId("booking-payment-panel")).toBeVisible();
+    const dialog = await page.getByRole("dialog").boundingBox();
+    expect(dialog).not.toBeNull();
+    expect(dialog!.x).toBeGreaterThanOrEqual(0);
+    expect(dialog!.x + dialog!.width).toBeLessThanOrEqual(viewport.width);
+    await expect(page.getByText("Nessun incasso confermato")).toBeVisible();
+
+    const verify = page.getByRole("button", { name: "Verifica esito PayPal" });
+    await verify.click();
+    await expect(page.getByText("Autorizzato, non ancora incassato")).toBeVisible();
+    await verify.click();
+    const recorded = await calls(page);
+    expect(recorded.filter(call => call.name === "verify-payment")).toHaveLength(2);
+    expect(recorded.some(call => call.name === "capture" || call.name === "resend-email")).toBe(false);
+    await page.close();
+  }
+  expectNoUnexpectedExternalTraffic();
+});
+
+test("il pannello distingue richiesta scaduta, acconto incassato e incasso da riconciliare", async ({ page }) => {
+  await isolateNetwork(page);
+  await page.goto("/test/admin-payment-recovery?case=expired");
+  await expect(page.getByTestId("booking-payment-panel")).toBeVisible();
+  await expect(page.getByText("Scaduta", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("deposit-countdown")).toContainText("Tempo scaduto");
+  await expect(page.getByRole("button", { name: "Reinvia link di pagamento" })).toBeDisabled();
+  await expect(page.getByText("Nessun incasso confermato")).toBeVisible();
+  await page.close();
+
+  const paidPage = await page.context().newPage();
+  await isolateNetwork(paidPage);
+  await paidPage.goto("/test/admin-payment-recovery?case=paid");
+  await expect(paidPage.getByText("Confermata", { exact: true })).toBeVisible();
+  await expect(paidPage.getByText("Ricevuto", { exact: true })).toBeVisible();
+  await expect(paidPage.getByText("Incassato", { exact: true })).toBeVisible();
+  await expect(paidPage.getByRole("button", { name: "Reinvia link di pagamento" })).toBeDisabled();
+  await paidPage.close();
+
+  const reviewPage = await page.context().newPage();
+  await isolateNetwork(reviewPage);
+  await reviewPage.goto("/test/admin-payment-recovery?case=review");
+  await expect(reviewPage.getByText("Pagamento da riconciliare", { exact: true })).toBeVisible();
+  await expect(reviewPage.getByText("Incasso o richiesta da riconciliare")).toBeVisible();
+  await expect(reviewPage.getByText("Confermata", { exact: true })).toHaveCount(0);
+  await expect(reviewPage.getByRole("button", { name: "Reinvia link di pagamento" })).toBeDisabled();
+  const recorded = await calls(reviewPage);
+  expect(recorded.some(call => call.name === "capture" || call.name === "resend-email")).toBe(false);
+  await reviewPage.close();
+  expectNoUnexpectedExternalTraffic();
+});
+
+test("il reinvio nel dettaglio approvato conserva importo e termine e si blocca dopo una conferma", async ({ page }) => {
+  await isolateNetwork(page);
+  await page.goto("/test/admin-payment-recovery?case=approved");
+  await expect(page.getByTestId("booking-payment-panel")).toBeVisible();
+  const before = await page.evaluate(() => {
+    const data = JSON.parse(localStorage.getItem("booking-deposit-browser-harness") || "{}").adminPayments?.["booking-approved-test"];
+    return { expiresAt: data?.expiresAt, amountCents: data?.amountCents };
+  });
+  expect(before).toEqual(expect.objectContaining({ amountCents: 2500 }));
+
+  await page.getByRole("button", { name: "Reinvia link di pagamento" }).click();
+  await expect(page.getByText(/la scadenza resta .* il reinvio non concede un’altra ora/i)).toBeVisible();
+  await page.getByRole("button", { name: "Conferma reinvio" }).click();
+  await expect(page.getByRole("button", { name: "Reinvia link di pagamento" })).toBeDisabled();
+
+  const after = await page.evaluate(() => {
+    const state = JSON.parse(localStorage.getItem("booking-deposit-browser-harness") || "{}");
+    const data = state.adminPayments?.["booking-approved-test"];
+    return { expiresAt: data?.expiresAt, amountCents: data?.amountCents, calls: state.calls || [] };
+  });
+  expect(after.expiresAt).toBe(before.expiresAt);
+  expect(after.amountCents).toBe(before.amountCents);
+  expect(after.calls.filter(call => call.name === "resend-email")).toHaveLength(1);
+  expect(after.calls.some(call => call.name === "capture" || call.name === "verify-payment")).toBe(false);
   expectNoUnexpectedExternalTraffic();
 });

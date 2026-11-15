@@ -3,6 +3,8 @@ import { ReplitConnectors } from "@replit/connectors-sdk";
 const MARKETING_TOPIC_NAME = "Image Studio - Comunicazioni promozionali";
 const MARKETING_TOPIC_DESCRIPTION =
   "Promozioni e aggiornamenti fotografici di Image Studio.";
+const CURRENT_CAMPAIGN_SEGMENT_NAME = "Campagna corrente";
+const LEGACY_CAMPAIGN_SEGMENT_PREFIX = "Image Studio campagna ";
 const REQUEST_INTERVAL_MS = 130;
 
 type ResendEntity = Record<string, any>;
@@ -99,6 +101,19 @@ async function resendRequest(
   if (!response.ok) {
     const providerMessage =
       typeof data?.message === "string" ? data.message : undefined;
+    const segmentLimit = providerMessage?.match(
+      /(?:plan includes|includes)\s+(\d+)\s+segments?/i,
+    );
+    if (
+      options.method === "POST" &&
+      path === "/segments" &&
+      response.status === 400 &&
+      segmentLimit
+    ) {
+      throw new Error(
+        `Il piano Resend consente al massimo ${segmentLimit[1]} segmenti. Non ho trovato un vecchio segmento di campagne Image Studio da riutilizzare, quindi non ho modificato gli altri segmenti. Libera un segmento in Resend e riprendi la campagna: nessun invio è partito.`,
+      );
+    }
     throw new Error(
       providerMessage
         ? `Resend HTTP ${response.status}: ${providerMessage.slice(0, 300)}`
@@ -132,6 +147,10 @@ async function listAll(path: string): Promise<ResendEntity[]> {
   }
 
   throw new Error("Resend ha restituito troppe pagine da elaborare.");
+}
+
+async function listBroadcasts(): Promise<ResendEntity[]> {
+  return listAll("/broadcasts");
 }
 
 function payloadEntity(payload: any): ResendEntity | null {
@@ -226,25 +245,108 @@ async function ensureMarketingTopic(): Promise<string> {
   return String(topic.id);
 }
 
-async function ensureCampaignSegment(
-  jobId: string,
-  existingSegmentId?: string,
-): Promise<string> {
-  if (existingSegmentId) return existingSegmentId;
-
-  const segmentName = `Image Studio campagna ${jobId}`;
-  const existing = (await listAll("/segments")).find(
-    (segment) => segment.name === segmentName && typeof segment.id === "string",
+async function ensureCurrentCampaignSegment(): Promise<string> {
+  const segments = await listAll("/segments");
+  const current = segments.find(
+    (segment) =>
+      segment.name === CURRENT_CAMPAIGN_SEGMENT_NAME &&
+      typeof segment.id === "string",
   );
-  if (existing) return existing.id;
+  if (current) return current.id;
+
+  const broadcasts = await listBroadcasts();
+  const activeBroadcastSegmentIds = new Set(
+    broadcasts
+      .filter((broadcast) =>
+        ["draft", "drafted", "scheduled", "queued", "sending"].includes(
+          String(broadcast.status ?? "").toLowerCase(),
+        ),
+      )
+      .map((broadcast) =>
+        typeof broadcast.segment_id === "string"
+          ? broadcast.segment_id
+          : typeof broadcast.audience_id === "string"
+            ? broadcast.audience_id
+            : "",
+      )
+      .filter(Boolean),
+  );
+
+  // Riutilizza e rinomina solo segmenti creati dalle vecchie campagne
+  // automatiche; non modifica segmenti creati manualmente dall'utente.
+  const legacy = segments.find(
+    (segment) =>
+      typeof segment.id === "string" &&
+      typeof segment.name === "string" &&
+      segment.name.startsWith(LEGACY_CAMPAIGN_SEGMENT_PREFIX) &&
+      !activeBroadcastSegmentIds.has(segment.id),
+  );
+  if (legacy) {
+    await resendRequest(`/segments/${encodeURIComponent(legacy.id)}`, {
+      method: "PATCH",
+      body: { name: CURRENT_CAMPAIGN_SEGMENT_NAME },
+    });
+    return legacy.id;
+  }
+
+  if (
+    segments.length >= 3 &&
+    segments.some(
+      (segment) =>
+        typeof segment.id === "string" &&
+        typeof segment.name === "string" &&
+        segment.name.startsWith(LEGACY_CAMPAIGN_SEGMENT_PREFIX) &&
+        activeBroadcastSegmentIds.has(segment.id),
+    )
+  ) {
+    throw new Error(
+      "I vecchi segmenti delle campagne sono ancora collegati a bozze o invii Resend in corso. Per non cambiare i destinatari di un’altra campagna, attendi che termini o annulla la bozza/pianificazione e poi riprendi questa.",
+    );
+  }
 
   const { data } = await resendRequest("/segments", {
     method: "POST",
-    body: { name: segmentName },
+    body: { name: CURRENT_CAMPAIGN_SEGMENT_NAME },
   });
   const segment = payloadEntity(data);
   if (!segment?.id) throw new Error("Resend non ha restituito l'ID del segmento.");
   return String(segment.id);
+}
+
+async function getSegment(segmentId: string): Promise<ResendEntity | null> {
+  const { status, data } = await resendRequest(
+    `/segments/${encodeURIComponent(segmentId)}`,
+    {},
+    true,
+  );
+  return status === 404 ? null : payloadEntity(data);
+}
+
+async function assertSegmentAvailable(
+  segmentId: string,
+  exceptBroadcastId?: string,
+): Promise<void> {
+  const broadcasts = await listBroadcasts();
+  const activeBroadcast = broadcasts.find((broadcast) => {
+    const broadcastId = String(broadcast.id ?? "");
+    const broadcastSegmentId =
+      typeof broadcast.segment_id === "string"
+        ? broadcast.segment_id
+        : typeof broadcast.audience_id === "string"
+          ? broadcast.audience_id
+          : "";
+    const status = String(broadcast.status ?? "").toLowerCase();
+    return (
+      broadcastSegmentId === segmentId &&
+      broadcastId !== exceptBroadcastId &&
+      ["draft", "drafted", "scheduled", "queued", "sending"].includes(status)
+    );
+  });
+  if (activeBroadcast) {
+    throw new Error(
+      `Il segmento “${CURRENT_CAMPAIGN_SEGMENT_NAME}” è ancora collegato a una campagna Resend ${activeBroadcast.status}. Per non inviare ai destinatari sbagliati, attendi che l’invio finisca o annulla la bozza/pianificazione; poi riprendi questa campagna.`,
+    );
+  }
 }
 
 async function getContactByEmail(email: string): Promise<ResendEntity | null> {
@@ -341,6 +443,94 @@ async function syncRecipient(
   return "eligible";
 }
 
+async function clearSegmentContacts(
+  segmentId: string,
+  onProgress?: (removed: number, total: number) => Promise<void>,
+): Promise<number> {
+  const contacts = await listAll(
+    `/segments/${encodeURIComponent(segmentId)}/contacts`,
+  );
+  for (let i = 0; i < contacts.length; i++) {
+    const contactId = contacts[i]?.id;
+    if (typeof contactId !== "string" || !contactId) {
+      throw new Error(
+        "Resend ha restituito un contatto senza ID: il segmento non è stato svuotato completamente.",
+      );
+    }
+    await resendRequest(
+      `/contacts/${encodeURIComponent(contactId)}/segments/${encodeURIComponent(segmentId)}`,
+      { method: "DELETE" },
+    );
+    if ((i + 1) % 10 === 0 || i === contacts.length - 1) {
+      await onProgress?.(i + 1, contacts.length);
+    }
+  }
+  return contacts.length;
+}
+
+function uniqueMarketingRecipients(
+  recipients: ResendMarketingRecipient[],
+): ResendMarketingRecipient[] {
+  return Array.from(
+    new Map(
+      recipients
+        .filter((recipient) => recipient.email?.trim())
+        .map((recipient) => [
+          normalizeMarketingEmail(recipient.email),
+          recipient,
+        ]),
+    ).values(),
+  );
+}
+
+async function prepareCurrentSegmentAudience(
+  input: SubmitResendBroadcastInput,
+  topicId: string,
+  segmentId: string,
+): Promise<{ eligibleCount: number; excludedCount: number }> {
+  const previousCount = await clearSegmentContacts(
+    segmentId,
+    async (removed, total) => {
+      await input.onProgress?.({
+        providerSegmentId: segmentId,
+        progressStage: `Svuoto il segmento (${removed}/${total})`,
+      });
+    },
+  );
+  await input.onProgress?.({
+    providerSegmentId: segmentId,
+    progressStage:
+      previousCount > 0
+        ? `Segmento ripulito (${previousCount} contatti precedenti rimossi)`
+        : "Segmento pronto per i destinatari selezionati",
+  });
+
+  const uniqueRecipients = uniqueMarketingRecipients(input.recipients);
+  let eligibleCount = 0;
+  let excludedCount = 0;
+  for (let i = 0; i < uniqueRecipients.length; i++) {
+    const result = await syncRecipient(uniqueRecipients[i], topicId, segmentId);
+    if (result === "eligible") eligibleCount++;
+    else excludedCount++;
+
+    if ((i + 1) % 10 === 0 || i === uniqueRecipients.length - 1) {
+      await input.onProgress?.({
+        preparedCount: eligibleCount,
+        excludedCount,
+        progressStage: `Preparo i destinatari (${i + 1}/${uniqueRecipients.length})`,
+      });
+    }
+  }
+
+  if (eligibleCount === 0) {
+    throw new Error(
+      "Nessun destinatario è idoneo: risultano già disiscritti o non disponibili.",
+    );
+  }
+
+  return { eligibleCount, excludedCount };
+}
+
 function getBroadcastId(payload: any): string | null {
   const entity = payloadEntity(payload);
   return typeof entity?.id === "string" ? entity.id : null;
@@ -368,6 +558,39 @@ export async function submitResendBroadcast(
     const providerStatus = String(broadcast?.status ?? "unknown");
 
     if (["draft", "drafted"].includes(providerStatus)) {
+      let eligibleCount =
+        input.existing.preparedCount ?? input.recipients.length;
+      let excludedCount = input.existing.excludedCount ?? 0;
+      const existingSegmentId =
+        typeof broadcast?.segment_id === "string"
+          ? broadcast.segment_id
+          : typeof broadcast?.audience_id === "string"
+            ? broadcast.audience_id
+            : input.existing.providerSegmentId;
+      const existingSegment = existingSegmentId
+        ? await getSegment(existingSegmentId)
+        : null;
+
+      // Un draft già salvato sul segmento condiviso va ricostruito dalla lista
+      // immutabile del job: una campagna successiva potrebbe averlo già svuotato.
+      if (existingSegment?.name === CURRENT_CAMPAIGN_SEGMENT_NAME) {
+        await assertSegmentAvailable(existingSegmentId!, broadcastId);
+        const topicId =
+          input.existing.providerTopicId ?? (await ensureMarketingTopic());
+        await input.onProgress?.({
+          providerTopicId: topicId,
+          providerSegmentId: existingSegmentId,
+          progressStage: "Ripristino destinatari della campagna da riprendere",
+        });
+        const counts = await prepareCurrentSegmentAudience(
+          input,
+          topicId,
+          existingSegmentId!,
+        );
+        eligibleCount = counts.eligibleCount;
+        excludedCount = counts.excludedCount;
+      }
+
       await resendRequest(
         `/broadcasts/${encodeURIComponent(broadcastId)}/send`,
         { method: "POST", body: {} },
@@ -375,8 +598,8 @@ export async function submitResendBroadcast(
       return {
         broadcastId,
         providerStatus: "queued",
-        eligibleCount: input.existing.preparedCount ?? input.recipients.length,
-        excludedCount: input.existing.excludedCount ?? 0,
+        eligibleCount,
+        excludedCount,
       };
     }
 
@@ -399,47 +622,17 @@ export async function submitResendBroadcast(
     input.existing?.providerTopicId ?? (await ensureMarketingTopic());
   await input.onProgress?.({
     providerTopicId: topicId,
-    progressStage: "Preparo i destinatari",
+    progressStage: "Preparo il segmento della campagna",
   });
 
-  const segmentId = await ensureCampaignSegment(
-    input.jobId,
-    input.existing?.providerSegmentId,
-  );
-  await input.onProgress?.({ providerSegmentId: segmentId });
-
-  const uniqueRecipients = Array.from(
-    new Map(
-      input.recipients
-        .filter((recipient) => recipient.email?.trim())
-        .map((recipient) => [
-          normalizeMarketingEmail(recipient.email),
-          recipient,
-        ]),
-    ).values(),
-  );
-
-  let eligibleCount = 0;
-  let excludedCount = 0;
-  for (let i = 0; i < uniqueRecipients.length; i++) {
-    const result = await syncRecipient(uniqueRecipients[i], topicId, segmentId);
-    if (result === "eligible") eligibleCount++;
-    else excludedCount++;
-
-    if ((i + 1) % 10 === 0 || i === uniqueRecipients.length - 1) {
-      await input.onProgress?.({
-        preparedCount: eligibleCount,
-        excludedCount,
-        progressStage: `Preparo i destinatari (${i + 1}/${uniqueRecipients.length})`,
-      });
-    }
-  }
-
-  if (eligibleCount === 0) {
-    throw new Error(
-      "Nessun destinatario è idoneo: risultano già disiscritti o non disponibili.",
-    );
-  }
+  const segmentId = await ensureCurrentCampaignSegment();
+  await assertSegmentAvailable(segmentId);
+  await input.onProgress?.({
+    providerSegmentId: segmentId,
+    progressStage: "Svuoto il segmento Campagna corrente",
+  });
+  const { eligibleCount, excludedCount } =
+    await prepareCurrentSegmentAudience(input, topicId, segmentId);
 
   await input.onProgress?.({ progressStage: "Creo la campagna Resend" });
   const html = buildResendBroadcastHtml(input.body);

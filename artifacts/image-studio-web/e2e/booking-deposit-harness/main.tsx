@@ -6,6 +6,7 @@ import "../../src/index.css";
 import BookingPage from "../../src/pages/BookingPage";
 import BookingDepositPaymentPage from "../../src/pages/BookingDepositPaymentPage";
 import AdminApprovalHarness from "./admin-approval";
+import AdminPaymentRecoveryHarness from "./payment-recovery";
 
 const key = "booking-deposit-browser-harness";
 const queryScenario = new URLSearchParams(window.location.search).get("scenario") || "success";
@@ -34,6 +35,7 @@ function App() {
       <Router>
         <Switch>
           <Route path="/test/admin-approval" component={AdminApprovalHarness} />
+          <Route path="/test/admin-payment-recovery" component={AdminPaymentRecoveryHarness} />
           <Route path="/prenota/acconto/:bookingId" component={BookingDepositPaymentPage} />
           <Route path="/prenota/:code" component={BookingPage} />
           <Route>Harness pronto</Route>

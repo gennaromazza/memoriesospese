@@ -1104,7 +1104,9 @@ export default function BulkEmailSender() {
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-semibold text-destructive flex items-center gap-2">
                             <AlertCircle className="h-4 w-4" />
-                            Email non inviate ({activeJob.errors.length})
+                            {activeJob.errors.some((error) => error.email === 'system')
+                              ? 'Errore della campagna'
+                              : `Email non inviate (${activeJob.errors.length})`}
                           </span>
                         </div>
                         <ScrollArea className="h-[150px] border rounded-lg">
@@ -1113,6 +1115,8 @@ export default function BulkEmailSender() {
                               <div 
                                 key={idx} 
                                 className="flex items-start gap-2 p-2 bg-red-50 rounded text-sm border-l-2 border-red-400"
+                                role={err.email === 'system' ? 'alert' : undefined}
+                                data-testid={err.email === 'system' ? 'bulk-email-system-error' : undefined}
                               >
                                 <XCircle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
                                 <div>

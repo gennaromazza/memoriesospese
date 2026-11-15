@@ -51,34 +51,45 @@ export async function createBooking() {
 
 export async function getBookingPaymentDetails(bookingId: string) {
   const value = readHarnessState();
-  if (!value.adminPayment || value.adminPayment.bookingId !== bookingId) {
+  const data = value.adminPayments?.[bookingId] ?? value.adminPayment;
+  if (!data || data.bookingId !== bookingId) {
     throw Object.assign(new Error('Pagamento di prova non trovato'), { status: 404 });
   }
-  return value.adminPayment;
+  return data;
 }
 
 export async function resendBookingDeposit(bookingId: string, requestId: string) {
   record('resend-email', { bookingId, requestId });
   const value = readHarnessState();
-  if (!value.adminPayment || value.adminPayment.bookingId !== bookingId) {
+  const data = value.adminPayments?.[bookingId] ?? value.adminPayment;
+  if (!data || data.bookingId !== bookingId) {
     throw Object.assign(new Error('Richiesta di prova non trovata'), { status: 404 });
   }
-  value.adminPayment = {
-    ...value.adminPayment,
+  const updated = {
+    ...data,
     canResend: false,
     resendReason: 'Attendi prima di effettuare un altro invio.',
   };
+  if (value.adminPayments?.[bookingId]) value.adminPayments[bookingId] = updated;
+  else value.adminPayment = updated;
   saveHarnessState(value);
-  return value.adminPayment;
+  return updated;
 }
 
 export async function verifyBookingDeposit(bookingId: string) {
   record('verify-payment', { bookingId });
   const value = readHarnessState();
-  if (!value.adminPayment || value.adminPayment.bookingId !== bookingId) {
+  const data = value.adminPayments?.[bookingId] ?? value.adminPayment;
+  if (!data || data.bookingId !== bookingId) {
     throw Object.assign(new Error('Richiesta di prova non trovata'), { status: 404 });
   }
-  return value.adminPayment;
+  return { ...data, providerStatus: data.providerStatus || 'APPROVED' };
+}
+
+export async function getBookingPaymentCheckouts() {
+  record('list-checkouts');
+  const value = readHarnessState();
+  return { items: value.recoveryCheckouts || [], truncated: false };
 }
 
 export class BookingRequestError extends Error {
