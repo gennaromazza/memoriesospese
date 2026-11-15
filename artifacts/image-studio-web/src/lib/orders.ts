@@ -29,13 +29,17 @@ const COLLECTION = "orders";
 
 async function reconcileBookingDeposits(docs: Array<{ id: string; data(): any }>): Promise<boolean> {
   const ids = docs.filter(snapshot => snapshot.data().bookingId && !isManagedOrderType(snapshot.data().orderType)).map(snapshot => snapshot.id);
-  let changed = false;
   for (let offset = 0; offset < ids.length; offset += 50) {
-    const response = await apiRequest("POST", "/api/orders/reconcile-booking-deposits", { orderIds: ids.slice(offset, offset + 50) });
+    const orderIds = ids.slice(offset, offset + 50);
+    const response = await apiRequest("POST", "/api/orders/reconcile-booking-deposits", { orderIds });
     const result = await response.json();
-    changed = changed || result.updated > 0;
+    if (!result || !Number.isSafeInteger(result.updated) || result.updated < 0 || result.updated > orderIds.length) {
+      throw new Error("Verifica degli acconti non disponibile: risposta del server non valida.");
+    }
   }
-  return changed;
+  // Another reader can reconcile after our initial snapshot and before our POST.
+  // updated: 0 only means this request did not write, not that the snapshot is fresh.
+  return ids.length > 0;
 }
 
 /**

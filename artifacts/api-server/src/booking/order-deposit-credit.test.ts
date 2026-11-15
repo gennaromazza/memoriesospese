@@ -1,23 +1,8 @@
 import { createHash } from 'node:crypto';
 import { Timestamp } from 'firebase-admin/firestore';
 import { describe, expect, it } from 'vitest';
-import { reservationDb } from './test-helpers/reservation-db.js';
+import { orderDepositFixture as fixture } from './test-helpers/order-deposit-fixture.js';
 import { BOOKING_DEPOSIT_SOURCE, reconcileOrderBookingDeposit } from './order-deposit-credit.js';
-
-function fixture(extra: Record<string, unknown> = {}) {
-  const store = reservationDb();
-  store.seed('orders/order', { bookingId: 'booking', totale: 20, acconto: 0, saldo: 20, transactions: [], ...extra });
-  store.seed('bookings/booking', {
-    depositPayment: { provider: 'paypal', status: 'paid', currency: 'EUR', amountCents: 500,
-      paypalCaptureId: 'CAPTURE', paypalOrderId: 'PAYPALORDER', paidAt: Timestamp.fromMillis(123456) },
-  });
-  const receiptId = createHash('sha256').update('paypal-capture:CAPTURE').digest('hex');
-  store.seed(`bookingPaymentCaptures/${receiptId}`, {
-    bookingId: 'booking', paypalCaptureId: 'CAPTURE', currency: 'EUR', amountCents: 500, cashMovementId: 'cash',
-  });
-  store.seed('cashMovements/cash', { tipo: 'entrata', importo: 5 });
-  return store;
-}
 
 describe('acconto prenotazione nell’ordine prodotti', () => {
   it('mostra 5 euro pagati e 15 residui senza creare un secondo incasso', async () => {

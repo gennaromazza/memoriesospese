@@ -527,7 +527,7 @@ export default function BookingsManager({
   }, [pendingOrderBookingId, allBookings]);
 
   // Query ordini per lookup
-  const { data: allOrders = [], error: ordersError } = useQuery<Order[]>({
+  const { data: allOrders = [], error: ordersError, isPending: ordersPending } = useQuery<Order[]>({
     queryKey: ["orders"],
     queryFn: getAllOrders,
     staleTime: 2 * 60 * 1000,
@@ -1692,20 +1692,29 @@ export default function BookingsManager({
     return format(date, "yyyy-MM-dd");
   };
 
-  return (
-    <div className="space-y-6 overflow-x-hidden">
-      {ordersError && (
+  // React Query keeps the last successful data after a refetch error. Do not
+  // expose cached balances or payment actions until reconciliation succeeds.
+  if (ordersError) {
+    return (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Pagamenti degli ordini da verificare</AlertTitle>
           <AlertDescription>
-            {ordersError.message} Non registrare nuovamente un acconto già versato.
+            Non è stato possibile verificare gli acconti. Gli importi e le azioni sugli ordini sono temporaneamente nascosti.
+            {" "}Non registrare nuovamente un acconto già versato.
             <Button variant="outline" size="sm" className="ml-2" onClick={() => queryClient.invalidateQueries({ queryKey: ["orders"] })}>
               Riprova
             </Button>
           </AlertDescription>
         </Alert>
-      )}
+    );
+  }
+  if (ordersPending) {
+    return <p role="status">Verifica dei pagamenti degli ordini…</p>;
+  }
+
+  return (
+    <div className="space-y-6 overflow-x-hidden">
       {/* Contenuto Prenotazioni */}
       <>
         {/* Header e filtri */}

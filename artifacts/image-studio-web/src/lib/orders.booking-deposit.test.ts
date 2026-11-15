@@ -48,4 +48,40 @@ describe('riepilogo ordine dopo acconto prenotazione', () => {
     mocks.apiRequest.mockRejectedValue(new Error('Ricevuta da verificare'));
     await expect(getAllOrders()).rejects.toThrow('Ricevuta da verificare');
   });
+
+  it('ripete la lettura dopo un errore e rilegge gli importi soltanto dopo la verifica', async () => {
+    mocks.getDocs.mockResolvedValueOnce({ docs: [snapshot(raw)] })
+      .mockResolvedValueOnce({ docs: [snapshot(raw)] })
+      .mockResolvedValueOnce({ docs: [snapshot(credited)] });
+    mocks.apiRequest.mockRejectedValueOnce(new Error('Servizio non disponibile'))
+      .mockResolvedValueOnce(Response.json({ updated: 1 }));
+    await expect(getAllOrders()).rejects.toThrow('Servizio non disponibile');
+    const [order] = await getAllOrders();
+    expect(getOrderTotals(order)).toMatchObject({ totalePagato: 5, saldoResiduo: 15 });
+    expect(mocks.apiRequest).toHaveBeenCalledTimes(2);
+    expect(mocks.getDocs).toHaveBeenCalledTimes(3);
+  });
+
+  it('non restituisce importi se fallisce la rilettura successiva alla riconciliazione', async () => {
+    mocks.getDocs.mockResolvedValueOnce({ docs: [snapshot(raw)] })
+      .mockRejectedValueOnce(new Error('Lettura importi non disponibile'));
+    mocks.apiRequest.mockResolvedValue(Response.json({ updated: 1 }));
+    await expect(getAllOrders()).rejects.toThrow('Lettura importi non disponibile');
+  });
+
+  it('rilegge anche quando un’altra richiesta ha già riconciliato lo stesso ordine', async () => {
+    mocks.getDocs.mockResolvedValueOnce({ docs: [snapshot(raw)] })
+      .mockResolvedValueOnce({ docs: [snapshot(credited)] });
+    mocks.apiRequest.mockResolvedValue(Response.json({ updated: 0 }));
+    const [order] = await getAllOrders();
+    expect(getOrderTotals(order)).toMatchObject({ totalePagato: 5, saldoResiduo: 15 });
+    expect(mocks.getDocs).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([{}, null, { updated: '1' }, { updated: -1 }, { updated: 2 }])(
+    'non considera verificati gli importi con una risposta incompleta %j', async result => {
+      mocks.getDocs.mockResolvedValue({ docs: [snapshot(raw)] });
+      mocks.apiRequest.mockResolvedValue(Response.json(result));
+      await expect(getAllOrders()).rejects.toThrow('risposta del server non valida');
+    });
 });
