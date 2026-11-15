@@ -14,3 +14,9 @@ In origine non ufficiale, saltare il ripristino del cookie “Ricorda dispositiv
 **Why:** Il cookie `__Host-` e la fiducia del dispositivo appartengono al dominio ufficiale. Il rifiuto previsto del ripristino in Preview non deve diventare un blocco totale né un motivo per allargare la fiducia.
 
 **How to apply:** Limitare la fiducia persistente al sito ufficiale; in Preview proseguire solo verso la verifica passkey/handoff e non accettare il cookie come autorizzazione.
+
+La schermata di verifica deve mostrare prima l’azione principale valida per l’origine corrente; recupero e associazione QR restano disponibili sotto “Altre opzioni”. Gli avvisi per aggiornare la sessione compaiono solo quando sono davvero necessari.
+
+**Why:** Il titolare ha approvato una schermata più semplice perché i flussi alternativi e i messaggi ripetuti erano difficili da distinguere, senza voler rimuovere funzioni.
+
+**How to apply:** Preservare le azioni e le condizioni MFA esistenti, ma usare una gerarchia a divulgazione progressiva e testi brevi.

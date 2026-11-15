@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AdminSecurityStatus } from '@/lib/admin-passkey';
+import { AdminPasskeyVerification } from './AdminRouteGuard';
 
 vi.mock('wouter', () => ({
   useLocation: () => ['/admin/dashboard', vi.fn()],
@@ -48,18 +49,16 @@ const status: AdminSecurityStatus = {
   expectedClaim: null,
 };
 
-function renderVerification() {
+function renderVerification(securityStatus: AdminSecurityStatus = status) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <AdminPasskeyVerification status={status} />
+      <AdminPasskeyVerification status={securityStatus} />
     </QueryClientProvider>,
   );
 }
-
-import { AdminPasskeyVerification } from './AdminRouteGuard';
 
 afterEach(() => cleanup());
 
@@ -69,7 +68,10 @@ describe('modale QR della verifica passkey', () => {
 
     expect(screen.getByRole('heading', { name: 'Verifica passkey' })).toBeTruthy();
     expect(screen.queryByTestId('dialog-device-enrollment')).toBeNull();
+    expect(screen.getByTestId('button-start-preview-handoff')).toBeTruthy();
 
+    fireEvent.click(screen.getByTestId('button-toggle-passkey-options'));
+    expect(screen.getByTestId('button-use-recovery-code')).toBeTruthy();
     fireEvent.click(screen.getByTestId('button-open-device-enrollment'));
 
     const dialog = screen.getByTestId('dialog-device-enrollment');
@@ -79,5 +81,16 @@ describe('modale QR della verifica passkey', () => {
     fireEvent.click(screen.getByTestId('button-toggle-device-enrollment-size'));
     expect(screen.getByRole('button', { name: 'Riduci finestra QR' })).toBeTruthy();
     expect(dialog.className).toContain('max-w-4xl');
+  });
+
+  it('riunisce l’avviso e l’azione di aggiornamento sessione in un solo riquadro', () => {
+    renderVerification({
+      ...status,
+      expectedClaim: { req: true, exp: 2, at: 1, sat: 1 },
+    });
+
+    expect(screen.getByTestId('panel-passkey-session-refresh')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Aggiorna sessione' })).toBeTruthy();
+    expect(screen.queryByText(/Se hai appena attivato l'obbligo/)).toBeNull();
   });
 });

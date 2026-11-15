@@ -13,6 +13,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { onIdTokenChanged, signOut } from 'firebase/auth';
 import {
   Fingerprint,
+  ChevronDown,
   KeyRound,
   LogOut,
   Maximize2,
@@ -54,6 +55,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 export const ADMIN_SECURITY_STATUS_KEY = ['admin-security', 'status'] as const;
 
@@ -584,6 +586,7 @@ export function AdminPasskeyVerification({ status }: { status: AdminSecurityStat
   const [previewHandoffError, setPreviewHandoffError] = useState<string | null>(null);
   const [rememberThisDevice, setRememberThisDevice] = useState(false);
   const [rememberDeviceLabel, setRememberDeviceLabel] = useState('Browser personale');
+  const [otherOptionsOpen, setOtherOptionsOpen] = useState(false);
   const [deviceEnrollmentOpen, setDeviceEnrollmentOpen] = useState(false);
   const [deviceEnrollmentActive, setDeviceEnrollmentActive] = useState(false);
   const [deviceEnrollmentExpanded, setDeviceEnrollmentExpanded] = useState(false);
@@ -760,14 +763,8 @@ export function AdminPasskeyVerification({ status }: { status: AdminSecurityStat
             </div>
             <h1 className="text-xl font-semibold text-charcoal">Verifica passkey</h1>
             <p className="text-sm text-blue-gray">
-              La password non basta: conferma la tua identità con impronta, volto o PIN del dispositivo. La
-              biometria resta sul tuo dispositivo, il server verifica solo la firma.
+              Conferma l’accesso con impronta, volto o PIN del dispositivo.
             </p>
-            {status.expectedClaim && (
-              <p className="text-xs text-blue-gray">
-                Se hai appena attivato l'obbligo e la sessione non si è aggiornata, riprova qui senza uscire.
-              </p>
-            )}
           </div>
 
           {locked && (
@@ -788,45 +785,47 @@ export function AdminPasskeyVerification({ status }: { status: AdminSecurityStat
               {error}
             </p>
           )}
-          {refreshError && (
-            <p className="text-sm text-red-600 text-center" role="alert" data-testid="text-passkey-refresh-error">
-              {refreshError}
-            </p>
-          )}
           {previewHandoffError && (
             <p className="text-sm text-amber-800 text-center" role="status" data-testid="text-preview-handoff-error">
               {previewHandoffError}
             </p>
           )}
 
-          {(needsSessionRefresh || status.expectedClaim) && (
-            <Button
-              variant="outline"
-              className="w-full"
-              disabled={busy || refreshingSession}
-              onClick={() => void refreshSession()}
-              data-testid="button-retry-passkey-token-refresh"
+          {(needsSessionRefresh || status.expectedClaim || refreshError) && (
+            <div
+              className="rounded-md border border-amber-200 bg-amber-50 p-3 flex flex-wrap items-center justify-between gap-3"
+              role={refreshError ? 'alert' : 'status'}
+              data-testid="panel-passkey-session-refresh"
             >
-              <RefreshCw className={`h-4 w-4 mr-2 ${refreshingSession ? 'animate-spin' : ''}`} />
-              {refreshingSession ? 'Aggiornamento sessione…' : 'Riprova aggiornamento sessione'}
-            </Button>
-          )}
-
-          {needsSessionRefresh && (
-            <p className="text-sm text-amber-800 text-center" role="status" data-testid="text-passkey-refresh-pending">
-              Il server ha completato la verifica e ha consumato l’eventuale codice monouso. Aggiorna la sessione
-              qui sotto; non reinserire il codice.
-            </p>
+              <p className="text-sm text-amber-900 flex-1">
+                {refreshError ?? 'La sessione non è aggiornata. Aggiornala per continuare.'}
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={busy || refreshingSession}
+                onClick={() => void refreshSession()}
+                data-testid="button-retry-passkey-token-refresh"
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${refreshingSession ? 'animate-spin' : ''}`} />
+                {refreshingSession ? 'Aggiorno…' : refreshError ? 'Riprova' : 'Aggiorna sessione'}
+              </Button>
+            </div>
           )}
 
           {!showRecovery ? (
             <div className="space-y-3">
               {canUseProductionHandoff && (
-                <div className="rounded-md border border-sage/30 bg-sage/5 p-3 space-y-2">
-                  <p className="text-sm text-blue-gray">
-                    La tua passkey è associata al sito ufficiale, non a questo dominio Preview. Verificala sul sito
-                    ufficiale: autorizzeremo questa sessione senza registrare un’altra passkey.
-                  </p>
+                <div className="rounded-md border border-sage/30 bg-sage/5 p-4 space-y-3">
+                  <div className="flex items-start gap-2">
+                    <ShieldCheck className="h-5 w-5 text-sage shrink-0 mt-0.5" />
+                    <p className="text-sm text-blue-gray">
+                      {previewHandoff
+                        ? 'Apri il sito ufficiale, conferma la passkey e poi torna qui.'
+                        : 'La passkey è salvata sul sito ufficiale. Usala per autorizzare questa Preview.'}
+                    </p>
+                  </div>
                   {!previewHandoff ? (
                     <Button
                       className="w-full"
@@ -834,8 +833,7 @@ export function AdminPasskeyVerification({ status }: { status: AdminSecurityStat
                       onClick={() => void startPreviewHandoff()}
                       data-testid="button-start-preview-handoff"
                     >
-                      <ShieldCheck className="h-4 w-4 mr-2" />
-                      {startingPreviewHandoff ? 'Preparo la verifica…' : 'Verifica con la passkey del sito'}
+                      {startingPreviewHandoff ? 'Preparo la verifica…' : 'Verifica sul sito ufficiale'}
                     </Button>
                   ) : (
                     <div className="space-y-2">
@@ -846,11 +844,8 @@ export function AdminPasskeyVerification({ status }: { status: AdminSecurityStat
                         rel="noopener noreferrer"
                         data-testid="link-open-production-handoff"
                       >
-                        Apri il sito e conferma la passkey
+                        Apri il sito ufficiale
                       </a>
-                      <p className="text-xs text-center text-muted-foreground">
-                        Torna qui dopo la conferma: questa scheda si sbloccherà automaticamente.
-                      </p>
                       <Button
                         type="button"
                         variant="ghost"
@@ -869,83 +864,7 @@ export function AdminPasskeyVerification({ status }: { status: AdminSecurityStat
                 </div>
               )}
 
-              <div className="rounded-md border border-sage/30 bg-sage/5 p-3 space-y-2">
-                <div className="flex items-start gap-2">
-                  <QrCode className="h-5 w-5 text-sage shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-semibold text-charcoal">Nuovo dispositivo?</p>
-                    <p className="text-xs text-blue-gray">
-                      Apri la procedura QR in una finestra dedicata, senza appesantire la verifica.
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  disabled={busy || needsSessionRefresh || locked}
-                  onClick={() => setDeviceEnrollmentOpen(true)}
-                  data-testid="button-open-device-enrollment"
-                >
-                  <QrCode className="h-4 w-4 mr-2" />
-                  Associa un nuovo dispositivo
-                </Button>
-              </div>
-
-              <Dialog
-                open={deviceEnrollmentOpen}
-                onOpenChange={(open) => {
-                  if (!open && deviceEnrollmentActive) return;
-                  setDeviceEnrollmentOpen(open);
-                  if (!open) setDeviceEnrollmentExpanded(false);
-                }}
-              >
-                <DialogContent
-                  closeDisabled={deviceEnrollmentActive}
-                  onEscapeKeyDown={(event) => {
-                    if (deviceEnrollmentActive) event.preventDefault();
-                  }}
-                  onInteractOutside={(event) => {
-                    if (deviceEnrollmentActive) event.preventDefault();
-                  }}
-                  className={deviceEnrollmentExpanded
-                    ? '!max-w-4xl max-h-[90vh]'
-                    : 'max-w-xl max-h-[90vh]'}
-                  data-testid="dialog-device-enrollment"
-                >
-                  <DialogHeader className="pr-10">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="space-y-1">
-                        <DialogTitle>Associa un nuovo dispositivo</DialogTitle>
-                        <DialogDescription>
-                          Il QR autorizza solo la registrazione della nuova passkey; non trasferisce la sessione amministrativa.
-                        </DialogDescription>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label={deviceEnrollmentExpanded ? 'Riduci finestra QR' : 'Espandi finestra QR'}
-                        onClick={() => setDeviceEnrollmentExpanded((expanded) => !expanded)}
-                        data-testid="button-toggle-device-enrollment-size"
-                      >
-                        {deviceEnrollmentExpanded
-                          ? <Minimize2 className="h-4 w-4" />
-                          : <Maximize2 className="h-4 w-4" />}
-                      </Button>
-                    </div>
-                  </DialogHeader>
-                  <DeviceEnrollmentRequestPanel
-                    status={status}
-                    currentRpId={currentRpId}
-                    disabled={busy || needsSessionRefresh || locked}
-                    expanded={deviceEnrollmentExpanded}
-                    onActiveChange={setDeviceEnrollmentActive}
-                  />
-                </DialogContent>
-              </Dialog>
-
-              {hasPasskeyForCurrentRp && (
+              {!canUseProductionHandoff && hasPasskeyForCurrentRp && (
                 <>
                   {status.passkeyRequired && currentRpId === 'imagestudiofotografico.com' && (
                     <div className="rounded-md border border-sage/30 bg-sage/5 p-3 space-y-2">
@@ -990,16 +909,127 @@ export function AdminPasskeyVerification({ status }: { status: AdminSecurityStat
                   </Button>
                 </>
               )}
-              <Button
-                variant="ghost"
-                className="w-full"
-                disabled={busy || needsSessionRefresh}
-                onClick={() => setShowRecovery(true)}
-                data-testid="button-use-recovery-code"
-              >
-                <KeyRound className="h-4 w-4 mr-2" />
-                Usa un codice di recupero
-              </Button>
+
+              {!canUseProductionHandoff && !hasPasskeyForCurrentRp && (
+                <Button
+                  className="w-full"
+                  disabled={busy || needsSessionRefresh || locked}
+                  onClick={() => setShowRecovery(true)}
+                  data-testid="button-use-recovery-code-primary"
+                >
+                  <KeyRound className="h-4 w-4 mr-2" />
+                  Accedi con un codice di recupero
+                </Button>
+              )}
+
+              <Collapsible open={otherOptionsOpen} onOpenChange={setOtherOptionsOpen}>
+                <CollapsibleTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="w-full justify-between"
+                    disabled={busy || needsSessionRefresh}
+                    data-testid="button-toggle-passkey-options"
+                  >
+                    Altre opzioni
+                    <ChevronDown className={`h-4 w-4 transition-transform ${otherOptionsOpen ? 'rotate-180' : ''}`} />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-2 space-y-2" data-testid="panel-other-passkey-options">
+                  {canUseProductionHandoff && hasPasskeyForCurrentRp && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full"
+                      disabled={busy || needsSessionRefresh || locked || !supportsPasskeys}
+                      onClick={() => void finish(() => AdminPasskeyClient.verify())}
+                      data-testid="button-verify-current-origin-passkey"
+                    >
+                      <Fingerprint className="h-4 w-4 mr-2" />
+                      Verifica con la passkey di questo sito
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    disabled={busy || needsSessionRefresh || locked}
+                    onClick={() => setDeviceEnrollmentOpen(true)}
+                    data-testid="button-open-device-enrollment"
+                  >
+                    <QrCode className="h-4 w-4 mr-2" />
+                    Associa un nuovo dispositivo
+                  </Button>
+                  {(canUseProductionHandoff || hasPasskeyForCurrentRp) && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="w-full"
+                      disabled={busy || needsSessionRefresh}
+                      onClick={() => {
+                        setShowRecovery(true);
+                        setOtherOptionsOpen(false);
+                      }}
+                      data-testid="button-use-recovery-code"
+                    >
+                      <KeyRound className="h-4 w-4 mr-2" />
+                      Usa un codice di recupero
+                    </Button>
+                  )}
+                  <Dialog
+                    open={deviceEnrollmentOpen}
+                    onOpenChange={(open) => {
+                      if (!open && deviceEnrollmentActive) return;
+                      setDeviceEnrollmentOpen(open);
+                      if (!open) setDeviceEnrollmentExpanded(false);
+                    }}
+                  >
+                    <DialogContent
+                      closeDisabled={deviceEnrollmentActive}
+                      onEscapeKeyDown={(event) => {
+                        if (deviceEnrollmentActive) event.preventDefault();
+                      }}
+                      onInteractOutside={(event) => {
+                        if (deviceEnrollmentActive) event.preventDefault();
+                      }}
+                      className={deviceEnrollmentExpanded
+                        ? '!max-w-4xl max-h-[90vh]'
+                        : 'max-w-xl max-h-[90vh]'}
+                      data-testid="dialog-device-enrollment"
+                    >
+                      <DialogHeader className="pr-10">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="space-y-1">
+                            <DialogTitle>Associa un nuovo dispositivo</DialogTitle>
+                            <DialogDescription>
+                              Il QR autorizza solo una nuova passkey, non trasferisce la sessione amministrativa.
+                            </DialogDescription>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            aria-label={deviceEnrollmentExpanded ? 'Riduci finestra QR' : 'Espandi finestra QR'}
+                            onClick={() => setDeviceEnrollmentExpanded((expanded) => !expanded)}
+                            data-testid="button-toggle-device-enrollment-size"
+                          >
+                            {deviceEnrollmentExpanded
+                              ? <Minimize2 className="h-4 w-4" />
+                              : <Maximize2 className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </DialogHeader>
+                      <DeviceEnrollmentRequestPanel
+                        status={status}
+                        currentRpId={currentRpId}
+                        disabled={busy || needsSessionRefresh || locked}
+                        expanded={deviceEnrollmentExpanded}
+                        onActiveChange={setDeviceEnrollmentActive}
+                      />
+                    </DialogContent>
+                  </Dialog>
+                </CollapsibleContent>
+              </Collapsible>
             </div>
           ) : (
             <form
@@ -1018,14 +1048,13 @@ export function AdminPasskeyVerification({ status }: { status: AdminSecurityStat
                 data-testid="input-recovery-code"
               />
               <p className="text-xs text-muted-foreground">
-                Ogni codice vale una sola volta e concede 30 minuti per registrare una nuova passkey dalla
-                pagina Sicurezza Accesso.
+                È monouso e ti dà 30 minuti per registrare una nuova passkey in Sicurezza.
               </p>
               <Button type="submit" className="w-full" disabled={busy || needsSessionRefresh || locked || recoveryCode.trim().length < 8} data-testid="button-submit-recovery-code">
                 {busy ? 'Verifica in corso…' : 'Conferma codice'}
               </Button>
               <Button type="button" variant="ghost" className="w-full" onClick={() => setShowRecovery(false)}>
-                Torna alla passkey
+                Torna alla verifica
               </Button>
             </form>
           )}
