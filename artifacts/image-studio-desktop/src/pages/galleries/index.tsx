@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useClients, useGalleries, useJobs } from '../../lib/api-hooks';
-import { clientLabel, galleryClientIds, jobLabel } from '../../lib/gallery-associations';
+import { clientLabel, galleryClientIds, galleryMatchesAssociationFilter, jobLabel, type GalleryAssociationFilter } from '../../lib/gallery-associations';
 import { Link } from 'wouter';
 import { Plus, Search, MapPin, Calendar, Camera } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -11,10 +11,12 @@ import { WhatsAppShareButton } from './whatsapp-share-button';
 export default function GalleriesList() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<string>('');
+  const [association, setAssociation] = useState<GalleryAssociationFilter>('');
   
-  const { data: galleries, isLoading, error } = useGalleries(search, status);
+  const { data: allGalleries, isLoading, error } = useGalleries(search, status);
   const { data: clients = [], isLoading: clientsLoading, isError: clientsError } = useClients();
   const { data: jobs = [] } = useJobs();
+  const galleries = allGalleries?.filter(gallery => galleryMatchesAssociationFilter(gallery, jobs, association));
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-off-white">
@@ -50,6 +52,20 @@ export default function GalleriesList() {
             <option value="published">Pubblicata</option>
             <option value="archived">Archiviata</option>
           </select>
+          <select
+            aria-label="Filtra per associazione"
+            className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            value={association}
+            onChange={e => setAssociation(e.target.value as GalleryAssociationFilter)}
+          >
+            <option value="">Tutte le associazioni</option>
+            <option value="no-clients">Senza cliente</option>
+            <option value="no-job">Senza job</option>
+            <option value="no-clients-no-job">Senza cliente e senza job</option>
+          </select>
+          {association && galleries && (
+            <span className="text-sm text-muted-foreground">{galleries.length} gallerie</span>
+          )}
         </div>
       </div>
 

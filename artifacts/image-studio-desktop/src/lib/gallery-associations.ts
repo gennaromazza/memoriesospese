@@ -33,6 +33,7 @@ export interface GalleryJob {
   clientiIds?: string[];
   clienteId?: string;
   clientNames?: string[];
+  galleryIds?: string[];
 }
 
 export interface GalleryJobType {
@@ -133,4 +134,28 @@ export function clientsAfterRemovingJob(
 
 export function mergeJobClientIds(clientIds: string[], job: GalleryJob): string[] {
   return [...new Set([...clientIds, ...jobClientIds(job)])];
+}
+export type GalleryAssociationFilter = '' | 'no-clients' | 'no-job' | 'no-clients-no-job';
+
+/** Una galleria ha un job se punta a un job esistente o se un job la elenca in galleryIds. */
+export function galleryHasJob(
+  gallery: { id: string; jobId?: string | null },
+  jobs: readonly GalleryJob[],
+): boolean {
+  const jobId = typeof gallery.jobId === 'string' ? gallery.jobId.trim() : '';
+  if (jobId && (jobs.length === 0 || jobs.some(job => job.id === jobId))) return true;
+  return jobs.some(job => Array.isArray(job.galleryIds) && job.galleryIds.includes(gallery.id));
+}
+
+export function galleryMatchesAssociationFilter(
+  gallery: { id: string; jobId?: string | null; clientIds?: string[]; clientiIds?: string[]; clienteId?: string | null },
+  jobs: readonly GalleryJob[],
+  filter: GalleryAssociationFilter,
+): boolean {
+  if (!filter) return true;
+  const noClients = galleryClientIds(gallery).length === 0;
+  const noJob = !galleryHasJob(gallery, jobs);
+  if (filter === 'no-clients') return noClients;
+  if (filter === 'no-job') return noJob;
+  return noClients && noJob;
 }
