@@ -56,6 +56,32 @@ export async function logoutClientArea(): Promise<void> {
 
 export class ClientAreaSessionError extends Error {}
 
+export interface ClientAreaPrefill {
+  nome: string;
+  cognome: string;
+  email: string;
+  whatsapp: string;
+}
+
+/**
+ * Dati del cliente collegato all'area, per precompilare una prenotazione.
+ * Restituisce null se nessuno ha fatto l'accesso all'area in questo browser
+ * o se il lavoro indicato non è del cliente.
+ */
+export async function fetchClientAreaPrefill(jobId?: string | null): Promise<ClientAreaPrefill | null> {
+  const auth = clientAreaAuth();
+  await auth.authStateReady();
+  const user = auth.currentUser;
+  if (!user) return null;
+  const query = jobId ? `?jobId=${encodeURIComponent(jobId)}` : '';
+  const res = await fetch(createUrl(`/api/client-area/prefill${query}`), {
+    headers: { Authorization: `Bearer ${await user.getIdToken()}` },
+  });
+  if (!res.ok) return null;
+  const data = await res.json().catch(() => null);
+  return data?.cliente ?? null;
+}
+
 export async function fetchClientAreaOverview(): Promise<ClientAreaOverview> {
   const user = clientAreaAuth().currentUser;
   if (!user) throw new ClientAreaSessionError('Sessione scaduta');

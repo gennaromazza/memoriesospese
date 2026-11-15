@@ -4,6 +4,7 @@
  *  POST /login/request   { email }         → invia un codice di 6 cifre (pubblico)
  *  POST /login/verify    { email, code }   → restituisce un custom token Firebase (pubblico)
  *  GET  /me                                → lavori, gallerie, prenotazioni, IBAN (cliente)
+ *  GET  /prefill?jobId=…                   → dati del cliente per precompilare una prenotazione (cliente)
  *  GET  /admin/settings                    → impostazioni area cliente (admin)
  *  PUT  /admin/settings                    → salva IBAN, intestatario, banca, causale, benvenuto automatico (admin)
  *  POST /admin/welcome/job/:jobId          → benvenuto ai clienti del lavoro non ancora invitati (admin)
@@ -192,6 +193,42 @@ router.get('/me', authenticateFirebase, requireClientAreaSession, async (req: an
   } catch (error) {
     console.error('❌ Area cliente: caricamento dati non riuscito:', safeErrorMessage(error));
     return res.status(500).json({ error: 'Impossibile caricare i tuoi dati. Riprova tra poco.' });
+  }
+});
+
+/**
+ * Dati del cliente collegato per precompilare la pagina di prenotazione.
+ * Con `jobId` restituisce la scheda del cliente collegata a quel lavoro e
+ * rifiuta lavori che non sono suoi.
+ */
+router.get('/prefill', authenticateFirebase, requireClientAreaSession, async (req: any, res: Response) => {
+  try {
+    const { email, uid } = req.clientArea as { email: string; uid: string };
+    const clienti = await findClientRecords(db, email, uid);
+    if (clienti.length === 0) return res.status(404).json({ error: 'Scheda cliente non trovata' });
+    let cliente = clienti[0];
+    const jobId = typeof req.query.jobId === 'string' ? req.query.jobId.trim() : '';
+    if (jobId) {
+      const job = await db.collection('jobs').doc(jobId).get();
+      const jobClients = job.exists ? jobClienteIds(job.data() || {}) : [];
+      const match = clienti.find(c => jobClients.includes(c.id));
+      if (!match || job.data()?.deletedAt) return res.status(403).json({ error: 'Questo lavoro non è collegato alla tua area.' });
+      cliente = match;
+    }
+    const data = cliente.data;
+    res.set('Cache-Control', 'no-store');
+    return res.json({
+      cliente: {
+        nome: typeof data.nome === 'string' ? data.nome : '',
+        cognome: typeof data.cognome === 'string' ? data.cognome : '',
+        email,
+        whatsapp: data.whatsapp || data.cellulare1 || data.cellulare || '',
+      },
+      jobId: jobId || null,
+    });
+  } catch (error) {
+    console.error('❌ Area cliente: precompilazione non riuscita:', safeErrorMessage(error));
+    return res.status(500).json({ error: 'Impossibile recuperare i tuoi dati.' });
   }
 });
 

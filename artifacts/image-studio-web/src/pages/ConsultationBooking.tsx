@@ -35,6 +35,8 @@ import { useStudio } from '@/context/StudioContext';
 import Navigation from '@/components/Navigation';
 import { AlertTriangle } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
+import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { fetchClientAreaPrefill } from '@/lib/client-area-session';
 import { EmailSuggestionChip } from '@/components/EmailSuggestionChip';
 import { trackAnalyticsEvent, trackBlogConversion } from '@/lib/analytics';
 
@@ -91,6 +93,7 @@ export default function ConsultationBooking() {
   
   const { toast } = useToast();
   const { studioSettings } = useStudio();
+  const isAdmin = useIsAdmin();
 
   const { data: template, isLoading: isLoadingTemplate } = useTemplate(templateId);
   const availableSlotsMutation = useAvailableSlots();
@@ -147,10 +150,24 @@ export default function ConsultationBooking() {
   const [privacyConsent, setPrivacyConsent] = useState(false);
   const [isPrefilling, setIsPrefilling] = useState(false);
   const [prefillJobId, setPrefillJobId] = useState<string | null>(jobIdParam);
+  const [clientAreaPrefilled, setClientAreaPrefilled] = useState(false);
 
-  // Pre-popola dati cliente se jobId presente nell'URL
+  // Pre-popola i dati: prima dalla sessione dell'area cliente (il cliente
+  // stesso), poi, se c'è un jobId e chi guarda è l'admin, dalla scheda del job.
   useEffect(() => {
-    if (!jobIdParam) return;
+    let cancelled = false;
+    void fetchClientAreaPrefill(jobIdParam)
+      .then(data => {
+        if (cancelled || !data) return;
+        setClientAreaPrefilled(true);
+        setClienteData({ nome: data.nome, cognome: data.cognome, email: data.email, whatsapp: data.whatsapp });
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [jobIdParam]);
+
+  useEffect(() => {
+    if (!jobIdParam || clientAreaPrefilled || !isAdmin) return;
     
     const fetchClientPrefill = async () => {
       setIsPrefilling(true);
@@ -176,7 +193,7 @@ export default function ConsultationBooking() {
     };
     
     fetchClientPrefill();
-  }, [jobIdParam]);
+  }, [jobIdParam, clientAreaPrefilled, isAdmin]);
 
   // Debounce timer per evitare chiamate API troppo frequenti
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
