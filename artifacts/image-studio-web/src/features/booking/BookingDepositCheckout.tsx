@@ -220,11 +220,20 @@ export function BookingDepositCheckout({ campaignId, input, initialCredentials, 
       if (hold) accept({ bookingId: current.bookingId, status: payment.status, payment,
         campaignId, flow: hold.flow,
         dataShootingInizio: hold.dataShootingInizio, dataShootingFine: hold.dataShootingFine });
-    } catch {
-      if (alive.current) {
-        setPhase('unknown');
-        setMessage('La risposta di PayPal non è stata confermata. Non pagare una seconda volta: verifica l’esito qui sotto.');
+    } catch (error) {
+      if (!alive.current) return;
+      const code = (error as { data?: { code?: unknown } })?.data?.code;
+      if (code === 'PAYPAL_INSTRUMENT_DECLINED') {
+        // Il server ha verificato su PayPal che non esiste alcuna cattura: si può riprovare o annullare.
+        persist({ ...current, captureAttempted: false });
+        orderId.current = null;
+        setSdkVersion(value => value + 1);
+        setPhase('ready');
+        setMessage('PayPal ha rifiutato il pagamento: nessun addebito effettuato. Puoi riprovare con un altro metodo o annullare. La scadenza non cambia.');
+        return;
       }
+      setPhase('unknown');
+      setMessage('La risposta di PayPal non è stata confermata. Non pagare una seconda volta: verifica l’esito qui sotto.');
     } finally { busy.current = false; }
   };
   return (

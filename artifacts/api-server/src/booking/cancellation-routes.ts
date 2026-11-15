@@ -7,6 +7,7 @@ import { requestBookingCancellation, deliverBookingCancellation, retryBookingCan
 import { bookingDepositCents, cancellationView } from './cancellation-policy.js';
 import { approveBookingRefund, processBookingRefund } from './refunds.js';
 import { refundSource } from './refund-source.js';
+import { bookingPublicRateLimiter, MANAGEMENT_LINK_LIMIT } from './public-rate-limit.js';
 
 export async function adminCancellationSnapshot(db: Firestore, id: string) {
   const source = await db.runTransaction(tx => refundSource(db, tx, id));
@@ -30,6 +31,7 @@ export async function adminCancellationSnapshot(db: Firestore, id: string) {
 }
 export function bookingCancellationRouter(db: Firestore, auth: RequestHandler, admin: RequestHandler) {
   const router = Router();
+  const publicLimiter = bookingPublicRateLimiter(MANAGEMENT_LINK_LIMIT.maxRequests, MANAGEMENT_LINK_LIMIT.windowMs);
   router.use((req, res, next) => {
     if (/\/(management\/cancel|cancellation)$/.test(req.path)) res.set({ 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'X-Robots-Tag': 'noindex, nofollow' });
     next();
@@ -40,7 +42,7 @@ export function bookingCancellationRouter(db: Firestore, auth: RequestHandler, a
   };
   const failure = (res: any, error: unknown) => res.status(error instanceof BookingManagementError ? error.status : 503)
     .json({ error: error instanceof BookingManagementError ? error.message : 'Operazione da verificare. Aggiorna lo stato: non effettuare un nuovo pagamento o un rimborso manuale senza controllare l’esito.' });
-  router.post('/:bookingId/management/cancel', async (req, res) => {
+  router.post('/:bookingId/management/cancel', publicLimiter, async (req, res) => {
     const body = CancelManagedBookingBody.strict().safeParse(req.body);
     if (!body.success) { res.status(400).json({ error: 'Richiesta di annullamento non valida.' }); return; }
     try {

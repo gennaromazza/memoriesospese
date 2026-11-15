@@ -4,7 +4,7 @@ import { reservationDb } from './test-helpers/reservation-db.js';
 import {
   APPROVED_DEPOSIT_PAYMENT_MS, approvedDepositDeadline, createApprovedDepositRequest, unpaidDepositRequestExpired,
 } from './payment-deadlines.js';
-import { expireBookingPayments, startBookingPaymentExpiryWorker } from './payment-expiry.js';
+import { expireBookingPayments, startBookingPaymentExpiryWorker, STALE_HOLD_RETENTION_MS } from './payment-expiry.js';
 import { checkSlotReservation } from './slot-reservations.js';
 
 vi.mock('../lib/logger.js', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
@@ -74,6 +74,29 @@ describe('pulizia idempotente degli stati', () => {
     expect(store.value('bookingCheckoutHolds/review')).toMatchObject({
       status: 'expired', paymentReviewRequired: true, depositPayment: { paypalCaptureId: 'LATE' },
     });
+  });
+  it('anonimizza i dati del cliente nei checkout chiusi da oltre trenta giorni, senza toccare incassi o riserve recenti', async () => {
+    const draft = { cliente: { nome: 'Mario', cognome: 'Rossi', email: 'mario@example.com', whatsapp: '+39000' } };
+    const old = now - STALE_HOLD_RETENTION_MS;
+    store.seed('bookingCheckoutHolds/old-expired', hold(old, { status: 'expired', draft, tokenHash: 'a'.repeat(64), paypal: { orderId: 'ORDER-OLD' } }));
+    store.seed('bookingCheckoutHolds/old-cancelled', hold(old - 1, { status: 'cancelled', draft, tokenHash: 'b'.repeat(64) }));
+    store.seed('bookingCheckoutHolds/recent-expired', hold(old + 1, { status: 'expired', draft, tokenHash: 'c'.repeat(64) }));
+    store.seed('bookingCheckoutHolds/old-paid-late', hold(old, { status: 'expired', draft, tokenHash: 'd'.repeat(64),
+      depositPayment: { status: 'paid_action_required', paypalCaptureId: 'LATE' }, paymentReviewRequired: true }));
+    store.seed('bookingCheckoutHolds/old-consumed', hold(old, { status: 'consumed', draft, tokenHash: 'e'.repeat(64) }));
+    const results = await Promise.all([expireBookingPayments(store.db), expireBookingPayments(store.db)]);
+    expect(results.reduce((sum, result) => sum + result.anonymizedHolds, 0)).toBe(2);
+    for (const id of ['old-expired', 'old-cancelled']) {
+      const data = store.value(`bookingCheckoutHolds/${id}`);
+      expect(data.draft).toBeUndefined(); expect(data.tokenHash).toBeUndefined();
+      expect(data.anonymizedAt).toBeDefined();
+    }
+    expect(store.value('bookingCheckoutHolds/old-expired')).toMatchObject({ status: 'expired', paypal: { orderId: 'ORDER-OLD' }, expiresAt: stamp(old) });
+    for (const id of ['recent-expired', 'old-paid-late', 'old-consumed']) {
+      expect(store.value(`bookingCheckoutHolds/${id}`)).toMatchObject({ draft });
+      expect(store.value(`bookingCheckoutHolds/${id}`).anonymizedAt).toBeUndefined();
+    }
+    expect((await expireBookingPayments(store.db)).anonymizedHolds).toBe(0);
   });
   it('chiude la richiesta scaduta e annulla la prenotazione non pagata una sola volta', async () => {
     store.seed('bookings/due', booking());

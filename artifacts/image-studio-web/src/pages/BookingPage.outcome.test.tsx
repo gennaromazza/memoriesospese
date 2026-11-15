@@ -232,6 +232,20 @@ describe('acconto PayPal immediato', () => {
     expect(await screen.findByText('Appuntamento confermato!')).toBeTruthy();
     expect(h.capture).toHaveBeenCalledOnce();
   });
+  it('dopo una carta rifiutata ripropone PayPal e permette di annullare, senza un secondo checkout', async () => {
+    h.capture.mockRejectedValueOnce(Object.assign(new Error('declined'), { status: 409,
+      data: { code: 'PAYPAL_INSTRUMENT_DECLINED', error: 'PayPal ha rifiutato il pagamento.' } }));
+    await openCheckout(); await pay();
+    await waitFor(() => expect(screen.getByTestId('booking-payment-message').textContent).toContain('rifiutato'));
+    expect(screen.queryByTestId('button-verify-booking-payment')).toBeNull();
+    expect(h.hold).toHaveBeenCalledOnce();
+    expect(screen.getByTestId('button-cancel-booking-payment')).toBeTruthy();
+    expect(JSON.parse(sessionStorage.getItem('booking-deposit:campaign-test') || '{}').captureAttempted).toBe(false);
+    await pay();
+    expect(await screen.findByText('Appuntamento confermato!')).toBeTruthy();
+    expect(h.capture).toHaveBeenCalledTimes(2);
+    expect(h.hold).toHaveBeenCalledOnce();
+  });
   it('non dichiara confermato un incasso tardivo', async () => {
     h.capture.mockResolvedValue({ ...payment, status: 'paid_action_required', bookingConfirmed: false });
     await openCheckout(); await pay();

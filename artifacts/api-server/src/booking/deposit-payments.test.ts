@@ -8,7 +8,7 @@ import { bookingPayPalAccountKey, BOOKING_PAYPAL_ORDERS } from './paypal-deposit
 import { captureBookingDeposit, getBookingDepositStatus, getBookingDepositStatusForAdmin, handleVerifiedBookingPayPalEvent } from './deposit-payments.js';
 import { BOOKING_PAYMENT_CAPTURES } from './deposit-payment-ledger.js';
 import { bookingDepositPaymentRouter } from './deposit-payment-routes.js';
-import { paypalRequestId, PayPalConfigurationError } from '../print-shop/paypal-orders.js';
+import { paypalRequestId, PayPalApiError, PayPalConfigurationError } from '../print-shop/paypal-orders.js';
 import { ShopPaymentService } from '../shop/payments.js';
 import { PrintShopService } from '../print-shop/service.js';
 import { GiftCardOnlineService } from '../gift-cards/online.js';
@@ -242,6 +242,40 @@ describe('cattura e cassa acconti', () => {
     expect(count('cashMovements')).toBe(0);
     expect(await capture()).toMatchObject({ status: 'paid' });
     expect(client.captureOrder).toHaveBeenCalledOnce();
+  });
+  it('una carta rifiutata da PayPal non lascia il cliente in verifica: può riprovare o annullare senza addebiti', async () => {
+    client.captureOrder.mockRejectedValueOnce(new PayPalApiError('PayPal ha rifiutato la richiesta (422)', 422,
+      { name: 'UNPROCESSABLE_ENTITY', details: [{ issue: 'INSTRUMENT_DECLINED' }] }));
+    await expect(capture()).rejects.toMatchObject({ status: 409, checkoutCode: 'PAYPAL_INSTRUMENT_DECLINED' });
+    expect(store.value(holdPath).paypalCaptureAttempt).toMatchObject({ state: 'declined' });
+    expect(count('cashMovements')).toBe(0);
+    // La verifica non deve mostrare "in elaborazione" per un rifiuto certo.
+    expect(await getBookingDepositStatus(store.db, client, bookingId, token)).toMatchObject({ status: 'unpaid' });
+    // Un nuovo tentativo con un altro metodo usa la stessa chiave idempotente e va a buon fine.
+    expect(await capture()).toMatchObject({ status: 'paid', bookingConfirmed: true });
+    expect(client.captureOrder.mock.calls[0][1]).toBe(client.captureOrder.mock.calls[1][1]);
+    expect(store.value(holdPath).expiresAt.toMillis()).toBe(now + 600_000);
+  });
+  it('dopo un rifiuto certo il cliente può annullare e liberare lo slot', async () => {
+    client.captureOrder.mockRejectedValueOnce(new PayPalApiError('rifiuto', 422, { details: [{ issue: 'INSTRUMENT_DECLINED' }] }));
+    await expect(capture()).rejects.toMatchObject({ checkoutCode: 'PAYPAL_INSTRUMENT_DECLINED' });
+    expect(await releaseCheckoutHold(store.db, bookingId, token)).toMatchObject({ status: 'cancelled' });
+  });
+  it.each([
+    ['timeout di rete', new Error('timeout')],
+    ['errore 5xx', new PayPalApiError('PayPal ha rifiutato la richiesta (503)', 503)],
+    ['429', new PayPalApiError('PayPal ha rifiutato la richiesta (429)', 429)],
+  ])('un esito ambiguo (%s) resta incerto e non consente di annullare', async (_label, error) => {
+    client.captureOrder.mockRejectedValueOnce(error);
+    await expect(capture()).rejects.toMatchObject({ status: 503, checkoutCode: 'PAYPAL_CAPTURE_NOT_COMPLETED' });
+    expect(store.value(holdPath).paypalCaptureAttempt).toMatchObject({ state: 'unknown' });
+    expect(await getBookingDepositStatus(store.db, client, bookingId, token)).toMatchObject({ status: 'processing' });
+    await expect(releaseCheckoutHold(store.db, bookingId, token)).rejects.toMatchObject({ status: 409 });
+  });
+  it('un 4xx con una cattura già presente sull’ordine non viene trattato come rifiuto', async () => {
+    client.captureOrder.mockImplementationOnce(async () => { paid = true; throw new PayPalApiError('già catturato', 422, { details: [{ issue: 'ORDER_ALREADY_CAPTURED' }] }); });
+    expect(await capture()).toMatchObject({ status: 'paid' });
+    expect(count('cashMovements')).toBe(2);
   });
   it('un retry dopo esito ambiguo mantiene la stessa chiave PayPal e la stessa scadenza', async () => {
     client.captureOrder.mockRejectedValueOnce(new Error('timeout'));

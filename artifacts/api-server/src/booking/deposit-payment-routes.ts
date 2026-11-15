@@ -6,9 +6,11 @@ import { bookingPayPalClient, BookingDepositOrderError } from './paypal-deposit-
 import { CheckoutHoldError } from './checkout-hold-state.js';
 import { captureBookingDeposit, getBookingDepositStatus, handleVerifiedBookingPayPalEvent, type BookingCapturePayPalClient } from './deposit-payments.js';
 import { logger } from '../lib/logger.js';
+import { bookingPublicRateLimiter, CHECKOUT_PAYMENT_LIMIT } from './public-rate-limit.js';
 
 export function bookingDepositPaymentRouter(db: Firestore, client: () => BookingCapturePayPalClient = bookingPayPalClient) {
   const router = Router();
+  const paymentLimiter = bookingPublicRateLimiter(CHECKOUT_PAYMENT_LIMIT.maxRequests, CHECKOUT_PAYMENT_LIMIT.windowMs);
   router.get('/paypal/config', (_req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     try {
@@ -26,7 +28,7 @@ export function bookingDepositPaymentRouter(db: Firestore, client: () => Booking
     logger.error('Verifica acconto PayPal non completata');
     return res.status(503).json({ error: 'Impossibile verificare il pagamento. Riprova tra poco.' });
   };
-  router.post('/v2/checkout-holds/:bookingId/paypal-capture', async (req, res) => {
+  router.post('/v2/checkout-holds/:bookingId/paypal-capture', paymentLimiter, async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     const params = CaptureBookingDepositParams.safeParse(req.params);
     const body = CaptureBookingDepositBody.strict().safeParse(req.body);
@@ -34,7 +36,7 @@ export function bookingDepositPaymentRouter(db: Firestore, client: () => Booking
     try { res.json(CaptureBookingDepositResponse.parse(await captureBookingDeposit(db, client(), params.data.bookingId, body.data.token))); }
     catch (error) { failure(res, error); }
   });
-  router.post('/v2/checkout-holds/:bookingId/paypal-status', async (req, res) => {
+  router.post('/v2/checkout-holds/:bookingId/paypal-status', paymentLimiter, async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     const params = GetBookingDepositStatusParams.safeParse(req.params);
     const body = GetBookingDepositStatusBody.strict().safeParse(req.body);

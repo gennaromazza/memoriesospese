@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { isApprovedDepositHold, assertApprovedDepositMatchesBooking } from './approved-deposit-state.js';
 import { Timestamp, type Firestore } from 'firebase-admin/firestore';
 import { captureFromWebhook, extractCompletedCapture } from '../commerce/paypal-capture.js';
-import { paypalRequestId, type PayPalOrdersClient, type PayPalOrdersConfig, type PayPalOrderResponse } from '../print-shop/paypal-orders.js';
+import { paypalRequestId, PayPalApiError, type PayPalOrdersClient, type PayPalOrdersConfig, type PayPalOrderResponse } from '../print-shop/paypal-orders.js';
 import { BOOKING_PAYPAL_ORDERS, assertBookingPayPalOrderIdentity, bookingPayPalAccountKey,
   BookingDepositOrderError, type BookingPayPalClient } from './paypal-deposit-orders.js';
 import { authorizeCheckoutHold, activeCheckoutHoldView, CheckoutHoldError } from './checkout-hold-state.js';
@@ -12,6 +12,18 @@ import { recordBookingDeposit, depositCaptureResult } from './deposit-payment-le
 export type BookingCapturePayPalClient = BookingPayPalClient & Pick<PayPalOrdersClient, 'captureOrder' | 'verifyWebhook' | 'publicConfig'>;
 type VerifiedWebhookClient = Pick<PayPalOrdersClient, 'getOrder'> & { config: Partial<PayPalOrdersConfig> };
 const fail = (code: string, message: string, status = 409) => new BookingDepositOrderError(status, code, message);
+
+/**
+ * Un tentativo di cattura resta "incerto" (denaro forse addebitato) finché non
+ * è dichiarato `declined`: solo quello stato nasce da un rifiuto esplicito di
+ * PayPal confermato da una rilettura canonica senza alcuna cattura.
+ */
+export const captureAttemptUncertain = (hold: { paypalCaptureAttempt?: { state?: string } } | undefined) =>
+  !!hold?.paypalCaptureAttempt && hold.paypalCaptureAttempt.state !== 'declined';
+const PAYPAL_RETRYABLE_STATUSES = new Set([408, 425, 429]);
+/** Rifiuto sincrono e definitivo del provider (es. INSTRUMENT_DECLINED, 422): mai timeout, 5xx o errori di rete. */
+export const isDefinitivePayPalRejection = (error: unknown) => error instanceof PayPalApiError
+  && error.status >= 400 && error.status < 500 && !PAYPAL_RETRYABLE_STATUSES.has(error.status);
 
 function assertAccount(association: any, config: Partial<PayPalOrdersConfig>) {
   if (!config.environment || !config.clientId || association.accountKey !== bookingPayPalAccountKey({
@@ -76,7 +88,7 @@ async function readBookingDepositStatus(db: Firestore, paypal: BookingCapturePay
     const payment = await recordBookingDeposit(db, completed);
     return { ...summary, status: payment.status, payment };
   }
-  const uncertain = !!hold.paypalCaptureAttempt
+  const uncertain = captureAttemptUncertain(hold)
     || remote.purchase_units?.some(unit => unit.payments?.captures?.some((capture: any) => capture.status === 'PENDING'));
   return { ...summary, status: uncertain ? 'processing' as const : 'unpaid' as const };
 }
@@ -84,7 +96,7 @@ async function readBookingDepositStatus(db: Firestore, paypal: BookingCapturePay
 export async function captureBookingDeposit(db: Firestore, paypal: BookingCapturePayPalClient, bookingId: string, token: string) {
   const ref = db.collection(CHECKOUT_HOLDS).doc(bookingId);
   const attemptId = randomUUID();
-  let claimed = false;
+  let claimed = false, declined = false;
   try {
     const hold = authorizeCheckoutHold((await ref.get()).data(), token);
     if (!hold.paypal?.orderId) throw fail('PAYPAL_ORDER_REQUIRED', 'Il pagamento non è stato inizializzato.');
@@ -132,18 +144,32 @@ export async function captureBookingDeposit(db: Firestore, paypal: BookingCaptur
     });
     if (cached) return cached;
     claimed = true;
-    let requestFailed = false;
+    let requestFailed = false, rejection: PayPalApiError | null = null;
     try {
       await paypal.captureOrder(association.paypalOrderId, paypalRequestId('booking-deposit', 'capture', bookingId, association.paypalOrderId));
-    } catch { requestFailed = true; } // Timeout/ORDER_ALREADY_CAPTURED requires a canonical read, not a second charge.
-    const completed = verifiedCapture(await paypal.getOrder(association.paypalOrderId), association, paypal.config.merchantId);
-    if (!completed) throw fail('PAYPAL_CAPTURE_NOT_COMPLETED', 'Pagamento non ancora confermato. Riprova la verifica prima di prenotare di nuovo.', requestFailed ? 503 : 409);
+    } catch (error) { // Timeout/ORDER_ALREADY_CAPTURED requires a canonical read, not a second charge.
+      requestFailed = true;
+      if (isDefinitivePayPalRejection(error)) rejection = error as PayPalApiError;
+    }
+    const canonical = await paypal.getOrder(association.paypalOrderId);
+    const completed = verifiedCapture(canonical, association, paypal.config.merchantId);
+    if (!completed) {
+      const anyCapture = canonical.purchase_units?.some(unit => (unit.payments?.captures?.length || 0) > 0);
+      // Rifiuto esplicito (es. carta declinata) e ordine ancora senza catture: nessun denaro si è mosso.
+      // Il cliente deve poter riprovare con un altro metodo o annullare, invece di restare in "verifica".
+      if (rejection && !anyCapture && canonical.status !== 'COMPLETED') {
+        declined = true;
+        throw fail('PAYPAL_INSTRUMENT_DECLINED', 'PayPal ha rifiutato il pagamento: nessun addebito effettuato. Riprova con un altro metodo oppure annulla.', 409);
+      }
+      throw fail('PAYPAL_CAPTURE_NOT_COMPLETED', 'Pagamento non ancora confermato. Riprova la verifica prima di prenotare di nuovo.', requestFailed ? 503 : 409);
+    }
     return await recordBookingDeposit(db, completed);
   } catch (error) {
     if (claimed) await db.runTransaction(async tx => {
       const fresh = (await tx.get(ref)).data();
       if (fresh?.paypalCaptureAttempt?.attemptId === attemptId && !fresh.depositPayment?.paypalCaptureId) {
-        tx.update(ref, { paypalCaptureAttempt: { ...fresh.paypalCaptureAttempt, state: 'unknown', leaseUntil: Timestamp.fromMillis(0) } });
+        tx.update(ref, { paypalCaptureAttempt: { ...fresh.paypalCaptureAttempt, state: declined ? 'declined' : 'unknown',
+          leaseUntil: Timestamp.fromMillis(0), ...(declined ? { declinedAt: Timestamp.now() } : {}) } });
       }
     }).catch(() => undefined);
     if (error instanceof CheckoutHoldError) throw error;

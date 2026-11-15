@@ -32,6 +32,14 @@ token proprietario, mai importi o ID PayPal scelti dal browser.
 - Incassi tardivi o senza prenotazione confermata mostrano richiesta di
   verifica con riferimento, non una conferma falsa o un nuovo checkout.
 
+- Un rifiuto esplicito di PayPal (es. carta declinata), confermato dal
+  server con una rilettura dell'ordine senza catture, riporta i pulsanti
+  sullo stesso ordine: si può riprovare con un altro metodo o annullare.
+  Solo timeout ed esiti ambigui restano "da verificare".
+- Le rotte pubbliche del checkout hanno un limite per visitatore
+  (`booking/public-rate-limit.ts`): poche riserve nuove, più chiamate di
+  verifica. Oltre il limite rispondono 429 con `Retry-After`.
+
 Le campagne con acconto non ignorano una gift card già applicata: il flusso
 spiega di contattare lo studio prima di pagare. Non sono stati introdotti
 usi combinati di credito gift card e acconto PayPal.

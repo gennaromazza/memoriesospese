@@ -103,7 +103,8 @@ export async function releaseCheckoutHold(
       transaction.update(ref, { status: 'expired', expiredAt: Timestamp.now() });
       return { bookingId, status: 'expired' as const };
     }
-    if (data.paypalCaptureAttempt) {
+    // Un rifiuto definitivo di PayPal (stato `declined`) non è un incasso incerto: si può annullare.
+    if (data.paypalCaptureAttempt && data.paypalCaptureAttempt.state !== 'declined') {
       throw new CheckoutHoldError(409, 'Pagamento in verifica: attendi l’esito prima di annullare. La scadenza originaria non cambia.');
     }
     if (isApprovedDepositHold(data)) {

@@ -10,9 +10,11 @@ import { bookingManagementView } from './management-summary.js';
 import { reserveManagedReschedule, slotsForManagedBooking } from './rescheduling.js';
 import { deliverManagedReschedule } from './reschedule-delivery.js';
 import { RESCHEDULE_JOBS } from './reschedule-policy.js';
+import { bookingPublicRateLimiter, MANAGEMENT_LINK_LIMIT } from './public-rate-limit.js';
 
 export function bookingManagementRouter(db: Firestore, authenticate: RequestHandler, requireAdmin: RequestHandler) {
   const router = Router();
+  const publicLimiter = bookingPublicRateLimiter(MANAGEMENT_LINK_LIMIT.maxRequests, MANAGEMENT_LINK_LIMIT.windowMs);
   const headers = (res: Response) => {
     res.set({ 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'X-Robots-Tag': 'noindex, nofollow' });
   };
@@ -24,7 +26,7 @@ export function bookingManagementRouter(db: Firestore, authenticate: RequestHand
     const known = error instanceof BookingManagementError;
     res.status(known ? error.status : 503).json({ error: known ? error.message : 'Gestione del link non disponibile. Riprova più tardi.' });
   };
-  router.post('/:bookingId/management/access', async (req, res) => {
+  router.post('/:bookingId/management/access', publicLimiter, async (req, res) => {
     headers(res);
     const body = AuthorizeBookingManagementAccessBody.strict().safeParse(req.body);
     if (!body.success) { res.status(400).json({ error: 'Link non valido.' }); return; }
@@ -33,14 +35,14 @@ export function bookingManagementRouter(db: Firestore, authenticate: RequestHand
       res.json(AuthorizeBookingManagementAccessResponse.parse(await bookingManagementView(db, access.bookingId, access.booking)));
     } catch (error) { failure(res, error); }
   });
-  router.post('/:bookingId/management/slots', async (req, res) => {
+  router.post('/:bookingId/management/slots', publicLimiter, async (req, res) => {
     headers(res);
     const body = GetBookingManagementSlotsBody.strict().safeParse(req.body);
     if (!body.success) { res.status(400).json({ error: 'Data o link non validi.' }); return; }
     try { res.json(GetBookingManagementSlotsResponse.parse(await slotsForManagedBooking(db, id(req.params.bookingId), body.data.token, body.data.date))); }
     catch (error) { failure(res, error); }
   });
-  router.post('/:bookingId/management/reschedule', async (req, res) => {
+  router.post('/:bookingId/management/reschedule', publicLimiter, async (req, res) => {
     headers(res);
     const body = RescheduleManagedBookingBody.strict().safeParse(req.body);
     if (!body.success) { res.status(400).json({ error: 'Richiesta di cambio non valida.' }); return; }

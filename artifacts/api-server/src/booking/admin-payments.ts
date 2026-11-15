@@ -53,7 +53,7 @@ export function buildAdminBookingPayment(id: string, booking: DocumentData | und
     stage, flow: hold ? approved ? 'approved' : 'immediate' : 'none', amountCents: amount, paidAmountCents: paidAmount,
     currency: 'EUR', expiresAt: deadline === null ? null : new Date(deadline), serverTime: new Date(now),
     paymentStatus: stage === 'pagamento_da_verificare' ? 'review' : payment?.status === 'paid' || paidAmount !== null ? 'paid'
-      : hold?.paypalCaptureAttempt ? 'processing' : booking?.depositPaymentRequest || hold ? 'unpaid' : 'not_required',
+      : hold?.paypalCaptureAttempt && hold.paypalCaptureAttempt.state !== 'declined' ? 'processing' : booking?.depositPaymentRequest || hold ? 'unpaid' : 'not_required',
     method: payment?.provider === 'paypal' && payment.paypalCaptureId ? 'paypal' : manual > 0 ? 'manual' : hold || booking?.depositPaymentRequest ? 'paypal' : null,
     paypalOrderId: payment?.paypalOrderId || hold?.paypal?.orderId || null, paypalCaptureId: payment?.paypalCaptureId || null,
     paypalFeeCents: cents(payment?.paypalFeeCents), netCents: cents(payment?.netCents),

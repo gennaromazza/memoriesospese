@@ -51,6 +51,14 @@ it.each(['capturing', 'unknown'])('non libera prematuramente un incasso %s da un
   expect(store.value(path).paypalCaptureAttempt.state).toBe(state);
 });
 
+it('consente di annullare dopo un rifiuto definitivo di PayPal, verificato dal server', async () => {
+  const result = await createCheckoutHold(store.db, input);
+  const path = `${CHECKOUT_HOLDS}/${result.bookingId}`;
+  store.seed(path, { ...store.value(path), paypalCaptureAttempt: { state: 'declined' } });
+  expect(await releaseCheckoutHold(store.db, result.bookingId, result.token)).toMatchObject({ status: 'cancelled' });
+  expect(store.value(path).status).toBe('cancelled');
+});
+
 describe('riserve checkout immediate', () => {
   it('salva una bozza privata e l’importo della campagna, anche scegliendo i prodotti in studio', async () => {
     const hold = await createCheckoutHold(store.db, input);

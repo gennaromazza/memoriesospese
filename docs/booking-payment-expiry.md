@@ -44,3 +44,11 @@ ha già incassato, si registra invece il denaro una sola volta con
 anche se risulta ancora libero. Un altro cliente già assegnato resta intatto.
 Le commissioni e l'incasso restano in cassa. Nessun rimborso, email o
 riassegnazione automatica viene eseguito dalla manutenzione.
+
+## Anonimizzazione dei checkout mai pagati
+
+Lo stesso worker rimuove bozza cliente e hash del token dagli hold in stato
+`expired`, `cancelled` o `payment_failed` trascorsi 30 giorni dalla scadenza,
+purché non esista un incasso né una riconciliazione in sospeso. Restano stato,
+date, importo e associazione PayPal, così un incasso tardivo resta comunque
+riconducibile alla prenotazione.
