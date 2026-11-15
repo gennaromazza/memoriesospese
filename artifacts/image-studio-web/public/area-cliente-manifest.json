@@ -1,0 +1,30 @@
+{
+  "name": "Image Studio - La mia area",
+  "short_name": "La mia area",
+  "id": "/area-cliente/",
+  "description": "Gallerie, contratti, pagamenti e prenotazioni con Image Studio.",
+  "start_url": "/area-cliente",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F5F3EF",
+  "theme_color": "#6F8793",
+  "icons": [
+    {
+      "src": "/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}

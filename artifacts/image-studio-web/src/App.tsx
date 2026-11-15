@@ -11,7 +11,7 @@ import { ThemeProvider } from "next-themes";
 import { trackPageView } from "./lib/analytics";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Loader2 } from "lucide-react";
-import { isAdminPath, manifestForPath } from "./lib/pwa-manifest";
+import { appTitleForPath, manifestForPath } from "./lib/pwa-manifest";
 
 import PublicHomepage from "./pages/public/PublicHomepage";
 import NotFound from "./pages/NotFound";
@@ -87,6 +87,7 @@ const Faq = lazyWithRetry(() => import("./pages/admin/Faq"));
 const QuestionnaireManager = lazyWithRetry(() => import("./pages/admin/QuestionnaireManager"));
 const DeleteGalleryPage = lazyWithRetry(() => import("./pages/DeleteGalleryPage"));
 const UserProfile = lazyWithRetry(() => import("./pages/UserProfile"));
+const ClientAreaPage = lazyWithRetry(() => import("./pages/ClientAreaPage"));
 const GalleryManagementWorkspace = lazyWithRetry(() => import("./pages/GalleryManagementWorkspace"));
 const JobDetailPage = lazyWithRetry(() => import("./pages/JobDetailPage"));
 const JobsListPage = lazyWithRetry(() => import("./pages/JobsListPage"));
@@ -144,7 +145,7 @@ function usePwaManifest() {
     const manifest = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
     manifest?.setAttribute('href', manifestForPath(location));
     const appTitle = document.querySelector<HTMLMetaElement>('meta[name="apple-mobile-web-app-title"]');
-    appTitle?.setAttribute('content', isAdminPath(location) ? 'Studio Admin' : 'Image Studio');
+    appTitle?.setAttribute('content', appTitleForPath(location));
   }, [location]);
 }
 
@@ -319,6 +320,9 @@ function AppRoutes() {
         <Route path="/request-password" component={RequestPassword} />
         <Route path="/password-result/:id" component={PasswordResult} />
         <Route path="/profile" component={UserProfile} />
+
+        {/* Area cliente: accesso con codice via email, installabile sul telefono */}
+        <Route path="/area-cliente" component={ClientAreaPage} />
 
         <Route component={NotFound} />
       </Switch>
