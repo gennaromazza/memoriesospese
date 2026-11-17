@@ -1260,11 +1260,20 @@ export default function PrintShopOrdersManager() {
           <div className="space-y-2"><Label>Laboratorio con DPA firmato</Label><Select value={selectedLabId} onValueChange={setSelectedLabId} disabled={eligibleLabs.length === 0}><SelectTrigger><SelectValue placeholder={eligibleLabs.length ? 'Seleziona laboratorio' : 'Nessun laboratorio abilitato'} /></SelectTrigger><SelectContent>{eligibleLabs.map((lab) => <SelectItem key={lab.id} value={lab.id}>{lab.nome}</SelectItem>)}</SelectContent></Select></div>
           {blockedLabsCount > 0 && <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950"><AlertTriangle className="mt-0.5 h-4 w-4 flex-none" aria-hidden="true" /><p>{blockedLabsCount} {blockedLabsCount === 1 ? 'laboratorio è escluso' : 'laboratori sono esclusi'} perché l’accordo DPA non risulta firmato. Aggiorna l’anagrafica Laboratori per abilitarlo.</p></div>}
           {!['paid', 'deferred'].includes(selectedOrder?.payment?.status || '') && <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900" data-testid="lab-payment-required">
-            Prima di preparare il laboratorio serve il pagamento oppure la tua autorizzazione al pagamento alla consegna. Se il cliente non ha confermato online, accetta prima la bozza dal riquadro Pagamento.
-            <Button variant="outline" className="mt-3" onClick={() => {
+            Per inviare le foto al laboratorio serve un pagamento registrato oppure l’autorizzazione al pagamento al ritiro. Se la cliente ha confermato fuori dal sito, nella gestione pagamento puoi accettare la bozza e autorizzare il ritiro: l’ordine resterà da incassare.
+            <Button variant="outline" className="mt-3" data-testid="button-open-print-payment" onClick={() => {
               setLabDialogOpen(false);
-              window.setTimeout(() => document.querySelector('[data-testid="panel-payment"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
-            }}>Apri gestione pagamento</Button>
+              window.setTimeout(() => {
+                const panel = document.querySelector<HTMLElement>('[data-testid="panel-payment"]');
+                const target = panel?.querySelector<HTMLElement>('[data-testid="button-accept-and-defer"]') ||
+                  panel?.querySelector<HTMLElement>('[data-testid="button-authorize-deferred"]') ||
+                  panel?.querySelector<HTMLElement>('[data-testid="button-accept-draft"]') ||
+                  panel?.querySelector<HTMLElement>('[data-testid="text-deferred-ineligible"]') ||
+                  panel;
+                target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                target?.focus({ preventScroll: true });
+              }, 180);
+            }}>Vai all’azione di pagamento</Button>
           </div>}
           <DialogFooter><Button variant="outline" onClick={() => setLabDialogOpen(false)}>Annulla</Button><Button onClick={() => labMutation.mutate()} disabled={!selectedLabEligible || labMutation.isPending || !['paid', 'deferred'].includes(selectedOrder?.payment?.status || '')}>{labMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}Prepara trasferimento</Button></DialogFooter>
         </DialogContent>
