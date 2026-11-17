@@ -1,54 +1,70 @@
-modules = ["nodejs-24", "python-base-3.13"]
+modules = ["nodejs-20", "web", "postgresql-16"]
+hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
+
+[nix]
+channel = "stable-24_05"
+packages = ["killall"]
 
 [deployment]
-router = "application"
 deploymentTarget = "autoscale"
-
-[deployment.postBuild]
-args = ["pnpm", "store", "prune"]
-env = { "CI" = "true" }
+# Usa npm install (ci richiede package-lock)
+build = ["sh", "-c", "npm install --force && npm run build"]
+run = ["sh", "-c", "node dist/index.js"]
 
 [workflows]
-runButton = "Project"
+runButton = "Dev Workflow"
 
-[agent]
-stack = "PNPM_WORKSPACE"
-expertMode = true
+[[workflows.workflow]]
+name = "Dev Workflow"
+mode = "sequential"
+author = "agent"
 
-[postMerge]
-path = "scripts/post-merge.sh"
-timeoutMs = 20000
+# STEP 1 — install dipendenze
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm install --force"
 
-[userenv]
+# STEP 2 — avvio dev server
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run dev"
 
-[userenv.shared]
-SITE_URL = "https://imagestudiofotografico.com"
-GOOGLE_CALENDAR_ID = "gennaro.mazzacane@gmail.com"
+[[workflows.workflow]]
+name = "Prod Build & Start"
+mode = "sequential"
+author = "agent"
+
+# STEP 1 — install prod
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm install --force"
+
+# STEP 2 — build prod
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run build"
+
+# STEP 3 — start
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node dist/index.js"
 
 [[ports]]
 localPort = 5000
 externalPort = 80
 
 [[ports]]
-localPort = 8080
-externalPort = 8080
-
-[[ports]]
-localPort = 8976
-externalPort = 3001
-
-[[ports]]
-localPort = 21541
+localPort = 8039
 externalPort = 3002
 
 [[ports]]
-localPort = 23767
+localPort = 8057
 externalPort = 3003
 
 [[ports]]
 localPort = 24678
-externalPort = 3000
+externalPort = 3001
 
-[nix]
-channel = "stable-25_05"
-packages = ["wine", "glib", "nspr", "nss", "atk", "at-spi2-atk", "at-spi2-core", "dbus", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr", "mesa", "xorg.libxcb", "libxkbcommon", "alsa-lib", "cups", "cairo", "pango", "libgbm", "jdk"]
+[[ports]]
+localPort = 33503
+externalPort = 3000
