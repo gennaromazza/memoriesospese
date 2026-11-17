@@ -54,3 +54,4 @@ artifacts/image-studio-desktop/release/
 
 # Download e report generati per l'utente
 generated-artifacts/
+/generated-artifacts/print-payment/
