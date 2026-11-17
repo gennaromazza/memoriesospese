@@ -7,9 +7,8 @@ packages = ["killall"]
 
 [deployment]
 deploymentTarget = "autoscale"
-# Usa npm install (ci richiede package-lock)
-build = ["sh", "-c", "npm install --force && npm run build"]
-run = ["sh", "-c", "node dist/index.js"]
+# Build and serving commands are defined per service in
+# artifacts/*/.replit-artifact/artifact.toml (pnpm workspace).
 
 [workflows]
 runButton = "Dev Workflow"
