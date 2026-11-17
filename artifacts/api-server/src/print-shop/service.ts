@@ -3950,6 +3950,17 @@ export class PrintShopService {
         acceptanceReason = error.message;
       }
     }
+    // Do not advertise an action that the write endpoint will refuse because
+    // PayPal already has an approval/capture (or cannot be verified).
+    if (!reason || (needsManualAcceptance && !acceptanceReason)) {
+      try {
+        await this.deferredPaypalGuard(order);
+      } catch (error: any) {
+        if (!(error instanceof PrintShopHttpError)) throw error;
+        reason = error.message;
+        acceptanceReason = error.message;
+      }
+    }
     const safeOrder = sanitizeAdminPrintOrder(order);
     return {
       ...safeOrder,
@@ -6901,7 +6912,9 @@ function assertDeferredCandidateData(order: any, nowMillis: number,
         order.printShop.lowResolutionAcceptedFingerprint === order.quoteFingerprint));
   if (!complete || order.currency !== PRINT_SHOP_CURRENCY) {
     throw new PrintShopHttpError(409, 'order_incomplete',
-      options.acceptingDraft
+      order.fulfillment?.status === 'cancelled'
+        ? 'Ordine annullato senza configurazione e conferma valide: crea un nuovo ordine.'
+        : options.acceptingDraft
         ? 'Bozza incompleta: servono formati, quantità, riepilogo con prezzo valido e conferma delle eventuali foto a bassa risoluzione.'
         : 'Ordine non confermato: completa il checkout oppure accetta manualmente la bozza su richiesta del cliente prima di autorizzare il pagamento alla consegna.');
   }

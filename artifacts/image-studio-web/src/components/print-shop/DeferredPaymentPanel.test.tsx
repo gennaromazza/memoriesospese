@@ -1,110 +1,69 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { apiRequest } from '@/lib/queryClient';
-import { DeferredPaymentPanel } from './DeferredPaymentPanel';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { DeferredPaymentPanel, paymentNextStep, type DeferredPanelOrder } from './DeferredPaymentPanel';
+import { draftOrder } from './deferred-payment.test-fixtures';
 
-const toastMock = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/queryClient', () => ({ apiRequest: vi.fn() }));
-vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: toastMock }) }));
+vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
+vi.mock('@/lib/firebase', () => ({ convertFirestoreTimestamp: () => null }));
+afterEach(cleanup);
 
-afterEach(() => {
-  cleanup();
-  vi.clearAllMocks();
-});
-
-function mountPanel(onChanged = vi.fn()) {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
-  });
-  render(
-    <QueryClientProvider client={queryClient}>
-      <DeferredPaymentPanel
-        order={{
-          id: 'print-order',
-          orderNumber: 'ST-TEST-001',
-          quoteFingerprint: 'quote-hash',
-          manualAcceptanceEligibility: {
-            canAccept: true,
-            snapshotHash: 'snapshot-hash',
-          },
-          totals: { totalCents: 1500 },
-          payment: { status: 'pending', method: 'paypal' },
-          fulfillment: { status: 'draft' },
-          printShop: {
-            items: [{
-              sku: 'PRINT-TEST',
-              formatLabel: '10×15 cm',
-              productName: 'Stampa fotografica',
-              finish: 'glossy',
-              copyCount: 30,
-            }],
-          },
-        }}
-        onChanged={onChanged}
-      />
-    </QueryClientProvider>,
-  );
-  return onChanged;
-}
-
-function confirmPickupPayment() {
-  fireEvent.click(screen.getByRole('button', { name: 'Accetta e autorizza pagamento al ritiro' }));
-  fireEvent.change(screen.getByTestId('input-deferred-note'), {
-    target: { value: 'La cliente ha confermato via WhatsApp e pagherà al ritiro.' },
-  });
-  fireEvent.click(screen.getByTestId('checkbox-confirm-deferred'));
-  fireEvent.click(screen.getByRole('button', { name: 'Conferma pagamento al ritiro' }));
-}
-
-describe('DeferredPaymentPanel pickup payment flow', () => {
-  it('requires a clear admin confirmation and performs acceptance before authorizing unpaid pickup', async () => {
-    const onChanged = mountPanel();
-    vi.mocked(apiRequest).mockResolvedValue({ ok: true, json: async () => ({ order: {} }) } as Response);
-
-    confirmPickupPayment();
-
-    await waitFor(() => expect(apiRequest).toHaveBeenCalledTimes(2));
-    expect(apiRequest).toHaveBeenNthCalledWith(
-      1,
-      'POST',
-      '/api/print-shop/admin/orders/print-order/accept-draft',
-      expect.objectContaining({
-        note: 'La cliente ha confermato via WhatsApp e pagherà al ritiro.',
-        confirmed: true,
-        expectedQuoteFingerprint: 'quote-hash',
-        expectedSnapshotHash: 'snapshot-hash',
-        expectedTotalCents: 1500,
-      }),
-    );
-    expect(apiRequest).toHaveBeenNthCalledWith(
-      2,
-      'POST',
-      '/api/print-shop/admin/orders/print-order/deferred-payment',
-      { note: 'La cliente ha confermato via WhatsApp e pagherà al ritiro.', confirmed: true },
-    );
-    await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
-    expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({
-      title: 'Pagamento al ritiro autorizzato',
-      description: expect.stringContaining('15,00 € restano da incassare'),
-    }));
+describe('Comandi esistenti di pagamento differito', () => {
+  it('richiede nota, conferma della richiesta e conferma separata delle foto a bassa risoluzione', () => {
+    const order: DeferredPanelOrder = draftOrder();
+    order.manualAcceptanceEligibility!.requiresLowResolutionConfirmation = true;
+    render(<QueryClientProvider client={new QueryClient()}>
+      <DeferredPaymentPanel order={order} onChanged={() => undefined} />
+    </QueryClientProvider>);
+    fireEvent.click(screen.getByTestId('button-accept-draft'));
+    const button = screen.getByTestId('button-confirm-deferred-action') as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    fireEvent.change(screen.getByTestId('input-deferred-note'), { target: { value: 'Richiesta telefonica' } });
+    expect(button.disabled).toBe(true);
+    fireEvent.click(screen.getByTestId('checkbox-confirm-deferred'));
+    expect(button.disabled).toBe(true);
+    fireEvent.click(screen.getByTestId('checkbox-accept-low-resolution'));
+    expect(button.disabled).toBe(false);
+    fireEvent.change(screen.getByTestId('input-deferred-note'), { target: { value: '   ' } });
+    expect(button.disabled).toBe(true);
   });
 
-  it('refreshes the order and explains when acceptance succeeded but pickup authorization failed', async () => {
-    const onChanged = mountPanel();
-    vi.mocked(apiRequest)
-      .mockResolvedValueOnce({ ok: true } as Response)
-      .mockRejectedValueOnce(new Error('PayPal deve ancora essere riconciliato'));
+  it.each([
+    'Bozza incompleta: scegli formati e quantità.',
+    'Originali mancanti: crea un nuovo ordine.',
+    'File scaduti: crea un nuovo ordine.',
+    'PayPal approvato: riconcilia il pagamento.',
+  ])('mantiene il blocco senza inventare un’autorizzazione: %s', reason => {
+    const order = draftOrder();
+    order.manualAcceptanceEligibility.canAccept = false;
+    order.deferredPaymentEligibility.reason = reason;
+    expect(paymentNextStep(order)).toEqual({ explanation: reason });
+  });
 
-    confirmPickupPayment();
+  it('non usa l’accettazione per scavalcare l’annullamento', () => {
+    const order = draftOrder();
+    order.fulfillment.status = 'cancelled';
+    expect(paymentNextStep(order).action).toBeUndefined();
+    const restorable = { ...order, deferredPaymentEligibility: { canRestore: true } };
+    expect(paymentNextStep(restorable).action).toBe('restore');
+  });
 
-    await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({
-      title: 'Ordine accettato, pagamento non autorizzato',
-      description: expect.stringContaining('PayPal deve ancora essere riconciliato'),
-      variant: 'destructive',
-    })));
-    expect(apiRequest).toHaveBeenCalledTimes(2);
+  it('disabilita una conferma già aperta se l’aggiornamento rivela un blocco reale', () => {
+    const client = new QueryClient();
+    const order = draftOrder();
+    const view = (value: DeferredPanelOrder) => <QueryClientProvider client={client}>
+      <DeferredPaymentPanel order={value} onChanged={() => undefined} />
+    </QueryClientProvider>;
+    const { rerender } = render(view(order));
+    fireEvent.click(screen.getByTestId('button-accept-draft'));
+    fireEvent.change(screen.getByTestId('input-deferred-note'), { target: { value: 'Richiesta cliente' } });
+    fireEvent.click(screen.getByTestId('checkbox-confirm-deferred'));
+    const button = screen.getByTestId('button-confirm-deferred-action') as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
+    rerender(view({ ...order, manualAcceptanceEligibility: { canAccept: false, reason: 'Originali scaduti' } }));
+    expect(button.disabled).toBe(true);
+    expect(screen.queryByTestId('button-accept-draft')).toBeNull();
   });
 });

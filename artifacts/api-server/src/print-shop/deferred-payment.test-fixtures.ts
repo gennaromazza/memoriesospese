@@ -7,7 +7,7 @@ export const testAdmin = 'admin@example.test';
 export const testCustomer = { uid: 'deferred_customer', email: 'customer@example.test' };
 
 /** Entire fixture is in memory. It never connects to Firebase, PayPal, mail or Drive. */
-export async function deferredFixture(options: { unconfirmed?: boolean } = {}) {
+export async function deferredFixture(options: { unconfirmed?: boolean; copies?: number; unitPriceCents?: number } = {}) {
   const db = new FakeFirestore();
   const storage = new FakeStorage();
   let time = Timestamp.fromMillis(Date.UTC(2026, 9, 3, 10));
@@ -45,7 +45,10 @@ export async function deferredFixture(options: { unconfirmed?: boolean } = {}) {
     fiscalVia: 'Via Test 1', fiscalCap: '81031', fiscalComune: 'Aversa', fiscalProvincia: 'CE',
     partitaIVA: '01234567890', codiceFiscale: 'RSSMRA85M01F839X',
   });
-  const product = PRINT_SHOP_CATALOG.find(item => item.printSpec.pricing.model === 'tiered' && item.sku !== 'PRINT-POLAROID-100X150')!;
+  const product = structuredClone(PRINT_SHOP_CATALOG.find(item => item.printSpec.pricing.model === 'tiered' && item.sku !== 'PRINT-POLAROID-100X150')!);
+  if (options.unitPriceCents !== undefined) {
+    product.printSpec.pricing = { model: 'tiered', tiers: [{ minQuantity: 1, unitPriceCents: options.unitPriceCents }] };
+  }
   db.seed(`products/${product.id}`, product);
   const draft = await service.createDraft(testCustomer, { customer: { name: 'Test Customer' } });
   const orderId = draft.id;
@@ -58,7 +61,7 @@ export async function deferredFixture(options: { unconfirmed?: boolean } = {}) {
   });
   const quote = await service.quote(testCustomer, orderId, { items: [{
     sku: product.sku, finish: product.printSpec.finishes[0], fitMode: 'border',
-    assignments: [{ assetId: 'asset_test', copies: 1 }],
+    assignments: [{ assetId: 'asset_test', copies: options.copies ?? 1 }],
   }] });
   if (!options.unconfirmed) await service.createPaypalOrder(testCustomer, orderId, {
     termsAccepted: true, privacyAccepted: true, personalizedProductionAccepted: true,

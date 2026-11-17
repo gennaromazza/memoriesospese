@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
 import {
@@ -25,7 +25,7 @@ import { printOrderPhone, printOrderWhatsAppLink } from '@shared/print-order-con
 import { getAllLabs } from '@/lib/labs';
 import { eligiblePrintShopLabs, isLabDpaSigned } from '@/features/print-shop/lab-dpa';
 import { labTransferDisplay } from '@/features/print-shop/lab-transfer-display';
-import { DeferredPaymentPanel } from './DeferredPaymentPanel';
+import { DeferredPaymentPanel, paymentNextStep, type DeferredPanelOrder, type DeferredPaymentPanelHandle } from './DeferredPaymentPanel';
 import { printPaymentAmounts, printPaymentStatusLabel, printPaymentStatusTone } from '@/features/print-shop/order-display';
 import { useToast } from '@/hooks/use-toast';
 import { LAB_SHIPMENT_STATUS_LABELS, type Lab, type LabShipment } from '@shared/lab-types';
@@ -346,6 +346,8 @@ export default function PrintShopOrdersManager() {
   const [compositionPreviewLimit, setCompositionPreviewLimit] = useState(24);
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [labDialogOpen, setLabDialogOpen] = useState(false);
+  const paymentPanelRef = useRef<DeferredPaymentPanelHandle>(null);
+  const paymentHandoff = useRef(false);
   const [nextStatus, setNextStatus] = useState<FulfillmentStatus>('files_check');
   const [statusNote, setStatusNote] = useState('');
   const [selectedLabId, setSelectedLabId] = useState('');
@@ -451,7 +453,10 @@ export default function PrintShopOrdersManager() {
   const blockedLabsCount = (labsQuery.data || []).filter((lab) => lab.attivo !== false && !isLabDpaSigned(lab)).length;
   const selectedLabEligible = eligibleLabs.some((lab) => lab.id === selectedLabId);
 
-  const invalidateOrder = async () => {
+  const invalidateOrder = async (updatedOrder?: DeferredPanelOrder) => {
+    if (updatedOrder) {
+      queryClient.setQueryData(['/api/print-shop/admin/orders', updatedOrder.id], { order: updatedOrder });
+    }
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['/api/print-shop/admin/orders'] }),
       queryClient.invalidateQueries({ queryKey: ['/api/print-shop/admin/orders', selectedOrderId] }),
@@ -687,6 +692,7 @@ export default function PrintShopOrdersManager() {
   }, { revenue: 0, productionCost: 0, paypalFees: 0, margin: 0, complete: 0, incomplete: 0 }), [financialRows]);
 
   const selectedOrder = detailQuery.data?.order;
+  const nextPaymentStep = selectedOrder ? paymentNextStep(selectedOrder) : undefined;
   const shipments = shipmentsQuery.data?.shipments || selectedOrder?.labShipments || [];
   const selectedStatus = selectedOrder?.fulfillment?.status || 'submitted';
   const availableNextStatuses = NEXT_PRODUCTION_STATUSES[selectedStatus] || [];
@@ -987,7 +993,7 @@ export default function PrintShopOrdersManager() {
                   : null}
               />
 
-              <DeferredPaymentPanel order={selectedOrder} onChanged={invalidateOrder} />
+              <DeferredPaymentPanel key={selectedOrder.id} ref={paymentPanelRef} order={selectedOrder} onChanged={invalidateOrder} />
 
               <section className="rounded-xl border p-4">
                 <h3 className="font-semibold text-stone-900">Consegna e fatturazione</h3>
@@ -1255,25 +1261,21 @@ export default function PrintShopOrdersManager() {
       </Dialog>
 
       <Dialog open={labDialogOpen} onOpenChange={setLabDialogOpen}>
-        <DialogContent>
+        <DialogContent onCloseAutoFocus={(event) => {
+          if (!paymentHandoff.current) return;
+          event.preventDefault();
+          paymentHandoff.current = false;
+          paymentPanelRef.current?.openPaymentAction();
+        }}>
           <DialogHeader><DialogTitle>Prepara il laboratorio</DialogTitle><DialogDescription>Gli originali e la distinta verranno copiati nella cartella Drive della spedizione.</DialogDescription></DialogHeader>
           <div className="space-y-2"><Label>Laboratorio con DPA firmato</Label><Select value={selectedLabId} onValueChange={setSelectedLabId} disabled={eligibleLabs.length === 0}><SelectTrigger><SelectValue placeholder={eligibleLabs.length ? 'Seleziona laboratorio' : 'Nessun laboratorio abilitato'} /></SelectTrigger><SelectContent>{eligibleLabs.map((lab) => <SelectItem key={lab.id} value={lab.id}>{lab.nome}</SelectItem>)}</SelectContent></Select></div>
           {blockedLabsCount > 0 && <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950"><AlertTriangle className="mt-0.5 h-4 w-4 flex-none" aria-hidden="true" /><p>{blockedLabsCount} {blockedLabsCount === 1 ? 'laboratorio è escluso' : 'laboratori sono esclusi'} perché l’accordo DPA non risulta firmato. Aggiorna l’anagrafica Laboratori per abilitarlo.</p></div>}
           {!['paid', 'deferred'].includes(selectedOrder?.payment?.status || '') && <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900" data-testid="lab-payment-required">
-            Per inviare le foto al laboratorio serve un pagamento registrato oppure l’autorizzazione al pagamento al ritiro. Se la cliente ha confermato fuori dal sito, nella gestione pagamento puoi accettare la bozza e autorizzare il ritiro: l’ordine resterà da incassare.
-            <Button variant="outline" className="mt-3" data-testid="button-open-print-payment" onClick={() => {
+            {nextPaymentStep?.explanation || 'Carica il dettaglio per verificare i requisiti di pagamento.'}
+            {nextPaymentStep?.action && <Button variant="outline" className="mt-3" data-testid="button-open-print-payment" onClick={() => {
+              paymentHandoff.current = true;
               setLabDialogOpen(false);
-              window.setTimeout(() => {
-                const panel = document.querySelector<HTMLElement>('[data-testid="panel-payment"]');
-                const target = panel?.querySelector<HTMLElement>('[data-testid="button-accept-and-defer"]') ||
-                  panel?.querySelector<HTMLElement>('[data-testid="button-authorize-deferred"]') ||
-                  panel?.querySelector<HTMLElement>('[data-testid="button-accept-draft"]') ||
-                  panel?.querySelector<HTMLElement>('[data-testid="text-deferred-ineligible"]') ||
-                  panel;
-                target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                target?.focus({ preventScroll: true });
-              }, 180);
-            }}>Vai all’azione di pagamento</Button>
+            }}>Vai all’azione di pagamento</Button>}
           </div>}
           <DialogFooter><Button variant="outline" onClick={() => setLabDialogOpen(false)}>Annulla</Button><Button onClick={() => labMutation.mutate()} disabled={!selectedLabEligible || labMutation.isPending || !['paid', 'deferred'].includes(selectedOrder?.payment?.status || '')}>{labMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}Prepara trasferimento</Button></DialogFooter>
         </DialogContent>

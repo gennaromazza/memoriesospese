@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Loader2, WalletCards } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
@@ -36,6 +36,30 @@ export interface DeferredPanelOrder {
 
 type Action = 'accept-draft' | 'accept-and-defer' | 'deferred-payment' | 'restore' | 'collect';
 
+export interface DeferredPaymentPanelHandle {
+  openPaymentAction: () => void;
+}
+
+/** The lab shortcut and payment panel must offer the same server-approved action. */
+export function paymentNextStep(order: DeferredPanelOrder): { action?: Action; explanation: string } {
+  if (order.fulfillment?.status === 'cancelled') {
+    return order.deferredPaymentEligibility?.canRestore
+      ? { action: 'restore', explanation: 'Ordine annullato: conferma prima il ripristino. Il pagamento al ritiro richiede poi un’autorizzazione separata.' }
+      : { explanation: order.deferredPaymentEligibility?.reason || 'Ordine annullato: verifica se è possibile ripristinarlo oppure crea un nuovo ordine.' };
+  }
+  if (['paid', 'deferred'].includes(order.payment?.status || '')) return { explanation: '' };
+  if (order.manualAcceptanceEligibility?.canAccept) return {
+    action: 'accept-draft',
+    explanation: 'Il cliente ha confermato fuori dal sito? Verifica e accetta la bozza, poi autorizza separatamente il pagamento alla consegna/al ritiro. Non viene registrato alcun incasso.',
+  };
+  if (order.deferredPaymentEligibility?.canAuthorize) return {
+    action: 'deferred-payment',
+    explanation: 'Puoi autorizzare il pagamento alla consegna/al ritiro con nota e conferma. Il saldo resta interamente da incassare.',
+  };
+  return { explanation: order.manualAcceptanceEligibility?.reason || order.deferredPaymentEligibility?.reason ||
+    'Idoneità non comunicata dal server. Aggiorna il dettaglio per verificare i requisiti prima di procedere.' };
+}
+
 const euro = (cents: number) => new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(cents / 100);
 const fmt = (value: unknown) => {
   const raw = value as { toDate?: () => Date; seconds?: number; _seconds?: number } | string | number | null | undefined;
@@ -47,7 +71,10 @@ const fmt = (value: unknown) => {
 };
 const localInput = (date = new Date()) => new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 
-export function DeferredPaymentPanel({ order, onChanged }: { order: DeferredPanelOrder; onChanged: () => Promise<void> | void }) {
+export const DeferredPaymentPanel = forwardRef<DeferredPaymentPanelHandle, {
+  order: DeferredPanelOrder;
+  onChanged: (updatedOrder?: DeferredPanelOrder) => Promise<void> | void;
+}>(function DeferredPaymentPanel({ order, onChanged }, ref) {
   const { toast } = useToast();
   const [action, setAction] = useState<Action | null>(null);
   const [note, setNote] = useState('');
@@ -57,6 +84,9 @@ export function DeferredPaymentPanel({ order, onChanged }: { order: DeferredPane
   const [receivedAt, setReceivedAt] = useState(localInput());
   const submitting = useRef(false);
   const acceptanceCompleted = useRef(false);
+  const panelRef = useRef<HTMLElement>(null);
+  const noteRef = useRef<HTMLTextAreaElement>(null);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const total = order.totals?.totalCents ?? Math.round((order.totale || 0) * 100);
   const amounts = printPaymentAmounts({ ...order, totals: { totalCents: total } });
@@ -73,7 +103,19 @@ export function DeferredPaymentPanel({ order, onChanged }: { order: DeferredPane
   const receipt = order.payment?.manualReceipt;
   const auth = order.payment?.deferredAuthorization;
 
-  const close = () => { setAction(null); setNote(''); setConfirmed(false); setQualityConfirmed(false); setMethod('cash'); setReceivedAt(localInput()); };
+  const close = () => { setAction(null); setNote(''); setConfirmed(false); setQualityConfirmed(false); setErrorMessage(''); setMethod('cash'); setReceivedAt(localInput()); };
+  const focusPayment = () => {
+    const panel = panelRef.current;
+    panel?.scrollIntoView({ block: 'center' });
+    (panel?.querySelector<HTMLButtonElement>('button[data-payment-next]') || panel)?.focus({ preventScroll: true });
+  };
+  useImperativeHandle(ref, () => ({
+    openPaymentAction() {
+      const next = paymentNextStep(order);
+      if (next.action) { setErrorMessage(''); setAction(next.action); }
+      else focusPayment();
+    },
+  }), [order]);
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -97,55 +139,55 @@ export function DeferredPaymentPanel({ order, onChanged }: { order: DeferredPane
         acceptanceCompleted.current = true;
         try {
           const response = await apiRequest('POST', `/api/print-shop/admin/orders/${order.id}/deferred-payment`, {
-            note: note.trim(),
-            confirmed: true,
+            note: note.trim(), confirmed: true,
           });
-          return response.json();
+          return response.json() as Promise<{ order: DeferredPanelOrder }>;
         } catch (error) {
-          await onChanged();
           const detail = error instanceof Error ? ` ${error.message}` : '';
-          throw new Error(`Ordine preso in carico, ma il pagamento al ritiro non è stato autorizzato.${detail} Aggiorna il dettaglio e riprova solo dopo aver verificato lo stato.`);
+          throw new Error(`Ordine preso in carico, ma il pagamento ${deferredPaymentLabel} non è stato autorizzato.${detail} Verifica lo stato aggiornato e riprova solo l’autorizzazione.`);
         }
       }
       const response = await apiRequest('POST', `/api/print-shop/admin/orders/${order.id}/${action}`, body);
-      return response.json();
+      return response.json() as Promise<{ order: DeferredPanelOrder }>;
     },
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       const done = action;
       close();
-      await onChanged();
+      await onChanged(result.order);
       toast({
         title: done === 'accept-draft' ? 'Ordine accettato dallo studio'
           : done === 'accept-and-defer' || done === 'deferred-payment' ? `Pagamento ${deferredPaymentLabel} autorizzato`
-            : done === 'restore' ? 'Ordine ripristinato' : 'Incasso registrato',
+          : done === 'restore' ? 'Ordine ripristinato' : 'Incasso registrato',
         description: done === 'accept-and-defer' || done === 'deferred-payment'
           ? `L’ordine può essere inviato al laboratorio. ${euro(total)} restano da incassare ${deferredPaymentLabel}.`
-          : done === 'restore' || done === 'accept-draft'
-            ? 'Il pagamento alla consegna non è stato autorizzato: fallo dal pannello se serve.'
-            : undefined,
+          : done === 'restore' || done === 'accept-draft' ? 'Il pagamento alla consegna non è stato autorizzato: fallo dal pannello se serve.' : undefined,
       });
     },
-    onError: (error: Error) => toast({
-      title: acceptanceCompleted.current ? 'Ordine accettato, pagamento non autorizzato' : 'Operazione non riuscita',
-      description: error.message,
-      variant: 'destructive',
-    }),
+    onError: async (error: Error) => {
+      setErrorMessage(error.message);
+      const partiallyAccepted = acceptanceCompleted.current;
+      if (partiallyAccepted) setAction('deferred-payment');
+      // An earlier acceptance (or a response lost after saving) must remain visible.
+      await onChanged();
+      toast({ title: partiallyAccepted ? 'Ordine accettato, pagamento non autorizzato' : 'Operazione non riuscita', description: error.message, variant: 'destructive' });
+    },
     onSettled: () => { submitting.current = false; acceptanceCompleted.current = false; },
   });
 
-  const canSubmit = note.trim().length > 0 && confirmed && !mutation.isPending && (action !== 'collect' || !!receivedAt) &&
-    (!['accept-draft', 'accept-and-defer'].includes(action || '') ||
-      !manualEligibility?.requiresLowResolutionConfirmation || qualityConfirmed);
+  const actionAllowed = action === 'accept-draft' || action === 'accept-and-defer' ? canAccept : action === 'deferred-payment' ? canAuthorize
+    : action === 'restore' ? canRestore : action === 'collect' ? canCollect : false;
+  const canSubmit = actionAllowed && note.trim().length > 0 && confirmed && !mutation.isPending && (action !== 'collect' || !!receivedAt) &&
+    (!['accept-draft', 'accept-and-defer'].includes(action || '') || !manualEligibility?.requiresLowResolutionConfirmation || qualityConfirmed);
   const titles: Record<Action, string> = {
     'accept-draft': 'Accettare l’ordine su richiesta del cliente?',
-    'accept-and-defer': 'Accettare l’ordine e autorizzare il pagamento al ritiro?',
+    'accept-and-defer': `Accettare l’ordine e autorizzare il pagamento ${deferredPaymentLabel}?`,
     'deferred-payment': 'Autorizzare il pagamento alla consegna?',
     restore: 'Ripristinare l’ordine annullato?',
     collect: 'Registrare l’incasso completo',
   };
 
   return (
-    <section className="rounded-xl border p-4" data-testid="panel-payment" tabIndex={-1}>
+    <section ref={panelRef} tabIndex={-1} aria-label="Gestione pagamento" className="rounded-xl border p-4" data-testid="panel-payment">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="font-semibold text-stone-900">Pagamento</h3>
@@ -156,19 +198,16 @@ export function DeferredPaymentPanel({ order, onChanged }: { order: DeferredPane
             <Button onClick={() => setAction('accept-and-defer')} data-testid="button-accept-and-defer">
               Accetta e autorizza pagamento {deferredPaymentLabel}
             </Button>
-            <Button variant="outline" onClick={() => setAction('accept-draft')} data-testid="button-accept-draft">
-              Accetta ordine senza autorizzare il ritiro
-            </Button>
+            <Button data-payment-next variant="outline" onClick={() => setAction('accept-draft')} data-testid="button-accept-draft">Accetta ordine senza autorizzare il ritiro</Button>
           </>}
-          {canAuthorize && <Button variant="outline" onClick={() => setAction('deferred-payment')} data-testid="button-authorize-deferred"><WalletCards className="mr-2 h-4 w-4" />Autorizza pagamento alla consegna</Button>}
-          {canRestore && <Button variant="outline" onClick={() => setAction('restore')} data-testid="button-restore-order">Ripristina ordine annullato</Button>}
+          {canAuthorize && <Button data-payment-next variant="outline" onClick={() => setAction('deferred-payment')} data-testid="button-authorize-deferred"><WalletCards className="mr-2 h-4 w-4" />Autorizza pagamento alla consegna</Button>}
+          {canRestore && <Button data-payment-next variant="outline" onClick={() => setAction('restore')} data-testid="button-restore-order">Ripristina ordine annullato</Button>}
           {canCollect && <Button onClick={() => setAction('collect')} data-testid="button-collect-deferred">Registra incasso</Button>}
         </div>
       </div>
-      {canAccept && <div className="mt-3 rounded-lg bg-blue-50 p-3 text-sm text-blue-900" data-testid="manual-acceptance-help">
-        <p className="font-medium">Bozza non confermata online</p>
-        <p className="mt-1">Se la cliente ha confermato fuori dal sito e pagherà al ritiro, usa il pulsante dedicato: prende in carico l’ordine e abilita la produzione, ma non registra denaro come incassato.</p>
-      </div>}
+      {canAccept && <p className="mt-3 rounded-lg bg-blue-50 p-3 text-sm text-blue-900" data-testid="manual-acceptance-help">
+        Il cliente non ha confermato online? Se ti ha chiesto le stampe per telefono o fuori dal sito, verifica il riepilogo e accetta l’ordine manualmente. Poi puoi autorizzare il pagamento alla consegna.
+      </p>}
       {acceptance && <p className="mt-3 rounded-lg bg-blue-50 p-3 text-sm text-blue-900" data-testid="text-admin-acceptance">
         Ordine accettato dallo studio il {fmt(acceptance.acceptedAt)}{acceptance.by ? ` da ${acceptance.by}` : ''} su richiesta ricevuta fuori dal sito.{acceptance.note ? ` Nota: ${acceptance.note}` : ''} Non è una conferma online del cliente.
       </p>}
@@ -191,22 +230,21 @@ export function DeferredPaymentPanel({ order, onChanged }: { order: DeferredPane
         </p>
       )}
       {!canAuthorize && !canCollect && !canRestore && !canAccept && status !== 'paid' && (
-        <p className="mt-3 text-sm text-stone-500" data-testid="text-deferred-ineligible" tabIndex={-1}>
-          {cancelled
-            ? 'Ordine annullato: il pagamento alla consegna non può essere autorizzato. '
-            : 'Pagamento alla consegna non disponibile per questo ordine. '}
-          {eligibility?.reason || (eligibility ? '' : 'Idoneità non comunicata dal server.')}
+        <p className="mt-3 text-sm text-stone-500" data-testid="text-deferred-ineligible">
+          {paymentNextStep(order).explanation}
         </p>
       )}
 
       <Dialog open={!!action} onOpenChange={(open) => !open && !mutation.isPending && close()}>
-        <DialogContent>
+        <DialogContent onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          noteRef.current?.focus();
+        }} onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          focusPayment();
+        }}>
           <DialogHeader>
-            <DialogTitle>
-              {action === 'accept-and-defer'
-                ? `Accettare l’ordine e autorizzare il pagamento ${deferredPaymentLabel}?`
-                : action ? titles[action] : ''}
-            </DialogTitle>
+            <DialogTitle>{action ? titles[action] : ''}</DialogTitle>
             <DialogDescription>
               {action === 'accept-draft' && `Prendi in carico la configurazione salvata per ${euro(total)} su richiesta ricevuta fuori dal sito. Non registri consensi online del cliente, incassi o un’autorizzazione alla produzione senza pagamento.`}
               {action === 'accept-and-defer' && `Prendi in carico la richiesta ricevuta fuori dal sito e autorizzi la produzione con pagamento ${deferredPaymentLabel}. Non viene registrato alcun incasso: ${euro(total)} resteranno da riscuotere.`}
@@ -216,6 +254,11 @@ export function DeferredPaymentPanel({ order, onChanged }: { order: DeferredPane
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            {errorMessage && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-900">
+              {errorMessage} Stato attuale: {printPaymentStatusLabel(status)}.
+              {acceptance && ' Ordine già accettato dallo studio: non ripetere l’accettazione.'}
+              {!actionAllowed && ` ${paymentNextStep(order).explanation || 'Operazione non più disponibile. Chiudi e verifica il riepilogo aggiornato.'}`}
+            </p>}
             {(action === 'accept-draft' || action === 'accept-and-defer') && <div className="rounded-lg border p-3 text-sm" data-testid="manual-acceptance-summary">
               <p className="font-medium">Configurazione da verificare · {euro(total)}</p>
               <ul className="mt-2 space-y-1">{order.printShop?.items?.map((item, index) => <li key={index}>
@@ -241,7 +284,7 @@ export function DeferredPaymentPanel({ order, onChanged }: { order: DeferredPane
             )}
             <div>
               <Label htmlFor="deferred-note">Nota obbligatoria</Label>
-              <Textarea id="deferred-note" value={note} onChange={(event) => setNote(event.target.value)} maxLength={500} placeholder="Motivo e riferimenti dell’operazione" data-testid="input-deferred-note" />
+              <Textarea ref={noteRef} id="deferred-note" value={note} onChange={(event) => setNote(event.target.value)} maxLength={500} placeholder="Motivo e riferimenti dell’operazione" data-testid="input-deferred-note" />
             </div>
             <label className="flex items-start gap-2 text-sm">
               <input type="checkbox" className="mt-1" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} data-testid="checkbox-confirm-deferred" />
@@ -273,4 +316,4 @@ export function DeferredPaymentPanel({ order, onChanged }: { order: DeferredPane
       </Dialog>
     </section>
   );
-}
+});

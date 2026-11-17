@@ -13,3 +13,4 @@
 .migration-backup
 artifacts/image-studio-desktop/release
 generated-artifacts
+/generated-artifacts/print-payment/

@@ -17,6 +17,16 @@ Run the lifecycle-email status display checks (admin and buyer, isolated fixture
 PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="$(command -v chromium)" pnpm exec playwright test --config artifacts/image-studio-web/e2e/print-deferred-harness/customer-status.config.ts
 ```
 
+Run the laboratory → payment handoff regression (15 €/50 prints, keyboard,
+retry and reopening; all providers and persistence are simulated):
+
+```sh
+PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="$(command -v chromium)" pnpm exec playwright test --config artifacts/image-studio-web/e2e/print-deferred-harness/payment-handoff.config.ts
+```
+
+Screenshots and test outputs from this run stay in the ignored directory
+`generated-artifacts/print-payment/`.
+
 The checks cover list/detail contacts, legacy and international numbers, absent
 or invalid contacts, URL-based recovery after login in a fresh browser, saved
 Polaroid framing and contacts/delivery, explicit reminder opt-out, inaccessible
