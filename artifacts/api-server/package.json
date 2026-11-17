@@ -10,6 +10,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@google-cloud/firestore": "^9.2.0",
+    "@google-cloud/storage": "^8.2.0",
     "@napi-rs/canvas": "^0.1.84",
     "@replit/connectors-sdk": "^0.4.1",
     "@simplewebauthn/server": "^14.0.3",

@@ -10,6 +10,12 @@ La pubblicazione deve lasciare ai manifest degli artifact i comandi di build e a
 
 **How to apply:** nelle verifiche di pubblicazione eseguire i build dei soli servizi pubblicabili con le rispettive variabili dei manifest; non dedurre un errore di produzione dalla mancanza delle variabili del sandbox in una build ricorsiva locale.
 
+Le dipendenze Firebase necessarie all'app non devono dipendere soltanto dalle dipendenze opzionali di firebase-admin.
+
+**Why:** una pubblicazione compilava correttamente ma il server pubblico si arrestava all'avvio perché Firestore, dichiarato opzionale da Firebase, mancava nell'ambiente pubblicato. Il bundler non rileva i moduli mancanti delle librerie lasciate esterne.
+
+**How to apply:** dichiarare come obbligatori i moduli Firebase effettivamente utilizzati e verificarne il caricamento prima del build; per le pubblicazioni verificare anche l'avvio del server pubblico compilato, non solo la compilazione.
+
 **Why:** l'8 ott 2026 un "riallineamento" ha riportato il workspace a una base del 1° settembre (layout `client/ server/ shared/`, npm, un unico Dev Workflow). Per 2 giorni si è lavorato e pubblicato da lì: gallerie desktop in errore, passkey e gift card "sparite". Nessun attacco: solo base sbagliata. Ripristinato il 10 ott dal ramo `feature/gift-card` sul ramo `restore/completo-20261010` (anche su GitHub).
 
 **How to apply:** se il workspace mostra `client/`+`server/` alla radice, o manca `pnpm-workspace.yaml`, è la base sbagliata: fermarsi e ripartire dal ramo di ripristino. Le correzioni fatte sulla base vecchia (9–10 ott) sono state riportate solo in parte: la serie Real Wedding cover e la gestione consulenze/fusi non sono state riportate perché questa linea le gestisce già diversamente (consultation-datetime, createEuropeRomeDate, social-metadata). Push a GitHub: via API Git Data del connector, leggendo i file dentro la funzione impure (il notebook ha 32 MiB di memoria). `.migration-backup/functions*/src` serve a 4 test ma non era tracciato: ripristinato dal commit scaffold 985f38ae.
