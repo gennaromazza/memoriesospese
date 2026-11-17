@@ -1,8 +1,9 @@
-const { contextBridge, ipcRenderer } = require("electron");
+const { contextBridge, ipcRenderer, webUtils } = require("electron");
 
 contextBridge.exposeInMainWorld("imageStudioDesktop", {
   platform: process.platform,
   selectFolder: () => ipcRenderer.invoke("desktop:select-folder"),
+  getPathForFile: file => webUtils.getPathForFile(file),
   hashFile: filePath => ipcRenderer.invoke("desktop:hash-file", filePath),
   readFile: filePath => ipcRenderer.invoke("desktop:read-file", filePath),
   uploadFile: (request, onProgress) => {

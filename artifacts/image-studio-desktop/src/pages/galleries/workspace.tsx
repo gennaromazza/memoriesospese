@@ -568,13 +568,20 @@ function UploadTab({ galleryId }: { galleryId: string }) {
       let skipped = 0;
       dropped.forEach(({ file, relativePath }) => {
         if (!supportedUploadImage(file.name)) { skipped++; return; }
+        let absolutePath: string | undefined;
+        try {
+          absolutePath = window.imageStudioDesktop?.getPathForFile?.(file) || undefined;
+        } catch {
+          // A regular browser has no native path; its File object remains usable
+          // for the lifetime of this window.
+        }
         addItem({
           fileName: file.name,
           relativePath,
           chapterName: browserFolderChapter(relativePath),
           size: file.size,
           galleryId,
-          fileObj: file,
+          ...(absolutePath ? { absolutePath } : { fileObj: file }),
           contentType: file.type,
         });
         added++;
