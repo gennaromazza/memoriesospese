@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { UploadCloud, Trash2, ArrowLeft, Loader2, CheckCircle2, AlertCircle, Play, Pause, RefreshCw, Copy, Check, LockKeyhole } from 'lucide-react';
 import { selectFolderNative } from '../../lib/native';
 import { browserFolderChapter, supportedUploadImage } from '../../lib/folderChapter';
+import { collectDroppedFiles } from '../../lib/droppedFiles';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Progress } from '@/components/ui/progress';
 import { GalleryAssociationFields } from './association-fields';
@@ -509,6 +510,8 @@ function UploadTab({ galleryId }: { galleryId: string }) {
   const { items, addItem, clearCompleted, pauseItem, resumeItem, retryItem, concurrency, setConcurrency, aggregateProgress } = useUploadQueue();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [dropMessage, setDropMessage] = useState('');
   const galleryItems = items.filter(i => i.galleryId === galleryId);
 
   const handleSelectFiles = () => {
@@ -555,12 +558,56 @@ function UploadTab({ galleryId }: { galleryId: string }) {
     e.target.value = '';
   };
 
+  const onDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    setDropMessage('');
+    try {
+      const dropped = await collectDroppedFiles(e.dataTransfer.items);
+      let added = 0;
+      let skipped = 0;
+      dropped.forEach(({ file, relativePath }) => {
+        if (!supportedUploadImage(file.name)) { skipped++; return; }
+        addItem({
+          fileName: file.name,
+          relativePath,
+          chapterName: browserFolderChapter(relativePath),
+          size: file.size,
+          galleryId,
+          fileObj: file,
+          contentType: file.type,
+        });
+        added++;
+      });
+      setDropMessage(
+        added
+          ? `${added} ${added === 1 ? 'foto aggiunta' : 'foto aggiunte'} alla coda${skipped ? `; ${skipped} file non supportati ignorati` : ''}.`
+          : 'Nessuna foto supportata trovata nella selezione.',
+      );
+    } catch (error) {
+      setDropMessage(error instanceof Error ? error.message : 'Non è stato possibile leggere gli elementi trascinati.');
+    }
+  };
+
   return (
     <div className="max-w-4xl space-y-6">
-      <div className="bg-card border border-border p-8 rounded-xl shadow-sm flex flex-col items-center justify-center border-dashed text-center">
+      <div
+        onDragEnter={e => { e.preventDefault(); setIsDragOver(true); }}
+        onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setIsDragOver(true); }}
+        onDragLeave={e => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setIsDragOver(false);
+        }}
+        onDrop={onDrop}
+        className={`bg-card border p-8 rounded-xl shadow-sm flex flex-col items-center justify-center border-dashed text-center transition-colors ${
+          isDragOver ? 'border-primary bg-primary/5 ring-2 ring-primary/20' : 'border-border'
+        }`}
+      >
         <UploadCloud className="w-12 h-12 text-muted-foreground/50 mb-4" />
         <h3 className="font-medium text-lg mb-2">Carica Foto</h3>
-        <p className="text-sm text-muted-foreground mb-6 max-w-sm">Seleziona file o cartelle. Verranno aggiunti alla coda e processati automaticamente.</p>
+        <p className="text-sm text-muted-foreground mb-2 max-w-sm">
+          Trascina qui foto o cartelle, oppure selezionale. Le immagini nelle sottocartelle mantengono il capitolo di appartenenza.
+        </p>
+        <p aria-live="polite" className="text-sm text-primary min-h-5 mb-4">{dropMessage}</p>
         
         <div className="flex gap-4">
           <Button onClick={handleSelectFiles} variant="outline">Seleziona File</Button>
