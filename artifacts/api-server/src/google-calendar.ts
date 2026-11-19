@@ -8,6 +8,7 @@
  * - Il service account deve avere accesso al calendario target
  */
 
+import { randomBytes } from "node:crypto";
 import { google, type calendar_v3 } from "googleapis";
 import { DateTime } from "luxon";
 import {
@@ -264,6 +265,8 @@ export function isTransientCalendarError(err: any): boolean {
   return typeof err?.code === 'string' && TRANSIENT_NETWORK_CODES.has(err.code);
 }
 
+const calendarSleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 async function withCalendarRetry<T>(fn: () => Promise<T>): Promise<T> {
   for (let attempt = 0; ; attempt++) {
     try {
@@ -271,7 +274,7 @@ async function withCalendarRetry<T>(fn: () => Promise<T>): Promise<T> {
     } catch (err) {
       const delay = CALENDAR_RETRY_DELAYS_MS[attempt];
       if (delay === undefined || !isTransientCalendarError(err)) throw err;
-      await new Promise((resolve) => setTimeout(resolve, delay));
+      await calendarSleep(delay);
     }
   }
 }
@@ -336,9 +339,15 @@ export async function getEvents(
   return response.data.items || [];
 }
 
+/** 404 (mai esistito / non trovato) e 410 (gia' eliminato): l'evento non c'e' piu'. */
+export function isCalendarEventGone(err: any): boolean {
+  const status = Number(err?.response?.status ?? err?.status ?? err?.code);
+  return status === 404 || status === 410;
+}
+
 /**
  * Ottiene singolo evento per ID
- * @returns Event object or null if not found
+ * @returns Event object or null if not found (404) or already deleted (410)
  */
 export async function getEventById(
   calendarId: string = "primary",
@@ -348,15 +357,15 @@ export async function getEventById(
     const calendar = await getGoogleCalendarClient();
     const resolvedId = resolveCalendarId(calendarId);
 
-    const response = await calendar.events.get({
+    const response = await withCalendarRetry(() => calendar.events.get({
       calendarId: resolvedId,
       eventId,
-    });
+    }, { timeout: CALENDAR_REQUEST_TIMEOUT_MS }));
 
     return response.data;
   } catch (error: any) {
-    // Google Calendar returns 404 if event doesn't exist
-    if (error.code === 404 || error.message?.includes("not found")) {
+    // Google Calendar returns 404 if event doesn't exist, 410 if it was deleted
+    if (isCalendarEventGone(error) || error.message?.includes("not found")) {
       return null;
     }
     // Re-throw other errors
@@ -541,6 +550,9 @@ type CalendarEventDetail = {
   status?: string;
   transparency?: string;
   isAllDay?: boolean;
+  /** Tipo CRM impostato alla creazione (extendedProperties.private.crmKind), se presente. */
+  crmKind?: string;
+  created?: string;
 };
 
 /**
@@ -649,6 +661,8 @@ export async function getEventsWithDetailsAllCalendars(
             status,
             transparency,
             isAllDay,
+            crmKind: event.extendedProperties?.private?.crmKind ?? undefined,
+            created: event.created ?? undefined,
           });
         }
       } while (pageToken); // Continua finché ci sono altre pagine
@@ -700,6 +714,8 @@ export function toGoogleTimedBoundary(date: Date) {
   };
 }
 
+export type CalendarEventKind = 'booking' | 'consultation' | 'job' | 'manual';
+
 export async function createEvent(
   calendarId: string = "primary",
   eventData: {
@@ -714,6 +730,8 @@ export async function createEvent(
     endDateStr?: string;
     colorId?: string;
     id?: string;
+    /** Tipo CRM: salvato nelle proprieta' private dell'evento per riconoscere gli orfani. */
+    kind?: CalendarEventKind;
   },
 ) {
   const calendar = await getGoogleCalendarClient();
@@ -757,15 +775,36 @@ export async function createEvent(
   if (eventData.colorId) {
     requestBody.colorId = eventData.colorId;
   }
-  if (eventData.id) requestBody.id = eventData.id;
+  if (eventData.kind) requestBody.extendedProperties = { private: { crmKind: eventData.kind } };
+  // Id sempre presente: i tentativi successivi a un timeout usano lo stesso id, quindi un
+  // inserimento gia' riuscito non puo' diventare un secondo evento (409 = esiste gia').
+  const explicitId = eventData.id;
+  const eventId = explicitId ?? randomBytes(16).toString('hex');
+  requestBody.id = eventId;
 
   const resolvedId = resolveCalendarId(calendarId);
-  const response = await calendar.events.insert({
-    calendarId: resolvedId,
-    requestBody,
-  });
-
-  return response.data;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const response = await calendar.events.insert({
+        calendarId: resolvedId,
+        requestBody,
+      }, { timeout: CALENDAR_REQUEST_TIMEOUT_MS });
+      return response.data;
+    } catch (err: any) {
+      const status = Number(err?.response?.status ?? err?.status ?? err?.code);
+      if (status === 409 && attempt > 0 && !explicitId) {
+        // Un tentativo precedente e' andato a buon fine (risposta persa): recupera quell'evento.
+        const existing = await withCalendarRetry(() => calendar.events.get({
+          calendarId: resolvedId,
+          eventId,
+        }, { timeout: CALENDAR_REQUEST_TIMEOUT_MS }));
+        return existing.data;
+      }
+      const delay = CALENDAR_RETRY_DELAYS_MS[attempt];
+      if (delay === undefined || !isTransientCalendarError(err)) throw err;
+      await calendarSleep(delay);
+    }
+  }
 }
 
 /**
@@ -823,11 +862,11 @@ export async function updateEvent(
     }
   }
 
-  const response = await calendar.events.patch({
+  const response = await withCalendarRetry(() => calendar.events.patch({
     calendarId: resolvedId,
     eventId,
     requestBody,
-  });
+  }, { timeout: CALENDAR_REQUEST_TIMEOUT_MS }));
 
   return response.data;
 }
@@ -842,10 +881,16 @@ export async function deleteEvent(
   const calendar = await getGoogleCalendarClient();
   const resolvedId = resolveCalendarId(calendarId);
 
-  await calendar.events.delete({
-    calendarId: resolvedId,
-    eventId,
-  });
+  try {
+    await withCalendarRetry(() => calendar.events.delete({
+      calendarId: resolvedId,
+      eventId,
+    }, { timeout: CALENDAR_REQUEST_TIMEOUT_MS }));
+  } catch (error: any) {
+    // Gia' eliminato (404/410): lo stato desiderato e' raggiunto, non e' un errore.
+    // Senza questo i flussi di annullamento restavano in "cancellation_pending".
+    if (!isCalendarEventGone(error)) throw error;
+  }
 
   return true;
 }

@@ -904,6 +904,7 @@ router.patch(
       try {
         // NOTA: no attendees - Service Account non supporta invite senza Domain-Wide Delegation
         calendarEvent = await createEvent("primary", {
+        kind: 'consultation',
           summary: `Consulenza ${consultation.jobType} - ${consultation.cliente.nome} ${consultation.cliente.cognome}`,
           description: `Template: ${consultation.jobType}\nCliente: ${consultation.cliente.nome} ${consultation.cliente.cognome}\nEmail: ${consultation.cliente.email}\nWhatsApp: ${consultation.cliente.whatsapp}\nNote: ${consultation.note || "Nessuna"}`,
           start: startDateTime,
@@ -953,6 +954,7 @@ router.patch(
           try {
             if (eventId) await deleteEvent("primary", eventId);
           } catch (cleanupError: any) {
+            void import("./system-alerts.js").then(m => m.notifyOrphanCalendarEvents([{ id: String(eventId), kind: "consultation", where: "conferma consulenza: evento non rimosso" }])).catch(() => {});
             console.error("[POST /v2/approve] ❌ CRITICAL: evento Calendar da rimuovere a mano", eventId, cleanupError.message);
           }
           return slotTaken
@@ -980,6 +982,7 @@ router.patch(
 
           console.log(`[POST /v2/approve] 🔄 Rollback: reverted consultation ${id} to in_attesa`);
         } catch (rollbackError: any) {
+          void import("./system-alerts.js").then(m => m.notifyOrphanCalendarEvents([{ id: String(eventId), kind: "consultation", where: "conferma consulenza: rollback non riuscito" }])).catch(() => {});
           console.error("[POST /v2/approve] ❌ CRITICAL: Rollback failed", rollbackError.message);
         }
 
@@ -1235,6 +1238,7 @@ router.post(
       // Create Google Calendar event for consultation
       // NOTA: no attendees - Service Account non supporta invite senza Domain-Wide Delegation
       const calendarEvent = await createEvent("primary", {
+        kind: 'consultation',
         summary: `Consulenza ${consultation.jobType} - ${consultation.cliente.nome} ${consultation.cliente.cognome}`,
         description: `Template: ${consultation.jobType}\nCliente: ${consultation.cliente.nome} ${consultation.cliente.cognome}\nEmail: ${consultation.cliente.email}\nWhatsApp: ${consultation.cliente.whatsapp}\nNote: ${consultation.note || "Nessuna"}`,
         start: startDateTime,
@@ -1273,6 +1277,7 @@ router.post(
 
           console.log(`[POST /v2/:id/approve-with-override] 🔄 Rollback: reverted consultation ${id} to in_attesa`);
         } catch (rollbackError: any) {
+          void import("./system-alerts.js").then(m => m.notifyOrphanCalendarEvents([{ id: String(eventId), kind: "consultation", where: "conferma con override: rollback non riuscito" }])).catch(() => {});
           console.error("[POST /v2/:id/approve-with-override] ❌ CRITICAL: Rollback failed", rollbackError.message);
         }
 
@@ -2166,6 +2171,7 @@ router.post(
       try {
         const contractLink = await getSignedContractLink(jobId);
         const calendarEvent = await createEvent("primary", {
+        kind: 'consultation',
           summary: `Consulenza ${template.jobType} - ${cliente.nome} ${cliente.cognome}`,
           description: [
             `Template: ${template.jobType}`,

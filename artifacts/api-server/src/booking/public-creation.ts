@@ -64,6 +64,7 @@ export async function confirmPublicBooking(
   let calendarCreated = false;
   try {
     const event = await createEvent('primary', {
+        kind: 'booking',
       summary: `Shooting: ${data.cliente.nome} ${data.cliente.cognome}`,
       description: `Prenotazione shooting CONFERMATA\n\nCliente: ${data.cliente.nome} ${data.cliente.cognome}\nEmail: ${data.cliente.email}\nWhatsApp: ${data.cliente.whatsapp}\n${data.prodottoNome ? `Prodotto: ${data.prodottoNome}\n` : ''}${data.note ? `Note: ${data.note}` : ''}`,
       start, end, location: 'Studio fotografico',
@@ -95,6 +96,7 @@ export async function confirmPublicBooking(
         // the slot on top of an event that may still exist.
         await ref.update({ googleCalendarEventId: eventId, automaticConfirmationError: true }).catch(() => undefined);
         logger.error({ bookingId: ref.id }, 'Evento da riconciliare: prenotazione mantenuta');
+        void import('../system-alerts.js').then(m => m.notifyOrphanCalendarEvents([{ id: eventId!, kind: 'booking', where: 'conferma automatica: evento non rimosso' }])).catch(() => {});
         throw new AutomaticConfirmationError(500, true);
       }
     }

@@ -98,3 +98,44 @@ export function notifyCalendarUnavailable(reason: string): void {
   // Fire-and-forget: non attendere né propagare
   void sendAdminSystemAlert("calendar_unavailable", subject, html);
 }
+
+export interface OrphanCalendarEvent {
+  id: string;
+  summary?: string;
+  start?: string;
+  kind?: string;
+  /** Dove e' stato rilevato (es. "sync", "rollback conferma consulenza"). */
+  where?: string;
+}
+
+const escapeHtml = (value: unknown) =>
+  String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
+
+/**
+ * Alert: eventi Google Calendar creati dal CRM che non risultano collegati a nessun record
+ * (o che non e' stato possibile rimuovere dopo un rollback). Occupano lo slot e vanno
+ * eliminati a mano dal calendario.
+ */
+export function notifyOrphanCalendarEvents(events: OrphanCalendarEvent[]): void {
+  if (events.length === 0) return;
+  const rows = events.slice(0, 10).map((e) => `
+    <li><strong>${escapeHtml(e.summary || "Senza titolo")}</strong>
+      ${e.start ? ` — ${escapeHtml(e.start)}` : ""}
+      ${e.kind ? ` (${escapeHtml(e.kind)})` : ""}
+      <br><span style="font-family:monospace;font-size:12px;color:#6b7280;">ID ${escapeHtml(e.id)}${e.where ? ` · ${escapeHtml(e.where)}` : ""}</span></li>`).join("");
+  const more = events.length > 10 ? `<p>… e altri ${events.length - 10}.</p>` : "";
+  const subject = `⚠️ ${events.length} evento/i Google Calendar senza prenotazione collegata`;
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <div style="background: #d97706; color: white; padding: 16px 24px; border-radius: 8px 8px 0 0;">
+        <h2 style="margin: 0;">Eventi da controllare</h2>
+      </div>
+      <div style="border: 1px solid #e5e7eb; border-top: none; padding: 24px; border-radius: 0 0 8px 8px;">
+        <p>Questi eventi sono stati creati dal gestionale ma non risultano collegati a nessuna prenotazione o
+        consulenza. <strong>Occupano comunque lo slot</strong>: se sono residui di un errore, eliminali dal calendario.</p>
+        <ul>${rows}</ul>${more}
+        <p style="color:#6b7280; font-size:12px;">Questo avviso viene inviato al massimo una volta ogni 12 ore.</p>
+      </div>
+    </div>`;
+  void sendAdminSystemAlert("calendar_orphan_events", subject, html);
+}

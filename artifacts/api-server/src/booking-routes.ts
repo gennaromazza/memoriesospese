@@ -1059,6 +1059,7 @@ router.patch("/v2/:id/approve", authenticateFirebase, requireAdmin, async (req, 
       const { createEvent } = await import("./google-calendar.js");
 
       const calendarEvent = await createEvent("primary", {
+        kind: 'booking',
         summary: `Shooting: ${bookingData.cliente.nome} ${bookingData.cliente.cognome}`,
         description: `Prenotazione shooting CONFERMATA\n\nCliente: ${bookingData.cliente.nome} ${bookingData.cliente.cognome}\nEmail: ${bookingData.cliente.email}\nWhatsApp: ${bookingData.cliente.whatsapp}\n${bookingData.prodottoNome ? `Prodotto: ${bookingData.prodottoNome}\n` : ""}${bookingData.note ? `Note: ${bookingData.note}` : ""}`,
         start: slotStart,
@@ -1114,6 +1115,7 @@ router.patch("/v2/:id/approve", authenticateFirebase, requireAdmin, async (req, 
           `✅ Rollback completato - evento Calendar cancellato: ${calendarEventId}`,
         );
       } catch (rollbackError) {
+        void import("./system-alerts.js").then(m => m.notifyOrphanCalendarEvents([{ id: String(calendarEventId), kind: "booking", where: "conferma prenotazione: rollback non riuscito" }])).catch(() => {});
         console.error(
           "❌ ERRORE CRITICO: Fallito rollback Calendar event",
           rollbackError,
@@ -1324,6 +1326,7 @@ router.patch("/:id/approve", authenticateFirebase, requireAdmin, async (req, res
       const { createEvent } = await import("./google-calendar.js");
 
       const calendarEvent = await createEvent("primary", {
+        kind: 'booking',
         summary: `Shooting: ${bookingData.cliente.nome} ${bookingData.cliente.cognome}`,
         description: `Prenotazione shooting CONFERMATA\n\nCliente: ${bookingData.cliente.nome} ${bookingData.cliente.cognome}\nEmail: ${bookingData.cliente.email}\nWhatsApp: ${bookingData.cliente.whatsapp}\n${bookingData.prodottoNome ? `Prodotto: ${bookingData.prodottoNome}\n` : ""}${bookingData.note ? `Note: ${bookingData.note}` : ""}`,
         start: slotStart,
@@ -1380,6 +1383,7 @@ router.patch("/:id/approve", authenticateFirebase, requireAdmin, async (req, res
           `✅ Rollback completato - evento Calendar cancellato: ${calendarEventId}`,
         );
       } catch (rollbackError) {
+        void import("./system-alerts.js").then(m => m.notifyOrphanCalendarEvents([{ id: String(calendarEventId), kind: "booking", where: "conferma prenotazione: rollback non riuscito" }])).catch(() => {});
         console.error(
           "❌ ERRORE CRITICO: Fallito rollback Calendar event",
           rollbackError,
@@ -2701,6 +2705,7 @@ async function createBookingV2(req: express.Request, res: express.Response): Pro
         
         // NOTA: no attendees - Service Account non supporta invite senza Domain-Wide Delegation
         const calendarEvent = await createEvent("primary", {
+        kind: 'booking',
           summary: `Shooting: ${cliente.nome} ${cliente.cognome}`,
           description: `Prenotazione shooting CONFERMATA (Manuale)\n\nCliente: ${cliente.nome} ${cliente.cognome}\nEmail: ${cliente.email}\nWhatsApp: ${cliente.whatsapp || ""}\n${prodottoNome ? `Prodotto: ${prodottoNome}\n` : ""}${note ? `Note: ${note}` : ""}`,
           start: slotStart,
