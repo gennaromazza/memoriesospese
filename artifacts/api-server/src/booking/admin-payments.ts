@@ -4,6 +4,7 @@ import { bookingPaymentDeadline, bookingPaymentMillis, bookingPaymentStage } fro
 import { approvedDepositMatchesBooking, isApprovedDepositHold } from './approved-deposit-state.js';
 import { CHECKOUT_HOLDS } from './slot-reservations.js';
 import { CheckoutHoldError } from './checkout-hold-state.js';
+import { depositReceiptReference } from '@shared/booking-deposit-receipt';
 
 const iso = (value: unknown) => { const time = bookingPaymentMillis(value); return time === null ? null : new Date(time); };
 const cents = (value: unknown) => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
@@ -27,7 +28,7 @@ export function buildAdminBookingPayment(id: string, booking: DocumentData | und
   const paidAmount = cents(payment?.amountCents) ?? (Number.isFinite(manual) && manual > 0 ? cents(Math.round(manual * 100)) : null);
   let reason: string | null = null;
   if (stage === 'pagamento_da_verificare') reason = 'Incasso o dati della richiesta da riconciliare. Non chiedere un altro pagamento.';
-  else if (payment?.paypalCaptureId) reason = 'L’acconto è già stato ricevuto.';
+  else if (depositReceiptReference(payment)) reason = 'L’acconto è già stato ricevuto.';
   else if (!hold) reason = 'Nessun checkout PayPal associato.';
   else if (stage === 'scaduta' || deadline !== null && deadline <= now) reason = 'La richiesta è scaduta. Occorre una nuova prenotazione.';
   else if (hold.status !== 'active') reason = 'Il checkout è stato chiuso.';

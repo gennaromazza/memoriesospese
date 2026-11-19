@@ -41,6 +41,17 @@ leggibile" in produzione: è coperto dai test automatici.
 | 12 | Crea a mano un job con data fissa e poi cancellane l'evento su Google; usa "sincronizza con il calendario" sul job. | L'evento viene ricreato (azione "recreated"). |
 | 13 | Apri la schermata Prenotazioni (admin). | Si apre subito. Con acconti PayPal da verificare compare "Verifica degli acconti PayPal in corso…" e solo il pannello di quell'ordine resta nascosto finché non finisce. |
 
+## 5. Prove per l'acconto di persona e i pagamenti (vedi docs/booking-in-person-deposit.md)
+
+| # | Cosa fare | Esito atteso |
+|---|---|---|
+| 14 | Prenotazione in attesa su una campagna con acconto: "Acconto incassato di persona", importo diverso da quello della campagna, metodo contanti. | Prenotazione confermata, evento su Google ed email di conferma, incasso in cassa con lo stesso importo e metodo. |
+| 15 | Approva una richiesta (parte il link PayPal), poi registra l'acconto di persona. Apri il link PayPal. | Il link risponde "Checkout già chiuso": nessun pagamento possibile. |
+| 16 | Crea l'ordine dalla prenotazione pagata di persona. | L'ordine mostra l'acconto pagato e il saldo residuo; nessun secondo movimento in cassa. |
+| 17 | Doppio clic su "Conferma incasso". | Un solo incasso in cassa. |
+| 18 | Registra un pagamento sul pannello ordine e ripeti subito la stessa operazione (doppio clic). | Una sola riga e un solo movimento di cassa. |
+| 19 | Dopo l'invio di una richiesta su campagna con approvazione e acconto, guarda il messaggio al cliente. | Spiega: email con il link, importo, un'ora di tempo, conferma solo dopo il pagamento. |
+
 ## 3. Cosa guardare nei log durante le prove
 
 - `Calendario Google non leggibile`, `CALENDAR_UNAVAILABLE`: non devono comparire durante l'uso normale.

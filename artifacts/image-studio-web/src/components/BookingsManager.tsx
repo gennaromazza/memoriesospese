@@ -3,6 +3,7 @@
  */
 import { bookingPaymentStage, bookingPaymentStageLabel, matchesBookingPaymentFilter } from '@shared/booking-payment-state';
 import { BookingPaymentPanel } from './booking/BookingPaymentPanel';
+import { InPersonDepositDialog } from './booking/InPersonDepositDialog';
 import { BookingApprovalButton } from './booking/BookingApprovalButton';
 import { BookingManagementLinkPanel } from './booking/BookingManagementLinkPanel';
 import { BookingCancellationAdminPanel } from './booking/BookingCancellationAdminPanel';
@@ -316,6 +317,7 @@ export default function BookingsManager({
     initialParams.stato,
   );
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [inPersonDepositBooking, setInPersonDepositBooking] = useState<Booking | null>(null);
   const [cancellationFocusId, setCancellationFocusId] = useState<string | null>(null);
   useEffect(() => {
     if (!cancellationFocusId || selectedBooking?.id !== cancellationFocusId) return;
@@ -481,6 +483,8 @@ export default function BookingsManager({
     orderId: string;
     tipo: "acconto" | "saldo";
     bookingId: string;
+    /** Creato all'apertura del dialogo: doppio clic o ritentativo non registrano due volte lo stesso incasso. */
+    requestId: string;
   } | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<
     "contante" | "carta" | "bonifico" | "paypal"
@@ -1361,12 +1365,14 @@ export default function BookingsManager({
       importo,
       metodo,
       note,
+      requestId,
     }: {
       orderId: string;
       importo: number;
       metodo: "contante" | "carta" | "bonifico" | "paypal";
       note?: string;
-    }) => addAccontoPayment(orderId, importo, metodo, note),
+      requestId: string;
+    }) => addAccontoPayment(orderId, importo, metodo, note, new Date(), requestId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       toast({
@@ -1393,11 +1399,13 @@ export default function BookingsManager({
       orderId,
       metodo,
       note,
+      requestId,
     }: {
       orderId: string;
       metodo: "contante" | "carta" | "bonifico" | "paypal";
       note?: string;
-    }) => recordSaldoPayment(orderId, metodo, note),
+      requestId: string;
+    }) => recordSaldoPayment(orderId, metodo, note, new Date(), requestId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       toast({
@@ -3201,6 +3209,7 @@ export default function BookingsManager({
                                             orderId: order.id,
                                             tipo: "acconto",
                                             bookingId: booking.id,
+                                            requestId: crypto.randomUUID(),
                                           });
                                           setPaymentAmount("");
                                           setPaymentNote("");
@@ -3225,6 +3234,7 @@ export default function BookingsManager({
                                             orderId: order.id,
                                             tipo: "saldo",
                                             bookingId: booking.id,
+                                            requestId: crypto.randomUUID(),
                                           });
                                           setPaymentNote("");
                                           setPaymentMethod("contante");
@@ -3664,6 +3674,14 @@ export default function BookingsManager({
                         : 'Questa prenotazione è in attesa di approvazione. Clicca su “Approva Ora” per confermare e inviare l’email al cliente.'}
                     </AlertDescription>
                   </Alert>
+                )}
+                {bookingPaymentStage(selectedBooking) === "in_attesa" && needsDepositApproval(selectedBooking, campaigns) && (
+                  <div className="rounded-lg border p-3 text-sm space-y-2" data-testid="in-person-deposit-hint">
+                    <p>Il cliente vuole pagare l’acconto di persona? Registralo qui invece di approvare: la prenotazione viene confermata senza link PayPal.</p>
+                    <Button variant="outline" onClick={() => setInPersonDepositBooking(selectedBooking)} data-testid="button-in-person-deposit">
+                      Acconto incassato di persona
+                    </Button>
+                  </div>
                 )}
               </div>
             )}
@@ -4287,12 +4305,14 @@ export default function BookingsManager({
                     importo: amount,
                     metodo: paymentMethod,
                     note: paymentNote || undefined,
+                    requestId: paymentDialog.requestId,
                   });
                 } else {
                   saldoMutation.mutate({
                     orderId: foundOrder.id,
                     metodo: paymentMethod,
                     note: paymentNote || undefined,
+                    requestId: paymentDialog.requestId,
                   });
                 }
               }}
@@ -4321,6 +4341,15 @@ export default function BookingsManager({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <InPersonDepositDialog
+        bookingId={inPersonDepositBooking?.id ?? ""}
+        userId={user?.uid || ""}
+        suggestedAmountCents={campaigns.find((c) => c.id === inPersonDepositBooking?.campaignId)?.accontoImportoCentesimi ?? null}
+        open={!!inPersonDepositBooking}
+        onOpenChange={(open) => { if (!open) setInPersonDepositBooking(null); }}
+        onRecorded={() => setSelectedBooking(null)}
+      />
 
       {/* AlertDialog Cancellazione a Cascata */}
       <AlertDialog

@@ -13,6 +13,7 @@ const h = vi.hoisted(() => ({
   events: vi.fn(),
   googleBusy: [] as Array<{ start: Date; end: Date }>,
   orphanAlert: vi.fn(),
+  manualDeposit: vi.fn(),
   slots: vi.fn(),
   createEvent: vi.fn(),
   deleteEvent: vi.fn(),
@@ -99,7 +100,7 @@ vi.mock('firebase-admin/firestore', () => ({
 }));
 vi.mock('./google-calendar.js', () => ({
   getAvailableSlots: vi.fn(), deleteEvent: h.deleteEvent, createEvent: h.createEvent,
-  checkFreeBusy: async () => [],
+  checkFreeBusy: async () => [], getEventById: vi.fn(), resolveCalendarId: () => 'primary',
 }));
 vi.mock('./booking/calendar-adapter.js', () => ({
   validateCampaign: () => true,
@@ -112,6 +113,8 @@ vi.mock('./calendar-engine/google-sync.js', () => ({ checkGoogleCalendarBusyPeri
 // Gli avvisi all'admin sono asincroni (import dinamico): senza questo mock l'email di avviso
 // "evento orfano" finirebbe nei contatori di sendEmail dei test successivi.
 vi.mock('./system-alerts.js', () => ({ notifyOrphanCalendarEvents: h.orphanAlert, notifyCalendarUnavailable: vi.fn() }));
+// Cassa dell'acconto delle prenotazioni manuali (testata a parte in booking/manual-booking-deposit.test.ts).
+vi.mock('./booking/manual-booking-deposit.js', () => ({ registerManualBookingDeposit: h.manualDeposit }));
 vi.mock('./lib/logger.js', () => ({ logger: { error: vi.fn(), warn: vi.fn() } }));
 vi.mock('./gift-cards/service.js', () => ({
   GiftCardHttpError: class extends Error {},
@@ -163,6 +166,7 @@ beforeEach(() => {
   h.events.mockResolvedValue([]);
   h.googleBusy = [];
   h.orphanAlert.mockReset();
+  h.manualDeposit.mockReset().mockResolvedValue(true);
   h.available = [{ start, end }];
   h.slots.mockImplementation(async () => h.available);
   h.createEvent.mockImplementation(async () => { h.trace.push('calendar'); return { id: 'event-test' }; });
@@ -368,6 +372,33 @@ describe('creazione pubblica senza acconto', () => {
     expect(response.status).toBe(201);
     expect(firstBooking()).toMatchObject({ stato: 'confermata', isManual: true, createdByAdmin: 'admin-test', totale: 100, acconto: 20, saldo: 80 });
     expect(h.slots).not.toHaveBeenCalled();
+    // L'acconto della prenotazione manuale entra in cassa (ricevuta + movimento).
+    expect(h.manualDeposit).toHaveBeenCalledTimes(1);
+    expect(h.manualDeposit).toHaveBeenCalledWith(expect.anything(), 'booking-1', 'admin-test');
+  });
+
+  it('prenotazione manuale senza acconto: nessuna registrazione di cassa', async () => {
+    Object.assign(h.campaign, { richiedeApprovazione: false });
+    h.available = [];
+    const response = await request({ isManual: true, totale: 100, acconto: 0 }, '/v2/create', true);
+    expect(response.status).toBe(201);
+    expect(h.manualDeposit).not.toHaveBeenCalled();
+  });
+
+  it('se la registrazione di cassa fallisce la prenotazione resta creata e viene avvisato l\'admin', async () => {
+    h.manualDeposit.mockRejectedValueOnce(new Error('Firestore non disponibile'));
+    Object.assign(h.campaign, { richiedeApprovazione: false });
+    h.available = [];
+    const response = await request({ isManual: true, totale: 100, acconto: 20, metodoPagamento: 'contante' }, '/v2/create', true);
+    expect(response.status).toBe(201);
+    expect(firstBooking()).toMatchObject({ stato: 'confermata', acconto: 20 });
+    expect(await response.json()).toMatchObject({ depositCashRecorded: false });
+  });
+
+  it('prenotazione pubblica: nessuna registrazione di cassa manuale', async () => {
+    Object.assign(h.campaign, { richiedeApprovazione: true });
+    await request({});
+    expect(h.manualDeposit).not.toHaveBeenCalled();
   });
 
   it('il template reale informa l’admin se la prenotazione è già confermata', async () => {

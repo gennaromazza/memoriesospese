@@ -62,6 +62,29 @@ describe('findOrdersNeedingDepositReconciliation', () => {
   });
 });
 
+describe('acconto incassato di persona', () => {
+  const inPerson = (extra: Record<string, unknown> = {}) => ({ provider: 'in_person', status: 'paid', amountCents: 2000, receiptId: 'rcpt-1', ...extra });
+  const line = (extra: Record<string, unknown> = {}) => ({ tipo: 'acconto', importo: 20, source: 'booking_in_person_deposit', receiptId: 'rcpt-1', ...extra });
+
+  it('seleziona l\'ordine se la riga dell\'acconto di persona non e\' ancora stata copiata', () => {
+    expect(findOrdersNeedingDepositReconciliation([order('a')], [booking('a', { depositPayment: inPerson() })])).toEqual(['a']);
+  });
+  it('non seleziona un ordine gia\' a posto', () => {
+    expect(findOrdersNeedingDepositReconciliation([order('a', { transactions: [line()] })], [booking('a', { depositPayment: inPerson() })])).toEqual([]);
+  });
+  it('riconosce importo o ricevuta diversi e righe duplicate', () => {
+    const orders = [order('wrong', { transactions: [line({ importo: 15 })] }), order('other', { transactions: [line({ receiptId: 'old' })] }),
+      order('dup', { transactions: [line(), line()] })];
+    const bookings = ['wrong', 'other', 'dup'].map(id => booking(id, { depositPayment: inPerson() }));
+    expect(findOrdersNeedingDepositReconciliation(orders, bookings)).toEqual(['wrong', 'other', 'dup']);
+  });
+  it('ignora ricevute di persona non valide o non pagate', () => {
+    const bookings = [booking('a', { depositPayment: inPerson({ receiptId: undefined }) }), booking('b', { depositPayment: inPerson({ status: 'pending' }) }),
+      booking('c', { depositPayment: inPerson({ amountCents: 0 }) })];
+    expect(findOrdersNeedingDepositReconciliation([order('a'), order('b'), order('c')], bookings)).toEqual([]);
+  });
+});
+
 describe('getAllOrdersUnreconciled', () => {
   it('legge una sola volta, senza chiamare il server', async () => {
     mocks.getDocs.mockResolvedValue({ docs: [snapshot('o1', { bookingId: 'b', totale: 10, prodotti: [], transactions: [] }),

@@ -9,7 +9,7 @@ vi.mock('./firebase-admin.js', () => ({
   FieldValue: { serverTimestamp: () => ({}) },
 }));
 vi.mock('firebase-admin/firestore', () => ({ Timestamp: { fromDate: (date: Date) => ({ date }), now: () => ({}) } }));
-vi.mock('./google-calendar.js', () => ({ getAvailableSlots: vi.fn(), deleteEvent: vi.fn() }));
+vi.mock('./google-calendar.js', () => ({ getAvailableSlots: vi.fn(), deleteEvent: vi.fn(), createEvent: vi.fn(), getEventById: vi.fn(), resolveCalendarId: () => 'primary' }));
 vi.mock('./email-routes.js', () => ({
   authenticateFirebase: (req: any, res: any, next: any) => {
     if (!req.headers.authorization) return res.status(401).json({ error: 'Token mancante' });

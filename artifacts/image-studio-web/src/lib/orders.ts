@@ -52,7 +52,7 @@ const RECONCILE_TIMEOUT_MS = 20_000;
 
 export interface DepositCheckBooking {
   id?: string;
-  depositPayment?: { provider?: string; status?: string; amountCents?: number; paypalCaptureId?: string } | null;
+  depositPayment?: { provider?: string; status?: string; amountCents?: number; paypalCaptureId?: string; receiptId?: string } | null;
   bookingRefund?: { status?: string } | null;
 }
 
@@ -71,6 +71,15 @@ export function findOrdersNeedingDepositReconciliation(
     if (!order.bookingId || isManagedOrderType(order.orderType)) continue;
     const booking = byId.get(order.bookingId);
     const payment = booking?.depositPayment;
+    if (payment?.provider === "in_person") {
+      // Acconto incassato di persona: la riga dell'ordine porta la stessa ricevuta e lo stesso importo.
+      if (payment.status !== "paid" || !payment.receiptId || !Number.isSafeInteger(payment.amountCents) || (payment.amountCents as number) <= 0) continue;
+      const rows = ((order.transactions ?? []) as any[]).filter(
+        (line) => line?.source === "booking_in_person_deposit" && line?.receiptId === payment.receiptId,
+      );
+      if (rows.length !== 1 || rows[0].importo !== (payment.amountCents as number) / 100) result.push(order.id);
+      continue;
+    }
     if (payment?.provider !== "paypal" || payment.status !== "paid" || !payment.paypalCaptureId
       || !Number.isSafeInteger(payment.amountCents) || (payment.amountCents as number) <= 0) continue;
     const expected = booking?.bookingRefund?.status === "completed" ? 0 : (payment.amountCents as number) / 100;
@@ -767,12 +776,14 @@ export async function recordSaldoPayment(
   metodo: "contante" | "carta" | "bonifico" | "paypal",
   note?: string,
   data: Date = new Date(),
+  requestId: string = crypto.randomUUID(),
 ): Promise<{ transaction: Transaction; index: number }> {
   const response = await apiRequest('POST', `/api/orders/${orderId}/register-payment`, {
     tipo: 'saldo',
     metodoPagamento: metodo,
     note,
     data: data.toISOString(),
+    requestId,
   });
 
   const result = await response.json();
@@ -782,6 +793,10 @@ export async function recordSaldoPayment(
   }
 
   console.log(`✅ Saldo registrato: €${result.paymentAmount} - CashMovement: ${result.cashMovementId}`);
+  if (result.duplicate) {
+    return { transaction: { tipo: 'saldo', importo: result.paymentAmount, metodo, data: Timestamp.fromDate(data), emailInviata: true,
+      ...(note?.trim() && { note: note.trim() }) }, index: result.transactionIndex };
+  }
 
   try {
     await apiRequest('POST', '/api/orders/payment-received-notification', {
@@ -869,6 +884,8 @@ export async function addAccontoPayment(
   metodo: "contante" | "carta" | "bonifico" | "paypal",
   note?: string,
   data: Date = new Date(),
+  /** Stesso valore = stesso incasso: una ripetizione (doppio clic, ritentativo) non registra due volte. */
+  requestId: string = crypto.randomUUID(),
 ): Promise<{ transaction: Transaction; index: number }> {
   const response = await apiRequest('POST', `/api/orders/${orderId}/register-payment`, {
     tipo: 'acconto',
@@ -876,6 +893,7 @@ export async function addAccontoPayment(
     metodoPagamento: metodo,
     note,
     data: data.toISOString(),
+    requestId,
   });
 
   const result = await response.json();
@@ -885,6 +903,11 @@ export async function addAccontoPayment(
   }
 
   console.log(`✅ Acconto registrato: €${importo} - CashMovement: ${result.cashMovementId}`);
+  // Ripetizione riconosciuta dal server: l'incasso e la sua email risalgono al primo invio.
+  if (result.duplicate) {
+    return { transaction: { tipo: 'acconto', importo, metodo, data: Timestamp.fromDate(data), emailInviata: true,
+      ...(note?.trim() && { note: note.trim() }) }, index: result.transactionIndex };
+  }
 
   try {
     await apiRequest('POST', '/api/orders/payment-received-notification', {

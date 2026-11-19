@@ -131,3 +131,49 @@ describe('admin payment routes', () => {
     expect((await request(`/${id}/payment/resend`, 'admin', 'POST', { requestId: '11111111-1111-4111-8111-111111111111' })).status).toBe(410);
   });
 });
+
+describe('admin: acconto incassato di persona (rotta)', () => {
+  const path = `/${id}/payment/in-person`;
+  const body = (extra: Record<string, unknown> = {}) => ({ amountCents: 2000, method: 'contante', requestId: 'req-in-person-1', ...extra });
+
+  it('richiede un amministratore e un utente autenticato', async () => {
+    expect((await request(path, 'user', 'POST', body())).status).toBe(403);
+    expect((await request(path, '', 'POST', body())).status).toBe(401);
+    expect(store.value(`bookings/${id}`).stato).toBe('in_attesa');
+  });
+
+  it('registra un importo diverso da quello della campagna e restituisce lo stato aggiornato', async () => {
+    const response = await request(path, 'admin', 'POST', body());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ bookingId: id, stage: 'confermata', paymentStatus: 'paid', method: 'manual',
+      paidAmountCents: 2000, payable: false });
+    expect(store.value(`bookings/${id}`)).toMatchObject({ stato: 'confermata', acconto: 20, confermataDa: 'staff' });
+    expect(store.value(`bookingCheckoutHolds/${id}`).status).toBe('cancelled');
+  });
+
+  it('una ripetizione identica risponde allo stesso modo senza duplicare la cassa', async () => {
+    await request(path, 'admin', 'POST', body());
+    const again = await request(path, 'admin', 'POST', body());
+    expect(again.status).toBe(200);
+    expect([...store.rows.keys()].filter(key => key.startsWith('cashMovements/'))).toHaveLength(1);
+  });
+
+  it.each([
+    [{ amountCents: 0 }, 400], [{ method: 'paypal' }, 400], [{ requestId: 'x' }, 400],
+  ])('dati non validi %j: %i, nessuna modifica', async (patch, status) => {
+    const response = await request(path, 'admin', 'POST', body(patch));
+    expect(response.status).toBe(status);
+    expect(store.value(`bookings/${id}`).stato).toBe('in_attesa');
+  });
+
+  it('una prenotazione con richiesta scaduta risponde 410', async () => {
+    vi.mocked(Date.now).mockReturnValue(now + 3_600_000);
+    const response = await request(path, 'admin', 'POST', body());
+    expect(response.status).toBe(410);
+  });
+
+  it('non espone token o dati interni', async () => {
+    const response = await request(path, 'admin', 'POST', body());
+    expect(JSON.stringify(await response.json())).not.toMatch(/tokenHash|approvalNonce|resendIds/);
+  });
+});

@@ -27,6 +27,7 @@ import type { Order, Transaction, Booking } from "@shared/booking-types";
 import { getAllJobs } from "./jobs";
 import { getPaymentSchedulesForJob } from "./payment-schedules";
 import type { Job } from "@shared/jobs-types";
+import { bookingsWithoutOrder } from "./forecast-dedupe";
 import { getAllBookings } from "./bookings";
 import { getCampaignById } from "./booking-campaigns";
 import { isJobCostCoveredByCashMovement } from "./job-cost-payments";
@@ -563,7 +564,8 @@ export async function getForecastedIncome(): Promise<ForecastedIncome[]> {
   const { getActiveProducts } = await import('./products');
   const allProducts = await getActiveProducts();
   
-  for (const booking of bookings) {
+  // Le prenotazioni con un ordine sono gia' contate dall'ordine (nessun doppio conteggio).
+  for (const booking of bookingsWithoutOrder(bookings, orders)) {
     // Solo prenotazioni confermate
     if (booking.stato !== 'confermata') continue;
     if (!booking.dataShootingInizio) continue;

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Timestamp, type Firestore, type DocumentData } from 'firebase-admin/firestore';
 import { logger } from '../lib/logger.js';
+import { depositReceiptReference } from '@shared/booking-deposit-receipt';
 import { canIssueManagementLink, MANAGEMENT_ACCESS, managementAccessMatches } from './management-access.js';
 import { preparePaidBookingConfirmation, type PreparedBookingConfirmation } from './confirmation-email.js';
 import { synchronizeInitialBookingCalendar } from './initial-calendar.js';
@@ -20,7 +21,7 @@ const defaults: ConfirmationDependencies = {
 };
 const eligible = (booking: DocumentData | undefined, job: DocumentData) => !!booking
   && canIssueManagementLink(booking) && booking.depositPayment?.status === 'paid'
-  && booking.depositPayment.paypalCaptureId === job.captureId && booking.depositPayment.amountCents === job.amountCents;
+  && depositReceiptReference(booking.depositPayment) === job.captureId && booking.depositPayment.amountCents === job.amountCents;
 
 /** Operates only on jobs atomically created by a newly verified capture, never a historic scan. */
 export async function deliverBookingConfirmation(db: Firestore, id: string, overrides: Partial<ConfirmationDependencies> = {}) {

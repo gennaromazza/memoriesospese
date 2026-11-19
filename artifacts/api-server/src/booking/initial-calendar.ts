@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { Timestamp, type DocumentData, type Firestore } from 'firebase-admin/firestore';
 import { bookingPaymentMillis } from '@shared/booking-payment-state';
+import { depositReceiptReference } from '@shared/booking-deposit-receipt';
 import { createEvent, getEventById, resolveCalendarId } from '../google-calendar.js';
 import { canIssueManagementLink } from './management-access.js';
 
@@ -13,7 +14,7 @@ const defaults: InitialCalendarDependencies = {
   read: getEventById, create: createEvent, calendarId: () => resolveCalendarId('primary'),
 };
 const fingerprint = (root: DocumentData) => JSON.stringify([
-  root.depositPayment?.paypalCaptureId, bookingPaymentMillis(root.dataShootingInizio),
+  depositReceiptReference(root.depositPayment), bookingPaymentMillis(root.dataShootingInizio),
   bookingPaymentMillis(root.dataShootingFine), String(root.cliente?.email || '').trim().toLowerCase(),
 ]);
 const eligible = (root?: DocumentData) => canIssueManagementLink(root) && root?.stato === 'confermata'
@@ -37,7 +38,7 @@ export async function synchronizeInitialBookingCalendar(
   if (start === null || end === null || end <= start) throw new Error('Orario della prenotazione non valido');
   const expected = fingerprint(source), marker = `[booking:${bookingId}]`;
   const eventId = source.googleCalendarEventId || source.initialCalendarEventId
-    || `b${createHash('sha256').update(`${bookingId}:${source.depositPayment.paypalCaptureId}`).digest('hex')}`;
+    || `b${createHash('sha256').update(`${bookingId}:${depositReceiptReference(source.depositPayment)}`).digest('hex')}`;
   const calendarId = source.googleCalendarId || deps.calendarId();
   await db.runTransaction(async tx => {
     const current = (await tx.get(ref)).data();

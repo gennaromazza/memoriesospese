@@ -12,7 +12,7 @@ vi.mock('./firebase-admin.js', () => ({
     return { doc: () => ({ get: async () => { h.reads++; return { exists: true, data: () => h.booking }; } }) };
   } }, FieldValue: {},
 }));
-vi.mock('./google-calendar.js', () => ({ getAvailableSlots: vi.fn(), deleteEvent: vi.fn() }));
+vi.mock('./google-calendar.js', () => ({ getAvailableSlots: vi.fn(), deleteEvent: vi.fn(), createEvent: vi.fn(), getEventById: vi.fn(), resolveCalendarId: () => 'primary' }));
 vi.mock('./email-routes.js', () => ({
   authenticateFirebase: (req: any, _res: unknown, next: () => void) => {
     req.user = { uid: 'test-admin', email: 'gennaro.mazzacane@gmail.com' }; next();

@@ -9,6 +9,7 @@ import { approveBookingWithDeposit } from './approved-deposit-request.js';
 import { getAdminBookingPaymentSnapshot, listAdminBookingCheckouts } from './admin-payments.js';
 import { CheckoutHoldError } from './checkout-hold-state.js';
 import { CHECKOUT_HOLDS } from './slot-reservations.js';
+import { recordInPersonDeposit } from './in-person-deposit.js';
 
 export function bookingAdminPaymentRouter(db: Firestore, authenticate: RequestHandler, requireAdmin: RequestHandler,
   client: () => BookingCapturePayPalClient = bookingPayPalClient, resend = approveBookingWithDeposit) {
@@ -40,6 +41,15 @@ export function bookingAdminPaymentRouter(db: Firestore, authenticate: RequestHa
     try {
       const id = idFrom(req.params.bookingId);
       await getBookingDepositStatusForAdmin(db, client(), id);
+      res.json(GetAdminBookingPaymentResponse.parse(await getAdminBookingPaymentSnapshot(db, id, enabled())));
+    } catch (error) { failure(res, error); }
+  });
+  /** Acconto incassato di persona (importo libero): conferma la prenotazione e chiude il link PayPal. */
+  router.post('/:bookingId/payment/in-person', authenticate, requireAdmin, async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    try {
+      const id = idFrom(req.params.bookingId);
+      await recordInPersonDeposit(db, id, req.body, (req as any).user?.uid || (req as any).user?.email || 'admin');
       res.json(GetAdminBookingPaymentResponse.parse(await getAdminBookingPaymentSnapshot(db, id, enabled())));
     } catch (error) { failure(res, error); }
   });

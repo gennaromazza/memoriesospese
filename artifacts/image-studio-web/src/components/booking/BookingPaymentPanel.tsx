@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
+import { InPersonDepositDialog } from './InPersonDepositDialog';
 
 const euro = (value: number | null) => value === null ? 'Non disponibile' : new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(value / 100);
 const date = (value: unknown) => { const time = bookingPaymentMillis(value); return time === null ? 'Non disponibile' : new Date(time).toLocaleString('it-IT', { timeZone: 'Europe/Rome' }); };
@@ -22,6 +23,7 @@ export function BookingPaymentPanel({ bookingId, userId }: { bookingId: string; 
   const query = useQuery({ queryKey: key, queryFn: () => getBookingPaymentDetails(bookingId), enabled: !!userId && !!bookingId,
     refetchInterval: q => ['unpaid', 'processing', 'review'].includes(q.state.data?.paymentStatus || '') ? 15_000 : false });
   const resendIntent = useRef<string | null>(null);
+  const [inPersonOpen, setInPersonOpen] = useState(false);
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     const offset = (bookingPaymentMillis(query.data?.serverTime) ?? Date.now()) - Date.now();
@@ -52,6 +54,8 @@ export function BookingPaymentPanel({ bookingId, userId }: { bookingId: string; 
   const remaining = deadline === null ? 0 : Math.max(0, Math.ceil((deadline - now) / 1000));
   const stage = expired && data.stage === 'in_attesa_pagamento' ? 'scaduta' : data.stage;
   const canResend = data.canResend && !expired && (bookingPaymentMillis(data.resendAvailableAt) ?? 0) <= now;
+  // Solo con la richiesta ancora aperta e nessun incasso (nemmeno PayPal in corso o da riconciliare).
+  const canRecordInPerson = data.flow === 'approved' && data.paymentStatus === 'unpaid' && stage === 'in_attesa_pagamento' && !expired;
   return <Card className="min-w-0" data-testid="booking-payment-panel">
     <CardHeader className="p-4 pb-2"><CardTitle className="text-base">Acconto e pagamento</CardTitle>
       <Badge variant="outline" className="w-fit max-w-full whitespace-normal">{bookingPaymentStageLabel(stage)}</Badge></CardHeader>
@@ -76,6 +80,8 @@ export function BookingPaymentPanel({ bookingId, userId }: { bookingId: string; 
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <Button variant="outline" className="h-auto whitespace-normal" disabled={!data.canVerify || mutation.isPending}
           onClick={() => mutation.mutate('verify')}>Verifica esito PayPal</Button>
+        {canRecordInPerson && <Button variant="secondary" className="h-auto whitespace-normal" disabled={mutation.isPending}
+          onClick={() => setInPersonOpen(true)}>Acconto incassato di persona</Button>}
         {data.flow === 'approved' && <AlertDialog><AlertDialogTrigger asChild><Button className="h-auto whitespace-normal"
           disabled={!canResend || mutation.isPending}>Reinvia link di pagamento</Button></AlertDialogTrigger>
           <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Reinviare la richiesta?</AlertDialogTitle>
@@ -88,7 +94,10 @@ export function BookingPaymentPanel({ bookingId, userId }: { bookingId: string; 
       <p className="text-xs text-muted-foreground">La verifica legge l’esito PayPal e riconcilia gli incassi già avvenuti: non addebita e non rimborsa.</p>
       {!data.canVerify && data.paymentStatus === 'unpaid' && <p className="text-sm text-muted-foreground">Non è ancora presente un ordine PayPal associato.</p>}
       {data.flow === 'approved' && data.resendReason && <p className="text-sm text-muted-foreground">{data.resendReason}</p>}
+      {canRecordInPerson && <p className="text-xs text-muted-foreground">Se il cliente ha pagato di persona, registra l’incasso qui: la prenotazione viene confermata e il link PayPal smette di funzionare.</p>}
       {mutation.isPending && <p role="status">Operazione in corso…</p>}
+      <InPersonDepositDialog bookingId={bookingId} userId={userId} suggestedAmountCents={data.amountCents}
+        open={inPersonOpen} onOpenChange={setInPersonOpen} />
     </CardContent>
   </Card>;
 }

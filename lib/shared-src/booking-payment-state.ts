@@ -1,9 +1,11 @@
+import { depositReceiptReference } from './booking-deposit-receipt';
+
 /** Display state only: never persists a new booking status or changes financial records. */
 export interface BookingPaymentStateSource {
   stato?: string;
   acconto?: number;
   paymentReviewRequired?: boolean;
-  depositPayment?: { status?: string; paypalCaptureId?: string };
+  depositPayment?: { status?: string; provider?: string; paypalCaptureId?: string; receiptId?: string };
   depositPaymentRequest?: { status?: string; amountCents?: number; requestedAt?: unknown; expiresAt?: unknown };
 }
 export function bookingPaymentMillis(value: unknown): number | null {
@@ -25,7 +27,7 @@ export function bookingPaymentDeadline(booking: BookingPaymentStateSource): numb
 }
 export function bookingPaymentStage(booking: BookingPaymentStateSource, now = Date.now()): string {
   const request = booking.depositPaymentRequest;
-  const paid = booking.depositPayment?.status === 'paid' && !!booking.depositPayment.paypalCaptureId;
+  const paid = booking.depositPayment?.status === 'paid' && depositReceiptReference(booking.depositPayment) !== null;
   if (booking.paymentReviewRequired || booking.depositPayment?.status === 'paid_action_required' || paid && booking.stato === 'in_attesa'
     || request && !paid && Number(booking.acconto ?? 0) !== 0
     || request?.status === 'paid' && !paid
