@@ -20,6 +20,13 @@ bonifico), l'admin registra l'incasso dal gestionale. L'importo è libero.
 Prenotazione non in attesa, acconto già registrato o da riconciliare, richiesta scaduta (410), pagamento PayPal
 in corso o già incassato (prima si verifica PayPal), shooting già iniziato, slot occupato da altri.
 
+### Pagamento PayPal rimasto "incerto"
+Se PayPal va in timeout durante una cattura, il tentativo resta incerto (il denaro potrebbe essere stato addebitato) e il comando
+si ferma. "Verifica esito PayPal" (solo admin) lo conclude quando PayPal conferma che l'ordine non ha **nessuna** cattura, il
+tentativo non è in corso ed è iniziato da almeno 10 minuti. Con una cattura in sospeso, completata o un tentativo recente o
+storico (senza data di inizio) resta bloccato. La verifica fatta dal cliente non conclude mai nulla. Se PayPal elaborasse
+comunque più tardi una richiesta in volo, il registro la mette in cassa e la segnala, senza una seconda conferma.
+
 ## Se il cliente paga comunque col link PayPal
 Il denaro entra in cassa, la prenotazione non viene confermata una seconda volta, la ricevuta di persona resta quella
 della prenotazione e il pagamento PayPal è tracciato in `duplicatePayPalPayment` con `paymentReviewRequired`.

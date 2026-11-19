@@ -51,6 +51,7 @@ leggibile" in produzione: è coperto dai test automatici.
 | 17 | Doppio clic su "Conferma incasso". | Un solo incasso in cassa. |
 | 18 | Registra un pagamento sul pannello ordine e ripeti subito la stessa operazione (doppio clic). | Una sola riga e un solo movimento di cassa. |
 | 19 | Dopo l'invio di una richiesta su campagna con approvazione e acconto, guarda il messaggio al cliente. | Spiega: email con il link, importo, un'ora di tempo, conferma solo dopo il pagamento. |
+| 20 | Solo in sandbox: lascia un pagamento PayPal incerto (chiudi la finestra durante la cattura), attendi 10 minuti, premi "Verifica esito PayPal". | Il pannello torna "non incassato" e compare "Acconto incassato di persona". |
 
 ## 3. Cosa guardare nei log durante le prove
 

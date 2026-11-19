@@ -95,6 +95,9 @@ export function BookingPaymentPanel({ bookingId, userId }: { bookingId: string; 
       {!data.canVerify && data.paymentStatus === 'unpaid' && <p className="text-sm text-muted-foreground">Non è ancora presente un ordine PayPal associato.</p>}
       {data.flow === 'approved' && data.resendReason && <p className="text-sm text-muted-foreground">{data.resendReason}</p>}
       {canRecordInPerson && <p className="text-xs text-muted-foreground">Se il cliente ha pagato di persona, registra l’incasso qui: la prenotazione viene confermata e il link PayPal smette di funzionare.</p>}
+      {data.flow === 'approved' && data.paymentStatus === 'processing' && <p className="text-xs text-muted-foreground">
+        Pagamento PayPal da verificare. Se il cliente paga di persona, premi “Verifica esito PayPal”: se PayPal non ha incassato nulla e sono passati
+        almeno 10 minuti dal tentativo, il comando “Acconto incassato di persona” si sblocca.</p>}
       {mutation.isPending && <p role="status">Operazione in corso…</p>}
       <InPersonDepositDialog bookingId={bookingId} userId={userId} suggestedAmountCents={data.amountCents}
         open={inPersonOpen} onOpenChange={setInPersonOpen} />

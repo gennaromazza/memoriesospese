@@ -50,6 +50,14 @@ describe('pannello pagamento: acconto incassato di persona', () => {
     expect(api.recordInPersonBookingDeposit).not.toHaveBeenCalled();
   });
 
+  it('con un pagamento PayPal incerto spiega come sbloccare l\'incasso di persona', async () => {
+    data = { ...data, paymentStatus: 'processing' };
+    await mount();
+    expect(document.body.textContent).toContain('Verifica esito PayPal');
+    expect(document.body.textContent).toContain('10 minuti');
+    expect(button(/Acconto incassato di persona/)).toBeUndefined();
+  });
+
   it.each([
     ['gia\' pagato', { paymentStatus: 'paid', stage: 'confermata', paidAmountCents: 2000, payable: false }],
     ['pagamento PayPal in verifica', { paymentStatus: 'processing' }],
