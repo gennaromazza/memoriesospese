@@ -54,7 +54,7 @@ async function openOrderDetails(page: Page) {
   await expect(panel).toBeVisible();
 }
 
-test('la verifica dell'acconto non blocca la pagina e nasconde solo gli importi di quell'ordine', async ({ page }) => {
+test("la verifica dell'acconto non blocca la pagina e nasconde solo gli importi di quell'ordine", async ({ page }) => {
   const state = await fixture(page);
   let release!: () => void;
   state.hold = new Promise<void>(resolve => { release = resolve; });
@@ -75,7 +75,7 @@ test('la verifica dell'acconto non blocca la pagina e nasconde solo gli importi 
   expect(state.unexpected).toEqual([]);
 });
 
-test('se la verifica fallisce, la pagina resta usabile ma gli importi dell'ordine restano nascosti fino a Riprova', async ({ page }) => {
+test("se la verifica fallisce, la pagina resta usabile ma gli importi dell'ordine restano nascosti fino a Riprova", async ({ page }) => {
   const state = await fixture(page, true);
   await page.goto('/?time=all&campaign=all');
   await expect(page.getByRole('alert')).toContainText('Pagamenti degli ordini da verificare');
