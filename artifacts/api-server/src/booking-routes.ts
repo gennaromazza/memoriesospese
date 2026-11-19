@@ -2684,6 +2684,25 @@ async function createBookingV2(req: express.Request, res: express.Response): Pro
     }
     console.log(`[POST /v2/create] ✅ Booking created: ${bookingRef.id}`);
 
+    // Prenotazione manuale con acconto: l'incasso entra in cassa e puo' passare nell'ordine.
+    // Se la registrazione fallisce la prenotazione resta creata, ma l'admin viene avvisato.
+    let depositCashRecorded: boolean | undefined;
+    if (isManual && Number(bookingData.acconto) > 0) {
+      try {
+        const { registerManualBookingDeposit } = await import("./booking/manual-booking-deposit.js");
+        await registerManualBookingDeposit(db, bookingRef.id, (req as any).user?.uid || "admin");
+        depositCashRecorded = true;
+      } catch (depositError) {
+        depositCashRecorded = false;
+        console.error("[POST /v2/create] ❌ CRITICAL: acconto della prenotazione manuale non registrato in cassa", bookingRef.id, depositError);
+        void import("./system-alerts.js").then(m => m.sendAdminSystemAlert(
+          "manual_booking_deposit_cash",
+          "⚠️ Acconto di una prenotazione manuale non registrato in cassa",
+          `<p>La prenotazione <strong>${bookingRef.id}</strong> è stata creata con un acconto, ma il movimento di cassa non è stato scritto.</p><p>Registra l'incasso dal pannello dell'ordine oppure verifica la cassa.</p>`,
+        )).catch(() => {});
+      }
+    }
+
     if (autoConfirm) {
       try {
         await confirmPublicBooking(bookingRef, bookingData, slotStart, slotEnd);
@@ -2846,6 +2865,7 @@ async function createBookingV2(req: express.Request, res: express.Response): Pro
       success: true,
       bookingId: bookingRef.id,
       stato: bookingData.stato,
+      ...(depositCashRecorded === undefined ? {} : { depositCashRecorded }),
       message: isManual 
         ? "Prenotazione manuale creata e confermata automaticamente" 
         : autoConfirm ? "Prenotazione confermata con successo"

@@ -3,6 +3,7 @@
  * URL: /prenota/:code
  */
 
+import { pendingBookingNextStep } from "@/lib/booking-outcome-copy";
 import { useState, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -559,7 +560,8 @@ export default function BookingPage() {
                 ? `Pagamento registrato. Riferimento prenotazione: ${bookingResult.bookingId}. Per informazioni contatta lo studio.`
                 : confirmed
                 ? 'Per i dettagli controlla la tua email, anche nella cartella spam. Se non ricevi il messaggio, contatta lo studio.'
-                : 'La conferma definitiva arriverà via email solo dopo l’approvazione. Controlla anche la cartella spam.'}
+                : pendingBookingNextStep({ requiresDepositAfterApproval: campaign.richiedeAcconto === true && campaign.richiedeApprovazione !== false,
+                    depositAmountCents: campaign.accontoImportoCentesimi })}
             </p>
             {bookingResult.depositAmountCents !== undefined && campaign.attiva && <Button variant="outline" className="w-full"
               data-testid="button-new-paid-booking" onClick={() => {

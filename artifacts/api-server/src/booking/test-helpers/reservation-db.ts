@@ -71,6 +71,7 @@ export function reservationDb() {
           },
           set: (ref: any, data: any) => writes.push(() => { seed(ref.path, data); }),
           update: (ref: any, data: any) => writes.push(() => { seed(ref.path, mergeUpdate(rows.get(ref.path)!.value, data)); }),
+          delete: (ref: any) => writes.push(() => { rows.delete(ref.path); }),
         });
         if ([...reads].some(([path, v]) => (rows.get(path)?.version ?? 0) !== v)) { retries++; continue; }
         writes.forEach(write => write());

@@ -1,4 +1,5 @@
 import { Timestamp } from 'firebase-admin/firestore';
+import { depositReceiptReference } from '@shared/booking-deposit-receipt';
 
 export const APPROVED_DEPOSIT_PAYMENT_MS = 60 * 60 * 1000;
 
@@ -11,9 +12,7 @@ function millis(value: any): number | null {
 
 /** A confirmed receipt must never be undone by an expiry worker. */
 export function hasPaidBookingDeposit(data: FirebaseFirestore.DocumentData): boolean {
-  return data.depositPayment?.status === 'paid'
-    && typeof data.depositPayment.paypalCaptureId === 'string'
-    && data.depositPayment.paypalCaptureId.length > 0;
+  return data.depositPayment?.status === 'paid' && depositReceiptReference(data.depositPayment) !== null;
 }
 
 export function createApprovedDepositRequest(amountCents: number, shootingStart: Date, requestedAt = Date.now()) {

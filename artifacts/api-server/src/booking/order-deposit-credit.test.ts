@@ -3,6 +3,8 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { describe, expect, it } from 'vitest';
 import { orderDepositFixture as fixture } from './test-helpers/order-deposit-fixture.js';
 import { BOOKING_DEPOSIT_SOURCE, reconcileOrderBookingDeposit, reconcileOrderBookingDepositsBatch } from './order-deposit-credit.js';
+import { reservationDb } from './test-helpers/reservation-db.js';
+import { IN_PERSON_DEPOSITS, IN_PERSON_SOURCE } from './in-person-deposit.js';
 
 describe('acconto prenotazione nell’ordine prodotti', () => {
   it('mostra 5 euro pagati e 15 residui senza creare un secondo incasso', async () => {
@@ -124,5 +126,65 @@ describe('acconto prenotazione nell’ordine prodotti', () => {
       expect(result).toEqual({ updated: 1, failed: [] });
       expect(peak).toBeLessThanOrEqual(3);
     });
+  });
+});
+
+describe("acconto incassato di persona nell'ordine", () => {
+  const receiptId = 'f'.repeat(64);
+  function inPersonFixture(orderExtra: Record<string, unknown> = {}, paymentExtra: Record<string, unknown> = {}) {
+    const store = reservationDb();
+    store.seed('orders/order', { bookingId: 'booking', totale: 100, acconto: 0, saldo: 100, transactions: [], ...orderExtra });
+    store.seed('bookings/booking', { stato: 'confermata', acconto: 20, depositPayment: { provider: 'in_person', status: 'paid', method: 'contante',
+      currency: 'EUR', amountCents: 2000, receiptId, paidAt: Timestamp.fromMillis(123456), recordedBy: 'admin', ...paymentExtra },
+    transactions: [{ tipo: 'acconto', importo: 20, metodo: 'contante', source: IN_PERSON_SOURCE, receiptId, cashMovementId: 'cash-inperson' }] });
+    store.seed(`${IN_PERSON_DEPOSITS}/${receiptId}`, { bookingId: 'booking', amountCents: 2000, method: 'contante', cashMovementId: 'cash-inperson' });
+    store.seed('cashMovements/cash-inperson', { tipo: 'entrata', importo: 20 });
+    return store;
+  }
+
+  it("copia l'acconto di persona nell'ordine senza creare un secondo movimento di cassa", async () => {
+    const store = inPersonFixture();
+    expect(await reconcileOrderBookingDeposit(store.db, 'order')).toBe(true);
+    expect(store.value('orders/order')).toMatchObject({ acconto: 20, saldo: 80, transactions: [{
+      tipo: 'acconto', importo: 20, metodo: 'contante', source: IN_PERSON_SOURCE, receiptId, cashMovementId: 'cash-inperson', emailInviata: true }] });
+    expect([...store.rows.keys()].filter(key => key.startsWith('cashMovements/'))).toEqual(['cashMovements/cash-inperson']);
+  });
+
+  it("e' idempotente (riletture e richieste concorrenti)", async () => {
+    const store = inPersonFixture();
+    await Promise.all([reconcileOrderBookingDeposit(store.db, 'order'), reconcileOrderBookingDeposit(store.db, 'order')]);
+    expect(await reconcileOrderBookingDeposit(store.db, 'order')).toBe(false);
+    expect(store.value('orders/order').transactions).toHaveLength(1);
+    expect(store.value('orders/order').saldo).toBe(80);
+  });
+
+  it("mantiene i pagamenti gia' presenti e non supera il totale", async () => {
+    const store = inPersonFixture({ acconto: 90, saldo: 10, transactions: [{ tipo: 'saldo', importo: 90, metodo: 'contante', data: Timestamp.now() }] });
+    await reconcileOrderBookingDeposit(store.db, 'order');
+    expect(store.value('orders/order').transactions).toHaveLength(2);
+    expect(store.value('orders/order').saldo).toBe(0);
+  });
+
+  it("rifiuta una ricevuta mancante, di un'altra prenotazione o con importo diverso", async () => {
+    const missing = inPersonFixture(); missing.rows.delete(`${IN_PERSON_DEPOSITS}/${receiptId}`);
+    await expect(reconcileOrderBookingDeposit(missing.db, 'order')).rejects.toThrow('Ricevuta');
+    const other = inPersonFixture(); other.seed(`${IN_PERSON_DEPOSITS}/${receiptId}`, { bookingId: 'altra', amountCents: 2000 });
+    await expect(reconcileOrderBookingDeposit(other.db, 'order')).rejects.toThrow('Ricevuta');
+    const amount = inPersonFixture(); amount.seed(`${IN_PERSON_DEPOSITS}/${receiptId}`, { bookingId: 'booking', amountCents: 1500 });
+    await expect(reconcileOrderBookingDeposit(amount.db, 'order')).rejects.toThrow('Ricevuta');
+    expect(missing.value('orders/order').acconto).toBe(0);
+  });
+
+  it("non fa nulla se la prenotazione non e' confermata o la ricevuta non e' valida", async () => {
+    const pending = inPersonFixture(); pending.seed('bookings/booking', { ...pending.value('bookings/booking'), stato: 'in_attesa' });
+    expect(await reconcileOrderBookingDeposit(pending.db, 'order')).toBe(false);
+    const noReceipt = inPersonFixture({}, { receiptId: undefined });
+    expect(await reconcileOrderBookingDeposit(noReceipt.db, 'order')).toBe(false);
+  });
+
+  it("piu' ordini sulla stessa prenotazione: da riconciliare a mano, senza duplicare l'acconto", async () => {
+    const store = inPersonFixture();
+    store.seed('orders/second', { bookingId: 'booking', totale: 50, acconto: 0, saldo: 50, transactions: [] });
+    await expect(reconcileOrderBookingDeposit(store.db, 'order')).rejects.toThrow('Più ordini');
   });
 });

@@ -253,6 +253,13 @@ export async function resendBookingDeposit(id: string, requestId: string): Promi
   try { return await (await apiRequest('POST', `/api/booking/${encodeURIComponent(id)}/payment/resend`, { requestId })).json(); }
   catch (error) { throw bookingRequestError(error, true); }
 }
+/** Acconto incassato di persona (importo libero): conferma la prenotazione e chiude il link PayPal. */
+export async function recordInPersonBookingDeposit(
+  id: string, body: { amountCents: number; method: string; requestId: string; note?: string },
+): Promise<AdminBookingPayment> {
+  try { return await (await apiRequest('POST', `/api/booking/${encodeURIComponent(id)}/payment/in-person`, body)).json(); }
+  catch (error) { throw bookingRequestError(error, true); }
+}
 export async function approveBooking(bookingId: string): Promise<BookingApprovalResult> {
   try {
     const response = await apiRequest('PATCH', `/api/booking/v2/${bookingId}/approve`);

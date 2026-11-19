@@ -1,3 +1,4 @@
+import { IN_PERSON_PROVIDER, depositReceiptReference } from '@shared/booking-deposit-receipt';
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { Timestamp, type Firestore, type DocumentData } from 'firebase-admin/firestore';
 import { APPROVED_PAYMENT_SITE } from './approved-deposit-request.js';
@@ -34,10 +35,13 @@ export function canIssueManagementLink(booking?: DocumentData, allowCancelled = 
   if (!booking || !['confermata', 'completata', ...(allowCancelled ? ['annullata', 'cancellation_pending'] : [])].includes(booking.stato)
     || booking.paymentReviewRequired || booking.automaticConfirmationError || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email(booking))) return false;
   const payment = booking.depositPayment, request = booking.depositPaymentRequest;
+  const inPerson = payment?.provider === IN_PERSON_PROVIDER;
   if ((request || payment || booking.confermataDa === 'paypal') && (!payment || payment.status !== 'paid'
-    || payment.provider !== 'paypal' || payment.currency !== 'EUR' || !Number.isSafeInteger(payment.amountCents)
-    || payment.amountCents <= 0 || !payment.paypalCaptureId || !payment.paypalOrderId)) return false;
-  return !request || (request.status === 'paid' && request.currency === 'EUR' && request.amountCents === payment.amountCents);
+    || (inPerson ? !depositReceiptReference(payment)
+      : payment.provider !== 'paypal' || !payment.paypalCaptureId || !payment.paypalOrderId)
+    || payment.currency !== 'EUR' || !Number.isSafeInteger(payment.amountCents) || payment.amountCents <= 0)) return false;
+  // L'acconto di persona puo' avere un importo diverso da quello richiesto via PayPal.
+  return !request || (request.status === 'paid' && request.currency === 'EUR' && (inPerson || request.amountCents === payment.amountCents));
 }
 function tokenFor(id: string, record: AccessRecord, signingKey: string) {
   return createHmac('sha256', signingKey).update(JSON.stringify(['booking-management-v1', id, record.epoch, record.version, record.nonce])).digest('hex');

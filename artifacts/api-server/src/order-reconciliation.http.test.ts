@@ -11,7 +11,7 @@ const boundary = vi.hoisted(() => ({
 // Mock before importing app.ts. Never import index.ts: it starts real workers.
 vi.mock('./firebase-admin.js', () => ({
   db: new Proxy({}, { get: (_target, key) => boundary.db[key].bind(boundary.db) }),
-  FieldValue: {}, Timestamp: {},
+  FieldValue: { serverTimestamp: () => 'server-time' }, Timestamp: {},
 }));
 vi.mock('firebase-admin/auth', () => ({ getAuth: () => ({ verifyIdToken: boundary.verifyIdToken }) }));
 vi.mock('./admin-security/admin-guard.js', () => ({ adminPasskeyGate: boundary.gate }));
@@ -90,6 +90,124 @@ function request(body: unknown = { orderIds: ['order'] }, token: string | null =
     body: JSON.stringify(body),
   });
 }
+
+describe('registrazione pagamenti sugli ordini: atomica e idempotente', () => {
+  const seedOrder = (extra: Record<string, unknown> = {}) => store.seed('orders/plain', { totale: 100, acconto: 0, saldo: 100, transactions: [],
+    nomeCliente: 'Anna', prodotti: [], ...extra });
+  const pay = (body: Record<string, unknown>, id = 'plain') => request({ tipo: 'acconto', importo: 20, metodoPagamento: 'contante', ...body }, 'admin', `/api/orders/${id}/register-payment`);
+  // 'cash' e' l'incasso PayPal gia' presente nella fixture: qui contano solo i movimenti creati dalla rotta.
+  const cash = () => [...store.rows].filter(([key]) => key.startsWith('cashMovements/') && key !== 'cashMovements/cash').map(([key, row]) => ({ id: key.split('/')[1], ...row.value }));
+
+  it('registra acconto, riga ordine e movimento di cassa insieme', async () => {
+    seedOrder();
+    const response = await pay({});
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ success: true, paymentAmount: 20, nuovoSaldo: 80, transactionIndex: 0 });
+    expect(store.value('orders/plain')).toMatchObject({ acconto: 20, saldo: 80 });
+    expect(cash()).toHaveLength(1);
+    expect(store.value('orders/plain').transactions[0].cashMovementId).toBe(cash()[0].id);
+  });
+
+  it('la stessa richiesta ripetuta non duplica ne\' la riga ne\' la cassa', async () => {
+    seedOrder();
+    const first = await pay({ requestId: 'req-pay-0001' });
+    const again = await pay({ requestId: 'req-pay-0001' });
+    expect(again.status).toBe(200);
+    const original = await first.json() as { cashMovementId: string };
+    expect(await again.json()).toMatchObject({ success: true, duplicate: true, cashMovementId: original.cashMovementId });
+    expect(store.value('orders/plain').transactions).toHaveLength(1);
+    expect(store.value('orders/plain').acconto).toBe(20);
+    expect(cash()).toHaveLength(1);
+  });
+
+  it('due richieste identiche e simultanee: una sola registrazione', async () => {
+    seedOrder();
+    const responses = await Promise.all([pay({ requestId: 'req-pay-0002' }), pay({ requestId: 'req-pay-0002' })]);
+    expect(responses.map(r => r.status)).toEqual([200, 200]);
+    expect(store.value('orders/plain').transactions).toHaveLength(1);
+    expect(cash()).toHaveLength(1);
+  });
+
+  it('due pagamenti diversi e simultanei si sommano senza perdere nulla', async () => {
+    seedOrder();
+    await Promise.all([pay({ requestId: 'req-pay-0003', importo: 10 }), pay({ requestId: 'req-pay-0004', importo: 15 })]);
+    expect(store.value('orders/plain').transactions).toHaveLength(2);
+    expect(store.value('orders/plain').acconto).toBe(25);
+    expect(cash()).toHaveLength(2);
+  });
+
+  it('una scrittura concorrente tra la lettura e il salvataggio non viene sovrascritta', async () => {
+    seedOrder({ bookingId: 'b-x' });
+    store.seed('bookings/b-x', { campaignId: 'camp' });
+    store.seed('booking_campaigns/camp', { nome: 'Campagna' });
+    // Mentre la rotta cerca la campagna, un altro operatore registra 30 euro sullo stesso ordine.
+    const original = store.db.collection.bind(store.db);
+    let injected = false;
+    (store.db as any).collection = (name: string) => {
+      const target = original(name);
+      if (name !== 'bookings') return target;
+      return { ...target, doc: (docId: string) => { const ref = target.doc(docId);
+        return { ...ref, get: async () => { if (!injected) { injected = true; store.seed('orders/plain', { ...store.value('orders/plain'), acconto: 30, saldo: 70,
+          transactions: [{ tipo: 'acconto', importo: 30, metodo: 'contante', data: new Date(), cashMovementId: 'other' }] }); } return ref.get(); } }; } };
+    };
+    boundary.db = store.db;
+    const response = await pay({ importo: 20 });
+    expect(response.status).toBe(200);
+    expect(store.value('orders/plain').transactions).toHaveLength(2);
+    expect(store.value('orders/plain')).toMatchObject({ acconto: 50, saldo: 50 });
+  });
+
+  it.each([
+    [{ importo: 0 }, 400], [{ importo: -5 }, 400], [{ tipo: 'altro' }, 400], [{ importo: 150 }, 400],
+  ])('dati non validi %j: %i, nessun effetto', async (patch, status) => {
+    seedOrder();
+    expect((await pay(patch)).status).toBe(status);
+    expect(store.value('orders/plain').transactions).toHaveLength(0);
+    expect(cash()).toHaveLength(0);
+  });
+
+  it('saldo: registra il residuo; senza residuo risponde 400', async () => {
+    seedOrder({ acconto: 40, saldo: 60, transactions: [{ tipo: 'acconto', importo: 40, metodo: 'contante', data: new Date() }] });
+    const response = await pay({ tipo: 'saldo', requestId: 'req-pay-0005' });
+    expect(await response.json()).toMatchObject({ paymentAmount: 60, nuovoSaldo: 0 });
+    expect((await pay({ tipo: 'saldo', requestId: 'req-pay-0006' })).status).toBe(400);
+    expect(cash()).toHaveLength(1);
+  });
+
+  it('elimina un pagamento e il suo movimento di cassa in un\'unica operazione', async () => {
+    seedOrder();
+    await pay({ requestId: 'req-pay-0007' });
+    const response = await request({ transactionIndex: 0, expectedImporto: 20, expectedTipo: 'acconto' }, 'admin', '/api/orders/plain/delete-payment');
+    expect(response.status).toBe(200);
+    expect(store.value('orders/plain')).toMatchObject({ acconto: 0, saldo: 100, transactions: [] });
+    expect(cash()).toHaveLength(0);
+  });
+
+  it('non elimina se la riga e\' cambiata nel frattempo', async () => {
+    seedOrder();
+    await pay({ requestId: 'req-pay-0008' });
+    const response = await request({ transactionIndex: 0, expectedImporto: 99 }, 'admin', '/api/orders/plain/delete-payment');
+    expect(response.status).toBe(409);
+    expect(store.value('orders/plain').transactions).toHaveLength(1);
+    expect(cash()).toHaveLength(1);
+  });
+});
+
+describe('acconto di persona: protezione dalla cancellazione dall\'ordine', () => {
+  it('non permette di eliminare dall\'ordine la riga dell\'acconto incassato di persona', async () => {
+    const receiptId = 'e'.repeat(64);
+    store.seed('bookings/booking', { stato: 'confermata', acconto: 20, depositPayment: { provider: 'in_person', status: 'paid', currency: 'EUR',
+      amountCents: 2000, method: 'contante', receiptId, paidAt: { toMillis: () => 1, toDate: () => new Date(1) } } });
+    store.seed(`bookingInPersonDeposits/${receiptId}`, { bookingId: 'booking', amountCents: 2000, method: 'contante', cashMovementId: 'cash-p' });
+    store.seed('cashMovements/cash-p', { tipo: 'entrata', importo: 20 });
+    store.seed('orders/order', { bookingId: 'booking', totale: 100, acconto: 0, saldo: 100, transactions: [] });
+    const response = await request({ transactionIndex: 0 }, 'admin', '/api/orders/order/delete-payment');
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ error: expect.stringContaining('appartiene alla prenotazione') });
+    expect(store.value('orders/order').transactions).toHaveLength(1);
+    expect(store.value('cashMovements/cash-p')).toBeDefined();
+  });
+});
 
 describe('POST reconciliation through the mounted application', () => {
   it('reaches the real mount rather than the API 404 fallback', async () => {

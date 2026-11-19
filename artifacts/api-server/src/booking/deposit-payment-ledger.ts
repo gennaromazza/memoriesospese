@@ -111,12 +111,17 @@ export async function recordBookingDeposit(
         createdAt: now, updatedAt: now,
       });
     } else if (duplicate && bookingSnap.exists) {
-      tx.update(bookingRef, { depositPayment: payment, updatedAt: now,
+      // Una notifica ripetuta di un incasso PayPal tardivo non deve sovrascrivere la ricevuta di persona.
+      tx.update(bookingRef, { ...(booking?.depositPayment?.provider === 'in_person' ? { duplicatePayPalPayment: payment } : { depositPayment: payment }), updatedAt: now,
         transactions: (booking?.transactions || []).map((line: any) => line.providerTransactionId === capture.captureId
           ? { ...line, ...(fee === undefined ? {} : { paypalFeeCents: fee }) } : line) });
     } else if (approved && bookingSnap.exists) {
       // Received money remains recorded even when an expired/cancelled request cannot confirm a slot.
-      tx.update(bookingRef, { depositPayment: payment, paymentReviewRequired: true, updatedAt: now,
+      // Se l'acconto e' gia' stato incassato di persona, quella resta la ricevuta della prenotazione:
+      // il pagamento PayPal ricevuto in piu' viene tracciato a parte e segnalato per il rimborso.
+      const paidInPerson = booking?.depositPayment?.provider === 'in_person';
+      tx.update(bookingRef, { ...(paidInPerson ? { duplicatePayPalPayment: payment } : { depositPayment: payment }),
+        paymentReviewRequired: true, updatedAt: now,
         stato: booking?.stato === 'in_attesa' ? 'annullata' : booking!.stato,
         acconto: (Number(booking?.acconto) || 0) + capture.amountCents / 100,
         transactions: [...(booking?.transactions || []), transaction],

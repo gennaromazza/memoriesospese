@@ -58,12 +58,36 @@ export async function getBookingDepositStatusForAdmin(db: Firestore, paypal: Boo
   const hold = (await ref.get()).data();
   if (!hold) throw new CheckoutHoldError(404, 'Nessun checkout PayPal associato.');
   let providerStatus: string | null = null;
-  const result = await readBookingDepositStatus(db, paypal, bookingId, hold, status => { providerStatus = status; });
+  const result = await readBookingDepositStatus(db, paypal, bookingId, hold, status => { providerStatus = status; },
+    { clearStaleAttempt: true });
   if (providerStatus) await ref.update({ 'paypal.lastVerifiedStatus': providerStatus, 'paypal.lastVerifiedAt': Timestamp.now() });
   return result;
 }
+/** Un tentativo incerto piu' vecchio di cosi' (e non piu' in corso) puo' essere concluso dalla verifica admin. */
+export const STALE_CAPTURE_ATTEMPT_MS = 10 * 60_000;
+
+/**
+ * Conclude un tentativo di cattura rimasto "incerto" solo se: nessun incasso registrato, nessuna cattura
+ * in corso sul nostro server (lease scaduto), tentativo iniziato da almeno 10 minuti. Chiamare SOLO dopo aver letto
+ * da PayPal che l'ordine non ha alcuna cattura. Se PayPal elaborasse piu' tardi una richiesta in volo,
+ * il registro dei pagamenti la registra comunque in cassa e la segnala, senza una seconda conferma.
+ */
+async function concludeStaleCaptureAttempt(db: Firestore, bookingId: string): Promise<boolean> {
+  const ref = db.collection(CHECKOUT_HOLDS).doc(bookingId);
+  return db.runTransaction(async tx => {
+    const hold = (await tx.get(ref)).data();
+    const current = hold?.paypalCaptureAttempt;
+    if (!hold || !current || current.state === 'declined' || hold.depositPayment) return false;
+    const lease = current.leaseUntil?.toMillis?.() ?? 0, started = current.startedAt?.toMillis?.();
+    if (!Number.isFinite(started) || lease > Date.now() || Date.now() - started < STALE_CAPTURE_ATTEMPT_MS) return false;
+    tx.update(ref, { paypalCaptureAttempt: { ...current, state: 'declined', clearedBy: 'admin_verify', clearedAt: Timestamp.now() } });
+    return true;
+  });
+}
+
 async function readBookingDepositStatus(db: Firestore, paypal: BookingCapturePayPalClient, bookingId: string,
-  hold: import('firebase-admin/firestore').DocumentData, observe?: (status: string) => void) {
+  hold: import('firebase-admin/firestore').DocumentData, observe?: (status: string) => void,
+  options: { clearStaleAttempt?: boolean } = {}) {
   const summary = { bookingId, campaignId: hold.campaignId,
     flow: hold.kind === 'approved_deposit' ? 'approved' as const : 'immediate' as const,
     dataShootingInizio: hold.dataShootingInizio.toDate(), dataShootingFine: hold.dataShootingFine.toDate() };
@@ -87,6 +111,11 @@ async function readBookingDepositStatus(db: Firestore, paypal: BookingCapturePay
   if (completed) {
     const payment = await recordBookingDeposit(db, completed);
     return { ...summary, status: payment.status, payment };
+  }
+  const anyCapture = remote.purchase_units?.some(unit => (unit.payments?.captures?.length || 0) > 0);
+  if (options.clearStaleAttempt && captureAttemptUncertain(hold) && !anyCapture && remote.status !== 'COMPLETED'
+    && await concludeStaleCaptureAttempt(db, bookingId)) {
+    return { ...summary, status: 'unpaid' as const };
   }
   const uncertain = captureAttemptUncertain(hold)
     || remote.purchase_units?.some(unit => unit.payments?.captures?.some((capture: any) => capture.status === 'PENDING'));
@@ -138,7 +167,7 @@ export async function captureBookingDeposit(db: Firestore, paypal: BookingCaptur
       if (fresh.paypalCaptureAttempt?.leaseUntil?.toMillis?.() > Date.now()) {
         throw fail('PAYPAL_CAPTURE_RUNNING', 'Verifica del pagamento già in corso. Attendi qualche secondo.');
       }
-      tx.update(ref, { paypalCaptureAttempt: { state: 'capturing', attemptId,
+      tx.update(ref, { paypalCaptureAttempt: { state: 'capturing', attemptId, startedAt: Timestamp.now(),
         leaseUntil: Timestamp.fromMillis(Date.now() + 60_000) } });
       return null;
     });
