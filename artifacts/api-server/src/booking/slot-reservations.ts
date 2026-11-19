@@ -76,13 +76,14 @@ function consultationInterval(data: FirebaseFirestore.DocumentData): { start: Da
  *
  * Anche le consulenze CONFERMATE occupano lo slot (le approvazioni usano le stesse
  * guardie, vedi consultation-reservation.ts); `includeConsultations: false` le ignora.
+ * `skipConflictCheck` (override esplicito dell'admin) non lancia mai ma aggiorna comunque le guardie.
  */
 export async function checkSlotReservation(
   transaction: Transaction, db: Firestore, start: Date, end: Date,
   excludeCheckoutHoldId?: string,
   excludeBookingId?: string,
   excludeRescheduleBookingId?: string,
-  options: { includeConsultations?: boolean } = {},
+  options: { includeConsultations?: boolean; skipConflictCheck?: boolean } = {},
 ): Promise<() => void> {
   let day = DateTime.fromJSDate(start, { zone: 'Europe/Rome' }).startOf('day');
   const last = DateTime.fromJSDate(new Date(end.getTime() - 1), { zone: 'Europe/Rome' }).startOf('day');
@@ -124,7 +125,7 @@ export async function checkSlotReservation(
     const interval = consultationInterval(doc.data());
     return !!interval && start < interval.end && end > interval.start;
   });
-  if (occupied || consultationOccupied) throw new BookingSlotConflictError('Slot non più disponibile');
+  if ((occupied || consultationOccupied) && !options.skipConflictCheck) throw new BookingSlotConflictError('Slot non più disponibile');
   return () => refs.forEach((ref, index) => {
     transaction.set(ref, { version: (guards[index].data()?.version ?? 0) + 1 });
   });

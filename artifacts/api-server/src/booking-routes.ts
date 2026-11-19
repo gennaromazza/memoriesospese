@@ -1087,6 +1087,7 @@ router.patch("/v2/:id/approve", authenticateFirebase, requireAdmin, async (req, 
     }
 
     // Aggiorna stato a "confermata" con ID evento Calendar - con rollback su errore
+    let stateChangedError: (new () => Error) | null = null;
     try {
       const currentWorkflowState = bookingDoc.data()?.statoWorkflow;
       const workflowUpdate = syncBookingWorkflowState(
@@ -1094,7 +1095,11 @@ router.patch("/v2/:id/approve", authenticateFirebase, requireAdmin, async (req, 
         currentWorkflowState,
       );
 
-      await bookingRef.update({
+      // Solo se la prenotazione e' ancora nello stato letto: due approvazioni contemporanee
+      // non possono confermarla entrambe (la seconda rimuove il proprio evento).
+      const { updateBookingIfStateUnchanged, BookingStateChangedError } = await import("./booking/update-if-state-unchanged.js");
+      stateChangedError = BookingStateChangedError;
+      await updateBookingIfStateUnchanged(db, bookingRef, bookingData.stato, {
         stato: "confermata",
         ...workflowUpdate,
         googleCalendarEventId: calendarEventId,
@@ -1122,6 +1127,12 @@ router.patch("/v2/:id/approve", authenticateFirebase, requireAdmin, async (req, 
         );
       }
 
+      if (stateChangedError && firestoreError instanceof stateChangedError) {
+        return res.status(409).json({
+          error: "Prenotazione già gestita",
+          message: "La prenotazione è stata modificata da un'altra richiesta. L'evento Calendar duplicato è stato rimosso.",
+        });
+      }
       return res.status(500).json({
         error: "Errore salvataggio",
         message:

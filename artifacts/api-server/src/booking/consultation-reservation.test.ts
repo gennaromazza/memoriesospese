@@ -2,7 +2,7 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { describe, expect, it } from 'vitest';
 import { reservationDb } from './test-helpers/reservation-db.js';
 import { BookingSlotConflictError, CHECKOUT_HOLDS, checkSlotReservation } from './slot-reservations.js';
-import { ConsultationNotPendingError, confirmConsultationReservation } from './consultation-reservation.js';
+import { ConsultationNotPendingError, confirmConsultationReservation, googleEventOverlaps } from './consultation-reservation.js';
 
 // 2027-02-10 (CET, UTC+1): 10:00-11:00 Rome == 09:00-10:00Z
 const at = (hhmmRome: string) => new Date(`2027-02-10T${hhmmRome}:00+01:00`);
@@ -87,6 +87,15 @@ describe('confirmConsultationReservation', () => {
     expect(store.value('consultations/c1').stato).toBe('in_attesa');
   });
 
+  it('con force (override admin) conferma anche sopra una prenotazione e aggiorna comunque la guardia', async () => {
+    const store = reservationDb();
+    store.seed('consultations/c1', consultation());
+    store.seed('bookings/b', booking('10:30', '11:30'));
+    await confirmConsultationReservation(store.db, 'c1', at('10:00'), at('11:00'), confirmUpdates, { force: true });
+    expect(store.value('consultations/c1').stato).toBe('confermata');
+    expect(store.value(GUARD)).toEqual({ version: 1 });
+  });
+
   it('non guarda le altre consulenze (come il controllo di approvazione esistente)', async () => {
     const store = reservationDb();
     store.seed('consultations/other', consultation({ stato: 'confermata' }));
@@ -123,5 +132,40 @@ describe('gara tra approvazione consulenza e prenotazione pubblica sullo stesso 
     const consultationConfirmed = store.value('consultations/c1').stato === 'confermata';
     const bookingExists = store.value('bookings/b1') !== undefined;
     expect(consultationConfirmed !== bookingExists).toBe(true); // mai entrambi, mai nessuno
+  });
+});
+
+describe('confirmConsultationReservation per lo spostamento di una consulenza confermata', () => {
+  it('con expectedStato confermata sposta la consulenza e rifiuta una prenotazione sovrapposta', async () => {
+    const store = reservationDb();
+    store.seed('consultations/c1', consultation({ stato: 'confermata' }));
+    await confirmConsultationReservation(store.db, 'c1', at('14:00'), at('15:00'), { orarioInizio: '14:00' }, { expectedStato: 'confermata' });
+    expect(store.value('consultations/c1').orarioInizio).toBe('14:00');
+
+    store.seed('bookings/b', booking('16:30', '17:30'));
+    await expect(confirmConsultationReservation(store.db, 'c1', at('17:00'), at('18:00'), { orarioInizio: '17:00' }, { expectedStato: 'confermata' }))
+      .rejects.toBeInstanceOf(BookingSlotConflictError);
+    expect(store.value('consultations/c1').orarioInizio).toBe('14:00');
+  });
+
+  it("rifiuta se lo stato non e' quello atteso", async () => {
+    const store = reservationDb();
+    store.seed('consultations/c1', consultation()); // in attesa
+    await expect(confirmConsultationReservation(store.db, 'c1', at('14:00'), at('15:00'), {}, { expectedStato: 'confermata' }))
+      .rejects.toBeInstanceOf(ConsultationNotPendingError);
+  });
+});
+
+describe('googleEventOverlaps', () => {
+  const from = at('10:00'), to = at('11:00');
+  it('eventi con orario: sovrapposizione e adiacenza', () => {
+    expect(googleEventOverlaps({ start: at('10:30').toISOString(), end: at('11:30').toISOString() }, from, to)).toBe(true);
+    expect(googleEventOverlaps({ start: at('11:00').toISOString(), end: at('12:00').toISOString() }, from, to)).toBe(false);
+    expect(googleEventOverlaps({ start: at('09:00').toISOString(), end: at('10:00').toISOString() }, from, to)).toBe(false);
+  });
+  it("eventi tutto il giorno: la data di fine e' esclusiva", () => {
+    expect(googleEventOverlaps({ start: '2027-02-10', end: '2027-02-11', isAllDay: true }, from, to)).toBe(true);
+    expect(googleEventOverlaps({ start: '2027-02-09', end: '2027-02-10', isAllDay: true }, from, to)).toBe(false);
+    expect(googleEventOverlaps({ start: '2027-02-11', end: '2027-02-12', isAllDay: true }, from, to)).toBe(false);
   });
 });

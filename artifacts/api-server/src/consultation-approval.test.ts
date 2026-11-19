@@ -9,6 +9,8 @@ const h = vi.hoisted(() => ({
   createEventError: null as Error | null,
   firestoreError: null as Error | null,
   reservationError: null as Error | null,
+  googleDetails: [] as any[],
+  googleDetailsError: null as Error | null,
   emailError: null as Error | null,
   updateEventError: null as Error | null,
   updateEventErrors: [] as Array<Error | null>,
@@ -77,12 +79,16 @@ vi.mock("./google-calendar.js", () => ({
     h.updatedCalendarEvents.push({ calendarId, eventId, eventData });
     return { id: eventId };
   },
-  getEventsWithDetailsAllCalendars: async () => [],
+  getEventsWithDetailsAllCalendars: async () => {
+    if (h.googleDetailsError) throw h.googleDetailsError;
+    return h.googleDetails;
+  },
 }));
 
 // La conferma Firestore passa da una transazione condivisa con le prenotazioni (testata a parte in
 // booking/consultation-reservation.test.ts): qui si simula solo il suo esito.
-vi.mock("./booking/consultation-reservation.js", () => ({
+vi.mock("./booking/consultation-reservation.js", async () => ({
+  ...(await vi.importActual<any>("./booking/consultation-reservation.js")),
   ConsultationNotPendingError: class ConsultationNotPendingError extends Error {},
   confirmConsultationReservation: async (_db: unknown, _id: string, _s: Date, _e: Date, updates: any) => {
     if (h.reservationError) throw h.reservationError;
@@ -133,6 +139,8 @@ beforeEach(() => {
   h.createEventError = null;
   h.firestoreError = null;
   h.reservationError = null;
+  h.googleDetails = [];
+  h.googleDetailsError = null;
   h.emailError = null;
   h.updateEventError = null;
   h.updateEventErrors = [];
@@ -396,5 +404,53 @@ describe("PATCH /api/consultations/:id/reminder-schedule", () => {
     expect(status).toBe(400);
     expect(body.error).toBe("Consultation non modificabile");
     expect(h.updates).toHaveLength(0);
+  });
+
+  describe("controllo sovrapposizioni nello spostamento", () => {
+    const move = { dataConsulenza: "2026-10-17", orarioInizio: "10:00", orarioFine: "11:00" };
+    const confirmed = () => pendingConsultation({ stato: "confermata", googleCalendarEventId: "calendar-event-existing" });
+
+    it("blocca con 409 se il nuovo orario si sovrappone a un evento Google, senza toccare nulla", async () => {
+      h.consultation = confirmed();
+      h.googleDetails = [{ eventId: "altro", summary: "Matrimonio", start: "2026-10-17T10:30:00+02:00", end: "2026-10-17T12:00:00+02:00" }];
+      const { status, body } = await repairSchedule(move);
+      expect(status).toBe(409);
+      expect(body.code).toBe("SLOT_CONFLICT");
+      expect(h.updatedCalendarEvents).toHaveLength(0);
+      expect(h.updates).toHaveLength(0);
+    });
+
+    it("ignora l'evento della consulenza stessa", async () => {
+      h.consultation = confirmed();
+      h.googleDetails = [{ eventId: "calendar-event-existing", summary: "Consulenza", start: "2026-10-17T10:30:00+02:00", end: "2026-10-17T11:30:00+02:00" }];
+      const { status } = await repairSchedule(move);
+      expect(status).toBe(200);
+    });
+
+    it("se Google non e' leggibile risponde 503 e non salva", async () => {
+      h.consultation = confirmed();
+      h.googleDetailsError = new Error("CALENDAR_UNAVAILABLE");
+      const { status, body } = await repairSchedule(move);
+      expect(status).toBe(503);
+      expect(body.code).toBe("CALENDAR_UNAVAILABLE");
+      expect(h.updates).toHaveLength(0);
+    });
+
+    it("se lo slot viene occupato durante il salvataggio ripristina Google e risponde 409", async () => {
+      const { BookingSlotConflictError } = await import("./booking/slot-reservations.js");
+      h.consultation = confirmed();
+      h.reservationError = new BookingSlotConflictError("Slot non più disponibile");
+      const { status, body } = await repairSchedule(move);
+      expect(status).toBe(409);
+      expect(body.code).toBe("SLOT_CONFLICT");
+      expect(h.updatedCalendarEvents).toHaveLength(2); // spostato, poi ripristinato
+    });
+
+    it("se l'orario non cambia non controlla le sovrapposizioni", async () => {
+      h.consultation = pendingConsultation({ stato: "confermata", orarioInizio: "17:30", orarioFine: "19:00" });
+      h.googleDetailsError = new Error("non deve essere letto");
+      const { status } = await repairSchedule({ dataConsulenza: "2026-09-17", orarioInizio: "17:30", orarioFine: "19:00" });
+      expect(status).toBe(200);
+    });
   });
 });

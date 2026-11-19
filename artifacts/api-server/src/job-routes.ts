@@ -156,7 +156,8 @@ export async function ensureJobCalendarEvent(jobId: string): Promise<{
       
       const existingEvent = await getEventById('primary', job.googleCalendarEventId);
       
-      if (existingEvent) {
+      // Un evento cancellato su Google resta leggibile con status "cancelled": va ricreato.
+      if (existingEvent && existingEvent.status !== 'cancelled') {
         console.log(`📝 Calendar event ${job.googleCalendarEventId} esiste - aggiorno descrizione...`);
         const { summary, description, colorId } = await buildCalendarDescription(jobId, job);
         try {
