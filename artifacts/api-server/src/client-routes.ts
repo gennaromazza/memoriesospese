@@ -72,6 +72,7 @@ export function isPrivateClientPath(pathname: string): boolean {
     || path === '/profile'
     || hasOneSegmentAfter('/prenota/acconto', path)
     || hasOneSegmentAfter('/prenota/gestisci', path)
+    || path === '/vademecum-natale-2026' // regole di Natale 2026: raggiungibile da modulo ed email, non indicizzata
     || path === '/quote-management-demo'
     || path === '/special-gallery'
     || path === '/accesso-galleria'

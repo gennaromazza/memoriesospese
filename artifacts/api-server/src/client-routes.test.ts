@@ -116,3 +116,13 @@ describe('percorsi delle gift card', () => {
     expect(isPrivateClientPath('/admin/gift-card/stampa/K7QM-4XD2-9PTR')).toBe(true);
   });
 });
+
+describe('vademecum di Natale 2026', () => {
+  it('la pagina e\' raggiungibile dal sito (non 404) ma non indicizzata', async () => {
+    const { isKnownClientPath, isPrivateClientPath } = await import('./client-routes');
+    expect(isKnownClientPath('/vademecum-natale-2026')).toBe(true);
+    expect(isKnownClientPath('/vademecum-natale-2026/')).toBe(true);
+    expect(isPrivateClientPath('/vademecum-natale-2026')).toBe(true);
+    expect(isKnownClientPath('/vademecum-natale-2027')).toBe(false);
+  });
+});

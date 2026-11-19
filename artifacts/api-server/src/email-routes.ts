@@ -1,3 +1,4 @@
+import { vademecumEmailBlock } from './vademecum-email.js';
 import type { HttpHandlerResult } from "./http-types.js";
 /**
  * Email API Routes - Gestisce invio email tramite Replit Gmail Integration
@@ -1358,6 +1359,8 @@ export function createBookingReceivedEmailHTML(
           : ""
       }
 
+      ${vademecumEmailBlock(campaignName)}
+
       <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
         <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
         ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ""}
@@ -1672,6 +1675,8 @@ export function createBookingConfirmedEmailHTML(
           Non vediamo l'ora di immortalare i tuoi momenti speciali!
         </p>
       </div>
+
+      ${vademecumEmailBlock(campaignName)}
 
       <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
         <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>

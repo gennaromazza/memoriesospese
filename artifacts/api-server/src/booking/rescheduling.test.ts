@@ -47,7 +47,7 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2030-12-01T12:00:00Z'));
   vi.stubEnv('SESSION_SECRET', 'reschedule-test-key-not-a-real-secret');
   h.events = []; h.platform = []; store = reservationDb();
-  store.seed('booking_campaigns/campaign', { attiva: true, nome: 'Natale test', orarioApertura: '09:00',
+  store.seed('booking_campaigns/campaign', { attiva: true, nome: 'Ritratti test', orarioApertura: '09:00',
     orarioPausaInizio: '13:00', orarioPausaFine: '14:00', orarioChiusura: '18:00', durataShootingMinuti: 30,
     dataInizio: timestamp(new Date('2030-12-01T00:00:00Z')), dataFine: timestamp(new Date('2030-12-20T00:00:00Z')) });
 });
@@ -99,6 +99,14 @@ describe('customer rescheduling', () => {
     expect((await slotsForManagedBooking(store.db, id, input.token, '2030-12-11')).slots.length).toBeGreaterThan(0);
     vi.setSystemTime(original.getTime() - 86_400_000 + 1);
     await expect(reserveManagedReschedule(store.db, id, input)).rejects.toThrow('24 ore');
+  });
+  it('Natale 2026: il cambio e\' consentito fino a 4 giorni prima, non oltre', async () => {
+    const { id, input } = await fixture(), campaign = store.value('booking_campaigns/campaign');
+    store.seed('booking_campaigns/campaign', { ...campaign, nome: 'Natale 2026', temaStagionale: 'natale' });
+    vi.setSystemTime(original.getTime() - 4 * 86_400_000);
+    expect((await slotsForManagedBooking(store.db, id, input.token, '2030-12-11')).slots.length).toBeGreaterThan(0);
+    vi.setSystemTime(original.getTime() - 4 * 86_400_000 + 1);
+    await expect(reserveManagedReschedule(store.db, id, input)).rejects.toThrow('4 giorni');
   });
   it('rejects expired/disabled campaigns, out-of-period days and forged durations', async () => {
     const { id, input } = await fixture(), campaign = store.value('booking_campaigns/campaign');

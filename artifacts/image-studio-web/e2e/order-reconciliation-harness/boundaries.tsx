@@ -25,5 +25,5 @@ export const getBookingById = forbidden, countRelatedEntities = forbidden, delet
 export const updateWorkflowState = forbidden, getWorkflowStateAfterOrderCreation = forbidden;
 const Inert = () => null;
 export const BookingPaymentPanel = Inert, BookingApprovalButton = Inert, BookingManagementLinkPanel = Inert;
-export const BookingCancellationAdminPanel = Inert, BookingPaymentCheckouts = Inert;
+export const BookingCancellationAdminPanel = Inert, BookingPaymentCheckouts = Inert, InPersonDepositDialog = Inert;
 export default Inert;

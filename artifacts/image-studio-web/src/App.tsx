@@ -75,6 +75,7 @@ const BookingManagementPage = lazyWithRetry(() => import("./pages/BookingManagem
 const QuotePortal = lazyWithRetry(() => import("./pages/QuotePortal"));
 const Privacy = lazyWithRetry(() => import("./pages/Privacy"));
 const CookiePolicy = lazyWithRetry(() => import("./pages/CookiePolicy"));
+const VademecumNatale2026 = lazyWithRetry(() => import("./pages/VademecumNatale2026"));
 const GdprRequest = lazyWithRetry(() => import("./pages/GdprRequest"));
 const Terms = lazyWithRetry(() => import("./pages/Terms"));
 const ConsultationIndex = lazyWithRetry(() => import("./pages/ConsultationIndex"));
@@ -221,6 +222,7 @@ function AppRoutes() {
 
         <Route path="/privacy" component={Privacy} />
         <Route path="/cookie-policy" component={CookiePolicy} />
+        <Route path="/vademecum-natale-2026" component={VademecumNatale2026} />
         <Route path="/gdpr" component={GdprRequest} />
         <Route path="/terms" component={Terms} />
 

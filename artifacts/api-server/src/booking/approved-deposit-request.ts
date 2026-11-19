@@ -1,3 +1,4 @@
+import { vademecumEmailBlock } from '../vademecum-email.js';
 import { createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { Timestamp, type Firestore, type DocumentData } from 'firebase-admin/firestore';
 import { CHECKOUT_HOLDS, checkSlotReservation, BookingSlotConflictError } from './slot-reservations.js';
@@ -72,6 +73,7 @@ export function approvedDepositEmail(hold: any, campaignName: string, studio: St
     <p style="margin:28px 0"><a href="${escape(link)}" style="background:#294e42;color:#fff;padding:14px 22px;text-decoration:none;border-radius:6px;display:inline-block">Paga l’acconto con PayPal</a></p>
     <p>Puoi decidere i prodotti in studio. L’acconto non è il prezzo totale del servizio.</p>
     <p>Il link è personale: non inoltrarlo ad altre persone.</p>
+    ${vademecumEmailBlock(campaignName)}
     <hr style="border:0;border-top:1px solid #ddd;margin:24px 0">
     <p><strong>Comunicazione automatica</strong><br>Non rispondere a questa email. Per informazioni contatta lo studio:</p>
     <p><strong>${escape(studio.name)}</strong><br>${escape(studio.email)}<br>${escape(studio.phone)}${studio.address ? `<br>${escape(studio.address)}` : ''}</p>

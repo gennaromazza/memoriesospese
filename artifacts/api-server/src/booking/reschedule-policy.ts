@@ -2,6 +2,7 @@ import { DateTime } from 'luxon';
 import type { DocumentData } from 'firebase-admin/firestore';
 import type { BookingRescheduleView } from '@workspace/api-zod';
 import { bookingPaymentMillis } from '@shared/booking-payment-state';
+import { rescheduleNoticeFor } from '@shared/seasonal-vademecum';
 
 export const RESCHEDULE_JOBS = 'bookingRescheduleJobs';
 export const rescheduleBlocksSlot = (job: DocumentData) => ['pending', 'syncing', 'blocked'].includes(job.status);
@@ -14,7 +15,7 @@ export function campaignDates(campaign?: DocumentData) {
 }
 export function rescheduleView(booking: DocumentData, campaign?: DocumentData, now = Date.now()): BookingRescheduleView {
   const { first, last } = campaignDates(campaign), start = bookingPaymentMillis(booking.dataShootingInizio);
-  const count = booking.customerRescheduleCount ?? 0;
+  const count = booking.customerRescheduleCount ?? 0, notice = rescheduleNoticeFor(campaign);
   let status: BookingRescheduleView['status'] = 'unavailable', reason: string | null = null;
   if (booking.customerReschedule?.status === 'pending') {
     status = 'pending'; reason = 'Stiamo verificando il cambio con il calendario. Non effettuare un altro pagamento e aggiorna tra poco.';
@@ -27,7 +28,7 @@ export function rescheduleView(booking: DocumentData, campaign?: DocumentData, n
   else if (booking.paymentReviewRequired || booking.automaticConfirmationError) reason = 'La prenotazione richiede una verifica dello studio.';
   else if (count !== 0) reason = 'Le modifiche precedenti richiedono una verifica dello studio.';
   else if (start === null) reason = 'L’orario richiede una verifica dello studio.';
-  else if (start - now < 86_400_000) reason = 'Mancano meno di 24 ore allo shooting: per cambiare appuntamento contatta lo studio.';
+  else if (start - now < notice.ms) reason = `Mancano meno di ${notice.label} allo shooting: per cambiare appuntamento contatta lo studio.`;
   else if (campaign?.attiva !== true || !first?.isValid || !last?.isValid || last.toMillis() <= now || first > last) {
     reason = 'La campagna non è più prenotabile: contatta lo studio.';
   } else { status = 'available'; }

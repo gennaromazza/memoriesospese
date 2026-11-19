@@ -52,6 +52,11 @@ leggibile" in produzione: è coperto dai test automatici.
 | 18 | Registra un pagamento sul pannello ordine e ripeti subito la stessa operazione (doppio clic). | Una sola riga e un solo movimento di cassa. |
 | 19 | Dopo l'invio di una richiesta su campagna con approvazione e acconto, guarda il messaggio al cliente. | Spiega: email con il link, importo, un'ora di tempo, conferma solo dopo il pagamento. |
 | 20 | Solo in sandbox: lascia un pagamento PayPal incerto (chiudi la finestra durante la cattura), attendi 10 minuti, premi "Verifica esito PayPal". | Il pannello torna "non incassato" e compare "Acconto incassato di persona". |
+| 21 | Apri la pagina della campagna Natale 2026 per prenotare. | Compare la casella "Ho letto il vademecum di Natale…" con il link; il pulsante resta disattivato finché privacy e vademecum non sono spuntati. |
+| 22 | Clicca il link del vademecum (si apre in una nuova scheda). | Si apre `/vademecum-natale-2026` con tutto il testo, anche aprendo il link diretto dal telefono. |
+| 23 | Invia una richiesta di prova su Natale 2026 e controlla le email al cliente (richiesta ricevuta, link di pagamento dell'acconto, conferma). | Ogni email contiene il blocco "Prima di venire a trovarci" col link al vademecum. Una campagna non di Natale non lo mostra. |
+| 24 | Con una prenotazione Natale 2026 confermata, apri il link personale: prova a cambiare appuntamento a meno di 4 giorni dallo shooting e poi a 4 giorni o più. | Sotto i 4 giorni il cambio è bloccato con il messaggio "Mancano meno di 4 giorni…"; da 4 giorni in su si può cambiare. Il testo dice "fino a 4 giorni prima". Una prenotazione di un'altra campagna resta a 24 ore. |
+| 25 | Su una prenotazione di Natale 2026 fatta con le nuove condizioni, annulla dal link personale. | L'annullamento online è disponibile e mostra le condizioni con "4 giorni". |
 
 ## 3. Cosa guardare nei log durante le prove
 

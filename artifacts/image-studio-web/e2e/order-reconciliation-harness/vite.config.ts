@@ -13,6 +13,7 @@ const inert = [
   './booking/BookingPaymentPanel', './booking/BookingApprovalButton',
   './booking/BookingManagementLinkPanel', './booking/BookingCancellationAdminPanel',
   './booking/BookingPaymentCheckouts',
+  './booking/InPersonDepositDialog',
   '@/components/EditOrderModal', '@/components/ProductSelector',
   '@/components/NewGalleryModal', '@/components/ShareGalleryButton',
   '@/components/ManualBookingModal', '@/pages/GalleryManagementWorkspace',

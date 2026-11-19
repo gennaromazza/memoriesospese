@@ -1,6 +1,6 @@
 import type { DocumentData } from 'firebase-admin/firestore';
 import { bookingPaymentMillis } from '@shared/booking-payment-state';
-import { BOOKING_CONDITIONS_VERSION, BOOKING_CONDITIONS_TEXT } from '../../shared/booking-conditions.js';
+import { isKnownBookingConditions } from '../../shared/booking-conditions.js';
 export const CANCELLATION_JOBS = 'bookingCancellationJobs';
 export function bookingDepositCents(root: DocumentData) {
   const payment = root.depositPayment;
@@ -9,7 +9,7 @@ export function bookingDepositCents(root: DocumentData) {
 }
 export function cancellationView(root: DocumentData, now = Date.now()) {
   const saved = root.bookingConditions;
-  const known = saved?.version === BOOKING_CONDITIONS_VERSION && saved?.text === BOOKING_CONDITIONS_TEXT;
+  const known = isKnownBookingConditions(saved);
   const state = root.bookingCancellation?.status;
   let reason: string | null = null;
   if (state === 'complete' || root.stato === 'annullata') reason = 'La prenotazione è già annullata.';

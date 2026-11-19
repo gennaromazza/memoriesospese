@@ -4,6 +4,7 @@ import { useGetBookingManagementSlots, useRescheduleManagedBooking, type Booking
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { rescheduleNoticeFor } from '@shared/seasonal-vademecum';
 
 function message(error: unknown) {
   if (error && typeof error === 'object' && 'data' in error && error.data && typeof error.data === 'object'
@@ -50,7 +51,7 @@ export function BookingReschedulePanel({ booking, token, onUpdated, onRefresh }:
             : 'La data è aggiornata. Stiamo preparando la nuova conferma email.'}
       </p>}
     </> : !open ? <>
-      <p className="text-sm text-muted-foreground">Puoi cambiare una sola volta, nella stessa campagna, fino a 24 ore prima. L’acconto resta valido.</p>
+      <p className="text-sm text-muted-foreground">Puoi cambiare una sola volta, nella stessa campagna, fino a {rescheduleNoticeFor({ nome: booking.campaignName }).label} prima. L’acconto resta valido.</p>
       <Button data-testid="button-open-reschedule" variant="outline" onClick={() => setOpen(true)}>Scegli un nuovo appuntamento</Button>
     </> : <>
       <p className="text-sm">L’appuntamento attuale resta riservato finché il cambio non è confermato. Puoi usare questa possibilità una sola volta.</p>

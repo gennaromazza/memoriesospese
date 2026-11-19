@@ -4,6 +4,7 @@
  */
 
 import { pendingBookingNextStep } from "@/lib/booking-outcome-copy";
+import { canSubmitBooking, vademecumForCampaign } from "@shared/seasonal-vademecum";
 import { useState, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -13,7 +14,7 @@ import { getBundleGalleryPhotoCount } from "@/lib/bundle-photos";
 import { createBooking, getAvailableSlots, BookingRequestError, type BookingCreationResult } from "@/lib/bookings";
 import { GiftCardBookingBanner, useBookingGiftCard } from "@/components/gift-cards/GiftCardBookingBanner";
 import type { BookingCampaignFE, Product } from "@shared/booking-types";
-import { BOOKING_CONDITIONS_VERSION, BOOKING_CONDITIONS_TEXT } from '@shared/booking-conditions';
+import { bookingConditionsFor } from '@shared/booking-conditions';
 import {
   Card,
   CardContent,
@@ -99,6 +100,7 @@ export default function BookingPage() {
   const [checkoutInput, setCheckoutInput] = useState<BookingCheckoutHoldInput | null>(null);
   const [submissionError, setSubmissionError] = useState<{ message: string; conflict: boolean } | null>(null);
   const [privacyConsent, setPrivacyConsent] = useState(false);
+  const [vademecumConsent, setVademecumConsent] = useState(false);
 
   // Stati lightbox immagini
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -130,6 +132,11 @@ export default function BookingPage() {
     enabled: !!code,
   });
   const immediateDeposit = campaign?.richiedeAcconto === true && campaign.richiedeApprovazione === false;
+  // Campagne stagionali (es. Natale 2026): il cliente deve aver letto il vademecum prima di inviare.
+  const vademecum = vademecumForCampaign(campaign);
+  // Condizioni mostrate e inviate: quelle della campagna (Natale 2026: cambio appuntamento fino a 4 giorni prima).
+  const bookingConditions = bookingConditionsFor(campaign);
+  const canSubmit = canSubmitBooking({ privacyConsent, vademecumRequired: !!vademecum, vademecumConsent });
 
   // Query products
   const { data: products = [] } = useQuery<Product[]>({
@@ -346,7 +353,7 @@ export default function BookingPage() {
   // Validazione form
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (createBookingMutation.isPending || checkoutOpen || !campaign || !privacyConsent) return;
+    if (createBookingMutation.isPending || checkoutOpen || !campaign || !canSubmit) return;
 
     if (!formData.nome.trim() || !formData.cognome.trim()) {
       toast({
@@ -413,7 +420,7 @@ export default function BookingPage() {
         return;
       }
       setCheckoutInput({
-        bookingConditionsVersion: BOOKING_CONDITIONS_VERSION,
+        bookingConditionsVersion: bookingConditions.version,
         campaignId: campaign.id, cliente: { nome: formData.nome.trim(), cognome: formData.cognome.trim(),
           email: formData.email.trim(), whatsapp: formData.whatsapp.trim() },
         dataShootingInizio: new Date(selectedSlot.start).toISOString(),
@@ -428,7 +435,7 @@ export default function BookingPage() {
       date: new Date(selectedDate),
       slot: { ...selectedSlot },
       payload: {
-        bookingConditionsVersion: BOOKING_CONDITIONS_VERSION,
+        bookingConditionsVersion: bookingConditions.version,
         campaignId: campaign.id,
         cliente: { nome: formData.nome, cognome: formData.cognome, email: formData.email, whatsapp: formData.whatsapp },
         dataShootingInizio: new Date(selectedSlot.start),
@@ -1423,9 +1430,38 @@ export default function BookingPage() {
                       </div>
                     </div>
 
+                    {vademecum && (
+                      <div className="flex items-start space-x-3 rounded-lg border p-4" data-testid="vademecum-consent-block">
+                        <Checkbox
+                          id="vademecum-consent"
+                          checked={vademecumConsent}
+                          onCheckedChange={(checked) => setVademecumConsent(!!checked)}
+                          data-testid="checkbox-vademecum-consent"
+                        />
+                        <div className="grid gap-1.5 leading-none">
+                          <label htmlFor="vademecum-consent" className="cursor-pointer text-sm font-medium leading-snug">
+                            Ho letto il{" "}
+                            <Link
+                              href={createUrl(vademecum.path)}
+                              className="text-primary underline"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              data-testid="link-vademecum"
+                            >
+                              vademecum di Natale
+                            </Link>{" "}
+                            e ne accetto le indicazioni *
+                          </label>
+                          <p className="text-xs text-muted-foreground">
+                            Persone, animali, cambio d’abito, spostamento dell’appuntamento, puntualità e durata dello shooting.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="rounded-lg border p-4 text-sm" data-testid="booking-conditions">
                       <strong>Gestione dell’appuntamento e dell’acconto</strong>
-                      <p className="mt-2">{BOOKING_CONDITIONS_TEXT}</p>
+                      <p className="mt-2">{bookingConditions.text}</p>
                     </div>
                     <BookingDepositNotice
                       enabled={campaign.richiedeAcconto}
@@ -1437,7 +1473,7 @@ export default function BookingPage() {
                       type="submit"
                       className="w-full"
                       size="lg"
-                      disabled={createBookingMutation.isPending || !privacyConsent}
+                      disabled={createBookingMutation.isPending || !canSubmit}
                       data-testid="button-submit-booking"
                     >
                       {createBookingMutation.isPending ? (

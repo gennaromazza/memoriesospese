@@ -54,7 +54,7 @@ export async function createCheckoutHold(db: Firestore, input: BookingCheckoutHo
   const ref = db.collection(CHECKOUT_HOLDS).doc(bookingId);
   const token = randomBytes(32).toString('hex');
   const draft = {
-    bookingConditions: bookingConditionsSnapshot(input.bookingConditionsVersion),
+    bookingConditions: bookingConditionsSnapshot(input.bookingConditionsVersion, campaign),
     cliente: { ...input.cliente, nome: input.cliente.nome.trim(), cognome: input.cliente.cognome.trim(),
       email: input.cliente.email.trim().toLowerCase(), whatsapp: input.cliente.whatsapp.trim() },
     prodottoId: input.prodottoId || null, prodottoNome: productName, note: input.note || '',

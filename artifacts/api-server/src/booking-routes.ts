@@ -737,7 +737,7 @@ router.post("/create", requireAdminForManualBooking, async (req, res) => {
 
     const bookingData: any = {
       campaignId,
-      bookingConditions: bookingConditionsSnapshot(req.body.bookingConditionsVersion),
+      bookingConditions: bookingConditionsSnapshot(req.body.bookingConditionsVersion, campaign),
       cliente: {
         nome: cliente.nome.trim(),
         cognome: cliente.cognome.trim(),
