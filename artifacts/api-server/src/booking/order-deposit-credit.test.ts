@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { Timestamp } from 'firebase-admin/firestore';
 import { describe, expect, it } from 'vitest';
 import { orderDepositFixture as fixture } from './test-helpers/order-deposit-fixture.js';
-import { BOOKING_DEPOSIT_SOURCE, reconcileOrderBookingDeposit } from './order-deposit-credit.js';
+import { BOOKING_DEPOSIT_SOURCE, reconcileOrderBookingDeposit, reconcileOrderBookingDepositsBatch } from './order-deposit-credit.js';
 
 describe('acconto prenotazione nell’ordine prodotti', () => {
   it('mostra 5 euro pagati e 15 residui senza creare un secondo incasso', async () => {
@@ -87,5 +87,42 @@ describe('acconto prenotazione nell’ordine prodotti', () => {
       const store = fixture(extra);
       expect(await reconcileOrderBookingDeposit(store.db, 'order')).toBe(false);
     }
+  });
+
+  describe('riconciliazione a gruppi', () => {
+    function twoOrders() {
+      const store = fixture();
+      // Seconda prenotazione con ricevuta mancante: deve fallire da sola.
+      store.seed('orders/broken', { bookingId: 'booking-broken', totale: 10, acconto: 0, saldo: 10, transactions: [] });
+      store.seed('bookings/booking-broken', {
+        depositPayment: { provider: 'paypal', status: 'paid', currency: 'EUR', amountCents: 300,
+          paypalCaptureId: 'MISSING', paypalOrderId: 'PO', paidAt: Timestamp.fromMillis(1) },
+      });
+      return store;
+    }
+
+    it('un ordine anomalo non blocca gli altri del gruppo', async () => {
+      const store = twoOrders();
+      const result = await reconcileOrderBookingDepositsBatch(store.db, ['broken', 'order']);
+      expect(result.updated).toBe(1);
+      expect(result.failed).toEqual([{ id: 'broken', error: expect.stringContaining('Ricevuta') }]);
+      expect(store.value('orders/order')).toMatchObject({ acconto: 5, saldo: 15 });
+      expect(store.value('orders/broken').acconto).toBe(0);
+    });
+
+    it('elabora ogni identificativo una sola volta e rispetta il limite di concorrenza', async () => {
+      const store = fixture();
+      let running = 0;
+      let peak = 0;
+      const original = store.db.runTransaction.bind(store.db);
+      (store.db as any).runTransaction = async (fn: any) => {
+        running++; peak = Math.max(peak, running);
+        try { return await original(fn); } finally { running--; }
+      };
+      const ids = ['order', 'order', ...Array.from({ length: 9 }, (_, n) => `none-${n}`)];
+      const result = await reconcileOrderBookingDepositsBatch(store.db, ids, 3);
+      expect(result).toEqual({ updated: 1, failed: [] });
+      expect(peak).toBeLessThanOrEqual(3);
+    });
   });
 });

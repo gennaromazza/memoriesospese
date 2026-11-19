@@ -9,7 +9,7 @@ import { db, FieldValue } from './firebase-admin.js';
 import { nowRomeDate, toRomeDateTime } from './utils/timezone.js';
 import { normalizeEmail } from './utils/normalize.js';
 import { recomputeJobTransactionCount } from './job-aggregates.js';
-import { BOOKING_DEPOSIT_SOURCE, reconcileOrderBookingDeposit } from './booking/order-deposit-credit.js';
+import { BOOKING_DEPOSIT_SOURCE, reconcileOrderBookingDeposit, reconcileOrderBookingDepositsBatch } from './booking/order-deposit-credit.js';
 import {
   expandOrderProductsToRequirements as expandOrderSnapshotToRequirements,
   getRequiredGalleryPhotoCount,
@@ -26,9 +26,13 @@ router.post('/reconcile-booking-deposits', authenticateFirebase, async (req: any
     return res.status(400).json({ error: 'Elenco ordini non valido' });
   }
   try {
-    let updated = 0;
-    for (const id of new Set<string>(ids)) if (await reconcileOrderBookingDeposit(db, id)) updated++;
-    return res.json({ updated });
+    const { updated, failed } = await reconcileOrderBookingDepositsBatch(db, ids);
+    // Tutti falliti: stesso contratto di prima (409). Falliti solo alcuni: 200 con l'elenco,
+    // così un solo ordine anomalo non blocca la verifica degli altri.
+    if (failed.length > 0 && failed.length === new Set<string>(ids).size) {
+      return res.status(409).json({ error: failed[0].error });
+    }
+    return res.json(failed.length > 0 ? { updated, failed: failed.map(f => f.id) } : { updated });
   } catch (error: any) {
     return res.status(409).json({ error: error.message || 'Acconto da riconciliare' });
   }

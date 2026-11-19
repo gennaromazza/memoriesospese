@@ -2,7 +2,9 @@ import { Timestamp } from './firestore';
 
 const forbidden = async () => { throw new Error('Provider disabilitato nel test'); };
 const empty = async () => [];
+// Acconto PayPal già incassato sulla prenotazione: l'ordine va verificato (copiato) in background.
 const booking = { id: 'booking', campaignId: 'campaign', stato: 'confermata', isViewed: true,
+  depositPayment: { provider: 'paypal', status: 'paid', currency: 'EUR', amountCents: 500, paypalCaptureId: 'CAPTURE' },
   cliente: { nome: 'Cliente', cognome: 'Fittizio', email: 'cliente@example.test', whatsapp: '' },
   dataShootingInizio: Timestamp.fromDate(new Date('2030-12-01T10:00:00Z')),
   dataShootingFine: Timestamp.fromDate(new Date('2030-12-01T10:30:00Z')),

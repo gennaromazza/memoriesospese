@@ -923,6 +923,8 @@ router.patch(
       console.log(`[POST /v2/approve] 📅 Created Google Calendar event ${eventId}`);
 
       // Step 8: Update Firestore with compensating transaction (rollback Calendar on error)
+      const { confirmConsultationReservation, ConsultationNotPendingError } = await import('./booking/consultation-reservation.js');
+      const { BookingSlotConflictError } = await import('./booking/slot-reservations.js');
       try {
         const consultationUpdates: any = {
           stato: "confermata",
@@ -939,10 +941,27 @@ router.patch(
         consultationUpdates.confermatail = FieldValue.serverTimestamp();
 
         console.log(`[POST /v2/approve] 📝 Updating Firestore status to 'confermata' for consultation ${id}`);
-        await db.collection("consultations").doc(id).update(consultationUpdates);
+        // Stessa transazione e stesse guardie giornaliere delle prenotazioni: una prenotazione
+        // pubblica concorrente (o in attesa di pagamento) non puo' coesistere con questa conferma.
+        await confirmConsultationReservation(db, id, startDateTime, endDateTime, consultationUpdates);
 
         console.log(`[POST /v2/approve] ✅ Updated Firestore consultation ${id}`);
       } catch (updateError: any) {
+        const slotTaken = updateError instanceof BookingSlotConflictError;
+        if (slotTaken || updateError instanceof ConsultationNotPendingError) {
+          // La consulenza non e' stata modificata: basta togliere l'evento appena creato.
+          try {
+            if (eventId) await deleteEvent("primary", eventId);
+          } catch (cleanupError: any) {
+            console.error("[POST /v2/approve] ❌ CRITICAL: evento Calendar da rimuovere a mano", eventId, cleanupError.message);
+          }
+          return slotTaken
+            ? res.status(409).json({
+                error: "Slot non più disponibile",
+                message: "Attenzione: nel frattempo lo slot è stato occupato da un'altra prenotazione. Impossibile approvare.",
+              })
+            : res.status(409).json({ error: "Consultation già processata" });
+        }
         console.error("[POST /v2/approve] ❌ Error updating Firestore, executing rollback:", updateError.message);
         
         try {

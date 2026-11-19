@@ -8,6 +8,7 @@ const h = vi.hoisted(() => ({
   events: [] as any[],
   createEventError: null as Error | null,
   firestoreError: null as Error | null,
+  reservationError: null as Error | null,
   emailError: null as Error | null,
   updateEventError: null as Error | null,
   updateEventErrors: [] as Array<Error | null>,
@@ -79,6 +80,17 @@ vi.mock("./google-calendar.js", () => ({
   getEventsWithDetailsAllCalendars: async () => [],
 }));
 
+// La conferma Firestore passa da una transazione condivisa con le prenotazioni (testata a parte in
+// booking/consultation-reservation.test.ts): qui si simula solo il suo esito.
+vi.mock("./booking/consultation-reservation.js", () => ({
+  ConsultationNotPendingError: class ConsultationNotPendingError extends Error {},
+  confirmConsultationReservation: async (_db: unknown, _id: string, _s: Date, _e: Date, updates: any) => {
+    if (h.reservationError) throw h.reservationError;
+    if (h.firestoreError) throw h.firestoreError;
+    h.updates.push(updates);
+  },
+}));
+
 vi.mock("./consultations/calendar-adapter.js", () => ({
   consultationTemplateToAvailabilityConfig: () => ({}),
   validateConsultationTemplate: () => true,
@@ -120,6 +132,7 @@ beforeEach(() => {
   h.events = [];
   h.createEventError = null;
   h.firestoreError = null;
+  h.reservationError = null;
   h.emailError = null;
   h.updateEventError = null;
   h.updateEventErrors = [];
@@ -184,6 +197,25 @@ describe("PATCH /api/consultations/v2/:id/approve", () => {
     h.firestoreError = new Error("Firestore non disponibile");
     const { status } = await approve();
     expect(status).toBe(500);
+    expect(h.deletedEventIds).toEqual(["calendar-event-1"]);
+  });
+
+  it("se nel frattempo lo slot viene occupato rimuove l'evento Calendar e risponde 409", async () => {
+    const { BookingSlotConflictError } = await import("./booking/slot-reservations.js");
+    h.reservationError = new BookingSlotConflictError("Slot non più disponibile");
+    const { status, body } = await approve();
+    expect(status).toBe(409);
+    expect(body.error).toBe("Slot non più disponibile");
+    expect(h.deletedEventIds).toEqual(["calendar-event-1"]);
+    expect(h.updates).toHaveLength(0);
+  });
+
+  it("se la consulenza è già stata approvata da un'altra richiesta rimuove l'evento duplicato", async () => {
+    const { ConsultationNotPendingError } = await import("./booking/consultation-reservation.js");
+    h.reservationError = new ConsultationNotPendingError();
+    const { status, body } = await approve();
+    expect(status).toBe(409);
+    expect(body.error).toBe("Consultation già processata");
     expect(h.deletedEventIds).toEqual(["calendar-event-1"]);
   });
 

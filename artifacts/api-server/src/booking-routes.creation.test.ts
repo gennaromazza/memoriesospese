@@ -11,6 +11,7 @@ const h = vi.hoisted(() => ({
   sequence: 0,
   available: [] as any[],
   events: vi.fn(),
+  googleBusy: [] as Array<{ start: Date; end: Date }>,
   slots: vi.fn(),
   createEvent: vi.fn(),
   deleteEvent: vi.fn(),
@@ -105,7 +106,9 @@ vi.mock('./booking/calendar-adapter.js', () => ({
   getAllExistingBookingEvents: h.events,
 }));
 vi.mock('./calendar-engine/index.js', () => ({ getAvailableSlotsForDate: h.slots }));
-vi.mock('./lib/logger.js', () => ({ logger: { error: vi.fn() } }));
+// Ricontrollo di Google subito prima di creare l'evento (confirmPublicBooking).
+vi.mock('./calendar-engine/google-sync.js', () => ({ checkGoogleCalendarBusyPeriods: async () => h.googleBusy }));
+vi.mock('./lib/logger.js', () => ({ logger: { error: vi.fn(), warn: vi.fn() } }));
 vi.mock('./gift-cards/service.js', () => ({
   GiftCardHttpError: class extends Error {},
   GiftCardService: class {
@@ -154,6 +157,7 @@ beforeEach(() => {
     orarioChiusura: '19:00', durataShootingMinuti: 30, prodottiDisponibili: [],
   };
   h.events.mockResolvedValue([]);
+  h.googleBusy = [];
   h.available = [{ start, end }];
   h.slots.mockImplementation(async () => h.available);
   h.createEvent.mockImplementation(async () => { h.trace.push('calendar'); return { id: 'event-test' }; });
@@ -288,6 +292,18 @@ describe('creazione pubblica senza acconto', () => {
     expect((await request()).status).toBe(503);
     expect(firstBooking()).toMatchObject({ stato: 'in_attesa', automaticConfirmationError: true, emailConfermataInviata: false });
     expect(h.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it('se un impegno Google compare dopo la riserva non crea l’evento, libera lo slot e risponde 409', async () => {
+    h.campaign.richiedeApprovazione = false;
+    h.googleBusy = [{ start: new Date(start.getTime() + 15 * 60_000), end: new Date(end.getTime() + 15 * 60_000) }];
+    const response = await request({ giftCardCode: 'GIFT-TEST' });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: 'AUTOMATIC_CONFIRMATION_FAILED' });
+    expect(h.createEvent).not.toHaveBeenCalled();
+    expect(h.bookings.size).toBe(0);
+    expect(h.sendEmail).not.toHaveBeenCalled();
+    expect(h.releaseGift).toHaveBeenCalledWith('GIFT-TEST');
   });
 
   it('se Calendar non è leggibile risponde 503 senza salvare né inviare email', async () => {

@@ -4,9 +4,11 @@ import type { CalendarEvent } from '../../shared/calendar-types.js';
 import { unpaidDepositRequestExpired } from './payment-deadlines.js';
 import { RESCHEDULE_JOBS, rescheduleBlocksSlot } from './reschedule-policy.js';
 import { CANCELLATION_JOBS } from './cancellation-policy.js';
+import { createConsultationDateTime } from '../services/consultation-datetime.js';
 const cancellationBlocksSlot = (data: FirebaseFirestore.DocumentData) => ['pending', 'working', 'blocked'].includes(data.status);
 
 export const CHECKOUT_HOLDS = 'bookingCheckoutHolds';
+const CONSULTATIONS = 'consultations';
 export class BookingSlotConflictError extends Error {}
 
 export function checkoutHoldBlocksSlot(hold: FirebaseFirestore.DocumentData, now = Date.now()): boolean {
@@ -57,16 +59,30 @@ export async function loadCheckoutHoldEvents(
   })];
 }
 
+/** Intervallo orario di una consulenza (data + orari locali Europe/Rome); null se i dati non sono validi. */
+function consultationInterval(data: FirebaseFirestore.DocumentData): { start: Date; end: Date } | null {
+  const date: Date | undefined = data.dataConsulenza?.toDate?.();
+  if (!date) return null;
+  const dateStr = DateTime.fromJSDate(date, { zone: 'Europe/Rome' }).toFormat('yyyy-MM-dd');
+  const from = createConsultationDateTime(dateStr, data.orarioInizio);
+  const to = createConsultationDateTime(dateStr, data.orarioFine);
+  return from.isValid && to.isValid ? { start: from.toJSDate(), end: to.toJSDate() } : null;
+}
+
 /**
  * All server reservations share day guards, including different campaigns.
  * A guard read protects an EMPTY query against concurrent phantom inserts.
  * Return the writes so callers can finish every transaction read first.
+ *
+ * Anche le consulenze CONFERMATE occupano lo slot (le approvazioni usano le stesse
+ * guardie, vedi consultation-reservation.ts); `includeConsultations: false` le ignora.
  */
 export async function checkSlotReservation(
   transaction: Transaction, db: Firestore, start: Date, end: Date,
   excludeCheckoutHoldId?: string,
   excludeBookingId?: string,
   excludeRescheduleBookingId?: string,
+  options: { includeConsultations?: boolean } = {},
 ): Promise<() => void> {
   let day = DateTime.fromJSDate(start, { zone: 'Europe/Rome' }).startOf('day');
   const last = DateTime.fromJSDate(new Date(end.getTime() - 1), { zone: 'Europe/Rome' }).startOf('day');
@@ -79,6 +95,12 @@ export async function checkSlotReservation(
   const query = (collection: string) => db.collection(collection)
     .where('dataShootingInizio', '>=', Timestamp.fromDate(searchStart(start)))
     .where('dataShootingInizio', '<=', Timestamp.fromDate(end));
+  const includeConsultations = options.includeConsultations ?? true;
+  const consultations = includeConsultations
+    ? await transaction.get(db.collection(CONSULTATIONS).where('stato', '==', 'confermata')
+      .where('dataConsulenza', '>=', Timestamp.fromDate(searchStart(start)))
+      .where('dataConsulenza', '<=', Timestamp.fromDate(end)))
+    : null;
   const snapshots = await Promise.all([
     transaction.get(query('bookings').where('stato', '==', 'in_attesa')),
     transaction.get(query('bookings').where('stato', '==', 'confermata')),
@@ -98,7 +120,11 @@ export async function checkSlotReservation(
     if (index < 2 && unpaidDepositRequestExpired(data, now)) return false;
     return start < data.dataShootingFine.toDate() && end > data.dataShootingInizio.toDate();
   }));
-  if (occupied) throw new BookingSlotConflictError('Slot non più disponibile');
+  const consultationOccupied = !!consultations?.docs.some(doc => {
+    const interval = consultationInterval(doc.data());
+    return !!interval && start < interval.end && end > interval.start;
+  });
+  if (occupied || consultationOccupied) throw new BookingSlotConflictError('Slot non più disponibile');
   return () => refs.forEach((ref, index) => {
     transaction.set(ref, { version: (guards[index].data()?.version ?? 0) + 1 });
   });

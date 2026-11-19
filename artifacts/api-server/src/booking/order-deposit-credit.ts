@@ -55,3 +55,32 @@ export async function reconcileOrderBookingDeposit(db: Firestore, orderId: strin
     return true;
   });
 }
+
+export interface DepositBatchResult {
+  updated: number;
+  failed: Array<{ id: string; error: string }>;
+}
+
+/**
+ * Riconcilia più ordini con concorrenza limitata. Un ordine anomalo (ricevuta mancante,
+ * più ordini sulla stessa prenotazione…) finisce in `failed` senza bloccare gli altri.
+ */
+export async function reconcileOrderBookingDepositsBatch(
+  db: Firestore,
+  orderIds: Iterable<string>,
+  concurrency = 5,
+): Promise<DepositBatchResult> {
+  const queue = [...new Set(orderIds)];
+  const result: DepositBatchResult = { updated: 0, failed: [] };
+  const worker = async () => {
+    for (let id = queue.shift(); id !== undefined; id = queue.shift()) {
+      try {
+        if (await reconcileOrderBookingDeposit(db, id)) result.updated++;
+      } catch (error: any) {
+        result.failed.push({ id, error: error?.message || 'Acconto da riconciliare' });
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(concurrency, queue.length)) }, worker));
+  return result;
+}

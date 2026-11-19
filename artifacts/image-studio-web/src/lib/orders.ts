@@ -36,10 +36,80 @@ async function reconcileBookingDeposits(docs: Array<{ id: string; data(): any }>
     if (!result || !Number.isSafeInteger(result.updated) || result.updated < 0 || result.updated > orderIds.length) {
       throw new Error("Verifica degli acconti non disponibile: risposta del server non valida.");
     }
+    // Risposta parziale: il server ha verificato gli altri ordini ma non questi.
+    if (Array.isArray(result.failed) && result.failed.length > 0) {
+      throw new Error("Acconti non verificabili per alcuni ordini: controlla il pagamento della prenotazione.");
+    }
   }
   // Another reader can reconcile after our initial snapshot and before our POST.
   // updated: 0 only means this request did not write, not that the snapshot is fresh.
   return ids.length > 0;
+}
+
+const DEPOSIT_SOURCE = "booking_paypal_deposit";
+const RECONCILE_CHUNK = 50;
+const RECONCILE_TIMEOUT_MS = 20_000;
+
+export interface DepositCheckBooking {
+  id?: string;
+  depositPayment?: { provider?: string; status?: string; amountCents?: number; paypalCaptureId?: string } | null;
+  bookingRefund?: { status?: string } | null;
+}
+
+/**
+ * Ordini il cui acconto PayPal (già incassato sulla prenotazione) non risulta ancora copiato
+ * nell'ordine. Sono gli unici da inviare al server: tutti gli altri sono già a posto e non
+ * richiedono né chiamate né una seconda lettura. Il server resta l'autorità finale.
+ */
+export function findOrdersNeedingDepositReconciliation(
+  orders: Array<Pick<Order, "id" | "bookingId" | "transactions"> & { orderType?: string }>,
+  bookings: DepositCheckBooking[],
+): string[] {
+  const byId = new Map(bookings.map((booking) => [booking.id, booking]));
+  const result: string[] = [];
+  for (const order of orders) {
+    if (!order.bookingId || isManagedOrderType(order.orderType)) continue;
+    const booking = byId.get(order.bookingId);
+    const payment = booking?.depositPayment;
+    if (payment?.provider !== "paypal" || payment.status !== "paid" || !payment.paypalCaptureId
+      || !Number.isSafeInteger(payment.amountCents) || (payment.amountCents as number) <= 0) continue;
+    const expected = booking?.bookingRefund?.status === "completed" ? 0 : (payment.amountCents as number) / 100;
+    const lines = ((order.transactions ?? []) as any[]).filter(
+      (line) => line?.source === DEPOSIT_SOURCE && line?.providerTransactionId === payment.paypalCaptureId,
+    );
+    if (lines.length !== 1 || lines[0].importo !== expected) result.push(order.id);
+  }
+  return result;
+}
+
+/**
+ * Verifica gli acconti di un gruppo di ordini senza mai lanciare: un gruppo scaduto
+ * (timeout) o in errore segna i suoi ordini come `failedIds`, gli altri proseguono.
+ */
+export async function reconcileBookingDepositsForOrders(
+  orderIds: string[],
+  timeoutMs: number = RECONCILE_TIMEOUT_MS,
+): Promise<{ updated: number; failedIds: string[] }> {
+  let updated = 0;
+  const failedIds: string[] = [];
+  for (let offset = 0; offset < orderIds.length; offset += RECONCILE_CHUNK) {
+    const chunk = orderIds.slice(offset, offset + RECONCILE_CHUNK);
+    try {
+      const response = await apiRequest(
+        "POST", "/api/orders/reconcile-booking-deposits", { orderIds: chunk },
+        { signal: AbortSignal.timeout(timeoutMs) },
+      );
+      const result = await response.json();
+      if (!result || !Number.isSafeInteger(result.updated) || result.updated < 0 || result.updated > chunk.length) {
+        throw new Error("risposta del server non valida");
+      }
+      updated += result.updated;
+      if (Array.isArray(result.failed)) failedIds.push(...chunk.filter((id) => result.failed.includes(id)));
+    } catch {
+      failedIds.push(...chunk);
+    }
+  }
+  return { updated, failedIds };
 }
 
 /**
@@ -157,6 +227,18 @@ function ensureProdottiArray(orderData: any): any {
   }
 
   return result;
+}
+
+/**
+ * Lettura veloce degli ordini (una sola query, nessuna chiamata al server).
+ * Per la schermata Prenotazioni: la verifica degli acconti avviene a parte e solo
+ * per gli ordini che ne hanno bisogno (vedi findOrdersNeedingDepositReconciliation).
+ */
+export async function getAllOrdersUnreconciled(): Promise<Order[]> {
+  const snapshot = await getDocs(query(collection(db, COLLECTION), orderBy("createdAt", "desc")));
+  return snapshot.docs
+    .filter((orderDoc) => !isManagedOrderType(orderDoc.data().orderType))
+    .map((orderDoc) => ({ id: orderDoc.id, ...ensureProdottiArray(orderDoc.data()) })) as Order[];
 }
 
 /**

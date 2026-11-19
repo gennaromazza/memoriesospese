@@ -3,6 +3,8 @@ import { createEvent, deleteEvent } from '../google-calendar.js';
 import { syncBookingWorkflowState } from '../../shared/workflow-helpers.js';
 import { logger } from '../lib/logger.js';
 import { checkSlotReservation } from './slot-reservations.js';
+import { checkGoogleCalendarBusyPeriods } from '../calendar-engine/google-sync.js';
+import { hasConflict } from '../calendar-engine/conflicts.js';
 export { BookingSlotConflictError } from './slot-reservations.js';
 
 /** Rechecks Firestore inside the write transaction, including other campaigns. */
@@ -22,8 +24,9 @@ export async function reservePublicBooking(
 }
 
 export class AutomaticConfirmationError extends Error {
-  constructor(readonly status: number, readonly bookingRetained: boolean) {
-    super('Impossibile completare la conferma automatica. Contatta lo studio prima di riprovare.');
+  constructor(readonly status: number, readonly bookingRetained: boolean,
+    message = 'Impossibile completare la conferma automatica. Contatta lo studio prima di riprovare.') {
+    super(message);
   }
 }
 
@@ -34,6 +37,29 @@ export async function confirmPublicBooking(
   start: Date,
   end: Date,
 ): Promise<void> {
+  // Ricontrollo di Google subito prima di creare l'evento: la disponibilita' e' stata letta prima
+  // della riserva e un impegno inserito nel frattempo non deve diventare una sovrapposizione.
+  // Nessun evento e' stato ancora creato, quindi in caso di problemi basta liberare la riserva.
+  const releaseReservation = async (status: number, message?: string): Promise<never> => {
+    let retained = false;
+    try { await ref.delete(); } catch {
+      retained = true;
+      logger.error({ bookingId: ref.id }, 'Riserva da riconciliare dopo ricontrollo Calendar');
+    }
+    throw new AutomaticConfirmationError(status, retained, message);
+  };
+  let busy: Awaited<ReturnType<typeof checkGoogleCalendarBusyPeriods>>;
+  try {
+    busy = await checkGoogleCalendarBusyPeriods(start, end);
+  } catch {
+    logger.error({ bookingId: ref.id }, 'Google Calendar non leggibile prima della conferma automatica');
+    return releaseReservation(503);
+  }
+  if (hasConflict(start, end, busy)) {
+    logger.warn({ bookingId: ref.id }, 'Impegno Google comparso prima della conferma: slot non più disponibile');
+    return releaseReservation(409, 'Slot non più disponibile. Scegli un altro orario.');
+  }
+
   let eventId: string | null = null;
   let calendarCreated = false;
   try {

@@ -131,6 +131,24 @@ function normalizeToDateRome(input: any): Date {
 }
 
 /**
+ * FAIL-CLOSED (ago 2026): mai ritornare [] / "libero" su errore — con il calendario
+ * illeggibile tutti gli slot risulterebbero liberi e si accetterebbero prenotazioni
+ * sopra impegni reali. Meglio bloccare la disponibilità.
+ * Avvisa l'admin (throttled, fire-and-forget) e restituisce l'errore CALENDAR_UNAVAILABLE.
+ */
+async function toCalendarUnavailable(error: any): Promise<Error> {
+  try {
+    const { notifyCalendarUnavailable } = await import("../system-alerts.js");
+    notifyCalendarUnavailable(`Lettura eventi Google Calendar fallita: ${error.message}`);
+  } catch {}
+  const err: any = new Error(
+    "CALENDAR_UNAVAILABLE: impossibile leggere Google Calendar (" + error.message + ")",
+  );
+  err.code = "CALENDAR_UNAVAILABLE";
+  return err;
+}
+
+/**
  * Check all Google Calendar busy periods WITH GHOST EVENT FILTERING
  * Uses enhanced getEventsWithDetailsAllCalendars to filter:
  * - Cancelled events (status: "cancelled")
@@ -207,19 +225,7 @@ export async function checkGoogleCalendarBusyPeriods(
       error.message,
     );
     console.error("[Calendar Engine V2] Stack:", error.stack);
-    // FAIL-CLOSED (ago 2026): mai ritornare [] su errore — con il calendario
-    // illeggibile tutti gli slot risulterebbero liberi e si accetterebbero
-    // prenotazioni sopra impegni reali. Meglio bloccare la disponibilità.
-    // Avvisa l'admin (throttled, fire-and-forget)
-    try {
-      const { notifyCalendarUnavailable } = await import("../system-alerts.js");
-      notifyCalendarUnavailable(`Lettura eventi Google Calendar fallita: ${error.message}`);
-    } catch {}
-    const err: any = new Error(
-      "CALENDAR_UNAVAILABLE: impossibile leggere Google Calendar (" + error.message + ")",
-    );
-    err.code = "CALENDAR_UNAVAILABLE";
-    throw err;
+    throw await toCalendarUnavailable(error);
   }
 }
 
@@ -297,7 +303,7 @@ export async function hasAllDayEvent(date: Date): Promise<boolean> {
       "[Calendar Engine V2] ⚠️ Error checking all-day events:",
       error.message,
     );
-    return false; // Don't block slots on error
+    throw await toCalendarUnavailable(error);
   }
 }
 

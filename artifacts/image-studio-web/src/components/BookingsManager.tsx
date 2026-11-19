@@ -9,6 +9,7 @@ import { BookingCancellationAdminPanel } from './booking/BookingCancellationAdmi
 import { requiresBookingCancellationPanel } from '@/lib/booking-deletion';
 import { BookingPaymentCheckouts } from './booking/BookingPaymentCheckouts';
 import { useLiveBookings } from './booking/useLiveBookings';
+import { useBookingDepositVerification } from './booking/useBookingDepositVerification';
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -39,7 +40,7 @@ import {
 import { getAllCampaigns } from "@/lib/booking-campaigns";
 import { getClienteByEmail } from "@/lib/clienti";
 import {
-  getAllOrders,
+  getAllOrdersUnreconciled,
   getOrderById,
   createOrder,
   addAccontoPayment,
@@ -527,10 +528,22 @@ export default function BookingsManager({
   }, [pendingOrderBookingId, allBookings]);
 
   // Query ordini per lookup
+  // Lettura veloce (una query): la verifica degli acconti PayPal avviene in background,
+  // solo per gli ordini che ne hanno bisogno, e blocca importi/azioni di quegli ordini.
   const { data: allOrders = [], error: ordersError, isPending: ordersPending } = useQuery<Order[]>({
-    queryKey: ["orders"],
-    queryFn: getAllOrders,
+    queryKey: ["orders", "bookings-screen"],
+    queryFn: getAllOrdersUnreconciled,
     staleTime: 2 * 60 * 1000,
+  });
+  const {
+    lockedOrderIds,
+    failedCount: depositCheckFailedCount,
+    verifyingCount: depositCheckVerifyingCount,
+    retry: retryDepositCheck,
+  } = useBookingDepositVerification({
+    orders: allOrders,
+    bookings: allBookings,
+    ready: !isLoading && !ordersPending && !ordersError,
   });
 
   // Query prodotti attivi per dialog creazione ordine
@@ -1700,7 +1713,7 @@ export default function BookingsManager({
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Pagamenti degli ordini da verificare</AlertTitle>
           <AlertDescription>
-            Non è stato possibile verificare gli acconti. Gli importi e le azioni sugli ordini sono temporaneamente nascosti.
+            Non è stato possibile caricare gli ordini. Gli importi e le azioni sugli ordini sono temporaneamente nascosti.
             {" "}Non registrare nuovamente un acconto già versato.
             <Button variant="outline" size="sm" className="ml-2" onClick={() => queryClient.invalidateQueries({ queryKey: ["orders"] })}>
               Riprova
@@ -1710,11 +1723,31 @@ export default function BookingsManager({
     );
   }
   if (ordersPending) {
-    return <p role="status">Verifica dei pagamenti degli ordini…</p>;
+    return <p role="status">Caricamento di prenotazioni e ordini…</p>;
   }
 
   return (
     <div className="space-y-6 overflow-x-hidden">
+      {depositCheckFailedCount > 0 ? (
+        <Alert variant="destructive" role="alert">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Pagamenti degli ordini da verificare</AlertTitle>
+          <AlertDescription>
+            Non è stato possibile verificare gli acconti di {depositCheckFailedCount}{" "}
+            {depositCheckFailedCount === 1 ? "ordine" : "ordini"}: importi e azioni di
+            {depositCheckFailedCount === 1 ? " quell'ordine sono" : " quegli ordini sono"} temporaneamente nascosti.
+            {" "}Non registrare nuovamente un acconto già versato.
+            <Button variant="outline" size="sm" className="ml-2" onClick={retryDepositCheck}>
+              Riprova
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : depositCheckVerifyingCount > 0 ? (
+        <p role="status" className="text-sm text-gray-600">
+          Verifica degli acconti PayPal in corso per {depositCheckVerifyingCount}{" "}
+          {depositCheckVerifyingCount === 1 ? "ordine" : "ordini"}…
+        </p>
+      ) : null}
       {/* Contenuto Prenotazioni */}
       <>
         {/* Header e filtri */}
@@ -3016,6 +3049,17 @@ export default function BookingsManager({
                               expandedOrders[booking.id] &&
                               (() => {
                                 const order = getOrderByBookingId(booking.id)!;
+                                if (lockedOrderIds.has(order.id)) {
+                                  return (
+                                    <div
+                                      role="status"
+                                      className="mt-4 pt-4 border-t border-sage/30 rounded-lg p-4 text-sm text-gray-600"
+                                    >
+                                      Verifica dell’acconto PayPal in corso: importi e azioni di questo ordine
+                                      compariranno al termine. Non registrare nuovamente un acconto già versato.
+                                    </div>
+                                  );
+                                }
                                 const totals = getOrderTotals(order);
                                 const isPaidFull = totals.saldoResiduo === 0;
                                 const hasPartialPayment =
@@ -4255,6 +4299,7 @@ export default function BookingsManager({
               disabled={
                 accontoMutation.isPending ||
                 saldoMutation.isPending ||
+                lockedOrderIds.has(paymentDialog?.orderId ?? "") ||
                 (paymentDialog?.tipo === "acconto" &&
                   (!paymentAmount || parseFloat(paymentAmount) <= 0))
               }

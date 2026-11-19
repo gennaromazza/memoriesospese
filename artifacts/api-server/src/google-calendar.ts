@@ -236,27 +236,72 @@ export function resolveCalendarId(calendarId: string): string {
  */
 let calendarEnsured = false;
 
+/** Timeout per singola chiamata a Google Calendar (ms). */
+const CALENDAR_REQUEST_TIMEOUT_MS = 15_000;
+/** Attese tra i tentativi: 3 tentativi totali (300 ms, poi 900 ms). */
+const CALENDAR_RETRY_DELAYS_MS = [300, 900];
+
+const TRANSIENT_HTTP_STATUS = new Set([429, 500, 502, 503, 504]);
+const TRANSIENT_NETWORK_CODES = new Set([
+  'ECONNRESET', 'ETIMEDOUT', 'ECONNABORTED', 'ENOTFOUND', 'EAI_AGAIN', 'EPIPE', 'ECONNREFUSED',
+]);
+
+/**
+ * Errori che vale la pena ritentare: rate limit (429, ma Google usa anche 403 con
+ * reason rateLimitExceeded), errori 5xx e problemi di rete/timeout.
+ * 400/401/403 (permessi)/404 sono permanenti: ritentarli non serve.
+ */
+export function isTransientCalendarError(err: any): boolean {
+  const status = Number(err?.response?.status ?? err?.status ?? err?.code);
+  if (TRANSIENT_HTTP_STATUS.has(status)) return true;
+  if (status === 403) {
+    const reasons: unknown[] = [
+      ...(Array.isArray(err?.errors) ? err.errors : []),
+      ...(Array.isArray(err?.response?.data?.error?.errors) ? err.response.data.error.errors : []),
+    ].map((e: any) => e?.reason);
+    return reasons.some((r) => r === 'rateLimitExceeded' || r === 'userRateLimitExceeded');
+  }
+  return typeof err?.code === 'string' && TRANSIENT_NETWORK_CODES.has(err.code);
+}
+
+async function withCalendarRetry<T>(fn: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const delay = CALENDAR_RETRY_DELAYS_MS[attempt];
+      if (delay === undefined || !isTransientCalendarError(err)) throw err;
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+}
+
 /**
  * Assicura che il calendario configurato sia nella calendarList del Service Account.
  * Necessario perché calendari condivisi non appaiono automaticamente nella lista SA.
+ * Il flag viene alzato solo se il calendario risulta davvero presente: dopo un
+ * errore si riprova alla chiamata successiva invece di fidarsi di un esito fallito.
  */
 async function ensureCalendarInList(calendar: calendar_v3.Calendar) {
   if (calendarEnsured) return;
   const calendarId = process.env.GOOGLE_CALENDAR_ID;
   if (!calendarId || calendarId === 'primary') { calendarEnsured = true; return; }
   try {
-    await calendar.calendarList.get({ calendarId });
+    await withCalendarRetry(() => calendar.calendarList.get({ calendarId }, { timeout: CALENDAR_REQUEST_TIMEOUT_MS }));
+    calendarEnsured = true;
   } catch (err: any) {
     if (err.code === 404) {
       try {
-        await calendar.calendarList.insert({ requestBody: { id: calendarId } });
+        await calendar.calendarList.insert({ requestBody: { id: calendarId } }, { timeout: CALENDAR_REQUEST_TIMEOUT_MS });
         console.log(`✅ Calendario ${calendarId} aggiunto alla lista del Service Account`);
+        calendarEnsured = true;
       } catch (addErr: any) {
         console.error(`⚠️ Impossibile aggiungere calendario alla lista SA:`, addErr.message);
       }
+    } else {
+      console.error(`⚠️ Verifica calendario nella lista SA non riuscita:`, err.message);
     }
   }
-  calendarEnsured = true;
 }
 
 /**
@@ -265,7 +310,7 @@ async function ensureCalendarInList(calendar: calendar_v3.Calendar) {
 export async function listCalendars() {
   const calendar = await getGoogleCalendarClient();
   await ensureCalendarInList(calendar);
-  const response = await calendar.calendarList.list();
+  const response = await withCalendarRetry(() => calendar.calendarList.list({}, { timeout: CALENDAR_REQUEST_TIMEOUT_MS }));
   return response.data.items || [];
 }
 
@@ -486,27 +531,35 @@ export function classifyCalendarEvent(event: {
   return { include: true, isAllDay };
 }
 
+type CalendarEventDetail = {
+  start: string;
+  end: string;
+  calendarId?: string;
+  calendarName?: string;
+  eventId?: string;
+  summary?: string;
+  status?: string;
+  transparency?: string;
+  isAllDay?: boolean;
+};
+
+/**
+ * Legge gli eventi di TUTTI i calendari visibili al service account.
+ *
+ * FAIL-CLOSED (audit 19/11/2026): se un calendario non e' leggibile (dopo i retry sugli
+ * errori transitori) o la lista calendari e' vuota, lancia. Restituire un elenco
+ * parziale farebbe risultare liberi slot occupati e porterebbe a doppie prenotazioni.
+ * `options.strict` e' mantenuto solo per compatibilita': il comportamento e' sempre strict.
+ */
 export async function getEventsWithDetailsAllCalendars(
   timeMin: Date,
   timeMax: Date,
-  options?: { strict?: boolean },
-): Promise<
-  Array<{
-    start: string;
-    end: string;
-    calendarId?: string;
-    calendarName?: string;
-    eventId?: string;
-    summary?: string;
-    status?: string;
-    transparency?: string;
-    isAllDay?: boolean;
-  }>
-> {
+  _options?: { strict?: boolean },
+): Promise<CalendarEventDetail[]> {
   try {
     // Determina se siamo in produzione per ridurre logging
     const isProduction = process.env.NODE_ENV === 'production';
-    
+
     const calendar = await getGoogleCalendarClient();
 
     // 1. Recupera lista di tutti i calendari (include ensureCalendarInList)
@@ -516,57 +569,41 @@ export async function getEventsWithDetailsAllCalendars(
     const calendars = await listCalendars();
 
     if (!calendars || calendars.length === 0) {
-      if (options?.strict) throw new Error('Nessun calendario disponibile per verificare lo spostamento');
-      console.warn("[Google Calendar V2] ⚠️ Nessun calendario trovato");
-      return [];
+      throw new Error('Nessun calendario Google disponibile: impossibile verificare gli slot');
     }
 
     if (!isProduction) {
       console.log(`[Google Calendar V2] ✅ Trovati ${calendars.length} calendari`);
     }
 
-    // 2. Recupera eventi dettagliati da OGNI calendario
-    const allEvents: Array<{
-      start: string;
-      end: string;
-      calendarId?: string;
-      calendarName?: string;
-      eventId?: string;
-      summary?: string;
-      status?: string;
-      transparency?: string;
-      isAllDay?: boolean;
-    }> = [];
+    // 2. Recupera eventi dettagliati da OGNI calendario, in parallelo
+    const counters = { fetched: 0, cancelled: 0, transparent: 0, valid: 0 };
 
-    let totalFetched = 0;
-    let totalCancelled = 0;
-    let totalTransparent = 0;
-    let totalValid = 0;
+    const readCalendar = async (cal: calendar_v3.Schema$CalendarListEntry): Promise<CalendarEventDetail[]> => {
+      const found: CalendarEventDetail[] = [];
+      let pageToken: string | undefined = undefined;
+      let calendarEventCount = 0;
 
-    for (const cal of calendars) {
-      try {
-        let pageToken: string | undefined = undefined;
-        let calendarEventCount = 0;
-        
-        // Pagina attraverso TUTTI gli eventi del calendario
-        do {
-          const response: any = await calendar.events.list({
-            calendarId: cal.id!,
-            timeMin: timeMin.toISOString(),
-            timeMax: timeMax.toISOString(),
-            singleEvents: true, // Espande eventi ricorrenti
-            orderBy: 'startTime',
-            maxResults: 250, // Max items per page
-            pageToken: pageToken,
-          });
+      // Pagina attraverso TUTTI gli eventi del calendario
+      do {
+        const token: string | undefined = pageToken;
+        const response: any = await withCalendarRetry(() => calendar.events.list({
+          calendarId: cal.id!,
+          timeMin: timeMin.toISOString(),
+          timeMax: timeMax.toISOString(),
+          singleEvents: true, // Espande eventi ricorrenti
+          orderBy: 'startTime',
+          maxResults: 250, // Max items per page
+          pageToken: token,
+        }, { timeout: CALENDAR_REQUEST_TIMEOUT_MS }));
 
-          const events = response.data.items || [];
-          calendarEventCount += events.length;
-          totalFetched += events.length;
-          
-          pageToken = response.data.nextPageToken ?? undefined;
+        const events = response.data.items || [];
+        calendarEventCount += events.length;
+        counters.fetched += events.length;
 
-          for (const event of events) {
+        pageToken = response.data.nextPageToken ?? undefined;
+
+        for (const event of events) {
           const eventId = event.id || '';
           const summary = event.summary || 'Senza titolo';
           const status = event.status || '';
@@ -579,14 +616,12 @@ export async function getEventsWithDetailsAllCalendars(
 
           if (!classification.include) {
             if (classification.reason === 'cancelled') {
-              totalCancelled++;
-              // Log VERBOSE solo in desarrollo para diagnostica
+              counters.cancelled++;
               if (!isProduction) {
                 console.log(`[Google Calendar V2] 🚫 FILTRATO (cancelled): "${summary}" [${eventId}]`);
               }
             } else if (classification.reason === 'transparent') {
-              totalTransparent++;
-              // Log VERBOSE solo in desarrollo para diagnostica
+              counters.transparent++;
               if (!isProduction) {
                 console.log(`[Google Calendar V2] 👻 FILTRATO (transparent): "${summary}" [${eventId}]`);
               }
@@ -599,13 +634,12 @@ export async function getEventsWithDetailsAllCalendars(
           const end = event.end?.dateTime || event.end?.date;
 
           if (!start || !end) {
-            // Log WARNING solo se evento invalido
             console.warn(`[Google Calendar V2] ⚠️ Evento senza start/end: "${summary}" [${eventId}]`);
             continue;
           }
 
-          totalValid++;
-          allEvents.push({
+          counters.valid++;
+          found.push({
             start,
             end,
             calendarId: cal.id ?? undefined,
@@ -617,32 +651,33 @@ export async function getEventsWithDetailsAllCalendars(
             isAllDay,
           });
         }
-        } while (pageToken); // Continua finché ci sono altre pagine
-        
-        if (!isProduction) {
-          console.log(`[Google Calendar V2] 📅 Calendario "${cal.summary}": ${calendarEventCount} eventi trovati (paginati)`);
-        }
-        
-      } catch (calError: any) {
-        console.error(
-          `[Google Calendar V2] ❌ Errore recupero eventi calendario "${cal.summary}":`,
-          calError.message
-        );
-        // Continua con altri calendari
-        if (options?.strict) throw calError;
+      } while (pageToken); // Continua finché ci sono altre pagine
+
+      if (!isProduction) {
+        console.log(`[Google Calendar V2] 📅 Calendario "${cal.summary}": ${calendarEventCount} eventi trovati (paginati)`);
       }
+      return found;
+    };
+
+    const results = await Promise.allSettled(calendars.map(readCalendar));
+
+    const failures = results.flatMap((r, i) => r.status === 'rejected'
+      ? [`"${calendars[i].summary || calendars[i].id}": ${r.reason?.message || r.reason}`]
+      : []);
+    if (failures.length > 0) {
+      throw new Error(`Calendario Google non leggibile (${failures.join('; ')})`);
     }
 
     // Log riassuntivo solo in sviluppo
     if (!isProduction) {
       console.log(`[Google Calendar V2] 📊 SUMMARY:`);
-      console.log(`  Total fetched: ${totalFetched}`);
-      console.log(`  Filtered (cancelled): ${totalCancelled}`);
-      console.log(`  Filtered (transparent): ${totalTransparent}`);
-      console.log(`  Valid busy events: ${totalValid}`);
+      console.log(`  Total fetched: ${counters.fetched}`);
+      console.log(`  Filtered (cancelled): ${counters.cancelled}`);
+      console.log(`  Filtered (transparent): ${counters.transparent}`);
+      console.log(`  Valid busy events: ${counters.valid}`);
     }
 
-    return allEvents;
+    return results.flatMap((r) => (r as PromiseFulfilledResult<CalendarEventDetail[]>).value);
   } catch (error: any) {
     console.error(
       "[Google Calendar V2] ❌ Errore getEventsWithDetailsAllCalendars:",
