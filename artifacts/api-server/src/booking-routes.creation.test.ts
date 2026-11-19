@@ -12,6 +12,7 @@ const h = vi.hoisted(() => ({
   available: [] as any[],
   events: vi.fn(),
   googleBusy: [] as Array<{ start: Date; end: Date }>,
+  orphanAlert: vi.fn(),
   slots: vi.fn(),
   createEvent: vi.fn(),
   deleteEvent: vi.fn(),
@@ -108,6 +109,9 @@ vi.mock('./booking/calendar-adapter.js', () => ({
 vi.mock('./calendar-engine/index.js', () => ({ getAvailableSlotsForDate: h.slots }));
 // Ricontrollo di Google subito prima di creare l'evento (confirmPublicBooking).
 vi.mock('./calendar-engine/google-sync.js', () => ({ checkGoogleCalendarBusyPeriods: async () => h.googleBusy }));
+// Gli avvisi all'admin sono asincroni (import dinamico): senza questo mock l'email di avviso
+// "evento orfano" finirebbe nei contatori di sendEmail dei test successivi.
+vi.mock('./system-alerts.js', () => ({ notifyOrphanCalendarEvents: h.orphanAlert, notifyCalendarUnavailable: vi.fn() }));
 vi.mock('./lib/logger.js', () => ({ logger: { error: vi.fn(), warn: vi.fn() } }));
 vi.mock('./gift-cards/service.js', () => ({
   GiftCardHttpError: class extends Error {},
@@ -158,6 +162,7 @@ beforeEach(() => {
   };
   h.events.mockResolvedValue([]);
   h.googleBusy = [];
+  h.orphanAlert.mockReset();
   h.available = [{ start, end }];
   h.slots.mockImplementation(async () => h.available);
   h.createEvent.mockImplementation(async () => { h.trace.push('calendar'); return { id: 'event-test' }; });
@@ -332,6 +337,10 @@ describe('creazione pubblica senza acconto', () => {
     expect((await request()).status).toBe(500);
     expect(firstBooking()).toMatchObject({ stato: 'in_attesa', automaticConfirmationError: true, googleCalendarEventId: 'event-test' });
     expect(h.sendEmail).not.toHaveBeenCalled();
+    // L'evento che non si e' riusciti a rimuovere viene segnalato all'admin.
+    await vi.waitFor(() => expect(h.orphanAlert).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'event-test', kind: 'booking' }),
+    ]));
   });
 
   it('un errore email non annulla un evento già confermato e non imposta il flag di invio', async () => {
