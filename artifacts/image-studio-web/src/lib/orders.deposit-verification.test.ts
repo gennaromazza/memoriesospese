@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ getDocs: vi.fn(), getDoc: vi.fn(), apiRequest: vi.fn() }));
+const mocks = vi.hoisted(() => ({ getDocs: vi.fn(), getDoc: vi.fn(), apiRequest: vi.fn(), where: vi.fn(), orderBy: vi.fn() }));
 vi.mock('@/lib/firebase', () => ({ db: {} }));
 vi.mock('@/lib/queryClient', () => ({ apiRequest: mocks.apiRequest }));
 vi.mock('@/lib/jobs', () => ({ recomputeJobAggregates: vi.fn() }));
 vi.mock('firebase/firestore', () => ({
   getDocs: mocks.getDocs, getDoc: mocks.getDoc,
-  collection: vi.fn(), doc: vi.fn(), query: vi.fn(), where: vi.fn(), orderBy: vi.fn(),
+  collection: vi.fn(), doc: vi.fn(), query: vi.fn(), where: mocks.where, orderBy: mocks.orderBy,
   addDoc: vi.fn(), updateDoc: vi.fn(), deleteDoc: vi.fn(), Timestamp: { now: vi.fn() },
   serverTimestamp: vi.fn(), arrayRemove: vi.fn(), arrayUnion: vi.fn(),
 }));
@@ -27,7 +27,7 @@ const booking = (id: string, extra: Record<string, unknown> = {}) =>
   ({ id: `b-${id}`, depositPayment: paid(), ...extra }) as any;
 const snapshot = (id: string, data: unknown) => ({ id, exists: () => true, data: () => data });
 
-beforeEach(() => { mocks.getDocs.mockReset(); mocks.getDoc.mockReset(); mocks.apiRequest.mockReset(); });
+beforeEach(() => { mocks.getDocs.mockReset(); mocks.getDoc.mockReset(); mocks.apiRequest.mockReset(); mocks.where.mockClear(); mocks.orderBy.mockClear(); });
 
 describe('findOrdersNeedingDepositReconciliation', () => {
   it('seleziona solo gli ordini con acconto PayPal pagato non ancora copiato', () => {
@@ -93,6 +93,23 @@ describe('getAllOrdersUnreconciled', () => {
     expect(orders.map(o => o.id)).toEqual(['o1']);
     expect(mocks.getDocs).toHaveBeenCalledTimes(1);
     expect(mocks.apiRequest).not.toHaveBeenCalled();
+  });
+
+  it('scarica solo gli ordini collegati a una prenotazione, senza ordinamento sul server', async () => {
+    mocks.getDocs.mockResolvedValue({ docs: [] });
+    await getAllOrdersUnreconciled();
+    expect(mocks.where).toHaveBeenCalledWith('bookingId', '!=', null);
+    expect(mocks.orderBy).not.toHaveBeenCalled(); // nessun indice composito necessario
+  });
+
+  it("restituisce prima il più recente: con più ordini per la stessa prenotazione vince l'ultimo", async () => {
+    const at = (millis: number) => ({ toMillis: () => millis });
+    mocks.getDocs.mockResolvedValue({ docs: [
+      snapshot('vecchio', { bookingId: 'b', createdAt: at(1000), totale: 1, prodotti: [], transactions: [] }),
+      snapshot('senza-data', { bookingId: 'b', totale: 1, prodotti: [], transactions: [] }),
+      snapshot('nuovo', { bookingId: 'b', createdAt: at(5000), totale: 1, prodotti: [], transactions: [] }),
+    ] });
+    expect((await getAllOrdersUnreconciled()).map(order => order.id)).toEqual(['nuovo', 'vecchio', 'senza-data']);
   });
 });
 

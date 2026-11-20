@@ -106,6 +106,7 @@ import PhotobooksManager from "@/components/photobook/PhotobooksManager";
 import PhotobookChangesScreen from "@/components/photobook/PhotobookChangesScreen";
 import CampaignsManager from "@/components/CampaignsManager";
 import BookingsManager from "@/components/BookingsManager";
+import { prefetchBookingsScreen } from "@/lib/bookings-screen-prefetch";
 import CashDashboard from "@/components/CashDashboard";
 import PrintShopAdminManager from "@/components/print-shop/PrintShopAdminManager";
 import ShopAdminManager from "@/components/shop/ShopAdminManager";
@@ -612,6 +613,14 @@ export default function AdminDashboard() {
       }
     }
   }, [authLoading, user, isFirebaseAdmin]);
+
+  // Scalda ordini e campagne della "Lista prenotazioni" mentre l'admin e' ancora nella dashboard:
+  // alla prima apertura della lista i dati sono gia' in cache.
+  useEffect(() => {
+    if (authLoading || !user || !isFirebaseAdmin) return;
+    const timer = window.setTimeout(() => { void prefetchBookingsScreen(queryClient); }, 300);
+    return () => window.clearTimeout(timer);
+  }, [authLoading, user?.uid, isFirebaseAdmin, queryClient]);
 
   // Fetch data (galleries, password requests and studio settings)
   useEffect(() => {

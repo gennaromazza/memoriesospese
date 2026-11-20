@@ -9,7 +9,7 @@ import { BookingManagementLinkPanel } from './booking/BookingManagementLinkPanel
 import { BookingCancellationAdminPanel } from './booking/BookingCancellationAdminPanel';
 import { requiresBookingCancellationPanel } from '@/lib/booking-deletion';
 import { BookingPaymentCheckouts } from './booking/BookingPaymentCheckouts';
-import { useLiveBookings } from './booking/useLiveBookings';
+import { useLiveBookings, type BookingsScope } from './booking/useLiveBookings';
 import { useBookingDepositVerification } from './booking/useBookingDepositVerification';
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
@@ -39,6 +39,7 @@ import {
   getWorkflowStateAfterOrderCreation,
 } from "@/lib/bookings";
 import { getAllCampaigns } from "@/lib/booking-campaigns";
+import { BOOKINGS_SCREEN_ORDERS_KEY, BOOKINGS_SCREEN_ORDERS_STALE_MS } from "@/lib/bookings-screen-prefetch";
 import { getClienteByEmail } from "@/lib/clienti";
 import {
   getAllOrdersUnreconciled,
@@ -494,22 +495,33 @@ export default function BookingsManager({
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
 
   // Query bookings - sempre tutti per permettere filtro client-side
+  // Query campagne per nomi (e per sapere quali sono attive: all'apertura si scaricano solo le loro prenotazioni)
+  const { data: campaigns = [], isSuccess: campaignsLoaded, isError: campaignsFailed } = useQuery<BookingCampaignFE[]>({
+    queryKey: ["campaigns"],
+    queryFn: getAllCampaigns,
+  });
+  const activeCampaignIds = useMemo(() => campaigns.filter((c) => c.attiva).map((c) => c.id as string), [campaigns]);
+  // Si passa a "tutte le prenotazioni" (e ci si resta) quando serve guardare oltre le campagne attive:
+  // ricerca, filtro su altre campagne o una prenotazione indicata da una notifica che non e' tra quelle caricate.
+  const [fullScope, setFullScope] = useState(false);
+  const filterNeedsAll = campaignsLoaded
+    && (campaignFilter === "all" || (campaignFilter !== "active" && !activeCampaignIds.includes(campaignFilter)));
+  const scopeAll = fullScope || campaignsFailed || filterNeedsAll || searchQuery.trim() !== "";
+  useEffect(() => { if (scopeAll) setFullScope(true); }, [scopeAll]);
+  const bookingsScope: BookingsScope = useMemo(
+    () => (scopeAll ? { mode: "all" } : { mode: "campaigns", campaignIds: activeCampaignIds }),
+    [scopeAll, activeCampaignIds],
+  );
   const {
     data: allBookings = [],
     isLoading,
     refetch,
     liveError,
-  } = useLiveBookings(user?.uid || '');
+  } = useLiveBookings(user?.uid || '', bookingsScope, scopeAll || campaignsLoaded);
   useEffect(() => {
     const fresh = allBookings.find(booking => booking.id === selectedBooking?.id);
     if (fresh && fresh !== selectedBooking) setSelectedBooking(fresh);
   }, [allBookings, selectedBooking?.id]);
-
-  // Query campagne per nomi
-  const { data: campaigns = [] } = useQuery<BookingCampaignFE[]>({
-    queryKey: ["campaigns"],
-    queryFn: getAllCampaigns,
-  });
 
   useEffect(() => {
     if (campaigns.length > 0 && campaignFilter === "active" && !campaignAutoSelectDoneRef.current) {
@@ -535,9 +547,9 @@ export default function BookingsManager({
   // Lettura veloce (una query): la verifica degli acconti PayPal avviene in background,
   // solo per gli ordini che ne hanno bisogno, e blocca importi/azioni di quegli ordini.
   const { data: allOrders = [], error: ordersError, isPending: ordersPending } = useQuery<Order[]>({
-    queryKey: ["orders", "bookings-screen"],
+    queryKey: [...BOOKINGS_SCREEN_ORDERS_KEY],
     queryFn: getAllOrdersUnreconciled,
-    staleTime: 2 * 60 * 1000,
+    staleTime: BOOKINGS_SCREEN_ORDERS_STALE_MS,
   });
   const {
     lockedOrderIds,
@@ -991,6 +1003,11 @@ export default function BookingsManager({
     const targetBooking = allBookings.find((b) => b.id === highlightBookingId);
 
     if (!targetBooking) {
+      if (!scopeAll) {
+        // Potrebbe essere di una campagna non attiva: si carica l'elenco completo e si riprova.
+        setFullScope(true);
+        return;
+      }
       console.warn(`Booking ${highlightBookingId} non trovato nel dataset`);
       onHighlightComplete?.();
       return;
@@ -1056,7 +1073,7 @@ export default function BookingsManager({
         clearHighlightTimeoutRef.current = null;
       }
     };
-  }, [highlightBookingId, allBookings, isLoading, onHighlightComplete, sortDirection]);
+  }, [highlightBookingId, allBookings, isLoading, onHighlightComplete, sortDirection, scopeAll]);
 
   // Mutation: Approva prenotazione
   const approveMutation = useMutation({
@@ -1787,6 +1804,7 @@ export default function BookingsManager({
                   placeholder="Cerca per nome, email o campagna..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  onFocus={() => setFullScope(true)}
                   className="pl-10 h-10"
                   data-testid="input-search-bookings"
                 />
@@ -1795,6 +1813,7 @@ export default function BookingsManager({
               <div className="w-full lg:w-56">
                 <Select
                   value={campaignFilter}
+                  onOpenChange={(open) => { if (open) setFullScope(true); }}
                   onValueChange={(value) => {
                     setCampaignFilter(value);
                     setCurrentPage(1);
@@ -2097,6 +2116,11 @@ export default function BookingsManager({
                   ? "Non ci sono prenotazioni nel sistema"
                   : `Non ci sono prenotazioni con stato "${STATI_BOOKING.find((s) => s.value === selectedStato)?.label}"`}
               </p>
+              {campaignFilter === "active" && !searchQuery.trim() && (
+                <p className="text-sm mt-1">
+                  Sono mostrate solo le campagne attive: per quelle passate scegli «Tutte le campagne» oppure cerca per nome.
+                </p>
+              )}
             </CardContent>
           </Card>
         ) : (

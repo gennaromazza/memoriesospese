@@ -244,10 +244,15 @@ function ensureProdottiArray(orderData: any): any {
  * per gli ordini che ne hanno bisogno (vedi findOrdersNeedingDepositReconciliation).
  */
 export async function getAllOrdersUnreconciled(): Promise<Order[]> {
-  const snapshot = await getDocs(query(collection(db, COLLECTION), orderBy("createdAt", "desc")));
-  return snapshot.docs
+  // Solo gli ordini collegati a una prenotazione: la schermata li cerca per bookingId. Niente orderBy sul
+  // server (servirebbe un indice composito): si ordina qui, dal più recente.
+  const snapshot = await getDocs(query(collection(db, COLLECTION), where("bookingId", "!=", null)));
+  const millis = (value: any): number =>
+    typeof value?.toMillis === "function" ? value.toMillis() : typeof value?.seconds === "number" ? value.seconds * 1000 : 0;
+  return (snapshot.docs
     .filter((orderDoc) => !isManagedOrderType(orderDoc.data().orderType))
-    .map((orderDoc) => ({ id: orderDoc.id, ...ensureProdottiArray(orderDoc.data()) })) as Order[];
+    .map((orderDoc) => ({ id: orderDoc.id, ...ensureProdottiArray(orderDoc.data()) })) as Order[])
+    .sort((a, b) => millis((b as any).createdAt) - millis((a as any).createdAt));
 }
 
 /**
