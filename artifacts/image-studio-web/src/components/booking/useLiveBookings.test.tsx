@@ -81,7 +81,7 @@ describe('solo le prenotazioni delle campagne indicate', () => {
     expect(client.getQueryData(['bookings'])).toBeUndefined(); // la cache completa non viene toccata
     expect(client.getQueryData(['bookings', 'campaigns', 'natale,ritratti'])).toEqual([pending]);
   });
-  it('finche' manca l'informazione che serve (ready=false) non ascolta nulla ma risulta in caricamento', () => {
+  it("finché manca l'informazione che serve (ready=false) non ascolta nulla ma risulta in caricamento", () => {
     const hook = renderHook(({ ready }) => useLiveBookings('staff', active, ready), { initialProps: { ready: false }, wrapper });
     expect(api.subscribeBookingsForCampaigns).not.toHaveBeenCalled();
     expect(api.subscribeBookings).not.toHaveBeenCalled();
@@ -89,7 +89,7 @@ describe('solo le prenotazioni delle campagne indicate', () => {
     hook.rerender({ ready: true });
     expect(api.subscribeBookingsForCampaigns).toHaveBeenCalledTimes(1);
   });
-  it('passando a "tutte" chiude l'ascolto parziale e apre quello completo', () => {
+  it('passando a "tutte" chiude l’ascolto parziale e apre quello completo', () => {
     const hook = renderHook(({ scope }) => useLiveBookings('staff', scope), {
       initialProps: { scope: active as Parameters<typeof useLiveBookings>[1] }, wrapper });
     expect(api.subscribeBookingsForCampaigns).toHaveBeenCalledTimes(1);
@@ -97,7 +97,7 @@ describe('solo le prenotazioni delle campagne indicate', () => {
     expect(api.stop).toHaveBeenCalledTimes(1);
     expect(api.subscribeBookings).toHaveBeenCalledTimes(1);
   });
-  it('un nuovo array con gli stessi id non riapre l'ascolto', () => {
+  it("un nuovo array con gli stessi id non riapre l'ascolto", () => {
     const hook = renderHook(({ ids }) => useLiveBookings('staff', { mode: 'campaigns', campaignIds: ids }), {
       initialProps: { ids: ['b', 'a'] }, wrapper });
     hook.rerender({ ids: ['a', 'b'] });
