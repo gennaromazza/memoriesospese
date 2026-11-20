@@ -31,6 +31,7 @@ import { ensureBookingManagementLink } from './booking/management-access.js';
 import { bookingConditionsSnapshot } from '../shared/booking-conditions.js';
 import { bookingCancellationRouter } from './booking/cancellation-routes.js';
 import { bookingDepositCents } from './booking/cancellation-policy.js';
+import { calendarRecoveryRouter } from './booking/calendar-recovery-routes.js';
 
 const router = express.Router();
 async function requestDepositIfNeeded(req: any, res: express.Response, bookingId: string,
@@ -51,6 +52,7 @@ router.use(bookingDepositPaymentRouter(db));
 router.use(bookingAdminPaymentRouter(db, authenticateFirebase, requireAdmin));
 router.use(bookingManagementRouter(db, authenticateFirebase, requireAdmin));
 router.use(bookingCancellationRouter(db, authenticateFirebase, requireAdmin));
+router.use(calendarRecoveryRouter(db, authenticateFirebase, requireAdmin));
 
 // Riscatto delle gift card nella prenotazione pubblica (stessa base dati, nessuna dipendenza da PayPal)
 const giftCards = new GiftCardService({ db });

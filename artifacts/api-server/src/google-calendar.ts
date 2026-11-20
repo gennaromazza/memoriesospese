@@ -240,7 +240,7 @@ async function getServiceAccountAuth() {
  * Crea client Google Calendar con Service Account
  * Il client JWT rinnova automaticamente i token - no scadenza
  */
-async function getGoogleCalendarClient() {
+export async function getGoogleCalendarClient() {
   const auth = await getServiceAccountAuth();
   return google.calendar({ version: "v3", auth });
 }

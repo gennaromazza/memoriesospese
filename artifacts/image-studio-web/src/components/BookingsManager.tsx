@@ -13,6 +13,7 @@ import { useLiveBookings, type BookingsScope } from './booking/useLiveBookings';
 import { useBookingDepositVerification } from './booking/useBookingDepositVerification';
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { BookingCalendarRecoveryPanel } from "./booking/BookingCalendarRecoveryPanel";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { useLocation, useSearch } from "wouter";
@@ -3683,6 +3684,8 @@ export default function BookingsManager({
                   </div>
                 </div>
 
+                {selectedBooking.stato === 'confermata' && <BookingCalendarRecoveryPanel
+                  key={`calendar-recovery-${selectedBooking.id}`} bookingId={selectedBooking.id!} />}
                 {(selectedBooking.depositPaymentRequest || selectedBooking.depositPayment) && <BookingPaymentPanel
                   key={selectedBooking.id} bookingId={selectedBooking.id!} userId={user?.uid || ''} />}
                 <BookingManagementLinkPanel key={`management-${user?.uid}-${selectedBooking.id}`}

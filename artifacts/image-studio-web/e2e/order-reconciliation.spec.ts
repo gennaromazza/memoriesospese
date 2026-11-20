@@ -54,6 +54,34 @@ async function openOrderDetails(page: Page) {
   await expect(panel).toBeVisible();
 }
 
+test('il recupero calendario richiede una verifica e non ricrea appuntamenti già presenti', async ({ page }) => {
+  const state = await fixture(page);
+  let inspections = 0, recoveries = 0;
+  await page.route('**/api/booking/booking/calendar-recovery', async route => {
+    if (route.request().method() === 'GET') {
+      inspections++;
+      return route.fulfill({ json: { action: 'link_existing', canRecover: true,
+        inspectionKey: 'a'.repeat(64), calendarId: 'studio-fixture', message: 'Appuntamento già presente: verrà collegato.' } });
+    }
+    recoveries++;
+    expect(route.request().postDataJSON()).toEqual({ inspectionKey: 'a'.repeat(64) });
+    return route.fulfill({ json: { action: 'already_linked', canRecover: false,
+      message: 'Appuntamento recuperato. Nessuna email inviata; stato e incassi invariati.' } });
+  });
+  await page.goto('/?time=all&campaign=all');
+  await page.getByTestId('button-view-booking').click();
+  const recovery = page.getByRole('region', { name: 'Recupero appuntamento Google' });
+  await expect(recovery).toBeVisible();
+  expect(inspections).toBe(0); expect(recoveries).toBe(0);
+  await recovery.getByRole('button', { name: 'Verifica appuntamento' }).click();
+  await expect(recovery.getByText('Appuntamento già presente: verrà collegato.')).toBeVisible();
+  await expect(recovery.getByRole('button', { name: 'Crea appuntamento mancante' })).toHaveCount(0);
+  await recovery.getByRole('button', { name: 'Collega appuntamento esistente' }).click();
+  await expect(recovery.getByText('Appuntamento recuperato. Nessuna email inviata; stato e incassi invariati.')).toBeVisible();
+  expect(recoveries).toBe(1);
+  expect(state.unexpected).toEqual([]);
+});
+
 test("la verifica dell'acconto non blocca la pagina e nasconde solo gli importi di quell'ordine", async ({ page }) => {
   const state = await fixture(page);
   let release!: () => void;

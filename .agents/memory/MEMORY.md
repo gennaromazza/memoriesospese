@@ -78,3 +78,4 @@
 - [Trasferimenti stampe interrotti](print-transfer-interruption.md) — “running” non prova che il worker sia vivo; riconciliare Drive prima della ripresa e non ripetere l’email.
 - [Acconti shooting configurabili](booking-deposit-flow.md) — approvazione e acconto sono indipendenti per campagna; importo fisso deciso dall’admin e link gestione nella conferma.
 - [Nomi dei payload Orval](orval-request-schema-names.md) — body generici inline possono creare export Zod/tipo omonimi; usare schemi entità con riferimento.
+- [Recupero appuntamenti storici](booking-calendar-recovery-safety.md) — un riferimento Google mancante non prova che l’evento non esista: niente ricreazioni massive alla cieca.
