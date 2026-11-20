@@ -2470,7 +2470,11 @@ async function createBookingV2(req: express.Request, res: express.Response): Pro
       return res.status(400).json({ error: "Campagna non attiva" });
     }
 
-    if (!isManual && campaign.richiedeApprovazione === false && campaign.richiedeAcconto === true) {
+    // Acconto immediato: senza una gift card valida serve il checkout. Il codice e' verificato dal server
+    // (riscatto piu' sotto): un codice inventato, usato o troppo piccolo non evita il pagamento.
+    const immediateDeposit = campaign.richiedeApprovazione === false && campaign.richiedeAcconto === true;
+    const giftCodeSent = typeof giftCardCode === "string" && giftCardCode.trim().length > 0;
+    if (!isManual && immediateDeposit && !giftCodeSent) {
       return res.status(400).json({
         code: 'CHECKOUT_REQUIRED',
         error: "Questa campagna richiede il checkout con acconto. Nessuna prenotazione è stata creata.",
@@ -2480,7 +2484,7 @@ async function createBookingV2(req: express.Request, res: express.Response): Pro
 
     // Defaults preserve legacy approval. Never trust approval/deposit/state
     // flags sent by the browser, and never auto-confirm an unpaid deposit.
-    const autoConfirm = !isManual && campaign.richiedeApprovazione === false
+    let autoConfirm = !isManual && campaign.richiedeApprovazione === false
       && campaign.richiedeAcconto !== true;
     if (!isManual) {
       const { DateTime } = await import('luxon');
@@ -2588,7 +2592,7 @@ async function createBookingV2(req: express.Request, res: express.Response): Pro
     // Step 5b: gift card usata per pagare la prenotazione (solo prenotazioni pubbliche).
     // Il codice viene riservato prima di creare la prenotazione, così non si usa due volte.
     let giftClaim: { code: string; title: string; typeName: string; valueCents: number } | null = null;
-    if (!isManual && typeof giftCardCode === "string" && giftCardCode.trim()) {
+    if (!isManual && giftCodeSent) {
       try {
         giftClaim = await giftCards.claimForBooking(giftCardCode, campaignId);
       } catch (giftError) {
@@ -2596,6 +2600,18 @@ async function createBookingV2(req: express.Request, res: express.Response): Pro
           return res.status(giftError.status).json({ error: giftError.message, code: giftError.code });
         }
         throw giftError;
+      }
+      if (immediateDeposit) {
+        // La gift card prende il posto dell'acconto solo se ne copre l'importo.
+        if (giftClaim.valueCents < Number(campaign.accontoImportoCentesimi ?? 0)) {
+          await giftCards.releaseClaim(giftClaim.code).catch(() => undefined);
+          return res.status(409).json({
+            code: "gift_card_below_deposit",
+            error: "Il valore della gift card non copre l’acconto richiesto: contatta lo studio prima di prenotare.",
+          });
+        }
+        // Senza approvazione e con l'acconto coperto dalla card, la prenotazione si conferma subito.
+        autoConfirm = true;
       }
     }
 

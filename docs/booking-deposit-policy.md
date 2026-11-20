@@ -106,3 +106,15 @@ browser. Un termine è scaduto quando l'ora server è uguale o successiva al ter
 - Verificare che annullare liberi lo slot ma non avvii un rimborso, e che un
   rimborso richieda conferma amministratore e non possa essere duplicato.
 - Verificare che nessun percorso modifichi retroattivamente prenotazioni esistenti.
+
+## Gift card e acconto
+Chi prenota con una gift card valida non paga l'acconto: la card e' gia' pagata.
+- Il server decide: senza codice una campagna con acconto immediato risponde `CHECKOUT_REQUIRED`; con un codice
+  verifica e riscatta la card (`claimForBooking`). Un codice inesistente, usato, scaduto o di un'altra campagna
+  non salta il pagamento e non crea la prenotazione.
+- Se la campagna e' con acconto immediato, il valore della card deve coprire l'importo dell'acconto
+  (altrimenti 409 `gift_card_below_deposit` e la card viene rilasciata).
+- Senza approvazione la prenotazione si conferma subito; con approvazione resta in attesa e non parte nessun link PayPal
+  (acconto gia' coperto).
+- Nella pagina di prenotazione l'avviso sull'acconto e il pulsante PayPal non compaiono; finche' il codice e' in
+  verifica l'invio resta disattivato.

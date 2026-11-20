@@ -96,7 +96,7 @@ export default function BookingPage() {
     prodottoId: "",
     note: "",
   });
-  const [bookingResult, setBookingResult] = useState<(BookingCreationResult & { slot: BookingSlot; email: string; depositAmountCents?: number }) | null>(null);
+  const [bookingResult, setBookingResult] = useState<(BookingCreationResult & { slot: BookingSlot; email: string; depositAmountCents?: number; giftUsed?: boolean }) | null>(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [checkoutInput, setCheckoutInput] = useState<BookingCheckoutHoldInput | null>(null);
   const [submissionError, setSubmissionError] = useState<{ message: string; conflict: boolean } | null>(null);
@@ -133,11 +133,15 @@ export default function BookingPage() {
     enabled: !!code,
   });
   const immediateDeposit = campaign?.richiedeAcconto === true && campaign.richiedeApprovazione === false;
+  // Chi arriva da una gift card ha gia' pagato: niente acconto, ne' PayPal, ne' avvisi sull'acconto.
+  const giftActive = !!gift.usableCode;
+  const payDepositNow = immediateDeposit && !giftActive;
+  const showDepositNotice = campaign?.richiedeAcconto === true && !giftActive;
   // Campagne stagionali (es. Natale 2026): il cliente deve aver letto il vademecum prima di inviare.
   const vademecum = vademecumForCampaign(campaign);
   // Condizioni mostrate e inviate: quelle della campagna (Natale 2026: cambio appuntamento fino a 4 giorni prima).
   const bookingConditions = bookingConditionsFor(campaign);
-  const canSubmit = canSubmitBooking({ privacyConsent, vademecumRequired: !!vademecum, vademecumConsent });
+  const canSubmit = canSubmitBooking({ privacyConsent, vademecumRequired: !!vademecum, vademecumConsent }) && !gift.checking;
 
   // Query products
   const { data: products = [] } = useQuery<Product[]>({
@@ -166,7 +170,7 @@ export default function BookingPage() {
     onSuccess: (result, submission) => {
       if (submission.code !== code) return;
       setSubmissionError(null);
-      setBookingResult({ ...result, slot: submission.slot, email: submission.payload.cliente.email });
+      setBookingResult({ ...result, slot: submission.slot, email: submission.payload.cliente.email, giftUsed: !!submission.payload.giftCardCode });
       trackAnalyticsEvent('booking_request_submitted', {
         campaign: campaign?.code || campaign?.id || 'unknown',
         outcome: result.stato,
@@ -414,13 +418,15 @@ export default function BookingPage() {
 
     const prodotto = products.find(product => product.id === formData.prodottoId);
     setSubmissionError(null);
-    if (immediateDeposit) {
+    if (immediateDeposit && gift.failed) {
+      // Un codice regalo e' presente ma non verificato: meglio non far pagare l'acconto a chi potrebbe averlo gia' pagato.
+      setSubmissionError({ conflict: false, message: 'Non riusciamo a verificare la tua gift card. Riprova tra un momento: se il codice è valido non devi pagare nulla. Nessun addebito è stato avviato.' });
+      void gift.query?.refetch?.();
+      return;
+    }
+    if (payDepositNow) {
       if (!Number.isSafeInteger(campaign.accontoImportoCentesimi) || !campaign.accontoImportoCentesimi || campaign.accontoImportoCentesimi <= 0) {
         setSubmissionError({ conflict: false, message: 'L’importo dell’acconto è da verificare. Contatta lo studio prima di pagare.' });
-        return;
-      }
-      if (gift.usableCode) {
-        setSubmissionError({ conflict: false, message: 'Per usare la gift card con una campagna che richiede acconto, contatta lo studio prima di pagare. Nessun addebito è stato avviato.' });
         return;
       }
       setCheckoutInput({
@@ -571,7 +577,7 @@ export default function BookingPage() {
                 ? `Pagamento registrato. Riferimento prenotazione: ${bookingResult.bookingId}. Per informazioni contatta lo studio.`
                 : confirmed
                 ? 'Per i dettagli controlla la tua email, anche nella cartella spam. Se non ricevi il messaggio, contatta lo studio.'
-                : pendingBookingNextStep({ requiresDepositAfterApproval: campaign.richiedeAcconto === true && campaign.richiedeApprovazione !== false,
+                : pendingBookingNextStep({ requiresDepositAfterApproval: campaign.richiedeAcconto === true && campaign.richiedeApprovazione !== false && !bookingResult.giftUsed,
                     depositAmountCents: campaign.accontoImportoCentesimi })}
             </p>
             {bookingResult.depositAmountCents !== undefined && campaign.attiva && <Button variant="outline" className="w-full"
@@ -708,7 +714,7 @@ export default function BookingPage() {
         {bookingsOpen && (
           <form onSubmit={handleSubmit} className="space-y-6">
             <BookingDepositNotice
-              enabled={campaign.richiedeAcconto}
+              enabled={showDepositNotice}
               amountCents={campaign.accontoImportoCentesimi}
               requiresApproval={campaign.richiedeApprovazione !== false}
             />
@@ -1452,7 +1458,7 @@ export default function BookingPage() {
                       <p className="mt-2">{bookingConditions.text}</p>
                     </div>
                     <BookingDepositNotice
-                      enabled={campaign.richiedeAcconto}
+                      enabled={showDepositNotice}
                       amountCents={campaign.accontoImportoCentesimi}
                       requiresApproval={campaign.richiedeApprovazione !== false}
                       compact
@@ -1470,12 +1476,12 @@ export default function BookingPage() {
                           Invio in corso...
                         </>
                       ) : (
-                        immediateDeposit ? "Continua con PayPal" : "Invia prenotazione"
+                        payDepositNow ? "Continua con PayPal" : "Invia prenotazione"
                       )}
                     </Button>
 
                     <p className="text-xs text-center text-muted-foreground">
-                      {immediateDeposit ? 'Il pagamento conferma l’orario. Hai dieci minuti per completarlo; altrimenti l’orario torna disponibile.'
+                      {payDepositNow ? 'Il pagamento conferma l’orario. Hai dieci minuti per completarlo; altrimenti l’orario torna disponibile.'
                         : 'Controlliamo che l’orario sia ancora libero. Al termine vedrai se l’appuntamento è confermato o se la richiesta attende l’approvazione dello studio.'}
                     </p>
                   </CardContent>

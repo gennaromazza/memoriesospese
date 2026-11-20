@@ -1,5 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import express from 'express';
+import { GiftCardHttpError } from './gift-cards/service.js';
 import type { AddressInfo } from 'node:net';
 
 const h = vi.hoisted(() => ({
@@ -236,13 +237,56 @@ describe('creazione pubblica senza acconto', () => {
 
   it.each(['/v2/create', '/create'])('non permette di saltare il checkout immediato tramite %s', async route => {
     Object.assign(h.campaign, { richiedeApprovazione: false, richiedeAcconto: true, accontoImportoCentesimi: 2000 });
-    const response = await request({ richiedeAcconto: false, accontoImportoCentesimi: 0, giftCardCode: 'GIFT-TEST' }, route);
+    const response = await request({ richiedeAcconto: false, accontoImportoCentesimi: 0 }, route);
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({ code: 'CHECKOUT_REQUIRED', checkoutPath: '/api/booking/v2/checkout-holds' });
     expect(h.bookings.size).toBe(0); // No permanent unpaid reservation left occupying the slot.
     expect(h.sendEmail).not.toHaveBeenCalled();
     expect(h.claimGift).not.toHaveBeenCalled();
     expect(h.createEvent).not.toHaveBeenCalled();
+  });
+
+  describe('gift card su una campagna con acconto immediato', () => {
+    beforeEach(() => {
+      Object.assign(h.campaign, { richiedeApprovazione: false, richiedeAcconto: true, accontoImportoCentesimi: 2000 });
+    });
+
+    it.each(['/v2/create', '/create'])('una gift card valida sostituisce l’acconto: prenotazione confermata senza PayPal (%s)', async route => {
+      const response = await request({ giftCardCode: 'GIFT-TEST' }, route);
+      expect(response.status).toBe(201);
+      expect(firstBooking()).toMatchObject({ stato: 'confermata', acconto: 75, saldo: 0, giftCard: { code: 'GIFT-TEST' } });
+      expect(h.claimGift).toHaveBeenCalledWith('GIFT-TEST', 'campaign');
+      expect(h.createEvent).toHaveBeenCalledOnce();
+      expect(h.attachGift).toHaveBeenCalledWith('GIFT-TEST', expect.objectContaining({ id: 'booking-1' }));
+      expect(h.releaseGift).not.toHaveBeenCalled();
+    });
+
+    it('se la gift card non copre l’acconto non crea nulla e libera la card', async () => {
+      h.campaign.accontoImportoCentesimi = 9000; // la card vale 75 euro
+      const response = await request({ giftCardCode: 'GIFT-TEST' });
+      expect(response.status).toBe(409);
+      expect(await response.json()).toMatchObject({ code: 'gift_card_below_deposit' });
+      expect(h.releaseGift).toHaveBeenCalledWith('GIFT-TEST');
+      expect(h.bookings.size).toBe(0);
+      expect(h.createEvent).not.toHaveBeenCalled();
+      expect(h.sendEmail).not.toHaveBeenCalled();
+    });
+
+    it('un codice non valido o già usato non salta il pagamento: nessuna prenotazione', async () => {
+      h.claimGift.mockRejectedValue(Object.assign(new GiftCardHttpError('Questa gift card è già stata usata'), { status: 409, code: 'gift_card_unusable' }));
+      const response = await request({ giftCardCode: 'GIFT-USATA' });
+      expect(response.status).toBe(409);
+      expect(h.bookings.size).toBe(0);
+      expect(h.createEvent).not.toHaveBeenCalled();
+      expect(h.attachGift).not.toHaveBeenCalled();
+    });
+
+    it('un codice vuoto equivale a nessun codice: serve il checkout', async () => {
+      const response = await request({ giftCardCode: '   ' });
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({ code: 'CHECKOUT_REQUIRED' });
+      expect(h.claimGift).not.toHaveBeenCalled();
+    });
   });
 
   it('mantiene il percorso con approvazione prima dell’acconto', async () => {
