@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { Booking } from '@shared/booking-types';
-const api = vi.hoisted(() => ({ getAllBookings: vi.fn(), subscribeBookings: vi.fn(), stop: vi.fn() }));
+const api = vi.hoisted(() => ({ getAllBookings: vi.fn(), subscribeBookings: vi.fn(), subscribeBookingsForCampaigns: vi.fn(), getBookingsForCampaigns: vi.fn(), stop: vi.fn() }));
 vi.mock('@/lib/bookings', () => api);
 import { useLiveBookings } from './useLiveBookings';
 
@@ -14,6 +14,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   api.subscribeBookings.mockReturnValue(api.stop);
+  api.subscribeBookingsForCampaigns.mockReturnValue(api.stop);
   api.getAllBookings.mockResolvedValue([pending]);
 });
 afterEach(() => { cleanup(); client.clear(); });
@@ -66,5 +67,40 @@ describe('live booking payment updates', () => {
     act(() => api.subscribeBookings.mock.calls[1][0]([{ ...pending, stato: 'confermata' }], false));
     await waitFor(() => expect(hook.result.current.data?.[0].stato).toBe('confermata'));
     expect(hook.result.current.liveError).toBeNull();
+  });
+});
+
+describe('solo le prenotazioni delle campagne indicate', () => {
+  const active = { mode: 'campaigns' as const, campaignIds: ['natale', 'ritratti'] };
+  it('ascolta solo quelle campagne e tiene i dati parziali fuori dalla cache completa', async () => {
+    const hook = renderHook(() => useLiveBookings('staff', active), { wrapper });
+    expect(api.subscribeBookings).not.toHaveBeenCalled();
+    expect(api.subscribeBookingsForCampaigns).toHaveBeenCalledWith(['natale', 'ritratti'], expect.any(Function), expect.any(Function));
+    act(() => api.subscribeBookingsForCampaigns.mock.calls[0][1]([pending], false));
+    await waitFor(() => expect(hook.result.current.data).toEqual([pending]));
+    expect(client.getQueryData(['bookings'])).toBeUndefined(); // la cache completa non viene toccata
+    expect(client.getQueryData(['bookings', 'campaigns', 'natale,ritratti'])).toEqual([pending]);
+  });
+  it('finche' manca l'informazione che serve (ready=false) non ascolta nulla ma risulta in caricamento', () => {
+    const hook = renderHook(({ ready }) => useLiveBookings('staff', active, ready), { initialProps: { ready: false }, wrapper });
+    expect(api.subscribeBookingsForCampaigns).not.toHaveBeenCalled();
+    expect(api.subscribeBookings).not.toHaveBeenCalled();
+    expect(hook.result.current.isLoading).toBe(true);
+    hook.rerender({ ready: true });
+    expect(api.subscribeBookingsForCampaigns).toHaveBeenCalledTimes(1);
+  });
+  it('passando a "tutte" chiude l'ascolto parziale e apre quello completo', () => {
+    const hook = renderHook(({ scope }) => useLiveBookings('staff', scope), {
+      initialProps: { scope: active as Parameters<typeof useLiveBookings>[1] }, wrapper });
+    expect(api.subscribeBookingsForCampaigns).toHaveBeenCalledTimes(1);
+    hook.rerender({ scope: { mode: 'all' } });
+    expect(api.stop).toHaveBeenCalledTimes(1);
+    expect(api.subscribeBookings).toHaveBeenCalledTimes(1);
+  });
+  it('un nuovo array con gli stessi id non riapre l'ascolto', () => {
+    const hook = renderHook(({ ids }) => useLiveBookings('staff', { mode: 'campaigns', campaignIds: ids }), {
+      initialProps: { ids: ['b', 'a'] }, wrapper });
+    hook.rerender({ ids: ['a', 'b'] });
+    expect(api.subscribeBookingsForCampaigns).toHaveBeenCalledTimes(1);
   });
 });

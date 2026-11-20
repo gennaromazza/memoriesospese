@@ -241,6 +241,58 @@ export function subscribeBookings(onUpdate: (bookings: Booking[], fromCache: boo
     snapshot => onUpdate(snapshot.docs.map(document => ({ ...document.data(), id: document.id } as Booking)), snapshot.metadata.fromCache),
     onError);
 }
+// --- Solo le prenotazioni di alcune campagne (es. quelle attive): la lista parte da qui e passa a "tutte" su richiesta.
+const CAMPAIGNS_PER_QUERY = 30; // limite di Firestore per l'operatore "in"
+
+/** Id ordinati, senza doppioni né vuoti, in gruppi da al massimo 30. */
+export function chunkCampaignIds(campaignIds: string[]): string[][] {
+  const unique = [...new Set(campaignIds.filter(id => typeof id === 'string' && id))].sort();
+  const groups: string[][] = [];
+  for (let index = 0; index < unique.length; index += CAMPAIGNS_PER_QUERY) groups.push(unique.slice(index, index + CAMPAIGNS_PER_QUERY));
+  return groups;
+}
+
+function shootingMillis(booking: any): number {
+  const value = booking?.dataShootingInizio;
+  if (typeof value?.toMillis === 'function') return value.toMillis();
+  if (typeof value?.seconds === 'number') return value.seconds * 1000;
+  return value instanceof Date ? value.getTime() : 0;
+}
+const newestShootingFirst = (rows: Booking[]) => [...rows].sort((a, b) => shootingMillis(b) - shootingMillis(a));
+const toBooking = (document: { id: string; data: () => any }) => ({ ...document.data(), id: document.id } as Booking);
+
+/**
+ * Ascolto in tempo reale delle prenotazioni delle campagne indicate. Nessun orderBy sul server (servirebbe un
+ * indice composito): si ordina qui. Con più gruppi si notifica solo quando tutti hanno risposto almeno una volta.
+ */
+export function subscribeBookingsForCampaigns(
+  campaignIds: string[],
+  onUpdate: (bookings: Booking[], fromCache: boolean) => void,
+  onError: (error: Error) => void,
+): () => void {
+  const groups = chunkCampaignIds(campaignIds);
+  if (groups.length === 0) { onUpdate([], false); return () => undefined; }
+  const received = new Map<number, { rows: Booking[]; fromCache: boolean }>();
+  const stops = groups.map((group, index) => onSnapshot(
+    query(collection(db, COLLECTION), where('campaignId', 'in', group)), { includeMetadataChanges: true },
+    snapshot => {
+      received.set(index, { rows: snapshot.docs.map(toBooking), fromCache: snapshot.metadata.fromCache });
+      if (received.size < groups.length) return;
+      const parts = [...received.values()];
+      onUpdate(newestShootingFirst(parts.flatMap(part => part.rows)), parts.some(part => part.fromCache));
+    },
+    onError));
+  return () => stops.forEach(stop => stop());
+}
+
+/** Lettura una tantum (aggiornamento manuale) delle prenotazioni delle campagne indicate. */
+export async function getBookingsForCampaigns(campaignIds: string[]): Promise<Booking[]> {
+  const groups = chunkCampaignIds(campaignIds);
+  const snapshots = [];
+  for (const group of groups) snapshots.push(await getDocs(query(collection(db, COLLECTION), where('campaignId', 'in', group))));
+  return newestShootingFirst(snapshots.flatMap(snapshot => snapshot.docs.map(toBooking)));
+}
+
 export async function getBookingPaymentCheckouts(): Promise<GetAdminBookingPaymentCheckouts200> {
   try { return await (await apiRequest('GET', '/api/booking/admin/payment-checkouts')).json(); }
   catch (error) { throw bookingRequestError(error, true); }
