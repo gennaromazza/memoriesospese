@@ -27,7 +27,7 @@ async function slotsForSnapshot(db: Firestore, id: string, booking: DocumentData
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !day.isValid || !first || !last || day < first || day > last) {
     throw new BookingManagementError(400, 'Scegli una data nel periodo della campagna.');
   }
-  const calendarId = resolveCalendarId(booking.googleCalendarId || 'primary');
+  const calendarId = await resolveCalendarId(booking.googleCalendarId || 'primary');
   const events = await getAllExistingBookingEvents(day.startOf('day').toJSDate(), day.endOf('day').toJSDate(), db, id,
     { strict: true, excludeEvent: booking.googleCalendarEventId ? { eventId: booking.googleCalendarEventId, calendarId } : undefined });
   const slots = await getAvailableSlotsForDate(day.toJSDate(), campaignToAvailabilityConfig({ ...campaign, id: booking.campaignId }), events);
@@ -97,7 +97,7 @@ export async function reserveManagedReschedule(db: Firestore, id: string, input:
         throw new BookingManagementError(409, 'La campagna o la prenotazione è cambiata: aggiorna prima di riprovare.');
       }
       const commitLocks = await checkSlotReservation(tx, db, start, end, id, id, id);
-      const calendarId = resolveCalendarId(root.googleCalendarId || 'primary');
+      const calendarId = await resolveCalendarId(root.googleCalendarId || 'primary');
       const eventId = root.googleCalendarEventId || hash(JSON.stringify(['booking-reschedule', id, root.managementAccessEpoch, input.requestId]));
       commitLocks();
       tx.set(ref, { requestId: input.requestId, status: 'pending', attempts: 0, emailStatus: 'pending',

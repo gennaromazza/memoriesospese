@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // Audit 19/11/2026 punto 4: le scritture su Google Calendar non avevano timeout ne' retry e
 // createEvent non era idempotente (un timeout dopo l'inserimento lasciava un evento orfano).
 const h = vi.hoisted(() => ({ insert: vi.fn(), patch: vi.fn(), del: vi.fn(), get: vi.fn() }));
+vi.mock('./firebase-admin.js', () => ({ db: {} }));
 vi.mock('googleapis', () => ({
   google: {
     auth: { JWT: class { async authorize() { return {}; } } },
@@ -21,7 +22,7 @@ const end = new Date('2027-02-10T10:00:00Z');
 async function load() {
   process.env.GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL = 'sa@p.iam.gserviceaccount.com';
   process.env.GOOGLE_CALENDAR_PRIVATE_KEY = '-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----';
-  delete process.env.GOOGLE_CALENDAR_ID;
+  process.env.GOOGLE_CALENDAR_ID = 'studio@example.test';
   vi.resetModules();
   return import('./google-calendar.js');
 }

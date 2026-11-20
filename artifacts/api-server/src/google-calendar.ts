@@ -16,6 +16,7 @@ import {
   createConsultationDateTime,
 } from "./services/consultation-datetime.js";
 import { safeErrorMessage } from "./utils/safe-logging.js";
+import { getStudioCalendarId } from './calendar-destination.js';
 
 let cachedAuthClient: any = null;
 
@@ -33,14 +34,18 @@ export interface CalendarConnectionStatus {
   needsReconnection: boolean;
   error?: string;
   authMethod?: string;
+  calendarName?: string;
+  errorCode?: string;
 }
 
-export async function getCalendarConnectionStatus(): Promise<CalendarConnectionStatus> {
-  const calendarId = process.env.GOOGLE_CALENDAR_ID?.trim();
+export async function getCalendarConnectionStatus(candidateId?: string): Promise<CalendarConnectionStatus> {
+  let calendarId = candidateId;
   let serviceEmail = '';
   try {
+    calendarId = candidateId ?? await getStudioCalendarId() ?? undefined;
     if (!calendarId || calendarId === 'primary') {
-      throw new Error("Calendario di destinazione non configurato: imposta GOOGLE_CALENDAR_ID con l’ID del calendario dello studio.");
+      return { connected: false, calendarId, needsReconnection: false, authMethod: 'service_account',
+        errorCode: 'DESTINATION_MISSING', error: 'Calendario di destinazione non configurato. Avvia la procedura guidata oppure verifica GOOGLE_CALENDAR_ID.' };
     }
     const client = await getServiceAccountAuth();
     serviceEmail = client.email || '';
@@ -50,10 +55,12 @@ export async function getCalendarConnectionStatus(): Promise<CalendarConnectionS
     const response = await withCalendarRetry(() => calendar.events.list({
       calendarId,
       maxResults: 1,
-      fields: 'accessRole',
+      fields: 'accessRole,summary',
     }, { timeout: CALENDAR_REQUEST_TIMEOUT_MS }));
     if (!['writer', 'owner'].includes(response.data.accessRole || '')) {
-      throw new Error("Il calendario è accessibile ma mancano i permessi per creare appuntamenti. Condividilo con il Service Account con il permesso “Apportare modifiche agli eventi”.");
+      return { connected: false, calendarId, accountEmail: serviceEmail, email: serviceEmail,
+        needsReconnection: false, authMethod: 'service_account', errorCode: 'READ_ONLY',
+        error: 'Il calendario è accessibile ma mancano i permessi per creare appuntamenti. Condividilo con il Service Account con il permesso “Apportare modifiche agli eventi”.' };
     }
     
     return {
@@ -61,6 +68,7 @@ export async function getCalendarConnectionStatus(): Promise<CalendarConnectionS
       email: serviceEmail,
       accountEmail: serviceEmail,
       calendarId,
+      calendarName: response.data.summary || calendarId,
       needsReconnection: false,
       authMethod: 'service_account',
     };
@@ -71,11 +79,13 @@ export async function getCalendarConnectionStatus(): Promise<CalendarConnectionS
       accountEmail: serviceEmail,
       calendarId,
       needsReconnection: false,
+      errorCode: Number(error?.response?.status ?? error?.code) === 404 ? 'NOT_FOUND'
+        : Number(error?.response?.status ?? error?.code) === 403 ? 'ACCESS_DENIED' : 'CALENDAR_UNAVAILABLE',
       error: Number(error?.response?.status ?? error?.code) === 404
         ? "Calendario non trovato o non condiviso con il Service Account. Verifica GOOGLE_CALENDAR_ID e la condivisione del calendario."
         : Number(error?.response?.status ?? error?.code) === 403
           ? "Accesso al calendario negato. Verifica i permessi del Service Account e che Google Calendar API sia abilitata."
-          : safeErrorMessage(error, "Impossibile verificare il calendario. Riprova tra poco."),
+          : "Impossibile verificare il calendario. Verifica la configurazione del Service Account o riprova tra poco.",
       authMethod: 'service_account',
     };
   }
@@ -86,6 +96,7 @@ export async function getCalendarConnectionStatus(): Promise<CalendarConnectionS
  */
 export function invalidateTokenCache(): void {
   cachedAuthClient = null;
+  calendarEnsured = false;
   console.log("🔄 Google Calendar Service Account auth cache invalidated");
 }
 
@@ -250,9 +261,11 @@ export async function getGoogleCalendarClient() {
  * Con Service Account, "primary" punta al calendario del SA (vuoto),
  * quindi va sempre risolto al calendario reale dell'utente
  */
-export function resolveCalendarId(calendarId: string): string {
+export async function resolveCalendarId(calendarId: string): Promise<string> {
   if (calendarId === 'primary' || !calendarId) {
-    return process.env.GOOGLE_CALENDAR_ID || 'primary';
+    const id = await getStudioCalendarId();
+    if (!id) throw Object.assign(new Error('Calendario di destinazione non configurato'), { code: 'CALENDAR_UNAVAILABLE' });
+    return id;
   }
   return calendarId;
 }
@@ -314,8 +327,8 @@ async function withCalendarRetry<T>(fn: () => Promise<T>): Promise<T> {
  */
 async function ensureCalendarInList(calendar: calendar_v3.Calendar) {
   if (calendarEnsured) return;
-  const calendarId = process.env.GOOGLE_CALENDAR_ID;
-  if (!calendarId || calendarId === 'primary') { calendarEnsured = true; return; }
+  const calendarId = await getStudioCalendarId();
+  if (!calendarId) return;
   try {
     await withCalendarRetry(() => calendar.calendarList.get({ calendarId }, { timeout: CALENDAR_REQUEST_TIMEOUT_MS }));
     calendarEnsured = true;
@@ -344,6 +357,33 @@ export async function listCalendars() {
   return response.data.items || [];
 }
 
+/** Discovery is advisory: shared calendars may not appear until manually subscribed. */
+export async function discoverStudioCalendars() {
+  const currentCalendarId = await getStudioCalendarId();
+  const client = await getServiceAccountAuth();
+  const calendar = google.calendar({ version: 'v3', auth: client });
+  const calendars: Array<{ id: string; summary: string; accessRole: string }> = [];
+  try {
+    let pageToken: string | undefined;
+    do {
+      const response = await withCalendarRetry(() => calendar.calendarList.list({
+        pageToken, maxResults: 250,
+        fields: 'items(id,summary,accessRole),nextPageToken',
+      }, { timeout: CALENDAR_REQUEST_TIMEOUT_MS }));
+      for (const item of response.data.items || []) {
+        if (item.id && item.id !== 'primary') calendars.push({
+          id: item.id, summary: item.summary || item.id, accessRole: item.accessRole || '',
+        });
+      }
+      pageToken = response.data.nextPageToken || undefined;
+    } while (pageToken);
+    return { accountEmail: client.email || '', currentCalendarId, calendars };
+  } catch {
+    return { accountEmail: client.email || '', currentCalendarId, calendars,
+      discoveryError: 'Elenco calendari non disponibile. Puoi comunque inserire manualmente l’ID del calendario.' };
+  }
+}
+
 /**
  * Ottiene eventi da un calendario in un range di date
  */
@@ -353,7 +393,7 @@ export async function getEvents(
   timeMax: Date,
 ) {
   const calendar = await getGoogleCalendarClient();
-  const resolvedId = resolveCalendarId(calendarId);
+  const resolvedId = await resolveCalendarId(calendarId);
 
   const response = await calendar.events.list({
     calendarId: resolvedId,
@@ -382,7 +422,7 @@ export async function getEventById(
 ) {
   try {
     const calendar = await getGoogleCalendarClient();
-    const resolvedId = resolveCalendarId(calendarId);
+    const resolvedId = await resolveCalendarId(calendarId);
 
     const response = await withCalendarRetry(() => calendar.events.get({
       calendarId: resolvedId,
@@ -410,7 +450,7 @@ export async function checkFreeBusy(
   timeMax: Date,
 ) {
   const calendar = await getGoogleCalendarClient();
-  const resolvedId = resolveCalendarId(calendarId);
+  const resolvedId = await resolveCalendarId(calendarId);
 
   const response = await calendar.freebusy.query({
     requestBody: {
@@ -809,7 +849,7 @@ export async function createEvent(
   const eventId = explicitId ?? randomBytes(16).toString('hex');
   requestBody.id = eventId;
 
-  const resolvedId = resolveCalendarId(calendarId);
+  const resolvedId = await resolveCalendarId(calendarId);
   for (let attempt = 0; ; attempt++) {
     try {
       const response = await calendar.events.insert({
@@ -852,7 +892,7 @@ export async function updateEvent(
   }>,
 ) {
   const calendar = await getGoogleCalendarClient();
-  const resolvedId = resolveCalendarId(calendarId);
+  const resolvedId = await resolveCalendarId(calendarId);
 
   const requestBody: any = {};
 
@@ -906,7 +946,7 @@ export async function deleteEvent(
   eventId: string,
 ) {
   const calendar = await getGoogleCalendarClient();
-  const resolvedId = resolveCalendarId(calendarId);
+  const resolvedId = await resolveCalendarId(calendarId);
 
   try {
     await withCalendarRetry(() => calendar.events.delete({

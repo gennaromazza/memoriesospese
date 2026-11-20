@@ -11,6 +11,9 @@ const h = vi.hoisted(() => ({
   eventsList: vi.fn(),
   notify: vi.fn(),
 }));
+vi.mock('./firebase-admin.js', () => ({
+  db: { collection: () => ({ doc: () => ({ get: async () => ({ data: () => undefined }) }) }) },
+}));
 
 vi.mock("googleapis", () => ({
   google: {

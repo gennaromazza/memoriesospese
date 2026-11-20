@@ -8,7 +8,7 @@ import { canIssueManagementLink } from './management-access.js';
 export interface InitialCalendarDependencies {
   read: typeof getEventById;
   create: typeof createEvent;
-  calendarId(): string;
+  calendarId(): string | Promise<string>;
 }
 const defaults: InitialCalendarDependencies = {
   read: getEventById, create: createEvent, calendarId: () => resolveCalendarId('primary'),
@@ -39,7 +39,7 @@ export async function synchronizeInitialBookingCalendar(
   const expected = fingerprint(source), marker = `[booking:${bookingId}]`;
   const eventId = source.googleCalendarEventId || source.initialCalendarEventId
     || `b${createHash('sha256').update(`${bookingId}:${depositReceiptReference(source.depositPayment)}`).digest('hex')}`;
-  const calendarId = source.googleCalendarId || deps.calendarId();
+  const calendarId = source.googleCalendarId || await deps.calendarId();
   await db.runTransaction(async tx => {
     const current = (await tx.get(ref)).data();
     if (!eligible(current) || fingerprint(current!) !== expected) throw new Error('Prenotazione modificata durante la sincronizzazione');

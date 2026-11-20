@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({ list: vi.fn(), authorize: vi.fn() }));
+vi.mock('./firebase-admin.js', () => ({
+  db: { collection: () => ({ doc: () => ({ get: async () => ({ data: () => undefined }) }) }) },
+}));
 vi.mock('googleapis', () => ({
   google: {
     auth: {
@@ -44,7 +47,7 @@ describe('stato collegamento calendario', () => {
       accountEmail: 'active@test.iam.gserviceaccount.com',
     });
     expect(h.list).toHaveBeenCalledWith(
-      { calendarId: 'studio@example.test', maxResults: 1, fields: 'accessRole' },
+      { calendarId: 'studio@example.test', maxResults: 1, fields: 'accessRole,summary' },
       { timeout: 15000 },
     );
   });

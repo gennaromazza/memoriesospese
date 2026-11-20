@@ -6,6 +6,7 @@ import type { HttpHandlerResult } from "./http-types.js";
  */
 
 import express from 'express';
+import { calendarSetupRouter } from './calendar-setup-routes.js';
 import { getEvents, createEvent, updateEvent, getCalendarConnectionStatus, invalidateTokenCache } from './google-calendar.js';
 
 import { db, Timestamp, FieldValue } from './firebase-admin.js';
@@ -29,6 +30,8 @@ function requireAdmin(req: any, res: express.Response, next: express.NextFunctio
   }
   next();
 }
+
+router.use('/setup', authenticateFirebase, requireAdmin, calendarSetupRouter);
 
 /**
  * GET /api/calendar/status
@@ -941,6 +944,7 @@ router.get('/connection-status', authenticateFirebase, requireAdmin, async (req,
       authMethod: 'service_account',
       needsReconnect: false,
       error: status.error || undefined,
+      errorCode: status.errorCode,
     });
   } catch (error: any) {
     console.error('❌ Error checking calendar status:', error);

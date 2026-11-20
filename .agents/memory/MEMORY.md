@@ -1,6 +1,7 @@
 - [Form con valori iniziali asincroni](async-form-initial-values.md) — completare il lookup dei default prima di aprire il form e usare update funzionali per non sovrascrivere input recenti.
 - [Linea corretta = multi-artifact](lineage-restore-multi-artifact.md) — la struttura client/ server/ alla radice è una base vecchia: ripartire dal ramo restore/completo-20261010 (artifacts/, lib/, pnpm).
 - [Calendar SA fallback & fail-closed](calendar-sa-fallback-failclosed.md) — auth Calendar con fallback FIREBASE_ADMIN_CREDENTIALS; disponibilità mai fail-open: CALENDAR_UNAVAILABLE → 503, sync guard salta.
+- [Scelta sicura calendario studio](calendar-destination-safety.md) — il collegamento iniziale non autorizza una migrazione: i riferimenti storici possono non contenere il calendario di origine.
 - [GitHub sync senza riscrivere main](github-push-connector-token.md) — confronta gli alberi prima della cronologia; per backup divergenti crea uno snapshot via API e non fare force push senza consenso esplicito.
 - [FIREBASE_ADMIN_CREDENTIALS formato doppio](firebase-admin-credentials-format.md) — secret JSON puro O base64: parsing dual-format ovunque; 16 UNAUTHENTICATED diffuso = chiave revocata da Google.
 - [Firebase Admin CLI bundle](firebase-admin-cli-cjs-bundle.md) — per script one-off, bundle temporaneo CommonJS; gli import named ESM via tsx possono fallire.

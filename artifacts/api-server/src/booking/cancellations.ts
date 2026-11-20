@@ -46,7 +46,7 @@ export async function requestBookingCancellation(db: Firestore, id: string,
       email: String(root.cliente?.email || '').trim().toLowerCase(), status: 'pending', attempts: 0, emailStatus: 'pending',
       originalStart: root.dataShootingInizio, eventId: root.googleCalendarEventId || null,
       dataShootingInizio: root.dataShootingInizio, dataShootingFine: root.dataShootingFine,
-      calendarId: root.googleCalendarId || resolveCalendarId('primary'),
+      calendarId: root.googleCalendarId || await resolveCalendarId('primary'),
       actor: admin?.actor || 'customer', decision: admin?.decision || 'review',
       refundAmountCents: admin?.decision === 'refund' ? bookingDepositCents(root) : null, createdAt: now });
     tx.update(ref, { stato: 'cancellation_pending', updatedAt: now,
