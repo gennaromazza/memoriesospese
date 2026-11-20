@@ -8,7 +8,7 @@ const h = vi.hoisted(() => ({
   request: vi.fn(), toast: vi.fn(), analytics: vi.fn(), blog: vi.fn(),
   code: 'TESTCODE', approval: true, stato: 'in_attesa',
   slots: [] as any[],
-  deposit: false, giftCode: undefined as string | undefined,
+  deposit: false, giftCode: undefined as string | undefined, giftFailed: false, giftRefetch: vi.fn(),
   hold: vi.fn(), resume: vi.fn(), config: vi.fn(), order: vi.fn(), capture: vi.fn(), status: vi.fn(), release: vi.fn(),
 }));
 vi.mock('@workspace/api-client-react', () => ({
@@ -50,7 +50,7 @@ vi.mock('@/lib/products', () => ({
   }],
 }));
 vi.mock('@/components/gift-cards/GiftCardBookingBanner', () => ({
-  useBookingGiftCard: () => ({ usableCode: h.giftCode }), GiftCardBookingBanner: () => null,
+  useBookingGiftCard: () => ({ usableCode: h.giftCode, failed: h.giftFailed, query: { refetch: h.giftRefetch } }), GiftCardBookingBanner: () => null,
 }));
 vi.mock('@/components/EmailSuggestionChip', () => ({ EmailSuggestionChip: () => null }));
 vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: h.toast }) }));
@@ -97,7 +97,7 @@ beforeEach(() => {
     disconnect() {}
   });
   h.code = 'TESTCODE'; h.approval = true; h.stato = 'in_attesa'; h.slots = [slot];
-  sessionStorage.clear(); h.deposit = false; h.giftCode = undefined;
+  sessionStorage.clear(); h.deposit = false; h.giftCode = undefined; h.giftFailed = false;
   h.hold.mockReset().mockImplementation(async () => holdView());
   h.resume.mockReset().mockImplementation(async () => holdView());
   h.config.mockReset().mockResolvedValue({ enabled: true, clientId: 'public-test', currency: 'EUR', environment: 'sandbox' });
@@ -285,12 +285,34 @@ describe('acconto PayPal immediato', () => {
     await waitFor(() => expect(screen.getByTestId('booking-payment-message').textContent).toContain('PayPal non è disponibile'));
     expect(h.hold).not.toHaveBeenCalled();
   });
-  it('non ignora una gift card già applicata facendo pagare di nuovo', async () => {
-    h.approval = false; h.deposit = true; h.giftCode = 'GIFT-TEST';
-    mount(); await fillForm(); submit();
-    expect(await screen.findByText(/Per usare la gift card con una campagna/)).toBeTruthy();
+  it('con una gift card valida non si paga l’acconto: la prenotazione parte senza PayPal', async () => {
+    h.approval = false; h.deposit = true; h.giftCode = 'GIFT-TEST'; h.stato = 'confermata';
+    mount(); await fillForm();
+    expect(screen.queryByTestId('booking-deposit-notice')).toBeNull();
+    expect(screen.queryByTestId('booking-deposit-introduction')).toBeNull();
+    expect(screen.getByTestId('button-submit-booking').textContent).toContain('Invia prenotazione');
+    submit();
+    await screen.findByTestId('booking-outcome');
     expect(h.hold).not.toHaveBeenCalled();
     expect(h.capture).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('paypal-buttons')).toBeNull();
+    expect(h.request).toHaveBeenCalledWith('POST', '/api/booking/v2/create', expect.objectContaining({
+      giftCardCode: 'GIFT-TEST',
+    }));
+  });
+  it('se il controllo della gift card non riesce non porta a pagare l’acconto e riprova la verifica', async () => {
+    h.approval = false; h.deposit = true; h.giftFailed = true;
+    mount(); await fillForm(); submit();
+    expect(await screen.findByText(/Non riusciamo a verificare la tua gift card/)).toBeTruthy();
+    expect(h.hold).not.toHaveBeenCalled();
+    expect(h.giftRefetch).toHaveBeenCalled();
+    expect(screen.queryByTestId('booking-outcome')).toBeNull();
+  });
+  it('con una gift card e approvazione prima dell’acconto il messaggio non promette il link PayPal', async () => {
+    h.approval = true; h.deposit = true; h.giftCode = 'GIFT-TEST'; h.stato = 'in_attesa';
+    mount(); await fillForm(); submit();
+    await screen.findByTestId('booking-outcome');
+    expect(screen.getByTestId('booking-outcome').textContent).not.toMatch(/PayPal|acconto/i);
   });
   it.each([
     { approval: true, deposit: true }, { approval: true, deposit: false }, { approval: false, deposit: false },

@@ -21,7 +21,9 @@ export function useBookingGiftCard() {
     staleTime: 60_000,
   });
   const usable = query.data?.status === 'attiva';
-  return { code, query, usable, usableCode: usable ? code : undefined };
+  // checking: il codice e' ancora in verifica; finche' dura non si invia, altrimenti si pagherebbe l'acconto per errore.
+  // failed: il controllo non e' riuscito (rete, codice inesistente): non si puo' sapere se la card copre il pagamento.
+  return { code, query, usable, usableCode: usable ? code : undefined, checking: !!code && query.isLoading, failed: !!code && query.isError };
 }
 
 /** Avviso in cima alla prenotazione: dice se la gift card copre il pagamento. */
