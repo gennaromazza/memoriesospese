@@ -341,7 +341,10 @@ export async function rejectBooking(bookingId: string): Promise<void> {
 export async function updateBookingStatus(
   bookingId: string,
   stato: 'in_attesa' | 'confermata' | 'completata' | 'annullata'
-): Promise<void> {
+): Promise<BookingApprovalResult | void> {
+  // Il cambio a "confermata" usa lo stesso flusso protetto del pulsante Approva,
+  // incluso l'eventuale esito "acconto richiesto, non ancora confermata".
+  if (stato === 'confermata') return approveBooking(bookingId);
   await apiRequest('PATCH', `/api/booking/${bookingId}/status`, { stato });
 }
 

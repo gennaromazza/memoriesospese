@@ -6,7 +6,7 @@ vi.mock('@/lib/queryClient', () => ({ apiRequest: mocks.request }));
 vi.mock('firebase/firestore', async importOriginal => ({ ...await importOriginal<typeof import('firebase/firestore')>(),
   collection: (_db: unknown, name: string) => ({ name }), query: (value: unknown) => value,
   orderBy: () => ({}), onSnapshot: mocks.snapshot }));
-import { createBooking, approveBooking, getBookingPaymentDetails, getBookingPaymentCheckouts, verifyBookingDeposit, resendBookingDeposit, subscribeBookings } from './bookings';
+import { createBooking, approveBooking, updateBookingStatus, getBookingPaymentDetails, getBookingPaymentCheckouts, verifyBookingDeposit, resendBookingDeposit, subscribeBookings } from './bookings';
 
 const input = {
   campaignId: 'test-campaign',
@@ -48,6 +48,24 @@ describe('authenticated payment administration transport', () => {
   });
 });
 describe('esito approvazione con acconto', () => {
+  it('usa l’approvazione protetta anche dal selettore stato e conserva la richiesta acconto', async () => {
+    const result = { success: true, paymentRequired: true, amountCents: 500,
+      expiresAt: '2030-12-01T09:00:00.000Z', emailStatus: 'sent' };
+    mocks.request.mockResolvedValue(new Response(JSON.stringify(result)));
+    expect(await updateBookingStatus('test', 'confermata')).toEqual(result);
+    expect(mocks.request).toHaveBeenCalledExactlyOnceWith('PATCH', '/api/booking/v2/test/approve');
+  });
+  it('propaga gli errori Calendar senza mostrare il cambio stato come riuscito', async () => {
+    mocks.request.mockRejectedValue(new Error('503: {"error":"Errore Google Calendar"}'));
+    await expect(updateBookingStatus('test', 'confermata')).rejects.toMatchObject({
+      status: 503, message: 'Errore Google Calendar',
+    });
+  });
+  it('mantiene il percorso degli altri cambi stato', async () => {
+    mocks.request.mockResolvedValue(new Response('{}'));
+    await updateBookingStatus('test', 'completata');
+    expect(mocks.request).toHaveBeenCalledExactlyOnceWith('PATCH', '/api/booking/test/status', { stato: 'completata' });
+  });
   it('preserves the waiting state, email result and server deadline', async () => {
     const result = { success: true, paymentRequired: true, stato: 'in_attesa_pagamento', amountCents: 2500,
       expiresAt: '2030-12-01T09:00:00.000Z', emailStatus: 'sent' };

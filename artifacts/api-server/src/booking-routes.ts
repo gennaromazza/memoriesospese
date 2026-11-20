@@ -6,7 +6,7 @@ import type { HttpHandlerResult } from "./http-types.js";
  */
 
 import express from "express";
-import { getAvailableSlots, deleteEvent, type WorkingHours } from "./google-calendar.js";
+import { getAvailableSlots, deleteEvent, isTransientCalendarError, type WorkingHours } from "./google-calendar.js";
 import { db, FieldValue } from "./firebase-admin.js";
 import { Timestamp } from "firebase-admin/firestore";
 import { syncBookingWorkflowState } from "../shared/workflow-helpers.js";
@@ -923,7 +923,7 @@ router.post("/create", requireAdminForManualBooking, async (req, res) => {
  * 
  * L'identità dell'admin è letta dal token Firebase verificato.
  */
-router.patch("/v2/:id/approve", authenticateFirebase, requireAdmin, async (req, res) => {
+const approveBookingV2 = async (req: express.Request<{ id: string }>, res: express.Response): Promise<HttpHandlerResult> => {
   try {
     console.log("[PATCH /v2/:id/approve] 🔵 Calendar Engine V2 - Request");
     const { id } = req.params;
@@ -955,6 +955,16 @@ router.patch("/v2/:id/approve", authenticateFirebase, requireAdmin, async (req, 
 
     if (unpaidDepositRequestExpired(bookingData)) {
       return res.status(410).json({ error: "La richiesta di acconto è scaduta: occorre una nuova prenotazione" });
+    }
+
+    if (bookingData.stato !== "in_attesa" || bookingData.automaticConfirmationError
+      || bookingData.googleCalendarEventId || bookingData.calendarSyncPending
+      || ['pending', 'blocked'].includes(bookingData.customerReschedule?.status)
+      || ['pending', 'working', 'blocked'].includes(bookingData.bookingCancellation?.status)) {
+      return res.status(409).json({
+        error: "Prenotazione da verificare",
+        message: "Lo stato o l’evento del calendario richiedono una verifica prima di confermare. Nessun nuovo evento è stato creato.",
+      });
     }
 
     // RIVALIDAZIONE con Calendar Engine V2
@@ -1069,8 +1079,18 @@ router.patch("/v2/:id/approve", authenticateFirebase, requireAdmin, async (req, 
       });
 
       calendarEventId = calendarEvent.id;
+      if (!calendarEventId) {
+        throw Object.assign(new Error("Google Calendar non ha restituito un ID evento"), { code: 'CALENDAR_RESULT_UNCERTAIN' });
+      }
       console.log(`✅ Evento Google Calendar creato: ${calendarEventId}`);
     } catch (calendarError) {
+      // Un timeout può essere successivo alla creazione effettiva su Google.
+      // Non permettere un nuovo inserimento finché l'esito non è riconciliato.
+      if (isTransientCalendarError(calendarError)
+        || (calendarError as any)?.code === 'CALENDAR_RESULT_UNCERTAIN'
+        || calendarError instanceof Error && /timeout|aborted/i.test(calendarError.message)) {
+        await bookingRef.update({ automaticConfirmationError: true }).catch(() => undefined);
+      }
       console.error(
         "❌ Errore creazione evento Google Calendar:",
         calendarError,
@@ -1226,7 +1246,9 @@ router.patch("/v2/:id/approve", authenticateFirebase, requireAdmin, async (req, 
       message: error instanceof Error ? error.message : "Errore sconosciuto",
     });
   }
-});
+};
+
+router.patch("/v2/:id/approve", authenticateFirebase, requireAdmin, approveBookingV2);
 
 /**
  * PATCH /api/booking/:id/approve
@@ -1799,6 +1821,25 @@ router.patch("/:id/status", authenticateFirebase, requireAdmin, async (req, res)
     }
 
     const oldStato = bookingData.stato;
+    // Anche il selettore generico deve passare da disponibilità, acconto,
+    // Calendar e salvataggio protetto dell'approvazione; mai solo stato=confermata.
+    if (stato === "confermata") {
+      if (bookingData.depositPaymentRequest && !hasPaidBookingDeposit(bookingData)) {
+        return res.status(400).json({ code: 'DEPOSIT_PAYMENT_PENDING',
+          error: 'L’acconto non è confermato o richiede una verifica. Non è possibile confermare lo shooting da questo comando.' });
+      }
+      if (oldStato === "confermata") {
+        if (!bookingData.googleCalendarEventId || bookingData.calendarSyncPending
+          || bookingData.automaticConfirmationError) {
+          return res.status(409).json({
+            error: "Calendario da riconciliare",
+            message: "La prenotazione è già confermata ma il calendario richiede una verifica. Non ripetere la conferma per evitare duplicati.",
+          });
+        }
+        return res.json({ success: true, bookingId: id, newStato: stato, message: "Prenotazione già confermata" });
+      }
+      return approveBookingV2(req, res);
+    }
     if (stato === 'annullata' && bookingDepositCents(bookingData) > 0
       || ['pending', 'blocked'].includes(bookingData.customerReschedule?.status)
       || ['pending', 'working', 'blocked'].includes(bookingData.bookingCancellation?.status)) {

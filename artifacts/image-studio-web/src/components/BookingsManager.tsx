@@ -1130,13 +1130,15 @@ export default function BookingsManager({
   // Mutation: Cambia stato
   const changeStatusMutation = useMutation({
     mutationFn: async ({ id, stato }: { id: string; stato: any }) => {
-      await updateBookingStatus(id, stato);
+      return updateBookingStatus(id, stato);
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
       toast({
-        title: "Stato aggiornato",
-        description: "Lo stato della prenotazione è stato modificato",
+        title: result?.paymentRequired ? "In attesa di pagamento" : "Stato aggiornato",
+        description: result?.paymentRequired
+          ? "È stato richiesto l’acconto: la prenotazione sarà confermata dopo il pagamento. Controlla l’esito dell’invio nel dettaglio pagamento."
+          : "Lo stato della prenotazione è stato modificato",
       });
       setSelectedBooking(null);
     },

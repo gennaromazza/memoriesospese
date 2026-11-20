@@ -86,7 +86,10 @@ vi.mock('./firebase-admin.js', () => ({
         const result = await fn({
           get: (target: any) => target.get(),
           set: (ref: any, data: any) => writes.push(() => (ref.collection === 'bookingSlotLocks' ? h.guards : ref.collection === 'bookingManagementAccess' ? h.management : h.bookings).set(ref.id, { ...data })),
-          update: (ref: any, data: any) => writes.push(() => { if (ref.collection === 'bookings') Object.assign(h.bookings.get(ref.id), data); }),
+          update: (ref: any, data: any) => {
+            if (ref.collection === 'bookings' && data.stato === 'confermata' && h.failSave) throw new Error('save failed');
+            writes.push(() => { if (ref.collection === 'bookings') Object.assign(h.bookings.get(ref.id), data); });
+          },
         });
         writes.forEach(write => write());
         return result;
@@ -101,6 +104,7 @@ vi.mock('firebase-admin/firestore', () => ({
 }));
 vi.mock('./google-calendar.js', () => ({
   getAvailableSlots: vi.fn(), deleteEvent: h.deleteEvent, createEvent: h.createEvent,
+  isTransientCalendarError: (error: any) => ['ETIMEDOUT', 'ECONNRESET', 503].includes(error?.code),
   checkFreeBusy: async () => [], getEventById: vi.fn(), resolveCalendarId: () => 'primary',
 }));
 vi.mock('./booking/calendar-adapter.js', () => ({
@@ -118,7 +122,9 @@ vi.mock('./system-alerts.js', () => ({ notifyOrphanCalendarEvents: h.orphanAlert
 vi.mock('./booking/manual-booking-deposit.js', () => ({ registerManualBookingDeposit: h.manualDeposit }));
 vi.mock('./lib/logger.js', () => ({ logger: { error: vi.fn(), warn: vi.fn() } }));
 vi.mock('./gift-cards/service.js', () => ({
-  GiftCardHttpError: class extends Error {},
+  GiftCardHttpError: class extends Error {
+    constructor(readonly status: number, readonly code: string, message: string) { super(message); }
+  },
   GiftCardService: class {
     claimForBooking = h.claimGift;
     attachBooking = h.attachGift;
@@ -180,6 +186,118 @@ beforeEach(() => {
   h.claimGift.mockResolvedValue({ code: 'GIFT-TEST', title: 'Regalo', typeName: 'Shooting', valueCents: 7500 });
   h.attachGift.mockResolvedValue(undefined);
   h.releaseGift.mockResolvedValue(undefined);
+});
+
+describe('conferma dal cambio stato amministrativo', () => {
+  function seed(patch: any = {}) {
+    h.bookings.set('status-test', { stato: 'in_attesa', cliente: client, campaignId: 'campaign',
+      dataShootingInizio: stamp(start), dataShootingFine: stamp(end), ...patch });
+  }
+  const confirm = () => fetch(`${base}/status-test/status`, {
+    method: 'PATCH', headers: { Authorization: 'Bearer admin', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ stato: 'confermata' }),
+  });
+
+  it('crea Calendar prima di confermare e inviare la mail anche dal selettore stato', async () => {
+    seed();
+    const response = await confirm();
+    expect(response.status).toBe(200);
+    expect(h.bookings.get('status-test')).toMatchObject({
+      stato: 'confermata', googleCalendarEventId: 'event-test', confermataDa: 'admin-test',
+    });
+    expect(h.createEvent).toHaveBeenCalledOnce();
+    expect(h.createEvent.mock.calls[0][1]).toMatchObject({ kind: 'booking', start, end });
+    expect(h.trace[0]).toBe('calendar');
+    expect(h.sendEmail).toHaveBeenCalledOnce();
+  });
+
+  it('se Calendar non risponde conserva lo stato in attesa e non invia conferme', async () => {
+    seed(); h.createEvent.mockRejectedValueOnce(new Error('Calendar unavailable'));
+    expect((await confirm()).status).toBe(503);
+    expect(h.bookings.get('status-test').stato).toBe('in_attesa');
+    expect(h.bookings.get('status-test').googleCalendarEventId).toBeUndefined();
+    expect(h.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it('un timeout di inserimento richiede riconciliazione e non permette duplicati al retry', async () => {
+    seed();
+    h.createEvent.mockRejectedValueOnce(Object.assign(new Error('timeout'), { code: 'ETIMEDOUT' }));
+    expect((await confirm()).status).toBe(503);
+    expect(h.bookings.get('status-test')).toMatchObject({ stato: 'in_attesa', automaticConfirmationError: true });
+    expect((await confirm()).status).toBe(409);
+    expect(h.createEvent).toHaveBeenCalledOnce();
+    expect(h.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it('non conferma se Google non restituisce l’ID evento', async () => {
+    seed(); h.createEvent.mockResolvedValueOnce({});
+    expect((await confirm()).status).toBe(503);
+    expect(h.bookings.get('status-test')).toMatchObject({ stato: 'in_attesa', automaticConfirmationError: true });
+    expect(h.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it('rifiuta slot non più disponibile senza creare eventi', async () => {
+    seed(); h.available = [];
+    expect((await confirm()).status).toBe(409);
+    expect(h.createEvent).not.toHaveBeenCalled();
+    expect(h.bookings.get('status-test').stato).toBe('in_attesa');
+  });
+
+  it('rimuove l’evento appena creato se il salvataggio della conferma fallisce', async () => {
+    seed(); h.failSave = true;
+    expect((await confirm()).status).toBe(500);
+    expect(h.deleteEvent).toHaveBeenCalledWith('primary', 'event-test');
+    expect(h.bookings.get('status-test').stato).toBe('in_attesa');
+    expect(h.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it('una richiesta ripetuta non duplica l’evento né la mail', async () => {
+    seed();
+    expect((await confirm()).status).toBe(200);
+    expect((await confirm()).status).toBe(200);
+    expect(h.createEvent).toHaveBeenCalledOnce();
+    expect(h.sendEmail).toHaveBeenCalledOnce();
+  });
+
+  it('due conferme concorrenti non confermano due volte e rimuovono solo l’evento perdente', async () => {
+    seed();
+    let count = 0;
+    let release!: () => void;
+    const bothCreating = new Promise<void>(resolve => { release = resolve; });
+    h.createEvent.mockImplementation(async () => {
+      const id = `concurrent-${++count}`;
+      if (count === 2) release();
+      await bothCreating;
+      return { id };
+    });
+    const responses = await Promise.all([confirm(), confirm()]);
+    expect(responses.map(r => r.status).sort()).toEqual([200, 409]);
+    expect(h.sendEmail).toHaveBeenCalledOnce();
+    const kept = h.bookings.get('status-test').googleCalendarEventId;
+    expect(h.deleteEvent).toHaveBeenCalledOnce();
+    expect(h.deleteEvent.mock.calls[0][1]).not.toBe(kept);
+  });
+
+  it('non bypassa un acconto non pagato né modifica i dati di pagamento', async () => {
+    const depositPaymentRequest = { status: 'pending', amountCents: 500 };
+    seed({ depositPaymentRequest });
+    expect((await confirm()).status).toBe(400);
+    expect(h.bookings.get('status-test')).toMatchObject({ stato: 'in_attesa', depositPaymentRequest });
+    expect(h.createEvent).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { stato: 'annullata' },
+    { stato: 'completata' },
+    { automaticConfirmationError: true },
+    { googleCalendarEventId: 'uncertain-existing-event' },
+    { stato: 'confermata' },
+  ])('non crea eventi per stati da riconciliare: %j', async patch => {
+    seed(patch);
+    expect((await confirm()).status).toBe(409);
+    expect(h.createEvent).not.toHaveBeenCalled();
+    expect(h.sendEmail).not.toHaveBeenCalled();
+  });
 });
 
 describe('creazione pubblica senza acconto', () => {
@@ -273,7 +391,7 @@ describe('creazione pubblica senza acconto', () => {
     });
 
     it('un codice non valido o già usato non salta il pagamento: nessuna prenotazione', async () => {
-      h.claimGift.mockRejectedValue(Object.assign(new GiftCardHttpError('Questa gift card è già stata usata'), { status: 409, code: 'gift_card_unusable' }));
+      h.claimGift.mockRejectedValue(new GiftCardHttpError(409, 'gift_card_unusable', 'Questa gift card è già stata usata'));
       const response = await request({ giftCardCode: 'GIFT-USATA' });
       expect(response.status).toBe(409);
       expect(h.bookings.size).toBe(0);
