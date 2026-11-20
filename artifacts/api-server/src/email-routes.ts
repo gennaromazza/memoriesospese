@@ -1,3 +1,4 @@
+import { getSiteBaseUrl } from "./site-url.js";
 import { vademecumEmailBlock } from './vademecum-email.js';
 import type { HttpHandlerResult } from "./http-types.js";
 /**
@@ -74,31 +75,8 @@ async function logEmailSent(
 // Firebase Project ID per Firestore REST API
 const FIREBASE_PROJECT_ID = "wedding-gallery-397b6";
 
-/**
- * Helper: Ottiene l'URL base del sito in modo dinamico
- * Priorità: SITE_URL env > x-forwarded-host > host header > fallback production URL
- */
-export function getSiteBaseUrl(req?: Request): string {
-  // 1. Usa variabile d'ambiente se impostata
-  if (process.env.SITE_URL) {
-    return process.env.SITE_URL.replace(/\/$/, ""); // Rimuove trailing slash
-  }
-
-  // 2. Se abbiamo la request, usa gli header
-  if (req) {
-    const protocol =
-      req.protocol === "https" || req.get("x-forwarded-proto") === "https"
-        ? "https"
-        : "http";
-    const host = req.get("x-forwarded-host") || req.get("host");
-    if (host) {
-      return `${protocol}://${host}`;
-    }
-  }
-
-  // 3. Fallback: URL di produzione (dominio ufficiale)
-  return "https://imagestudiofotografico.replit.app";
-}
+// getSiteBaseUrl vive in site-url.ts (testata a parte); qui resta esportata per chi la importa da email-routes.
+export { getSiteBaseUrl };
 
 /**
  * Email template: Collaborator Assignment Notification
