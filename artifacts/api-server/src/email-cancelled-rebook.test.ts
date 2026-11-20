@@ -186,7 +186,7 @@ describe("send-consultation-cancelled rebook link security", () => {
     const html = decodeLastEmailHtml();
     expect(html).toContain("Scegli un nuovo orario");
     expect(html).toContain(
-      "https://imagestudiofotografico.replit.app/consulenze/Matrimonio/tpl1/prenota",
+      "https://imagestudiofotografico.com/consulenze/Matrimonio/tpl1/prenota",
     );
     // Nessun host forgiato o loopback nel link
     expect(html).not.toContain("evil-host.example");
