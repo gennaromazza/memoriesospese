@@ -342,7 +342,7 @@ describe('esito pubblico della prenotazione', () => {
       return json({ success: true, bookingId: 'booking-test', stato: 'confermata' });
     });
     submit();
-    expect((await screen.findByRole('alert')).textContent).toContain('Scegli un altro slot');
+    expect((await screen.findByRole('alert')).textContent).toContain('Scegli un altro orario');
     expect(screen.queryByTestId('booking-outcome')).toBeNull();
     expect(h.analytics).not.toHaveBeenCalled();
     expect(screen.getByRole('link', { name: 'Scegli un altro orario' }).getAttribute('href')).toBe('#booking-slot-picker');
@@ -373,7 +373,7 @@ describe('esito pubblico della prenotazione', () => {
     mount();
     await fillForm();
     queryClient.setQueryData(['available-slots', new Date(2030, 11, 1), 'campaign-test'], []);
-    expect(await screen.findByText('Nessuno slot disponibile per questa data')).toBeTruthy();
+    expect(await screen.findByText('Nessun orario libero per questa data')).toBeTruthy();
     await waitFor(() => expect(screen.queryByTestId('button-submit-booking')).toBeNull());
     expect(screen.queryByTestId('booking-outcome')).toBeNull();
   });

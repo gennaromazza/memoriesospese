@@ -5,6 +5,7 @@
 
 import { pendingBookingNextStep } from "@/lib/booking-outcome-copy";
 import { canSubmitBooking, vademecumForCampaign } from "@shared/seasonal-vademecum";
+import { formatWeekRange, packageHeadline, packageItemNote, packageItemsTitle, sharedPhotosNotice } from "@/lib/booking-package-copy";
 import { useState, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -177,7 +178,7 @@ export default function BookingPage() {
       toast({
         title: result.stato === 'confermata' ? "Appuntamento confermato!" : "Richiesta inviata",
         description: result.stato === 'confermata'
-          ? "Lo slot è confermato. Controlla la tua email per i dettagli."
+          ? "L’orario è confermato. Controlla la tua email per i dettagli."
           : "L’appuntamento non è ancora confermato: attendi l’approvazione dello studio.",
       });
     },
@@ -193,7 +194,7 @@ export default function BookingPage() {
         void queryClient.invalidateQueries({ queryKey: key });
       }
       toast({
-        title: conflict ? "Slot non più disponibile" : "Invio non completato",
+        title: conflict ? "Orario non più disponibile" : "Invio non completato",
         description: error.message,
         variant: "destructive",
       });
@@ -272,6 +273,9 @@ export default function BookingPage() {
       currentDate = addDays(currentDate, 1);
     }
   }
+
+  const weekStart = availableDates[currentWeekIndex * 7];
+  const weekEnd = availableDates[Math.min((currentWeekIndex + 1) * 7 - 1, availableDates.length - 1)];
 
   // Funzioni lightbox
   const openLightbox = (
@@ -399,9 +403,9 @@ export default function BookingPage() {
     const slotDate = new Date(selectedSlot.start);
     if (isBefore(slotDate, now)) {
       toast({
-        title: "Slot non disponibile",
+        title: "Orario non disponibile",
         description:
-          "Lo slot selezionato è ormai passato. Seleziona un altro orario.",
+          "L’orario scelto è ormai passato. Scegline un altro.",
         variant: "destructive",
       });
       setSelectedSlot(null); // Reset selezione
@@ -660,26 +664,15 @@ export default function BookingPage() {
                     <Package className="h-6 w-6 text-primary" />
                   </div>
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-                    Prodotti disponibili
+                    Pacchetti disponibili
                   </p>
                   <p className="text-base font-semibold text-foreground">
                     {availableProducts.length}{" "}
-                    {availableProducts.length === 1 ? "opzione" : "opzioni"}
+                    {availableProducts.length === 1 ? "pacchetto" : "pacchetti"}
                   </p>
                 </CardContent>
               </Card>
             </div>
-
-            {campaign.temaStagionale && (
-              <div className="pt-4 border-t text-center">
-                <p className="text-sm text-muted-foreground">
-                  🎨 Tema stagionale:{" "}
-                  <span className="font-medium capitalize">
-                    {campaign.temaStagionale}
-                  </span>
-                </p>
-              </div>
-            )}
           </CardContent>
         </Card>
 
@@ -721,7 +714,7 @@ export default function BookingPage() {
             />
             {submissionError && (
               <div role="alert" className="space-y-2 rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm">
-                <p className="font-semibold">{submissionError.conflict ? 'Slot non più disponibile' : 'Invio non completato'}</p>
+                <p className="font-semibold">{submissionError.conflict ? 'Orario non più disponibile' : 'Invio non completato'}</p>
                 <p>{submissionError.message}</p>
                 {submissionError.conflict && <a href="#booking-slot-picker" className="inline-block font-medium underline">Scegli un altro orario</a>}
               </div>
@@ -735,20 +728,14 @@ export default function BookingPage() {
                       <AlertCircle className="h-6 w-6 text-primary" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-semibold text-foreground mb-3">
-                        📸 Come procedere con la prenotazione
+                      <h3 className="font-semibold text-foreground mb-2">
+                        Come prenotare
                       </h3>
-                      <div className="space-y-2 text-sm text-muted-foreground">
-                        <p>
-                          <strong className="text-foreground">1.</strong> Seleziona la <strong className="text-foreground">DATA</strong> del tuo shooting qui sotto
-                        </p>
-                        <p>
-                          <strong className="text-foreground">2.</strong> Scegli l'<strong className="text-foreground">ORARIO</strong> che preferisci
-                        </p>
-                        <p>
-                          <strong className="text-foreground">3.</strong> Vedrai i <strong className="text-foreground">pacchetti fotografici e i prezzi</strong> disponibili
-                        </p>
-                      </div>
+                      <ol className="space-y-1 text-sm text-muted-foreground">
+                        <li><strong className="text-foreground">1.</strong> Scegli il giorno</li>
+                        <li><strong className="text-foreground">2.</strong> Scegli l’orario</li>
+                        <li><strong className="text-foreground">3.</strong> Inserisci i tuoi dati e scegli il pacchetto</li>
+                      </ol>
                     </div>
                   </div>
                 </CardContent>
@@ -775,54 +762,41 @@ export default function BookingPage() {
                   </div>
                 ) : (
                   <>
-                    {/* Navigazione settimane */}
-                    <div className="flex items-center justify-between mb-4">
+                    {/* Navigazione settimane: su telefono frecce ai lati e intervallo su una sola riga */}
+                    <div className="mb-4 flex items-center justify-between gap-2">
                       <Button
                         type="button"
                         variant="outline"
-                        size="sm"
+                        className="h-10 w-10 shrink-0 p-0 sm:w-auto sm:px-3"
                         onClick={() => setCurrentWeekIndex(Math.max(0, currentWeekIndex - 1))}
                         disabled={currentWeekIndex === 0}
+                        aria-label="Settimana precedente"
                         data-testid="prev-week"
                       >
-                        <ChevronLeft className="h-4 w-4 mr-1" />
-                        Settimana prec.
+                        <ChevronLeft className="h-4 w-4 sm:mr-1" aria-hidden="true" />
+                        <span className="hidden sm:inline">Precedente</span>
                       </Button>
-                      
-                      <div className="text-center">
-                        <span className="text-xs sm:text-sm text-muted-foreground font-medium block">
-                          {(() => {
-                            const weekStart = availableDates[currentWeekIndex * 7];
-                            const weekEnd = availableDates[Math.min((currentWeekIndex + 1) * 7 - 1, availableDates.length - 1)];
-                            if (!weekStart || !weekEnd) return "";
-                            return (
-                              <>
-                                <span className="block sm:inline">{format(weekStart, "d MMM", { locale: it })}</span>
-                                <span className="hidden sm:inline"> - </span>
-                                <span className="block sm:inline sm:before:content-none before:content-['↓'] before:block before:text-primary before:my-1">
-                                  {format(weekEnd, "d MMM yyyy", { locale: it })}
-                                </span>
-                              </>
-                            );
-                          })()}
-                        </span>
-                      </div>
+
+                      <p className="min-w-0 flex-1 text-center text-sm font-medium text-foreground" aria-live="polite" data-testid="week-range">
+                        {weekStart && weekEnd ? formatWeekRange(weekStart, weekEnd) : ""}
+                      </p>
 
                       <Button
                         type="button"
                         variant="outline"
-                        size="sm"
+                        className="h-10 w-10 shrink-0 p-0 sm:w-auto sm:px-3"
                         onClick={() => setCurrentWeekIndex(currentWeekIndex + 1)}
                         disabled={(currentWeekIndex + 1) * 7 >= availableDates.length}
+                        aria-label="Settimana successiva"
                         data-testid="next-week"
                       >
-                        Settimana succ.
-                        <ChevronRight className="h-4 w-4 ml-1" />
+                        <span className="hidden sm:inline">Successiva</span>
+                        <ChevronRight className="h-4 w-4 sm:ml-1" aria-hidden="true" />
                       </Button>
                     </div>
 
                     {/* Griglia settimana corrente */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3">
+                    <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 sm:gap-3">
                       {availableDates
                         .slice(currentWeekIndex * 7, (currentWeekIndex + 1) * 7)
                         .map((date) => {
@@ -835,7 +809,7 @@ export default function BookingPage() {
                               key={date.toISOString()}
                               type="button"
                               variant={isSelected ? "default" : "outline"}
-                              className={`h-auto py-4 flex flex-col items-center ${
+                              className={`h-auto px-1 py-3 sm:py-4 flex flex-col items-center ${
                                 isHoliday && !isSelected
                                   ? "border-red-500/50 hover:border-red-500"
                                   : ""
@@ -858,7 +832,7 @@ export default function BookingPage() {
                                 {format(date, "EEE", { locale: it })}
                               </span>
                               <span
-                                className={`text-3xl font-bold mb-1 ${
+                                className={`text-2xl sm:text-3xl font-bold mb-1 ${
                                   isSelected
                                     ? "text-primary-foreground"
                                     : isHoliday
@@ -894,7 +868,7 @@ export default function BookingPage() {
                 <CardHeader>
                   <CardTitle>2. Seleziona l'Orario</CardTitle>
                   <CardDescription>
-                    Slot disponibili per{" "}
+                    Orari liberi per{" "}
                     {format(selectedDate, "dd MMMM yyyy", { locale: it })}
                   </CardDescription>
                 </CardHeader>
@@ -906,7 +880,7 @@ export default function BookingPage() {
                   ) : availableSlots.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground">
                       <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p>Nessuno slot disponibile per questa data</p>
+                      <p>Nessun orario libero per questa data</p>
                       <p className="text-sm mt-2">
                         Prova a selezionare un'altra giornata
                       </p>
@@ -1038,7 +1012,7 @@ export default function BookingPage() {
 
                     {availableProducts.length > 0 && (
                       <div className="space-y-3">
-                        <Label>Pacchetto Fotografico (opzionale)</Label>
+                        <Label>Scegli il tuo pacchetto (facoltativo)</Label>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                           {/* Opzione "Da decidere" */}
                           <Card
@@ -1055,10 +1029,10 @@ export default function BookingPage() {
                             <CardContent className="p-6 flex flex-col items-center justify-center min-h-[220px]">
                               <Package className="h-14 w-14 text-muted-foreground mb-4" />
                               <h3 className="font-semibold text-base text-center mb-2">
-                                Da Decidere
+                                Deciderò dopo
                               </h3>
                               <p className="text-sm text-muted-foreground text-center leading-relaxed">
-                                Sceglierò il pacchetto in sede
+                                Lo scelgo in studio
                               </p>
                             </CardContent>
                           </Card>
@@ -1217,23 +1191,24 @@ export default function BookingPage() {
                                         className={`text-sm text-muted-foreground leading-relaxed ${
                                           expandedDescriptions[product.id]
                                             ? ""
-                                            : "line-clamp-3"
+                                            : "line-clamp-2"
                                         }`}
                                       >
                                         {product.descrizione}
                                       </p>
-                                      {/* Mostra sempre il toggle per permettere espansione/compressione */}
-                                      <button
-                                        type="button"
-                                        onClick={(e) =>
-                                          toggleDescription(product.id, e)
-                                        }
-                                        className="text-xs text-primary hover:underline font-medium inline-block"
-                                      >
-                                        {expandedDescriptions[product.id]
-                                          ? "Vedi meno"
-                                          : "Vedi di più"}
-                                      </button>
+                                      {product.descrizione.length > 80 && (
+                                        <button
+                                          type="button"
+                                          onClick={(e) =>
+                                            toggleDescription(product.id, e)
+                                          }
+                                          className="text-xs text-primary hover:underline font-medium inline-block"
+                                        >
+                                          {expandedDescriptions[product.id]
+                                            ? "Mostra meno"
+                                            : "Leggi tutto"}
+                                        </button>
+                                      )}
                                     </div>
                                   )}
 
@@ -1263,27 +1238,7 @@ export default function BookingPage() {
                                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                       <Package className="h-4 w-4" />
                                       <span>
-                                        {/* Mostra una raccolta unica solo quando l'admin ha configurato la sorgente condivisa. */}
-                                        {product.isBundle && product.bundleItems && product.bundleItems.length > 0
-                                          ? (() => {
-                                              const galleryPhotos = product.fotoCondivise
-                                                ? product.prodottoSorgenteFotoId
-                                                  ? getBundleGalleryPhotoCount(product.bundleItems, product.prodottoSorgenteFotoId)
-                                                  : 0
-                                                : getBundleGalleryPhotoCount(product.bundleItems);
-                                              const sourceIsIncluded = product.bundleItems.some(
-                                                (item) => item.prodottoId === product.prodottoSorgenteFotoId && item.numeroFoto > 0,
-                                              );
-                                              return galleryPhotos > 0
-                                                ? `${galleryPhotos} foto nella galleria digitale`
-                                                : product.fotoCondivise && !sourceIsIncluded
-                                                  ? 'Galleria condivisa da configurare'
-                                                  : '∞ Selezione libera';
-                                            })()
-                                          : product.numeroFoto > 0 
-                                            ? `${product.numeroFoto} foto incluse`
-                                            : '∞ Selezione libera'
-                                        }
+                                        {packageHeadline(product)}
                                       </span>
                                     </div>
                                     
@@ -1292,7 +1247,7 @@ export default function BookingPage() {
                                       <>
                                         {product.fotoCondivise && product.prodottoSorgenteFotoId && (
                                           <p className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
-                                            Il bundle usa la galleria di {product.bundleItems.find((item) => item.prodottoId === product.prodottoSorgenteFotoId)?.prodottoNome || 'un prodotto incluso'}. Le foto degli altri prodotti si scelgono da questa stessa raccolta e non sono scatti aggiuntivi.
+                                            {sharedPhotosNotice()}
                                           </p>
                                         )}
                                         <details
@@ -1304,42 +1259,75 @@ export default function BookingPage() {
                                             className="flex cursor-pointer list-none items-center justify-between gap-3 p-3 text-sm font-medium marker:hidden"
                                             data-testid={`bundle-details-toggle-${product.id}`}
                                           >
-                                            <span>
-                                              Cosa include: {product.bundleItems.length}{' '}
-                                              {product.bundleItems.length === 1 ? 'prodotto' : 'prodotti'}
-                                            </span>
+                                            <span>{packageItemsTitle(product.bundleItems.length)}</span>
                                             <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden="true" />
                                           </summary>
-                                          <ul className="space-y-3 border-t px-3 py-3">
+                                          <ul className="space-y-4 border-t px-3 py-3">
                                             {product.bundleItems.map((item) => {
                                               const includedProduct = products.find(
                                                 (catalogProduct) => catalogProduct.id === item.prodottoId,
                                               );
                                               const description = includedProduct?.descrizione?.trim();
+                                              const photos = includedProduct?.immagini ?? [];
+                                              const descriptionKey = `${product.id}:${item.prodottoId}`;
 
                                               return (
                                                 <li
                                                   key={item.prodottoId}
-                                                  className="space-y-1"
+                                                  className="flex gap-3"
                                                   data-testid={`bundle-item-${product.id}-${item.prodottoId}`}
                                                 >
-                                                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
-                                                    <span className="font-medium">
+                                                  {photos.length > 0 ? (
+                                                    <button
+                                                      type="button"
+                                                      className="h-20 w-20 shrink-0 overflow-hidden rounded-md border bg-muted"
+                                                      onClick={(event) => {
+                                                        event.stopPropagation();
+                                                        openLightbox(photos, item.prodottoNome, 0);
+                                                      }}
+                                                      aria-label={`Ingrandisci la foto di ${item.prodottoNome}`}
+                                                      data-testid={`bundle-item-photo-${product.id}-${item.prodottoId}`}
+                                                    >
+                                                      <img
+                                                        src={photos[0]}
+                                                        alt={item.prodottoNome}
+                                                        loading="lazy"
+                                                        className="h-full w-full object-cover"
+                                                      />
+                                                    </button>
+                                                  ) : (
+                                                    <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-md border bg-muted" aria-hidden="true">
+                                                      <Package className="h-6 w-6 text-muted-foreground" />
+                                                    </div>
+                                                  )}
+                                                  <div className="min-w-0 flex-1 space-y-1">
+                                                    <p className="text-sm font-medium leading-snug">
                                                       {item.quantita > 1 ? `${item.quantita} × ` : ''}{item.prodottoNome}
-                                                    </span>
-                                                    <span className="text-xs text-muted-foreground">
-                                                      {product.fotoCondivise && item.prodottoId === product.prodottoSorgenteFotoId
-                                                        ? `${item.numeroFoto} foto · galleria sorgente`
-                                                        : item.numeroFoto > 0
-                                                          ? product.fotoCondivise
-                                                            ? `${item.numeroFoto} foto per ${item.quantita > 1 ? 'unità' : 'questo prodotto'} · dalla stessa galleria`
-                                                            : `${item.numeroFoto} foto per il prodotto`
-                                                          : 'Selezione libera'}
-                                                    </span>
+                                                    </p>
+                                                    <p className="text-xs text-muted-foreground">
+                                                      {packageItemNote(product, item)}
+                                                    </p>
+                                                    {description && (
+                                                      <>
+                                                        <p
+                                                          className={`text-xs leading-relaxed text-muted-foreground ${
+                                                            expandedDescriptions[descriptionKey] ? '' : 'line-clamp-2'
+                                                          }`}
+                                                        >
+                                                          {description}
+                                                        </p>
+                                                        {description.length > 80 && (
+                                                          <button
+                                                            type="button"
+                                                            onClick={(event) => toggleDescription(descriptionKey, event)}
+                                                            className="text-xs font-medium text-primary hover:underline"
+                                                          >
+                                                            {expandedDescriptions[descriptionKey] ? 'Mostra meno' : 'Leggi tutto'}
+                                                          </button>
+                                                        )}
+                                                      </>
+                                                    )}
                                                   </div>
-                                                  <p className="text-xs leading-relaxed text-muted-foreground">
-                                                    {description || 'Descrizione non disponibile.'}
-                                                  </p>
                                                 </li>
                                               );
                                             })}
@@ -1487,8 +1475,8 @@ export default function BookingPage() {
                     </Button>
 
                     <p className="text-xs text-center text-muted-foreground">
-                      {immediateDeposit ? 'Il pagamento conferma lo slot. Hai dieci minuti per completarlo; altrimenti l’orario torna disponibile.'
-                        : 'Controlliamo che lo slot sia ancora disponibile. Al termine vedrai se l’appuntamento è confermato o se la richiesta attende l’approvazione dello studio.'}
+                      {immediateDeposit ? 'Il pagamento conferma l’orario. Hai dieci minuti per completarlo; altrimenti l’orario torna disponibile.'
+                        : 'Controlliamo che l’orario sia ancora libero. Al termine vedrai se l’appuntamento è confermato o se la richiesta attende l’approvazione dello studio.'}
                     </p>
                   </CardContent>
                 </Card>

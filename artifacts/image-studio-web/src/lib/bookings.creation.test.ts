@@ -98,7 +98,7 @@ describe('risposta della creazione prenotazione', () => {
 
   it('espone il conflitto come errore recuperabile senza JSON grezzo', async () => {
     mocks.request.mockRejectedValue(new Error('409: {"error":"Slot non più disponibile"}'));
-    await expect(createBooking(input)).rejects.toMatchObject({ status: 409, message: expect.stringContaining('Scegli un altro slot') });
+    await expect(createBooking(input)).rejects.toMatchObject({ status: 409, message: expect.stringContaining('Scegli un altro orario') });
   });
 
   it('non presenta la richiesta di checkout obbligatorio come slot occupato', async () => {
