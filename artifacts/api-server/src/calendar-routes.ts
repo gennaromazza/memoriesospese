@@ -57,8 +57,8 @@ router.post('/refresh-token', authenticateFirebase, requireAdmin, async (req, re
     invalidateTokenCache();
     const status = await getCalendarConnectionStatus();
     res.json({
-      success: true,
-      message: 'Service Account auth cache invalidated, re-initialized',
+      success: status.connected,
+      message: status.connected ? 'Calendario e permessi di scrittura verificati' : status.error,
       status,
     });
   } catch (error: any) {
@@ -934,12 +934,10 @@ router.patch('/events/:eventId', authenticateFirebase, requireAdmin, async (req,
 router.get('/connection-status', authenticateFirebase, requireAdmin, async (req, res) => {
   try {
     const status = await getCalendarConnectionStatus();
-    const calendarId = process.env.GOOGLE_CALENDAR_ID || 'non configurato';
-    
     res.json({
       connected: status.connected,
       accountEmail: status.email || '',
-      calendarId,
+      calendarId: status.calendarId || '',
       authMethod: 'service_account',
       needsReconnect: false,
       error: status.error || undefined,

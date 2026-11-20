@@ -145,8 +145,8 @@ export function GoogleCalendarStatus({ toast }: GoogleCalendarStatusProps) {
 
       if (refreshedStatus?.connected) {
         toast({
-          title: "Google Calendar sincronizzato",
-          description: "Sessione admin e connessione del Service Account verificate.",
+          title: "Calendario verificato",
+          description: "Calendario di destinazione e permessi di scrittura verificati. Gli eventi esistenti non sono stati modificati.",
         });
       } else {
         toast({
@@ -162,6 +162,7 @@ export function GoogleCalendarStatus({ toast }: GoogleCalendarStatusProps) {
         calendarErrorMessage(error) || "Impossibile sincronizzare Google Calendar";
       setStatus((prev) => ({
         ...prev,
+        connected: false,
         loading: false,
         error: message,
       }));
@@ -201,7 +202,7 @@ export function GoogleCalendarStatus({ toast }: GoogleCalendarStatusProps) {
                 Service Account: <strong>{status.accountEmail}</strong>
               </span>
               <p className="text-xs text-green-600">
-                Calendario: {status.calendarId} — Connessione permanente
+                Calendario: {status.calendarId} — Lettura e scrittura verificate
               </p>
             </div>
           </div>
@@ -214,7 +215,7 @@ export function GoogleCalendarStatus({ toast }: GoogleCalendarStatusProps) {
             data-testid="button-sync-calendar"
           >
             <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-            {isRefreshing ? "Sincronizzazione..." : "Sincronizza / ricollega"}
+            {isRefreshing ? "Verifica in corso..." : "Verifica collegamento"}
           </Button>
         </div>
         <CalendarConnectionHelp />
@@ -243,7 +244,7 @@ export function GoogleCalendarStatus({ toast }: GoogleCalendarStatusProps) {
           data-testid="button-sync-calendar"
         >
           <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-          {isRefreshing ? "Sincronizzazione..." : "Sincronizza / ricollega"}
+          {isRefreshing ? "Verifica in corso..." : "Verifica collegamento"}
         </Button>
       </div>
 
@@ -260,16 +261,17 @@ function CalendarConnectionHelp() {
       </p>
       <ul className="text-sm text-blue-700 list-disc list-inside space-y-1">
         <li>
-          Il pulsante rinnova la sessione Firebase dell&apos;admin e verifica di
-          nuovo la richiesta.
+          Il pulsante verifica il calendario di destinazione e i permessi per
+          leggere e creare appuntamenti. Non recupera gli eventi mancanti.
         </li>
         <li>
-          Il server reinizializza il client Google con il Service Account
-          configurato; non è un nuovo login OAuth personale.
+          Deve essere configurato l&apos;ID del calendario dello studio
+          (GOOGLE_CALENDAR_ID); la sola autenticazione Google non basta.
         </li>
         <li>
           Se l&apos;errore continua, il calendario deve essere condiviso con
-          l&apos;indirizzo email del Service Account.
+          l&apos;indirizzo email del Service Account con il permesso
+          “Apportare modifiche agli eventi”.
         </li>
       </ul>
     </div>

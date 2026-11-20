@@ -26,6 +26,8 @@ let cachedAuthClient: any = null;
 export interface CalendarConnectionStatus {
   connected: boolean;
   email?: string;
+  accountEmail?: string;
+  calendarId?: string;
   expiresAt?: string;
   expiresInMinutes?: number;
   needsReconnection: boolean;
@@ -34,21 +36,46 @@ export interface CalendarConnectionStatus {
 }
 
 export async function getCalendarConnectionStatus(): Promise<CalendarConnectionStatus> {
+  const calendarId = process.env.GOOGLE_CALENDAR_ID?.trim();
+  let serviceEmail = '';
   try {
+    if (!calendarId || calendarId === 'primary') {
+      throw new Error("Calendario di destinazione non configurato: imposta GOOGLE_CALENDAR_ID con l’ID del calendario dello studio.");
+    }
     const client = await getServiceAccountAuth();
-    const serviceEmail = process.env.GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL || '';
+    serviceEmail = client.email || '';
+    const calendar = google.calendar({ version: 'v3', auth: client });
+    // Una lettura reale verifica destinazione e permessi senza creare eventi
+    // di prova né richiedere che il calendario sia già nella calendarList.
+    const response = await withCalendarRetry(() => calendar.events.list({
+      calendarId,
+      maxResults: 1,
+      fields: 'accessRole',
+    }, { timeout: CALENDAR_REQUEST_TIMEOUT_MS }));
+    if (!['writer', 'owner'].includes(response.data.accessRole || '')) {
+      throw new Error("Il calendario è accessibile ma mancano i permessi per creare appuntamenti. Condividilo con il Service Account con il permesso “Apportare modifiche agli eventi”.");
+    }
     
     return {
       connected: true,
       email: serviceEmail,
+      accountEmail: serviceEmail,
+      calendarId,
       needsReconnection: false,
       authMethod: 'service_account',
     };
   } catch (error: any) {
     return {
       connected: false,
+      email: serviceEmail,
+      accountEmail: serviceEmail,
+      calendarId,
       needsReconnection: false,
-      error: error.message,
+      error: Number(error?.response?.status ?? error?.code) === 404
+        ? "Calendario non trovato o non condiviso con il Service Account. Verifica GOOGLE_CALENDAR_ID e la condivisione del calendario."
+        : Number(error?.response?.status ?? error?.code) === 403
+          ? "Accesso al calendario negato. Verifica i permessi del Service Account e che Google Calendar API sia abilitata."
+          : safeErrorMessage(error, "Impossibile verificare il calendario. Riprova tra poco."),
       authMethod: 'service_account',
     };
   }
