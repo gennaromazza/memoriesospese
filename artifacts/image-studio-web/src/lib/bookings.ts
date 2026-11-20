@@ -44,7 +44,7 @@ function bookingRequestError(error: unknown, preserveConflictMessage = false): B
   const match = error instanceof Error ? /^(\d{3}):\s*([\s\S]*)$/.exec(error.message) : null;
   const status = match ? Number(match[1]) : undefined;
   if (status === 409 && !preserveConflictMessage) {
-    return new BookingRequestError('Questo orario non è più disponibile. Scegli un altro slot: i dati inseriti sono conservati.', status);
+    return new BookingRequestError('Questo orario non è più disponibile. Scegli un altro orario: i dati inseriti sono conservati.', status);
   }
   if (match) {
     try {

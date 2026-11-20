@@ -57,6 +57,7 @@ leggibile" in produzione: è coperto dai test automatici.
 | 23 | Invia una richiesta di prova su Natale 2026 e controlla le email al cliente (richiesta ricevuta, link di pagamento dell'acconto, conferma). | Ogni email contiene il blocco "Prima di venire a trovarci" col link al vademecum. Una campagna non di Natale non lo mostra. |
 | 24 | Con una prenotazione Natale 2026 confermata, apri il link personale: prova a cambiare appuntamento a meno di 4 giorni dallo shooting e poi a 4 giorni o più. | Sotto i 4 giorni il cambio è bloccato con il messaggio "Mancano meno di 4 giorni…"; da 4 giorni in su si può cambiare. Il testo dice "fino a 4 giorni prima". Una prenotazione di un'altra campagna resta a 24 ore. |
 | 25 | Su una prenotazione di Natale 2026 fatta con le nuove condizioni, annulla dal link personale. | L'annullamento online è disponibile e mostra le condizioni con "4 giorni". |
+| 26 | Apri la pagina di prenotazione dal telefono (anche in orizzontale). Guarda la scelta della settimana, i giorni e un pacchetto con più prodotti. | Frecce ai lati e intervallo su una riga ("20 – 26 nov 2026"); giorni in 4 colonne; nei pacchetti si vedono le foto dei prodotti (toccandole si ingrandiscono); niente parole come "bundle", "slot" o "galleria sorgente"; le descrizioni lunghe si aprono con "Leggi tutto". |
 
 ## 3. Cosa guardare nei log durante le prove
 
