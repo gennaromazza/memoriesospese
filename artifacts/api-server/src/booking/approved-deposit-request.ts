@@ -197,7 +197,13 @@ export async function approveBookingWithDeposit(db: Firestore, bookingId: string
       const [saved, booking] = await Promise.all([tx.get(holdRef), tx.get(ref)]);
       if (saved.data()?.paymentEmail?.attemptId !== attemptId) return;
       tx.update(holdRef, { 'paymentEmail.status': emailStatus, ...(emailStatus === 'sent' ? { 'paymentEmail.sentAt': Timestamp.now() } : {}) });
-      if (booking.exists) tx.update(ref, { 'depositPaymentRequest.emailStatus': emailStatus });
+      // A manual confirmation may have waived the request while the provider
+      // was sending. Never recreate a removed payment request via a dotted update.
+      const root = booking.data();
+      if (root?.stato === 'in_attesa' && root.depositPaymentRequest?.status === 'pending'
+        && saved.data()?.status === 'active') {
+        tx.update(ref, { 'depositPaymentRequest.emailStatus': emailStatus });
+      }
     });
   }
   return { success: true as const, bookingId, paymentRequired: true as const, stato: 'in_attesa_pagamento' as const,

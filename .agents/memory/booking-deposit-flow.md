@@ -206,6 +206,35 @@ che vedere zero pagato sull'ordine dopo un acconto PayPal è fuorviante.
 distinguere pagamento immediato da link inviato dopo approvazione. Usare il
 marchio PayPal ufficiale senza inventare certificazioni o garanzie.
 
+## Conferma manuale distinta dall’approvazione
+
+Il cambio di stato amministrativo a “Confermata” esonera dalla richiesta di acconto.
+Il pulsante “Approva” resta invece il normale flusso configurato nella campagna
+e può richiedere il pagamento prima della conferma.
+
+**Why:** il titolare usa il selettore di stato per confermare direttamente gli
+accordi gestiti dallo studio e non vuole che questa azione avvii un pagamento.
+
+**How to apply:** non unificare nuovamente le due intenzioni lato client.
+L’esonero non è un incasso e non autorizza a ignorare pagamenti già in corso
+o incerti; gli eventuali vecchi link di pagamento devono essere disattivati.
+
+## Recupero dopo la scadenza dell’acconto
+
+Il recupero deve essere attivabile separatamente per ogni campagna: un invito
+a riprenotare circa un’ora dopo la scadenza, senza riservare di nuovo lo slot
+né riattivare il vecchio link di pagamento. Escludere chi ha pagato o
+riprenotato e le campagne non più aperte.
+
+**Why:** il titolare ha richiesto un modo per ricontattare chi non conclude
+l’acconto, mantenendo il controllo sulle singole campagne.
+
+**How to apply:** l’opzione parte spenta e vale per nuove scadenze dopo
+l’attivazione, non per invii retroattivi alle prenotazioni già annullate.
+Un solo invito per indirizzo email nella stessa campagna evita solleciti
+duplicati da tentativi ripetuti; un esito di invio incerto non autorizza retry
+automatici. Eventuali recuperi dello storico richiedono un’autorizzazione distinta.
+
 ## Avanzamento automatico del workflow
 
 Quando viene creato il primo ordine collegato a una prenotazione in stato

@@ -76,7 +76,8 @@ it('preserves a deposit service error instead of falling through to final confir
   expect((await fetch(`${base}/v2/test/approve`, { method: 'PATCH' })).status).toBe(409);
   expect(h.booking.stato).toBe('in_attesa');
 });
-it.each(['confermata', 'completata'])('does not bypass payment through generic status %s', async stato => {
+// Manual "confermata" now explicitly waives the deposit (covered in creation/waiver tests).
+it.each(['completata'])('does not bypass payment through generic status %s', async stato => {
   const response = await fetch(`${base}/test/status`, { method: 'PATCH',
     headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stato }) });
   expect(response.status).toBe(400);

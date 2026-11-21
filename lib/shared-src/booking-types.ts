@@ -158,6 +158,8 @@ export interface BookingCampaign {
   richiedeApprovazione?: boolean;
   richiedeAcconto?: boolean;
   accontoImportoCentesimi?: number | null;
+  emailRecuperoAcconto?: boolean;
+  recuperoAccontoAttivatoIl?: Timestamp;
   
   // Immagini personalizzate (opzionali)
   immagineSlider?: string; // URL immagine per slider homepage (opzionale)

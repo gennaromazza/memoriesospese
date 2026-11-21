@@ -24,6 +24,7 @@ import { cleanupExpiredManualConsultationLocks } from "./consultation-routes";
 import { runSocialCoverHealthCheck } from "./social-cover-health";
 import { db } from "./firebase-admin";
 import { startBookingPaymentExpiryWorker } from "./booking/payment-expiry";
+import { startBookingRecoveryWorker } from "./booking/recovery-delivery";
 import { startBookingConfirmationWorker } from "./booking/confirmation-delivery";
 import { startBookingRescheduleWorker } from "./booking/reschedule-delivery";
 import { startBookingCancellationWorker } from "./booking/cancellations";
@@ -91,6 +92,9 @@ app.listen(port, async (err) => {
 
   cancellationWorkerCleanup = startCancellationRetryWorker();
   bookingExpiryCleanup = startBookingPaymentExpiryWorker(db);
+  const stopBookingRecovery = startBookingRecoveryWorker(db);
+  process.once('SIGTERM', stopBookingRecovery);
+  process.once('SIGINT', stopBookingRecovery);
   bookingConfirmationCleanup = startBookingConfirmationWorker(db);
   bookingRescheduleCleanup = startBookingRescheduleWorker(db);
   const stopCancellation = startBookingCancellationWorker(db);

@@ -71,6 +71,14 @@ describe('live booking payment updates', () => {
 });
 
 describe('solo le prenotazioni delle campagne indicate', () => {
+  it('non ripristina un dato vecchio dalla cache dopo una conferma ricevuta dal server', async () => {
+    const hook = renderHook(() => useLiveBookings('staff'), { wrapper });
+    const next = api.subscribeBookings.mock.calls[0][0];
+    act(() => next([{ ...pending, stato: 'confermata' }], false));
+    await waitFor(() => expect(hook.result.current.data?.[0].stato).toBe('confermata'));
+    act(() => next([pending], true));
+    expect(hook.result.current.data?.[0].stato).toBe('confermata');
+  });
   const active = { mode: 'campaigns' as const, campaignIds: ['natale', 'ritratti'] };
   it('ascolta solo quelle campagne e tiene i dati parziali fuori dalla cache completa', async () => {
     const hook = renderHook(() => useLiveBookings('staff', active), { wrapper });

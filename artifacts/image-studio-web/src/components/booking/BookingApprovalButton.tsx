@@ -8,6 +8,7 @@ interface BookingApprovalButtonProps {
   isPending: boolean;
   isDisabled?: boolean;
   onApprove: () => void;
+  completedLabel?: string;
 }
 
 export function BookingApprovalButton({
@@ -17,6 +18,7 @@ export function BookingApprovalButton({
   isPending,
   isDisabled = false,
   onApprove,
+  completedLabel,
 }: BookingApprovalButtonProps) {
   const label = requiresDeposit
     ? 'Approva e richiedi acconto'
@@ -25,26 +27,28 @@ export function BookingApprovalButton({
   if (placement === 'list') {
     return (
       <Button
+        type="button"
         size="sm"
         onClick={onApprove}
-        disabled={isPending || isDisabled}
+        disabled={isPending || isDisabled || !!completedLabel}
         className="bg-sage hover:bg-dark-sage h-auto min-h-12 whitespace-normal"
         data-testid={`button-approve-${bookingId}`}
       >
         {isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-1" />}
-        {label}
+        {completedLabel || label}
       </Button>
     );
   }
 
   return (
     <Button
+      type="button"
       onClick={onApprove}
-      disabled={isPending || isDisabled}
+      disabled={isPending || isDisabled || !!completedLabel}
       className="bg-sage hover:bg-dark-sage"
       data-testid={`button-approve-detail-${bookingId}`}
     >
-      {isPending
+      {completedLabel ? <><CheckCircle className="w-4 h-4 mr-2" />{completedLabel}</> : isPending
         ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Approvazione...</>
         : <><CheckCircle className="w-4 h-4 mr-2" />{label}</>}
     </Button>

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+vi.mock('../calendar-destination.js', () => ({ getStudioCalendarId: async () => 'studio' }));
 
 // Audit 19/11/2026: il worker azzerava googleCalendarEventId di record validi quando
 // l'evento era oltre la finestra letta (-30/+90 giorni) o segnato "Libero".

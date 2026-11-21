@@ -1003,6 +1003,7 @@ export default function CampaignsManager() {
                   richiedeApprovazione: formData.richiedeApprovazione,
                   richiedeAcconto: formData.richiedeAcconto,
                   accontoImportoEuro: formData.accontoImportoEuro,
+                  emailRecuperoAcconto: formData.emailRecuperoAcconto,
                 }}
                 error={paymentError}
                 onChange={payment => {

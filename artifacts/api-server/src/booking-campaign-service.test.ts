@@ -93,6 +93,19 @@ describe('creazione centralizzata campagne', () => {
       }),
     );
   });
+  it('attiva il recupero solo esplicitamente e registra da quando vale, senza accettare date fornite dal client', async () => {
+    await createBookingCampaign({ ...campaignInput, richiedeAcconto: true, accontoImportoCentesimi: 500,
+      emailRecuperoAcconto: true, recuperoAccontoAttivatoIl: '2000-01-01' });
+    expect(store.transaction.create).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      emailRecuperoAcconto: true, recuperoAccontoAttivatoIl: 'server-timestamp',
+    }));
+  });
+  it('non attiva il recupero senza acconto', async () => {
+    await createBookingCampaign({ ...campaignInput, emailRecuperoAcconto: true });
+    const saved = store.transaction.create.mock.calls[0][1];
+    expect(saved.emailRecuperoAcconto).toBe(false);
+    expect(saved).not.toHaveProperty('recuperoAccontoAttivatoIl');
+  });
 
   it.each([
     ['mancante', undefined],

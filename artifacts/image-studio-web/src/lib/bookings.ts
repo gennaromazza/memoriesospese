@@ -342,10 +342,20 @@ export async function updateBookingStatus(
   bookingId: string,
   stato: 'in_attesa' | 'confermata' | 'completata' | 'annullata'
 ): Promise<BookingApprovalResult | void> {
-  // Il cambio a "confermata" usa lo stesso flusso protetto del pulsante Approva,
-  // incluso l'eventuale esito "acconto richiesto, non ancora confermata".
-  if (stato === 'confermata') return approveBooking(bookingId);
-  await apiRequest('PATCH', `/api/booking/${bookingId}/status`, { stato });
+  // The explicit status selector is an admin override, distinct from normal approval.
+  try {
+    const response = await apiRequest('PATCH', `/api/booking/${encodeURIComponent(bookingId)}/status`, { stato });
+    if (stato === 'confermata') {
+      const result = await response.json();
+      if (result?.success !== true || result.paymentRequired === true) {
+        throw new BookingRequestError('Conferma manuale non completata: aggiorna la prenotazione prima di riprovare.');
+      }
+      return result;
+    }
+  } catch (error) {
+    if (error instanceof BookingRequestError) throw error;
+    throw bookingRequestError(error, true);
+  }
 }
 
 /**

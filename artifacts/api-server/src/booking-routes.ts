@@ -32,6 +32,7 @@ import { bookingConditionsSnapshot } from '../shared/booking-conditions.js';
 import { bookingCancellationRouter } from './booking/cancellation-routes.js';
 import { bookingDepositCents } from './booking/cancellation-policy.js';
 import { calendarRecoveryRouter } from './booking/calendar-recovery-routes.js';
+import { checkAdminConfirmation, commitAdminConfirmation } from './booking/admin-status-confirmation.js';
 
 const router = express.Router();
 async function requestDepositIfNeeded(req: any, res: express.Response, bookingId: string,
@@ -925,7 +926,7 @@ router.post("/create", requireAdminForManualBooking, async (req, res) => {
  * 
  * L'identità dell'admin è letta dal token Firebase verificato.
  */
-const approveBookingV2 = async (req: express.Request<{ id: string }>, res: express.Response): Promise<HttpHandlerResult> => {
+const approveBookingV2 = async (req: express.Request<{ id: string }>, res: express.Response, manualConfirmation = false): Promise<HttpHandlerResult> => {
   try {
     console.log("[PATCH /v2/:id/approve] 🔵 Calendar Engine V2 - Request");
     const { id } = req.params;
@@ -955,7 +956,7 @@ const approveBookingV2 = async (req: express.Request<{ id: string }>, res: expre
       });
     }
 
-    if (unpaidDepositRequestExpired(bookingData)) {
+    if (!manualConfirmation && unpaidDepositRequestExpired(bookingData)) {
       return res.status(410).json({ error: "La richiesta di acconto è scaduta: occorre una nuova prenotazione" });
     }
 
@@ -970,8 +971,14 @@ const approveBookingV2 = async (req: express.Request<{ id: string }>, res: expre
     }
 
     // RIVALIDAZIONE con Calendar Engine V2
-    if (await requestDepositIfNeeded(req, res, id, bookingData)) return;
-    if (bookingData.depositPaymentRequest?.status === 'pending' && !hasPaidBookingDeposit(bookingData)) {
+    if (manualConfirmation) {
+      try { await checkAdminConfirmation(db, id, bookingData); }
+      catch (error) {
+        if (error instanceof CheckoutHoldError) return res.status(error.status).json({ error: error.message });
+        throw error;
+      }
+    } else if (await requestDepositIfNeeded(req, res, id, bookingData)) return;
+    if (!manualConfirmation && bookingData.depositPaymentRequest?.status === 'pending' && !hasPaidBookingDeposit(bookingData)) {
       return res.status(400).json({ code: "DEPOSIT_PAYMENT_PENDING", error: "Acconto in attesa di pagamento: la scadenza originaria resta invariata" });
     }
     const slotStart = bookingData.dataShootingInizio.toDate();
@@ -1121,14 +1128,19 @@ const approveBookingV2 = async (req: express.Request<{ id: string }>, res: expre
       // non possono confermarla entrambe (la seconda rimuove il proprio evento).
       const { updateBookingIfStateUnchanged, BookingStateChangedError } = await import("./booking/update-if-state-unchanged.js");
       stateChangedError = BookingStateChangedError;
-      await updateBookingIfStateUnchanged(db, bookingRef, bookingData.stato, {
+      const updates = {
         stato: "confermata",
         ...workflowUpdate,
         googleCalendarEventId: calendarEventId,
         confermataDa: (req as any).user?.uid || "admin",
         confermatail: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
-      });
+      };
+      if (manualConfirmation) {
+        await commitAdminConfirmation(db, id, bookingData, updates, (req as any).user?.uid || 'admin');
+      } else {
+        await updateBookingIfStateUnchanged(db, bookingRef, bookingData.stato, updates);
+      }
     } catch (firestoreError) {
       // Rollback: cancella evento Calendar se update Firestore fallisce
       console.error(
@@ -1149,6 +1161,9 @@ const approveBookingV2 = async (req: express.Request<{ id: string }>, res: expre
         );
       }
 
+      if (firestoreError instanceof CheckoutHoldError) {
+        return res.status(firestoreError.status).json({ error: firestoreError.message });
+      }
       if (stateChangedError && firestoreError instanceof stateChangedError) {
         return res.status(409).json({
           error: "Prenotazione già gestita",
@@ -1250,7 +1265,7 @@ const approveBookingV2 = async (req: express.Request<{ id: string }>, res: expre
   }
 };
 
-router.patch("/v2/:id/approve", authenticateFirebase, requireAdmin, approveBookingV2);
+router.patch("/v2/:id/approve", authenticateFirebase, requireAdmin, (req, res) => approveBookingV2(req, res));
 
 /**
  * PATCH /api/booking/:id/approve
@@ -1823,13 +1838,8 @@ router.patch("/:id/status", authenticateFirebase, requireAdmin, async (req, res)
     }
 
     const oldStato = bookingData.stato;
-    // Anche il selettore generico deve passare da disponibilità, acconto,
-    // Calendar e salvataggio protetto dell'approvazione; mai solo stato=confermata.
+    // Explicit admin status change waives the deposit, not Calendar/availability safety.
     if (stato === "confermata") {
-      if (bookingData.depositPaymentRequest && !hasPaidBookingDeposit(bookingData)) {
-        return res.status(400).json({ code: 'DEPOSIT_PAYMENT_PENDING',
-          error: 'L’acconto non è confermato o richiede una verifica. Non è possibile confermare lo shooting da questo comando.' });
-      }
       if (oldStato === "confermata") {
         if (!bookingData.googleCalendarEventId || bookingData.calendarSyncPending
           || bookingData.automaticConfirmationError) {
@@ -1840,7 +1850,7 @@ router.patch("/:id/status", authenticateFirebase, requireAdmin, async (req, res)
         }
         return res.json({ success: true, bookingId: id, newStato: stato, message: "Prenotazione già confermata" });
       }
-      return approveBookingV2(req, res);
+      return approveBookingV2(req, res, true);
     }
     if (stato === 'annullata' && bookingDepositCents(bookingData) > 0
       || ['pending', 'blocked'].includes(bookingData.customerReschedule?.status)

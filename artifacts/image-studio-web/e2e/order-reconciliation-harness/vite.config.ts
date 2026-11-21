@@ -10,7 +10,7 @@ const inert = [
   '@/lib/products', '@/lib/product-categories', '@/lib/galleries',
   '@/context/FirebaseAuthContext', '@/hooks/use-toast',
   './booking/useLiveBookings',
-  './booking/BookingPaymentPanel', './booking/BookingApprovalButton',
+  './booking/BookingPaymentPanel',
   './booking/BookingManagementLinkPanel', './booking/BookingCancellationAdminPanel',
   './booking/BookingPaymentCheckouts',
   './booking/InPersonDepositDialog',

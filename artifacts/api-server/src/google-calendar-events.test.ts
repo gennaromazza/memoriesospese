@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+vi.mock('./calendar-destination.js', () => ({ getStudioCalendarId: async () => 'studio' }));
 
 const h = vi.hoisted(() => ({ del: vi.fn(), get: vi.fn() }));
 vi.mock('googleapis', () => ({

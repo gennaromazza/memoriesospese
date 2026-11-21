@@ -243,4 +243,22 @@ describe('booking-campaigns Firestore service', () => {
 
     expect(transaction.update).not.toHaveBeenCalled();
   });
+
+  it('registra l’attivazione con l’orologio del server, la conserva e la elimina quando il recupero viene spento', async () => {
+    const saved: Record<string, any> = { ...campaignInput('FIRST'), dataInizio: asTimestamp('2026-10-01T00:00:00Z'),
+      dataFine: asTimestamp('2026-10-31T00:00:00Z') };
+    const tx = configureTransaction({ exists: () => true, data: () => saved });
+    tx.update.mockImplementation((_ref: unknown, patch: Record<string, unknown>) => Object.assign(saved, patch));
+    await updateCampaign('one', { emailRecuperoAcconto: true });
+    expect(tx.update).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({
+      emailRecuperoAcconto: true, recuperoAccontoAttivatoIl: { serverTimestamp: true },
+    }));
+    tx.update.mockClear();
+    await updateCampaign('one', { emailRecuperoAcconto: true });
+    expect(tx.update).toHaveBeenLastCalledWith(expect.anything(), { emailRecuperoAcconto: true });
+    await updateCampaign('one', { emailRecuperoAcconto: false });
+    expect(tx.update).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({
+      emailRecuperoAcconto: false, recuperoAccontoAttivatoIl: { deleteField: true },
+    }));
+  });
 });

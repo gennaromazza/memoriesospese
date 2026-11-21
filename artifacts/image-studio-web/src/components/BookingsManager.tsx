@@ -5,6 +5,7 @@ import { bookingPaymentStage, bookingPaymentStageLabel, matchesBookingPaymentFil
 import { BookingPaymentPanel } from './booking/BookingPaymentPanel';
 import { InPersonDepositDialog } from './booking/InPersonDepositDialog';
 import { BookingApprovalButton } from './booking/BookingApprovalButton';
+import { useBookingApproval } from './booking/useBookingApproval';
 import { BookingManagementLinkPanel } from './booking/BookingManagementLinkPanel';
 import { BookingCancellationAdminPanel } from './booking/BookingCancellationAdminPanel';
 import { requiresBookingCancellationPanel } from '@/lib/booking-deletion';
@@ -27,7 +28,6 @@ import {
   startOfDay,
 } from "date-fns";
 import {
-  approveBooking,
   rejectBooking,
   updateBookingStatus,
   deleteBooking,
@@ -1077,12 +1077,9 @@ export default function BookingsManager({
   }, [highlightBookingId, allBookings, isLoading, onHighlightComplete, sortDirection, scopeAll]);
 
   // Mutation: Approva prenotazione
-  const approveMutation = useMutation({
-    mutationFn: async (bookingId: string) => {
-      // Marca come vista prima di approvare (per far scomparire badge NUOVA)
-      await markBookingAsViewed(bookingId);
-      return approveBooking(bookingId);
-    },
+  const approveMutation = useBookingApproval({
+    bookings: allBookings,
+    refresh: refetch,
     onSuccess: result => {
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
       toast({
@@ -1133,12 +1130,12 @@ export default function BookingsManager({
     mutationFn: async ({ id, stato }: { id: string; stato: any }) => {
       return updateBookingStatus(id, stato);
     },
-    onSuccess: (result) => {
+    onSuccess: (_result, variables) => {
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
       toast({
-        title: result?.paymentRequired ? "In attesa di pagamento" : "Stato aggiornato",
-        description: result?.paymentRequired
-          ? "È stato richiesto l’acconto: la prenotazione sarà confermata dopo il pagamento. Controlla l’esito dell’invio nel dettaglio pagamento."
+        title: variables.stato === 'confermata' ? "Prenotazione confermata" : "Stato aggiornato",
+        description: variables.stato === 'confermata'
+          ? "Confermata manualmente senza richiedere l’acconto. Non è stato registrato alcun pagamento."
           : "Lo stato della prenotazione è stato modificato",
       });
       setSelectedBooking(null);
@@ -2972,6 +2969,9 @@ export default function BookingsManager({
                                       placement="list"
                                       isPending={approveMutation.isPending}
                                       isDisabled={rejectMutation.isPending}
+                                      completedLabel={approveMutation.completed[booking.id]
+                                        ? approveMutation.completed[booking.id].paymentRequired ? 'Acconto richiesto' : 'Approvata'
+                                        : undefined}
                                       onApprove={() => approveMutation.mutate(booking.id)}
                                     />
                                     <Button
@@ -2982,6 +2982,7 @@ export default function BookingsManager({
                                       }
                                       disabled={
                                         approveMutation.isPending ||
+                                        !!approveMutation.completed[booking.id] ||
                                         rejectMutation.isPending
                                       }
                                       className="border-red-200 text-red-600 hover:bg-red-50 h-12"
@@ -3420,6 +3421,7 @@ export default function BookingsManager({
                   </Label>
                   <Select
                     value={selectedBooking.stato}
+                    disabled={changeStatusMutation.isPending}
                     onValueChange={(value) =>
                       changeStatusMutation.mutate({
                         id: selectedBooking.id,
@@ -3441,6 +3443,10 @@ export default function BookingsManager({
                       <SelectItem value="annullata">Annullata</SelectItem>
                     </SelectContent>
                   </Select>
+                  {selectedBooking.stato === 'in_attesa' && <p className="mt-2 text-xs text-muted-foreground">
+                    Scegliendo “Confermata” da qui confermi senza richiedere l’acconto.
+                    Per richiedere il pagamento usa invece “Approva”.
+                  </p>}
                 </div>
 
                 {/* Info cliente */}
@@ -3736,13 +3742,16 @@ export default function BookingsManager({
                     placement="detail"
                     isPending={approveMutation.isPending}
                     isDisabled={rejectMutation.isPending}
+                    completedLabel={approveMutation.completed[selectedBooking.id]
+                      ? approveMutation.completed[selectedBooking.id].paymentRequired ? 'Acconto richiesto' : 'Approvata'
+                      : undefined}
                     onApprove={() => approveMutation.mutate(selectedBooking.id)}
                   />
                   <Button
                     variant="outline"
                     onClick={() => rejectMutation.mutate(selectedBooking.id)}
                     disabled={
-                      approveMutation.isPending || rejectMutation.isPending
+                      approveMutation.isPending || !!approveMutation.completed[selectedBooking.id] || rejectMutation.isPending
                     }
                     className="border-red-200 text-red-600 hover:bg-red-50"
                     data-testid="button-reject-booking-detail"

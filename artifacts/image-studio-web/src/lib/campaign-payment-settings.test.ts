@@ -4,13 +4,13 @@ import { campaignPaymentFields, campaignPaymentForm } from './campaign-payment-s
 describe('conversione acconto campagna', () => {
   it('usa i default legacy e conserva le due opzioni indipendenti', () => {
     expect(campaignPaymentForm()).toEqual({
-      richiedeApprovazione: true, richiedeAcconto: false, accontoImportoEuro: '',
+      richiedeApprovazione: true, richiedeAcconto: false, accontoImportoEuro: '', emailRecuperoAcconto: false,
     });
     for (const richiedeApprovazione of [true, false]) {
       for (const richiedeAcconto of [true, false]) {
         const fields = { richiedeApprovazione, richiedeAcconto, accontoImportoCentesimi: 2501 };
         expect(campaignPaymentFields(campaignPaymentForm(fields))).toEqual({
-          ...fields, accontoImportoCentesimi: richiedeAcconto ? 2501 : null,
+          ...fields, accontoImportoCentesimi: richiedeAcconto ? 2501 : null, emailRecuperoAcconto: false,
         });
       }
     }
@@ -36,5 +36,10 @@ describe('conversione acconto campagna', () => {
     expect(campaignPaymentFields({
       richiedeApprovazione: true, richiedeAcconto: false, accontoImportoEuro: '',
     }).accontoImportoCentesimi).toBeNull();
+  });
+  it('conserva il recupero solo se l’acconto è attivo e l’opzione è stata scelta', () => {
+    const form = campaignPaymentForm({ richiedeAcconto: true, emailRecuperoAcconto: true, accontoImportoCentesimi: 500 });
+    expect(campaignPaymentFields(form).emailRecuperoAcconto).toBe(true);
+    expect(campaignPaymentFields({ ...form, richiedeAcconto: false }).emailRecuperoAcconto).toBe(false);
   });
 });

@@ -54,6 +54,37 @@ async function openOrderDetails(page: Page) {
   await expect(panel).toBeVisible();
 }
 
+test.describe('approvazione con un solo tocco da telefono', () => {
+  test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  for (const placement of ['list', 'detail', 'deposit'] as const) {
+    test(`il primo tocco salva da ${placement} anche con badge e lista bloccati`, async ({ page }) => {
+      const state = await fixture(page);
+      let approvals = 0;
+      await page.route('**/api/booking/v2/booking/approve', async route => {
+        approvals++;
+        expect(route.request().method()).toBe('PATCH');
+        await route.fulfill({ json: placement === 'deposit'
+          ? { success: true, paymentRequired: true, amountCents: 500, expiresAt: '2030-12-01T09:00:00Z', emailStatus: 'sent' }
+          : { success: true, bookingId: 'booking' } });
+      });
+      await page.goto(`/?time=all&campaign=all&approval-case=${placement}`);
+      if (placement === 'detail') await page.getByTestId('button-view-booking').tap();
+      const button = page.getByTestId(placement === 'detail' ? 'button-approve-detail-booking' : 'button-approve-booking');
+      await expect(button).toBeVisible();
+      await button.tap();
+      if (placement === 'detail') {
+        await expect(page.getByRole('dialog')).toHaveCount(0);
+        await expect(page.getByTestId('button-approve-booking')).toHaveText('Approvata');
+      } else {
+        await expect(button).toHaveText(placement === 'deposit' ? 'Acconto richiesto' : 'Approvata');
+      }
+      await expect(page.getByTestId('button-approve-booking')).toBeDisabled();
+      expect(approvals).toBe(1);
+      expect(state.unexpected).toEqual([]);
+    });
+  }
+});
+
 test('il recupero calendario richiede una verifica e non ricrea appuntamenti già presenti', async ({ page }) => {
   const state = await fixture(page);
   let inspections = 0, recoveries = 0;

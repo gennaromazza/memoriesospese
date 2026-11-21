@@ -3,6 +3,7 @@ import { syncBookingWorkflowState } from '../../shared/workflow-helpers.js';
 import { logger } from '../lib/logger.js';
 import { CHECKOUT_HOLDS, checkoutHoldBlocksSlot } from './slot-reservations.js';
 import { approvedDepositDeadline, hasPaidBookingDeposit, unpaidDepositRequestExpired } from './payment-deadlines.js';
+import { enqueueBookingRecovery } from './recovery-queue.js';
 
 export interface BookingExpiryCursor { holdId?: string; bookingId?: string; staleId?: string }
 /** Dati anagrafici di un checkout mai pagato: conservati solo per il tempo utile a riconciliare PayPal. */
@@ -32,6 +33,10 @@ async function expireHold(db: Firestore, id: string) {
     const snapshot = await transaction.get(ref), data = snapshot.data();
     if (!data || data.status !== 'active' || hasPaidBookingDeposit(data)
       || !Number.isFinite(data.expiresAt?.toMillis?.()) || checkoutHoldBlocksSlot(data)) return false;
+    if (!data.depositPayment && !data.paymentReviewRequired
+      && (!data.paypalCaptureAttempt || data.paypalCaptureAttempt.state === 'declined')) {
+      await enqueueBookingRecovery(transaction, db, id, data.campaignId, data.expiresAt.toMillis());
+    }
     transaction.update(ref, { status: 'expired', expiredAt: Timestamp.now() });
     return true;
   });
@@ -44,6 +49,9 @@ async function expireRequest(db: Firestore, id: string) {
     if (!data || data.depositPaymentRequest?.status !== 'pending' || !unpaidDepositRequestExpired(data)) return false;
     const now = Timestamp.now();
     const cancel = data.stato === 'in_attesa' || data.stato === 'confermata';
+    if (cancel && !data.depositPayment && !data.paymentReviewRequired && !data.depositWaiver) {
+      await enqueueBookingRecovery(transaction, db, id, data.campaignId, approvedDepositDeadline(data)!);
+    }
     transaction.update(ref, {
       depositPaymentRequest: { ...data.depositPaymentRequest, status: 'expired', expiredAt: now },
       ...(cancel ? { stato: 'annullata', ...syncBookingWorkflowState('annullata') } : {}),

@@ -4,6 +4,7 @@ import { reservationDb } from './test-helpers/reservation-db.js';
 import { approveBookingWithDeposit, type ApprovedDepositDependencies } from './approved-deposit-request.js';
 import { hashCheckoutToken } from './checkout-hold-state.js';
 import { expireBookingPayments } from './payment-expiry.js';
+import { commitAdminConfirmation } from './admin-status-confirmation.js';
 
 const now = Date.parse('2030-12-10T08:00:00Z'), id = 'approved-test', campaignId = 'campaign-test';
 const bookPath = `bookings/${id}`, holdPath = `bookingCheckoutHolds/${id}`, campaignPath = `booking_campaigns/${campaignId}`;
@@ -27,6 +28,18 @@ beforeEach(() => {
 });
 afterEach(() => vi.restoreAllMocks());
 describe('approved deposit request', () => {
+  it('una mail già in volo non ricrea la richiesta esonerata dalla conferma manuale', async () => {
+    vi.mocked(deps.send).mockImplementationOnce(async () => {
+      await commitAdminConfirmation(store.db, id, store.value(bookPath),
+        { stato: 'confermata', googleCalendarEventId: 'manual-event' }, 'manual-admin');
+    });
+    await approve();
+    expect(store.value(bookPath)).toMatchObject({ stato: 'confermata', depositWaiver: { waivedBy: 'manual-admin' } });
+    expect(store.value(bookPath).depositPaymentRequest).toBeUndefined();
+    expect(store.value(holdPath)).toMatchObject({ status: 'cancelled', paymentEmail: { status: 'sent' } });
+    await expect(approve()).rejects.toMatchObject({ status: 409 });
+    expect(deps.send).toHaveBeenCalledOnce();
+  });
   it.each([undefined, { status: 'unrecognised', attempts: 1 }, { status: 'sent', attempts: NaN }])(
     'fails closed for missing or invalid email delivery metadata %j', async paymentEmail => {
       await approve();

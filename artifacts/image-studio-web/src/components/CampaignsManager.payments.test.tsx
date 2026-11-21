@@ -48,6 +48,7 @@ async function edit(id = 'legacy') {
 }
 const approval = () => screen.getByRole('switch', { name: 'Richiedi la mia approvazione' });
 const deposit = () => screen.getByRole('switch', { name: 'Richiedi un acconto' });
+const recovery = () => screen.getByRole('switch', { name: 'Invita a riprenotare se l’acconto scade' });
 const amount = () => screen.getByLabelText('Importo acconto (€) *') as HTMLInputElement;
 const save = () => fireEvent.click(screen.getByTestId('button-save-campaign'));
 async function waitClosed() {
@@ -67,6 +68,26 @@ beforeEach(() => {
       ? { ...campaign, ...data, excludedDays: Array.isArray(data.excludedDays) ? data.excludedDays : [] }
       : campaign);
   });
+});
+
+it('permette di attivare, ritrovare e disattivare il recupero nella singola campagna', async () => {
+  mocks.campaigns[0] = { ...legacy(), richiedeAcconto: true, accontoImportoCentesimi: 500, emailRecuperoAcconto: true };
+  mount(); await edit();
+  expect(recovery().getAttribute('aria-checked')).toBe('true');
+  fireEvent.click(recovery()); save(); await waitClosed();
+  expect(mocks.update).toHaveBeenLastCalledWith('legacy', expect.objectContaining({ emailRecuperoAcconto: false }));
+  await edit(); fireEvent.click(recovery()); save(); await waitClosed();
+  expect(mocks.update).toHaveBeenLastCalledWith('legacy', expect.objectContaining({ emailRecuperoAcconto: true }));
+});
+
+it('non mostra il recupero con acconto disattivato e lo spegne al salvataggio', async () => {
+  mocks.campaigns[0] = { ...legacy(), richiedeAcconto: true, accontoImportoCentesimi: 500, emailRecuperoAcconto: true };
+  mount(); await edit(); fireEvent.click(deposit());
+  expect(screen.queryByRole('switch', { name: 'Invita a riprenotare se l’acconto scade' })).toBeNull();
+  save(); await waitClosed();
+  expect(mocks.update).toHaveBeenCalledWith('legacy', expect.objectContaining({
+    richiedeAcconto: false, emailRecuperoAcconto: false,
+  }));
 });
 afterEach(() => { cleanup(); queryClient.clear(); });
 

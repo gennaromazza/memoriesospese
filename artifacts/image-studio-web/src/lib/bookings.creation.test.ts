@@ -48,12 +48,15 @@ describe('authenticated payment administration transport', () => {
   });
 });
 describe('esito approvazione con acconto', () => {
-  it('usa l’approvazione protetta anche dal selettore stato e conserva la richiesta acconto', async () => {
-    const result = { success: true, paymentRequired: true, amountCents: 500,
-      expiresAt: '2030-12-01T09:00:00.000Z', emailStatus: 'sent' };
+  it('il selettore Confermata usa la conferma manuale, non il percorso di richiesta acconto', async () => {
+    const result = { success: true, bookingId: 'test' };
     mocks.request.mockResolvedValue(new Response(JSON.stringify(result)));
     expect(await updateBookingStatus('test', 'confermata')).toEqual(result);
-    expect(mocks.request).toHaveBeenCalledExactlyOnceWith('PATCH', '/api/booking/v2/test/approve');
+    expect(mocks.request).toHaveBeenCalledExactlyOnceWith('PATCH', '/api/booking/test/status', { stato: 'confermata' });
+  });
+  it('non presenta una richiesta di pagamento come conferma manuale riuscita', async () => {
+    mocks.request.mockResolvedValue(new Response(JSON.stringify({ success: true, paymentRequired: true })));
+    await expect(updateBookingStatus('test', 'confermata')).rejects.toThrow('Conferma manuale non completata');
   });
   it('propaga gli errori Calendar senza mostrare il cambio stato come riuscito', async () => {
     mocks.request.mockRejectedValue(new Error('503: {"error":"Errore Google Calendar"}'));

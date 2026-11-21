@@ -47,6 +47,7 @@ export function useLiveBookings(userId: string, scope: BookingsScope = ALL, read
     if (!active) { setLoading(!!userId && !ready); return; }
     setLoading(true);
     const current = scopeRef.current, key = bookingsQueryKey(current);
+    let receivedServerSnapshot = false;
     const failed = (error: Error) => {
       if ((error as any).code === 'permission-denied' || (error as any).code === 'unauthenticated') {
         client.setQueryData(key, []);
@@ -56,6 +57,8 @@ export function useLiveBookings(userId: string, scope: BookingsScope = ALL, read
     };
     const onRows = (rows: Booking[], fromCache: boolean) => {
       if (fromCache && !rows.length) return; // Wait for the server before declaring an empty database.
+      if (fromCache && receivedServerSnapshot) return; // Do not roll back a saved approval on mobile reconnect.
+      if (!fromCache) receivedServerSnapshot = true;
       revision.current++;
       latest.current = rows;
       client.setQueryData(key, rows);

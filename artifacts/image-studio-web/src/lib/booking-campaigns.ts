@@ -15,6 +15,7 @@ import {
   Timestamp,
   runTransaction,
   deleteField,
+  serverTimestamp,
 } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { createUrl } from './config';
@@ -161,6 +162,7 @@ function toBookingCampaignFE(id: string, data: any): BookingCampaignFE | null {
     richiedeAcconto: typeof data.richiedeAcconto === 'boolean'
       ? data.richiedeAcconto
       : false,
+    emailRecuperoAcconto: data.emailRecuperoAcconto === true,
     accontoImportoCentesimi: Number.isSafeInteger(data.accontoImportoCentesimi)
       && data.accontoImportoCentesimi > 0
       ? data.accontoImportoCentesimi
@@ -390,6 +392,13 @@ export async function updateCampaign(
     }
 
     const currentData = currentSnapshot.data();
+    if (data.emailRecuperoAcconto !== undefined) {
+      if (data.emailRecuperoAcconto && currentData.emailRecuperoAcconto !== true) {
+        cleanData.recuperoAccontoAttivatoIl = serverTimestamp();
+      } else if (!data.emailRecuperoAcconto) {
+        cleanData.recuperoAccontoAttivatoIl = deleteField();
+      }
+    }
     const dataInizio = data.dataInizio === undefined
       ? safeDate(currentData.dataInizio)
       : safeDate(data.dataInizio);

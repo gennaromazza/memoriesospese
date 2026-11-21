@@ -9,6 +9,8 @@ const h = vi.hoisted(() => ({
   guards: new Map<string, any>(),
   management: new Map<string, any>(),
   confirmations: new Map<string, any>(),
+  holds: new Map<string, any>(),
+  depositApproval: vi.fn(),
   sequence: 0,
   available: [] as any[],
   events: vi.fn(),
@@ -34,15 +36,21 @@ const stamp = (value: string | Date) => ({ toDate: () => new Date(value) });
 const start = new Date('2030-12-10T09:00:00Z');
 const end = new Date('2030-12-10T09:30:00Z');
 const client = { nome: 'Cliente', cognome: 'Test', email: 'cliente@example.com', whatsapp: '+390000000000' };
+function applyPatch(target: any, patch: any) {
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === Symbol.for('firestore-delete')) delete target[key];
+    else target[key] = value;
+  }
+}
 
 function reference(collection: string, id: string): any {
   return {
     id, collection,
     get: async () => ({
-      exists: collection === 'bookingConfirmationJobs' ? h.confirmations.has(id) : collection === 'bookingManagementAccess' ? h.management.has(id) : collection !== 'bookings' || h.bookings.has(id),
+      exists: collection === 'bookingCheckoutHolds' ? h.holds.has(id) : collection === 'bookingConfirmationJobs' ? h.confirmations.has(id) : collection === 'bookingManagementAccess' ? h.management.has(id) : collection !== 'bookings' || h.bookings.has(id),
       data: () => collection === 'bookingSlotLocks' ? h.guards.get(id) : collection === 'booking_campaigns' ? h.campaign
         : collection === 'clienti' ? { sourceRefs: { bookingIds: ['booking-1', 'booking-2', 'booking-3'] } }
-        : collection === 'bookingConfirmationJobs' ? h.confirmations.get(id) : collection === 'bookingManagementAccess' ? h.management.get(id) : h.bookings.get(id),
+        : collection === 'bookingCheckoutHolds' ? h.holds.get(id) : collection === 'bookingConfirmationJobs' ? h.confirmations.get(id) : collection === 'bookingManagementAccess' ? h.management.get(id) : h.bookings.get(id),
     }),
     update: async (patch: any) => {
       if (patch.stato === 'confermata' && h.failSave) throw new Error('save failed');
@@ -63,7 +71,7 @@ function collection(name: string, conditions: any[] = []): any {
       return ref;
     },
     get: async () => ({
-      docs: (name === 'bookingCheckoutHolds' ? [] : [...h.bookings]).filter(([, data]) => conditions.every(([field, op, expected]) => {
+      docs: (name === 'bookingCheckoutHolds' ? [...h.holds] : [...h.bookings]).filter(([, data]) => conditions.every(([field, op, expected]) => {
         const actual = data[field]?.toDate?.().getTime() ?? data[field];
         const value = expected?.toDate?.().getTime() ?? expected;
         return op === '==' ? actual === value : op === '>=' ? actual >= value : actual <= value;
@@ -88,7 +96,10 @@ vi.mock('./firebase-admin.js', () => ({
           set: (ref: any, data: any) => writes.push(() => (ref.collection === 'bookingSlotLocks' ? h.guards : ref.collection === 'bookingManagementAccess' ? h.management : h.bookings).set(ref.id, { ...data })),
           update: (ref: any, data: any) => {
             if (ref.collection === 'bookings' && data.stato === 'confermata' && h.failSave) throw new Error('save failed');
-            writes.push(() => { if (ref.collection === 'bookings') Object.assign(h.bookings.get(ref.id), data); });
+            writes.push(() => {
+              if (ref.collection === 'bookings') applyPatch(h.bookings.get(ref.id), data);
+              if (ref.collection === 'bookingCheckoutHolds') applyPatch(h.holds.get(ref.id), data);
+            });
           },
         });
         writes.forEach(write => write());
@@ -100,7 +111,11 @@ vi.mock('./firebase-admin.js', () => ({
 }));
 vi.mock('firebase-admin/firestore', () => ({
   Timestamp: { fromDate: (date: Date) => stamp(date), now: () => stamp(new Date()) },
-  FieldValue: { serverTimestamp: () => 'server-time' },
+  FieldValue: { serverTimestamp: () => 'server-time', delete: () => Symbol.for('firestore-delete') },
+}));
+vi.mock('./booking/approved-deposit-request.js', async importOriginal => ({
+  ...await importOriginal<typeof import('./booking/approved-deposit-request.js')>(),
+  approveBookingWithDeposit: h.depositApproval,
 }));
 vi.mock('./google-calendar.js', () => ({
   getAvailableSlots: vi.fn(), deleteEvent: h.deleteEvent, createEvent: h.createEvent,
@@ -164,6 +179,8 @@ beforeEach(() => {
   vi.stubEnv('SESSION_SECRET', 'booking-creation-test-key-not-a-real-secret');
   h.management.clear();
   h.confirmations.clear();
+  h.holds.clear();
+  h.depositApproval.mockReset().mockResolvedValue(null);
   h.bookings.clear(); h.guards.clear(); h.sequence = 0; h.failSave = false; h.trace = []; h.tail = Promise.resolve();
   h.campaign = {
     nome: 'Campagna test', attiva: true, dataInizio: stamp('2030-12-01'), dataFine: stamp('2030-12-31'),
@@ -278,11 +295,55 @@ describe('conferma dal cambio stato amministrativo', () => {
     expect(h.deleteEvent.mock.calls[0][1]).not.toBe(kept);
   });
 
-  it('non bypassa un acconto non pagato né modifica i dati di pagamento', async () => {
+  it('la conferma manuale esonera dall’acconto senza registrare un incasso', async () => {
     const depositPaymentRequest = { status: 'pending', amountCents: 500 };
     seed({ depositPaymentRequest });
-    expect((await confirm()).status).toBe(400);
-    expect(h.bookings.get('status-test')).toMatchObject({ stato: 'in_attesa', depositPaymentRequest });
+    h.campaign.richiedeAcconto = true;
+    expect((await confirm()).status).toBe(200);
+    expect(h.bookings.get('status-test')).toMatchObject({
+      stato: 'confermata', depositWaiver: { waivedBy: 'admin-test', originalRequest: depositPaymentRequest },
+    });
+    expect(h.bookings.get('status-test').depositPaymentRequest).toBeUndefined();
+    expect(h.bookings.get('status-test').depositPayment).toBeUndefined();
+    expect(h.depositApproval).not.toHaveBeenCalled();
+    expect(h.sendEmail).toHaveBeenCalledOnce();
+  });
+  it('chiude il vecchio checkout PayPal, preservando la richiesta nell’audit', async () => {
+    seed({ depositPaymentRequest: { status: 'pending', amountCents: 500 } });
+    h.holds.set('status-test', { bookingId: 'status-test', status: 'active', kind: 'approved_deposit' });
+    expect((await confirm()).status).toBe(200);
+    expect(h.holds.get('status-test')).toMatchObject({ status: 'cancelled', closedReason: 'admin_deposit_waiver' });
+    expect(h.depositApproval).not.toHaveBeenCalled();
+  });
+  it('non scavalca un incasso PayPal in corso o incerto', async () => {
+    seed({ depositPaymentRequest: { status: 'pending' } });
+    h.holds.set('status-test', { bookingId: 'status-test', status: 'active', paypalCaptureAttempt: { state: 'unknown' } });
+    expect((await confirm()).status).toBe(409);
+    expect(h.createEvent).not.toHaveBeenCalled();
+    expect(h.sendEmail).not.toHaveBeenCalled();
+    expect(h.bookings.get('status-test').stato).toBe('in_attesa');
+  });
+  it('se PayPal parte dopo il controllo iniziale, annulla solo l’evento appena creato', async () => {
+    seed({ depositPaymentRequest: { status: 'pending' } });
+    h.holds.set('status-test', { bookingId: 'status-test', status: 'active' });
+    h.createEvent.mockImplementationOnce(async () => {
+      h.holds.set('status-test', { bookingId: 'status-test', status: 'active', paypalCaptureAttempt: { state: 'started' } });
+      return { id: 'rolled-back-event' };
+    });
+    expect((await confirm()).status).toBe(409);
+    expect(h.deleteEvent).toHaveBeenCalledWith('primary', 'rolled-back-event');
+    expect(h.bookings.get('status-test')).toMatchObject({ stato: 'in_attesa', depositPaymentRequest: { status: 'pending' } });
+    expect(h.sendEmail).not.toHaveBeenCalled();
+  });
+  it('il normale Approva continua a richiedere l’acconto anche con flag di bypass nel body', async () => {
+    seed(); h.campaign.richiedeAcconto = true;
+    h.depositApproval.mockResolvedValue({ success: true, paymentRequired: true, stato: 'in_attesa_pagamento' });
+    const response = await fetch(`${base}/v2/status-test/approve`, { method: 'PATCH',
+      headers: { Authorization: 'Bearer admin', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ manualConfirmation: true, skipDeposit: true }) });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ paymentRequired: true });
+    expect(h.depositApproval).toHaveBeenCalledOnce();
     expect(h.createEvent).not.toHaveBeenCalled();
   });
 
