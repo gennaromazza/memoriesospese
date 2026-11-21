@@ -5,10 +5,12 @@ import { Router } from 'wouter';
 import BookingsManager from '../../src/components/BookingsManager';
 import { queryClient } from './query-client';
 import { readOrder, saveOrder } from './firestore';
+import { isBookingListenerPending, readBooking, releaseBookingListener, saveBooking } from './boundaries';
 import '../../src/index.css';
 
 Object.assign(window, { fixture: {
   readOrder, saveOrder,
+  readBooking, saveBooking, releaseBookingListener, isBookingListenerPending,
   reloadOrders: () => queryClient.invalidateQueries({ queryKey: ['orders'] }),
 } });
 
