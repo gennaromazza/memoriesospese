@@ -6,6 +6,7 @@ import { BookingPaymentPanel } from './booking/BookingPaymentPanel';
 import { InPersonDepositDialog } from './booking/InPersonDepositDialog';
 import { BookingApprovalButton } from './booking/BookingApprovalButton';
 import { useBookingApproval } from './booking/useBookingApproval';
+import { useBookingRejection } from './booking/useBookingRejection';
 import { BookingManagementLinkPanel } from './booking/BookingManagementLinkPanel';
 import { BookingCancellationAdminPanel } from './booking/BookingCancellationAdminPanel';
 import { requiresBookingCancellationPanel } from '@/lib/booking-deletion';
@@ -28,7 +29,6 @@ import {
   startOfDay,
 } from "date-fns";
 import {
-  rejectBooking,
   updateBookingStatus,
   deleteBooking,
   markBookingAsViewed,
@@ -1102,12 +1102,9 @@ export default function BookingsManager({
   });
 
   // Mutation: Rifiuta prenotazione
-  const rejectMutation = useMutation({
-    mutationFn: async (bookingId: string) => {
-      // Marca come vista prima di rifiutare (per far scomparire badge NUOVA)
-      await markBookingAsViewed(bookingId);
-      await rejectBooking(bookingId);
-    },
+  const rejectMutation = useBookingRejection({
+    bookings: allBookings,
+    refresh: refetch,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
       toast({
@@ -2983,7 +2980,8 @@ export default function BookingsManager({
                                       disabled={
                                         approveMutation.isPending ||
                                         !!approveMutation.completed[booking.id] ||
-                                        rejectMutation.isPending
+                                        rejectMutation.isPending ||
+                                        !!rejectMutation.completed[booking.id]
                                       }
                                       className="border-red-200 text-red-600 hover:bg-red-50 h-12"
                                       data-testid={`button-reject-${booking.id}`}
@@ -3752,6 +3750,7 @@ export default function BookingsManager({
                     onClick={() => rejectMutation.mutate(selectedBooking.id)}
                     disabled={
                       approveMutation.isPending || !!approveMutation.completed[selectedBooking.id] || rejectMutation.isPending
+                      || !!rejectMutation.completed[selectedBooking.id]
                     }
                     className="border-red-200 text-red-600 hover:bg-red-50"
                     data-testid="button-reject-booking-detail"
