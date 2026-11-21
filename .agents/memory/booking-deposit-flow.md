@@ -211,9 +211,13 @@ marchio PayPal ufficiale senza inventare certificazioni o garanzie.
 Il cambio di stato amministrativo a “Confermata” esonera dalla richiesta di acconto.
 Il pulsante “Approva” resta invece il normale flusso configurato nella campagna
 e può richiedere il pagamento prima della conferma.
+L’esonero amministrativo può recuperare anche una prenotazione annullata
+per acconto scaduto, solo se lo slot è ancora disponibile e non ci sono incassi
+o operazioni da riconciliare.
 
 **Why:** il titolare usa il selettore di stato per confermare direttamente gli
 accordi gestiti dallo studio e non vuole che questa azione avvii un pagamento.
+Questo comprende i clienti autorizzati a pagare in studio dopo la scadenza.
 
 **How to apply:** non unificare nuovamente le due intenzioni lato client.
 L’esonero non è un incasso e non autorizza a ignorare pagamenti già in corso
