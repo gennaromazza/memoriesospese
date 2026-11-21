@@ -3,9 +3,18 @@ import { CheckoutHoldError } from './checkout-hold-state.js';
 import { CHECKOUT_HOLDS, BookingSlotConflictError, checkSlotReservation } from './slot-reservations.js';
 import { BookingStateChangedError } from './update-if-state-unchanged.js';
 
+export function isExpiredUnpaidDepositCancellation(booking: DocumentData) {
+  return booking.stato === 'annullata' && booking.depositPaymentRequest?.status === 'expired'
+    && !booking.depositPayment && !booking.paymentReviewRequired && !booking.depositWaiver
+    && Number(booking.acconto || 0) === 0 && !(booking.transactions?.length);
+}
+
 /** A status override waives a requirement; it must never invent an incoming payment. */
-export function assertAdminConfirmationSafe(booking: DocumentData, hold: DocumentData | undefined, id: string) {
-  if (booking.stato !== 'in_attesa' || booking.paymentReviewRequired || booking.automaticConfirmationError
+export function assertAdminConfirmationSafe(booking: DocumentData, hold: DocumentData | undefined, id: string,
+  allowExpiredCancellation = false) {
+  const validState = booking.stato === 'in_attesa'
+    || allowExpiredCancellation && isExpiredUnpaidDepositCancellation(booking);
+  if (!validState || booking.paymentReviewRequired || booking.automaticConfirmationError
     || booking.calendarSyncPending || booking.depositPayment
     || booking.depositPaymentRequest && !['pending', 'expired'].includes(booking.depositPaymentRequest.status)
     || ['pending', 'blocked'].includes(booking.customerReschedule?.status)
@@ -18,9 +27,10 @@ export function assertAdminConfirmationSafe(booking: DocumentData, hold: Documen
   }
 }
 
-export async function checkAdminConfirmation(db: Firestore, id: string, booking: DocumentData) {
+export async function checkAdminConfirmation(db: Firestore, id: string, booking: DocumentData,
+  allowExpiredCancellation = false) {
   const hold = (await db.collection(CHECKOUT_HOLDS).doc(id).get()).data();
-  assertAdminConfirmationSafe(booking, hold, id);
+  assertAdminConfirmationSafe(booking, hold, id, allowExpiredCancellation);
 }
 
 /** Calendar has already been checked/created by the normal approval flow.
@@ -37,10 +47,12 @@ export async function commitAdminConfirmation(
     if (!current || current.stato !== original.stato
       || current.dataShootingInizio?.toDate?.().getTime() !== original.dataShootingInizio?.toDate?.().getTime()
       || current.dataShootingFine?.toDate?.().getTime() !== original.dataShootingFine?.toDate?.().getTime()
-      || current.campaignId !== original.campaignId || current.cliente?.email !== original.cliente?.email) {
+      || current.campaignId !== original.campaignId || current.cliente?.email !== original.cliente?.email
+      || current.depositPaymentRequest?.status !== original.depositPaymentRequest?.status
+      || current.depositPaymentRequest?.expiresAt?.toMillis?.() !== original.depositPaymentRequest?.expiresAt?.toMillis?.()) {
       throw new BookingStateChangedError();
     }
-    assertAdminConfirmationSafe(current, hold, id);
+    assertAdminConfirmationSafe(current, hold, id, isExpiredUnpaidDepositCancellation(original));
     let reserve: () => void;
     try {
       reserve = await checkSlotReservation(tx, db, current.dataShootingInizio.toDate(),

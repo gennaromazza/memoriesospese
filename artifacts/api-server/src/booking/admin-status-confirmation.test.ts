@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { Timestamp } from 'firebase-admin/firestore';
 import { reservationDb } from './test-helpers/reservation-db.js';
-import { checkAdminConfirmation, commitAdminConfirmation } from './admin-status-confirmation.js';
+import { checkAdminConfirmation, commitAdminConfirmation, isExpiredUnpaidDepositCancellation } from './admin-status-confirmation.js';
 import { unpaidDepositRequestExpired } from './payment-deadlines.js';
 import { canIssueManagementLink } from './management-access.js';
 
@@ -75,6 +75,26 @@ it('può confermare una richiesta scaduta quando lo slot è libero senza riavvia
   store.seed('bookings/one', { ...booking(), depositPaymentRequest: { ...request, status: 'expired' } });
   await confirm(); expect(source().stato).toBe('confermata');
   expect(source().depositWaiver.originalRequest.status).toBe('expired');
+});
+it('riapre solo una prenotazione annullata per acconto scaduto quando un admin la conferma manualmente', async () => {
+  const expired = { ...booking(), stato: 'annullata', depositPaymentRequest: { ...request, status: 'expired' } };
+  store.seed('bookings/one', expired);
+  expect(isExpiredUnpaidDepositCancellation(expired)).toBe(true);
+  await expect(checkAdminConfirmation(store.db, 'one', expired)).rejects.toMatchObject({ status: 409 });
+  await checkAdminConfirmation(store.db, 'one', expired, true);
+  await confirm();
+  expect(source()).toMatchObject({ stato: 'confermata', depositWaiver: { originalRequest: { status: 'expired' } } });
+});
+it.each([
+  ['paid', { depositPayment: { status: 'paid' } }],
+  ['review', { paymentReviewRequired: true }],
+  ['cash', { acconto: 5 }],
+  ['other cancellation', { depositPaymentRequest: undefined }],
+] as const)('non riapre una prenotazione annullata con dati %s non compatibili', async (_kind, extra) => {
+  const expired = { ...booking(), stato: 'annullata', depositPaymentRequest: { ...request, status: 'expired' }, ...extra };
+  expect(isExpiredUnpaidDepositCancellation(expired)).toBe(false);
+  store.seed('bookings/one', expired);
+  await expect(checkAdminConfirmation(store.db, 'one', expired, true)).rejects.toMatchObject({ status: 409 });
 });
 it('una seconda conferma concorrente non modifica l’esonero già salvato', async () => {
   const original = source();

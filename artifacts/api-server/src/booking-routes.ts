@@ -32,7 +32,7 @@ import { bookingConditionsSnapshot } from '../shared/booking-conditions.js';
 import { bookingCancellationRouter } from './booking/cancellation-routes.js';
 import { bookingDepositCents } from './booking/cancellation-policy.js';
 import { calendarRecoveryRouter } from './booking/calendar-recovery-routes.js';
-import { checkAdminConfirmation, commitAdminConfirmation } from './booking/admin-status-confirmation.js';
+import { checkAdminConfirmation, commitAdminConfirmation, isExpiredUnpaidDepositCancellation } from './booking/admin-status-confirmation.js';
 
 const router = express.Router();
 async function requestDepositIfNeeded(req: any, res: express.Response, bookingId: string,
@@ -960,7 +960,8 @@ const approveBookingV2 = async (req: express.Request<{ id: string }>, res: expre
       return res.status(410).json({ error: "La richiesta di acconto è scaduta: occorre una nuova prenotazione" });
     }
 
-    if (bookingData.stato !== "in_attesa" || bookingData.automaticConfirmationError
+    const reopeningExpiredUnpaidRequest = manualConfirmation && isExpiredUnpaidDepositCancellation(bookingData);
+    if (bookingData.stato !== "in_attesa" && !reopeningExpiredUnpaidRequest || bookingData.automaticConfirmationError
       || bookingData.googleCalendarEventId || bookingData.calendarSyncPending
       || ['pending', 'blocked'].includes(bookingData.customerReschedule?.status)
       || ['pending', 'working', 'blocked'].includes(bookingData.bookingCancellation?.status)) {
@@ -972,7 +973,7 @@ const approveBookingV2 = async (req: express.Request<{ id: string }>, res: expre
 
     // RIVALIDAZIONE con Calendar Engine V2
     if (manualConfirmation) {
-      try { await checkAdminConfirmation(db, id, bookingData); }
+      try { await checkAdminConfirmation(db, id, bookingData, reopeningExpiredUnpaidRequest); }
       catch (error) {
         if (error instanceof CheckoutHoldError) return res.status(error.status).json({ error: error.message });
         throw error;
