@@ -3,6 +3,7 @@
  */
 import { bookingPaymentStage, bookingPaymentStageLabel, matchesBookingPaymentFilter } from '@shared/booking-payment-state';
 import { BookingPaymentPanel } from './booking/BookingPaymentPanel';
+import { BookingDepositStatusBadge } from './booking/BookingDepositStatusBadge';
 import { InPersonDepositDialog } from './booking/InPersonDepositDialog';
 import { BookingApprovalButton } from './booking/BookingApprovalButton';
 import { useBookingApproval } from './booking/useBookingApproval';
@@ -2267,7 +2268,10 @@ export default function BookingsManager({
                                       {getCampaignName(booking.campaignId)}
                                     </p>
                                   </div>
-                                  {getStatoBadge(booking, paymentClock)}
+                                  <div className="flex flex-wrap items-center justify-end gap-2">
+                                    {getStatoBadge(booking, paymentClock)}
+                                    <BookingDepositStatusBadge booking={booking} />
+                                  </div>
                                 </div>
 
                                 {/* Dettagli */}
@@ -3407,8 +3411,9 @@ export default function BookingsManager({
                 {/* Stato corrente */}
                 <div>
                   <Label className="text-sm font-medium">Stato Attuale</Label>
-                  <div className="mt-2">
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
                     {getStatoBadge(selectedBooking, paymentClock)}
+                    <BookingDepositStatusBadge booking={selectedBooking} />
                   </div>
                 </div>
 
