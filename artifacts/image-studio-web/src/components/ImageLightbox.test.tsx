@@ -1,7 +1,14 @@
+// @vitest-environment jsdom
+import { cleanup, render, screen } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PhotoData } from "../hooks/use-gallery-data";
 import ImageLightbox from "./ImageLightbox";
+
+vi.mock("../hooks/use-mobile", () => ({ useIsMobile: () => false }));
+vi.mock("../hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
+
+afterEach(() => cleanup());
 
 function renderLightbox(photo: PhotoData, initialIndex = 0) {
   return renderToStaticMarkup(
@@ -61,5 +68,28 @@ describe("ImageLightbox filename metadata", () => {
 
     expect(markup).toContain("storage-key.jpg");
     expect(markup).not.toContain("1700000000000-storage-key.jpg");
+  });
+
+  it("keeps the newly clicked photo when reopening with a filtered list", () => {
+    const clickedPhoto = { ...photo, id: "clicked", originalName: "FOTO_CLICCATA.jpg" };
+    const previousPhoto = { ...photo, id: "previous", originalName: "FOTO_PRECEDENTE.jpg" };
+    const allPhotos = [previousPhoto, clickedPhoto, { ...photo, id: "other" }];
+    const filteredPhotos = [clickedPhoto, allPhotos[2]];
+    const onClose = vi.fn();
+
+    const { rerender } = render(
+      <ImageLightbox isOpen onClose={onClose} photos={allPhotos} initialIndex={1} />,
+    );
+    expect(screen.getByTestId("text-photo-filename").textContent).toContain("FOTO_CLICCATA.jpg");
+
+    rerender(
+      <ImageLightbox isOpen={false} onClose={onClose} photos={allPhotos} initialIndex={1} />,
+    );
+    rerender(
+      <ImageLightbox isOpen onClose={onClose} photos={filteredPhotos} initialIndex={0} />,
+    );
+
+    expect(screen.getByTestId("text-photo-filename").textContent).toContain("FOTO_CLICCATA.jpg");
+    expect(screen.getByTestId("text-photo-counter").textContent).toContain("1 / 2");
   });
 });

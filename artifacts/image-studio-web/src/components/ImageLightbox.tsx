@@ -111,11 +111,17 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex, s
   // (es. riconciliazione che aggiunge foto, cambio filtro): ritrova la foto
   // corrente per id nel nuovo elenco; se non c'è più, fa il clamp dell'indice.
   const prevPhotosRef = useRef(photos);
+  const wasOpenRef = useRef(isOpen);
   useEffect(() => {
+    const wasOpen = wasOpenRef.current;
+    wasOpenRef.current = isOpen;
     if (prevPhotosRef.current === photos) return;
     const prevPhotos = prevPhotosRef.current;
     prevPhotosRef.current = photos;
-    if (!isOpen) return;
+    // Quando si apre, initialIndex identifica la foto appena cliccata.
+    // Riallineare qui usando l'indice della sessione precedente può aprire
+    // un'altra foto presente anche nel nuovo elenco.
+    if (!isOpen || !wasOpen) return;
     const currentId = prevPhotos[currentIndex]?.id;
     if (currentId) {
       const newIdx = photos.findIndex((p) => p.id === currentId);
