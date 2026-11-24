@@ -312,6 +312,31 @@ export async function recordInPersonBookingDeposit(
   try { return await (await apiRequest('POST', `/api/booking/${encodeURIComponent(id)}/payment/in-person`, body)).json(); }
   catch (error) { throw bookingRequestError(error, true); }
 }
+
+export interface ManualBookingRecoveryCandidate {
+  bookingId: string;
+  name?: string;
+  email?: string;
+  eligible: boolean;
+  reason?: string;
+}
+export interface ManualBookingRecoveryPreview {
+  campaignId: string;
+  eligible: ManualBookingRecoveryCandidate[];
+  excluded: ManualBookingRecoveryCandidate[];
+}
+export async function previewManualBookingRecovery(campaignId: string): Promise<ManualBookingRecoveryPreview> {
+  try {
+    return await (await apiRequest('POST', '/api/booking/admin/recovery/preview', { campaignId })).json();
+  } catch (error) { throw bookingRequestError(error, true); }
+}
+export async function sendManualBookingRecovery(campaignId: string, bookingIds: string[]) {
+  try {
+    return await (await apiRequest('POST', '/api/booking/admin/recovery/send', { campaignId, bookingIds })).json() as {
+      outcomes: Array<{ bookingId: string; status: string; reason?: string }>;
+    };
+  } catch (error) { throw bookingRequestError(error, true); }
+}
 export async function approveBooking(bookingId: string): Promise<BookingApprovalResult> {
   try {
     const response = await apiRequest('PATCH', `/api/booking/v2/${bookingId}/approve`);

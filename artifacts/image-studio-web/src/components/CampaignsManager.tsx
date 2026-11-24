@@ -68,6 +68,7 @@ import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import imageCompression from 'browser-image-compression';
 import CampaignPaymentSettings from './CampaignPaymentSettings';
+import { BookingRecoveryManualPanel } from './booking/BookingRecoveryManualPanel';
 import {
   campaignPaymentForm,
   campaignPaymentFields,
@@ -629,13 +630,15 @@ export default function CampaignsManager() {
             Gestisci campagne di prenotazione con date, temi e prodotti
           </p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={handleNewCampaign} data-testid="button-new-campaign">
-              <Plus className="h-4 w-4 mr-2" />
-              Nuova Campagna
-            </Button>
-          </DialogTrigger>
+        <div className="flex flex-wrap gap-2">
+          <BookingRecoveryManualPanel campaigns={campaigns} />
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={handleNewCampaign} data-testid="button-new-campaign">
+                <Plus className="h-4 w-4 mr-2" />
+                Nuova Campagna
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
@@ -1225,7 +1228,8 @@ export default function CampaignsManager() {
               </Button>
             </DialogFooter>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
 
       {/* Lista Campagne */}

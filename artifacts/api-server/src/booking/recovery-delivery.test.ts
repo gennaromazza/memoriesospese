@@ -4,7 +4,9 @@ import { reservationDb } from './test-helpers/reservation-db.js';
 import { expireBookingPayments } from './payment-expiry.js';
 import { createApprovedDepositRequest } from './payment-deadlines.js';
 import { RECOVERY_JOBS, RECOVERY_DELAY_MS as hour } from './recovery-queue.js';
-import { deliverBookingRecovery, startBookingRecoveryWorker } from './recovery-delivery.js';
+import {
+  deliverBookingRecovery, inspectManualBookingRecovery, queueManualBookingRecovery, startBookingRecoveryWorker,
+} from './recovery-delivery.js';
 import { bookingRecoveryEmail } from './recovery-email.js';
 
 const providers = vi.hoisted(() => ({ studio: vi.fn(), send: vi.fn() }));
@@ -34,7 +36,7 @@ beforeEach(() => {
   store = reservationDb(); store.seed('booking_campaigns/campaign', campaign());
   providers.studio.mockReset().mockResolvedValue(studio); providers.send.mockReset().mockResolvedValue(undefined);
 });
-afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllEnvs(); });
 const send = (id = 'one') => deliverBookingRecovery(store.db, id, deps());
 
 describe('attivazione e programmazione del recupero', () => {
@@ -182,11 +184,72 @@ describe('errori e ripartenze senza duplicare email', () => {
     await expired('zzz'); now += hour;
     for (let i = 0; i < 20; i++) store.seed(`${RECOVERY_JOBS}/aaa-${String(i).padStart(2, '0')}`,
       { status: 'pending', deadline: stamp(now + hour), notBefore: stamp(now + 2 * hour) });
+    // The mocked provider may only run when explicitly simulating production delivery.
+    vi.stubEnv('NODE_ENV', 'production');
     vi.useFakeTimers(); const stop = startBookingRecoveryWorker(store.db, 1000);
     await vi.advanceTimersByTimeAsync(1000); expect(providers.send).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1000); expect(providers.send).toHaveBeenCalledOnce();
     stop(); const access = vi.spyOn(store.db, 'collection');
     await vi.advanceTimersByTimeAsync(3000); expect(access).not.toHaveBeenCalled();
+  });
+  it('non avvia il worker email in sviluppo', () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    const interval = vi.spyOn(global, 'setInterval');
+    const stop = startBookingRecoveryWorker(store.db, 1000);
+    expect(interval).not.toHaveBeenCalled();
+    stop();
+  });
+});
+
+describe('invito manuale controllato per scadenze storiche', () => {
+  it('mostra una scadenza oltre 24 ore e la invia solo dopo la selezione admin', async () => {
+    await expired();
+    now += hour * 25;
+    expect(value().status).toBe('pending');
+    expect(await inspectManualBookingRecovery(store.db, 'one', 'campaign'))
+      .toMatchObject({ eligible: true, email: 'cliente@example.test' });
+
+    expect(await queueManualBookingRecovery(store.db, 'one', 'campaign', 'admin-1')).toMatchObject({ queued: true });
+    expect(value()).toMatchObject({ status: 'pending', manual: true, manualRequestedBy: 'admin-1' });
+    await deliverBookingRecovery(store.db, 'one', deps());
+    expect(value().status).toBe('sent');
+    expect(providers.send).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ['pagato', { depositPayment: { status: 'paid', paypalCaptureId: 'CAPTURE' } }, 'pagamento_o_modifica_da_verificare'],
+    ['esonerato', { depositWaiver: { reason: 'admin_status_confirmation' } }, 'pagamento_o_modifica_da_verificare'],
+    ['pagamento incerto', { paypalCaptureAttempt: { state: 'started' } }, 'pagamento_o_modifica_da_verificare'],
+  ])('esclude un caso %s', async (_label, patch, reason) => {
+    await expired('one', 'both');
+    store.seed('bookings/one', { ...store.value('bookings/one'), ...patch });
+    expect(await inspectManualBookingRecovery(store.db, 'one', 'campaign')).toMatchObject({ eligible: false, reason });
+  });
+
+  it('esclude chi ha già riprenotato e chi è già stato contattato', async () => {
+    await expired('one');
+    now += hour;
+    store.seed('bookings/new', { ...root(), stato: 'confermata', cliente: { ...customer } });
+    expect(await inspectManualBookingRecovery(store.db, 'one', 'campaign'))
+      .toMatchObject({ eligible: false, reason: 'riprenotata_o_non_idonea' });
+
+    store.seed('bookings/new', { ...store.value('bookings/new'),
+      cliente: { ...customer, email: 'other@example.test', whatsapp: '+39 3456789999' } });
+    expect(await queueManualBookingRecovery(store.db, 'one', 'campaign', 'admin-1')).toMatchObject({ queued: true });
+    await deliverBookingRecovery(store.db, 'one', deps());
+    await expired('two');
+    expect(await inspectManualBookingRecovery(store.db, 'two', 'campaign'))
+      .toMatchObject({ eligible: false, reason: 'destinatario_gia_contattato' });
+  });
+
+  it('non ritenta un esito di invio incerto dalla procedura manuale', async () => {
+    await expired();
+    now += hour;
+    providers.send.mockRejectedValueOnce(new Error('timeout'));
+    await send();
+    expect(value().status).toBe('unknown');
+    expect(await queueManualBookingRecovery(store.db, 'one', 'campaign', 'admin-1'))
+      .toMatchObject({ queued: false, reason: 'esito_in_corso_o_incerto' });
   });
 });
 

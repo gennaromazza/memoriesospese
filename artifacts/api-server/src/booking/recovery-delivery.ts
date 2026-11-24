@@ -5,6 +5,7 @@ import { CHECKOUT_HOLDS, checkoutHoldBlocksSlot } from './slot-reservations.js';
 import { approvedDepositDeadline, unpaidDepositRequestExpired } from './payment-deadlines.js';
 import { RECOVERY_JOBS, RECOVERY_DELAY_MS, millis, recoveryCampaignOpen } from './recovery-queue.js';
 import { bookingRecoveryEmail, type RecoveryStudio } from './recovery-email.js';
+import { DateTime } from 'luxon';
 
 const RECOVERY_RECIPIENTS = 'bookingRecoveryRecipients', LEASE_MS = 180_000;
 const normalize = (email: unknown) => typeof email === 'string' ? email.trim().toLowerCase() : '';
@@ -19,15 +20,25 @@ const sameContact = (first: DocumentData, second: DocumentData) => {
   const a = contact(first), b = contact(second), number = phone(a.whatsapp);
   return normalize(a.email) === normalize(b.email) || number.length >= 7 && number === phone(b.whatsapp);
 };
+const recipientKey = (campaignId: string, email: string) =>
+  createHash('sha256').update(`${campaignId}\n${email}`).digest('hex');
+
+function manualCampaignOpen(campaign: DocumentData | undefined) {
+  return !!campaign && campaign.attiva === true && campaign.richiedeAcconto === true
+    && Number.isFinite(millis(campaign.dataFine))
+    && DateTime.fromMillis(millis(campaign.dataFine), { zone: 'Europe/Rome' }).endOf('day').toMillis() > Date.now()
+    && typeof campaign.code === 'string' && /^[A-Za-z0-9]{1,8}$/.test(campaign.code);
+}
 
 interface Context { email: string; name: string; campaign: DocumentData }
-async function context(tx: Transaction, db: Firestore, id: string, job: DocumentData): Promise<Context | null> {
+async function context(tx: Transaction, db: Firestore, id: string, job: DocumentData, manual = false): Promise<Context | null> {
   if (job.bookingId !== id || typeof job.campaignId !== 'string' || !job.campaignId || job.campaignId.includes('/')) return null;
   const root = (await tx.get(db.collection('bookings').doc(id))).data();
   const hold = (await tx.get(db.collection(CHECKOUT_HOLDS).doc(id))).data();
   const campaign = (await tx.get(db.collection('booking_campaigns').doc(job.campaignId))).data();
   const deadline = millis(job.deadline);
-  if (!recoveryCampaignOpen(campaign, deadline) || Date.now() > deadline + 24 * RECOVERY_DELAY_MS
+  const campaignOpen = manual ? manualCampaignOpen(campaign) : recoveryCampaignOpen(campaign, deadline);
+  if (!campaignOpen || (manual ? deadline > Date.now() : Date.now() > deadline + 24 * RECOVERY_DELAY_MS)
     || uncertain(root) || uncertain(hold)) return null;
   if (root && (root.campaignId !== job.campaignId || root.stato !== 'annullata'
     || root.depositPaymentRequest?.status !== 'expired' || approvedDepositDeadline(root) !== deadline)) return null;
@@ -70,17 +81,19 @@ export async function deliverBookingRecovery(db: Firestore, id: string, override
     if (job.status === 'sending') {
       tx.update(ref, { status: 'unknown', updatedAt: Timestamp.now() }); return null;
     }
+    const manual = job.manual === true;
     const due = millis(job.notBefore);
-    if (!Number.isFinite(due) || !Number.isFinite(millis(job.deadline)) || due < millis(job.deadline) + RECOVERY_DELAY_MS) {
+    if (!Number.isFinite(millis(job.deadline)) || (!manual
+      && (!Number.isFinite(due) || due < millis(job.deadline) + RECOVERY_DELAY_MS))) {
       tx.update(ref, { status: 'skipped', reason: 'invalid_deadline', updatedAt: Timestamp.now() }); return null;
     }
-    if (due > Date.now()) return null;
+    if (!manual && due > Date.now()) return null;
     // Hold and root expiry sweeps can be on different pages: wait for the root cancellation.
     const root = (await tx.get(db.collection('bookings').doc(id))).data();
     if (root?.stato === 'in_attesa' && root.depositPaymentRequest?.status === 'pending'
       && unpaidDepositRequestExpired(root) && !uncertain(root)
       && Date.now() <= millis(job.deadline) + 24 * RECOVERY_DELAY_MS) return null;
-    const ctx = await context(tx, db, id, job);
+    const ctx = await context(tx, db, id, job, manual);
     if (!ctx) {
       tx.update(ref, { status: 'skipped', reason: 'no_longer_eligible', updatedAt: Timestamp.now() }); return null;
     }
@@ -98,12 +111,11 @@ export async function deliverBookingRecovery(db: Firestore, id: string, override
     const studio = await deps.studio();
     if (!studio.name || !validEmail(studio.email) || !studio.phone) throw new Error('Recapiti studio incompleti');
     const message = bookingRecoveryEmail(claimed.ctx.name, claimed.ctx.campaign.nome, claimed.ctx.campaign.code, studio);
-    const recipientKey = createHash('sha256').update(`${claimed.job.campaignId}\n${claimed.ctx.email}`).digest('hex');
-    const recipientRef = db.collection(RECOVERY_RECIPIENTS).doc(recipientKey);
+    const recipientRef = db.collection(RECOVERY_RECIPIENTS).doc(recipientKey(claimed.job.campaignId, claimed.ctx.email));
     const ready = await db.runTransaction(async tx => {
       const job = (await tx.get(ref)).data();
       if (job?.status !== 'preparing' || job.lease !== lease) return false;
-      const ctx = await context(tx, db, id, job);
+      const ctx = await context(tx, db, id, job, job.manual === true);
       const recipient = (await tx.get(recipientRef)).data();
       if (!ctx || recipient || ctx.email !== claimed.ctx.email || ctx.campaign.nome !== claimed.ctx.campaign.nome
         || ctx.campaign.code !== claimed.ctx.campaign.code) {
@@ -135,7 +147,92 @@ export async function deliverBookingRecovery(db: Firestore, id: string, override
   }
 }
 
+export interface ManualRecoveryCandidate {
+  bookingId: string;
+  name?: string;
+  email?: string;
+  eligible: boolean;
+  reason?: string;
+}
+
+function manualDeadline(root: DocumentData | undefined, hold: DocumentData | undefined): number | null {
+  const rootDeadline = root?.depositPaymentRequest?.status === 'expired'
+    ? approvedDepositDeadline(root) : null;
+  const holdDeadline = hold?.status === 'expired' ? millis(hold.expiresAt) : null;
+  if (rootDeadline !== null && holdDeadline !== null && rootDeadline !== holdDeadline) return null;
+  return rootDeadline ?? (Number.isFinite(holdDeadline) ? holdDeadline : null);
+}
+
+async function getManualCandidateContext(tx: Transaction, db: Firestore, id: string, campaignId: string) {
+  const jobRef = db.collection(RECOVERY_JOBS).doc(id);
+  const job = (await tx.get(jobRef)).data();
+  const root = (await tx.get(db.collection('bookings').doc(id))).data();
+  const hold = (await tx.get(db.collection(CHECKOUT_HOLDS).doc(id))).data();
+  const campaign = (await tx.get(db.collection('booking_campaigns').doc(campaignId))).data();
+  const person = contact(root || hold || {});
+  const excluded = (reason: string) => ({
+    reason, name: String(person.nome || ''), email: normalize(person.email),
+  } as const);
+  if (job && ['sent', 'unknown', 'sending', 'preparing'].includes(job.status)) {
+    return excluded(job.status === 'sent' ? 'già_inviata' : 'esito_in_corso_o_incerto');
+  }
+  const deadline = manualDeadline(root, hold);
+  if (!manualCampaignOpen(campaign)) return excluded('campagna_non_prenotabile');
+  if (!deadline || deadline > Date.now()) return excluded('scadenza_non_verificabile');
+  if (root && (root.campaignId !== campaignId || root.stato !== 'annullata'
+    || root.depositPaymentRequest?.status !== 'expired')) return excluded('prenotazione_non_scaduta');
+  if (hold && (hold.campaignId !== campaignId || hold.status !== 'expired')) return excluded('checkout_non_scaduto');
+  if (!root && !hold) return excluded('prenotazione_non_trovata');
+  if (uncertain(root) || uncertain(hold)) return excluded('pagamento_o_modifica_da_verificare');
+  const candidateJob = {
+    ...(job || {}), bookingId: id, campaignId, deadline: Timestamp.fromMillis(deadline),
+  };
+  const ctx = await context(tx, db, id, candidateJob, true);
+  if (!ctx) return excluded('riprenotata_o_non_idonea');
+  const recipientRef = db.collection(RECOVERY_RECIPIENTS).doc(recipientKey(campaignId, ctx.email));
+  if ((await tx.get(recipientRef)).exists) return excluded('destinatario_gia_contattato');
+  return { ctx, campaign, deadline, jobRef, job } as const;
+}
+
+/** Admin preview and confirmation share the automatic delivery's fail-closed eligibility checks. */
+export async function inspectManualBookingRecovery(db: Firestore, id: string, campaignId: string): Promise<ManualRecoveryCandidate> {
+  return db.runTransaction(async tx => {
+    const result = await getManualCandidateContext(tx, db, id, campaignId);
+    if ('reason' in result) return {
+      bookingId: id, ...(result.name ? { name: result.name } : {}),
+      ...(result.email ? { email: result.email } : {}), eligible: false, reason: result.reason,
+    };
+    return { bookingId: id, name: result.ctx.name, email: result.ctx.email, eligible: true };
+  });
+}
+
+export async function queueManualBookingRecovery(db: Firestore, id: string, campaignId: string, adminId: string) {
+  return db.runTransaction(async tx => {
+    const result = await getManualCandidateContext(tx, db, id, campaignId);
+    if ('reason' in result) return { queued: false, reason: result.reason };
+    const now = Timestamp.now();
+    const jobData = {
+      bookingId: id,
+      campaignId,
+      deadline: Timestamp.fromMillis(result.deadline),
+      notBefore: now,
+      status: 'pending',
+      attempts: 0,
+      reason: null,
+      manual: true,
+      manualRequestedBy: adminId,
+      manualRequestedAt: now,
+      updatedAt: now,
+    };
+    if (result.job) tx.update(result.jobRef, jobData);
+    else tx.set(result.jobRef, { ...jobData, createdAt: now });
+    return { queued: true };
+  });
+}
+
 export function startBookingRecoveryWorker(db: Firestore, intervalMs = 60_000) {
+  // Recovery emails are real customer messages; never run the scheduler from a dev server.
+  if (process.env.NODE_ENV !== 'production') return () => undefined;
   let running = false, cursor: string | undefined;
   const timer = setInterval(() => {
     if (running) return;
