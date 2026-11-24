@@ -49,7 +49,9 @@ function precompressAssetsPlugin(): Plugin {
   return {
     name: 'precompress-assets',
     apply: 'build',
-    async closeBundle() {
+    // writeBundle (not closeBundle): runs only after a successful write, so a
+    // failed build never re-compresses the previous build's files.
+    async writeBundle() {
       const assetsDir = path.resolve(import.meta.dirname, 'dist/public/assets');
       const stats = await precompressAssets(assetsDir);
       const kb = (bytes: number) => Math.round(bytes / 1024);
