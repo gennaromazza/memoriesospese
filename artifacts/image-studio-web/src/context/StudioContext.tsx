@@ -100,23 +100,45 @@ interface StudioProviderProps {
   children: ReactNode;
 }
 
+const SETTINGS_CACHE_KEY = 'studio-settings-cache-v1';
+
+function buildSettings(settingsData: Partial<StudioSettings>): StudioSettings {
+  return {
+    ...defaultSettings,
+    ...settingsData,
+    ...normalizePublicStudioContacts(settingsData),
+    socialLinks: { ...defaultSettings.socialLinks, ...(settingsData.socialLinks || {}) },
+    homepageContent: resolveHomepageContent(settingsData.homepageContent),
+  };
+}
+
+// Ultima versione delle impostazioni vista da questo browser: evita di mostrare
+// per un istante i testi di default prima che arrivino quelli reali da Firestore.
+function readCachedSettings(): StudioSettings | null {
+  try {
+    const raw = window.localStorage.getItem(SETTINGS_CACHE_KEY);
+    return raw ? buildSettings(JSON.parse(raw)) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function StudioProvider({ children }: StudioProviderProps) {
-  const [studioSettings, setStudioSettings] = useState<StudioSettings>(defaultSettings);
-  const [loading, setLoading] = useState(true);
+  const [cached] = useState(readCachedSettings);
+  const [studioSettings, setStudioSettings] = useState<StudioSettings>(cached ?? defaultSettings);
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setLoading(true);
     const settingsRef = doc(db, 'settings', 'studio');
     return onSnapshot(settingsRef, (snapshot) => {
       const settingsData = snapshot.exists() ? snapshot.data() as Partial<StudioSettings> : {};
-      setStudioSettings({
-        ...defaultSettings,
-        ...settingsData,
-        ...normalizePublicStudioContacts(settingsData),
-        socialLinks: { ...defaultSettings.socialLinks, ...(settingsData.socialLinks || {}) },
-        homepageContent: resolveHomepageContent(settingsData.homepageContent),
-      });
+      setStudioSettings(buildSettings(settingsData));
+      try {
+        window.localStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify(settingsData));
+      } catch {
+        // storage non disponibile: si usa solo Firestore
+      }
       setError(null);
       setLoading(false);
     }, () => {

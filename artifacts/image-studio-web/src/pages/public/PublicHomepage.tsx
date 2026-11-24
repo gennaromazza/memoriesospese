@@ -332,7 +332,7 @@ export default function PublicHomepage() {
       <section className="pt-24 sm:pt-28 md:pt-32 pb-12 sm:pb-16 md:pb-20 bg-cream/25 px-4 overflow-hidden">
         <div className="max-w-7xl mx-auto">
           <div className="grid w-full min-w-0 grid-cols-1 items-center gap-8 sm:gap-10 md:grid-cols-2 md:gap-12">
-            <div className="min-w-0 max-w-full animate-fade-in">
+            <div className={`min-w-0 max-w-full animate-fade-in ${studioSettingsLoading ? "invisible" : ""}`}>
               <p className="text-sm sm:text-base font-semibold uppercase tracking-[0.2em] text-sage mb-3">
                 {homepageContent.hero.eyebrow}
               </p>
