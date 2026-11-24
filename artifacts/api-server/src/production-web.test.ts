@@ -1,13 +1,15 @@
 import express from 'express';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
-import { createServer, type Server } from 'node:http';
+import { createServer, get as httpGet, type IncomingHttpHeaders, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { brotliCompressSync, brotliDecompressSync, gunzipSync, gzipSync } from 'node:zlib';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const { mockCollection } = vi.hoisted(() => ({ mockCollection: vi.fn() }));
 vi.mock('./firebase-admin', () => ({ db: { collection: mockCollection } }));
 vi.mock('./lib/logger', () => ({ logger: { error: vi.fn() } }));
 import {
+  acceptsEncoding,
   apiNotFoundHandler,
   mountProductionClient,
   productionClientBuildPath,
@@ -22,10 +24,12 @@ afterEach(async () => {
   await Promise.all(servers.splice(0).map(server => new Promise<void>(resolve => {
     server.close(() => resolve());
   })));
-  await Promise.all(temporaryRoots.splice(0).map(root => rm(root, { recursive: true, force: true })));
+  // One at a time: a fixture can live inside another one, and parallel removal
+  // of a folder and its parent fails on Windows.
+  for (const root of temporaryRoots.splice(0)) await rm(root, { recursive: true, force: true });
 });
-async function createFixture() {
-  const root = await mkdtemp(path.join(tmpdir(), 'print-shop-production-'));
+async function createFixture(prefix = path.join(tmpdir(), 'print-shop-production-')) {
+  const root = await mkdtemp(prefix);
   temporaryRoots.push(root);
   const buildPath = productionClientBuildPath(root);
   await mkdir(path.join(buildPath, 'assets'), { recursive: true });
@@ -35,6 +39,36 @@ async function createFixture() {
     writeFile(path.join(buildPath, 'assets', 'app-abc123.js'), 'globalThis.__production = true;'),
   ]);
   return { root };
+}
+
+const APP_JS = 'globalThis.__production = true;\n'.repeat(200);
+const APP_CSS = '.photo { display: block; }\n'.repeat(200);
+
+/** Build fixture with the .br/.gz copies the Vite build writes next to each asset. */
+async function createPrecompressedFixture(prefix?: string) {
+  const { root } = await createFixture(prefix);
+  const assets = path.join(productionClientBuildPath(root), 'assets');
+  await Promise.all([
+    writeFile(path.join(assets, 'app-abc123.js'), APP_JS),
+    writeFile(path.join(assets, 'app-abc123.js.br'), brotliCompressSync(APP_JS)),
+    writeFile(path.join(assets, 'app-abc123.js.gz'), gzipSync(APP_JS)),
+    writeFile(path.join(assets, 'style-def456.css'), APP_CSS),
+    writeFile(path.join(assets, 'style-def456.css.gz'), gzipSync(APP_CSS)),
+    writeFile(path.join(assets, 'plain-789.js'), 'export {};'),
+  ]);
+  return { root };
+}
+
+/** Raw GET: fetch() would decode the body and hide what travelled on the wire. */
+function rawGet(url: string, headers: Record<string, string> = {}) {
+  return new Promise<{ status: number; headers: IncomingHttpHeaders; body: Buffer }>((resolve, reject) => {
+    httpGet(url, { headers }, res => {
+      const chunks: Buffer[] = [];
+      res.on('data', chunk => chunks.push(chunk));
+      res.on('end', () => resolve({ status: res.statusCode ?? 0, headers: res.headers, body: Buffer.concat(chunks) }));
+      res.on('error', reject);
+    }).on('error', reject);
+  });
 }
 
 async function listen(app: express.Express): Promise<string> {
@@ -188,5 +222,98 @@ describe('production web runtime', () => {
     const missingAsset = await fetch(`${baseUrl}/assets/missing.js`);
     expect(missingAsset.status).toBe(404);
     expect(await missingAsset.text()).not.toContain('production-spa');
+  });
+
+  it.each([
+    ['gzip, deflate, br', 'br', true],
+    ['GZIP', 'gzip', true],
+    ['br;q=0, gzip', 'br', false],
+    ['br; q=0.5', 'br', true],
+    ['*', 'br', true],
+    ['*;q=0', 'gzip', false],
+    ['br;q=0, *', 'br', false],
+    ['identity', 'gzip', false],
+    ['br;q=abc', 'br', false],
+    ['', 'br', false],
+    [undefined, 'br', false],
+  ])('reads Accept-Encoding %j for %s as %s', (header, encoding, expected) => {
+    expect(acceptsEncoding(header, encoding)).toBe(expected);
+  });
+
+  it('serves the precompressed copy that the browser accepts, preferring brotli', async () => {
+    const { root } = await createPrecompressedFixture();
+    const app = express();
+    mountProductionClient(app, { cwd: root });
+    const baseUrl = await listen(app);
+    const url = `${baseUrl}/assets/app-abc123.js`;
+
+    const br = await rawGet(url, { 'Accept-Encoding': 'gzip, deflate, br' });
+    expect(br.status).toBe(200);
+    expect(br.headers['content-encoding']).toBe('br');
+    expect(br.headers['content-type']).toContain('javascript');
+    expect(br.headers['cache-control']).toBe('public, max-age=31536000, immutable');
+    expect(br.headers['x-content-type-options']).toBe('nosniff');
+    expect(br.headers.vary).toContain('Accept-Encoding');
+    expect(brotliDecompressSync(br.body).toString('utf8')).toBe(APP_JS);
+
+    const gzip = await rawGet(url, { 'Accept-Encoding': 'gzip' });
+    expect(gzip.headers['content-encoding']).toBe('gzip');
+    expect(gunzipSync(gzip.body).toString('utf8')).toBe(APP_JS);
+
+    const refusedBrotli = await rawGet(url, { 'Accept-Encoding': 'br;q=0, gzip' });
+    expect(refusedBrotli.headers['content-encoding']).toBe('gzip');
+
+    const identity = await rawGet(url);
+    expect(identity.headers['content-encoding']).toBeUndefined();
+    expect(identity.headers.vary).toContain('Accept-Encoding');
+    expect(identity.body.toString('utf8')).toBe(APP_JS);
+  });
+
+  it('still compresses when the site is installed under a folder whose name starts with a dot', async () => {
+    const parent = await mkdtemp(path.join(tmpdir(), '.dot-parent-'));
+    temporaryRoots.push(parent);
+    const { root } = await createPrecompressedFixture(path.join(parent, 'site-'));
+    const app = express();
+    mountProductionClient(app, { cwd: root });
+    const baseUrl = await listen(app);
+
+    const res = await rawGet(`${baseUrl}/assets/app-abc123.js`, { 'Accept-Encoding': 'br' });
+    expect(res.headers['content-encoding']).toBe('br');
+    expect(brotliDecompressSync(res.body).toString('utf8')).toBe(APP_JS);
+  });
+
+  it('falls back to the next encoding, or to the original when no copy exists', async () => {
+    const { root } = await createPrecompressedFixture();
+    const app = express();
+    mountProductionClient(app, { cwd: root });
+    const baseUrl = await listen(app);
+
+    const css = await rawGet(`${baseUrl}/assets/style-def456.css`, { 'Accept-Encoding': 'br, gzip' });
+    expect(css.headers['content-encoding']).toBe('gzip');
+    expect(css.headers['content-type']).toContain('text/css');
+    expect(gunzipSync(css.body).toString('utf8')).toBe(APP_CSS);
+
+    const plain = await rawGet(`${baseUrl}/assets/plain-789.js`, { 'Accept-Encoding': 'br, gzip' });
+    expect(plain.status).toBe(200);
+    expect(plain.headers['content-encoding']).toBeUndefined();
+    expect(plain.body.toString('utf8')).toBe('export {};');
+
+    const missing = await rawGet(`${baseUrl}/assets/missing.js`, { 'Accept-Encoding': 'br, gzip' });
+    expect(missing.status).toBe(404);
+    expect(missing.headers['content-encoding']).toBeUndefined();
+  });
+
+  it('never serves compressed files from outside the assets folder', async () => {
+    const { root } = await createPrecompressedFixture();
+    await writeFile(path.join(productionClientBuildPath(root), 'index.html.br'), brotliCompressSync('secret-shell'));
+    const app = express();
+    mountProductionClient(app, { cwd: root });
+    const baseUrl = await listen(app);
+
+    for (const attempt of ['/assets/..%2Findex.html', '/assets/%2e%2e/index.html', '/assets/..%5Cindex.html']) {
+      const res = await rawGet(`${baseUrl}${attempt}`, { 'Accept-Encoding': 'br' });
+      expect(res.headers['content-encoding'], attempt).toBeUndefined();
+      expect(res.body.toString('utf8'), attempt).not.toContain('secret-shell');
+    }
   });
 });

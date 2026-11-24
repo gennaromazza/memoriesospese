@@ -7,6 +7,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 
 import runtimeErrorOverlay from '@replit/vite-plugin-runtime-error-modal';
 import { renderPrintSocialPageHtml } from './build/print-social-page';
+import { precompressAssets } from './build/precompress-assets';
 
 const rawPort = process.env.PORT;
 
@@ -43,6 +44,22 @@ function printSocialPagePlugin(): Plugin {
   };
 }
 
+/** .br/.gz copies of the built assets, served by artifacts/api-server/src/production-web.ts. */
+function precompressAssetsPlugin(): Plugin {
+  return {
+    name: 'precompress-assets',
+    apply: 'build',
+    async closeBundle() {
+      const assetsDir = path.resolve(import.meta.dirname, 'dist/public/assets');
+      const stats = await precompressAssets(assetsDir);
+      const kb = (bytes: number) => Math.round(bytes / 1024);
+      console.log(
+        `[precompress-assets] ${stats.files} file: ${kb(stats.originalBytes)} KB → brotli ${kb(stats.brotliBytes)} KB, gzip ${kb(stats.gzipBytes)} KB`,
+      );
+    },
+  };
+}
+
 export default defineConfig({
   base: basePath,
   define: {
@@ -52,6 +69,7 @@ export default defineConfig({
   plugins: [
     react(),
     printSocialPagePlugin(),
+    precompressAssetsPlugin(),
     runtimeErrorOverlay(),
     ...(process.env.NODE_ENV !== 'production' &&
     process.env.REPL_ID !== undefined
