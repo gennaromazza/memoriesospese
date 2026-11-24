@@ -25,6 +25,7 @@ import { runSocialCoverHealthCheck } from "./social-cover-health";
 import { db } from "./firebase-admin";
 import { startBookingPaymentExpiryWorker } from "./booking/payment-expiry";
 import { startBookingRecoveryWorker } from "./booking/recovery-delivery";
+import { startBookingDepositReminderWorker } from "./booking/deposit-reminder-delivery";
 import { startBookingConfirmationWorker } from "./booking/confirmation-delivery";
 import { startBookingRescheduleWorker } from "./booking/reschedule-delivery";
 import { startBookingCancellationWorker } from "./booking/cancellations";
@@ -45,6 +46,7 @@ if (Number.isNaN(port) || port <= 0) {
 
 let cancellationWorkerCleanup: (() => void) | null = null;
 let bookingExpiryCleanup: (() => void) | null = null;
+let bookingDepositReminderCleanup: (() => void) | null = null;
 let bookingConfirmationCleanup: (() => void) | null = null;
 let bookingRescheduleCleanup: (() => void) | null = null;
 let cleanupInterval: NodeJS.Timeout | null = null;
@@ -92,6 +94,7 @@ app.listen(port, async (err) => {
 
   cancellationWorkerCleanup = startCancellationRetryWorker();
   bookingExpiryCleanup = startBookingPaymentExpiryWorker(db);
+  if (process.env.NODE_ENV === "production") bookingDepositReminderCleanup = startBookingDepositReminderWorker(db);
   const stopBookingRecovery = startBookingRecoveryWorker(db);
   process.once('SIGTERM', stopBookingRecovery);
   process.once('SIGINT', stopBookingRecovery);
@@ -117,6 +120,7 @@ const shutdown = (signal: string) => {
   logger.info({ signal }, "Shutting down");
   cancellationWorkerCleanup?.();
   bookingExpiryCleanup?.();
+  bookingDepositReminderCleanup?.();
   bookingConfirmationCleanup?.();
   bookingRescheduleCleanup?.();
   stopEventSyncWorker();

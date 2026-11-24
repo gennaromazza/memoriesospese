@@ -48,6 +48,7 @@ async function edit(id = 'legacy') {
 }
 const approval = () => screen.getByRole('switch', { name: 'Richiedi la mia approvazione' });
 const deposit = () => screen.getByRole('switch', { name: 'Richiedi un acconto' });
+const reminders = () => screen.getByRole('switch', { name: 'Invia promemoria automatici di pagamento' });
 const recovery = () => screen.getByRole('switch', { name: 'Invita a riprenotare se l’acconto scade' });
 const amount = () => screen.getByLabelText('Importo acconto (€) *') as HTMLInputElement;
 const save = () => fireEvent.click(screen.getByTestId('button-save-campaign'));
@@ -78,6 +79,18 @@ it('permette di attivare, ritrovare e disattivare il recupero nella singola camp
   expect(mocks.update).toHaveBeenLastCalledWith('legacy', expect.objectContaining({ emailRecuperoAcconto: false }));
   await edit(); fireEvent.click(recovery()); save(); await waitClosed();
   expect(mocks.update).toHaveBeenLastCalledWith('legacy', expect.objectContaining({ emailRecuperoAcconto: true }));
+});
+
+it('mostra i promemoria attivi sulle campagne esistenti con acconto e conserva la disattivazione', async () => {
+  mocks.campaigns[0] = { ...legacy(), richiedeAcconto: true, accontoImportoCentesimi: 500 };
+  mount(); await edit();
+  expect(reminders().getAttribute('aria-checked')).toBe('true');
+  fireEvent.click(reminders()); save(); await waitClosed();
+  expect(mocks.update).toHaveBeenLastCalledWith('legacy', expect.objectContaining({ emailPromemoriaAcconto: false }));
+  await edit();
+  expect(reminders().getAttribute('aria-checked')).toBe('false');
+  fireEvent.click(approval());
+  expect(screen.queryByRole('switch', { name: 'Invia promemoria automatici di pagamento' })).toBeNull();
 });
 
 it('non mostra il recupero con acconto disattivato e lo spegne al salvataggio', async () => {

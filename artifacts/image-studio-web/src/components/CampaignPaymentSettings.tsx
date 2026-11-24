@@ -73,7 +73,7 @@ export default function CampaignPaymentSettings({ value, onChange, error }: Prop
             {error && <p id="campaign-deposit-error" role="alert" className="text-sm text-destructive">{error}</p>}
           </div>
         )}
-        {value.richiedeAcconto && (
+        {value.richiedeAcconto && value.richiedeApprovazione && (
           <div className="flex items-start justify-between gap-4 border-t pt-3">
             <div className="min-w-0 space-y-1">
               <Label htmlFor="campaign-deposit-reminders">Invia promemoria automatici di pagamento</Label>

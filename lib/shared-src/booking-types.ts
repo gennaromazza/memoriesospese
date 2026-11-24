@@ -159,6 +159,7 @@ export interface BookingCampaign {
   richiedeAcconto?: boolean;
   accontoImportoCentesimi?: number | null;
   emailRecuperoAcconto?: boolean;
+  emailPromemoriaAcconto?: boolean; // Promemoria a 30 e 50 minuti dopo l’approvazione, attivi salvo disattivazione.
   recuperoAccontoAttivatoIl?: Timestamp;
   
   // Immagini personalizzate (opzionali)

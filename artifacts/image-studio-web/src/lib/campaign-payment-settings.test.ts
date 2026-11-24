@@ -4,13 +4,15 @@ import { campaignPaymentFields, campaignPaymentForm } from './campaign-payment-s
 describe('conversione acconto campagna', () => {
   it('usa i default legacy e conserva le due opzioni indipendenti', () => {
     expect(campaignPaymentForm()).toEqual({
-      richiedeApprovazione: true, richiedeAcconto: false, accontoImportoEuro: '', emailRecuperoAcconto: false,
+      richiedeApprovazione: true, richiedeAcconto: false, accontoImportoEuro: '',
+      emailPromemoriaAcconto: true, emailRecuperoAcconto: true,
     });
     for (const richiedeApprovazione of [true, false]) {
       for (const richiedeAcconto of [true, false]) {
         const fields = { richiedeApprovazione, richiedeAcconto, accontoImportoCentesimi: 2501 };
         expect(campaignPaymentFields(campaignPaymentForm(fields))).toEqual({
-          ...fields, accontoImportoCentesimi: richiedeAcconto ? 2501 : null, emailRecuperoAcconto: false,
+          ...fields, accontoImportoCentesimi: richiedeAcconto ? 2501 : null,
+          emailPromemoriaAcconto: true, emailRecuperoAcconto: false,
         });
       }
     }
@@ -41,5 +43,11 @@ describe('conversione acconto campagna', () => {
     const form = campaignPaymentForm({ richiedeAcconto: true, emailRecuperoAcconto: true, accontoImportoCentesimi: 500 });
     expect(campaignPaymentFields(form).emailRecuperoAcconto).toBe(true);
     expect(campaignPaymentFields({ ...form, richiedeAcconto: false }).emailRecuperoAcconto).toBe(false);
+  });
+  it('attiva entrambe le email quando si abilita l’acconto in una nuova campagna e rispetta le disattivazioni salvate', () => {
+    const form = { ...campaignPaymentForm(), richiedeAcconto: true, accontoImportoEuro: '5' };
+    expect(campaignPaymentFields(form)).toMatchObject({ emailPromemoriaAcconto: true, emailRecuperoAcconto: true });
+    expect(campaignPaymentForm({ emailPromemoriaAcconto: false, emailRecuperoAcconto: false }))
+      .toMatchObject({ emailPromemoriaAcconto: false, emailRecuperoAcconto: false });
   });
 });

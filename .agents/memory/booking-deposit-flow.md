@@ -233,11 +233,30 @@ riprenotato e le campagne non più aperte.
 **Why:** il titolare ha richiesto un modo per ricontattare chi non conclude
 l’acconto, mantenendo il controllo sulle singole campagne.
 
-**How to apply:** l’opzione parte spenta e vale per nuove scadenze dopo
-l’attivazione, non per invii retroattivi alle prenotazioni già annullate.
+**How to apply:** nelle nuove campagne l’opzione è proposta attiva insieme
+all’acconto; conservare la scelta già salvata nelle campagne esistenti.
+Vale per nuove scadenze dopo l’attivazione, non per invii retroattivi alle
+prenotazioni già annullate.
 Un solo invito per indirizzo email nella stessa campagna evita solleciti
 duplicati da tentativi ripetuti; un esito di invio incerto non autorizza retry
 automatici. Eventuali recuperi dello storico richiedono un’autorizzazione distinta.
+
+## Promemoria prima della scadenza
+
+Il titolare ha scelto due promemoria automatici, a 30 e 50 minuti
+dall’approvazione, attivi salvo disattivazione per campagna. Non riusare
+questa cadenza per il checkout immediato né trasformare il recupero scaduto
+in un sollecito di pagamento.
+
+**Why:** l’ora è il termine effettivo per confermare lo slot, non l’inizio
+di una serie di solleciti. Un link ancora valido aiuta il cliente prima
+della scadenza; dopo, deve vedere le disponibilità aggiornate e i recapiti.
+
+**How to apply:** conservare link, importo e termine originali; ricontrollare
+incassi anche in sede, annullamenti, esoneri e catture incerte prima dell’invio.
+Se il server riparte tardi, non inviare in coppia i promemoria e non inviarli
+dopo la scadenza. Con il database condiviso, i nuovi invii automatici si eseguono
+solo in produzione, non riproducendo campagne reali nella Preview.
 
 ## Avanzamento automatico del workflow
 

@@ -18,11 +18,7 @@ export interface ApprovedDepositDependencies {
   send(to: string, subject: string, html: string, bookingId: string): Promise<void>;
 }
 const defaults: ApprovedDepositDependencies = {
-  signingKey: () => {
-    const key = process.env.SESSION_SECRET;
-    if (!key || key.length < 32) throw new CheckoutHoldError(503, 'Configurazione del link di pagamento da verificare.');
-    return key;
-  },
+  signingKey: approvedDepositSigningKey,
   assertPayPalConfigured: () => bookingPayPalClient().assertCheckoutConfigured(),
   checkCalendar: async (start, end, campaign, bookingId, db) => {
     const { checkFreeBusy } = await import('../google-calendar.js');
@@ -56,6 +52,11 @@ const defaults: ApprovedDepositDependencies = {
 };
 export const approvedDepositTokenFor = (key: string, id: string, nonce: string) =>
   createHmac('sha256', key).update(`booking-approved-deposit:v1:${id}:${nonce}`).digest('hex');
+export function approvedDepositSigningKey() {
+  const key = process.env.SESSION_SECRET;
+  if (!key || key.length < 32) throw new CheckoutHoldError(503, 'Configurazione del link di pagamento da verificare.');
+  return key;
+}
 const escape = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, char =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);
 // Verified through the deployment service, not request headers or development domains.
@@ -80,6 +81,26 @@ export function approvedDepositEmail(hold: any, campaignName: string, studio: St
     <p><strong>${escape(studio.name)}</strong><br>${escape(studio.email)}<br>${escape(studio.phone)}${studio.address ? `<br>${escape(studio.address)}` : ''}</p>
   </div>`;
 }
+/** Use the same amount, expiry and production payment link as the initial email. */
+export function approvedDepositReminderEmail(hold: any, campaignName: string, studio: Studio, token: string, minute: 30 | 50) {
+  const price = (hold.depositAmountCents / 100).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' });
+  const deadline = hold.expiresAt.toDate().toLocaleString('it-IT', { timeZone: 'Europe/Rome', dateStyle: 'long', timeStyle: 'short' });
+  const link = `${APPROVED_PAYMENT_SITE}/prenota/acconto/${encodeURIComponent(hold.bookingId)}#${token}`;
+  return {
+    subject: minute === 50 ? 'Ultimo promemoria: la richiesta di acconto sta per scadere' : 'Promemoria: completa l’acconto del tuo shooting',
+    html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:24px;color:#293c36">
+      <h1 style="font-size:24px">Il tuo appuntamento non è ancora confermato</h1>
+      <p>Ciao ${escape(hold.draft.cliente.nome)}, ti ricordiamo di completare l’acconto per <strong>${escape(campaignName)}</strong>.</p>
+      <p>Per confermare, versa <strong>${escape(price)}</strong> entro <strong>${escape(deadline)} (ora italiana)</strong>.
+      Dopo la scadenza l’orario torna disponibile. Questo promemoria non prolunga il termine originale.</p>
+      <p><a href="${escape(link)}" style="background:#294e42;color:#fff;padding:14px 22px;text-decoration:none;display:inline-block">Completa il pagamento con PayPal</a></p>
+      <p>Hai difficoltà con PayPal o pensi di aver già pagato? Contatta lo studio prima di riprovare. Non rispondere a questa email automatica.</p>
+      <hr style="border:0;border-top:1px solid #ddd;margin:24px 0">
+      <p><strong>${escape(studio.name)}</strong><br>${escape(studio.email)}<br>${escape(studio.phone)}${studio.address ? `<br>${escape(studio.address)}` : ''}</p>
+    </div>`,
+  };
+}
+
 function definitelyRejected(error: unknown) {
   return error instanceof Error && /(?:Gmail API error:\s*|Gmail non autorizzato \()(400|401|403|404|413|422|429)\b/i.test(error.message);
 }
@@ -146,15 +167,17 @@ export async function approveBookingWithDeposit(db: Firestore, bookingId: string
     const record = { bookingId, campaignId: booking.campaignId, kind: 'approved_deposit', status: 'active',
       dataShootingInizio: booking.dataShootingInizio, dataShootingFine: booking.dataShootingFine,
       createdAt: request.requestedAt, expiresAt: request.expiresAt, depositAmountCents: request.amountCents, currency: 'EUR',
-      approvalNonce: nonce, tokenHash: hashCheckoutToken(tokenFor(key, bookingId, nonce)),
+      approvalNonce: nonce, tokenHash: hashCheckoutToken(approvedDepositTokenFor(key, bookingId, nonce)),
       draft: { cliente: booking.cliente, prodottoId: booking.prodottoId ?? null,
         prodottoNome: booking.prodottoNome ?? null, note: booking.note || '' },
       paymentEmail: { status: 'pending', attempts: 0 } };
+    await enqueueBookingDepositReminders(tx, db, bookingId, booking.campaignId, request,
+      process.env.NODE_ENV !== 'development' && currentCampaign.emailPromemoriaAcconto !== false);
     locks(); tx.set(holdRef, record);
     tx.update(ref, { depositPaymentRequest: { ...request, approvedBy: adminId, emailStatus: 'pending' }, updatedAt: Timestamp.now() });
     return record;
   });
-  const token = tokenFor(key, bookingId, hold.approvalNonce);
+  const token = approvedDepositTokenFor(key, bookingId, hold.approvalNonce);
   if (hashCheckoutToken(token) !== hold.tokenHash) throw new CheckoutHoldError(503, 'La chiave del link è cambiata. Richiedi assistenza senza rinnovare la scadenza.');
   const studio = await deps.studio();
   const attemptId = randomUUID();
