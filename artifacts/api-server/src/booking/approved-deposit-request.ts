@@ -6,6 +6,7 @@ import { CheckoutHoldError, hashCheckoutToken } from './checkout-hold-state.js';
 import { createApprovedDepositRequest, unpaidDepositRequestExpired } from './payment-deadlines.js';
 import { isApprovedDepositHold, assertApprovedDepositMatchesBooking } from './approved-deposit-state.js';
 import { bookingPayPalClient } from './paypal-deposit-orders.js';
+import { enqueueBookingDepositReminders } from './deposit-reminder-queue.js';
 
 type EmailStatus = 'pending' | 'sending' | 'sent' | 'failed' | 'unknown';
 interface Studio { name: string; email: string; phone: string; address: string }
@@ -53,7 +54,7 @@ const defaults: ApprovedDepositDependencies = {
       { type: 'booking_deposit_request', relatedDocId: bookingId, relatedDocType: 'booking' });
   },
 };
-const tokenFor = (key: string, id: string, nonce: string) =>
+export const approvedDepositTokenFor = (key: string, id: string, nonce: string) =>
   createHmac('sha256', key).update(`booking-approved-deposit:v1:${id}:${nonce}`).digest('hex');
 const escape = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, char =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);

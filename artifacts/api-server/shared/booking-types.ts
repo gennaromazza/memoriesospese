@@ -147,6 +147,8 @@ export interface BookingCampaign {
   // Se assenti: approvazione richiesta e nessun acconto.
   richiedeApprovazione?: boolean;
   richiedeAcconto?: boolean;
+  /** Email automatiche a 30 e 50 minuti dalla richiesta di acconto (default on). */
+  emailPromemoriaAcconto?: boolean;
   accontoImportoCentesimi?: number | null;
   
   // Immagini personalizzate (opzionali)

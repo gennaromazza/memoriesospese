@@ -76,6 +76,23 @@ export default function CampaignPaymentSettings({ value, onChange, error }: Prop
         {value.richiedeAcconto && (
           <div className="flex items-start justify-between gap-4 border-t pt-3">
             <div className="min-w-0 space-y-1">
+              <Label htmlFor="campaign-deposit-reminders">Invia promemoria automatici di pagamento</Label>
+              <p id="campaign-deposit-reminders-help" className="text-xs text-muted-foreground">
+                Due email con il link originale, a 30 e 50 minuti. Si fermano appena l’acconto è ricevuto.
+                La richiesta scade comunque dopo un’ora e non viene prolungata.
+              </p>
+            </div>
+            <Switch
+              id="campaign-deposit-reminders"
+              aria-describedby="campaign-deposit-reminders-help"
+              checked={value.emailPromemoriaAcconto !== false}
+              onCheckedChange={checked => onChange({ ...value, emailPromemoriaAcconto: checked })}
+            />
+          </div>
+        )}
+        {value.richiedeAcconto && (
+          <div className="flex items-start justify-between gap-4 border-t pt-3">
+            <div className="min-w-0 space-y-1">
               <Label htmlFor="campaign-deposit-recovery">Invita a riprenotare se l’acconto scade</Label>
               <p id="campaign-deposit-recovery-help" className="text-xs text-muted-foreground">
                 Un’email un’ora dopo la scadenza, con le disponibilità aggiornate.

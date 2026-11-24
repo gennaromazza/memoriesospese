@@ -4,17 +4,19 @@ export interface CampaignPaymentFormValues {
   richiedeApprovazione: boolean;
   richiedeAcconto: boolean;
   accontoImportoEuro: string;
+  emailPromemoriaAcconto?: boolean;
   emailRecuperoAcconto?: boolean;
 }
 
 type PaymentFields = Pick<BookingCampaignFE,
-  'richiedeApprovazione' | 'richiedeAcconto' | 'accontoImportoCentesimi' | 'emailRecuperoAcconto'>;
+  'richiedeApprovazione' | 'richiedeAcconto' | 'accontoImportoCentesimi' | 'emailPromemoriaAcconto' | 'emailRecuperoAcconto'>;
 
 export function campaignPaymentForm(campaign: PaymentFields = {}): CampaignPaymentFormValues {
   const cents = campaign.accontoImportoCentesimi;
   return {
     richiedeApprovazione: campaign.richiedeApprovazione ?? true,
     richiedeAcconto: campaign.richiedeAcconto ?? false,
+    emailPromemoriaAcconto: campaign.richiedeAcconto === true && campaign.emailPromemoriaAcconto !== false,
     emailRecuperoAcconto: campaign.emailRecuperoAcconto === true,
     accontoImportoEuro: typeof cents === 'number' && Number.isSafeInteger(cents) && cents > 0
       ? `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, '0')}`
@@ -34,6 +36,7 @@ export function campaignPaymentFields(form: CampaignPaymentFormValues): PaymentF
   return {
     richiedeApprovazione: form.richiedeApprovazione,
     richiedeAcconto: form.richiedeAcconto,
+    emailPromemoriaAcconto: form.richiedeAcconto && form.emailPromemoriaAcconto !== false,
     emailRecuperoAcconto: form.richiedeAcconto && form.emailRecuperoAcconto === true,
     // Disattivando l'acconto si elimina esplicitamente l'importo salvato.
     accontoImportoCentesimi: cents,

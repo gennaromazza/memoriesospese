@@ -20,6 +20,7 @@ const campaignInputSchema = z.object({
   // Defaults preserve the behavior of existing admin clients and legacy campaigns.
   richiedeApprovazione: z.boolean().default(true),
   richiedeAcconto: z.boolean().default(false),
+  emailPromemoriaAcconto: z.boolean().default(true),
   emailRecuperoAcconto: z.boolean().default(false),
   accontoImportoCentesimi: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).nullable().optional(),
   immagineSlider: z.string().optional(),
@@ -73,6 +74,7 @@ export async function createBookingCampaign(input: unknown): Promise<string> {
 
     transaction.create(campaignRef, {
       ...campaign,
+      emailPromemoriaAcconto: campaign.richiedeAcconto && campaign.emailPromemoriaAcconto,
       emailRecuperoAcconto: campaign.richiedeAcconto && campaign.emailRecuperoAcconto,
       ...(campaign.richiedeAcconto && campaign.emailRecuperoAcconto
         ? { recuperoAccontoAttivatoIl: FieldValue.serverTimestamp() } : {}),

@@ -32,6 +32,7 @@ interface EmailStats {
 const EMAIL_TYPE_LABELS: Record<string, string> = {
   'booking_confirmation': 'Conferma Prenotazione',
   'booking_reminder': 'Promemoria Prenotazione',
+  'booking_deposit_reminder': 'Promemoria Acconto',
   'quote_sent': 'Preventivo Inviato',
   'quote_signed': 'Preventivo Firmato',
   'payment_reminder': 'Promemoria Pagamento',

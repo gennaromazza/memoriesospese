@@ -162,6 +162,7 @@ function toBookingCampaignFE(id: string, data: any): BookingCampaignFE | null {
     richiedeAcconto: typeof data.richiedeAcconto === 'boolean'
       ? data.richiedeAcconto
       : false,
+    emailPromemoriaAcconto: data.richiedeAcconto === true && data.emailPromemoriaAcconto !== false,
     emailRecuperoAcconto: data.emailRecuperoAcconto === true,
     accontoImportoCentesimi: Number.isSafeInteger(data.accontoImportoCentesimi)
       && data.accontoImportoCentesimi > 0
