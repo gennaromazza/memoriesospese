@@ -23,6 +23,7 @@ import type {
 } from '@shared/print-shop-types';
 
 const catalogQueryKey = (sku: string) => ['/api/print-shop/admin/catalog', sku] as const;
+const catalogCostQueryKey = (sku: string) => ['/api/print-shop/admin/catalog', sku, 'cost'] as const;
 const LEGACY_POLAROID_SKU = LEGACY_POLAROID_PRODUCT.sku;
 
 function cloneProduct(product: PrintShopCatalogProduct): PrintShopCatalogProduct {
@@ -66,6 +67,19 @@ async function readAdminCatalogProduct(sku: string): Promise<PrintShopCatalogPro
     : body as PrintShopCatalogProduct;
   if (!product) throw new Error('Il prodotto non è disponibile nel catalogo gestionale.');
   return product;
+}
+
+async function readAdminCatalogUnitCost(sku: string): Promise<number | null> {
+  const response = await apiRequest('GET', `/api/print-shop/admin/catalog/${encodeURIComponent(sku)}/cost`);
+  const body = await response.json() as { cost?: { unitCostCents?: number | null } };
+  return Number.isSafeInteger(body.cost?.unitCostCents) ? body.cost!.unitCostCents! : null;
+}
+
+function parseUnitCostCents(value: string): number | null {
+  const normalized = value.trim().replace(',', '.');
+  if (!/^\d+(?:\.\d{1,2})?$/.test(normalized)) return null;
+  const cents = Math.round(Number(normalized) * 100);
+  return Number.isSafeInteger(cents) && cents <= 100_000_000 ? cents : null;
 }
 
 async function saveAdminCatalogProduct(product: PrintShopCatalogProduct): Promise<PrintShopCatalogProduct> {
@@ -152,6 +166,7 @@ export default function PrintShopCatalogManager() {
   const queryClient = useQueryClient();
   const [selectedSku, setSelectedSku] = useState(PRINT_SHOP_CATALOG[0]?.sku ?? '');
   const [draft, setDraft] = useState<PrintShopCatalogProduct | null>(null);
+  const [unitCostDraft, setUnitCostDraft] = useState('');
   const productsByCategory = useMemo(() => PRINT_SHOP_CATEGORIES.map((category) => ({
     category,
     products: PRINT_SHOP_CATALOG.filter((product) => product.categoria === category.id),
@@ -164,9 +179,48 @@ export default function PrintShopCatalogManager() {
     staleTime: 30_000,
   });
 
+  const unitCostQuery = useQuery({
+    queryKey: catalogCostQueryKey(selectedSku),
+    enabled: Boolean(selectedSku),
+    queryFn: () => readAdminCatalogUnitCost(selectedSku),
+    staleTime: 30_000,
+  });
+
   useEffect(() => {
     if (productQuery.data) setDraft(cloneProduct(productQuery.data));
   }, [productQuery.data]);
+
+  useEffect(() => {
+    if (unitCostQuery.data !== undefined) {
+      setUnitCostDraft(unitCostQuery.data === null
+        ? ''
+        : (unitCostQuery.data / 100).toFixed(2));
+    }
+  }, [unitCostQuery.data, selectedSku]);
+
+  const unitCostMutation = useMutation({
+    mutationFn: async (unitCostCents: number) => {
+      const response = await apiRequest(
+        'PATCH',
+        `/api/print-shop/admin/catalog/${encodeURIComponent(selectedSku)}/cost`,
+        { unitCostCents },
+      );
+      const body = await response.json() as { cost?: { unitCostCents?: number | null } };
+      return body.cost?.unitCostCents ?? unitCostCents;
+    },
+    onSuccess: (unitCostCents) => {
+      queryClient.setQueryData(catalogCostQueryKey(selectedSku), unitCostCents);
+      toast({
+        title: 'Costo unitario salvato',
+        description: 'Il valore vale per i nuovi ordini; gli ordini precedenti mantengono il loro snapshot.',
+      });
+    },
+    onError: (error) => toast({
+      variant: 'destructive',
+      title: 'Costo non salvato',
+      description: error instanceof Error ? error.message : 'Controlla il valore e riprova.',
+    }),
+  });
 
   const saveMutation = useMutation({
     mutationFn: saveAdminCatalogProduct,
@@ -218,7 +272,11 @@ export default function PrintShopCatalogManager() {
             <select
               id="print-catalog-product"
               value={selectedSku}
-              onChange={(event) => { setSelectedSku(event.target.value); setDraft(null); }}
+              onChange={(event) => {
+                setSelectedSku(event.target.value);
+                setDraft(null);
+                setUnitCostDraft('');
+              }}
               className="h-11 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {productsByCategory.map(({ category, products }) => (
@@ -227,7 +285,9 @@ export default function PrintShopCatalogManager() {
                 </optgroup>
               ))}
             </select>
-            <Button type="button" variant="outline" onClick={() => void productQuery.refetch()} disabled={productQuery.isFetching}>
+            <Button type="button" variant="outline" onClick={() => {
+              void Promise.all([productQuery.refetch(), unitCostQuery.refetch()]);
+            }} disabled={productQuery.isFetching || unitCostQuery.isFetching}>
               <RefreshCw className={productQuery.isFetching ? 'animate-spin' : ''} aria-hidden="true" /> Ricarica
             </Button>
           </div>
@@ -242,6 +302,59 @@ export default function PrintShopCatalogManager() {
         )
       ) : (
         <>
+          <Card>
+            <CardHeader>
+              <CardTitle>Costo interno per copia</CardTitle>
+              <CardDescription>
+                Dato riservato allo studio: non viene mostrato nel catalogo pubblico o al checkout.
+                Gli ordini salvano uno snapshot del costo attivo al momento della conferma.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-end">
+              <div className="min-w-0 flex-1 space-y-2">
+                <Label htmlFor="catalog-unit-cost">Costo sostenuto per copia (€)</Label>
+                <Input
+                  id="catalog-unit-cost"
+                  type="number"
+                  min="0"
+                  max="1000000"
+                  step="0.01"
+                  inputMode="decimal"
+                  value={unitCostDraft}
+                  onChange={(event) => setUnitCostDraft(event.target.value)}
+                  placeholder="Es. 0,16"
+                  aria-describedby="catalog-unit-cost-help"
+                />
+                <p id="catalog-unit-cost-help" className="text-xs text-muted-foreground">
+                  {unitCostQuery.isLoading
+                    ? 'Caricamento del costo interno…'
+                    : unitCostQuery.isError
+                      ? 'Costo non caricato: verifica la connessione e riprova.'
+                    : unitCostQuery.data === null
+                      ? 'Costo non ancora configurato: i nuovi ordini risulteranno incompleti finché non lo inserisci.'
+                      : 'Modificare questo costo non riscrive i margini storici.'}
+                </p>
+                {unitCostDraft && parseUnitCostCents(unitCostDraft) === null && (
+                  <p className="text-sm text-destructive" role="alert">Inserisci un importo valido con al massimo due decimali.</p>
+                )}
+              </div>
+              <Button
+                type="button"
+                onClick={() => {
+                  const cents = parseUnitCostCents(unitCostDraft);
+                  if (cents !== null) unitCostMutation.mutate(cents);
+                }}
+                disabled={unitCostQuery.isLoading || unitCostMutation.isPending ||
+                  parseUnitCostCents(unitCostDraft) === null}
+              >
+                {unitCostMutation.isPending
+                  ? <Loader2 className="animate-spin" aria-hidden="true" />
+                  : <Save aria-hidden="true" />}
+                Salva costo
+              </Button>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
               <div><CardTitle>Dati del formato</CardTitle><CardDescription className="mt-1">SKU immutabile: {draft.sku} · versione catalogo {draft.catalogVersion}</CardDescription></div>

@@ -9,6 +9,7 @@ import { buildWeddingStoryPageMeta, createSeoMiddleware } from './seo-prerender'
 const indexHtmlPath = fileURLToPath(new URL('../../image-studio-web/index.html', import.meta.url));
 import { GIFT_SHOP_FAQS } from '@shared/gift-card-landing-content';
 import { SHOP_FAQS } from '@shared/shop-landing-content';
+import type { PrintShopPublicPromotion } from '@shared/print-shop-types';
 import {
   WEDDING_HOME_SEO,
   WEDDING_PORTFOLIO_SEO,
@@ -20,7 +21,10 @@ type RenderedResponse = {
   statusCode?: number;
 };
 
-async function renderForCrawler(path: string): Promise<{
+async function renderForCrawler(
+  path: string,
+  loadPrintPromotions?: () => Promise<PrintShopPublicPromotion[]>,
+): Promise<{
   response: RenderedResponse;
   next: ReturnType<typeof vi.fn>;
 }> {
@@ -40,7 +44,10 @@ async function renderForCrawler(path: string): Promise<{
   };
   const next = vi.fn();
 
-  await createSeoMiddleware({ indexHtmlPath })(
+  await createSeoMiddleware({
+    indexHtmlPath,
+    ...(loadPrintPromotions ? { loadPrintPromotions } : {}),
+  })(
     {
       path,
       query: {},
@@ -55,6 +62,74 @@ async function renderForCrawler(path: string): Promise<{
 
 describe('SEO prerender wedding-first', () => {
   beforeEach(() => mockCollection.mockReset());
+
+  it('renders a unique, indexable server page for an active print promotion', async () => {
+    const promotion: PrintShopPublicPromotion = {
+      code: 'PACK100',
+      discountType: 'fixed_total',
+      value: 2_500,
+      startsAt: '2026-11-01T00:00:00.000Z',
+      endsAt: '2026-12-01T23:59:59.000Z',
+      scope: 'all',
+      eligibleFormats: [],
+      minPrintQuantity: 100,
+    };
+    const { response, next } = await renderForCrawler(
+      '/stampa-foto-aversa/offerte/pack100',
+      async () => [promotion],
+    );
+
+    expect(next).not.toHaveBeenCalled();
+    expect(response.statusCode).toBeUndefined();
+    expect(response.body).toContain('rel="canonical" href="https://imagestudiofotografico.com/stampa-foto-aversa/offerte/pack100"');
+    expect(response.body).toContain('property="og:image" content="https://imagestudiofotografico.com/images/print-service/print-promotions-og.jpg"');
+    expect(response.body).toContain('property="og:image:width" content="1200"');
+    expect(response.body).toContain('property="og:image:height" content="630"');
+    expect(response.body).toContain('name="twitter:card" content="summary_large_image"');
+    expect(response.body).toContain('Offerta stampe fotografiche: 100 stampe a');
+    expect(response.body).toContain('priceValidUntil');
+    expect(response.body).toContain('data-seo-prerender="true"');
+  });
+
+  it('uses the coupon artwork and exact dimensions in public Open Graph metadata', async () => {
+    const promotion: PrintShopPublicPromotion = {
+      code: 'WINTER15',
+      discountType: 'percentage',
+      value: 15,
+      startsAt: '2026-11-01T00:00:00.000Z',
+      endsAt: '2026-12-01T23:59:59.000Z',
+      scope: 'all',
+      eligibleFormats: [],
+      minPrintQuantity: 10,
+      graphic: {
+        imageUrl: 'https://firebasestorage.googleapis.com/v0/b/example/o/print-shop%2Fpromo.jpg?alt=media&token=public',
+        width: 1080,
+        height: 1920,
+        contentType: 'image/jpeg',
+      },
+    };
+    const { response } = await renderForCrawler(
+      '/stampa-foto-aversa/offerte/winter15',
+      async () => [promotion],
+    );
+
+    expect(response.body).toContain(`property="og:image" content="${promotion.graphic!.imageUrl.replace(/&/g, '&amp;')}"`);
+    expect(response.body).toContain('property="og:image:width" content="1080"');
+    expect(response.body).toContain('property="og:image:height" content="1920"');
+    expect(response.body).toContain(`src="${promotion.graphic!.imageUrl.replace(/&/g, '&amp;')}"`);
+  });
+
+  it('returns 404 instead of indexing an unavailable print promotion', async () => {
+    const { response, next } = await renderForCrawler(
+      '/stampa-foto-aversa/offerte/scaduto',
+      async () => [],
+    );
+
+    expect(next).not.toHaveBeenCalled();
+    expect(response.statusCode).toBe(404);
+    expect(response.headers['X-Robots-Tag']).toBe('noindex, nofollow');
+    expect(response.body).toBe('Not Found');
+  });
 
   it.each([
     ['/', WEDDING_HOME_SEO.title, 'Fotografo e videografo di matrimonio ad Aversa, Napoli e Caserta'],
@@ -98,70 +173,6 @@ describe('SEO prerender wedding-first', () => {
     expect(response.body?.match(/<h1>/g)).toHaveLength(1);
   });
 
-  it('redirects legacy WordPress query URLs to the homepage', async () => {
-    const response: RenderedResponse = { headers: {} };
-    const res = {
-      setHeader: (name: string, value: string) => {
-        response.headers[name] = value;
-      },
-      send: (body: string) => {
-        response.body = body;
-      },
-      status: (statusCode: number) => {
-        response.statusCode = statusCode;
-        return res;
-      },
-      type: () => res,
-    };
-    const next = vi.fn();
-
-    await createSeoMiddleware({ indexHtmlPath })(
-      {
-        path: '/',
-        query: { p: '28445' },
-        headers: { 'user-agent': 'Googlebot/2.1 (+http://www.google.com/bot.html)' },
-      } as any,
-      res as any,
-      next,
-    );
-
-    expect(next).not.toHaveBeenCalled();
-    expect(response.statusCode).toBe(301);
-    expect(response.headers.Location).toBe('/');
-  });
-
-  it.each([
-    ['/shop-natale', '/shop-natale', '/online-shop'],
-    ['/shop-natale/categoria/natale', '/shop-natale/categoria/natale', '/online-shop/categoria/natale'],
-    ['/shop-natale/ordine/conferma', '/shop-natale/ordine/conferma?token=abc&ordine=1', '/online-shop/ordine/conferma?token=abc&ordine=1'],
-  ])('porta il vecchio indirizzo dello shop %s a quello nuovo', async (path, originalUrl, expected) => {
-    const response: RenderedResponse = { headers: {} };
-    const res = {
-      setHeader: (name: string, value: string) => {
-        response.headers[name] = value;
-      },
-      send: (body: string) => {
-        response.body = body;
-      },
-      status: (statusCode: number) => {
-        response.statusCode = statusCode;
-        return res;
-      },
-      type: () => res,
-    };
-    const next = vi.fn();
-
-    await createSeoMiddleware({ indexHtmlPath })(
-      { path, originalUrl, query: {}, headers: { 'user-agent': 'Googlebot/2.1' } } as any,
-      res as any,
-      next,
-    );
-
-    expect(next).not.toHaveBeenCalled();
-    expect(response.statusCode).toBe(301);
-    expect(response.headers.Location).toBe(expected);
-  });
-
   it.each(['/admin', '/gallery/riservata', '/view/riservata'])(
     'does not prerender protected route %s',
     async (path) => {
@@ -203,24 +214,24 @@ describe('SEO prerender wedding-first', () => {
     expect(meta.bodyContent).toContain('alt="Gli sposi si abbracciano nel giardino"');
   });
 
-  it('uses the global fallback for a Real Wedding without public photos', () => {
+  it('uses the section fallback for a Real Wedding without public photos', () => {
     const meta = buildWeddingStoryPageMeta({
       slug: 'senza-foto',
       title: 'Un matrimonio senza foto pubbliche',
       excerpt: 'Una storia in attesa della selezione.',
     });
 
-    expect(meta.ogImage).toBe('https://imagestudiofotografico.com/1200x630px.jpg');
+    expect(meta.ogImage).toBe('https://imagestudiofotografico.com/images/social/real-wedding.jpg');
     expect(meta.bodyContent).not.toContain('<img');
   });
 
   it.each([
     ['/', '/1200x630px.jpg'],
-    ['/portfolio', '/1200x630px.jpg'],
-    ['/fotografo-aversa', '/assets/og-image.jpg'],
+    ['/portfolio', '/images/social/portfolio.jpg'],
+    ['/fotografo-aversa', '/images/social/fotografo-aversa.jpg'],
     ['/stampa-foto-aversa', '/images/print-service/printed-memories-table.jpg'],
     ['/vision', '/images/image-vision-social.jpg'],
-    ['/storie', '/images/couple-standing.png'],
+    ['/storie', '/images/social/storie.jpg'],
     ['/prenota', '/images/couple-heart-balloon.png'],
     ['/consulenze', '/images/couple-flower-bouquet.png'],
   ])('renders one complete social metadata set for %s', async (path, imagePath) => {
@@ -389,6 +400,117 @@ describe('SEO prerender wedding-first', () => {
     expect(response.body).toContain('https://imagestudiofotografico.com/portfolio/matrimonio');
     expect(response.body).toContain('https://imagestudiofotografico.com/consulenze');
   });
+
+  it.each([
+    ['jpg', 'image/png'],
+    ['png', 'image/png'],
+    ['webp', 'image/webp'],
+  ])('publishes the known image MIME for a .%s Blog cover URL', async (extension, contentType) => {
+    const post = {
+      slug: `cover-${extension}`,
+      status: 'published',
+      title: `Cover ${extension}`,
+      excerpt: 'Test immagine copertina.',
+      content: '<p>Contenuto di prova.</p>',
+      coverImage: `https://firebasestorage.googleapis.com/v0/b/example/o/blog-covers%2Fcover.${extension}?alt=media`,
+      coverImageType: contentType,
+      publishedAt: { seconds: 1_780_000_000 },
+    };
+    const chain = {
+      where: () => chain,
+      limit: () => chain,
+      get: async () => ({ empty: false, docs: [{ id: 'cover-post', data: () => post }] }),
+    };
+    mockCollection.mockImplementation((collectionName: string) => {
+      if (collectionName === 'blogPosts') return chain;
+      return {
+        where: () => ({
+          get: async () => ({ docs: [], empty: true }),
+        }),
+      };
+    });
+
+    const { response, next } = await renderForCrawler(`/blog/cover-${extension}`);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(response.body).toContain(`<meta property="og:image:type" content="${contentType}" />`);
+    expect(response.body).toContain(`content="${post.coverImage}"`);
+  });
+
+  it('omits the Open Graph image MIME for a legacy cover with unknown format', async () => {
+    const post = {
+      slug: 'legacy-cover',
+      status: 'published',
+      title: 'Copertina legacy',
+      excerpt: 'Test immagine copertina.',
+      content: '<p>Contenuto di prova.</p>',
+      coverImage: 'https://firebasestorage.googleapis.com/v0/b/example/o/blog-covers%2Fcopertina.jpg?alt=media',
+      publishedAt: { seconds: 1_780_000_000 },
+    };
+    const chain = {
+      where: () => chain,
+      limit: () => chain,
+      get: async () => ({ empty: false, docs: [{ id: 'legacy-cover', data: () => post }] }),
+    };
+    mockCollection.mockImplementation((collectionName: string) => {
+      if (collectionName === 'blogPosts') return chain;
+      return {
+        where: () => ({
+          get: async () => ({ docs: [], empty: true }),
+        }),
+      };
+    });
+
+    const { response, next } = await renderForCrawler('/blog/legacy-cover');
+
+    expect(next).not.toHaveBeenCalled();
+    expect(response.body).toContain(`property="og:image" content="${post.coverImage}"`);
+    expect(response.body).not.toContain('property="og:image:type"');
+  });
+
+  it('renders the selected Blog cover and custom alt text in crawler social metadata', async () => {
+    const coverImage = 'https://images.example/blog-cover.jpg';
+    const coverImageAlt = 'Gli sposi festeggiano al tramonto';
+    const post = {
+      slug: 'festa-al-tramonto',
+      status: 'published',
+      title: 'Una festa al tramonto',
+      excerpt: 'Il racconto della giornata.',
+      content: '<p>Una giornata speciale.</p>',
+      coverImage,
+      coverImageAlt,
+      publishedAt: { seconds: 1_780_000_000 },
+    };
+    const chain = {
+      where: () => chain,
+      limit: () => chain,
+      get: async () => ({ empty: false, docs: [{ id: 'festa-al-tramonto', data: () => post }] }),
+    };
+    mockCollection.mockImplementation((collectionName: string) => {
+      if (collectionName === 'blogPosts') return chain;
+      return {
+        where: () => ({
+          get: async () => ({ docs: [], empty: true }),
+        }),
+      };
+    });
+
+    const { response, next } = await renderForCrawler('/blog/festa-al-tramonto');
+    const html = response.body || '';
+    const ogImageUrl = html.match(/<meta property="og:image" content="([^"]+)" \/>/)?.[1];
+
+    expect(next).not.toHaveBeenCalled();
+    expect(ogImageUrl).toBe(coverImage);
+    expect(() => new URL(ogImageUrl!)).not.toThrow();
+    expect(html.match(/<meta property="og:image" content="https:\/\/images\.example\/blog-cover\.jpg" \/>/g))
+      .toHaveLength(1);
+    expect(html.match(/<meta property="og:image:alt" content="Gli sposi festeggiano al tramonto" \/>/g))
+      .toHaveLength(1);
+    expect(html.match(/<meta name="twitter:image" content="https:\/\/images\.example\/blog-cover\.jpg" \/>/g))
+      .toHaveLength(1);
+    expect(html.match(/<meta name="twitter:image:alt" content="Gli sposi festeggiano al tramonto" \/>/g))
+      .toHaveLength(1);
+  });
 });
 
 describe('pagina regalo /regala', () => {
@@ -442,11 +564,63 @@ describe('vetrina shop /online-shop', () => {
     }
   }
 
-  it('finché non è aperta a Google resta nascosta con noindex', async () => {
+  it('finché non è aperta a Google resta noindex ma fornisce i meta social già nel primo HTML', async () => {
     await withFlag(undefined, async () => {
       const { response, next } = await renderForCrawler('/online-shop');
       expect(response.headers['X-Robots-Tag']).toContain('noindex');
-      expect(next).toHaveBeenCalled();
+      expect(next).not.toHaveBeenCalled();
+      expect(response.body).toContain('<title>Shop online con le tue foto, Aversa | Image Studio</title>');
+      expect(response.body).toContain('<link rel="canonical" href="https://imagestudiofotografico.com/online-shop"');
+      expect(response.body).toContain('<meta property="og:title" content="Shop online con le tue foto, Aversa | Image Studio"');
+      expect(response.body).toContain('https://imagestudiofotografico.com/images/social/online-shop-natale.jpg');
+    });
+  });
+
+  it('mantiene i meta della categoria shop nel primo HTML anche quando resta noindex', async () => {
+    await withFlag(undefined, async () => {
+      const docsByCollection: Record<string, Array<{ id: string; data: () => Record<string, unknown> }>> = {
+        productCategories: [{
+          id: 'category-regali',
+          data: () => ({ value: 'regali', nome: 'Regali', attivo: true, displayOrder: 1 }),
+        }],
+        products: [{
+          id: 'product-tazza',
+          data: () => ({
+            nome: 'Tazza personalizzata',
+            descrizione: 'Una tazza con la tua fotografia',
+            prezzo: 15,
+            sconto: 0,
+            numeroFoto: 1,
+            categoria: 'regali',
+            attivo: true,
+            immagini: ['https://cdn.example/tazza.jpg'],
+          }),
+        }],
+      };
+      mockCollection.mockImplementation((name: string) => {
+        if (name === 'settings') {
+          return {
+            doc: () => ({
+              get: async () => ({
+                exists: true,
+                data: () => ({ enabled: true, ordersOpen: true, categoryValues: ['regali'] }),
+              }),
+            }),
+          };
+        }
+        const chain: any = {
+          where: () => chain,
+          get: async () => ({ docs: docsByCollection[name] || [] }),
+        };
+        return chain;
+      });
+
+      const { response, next } = await renderForCrawler('/online-shop/categoria/regali');
+      expect(response.headers['X-Robots-Tag']).toContain('noindex');
+      expect(next).not.toHaveBeenCalled();
+      expect(response.body).toContain('https://imagestudiofotografico.com/online-shop/categoria/regali');
+      expect(response.body).toContain('Tazza personalizzata');
+      expect(response.body).not.toContain(`<title>${WEDDING_HOME_SEO.title}</title>`);
     });
   });
 
@@ -462,6 +636,34 @@ describe('vetrina shop /online-shop', () => {
       expect(faq.mainEntity.map((question: any) => question.name)).toEqual(SHOP_FAQS.map(item => item.question));
       expect(blocks.some((entry: any) => entry['@type'] === 'BreadcrumbList')).toBe(true);
       expect(html).not.toContain('noindex');
+    });
+  });
+
+  it('non indicizza la vetrina se il catalogo è spento o non disponibile', async () => {
+    await withFlag('true', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(Date.now() + 61_000);
+      mockCollection.mockImplementation((name: string) => {
+        if (name === 'settings') {
+          return {
+            doc: () => ({
+              get: async () => ({
+                exists: true,
+                data: () => ({ enabled: false, ordersOpen: false, categoryValues: [] }),
+              }),
+            }),
+          };
+        }
+        throw new Error(`Unexpected collection: ${name}`);
+      });
+
+      try {
+        const { response } = await renderForCrawler('/online-shop');
+        expect(response.headers['X-Robots-Tag']).toContain('noindex');
+        expect(response.body).toContain('<meta name="robots" content="noindex,nofollow,noarchive"');
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 });

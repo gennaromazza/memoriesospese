@@ -42,8 +42,8 @@ export async function listPhotobooks(): Promise<Photobook[]> {
 export async function createPhotobook(data: {
   mockupPath: 'client' | 'studio';
   name: string;
-  galleryId: string;
-  jobId: string;
+  galleryId?: string;
+  jobId?: string;
   allowAssociationMismatch?: boolean;
 }): Promise<Photobook> {
   const res = await apiRequest('POST', '/api/photobooks', data);
@@ -188,6 +188,7 @@ export async function createPhotobookLabShipment(
     labNote?: string;
     jobPhotoNotes?: Array<{ sourceNoteId: string; note: string }>;
     lockPhotobook?: boolean;
+    recoverAbandoned?: boolean;
   },
 ): Promise<PhotobookLabTransferResult> {
   const res = await apiRequest('POST', `/api/photobooks/${id}/lab-shipment`, data);

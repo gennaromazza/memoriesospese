@@ -10,7 +10,11 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:public-homepage": "vitest run --config vitest.config.ts src/components/PublicContactCard.test.tsx",
     "test:print-public-contacts": "vitest run --config vitest.config.ts src/pages/public/StampaFotoAversaPage.contacts.test.tsx",
-    "test:job-cost-payment": "firebase emulators:exec --project wedding-gallery-397b6 --config ../../firebase.passkey-e2e.json --only auth,firestore \"pnpm exec playwright test --config playwright.job-cost-payment.config.ts\""
+    "test:quote-builder-products": "firebase emulators:exec --project wedding-gallery-397b6 --config ../../firebase.quote-builder-products-e2e.json --only firestore \"pnpm exec playwright test --config playwright.quote-builder-products.config.ts\"",
+    "test:quote-builder-lifecycle": "firebase emulators:exec --project wedding-gallery-397b6 --config ../../firebase.quote-builder-lifecycle-e2e.json --only auth,firestore \"pnpm exec playwright test --config playwright.quote-builder-lifecycle.config.ts\"",
+    "test:job-cost-payment": "firebase emulators:exec --project wedding-gallery-397b6 --config ../../firebase.job-cost-payment-e2e.json --only auth,firestore \"pnpm exec playwright test --config playwright.job-cost-payment.config.ts\"",
+    "test:campaign-links": "firebase emulators:exec --project wedding-gallery-397b6 --config ../../firebase.campaign-links-e2e.json --only auth,firestore \"pnpm exec playwright test --config playwright.campaign-links.config.ts\"",
+    "test:booking-deposit-browser": "pnpm exec playwright test --config playwright.booking-deposit.config.ts"
   },
   "devDependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -51,6 +55,8 @@
     "@replit/vite-plugin-runtime-error-modal": "catalog:",
     "@tailwindcss/typography": "^0.5.15",
     "@tanstack/react-query": "catalog:",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
     "@types/dompurify": "^3.0.5",
     "@types/luxon": "^3.7.1",
     "@types/node": "catalog:",
@@ -78,6 +84,7 @@
     "framer-motion": "catalog:",
     "html2pdf.js": "^0.14.0",
     "input-otp": "^1.4.2",
+    "jsdom": "^30.1.3",
     "lucide-react": "catalog:",
     "luxon": "^3.7.2",
     "nanoid": "^5.1.16",

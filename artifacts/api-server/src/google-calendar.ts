@@ -8,6 +8,7 @@
  * - Il service account deve avere accesso al calendario target
  */
 
+import { randomBytes } from "node:crypto";
 import { google, type calendar_v3 } from "googleapis";
 import { DateTime } from "luxon";
 import {
@@ -15,6 +16,7 @@ import {
   createConsultationDateTime,
 } from "./services/consultation-datetime.js";
 import { safeErrorMessage } from "./utils/safe-logging.js";
+import { getStudioCalendarId } from './calendar-destination.js';
 
 let cachedAuthClient: any = null;
 
@@ -25,29 +27,65 @@ let cachedAuthClient: any = null;
 export interface CalendarConnectionStatus {
   connected: boolean;
   email?: string;
+  accountEmail?: string;
+  calendarId?: string;
   expiresAt?: string;
   expiresInMinutes?: number;
   needsReconnection: boolean;
   error?: string;
   authMethod?: string;
+  calendarName?: string;
+  errorCode?: string;
 }
 
-export async function getCalendarConnectionStatus(): Promise<CalendarConnectionStatus> {
+export async function getCalendarConnectionStatus(candidateId?: string): Promise<CalendarConnectionStatus> {
+  let calendarId = candidateId;
+  let serviceEmail = '';
   try {
+    calendarId = candidateId ?? await getStudioCalendarId() ?? undefined;
+    if (!calendarId || calendarId === 'primary') {
+      return { connected: false, calendarId, needsReconnection: false, authMethod: 'service_account',
+        errorCode: 'DESTINATION_MISSING', error: 'Calendario di destinazione non configurato. Avvia la procedura guidata oppure verifica GOOGLE_CALENDAR_ID.' };
+    }
     const client = await getServiceAccountAuth();
-    const serviceEmail = process.env.GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL || '';
+    serviceEmail = client.email || '';
+    const calendar = google.calendar({ version: 'v3', auth: client });
+    // Una lettura reale verifica destinazione e permessi senza creare eventi
+    // di prova né richiedere che il calendario sia già nella calendarList.
+    const response = await withCalendarRetry(() => calendar.events.list({
+      calendarId,
+      maxResults: 1,
+      fields: 'accessRole,summary',
+    }, { timeout: CALENDAR_REQUEST_TIMEOUT_MS }));
+    if (!['writer', 'owner'].includes(response.data.accessRole || '')) {
+      return { connected: false, calendarId, accountEmail: serviceEmail, email: serviceEmail,
+        needsReconnection: false, authMethod: 'service_account', errorCode: 'READ_ONLY',
+        error: 'Il calendario è accessibile ma mancano i permessi per creare appuntamenti. Condividilo con il Service Account con il permesso “Apportare modifiche agli eventi”.' };
+    }
     
     return {
       connected: true,
       email: serviceEmail,
+      accountEmail: serviceEmail,
+      calendarId,
+      calendarName: response.data.summary || calendarId,
       needsReconnection: false,
       authMethod: 'service_account',
     };
   } catch (error: any) {
     return {
       connected: false,
+      email: serviceEmail,
+      accountEmail: serviceEmail,
+      calendarId,
       needsReconnection: false,
-      error: error.message,
+      errorCode: Number(error?.response?.status ?? error?.code) === 404 ? 'NOT_FOUND'
+        : Number(error?.response?.status ?? error?.code) === 403 ? 'ACCESS_DENIED' : 'CALENDAR_UNAVAILABLE',
+      error: Number(error?.response?.status ?? error?.code) === 404
+        ? "Calendario non trovato o non condiviso con il Service Account. Verifica GOOGLE_CALENDAR_ID e la condivisione del calendario."
+        : Number(error?.response?.status ?? error?.code) === 403
+          ? "Accesso al calendario negato. Verifica i permessi del Service Account e che Google Calendar API sia abilitata."
+          : "Impossibile verificare il calendario. Verifica la configurazione del Service Account o riprova tra poco.",
       authMethod: 'service_account',
     };
   }
@@ -58,6 +96,7 @@ export async function getCalendarConnectionStatus(): Promise<CalendarConnectionS
  */
 export function invalidateTokenCache(): void {
   cachedAuthClient = null;
+  calendarEnsured = false;
   console.log("🔄 Google Calendar Service Account auth cache invalidated");
 }
 
@@ -212,7 +251,7 @@ async function getServiceAccountAuth() {
  * Crea client Google Calendar con Service Account
  * Il client JWT rinnova automaticamente i token - no scadenza
  */
-async function getGoogleCalendarClient() {
+export async function getGoogleCalendarClient() {
   const auth = await getServiceAccountAuth();
   return google.calendar({ version: "v3", auth });
 }
@@ -222,9 +261,11 @@ async function getGoogleCalendarClient() {
  * Con Service Account, "primary" punta al calendario del SA (vuoto),
  * quindi va sempre risolto al calendario reale dell'utente
  */
-function resolveCalendarId(calendarId: string): string {
+export async function resolveCalendarId(calendarId: string): Promise<string> {
   if (calendarId === 'primary' || !calendarId) {
-    return process.env.GOOGLE_CALENDAR_ID || 'primary';
+    const id = await getStudioCalendarId();
+    if (!id) throw Object.assign(new Error('Calendario di destinazione non configurato'), { code: 'CALENDAR_UNAVAILABLE' });
+    return id;
   }
   return calendarId;
 }
@@ -236,27 +277,74 @@ function resolveCalendarId(calendarId: string): string {
  */
 let calendarEnsured = false;
 
+/** Timeout per singola chiamata a Google Calendar (ms). */
+const CALENDAR_REQUEST_TIMEOUT_MS = 15_000;
+/** Attese tra i tentativi: 3 tentativi totali (300 ms, poi 900 ms). */
+const CALENDAR_RETRY_DELAYS_MS = [300, 900];
+
+const TRANSIENT_HTTP_STATUS = new Set([429, 500, 502, 503, 504]);
+const TRANSIENT_NETWORK_CODES = new Set([
+  'ECONNRESET', 'ETIMEDOUT', 'ECONNABORTED', 'ENOTFOUND', 'EAI_AGAIN', 'EPIPE', 'ECONNREFUSED',
+]);
+
+/**
+ * Errori che vale la pena ritentare: rate limit (429, ma Google usa anche 403 con
+ * reason rateLimitExceeded), errori 5xx e problemi di rete/timeout.
+ * 400/401/403 (permessi)/404 sono permanenti: ritentarli non serve.
+ */
+export function isTransientCalendarError(err: any): boolean {
+  const status = Number(err?.response?.status ?? err?.status ?? err?.code);
+  if (TRANSIENT_HTTP_STATUS.has(status)) return true;
+  if (status === 403) {
+    const reasons: unknown[] = [
+      ...(Array.isArray(err?.errors) ? err.errors : []),
+      ...(Array.isArray(err?.response?.data?.error?.errors) ? err.response.data.error.errors : []),
+    ].map((e: any) => e?.reason);
+    return reasons.some((r) => r === 'rateLimitExceeded' || r === 'userRateLimitExceeded');
+  }
+  return typeof err?.code === 'string' && TRANSIENT_NETWORK_CODES.has(err.code);
+}
+
+const calendarSleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function withCalendarRetry<T>(fn: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const delay = CALENDAR_RETRY_DELAYS_MS[attempt];
+      if (delay === undefined || !isTransientCalendarError(err)) throw err;
+      await calendarSleep(delay);
+    }
+  }
+}
+
 /**
  * Assicura che il calendario configurato sia nella calendarList del Service Account.
  * Necessario perché calendari condivisi non appaiono automaticamente nella lista SA.
+ * Il flag viene alzato solo se il calendario risulta davvero presente: dopo un
+ * errore si riprova alla chiamata successiva invece di fidarsi di un esito fallito.
  */
 async function ensureCalendarInList(calendar: calendar_v3.Calendar) {
   if (calendarEnsured) return;
-  const calendarId = process.env.GOOGLE_CALENDAR_ID;
-  if (!calendarId || calendarId === 'primary') { calendarEnsured = true; return; }
+  const calendarId = await getStudioCalendarId();
+  if (!calendarId) return;
   try {
-    await calendar.calendarList.get({ calendarId });
+    await withCalendarRetry(() => calendar.calendarList.get({ calendarId }, { timeout: CALENDAR_REQUEST_TIMEOUT_MS }));
+    calendarEnsured = true;
   } catch (err: any) {
     if (err.code === 404) {
       try {
-        await calendar.calendarList.insert({ requestBody: { id: calendarId } });
+        await calendar.calendarList.insert({ requestBody: { id: calendarId } }, { timeout: CALENDAR_REQUEST_TIMEOUT_MS });
         console.log(`✅ Calendario ${calendarId} aggiunto alla lista del Service Account`);
+        calendarEnsured = true;
       } catch (addErr: any) {
         console.error(`⚠️ Impossibile aggiungere calendario alla lista SA:`, addErr.message);
       }
+    } else {
+      console.error(`⚠️ Verifica calendario nella lista SA non riuscita:`, err.message);
     }
   }
-  calendarEnsured = true;
 }
 
 /**
@@ -265,8 +353,35 @@ async function ensureCalendarInList(calendar: calendar_v3.Calendar) {
 export async function listCalendars() {
   const calendar = await getGoogleCalendarClient();
   await ensureCalendarInList(calendar);
-  const response = await calendar.calendarList.list();
+  const response = await withCalendarRetry(() => calendar.calendarList.list({}, { timeout: CALENDAR_REQUEST_TIMEOUT_MS }));
   return response.data.items || [];
+}
+
+/** Discovery is advisory: shared calendars may not appear until manually subscribed. */
+export async function discoverStudioCalendars() {
+  const currentCalendarId = await getStudioCalendarId();
+  const client = await getServiceAccountAuth();
+  const calendar = google.calendar({ version: 'v3', auth: client });
+  const calendars: Array<{ id: string; summary: string; accessRole: string }> = [];
+  try {
+    let pageToken: string | undefined;
+    do {
+      const response = await withCalendarRetry(() => calendar.calendarList.list({
+        pageToken, maxResults: 250,
+        fields: 'items(id,summary,accessRole),nextPageToken',
+      }, { timeout: CALENDAR_REQUEST_TIMEOUT_MS }));
+      for (const item of response.data.items || []) {
+        if (item.id && item.id !== 'primary') calendars.push({
+          id: item.id, summary: item.summary || item.id, accessRole: item.accessRole || '',
+        });
+      }
+      pageToken = response.data.nextPageToken || undefined;
+    } while (pageToken);
+    return { accountEmail: client.email || '', currentCalendarId, calendars };
+  } catch {
+    return { accountEmail: client.email || '', currentCalendarId, calendars,
+      discoveryError: 'Elenco calendari non disponibile. Puoi comunque inserire manualmente l’ID del calendario.' };
+  }
 }
 
 /**
@@ -278,7 +393,7 @@ export async function getEvents(
   timeMax: Date,
 ) {
   const calendar = await getGoogleCalendarClient();
-  const resolvedId = resolveCalendarId(calendarId);
+  const resolvedId = await resolveCalendarId(calendarId);
 
   const response = await calendar.events.list({
     calendarId: resolvedId,
@@ -291,9 +406,15 @@ export async function getEvents(
   return response.data.items || [];
 }
 
+/** 404 (mai esistito / non trovato) e 410 (gia' eliminato): l'evento non c'e' piu'. */
+export function isCalendarEventGone(err: any): boolean {
+  const status = Number(err?.response?.status ?? err?.status ?? err?.code);
+  return status === 404 || status === 410;
+}
+
 /**
  * Ottiene singolo evento per ID
- * @returns Event object or null if not found
+ * @returns Event object or null if not found (404) or already deleted (410)
  */
 export async function getEventById(
   calendarId: string = "primary",
@@ -301,17 +422,17 @@ export async function getEventById(
 ) {
   try {
     const calendar = await getGoogleCalendarClient();
-    const resolvedId = resolveCalendarId(calendarId);
+    const resolvedId = await resolveCalendarId(calendarId);
 
-    const response = await calendar.events.get({
+    const response = await withCalendarRetry(() => calendar.events.get({
       calendarId: resolvedId,
       eventId,
-    });
+    }, { timeout: CALENDAR_REQUEST_TIMEOUT_MS }));
 
     return response.data;
   } catch (error: any) {
-    // Google Calendar returns 404 if event doesn't exist
-    if (error.code === 404 || error.message?.includes("not found")) {
+    // Google Calendar returns 404 if event doesn't exist, 410 if it was deleted
+    if (isCalendarEventGone(error) || error.message?.includes("not found")) {
       return null;
     }
     // Re-throw other errors
@@ -329,7 +450,7 @@ export async function checkFreeBusy(
   timeMax: Date,
 ) {
   const calendar = await getGoogleCalendarClient();
-  const resolvedId = resolveCalendarId(calendarId);
+  const resolvedId = await resolveCalendarId(calendarId);
 
   const response = await calendar.freebusy.query({
     requestBody: {
@@ -486,26 +607,38 @@ export function classifyCalendarEvent(event: {
   return { include: true, isAllDay };
 }
 
+type CalendarEventDetail = {
+  start: string;
+  end: string;
+  calendarId?: string;
+  calendarName?: string;
+  eventId?: string;
+  summary?: string;
+  status?: string;
+  transparency?: string;
+  isAllDay?: boolean;
+  /** Tipo CRM impostato alla creazione (extendedProperties.private.crmKind), se presente. */
+  crmKind?: string;
+  created?: string;
+};
+
+/**
+ * Legge gli eventi di TUTTI i calendari visibili al service account.
+ *
+ * FAIL-CLOSED (audit 19/11/2026): se un calendario non e' leggibile (dopo i retry sugli
+ * errori transitori) o la lista calendari e' vuota, lancia. Restituire un elenco
+ * parziale farebbe risultare liberi slot occupati e porterebbe a doppie prenotazioni.
+ * `options.strict` e' mantenuto solo per compatibilita': il comportamento e' sempre strict.
+ */
 export async function getEventsWithDetailsAllCalendars(
   timeMin: Date,
   timeMax: Date,
-): Promise<
-  Array<{
-    start: string;
-    end: string;
-    calendarId?: string;
-    calendarName?: string;
-    eventId?: string;
-    summary?: string;
-    status?: string;
-    transparency?: string;
-    isAllDay?: boolean;
-  }>
-> {
+  _options?: { strict?: boolean },
+): Promise<CalendarEventDetail[]> {
   try {
     // Determina se siamo in produzione per ridurre logging
     const isProduction = process.env.NODE_ENV === 'production';
-    
+
     const calendar = await getGoogleCalendarClient();
 
     // 1. Recupera lista di tutti i calendari (include ensureCalendarInList)
@@ -515,56 +648,41 @@ export async function getEventsWithDetailsAllCalendars(
     const calendars = await listCalendars();
 
     if (!calendars || calendars.length === 0) {
-      console.warn("[Google Calendar V2] ⚠️ Nessun calendario trovato");
-      return [];
+      throw new Error('Nessun calendario Google disponibile: impossibile verificare gli slot');
     }
 
     if (!isProduction) {
       console.log(`[Google Calendar V2] ✅ Trovati ${calendars.length} calendari`);
     }
 
-    // 2. Recupera eventi dettagliati da OGNI calendario
-    const allEvents: Array<{
-      start: string;
-      end: string;
-      calendarId?: string;
-      calendarName?: string;
-      eventId?: string;
-      summary?: string;
-      status?: string;
-      transparency?: string;
-      isAllDay?: boolean;
-    }> = [];
+    // 2. Recupera eventi dettagliati da OGNI calendario, in parallelo
+    const counters = { fetched: 0, cancelled: 0, transparent: 0, valid: 0 };
 
-    let totalFetched = 0;
-    let totalCancelled = 0;
-    let totalTransparent = 0;
-    let totalValid = 0;
+    const readCalendar = async (cal: calendar_v3.Schema$CalendarListEntry): Promise<CalendarEventDetail[]> => {
+      const found: CalendarEventDetail[] = [];
+      let pageToken: string | undefined = undefined;
+      let calendarEventCount = 0;
 
-    for (const cal of calendars) {
-      try {
-        let pageToken: string | undefined = undefined;
-        let calendarEventCount = 0;
-        
-        // Pagina attraverso TUTTI gli eventi del calendario
-        do {
-          const response: any = await calendar.events.list({
-            calendarId: cal.id!,
-            timeMin: timeMin.toISOString(),
-            timeMax: timeMax.toISOString(),
-            singleEvents: true, // Espande eventi ricorrenti
-            orderBy: 'startTime',
-            maxResults: 250, // Max items per page
-            pageToken: pageToken,
-          });
+      // Pagina attraverso TUTTI gli eventi del calendario
+      do {
+        const token: string | undefined = pageToken;
+        const response: any = await withCalendarRetry(() => calendar.events.list({
+          calendarId: cal.id!,
+          timeMin: timeMin.toISOString(),
+          timeMax: timeMax.toISOString(),
+          singleEvents: true, // Espande eventi ricorrenti
+          orderBy: 'startTime',
+          maxResults: 250, // Max items per page
+          pageToken: token,
+        }, { timeout: CALENDAR_REQUEST_TIMEOUT_MS }));
 
-          const events = response.data.items || [];
-          calendarEventCount += events.length;
-          totalFetched += events.length;
-          
-          pageToken = response.data.nextPageToken ?? undefined;
+        const events = response.data.items || [];
+        calendarEventCount += events.length;
+        counters.fetched += events.length;
 
-          for (const event of events) {
+        pageToken = response.data.nextPageToken ?? undefined;
+
+        for (const event of events) {
           const eventId = event.id || '';
           const summary = event.summary || 'Senza titolo';
           const status = event.status || '';
@@ -577,14 +695,12 @@ export async function getEventsWithDetailsAllCalendars(
 
           if (!classification.include) {
             if (classification.reason === 'cancelled') {
-              totalCancelled++;
-              // Log VERBOSE solo in desarrollo para diagnostica
+              counters.cancelled++;
               if (!isProduction) {
                 console.log(`[Google Calendar V2] 🚫 FILTRATO (cancelled): "${summary}" [${eventId}]`);
               }
             } else if (classification.reason === 'transparent') {
-              totalTransparent++;
-              // Log VERBOSE solo in desarrollo para diagnostica
+              counters.transparent++;
               if (!isProduction) {
                 console.log(`[Google Calendar V2] 👻 FILTRATO (transparent): "${summary}" [${eventId}]`);
               }
@@ -597,13 +713,12 @@ export async function getEventsWithDetailsAllCalendars(
           const end = event.end?.dateTime || event.end?.date;
 
           if (!start || !end) {
-            // Log WARNING solo se evento invalido
             console.warn(`[Google Calendar V2] ⚠️ Evento senza start/end: "${summary}" [${eventId}]`);
             continue;
           }
 
-          totalValid++;
-          allEvents.push({
+          counters.valid++;
+          found.push({
             start,
             end,
             calendarId: cal.id ?? undefined,
@@ -613,33 +728,37 @@ export async function getEventsWithDetailsAllCalendars(
             status,
             transparency,
             isAllDay,
+            crmKind: event.extendedProperties?.private?.crmKind ?? undefined,
+            created: event.created ?? undefined,
           });
         }
-        } while (pageToken); // Continua finché ci sono altre pagine
-        
-        if (!isProduction) {
-          console.log(`[Google Calendar V2] 📅 Calendario "${cal.summary}": ${calendarEventCount} eventi trovati (paginati)`);
-        }
-        
-      } catch (calError: any) {
-        console.error(
-          `[Google Calendar V2] ❌ Errore recupero eventi calendario "${cal.summary}":`,
-          calError.message
-        );
-        // Continua con altri calendari
+      } while (pageToken); // Continua finché ci sono altre pagine
+
+      if (!isProduction) {
+        console.log(`[Google Calendar V2] 📅 Calendario "${cal.summary}": ${calendarEventCount} eventi trovati (paginati)`);
       }
+      return found;
+    };
+
+    const results = await Promise.allSettled(calendars.map(readCalendar));
+
+    const failures = results.flatMap((r, i) => r.status === 'rejected'
+      ? [`"${calendars[i].summary || calendars[i].id}": ${r.reason?.message || r.reason}`]
+      : []);
+    if (failures.length > 0) {
+      throw new Error(`Calendario Google non leggibile (${failures.join('; ')})`);
     }
 
     // Log riassuntivo solo in sviluppo
     if (!isProduction) {
       console.log(`[Google Calendar V2] 📊 SUMMARY:`);
-      console.log(`  Total fetched: ${totalFetched}`);
-      console.log(`  Filtered (cancelled): ${totalCancelled}`);
-      console.log(`  Filtered (transparent): ${totalTransparent}`);
-      console.log(`  Valid busy events: ${totalValid}`);
+      console.log(`  Total fetched: ${counters.fetched}`);
+      console.log(`  Filtered (cancelled): ${counters.cancelled}`);
+      console.log(`  Filtered (transparent): ${counters.transparent}`);
+      console.log(`  Valid busy events: ${counters.valid}`);
     }
 
-    return allEvents;
+    return results.flatMap((r) => (r as PromiseFulfilledResult<CalendarEventDetail[]>).value);
   } catch (error: any) {
     console.error(
       "[Google Calendar V2] ❌ Errore getEventsWithDetailsAllCalendars:",
@@ -662,6 +781,8 @@ export function toGoogleTimedBoundary(date: Date) {
   };
 }
 
+export type CalendarEventKind = 'booking' | 'consultation' | 'job' | 'manual';
+
 export async function createEvent(
   calendarId: string = "primary",
   eventData: {
@@ -675,6 +796,9 @@ export async function createEvent(
     startDateStr?: string;
     endDateStr?: string;
     colorId?: string;
+    id?: string;
+    /** Tipo CRM: salvato nelle proprieta' private dell'evento per riconoscere gli orfani. */
+    kind?: CalendarEventKind;
   },
 ) {
   const calendar = await getGoogleCalendarClient();
@@ -718,14 +842,36 @@ export async function createEvent(
   if (eventData.colorId) {
     requestBody.colorId = eventData.colorId;
   }
+  if (eventData.kind) requestBody.extendedProperties = { private: { crmKind: eventData.kind } };
+  // Id sempre presente: i tentativi successivi a un timeout usano lo stesso id, quindi un
+  // inserimento gia' riuscito non puo' diventare un secondo evento (409 = esiste gia').
+  const explicitId = eventData.id;
+  const eventId = explicitId ?? randomBytes(16).toString('hex');
+  requestBody.id = eventId;
 
-  const resolvedId = resolveCalendarId(calendarId);
-  const response = await calendar.events.insert({
-    calendarId: resolvedId,
-    requestBody,
-  });
-
-  return response.data;
+  const resolvedId = await resolveCalendarId(calendarId);
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const response = await calendar.events.insert({
+        calendarId: resolvedId,
+        requestBody,
+      }, { timeout: CALENDAR_REQUEST_TIMEOUT_MS });
+      return response.data;
+    } catch (err: any) {
+      const status = Number(err?.response?.status ?? err?.status ?? err?.code);
+      if (status === 409 && attempt > 0 && !explicitId) {
+        // Un tentativo precedente e' andato a buon fine (risposta persa): recupera quell'evento.
+        const existing = await withCalendarRetry(() => calendar.events.get({
+          calendarId: resolvedId,
+          eventId,
+        }, { timeout: CALENDAR_REQUEST_TIMEOUT_MS }));
+        return existing.data;
+      }
+      const delay = CALENDAR_RETRY_DELAYS_MS[attempt];
+      if (delay === undefined || !isTransientCalendarError(err)) throw err;
+      await calendarSleep(delay);
+    }
+  }
 }
 
 /**
@@ -746,7 +892,7 @@ export async function updateEvent(
   }>,
 ) {
   const calendar = await getGoogleCalendarClient();
-  const resolvedId = resolveCalendarId(calendarId);
+  const resolvedId = await resolveCalendarId(calendarId);
 
   const requestBody: any = {};
 
@@ -783,11 +929,11 @@ export async function updateEvent(
     }
   }
 
-  const response = await calendar.events.patch({
+  const response = await withCalendarRetry(() => calendar.events.patch({
     calendarId: resolvedId,
     eventId,
     requestBody,
-  });
+  }, { timeout: CALENDAR_REQUEST_TIMEOUT_MS }));
 
   return response.data;
 }
@@ -800,12 +946,18 @@ export async function deleteEvent(
   eventId: string,
 ) {
   const calendar = await getGoogleCalendarClient();
-  const resolvedId = resolveCalendarId(calendarId);
+  const resolvedId = await resolveCalendarId(calendarId);
 
-  await calendar.events.delete({
-    calendarId: resolvedId,
-    eventId,
-  });
+  try {
+    await withCalendarRetry(() => calendar.events.delete({
+      calendarId: resolvedId,
+      eventId,
+    }, { timeout: CALENDAR_REQUEST_TIMEOUT_MS }));
+  } catch (error: any) {
+    // Gia' eliminato (404/410): lo stato desiderato e' raggiunto, non e' un errore.
+    // Senza questo i flussi di annullamento restavano in "cancellation_pending".
+    if (!isCalendarEventGone(error)) throw error;
+  }
 
   return true;
 }

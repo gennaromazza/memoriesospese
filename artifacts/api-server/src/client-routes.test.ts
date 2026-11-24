@@ -1,5 +1,21 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { isKnownClientPath, isPrivateClientPath } from './client-routes';
+describe('link privato di pagamento acconto', () => {
+  it('is reachable in production, but never indexable', () => {
+    expect(isKnownClientPath('/prenota/acconto/booking-test')).toBe(true);
+    expect(isPrivateClientPath('/prenota/acconto/booking-test')).toBe(true);
+    expect(isKnownClientPath('/prenota/acconto/booking-test/')).toBe(true);
+    expect(isKnownClientPath('/prenota/acconto/booking-test/extra')).toBe(false);
+  });
+});
+describe('link personale della prenotazione', () => {
+  it('opens directly in production without becoming indexable', () => {
+    expect(isKnownClientPath('/prenota/gestisci/booking-test')).toBe(true);
+    expect(isPrivateClientPath('/prenota/gestisci/booking-test')).toBe(true);
+    expect(isKnownClientPath('/prenota/gestisci/booking-test/')).toBe(true);
+    expect(isKnownClientPath('/prenota/gestisci/booking-test/extra')).toBe(false);
+  });
+});
 
 describe('percorsi delle gift card', () => {
   it('la pagina del regalo è raggiungibile ma mai indicizzata', () => {
@@ -98,5 +114,15 @@ describe('percorsi delle gift card', () => {
   it('le pagine amministrative delle gift card restano private', () => {
     expect(isPrivateClientPath('/admin/gift-card')).toBe(true);
     expect(isPrivateClientPath('/admin/gift-card/stampa/K7QM-4XD2-9PTR')).toBe(true);
+  });
+});
+
+describe('vademecum di Natale 2026', () => {
+  it('la pagina e\' raggiungibile dal sito (non 404) ma non indicizzata', async () => {
+    const { isKnownClientPath, isPrivateClientPath } = await import('./client-routes');
+    expect(isKnownClientPath('/vademecum-natale-2026')).toBe(true);
+    expect(isKnownClientPath('/vademecum-natale-2026/')).toBe(true);
+    expect(isPrivateClientPath('/vademecum-natale-2026')).toBe(true);
+    expect(isKnownClientPath('/vademecum-natale-2027')).toBe(false);
   });
 });

@@ -47,8 +47,24 @@ service cloud.firestore {
         request.auth.token.apk.get('sat', -1) == request.auth.token.auth_time;
     }
 
+    function adminRememberedDevicePath() {
+      return /databases/$(database)/documents/adminSecurity/$(request.auth.uid)/rememberedDevices/$(request.auth.token.adminDeviceTrust.get('id', ''));
+    }
+
+    function adminRememberedDeviceVerified() {
+      return 'adminDeviceTrust' in request.auth.token &&
+        request.auth.token.adminDeviceTrust is map &&
+        request.auth.token.adminDeviceTrust.get('id', '') is string &&
+        request.auth.token.adminDeviceTrust.get('id', '').matches('^[A-Za-z0-9_-]{43}$') &&
+        exists(adminRememberedDevicePath()) &&
+        get(adminRememberedDevicePath()).data.get('revokedAt', null) == null &&
+        get(adminRememberedDevicePath()).data.get('expiresAt', 0) > request.time.toMillis() &&
+        get(adminRememberedDevicePath()).data.get('createdAt', 0) >
+          get(adminSecurityPath()).data.get('rememberedDevicesValidAfter', 0);
+    }
+
     function adminPasskeySatisfied() {
-      return !adminPasskeyRequired() || adminPasskeyVerified();
+      return !adminPasskeyRequired() || adminPasskeyVerified() || adminRememberedDeviceVerified();
     }
 
     // Gli ordini storici non hanno `orderType`: Map.get mantiene compatibili
@@ -69,6 +85,23 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Personal booking links and delivery outbox: Admin SDK only.
+    match /bookingManagementAccess/{document=**} {
+      allow read, write: if false;
+    }
+    match /bookingConfirmationJobs/{document=**} {
+      allow read, write: if false;
+    }
+    match /bookingRescheduleJobs/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /bookingCancellationJobs/{bookingId} {
+      allow read, write: if false;
+    }
+    match /bookingRefunds/{bookingId} {
+      allow read, write: if false;
+    }
     // Users collection
     match /users/{userId} {
       // Il profilo cliente contiene dati personali: ogni cliente vede solo il
@@ -357,21 +390,50 @@ service cloud.firestore {
       allow delete: if isAdmin() &&
         !isPrintShopProduct(resource.data);
     }
-    
-    // Booking Campaigns - Admin-only management, public read for active campaigns
-    match /booking_campaigns/{campaignId} {
-      allow read: if true; // Public read access for active booking campaigns
-      allow create: if isAdmin(); // Only admin can create campaigns
-      allow update: if isAdmin(); // Only admin can update campaigns
-      allow delete: if isAdmin(); // Only admin can delete campaigns
+
+    // Costi unitari dello shop: mai inserirli nei prodotti, pubblicamente leggibili.
+    match /shopProductCosts/{productId} {
+      allow read, write: if isAdmin();
     }
     
-    // Bookings - Public can create, admin manages
+    // Campaign creation is centralized in the authenticated Admin API so a
+    // transaction can reserve codes even when matching legacy documents use random IDs.
+    match /booking_campaigns/{campaignId} {
+      allow read: if true; // Keep existing campaign pages and public booking links accessible.
+      allow create: if false; // Admin SDK in the Admin API is the only create path.
+      allow update: if isAdmin() &&
+        request.resource.data.get('code', null) == resource.data.get('code', null);
+      allow delete: if isAdmin();
+    }
+    
+    // Checkout drafts and reservation guards are exclusively server-managed.
+    match /bookingCheckoutHolds/{bookingId} {
+      allow read, write: if false;
+    }
+    match /bookingSlotLocks/{day} {
+      allow read, write: if false;
+    }
+    match /bookingPayPalOrders/{paypalOrderId} {
+      allow read, write: if false;
+    }
+    match /bookingPaymentCaptures/{captureId} {
+      allow read, write: if false;
+    }
+    match /bookingPaymentEvents/{eventId} {
+      allow read, write: if false;
+    }
+
+    // Booking creation is server-only: every public/admin creation uses the API.
+    // Direct creates would bypass availability checks and transactional day guards.
     match /bookings/{bookingId} {
       allow read: if isAdmin(); // Only admin can see all bookings
-      allow create: if true; // Public can create bookings via booking form
-      allow update: if isAdmin(); // Only admin can update bookings (confirm, complete, etc.)
-      allow delete: if isAdmin(); // Only admin can delete bookings
+      allow create: if false;
+      // Non cambiare o rimuovere una prenotazione mentre un inserimento
+      // Calendar può essere ancora in volo. Il server riconcilia prima l'esito.
+      allow update: if isAdmin() && resource.data.get('calendarSyncPending', false) != true;
+      // La cancellazione passa dal server: anche un vecchio client deve
+      // rispettare le verifiche su acconti e operazioni concorrenti.
+      allow delete: if false;
     }
     
     // Orders - Admin-only management
@@ -388,6 +450,15 @@ service cloud.firestore {
         !isPrintShopOrder(request.resource.data);
       allow delete: if isAdmin() &&
         !isPrintShopOrder(resource.data);
+    }
+
+    // Costi unitari interni e snapshot di margine: accesso esclusivamente
+    // tramite API server con Admin SDK e gate passkey.
+    match /printShopUnitCosts/{sku} {
+      allow read, write: if false;
+    }
+    match /printShopOrderFinancials/{orderId} {
+      allow read, write: if false;
     }
     
     // Clienti - Admin-only client management (November 2025)

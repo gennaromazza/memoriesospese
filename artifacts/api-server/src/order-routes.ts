@@ -3,16 +3,48 @@ import type { HttpHandlerResult } from "./http-types.js";
  * Order API Routes - Gestione ordini con email automatiche
  */
 
+import { createHash } from 'node:crypto';
 import { Router, Request, Response } from 'express';
 import { sendGmailEmail, createOrderPaymentReceivedEmailHTML, authenticateFirebase } from './email-routes.js';
 import { db, FieldValue } from './firebase-admin.js';
 import { nowRomeDate, toRomeDateTime } from './utils/timezone.js';
 import { normalizeEmail } from './utils/normalize.js';
 import { recomputeJobTransactionCount } from './job-aggregates.js';
+import { BOOKING_DEPOSIT_SOURCE, reconcileOrderBookingDeposit, reconcileOrderBookingDepositsBatch } from './booking/order-deposit-credit.js';
+import { IN_PERSON_SOURCE } from './booking/in-person-deposit.js';
+import {
+  expandOrderProductsToRequirements as expandOrderSnapshotToRequirements,
+  getRequiredGalleryPhotoCount,
+} from '@shared/gallery-requirements';
 
 const ADMIN_EMAILS = ["gennaro.mazzacane@gmail.com"];
 
 const router = Router();
+
+/** Errore HTTP lanciato dentro una transazione: la transazione viene annullata senza scrivere nulla. */
+class OrderHttpError extends Error {
+  constructor(readonly status: number, readonly body: Record<string, unknown>) { super(String(body.error || 'Errore')); }
+}
+const round2 = (value: number) => Math.round(value * 100) / 100;
+
+router.post('/reconcile-booking-deposits', authenticateFirebase, async (req: any, res: Response) => {
+  if (!ADMIN_EMAILS.includes(req.user?.email)) return res.status(403).json({ error: 'Solo gli admin possono riconciliare acconti' });
+  const ids = req.body?.orderIds;
+  if (!Array.isArray(ids) || ids.length > 50 || ids.some(id => typeof id !== 'string' || !id || id.includes('/'))) {
+    return res.status(400).json({ error: 'Elenco ordini non valido' });
+  }
+  try {
+    const { updated, failed } = await reconcileOrderBookingDepositsBatch(db, ids);
+    // Tutti falliti: stesso contratto di prima (409). Falliti solo alcuni: 200 con l'elenco,
+    // così un solo ordine anomalo non blocca la verifica degli altri.
+    if (failed.length > 0 && failed.length === new Set<string>(ids).size) {
+      return res.status(409).json({ error: failed[0].error });
+    }
+    return res.json(failed.length > 0 ? { updated, failed: failed.map(f => f.id) } : { updated });
+  } catch (error: any) {
+    return res.status(409).json({ error: error.message || 'Acconto da riconciliare' });
+  }
+});
 
 /**
  * Helper: Crea HTML email per notifica aggiornamento ordine
@@ -181,8 +213,6 @@ function createOrderUpdatedEmailHTML(orderData: any, studioInfo: any): string {
  * Replica la stessa logica di espansione bundle usata nella creazione galleria (BookingsManager)
  */
 async function expandOrderProductsToRequirements(prodotti: any[]): Promise<any[]> {
-  const expandedProducts: any[] = [];
-
   // Pre-fetch catalogo prodotti per fallback bundle (come BookingsManager)
   let catalogProducts: Map<string, any> = new Map();
   const productIds = prodotti.filter(p => p.prodottoId && !p.prodottoId.startsWith('custom_')).map(p => p.prodottoId);
@@ -201,9 +231,7 @@ async function expandOrderProductsToRequirements(prodotti: any[]): Promise<any[]
     }
   }
 
-  for (const orderItem of prodotti) {
-    const orderItemQuantity = orderItem.quantita || 1;
-
+  const resolvedProducts = prodotti.map((orderItem) => {
     // PRIORITY: orderItem.bundleItems → fallback a catalogo (come BookingsManager)
     const hasOrderItemBundle = orderItem.isBundle && orderItem.bundleItems && orderItem.bundleItems.length > 0;
     const catalogProduct = catalogProducts.get(orderItem.prodottoId);
@@ -216,58 +244,33 @@ async function expandOrderProductsToRequirements(prodotti: any[]): Promise<any[]
         : null;
     const catalogBundleItems = hasCatalogBundle ? catalogProduct!.bundleItems : null;
     const bundleParentName = orderItem.prodottoNome || catalogProduct?.nome || 'Bundle';
+    const sharedPhotoSourceId = orderItem.prodottoSorgenteFotoId || catalogProduct?.prodottoSorgenteFotoId;
+    const hasSharedPhotos = orderItem.fotoCondivise ?? catalogProduct?.fotoCondivise;
 
-    if (bundleItems && bundleItems.length > 0) {
-      let bundleExpandedCount = 0;
-      for (let orderQty = 0; orderQty < orderItemQuantity; orderQty++) {
-        for (const bundleItem of bundleItems) {
-          if (!bundleItem.quantita || bundleItem.quantita <= 0) continue;
-          if (bundleItem.numeroFoto === undefined || bundleItem.numeroFoto < 0) continue;
+    if (!bundleItems || bundleItems.length === 0) return orderItem;
 
-          let finalNumeroFoto = bundleItem.numeroFoto;
-          if (bundleItem.prodottoId && catalogBundleItems) {
-            const catalogBundleItem = catalogBundleItems.find((cbi: any) => cbi.prodottoId === bundleItem.prodottoId);
-            if (catalogBundleItem && catalogBundleItem.numeroFoto !== undefined) {
-              finalNumeroFoto = catalogBundleItem.numeroFoto;
-            }
-          }
+    const snapshotItems = bundleItems.map((bundleItem: any) => {
+      const catalogBundleItem = bundleItem.prodottoId && catalogBundleItems
+        ? catalogBundleItems.find((item: any) => item.prodottoId === bundleItem.prodottoId)
+        : undefined;
+      return {
+        ...bundleItem,
+        numeroFoto: catalogBundleItem?.numeroFoto ?? bundleItem.numeroFoto,
+      };
+    });
+    return {
+      ...orderItem,
+      prodottoNome: bundleParentName,
+      isBundle: true,
+      bundleItems: snapshotItems,
+      ...(hasSharedPhotos ? {
+        fotoCondivise: true,
+        prodottoSorgenteFotoId: sharedPhotoSourceId,
+      } : {}),
+    };
+  });
 
-          for (let i = 0; i < bundleItem.quantita; i++) {
-            const bundlePrefix = orderItemQuantity > 1
-              ? `[${orderQty + 1}/${orderItemQuantity}] `
-              : '';
-            const req: any = {
-              prodottoNome: bundleItem.quantita > 1
-                ? `${bundlePrefix}${bundleItem.prodottoNome} (${i + 1}/${bundleItem.quantita}) - ${bundleParentName}`
-                : `${bundlePrefix}${bundleItem.prodottoNome} - ${bundleParentName}`,
-              prodottoNumeroFoto: finalNumeroFoto,
-            };
-            if (bundleItem.prodottoId) {
-              req.prodottoId = bundleItem.prodottoId;
-            }
-            expandedProducts.push(req);
-            bundleExpandedCount++;
-          }
-        }
-      }
-      console.log(`📦 Bundle "${bundleParentName}" x${orderItemQuantity} espanso in ${bundleExpandedCount} requirements`);
-    } else {
-      for (let i = 0; i < orderItemQuantity; i++) {
-        const req: any = {
-          prodottoNome: orderItemQuantity > 1
-            ? `${orderItem.prodottoNome} (${i + 1}/${orderItemQuantity})`
-            : orderItem.prodottoNome,
-          prodottoNumeroFoto: orderItem.prodottoNumeroFoto ?? 0,
-        };
-        if (orderItem.prodottoId && !orderItem.prodottoId.startsWith('custom_')) {
-          req.prodottoId = orderItem.prodottoId;
-        }
-        expandedProducts.push(req);
-      }
-    }
-  }
-
-  return expandedProducts;
+  return expandOrderSnapshotToRequirements(resolvedProducts);
 }
 
 /**
@@ -427,9 +430,7 @@ router.patch('/:id', authenticateFirebase, async (req: any, res: Response): Prom
             }
             
             // Aggiorna sempre requiredPhotoCount con il totale
-            galleryUpdate.requiredPhotoCount = newProductRequirements.reduce(
-              (sum: number, r: any) => sum + (r.prodottoNumeroFoto || 0), 0
-            );
+            galleryUpdate.requiredPhotoCount = getRequiredGalleryPhotoCount(newProductRequirements);
             // Multi-product: inizializza photoAssignments se non esiste
             if (newProductRequirements.length > 1 && !galleryData.photoAssignments) {
               galleryUpdate.photoAssignments = {};
@@ -972,152 +973,129 @@ router.post('/:id/register-payment', authenticateFirebase, async (req: any, res:
       importo, 
       metodoPagamento = 'contante', 
       note,
-      data 
+      data,
+      requestId,
     } = req.body;
 
     if (!tipo || !['acconto', 'saldo'].includes(tipo)) {
       return res.status(400).json({ error: 'Tipo pagamento deve essere "acconto" o "saldo"' });
     }
 
+    await reconcileOrderBookingDeposit(db, orderId);
     const orderRef = db.collection('orders').doc(orderId);
-    const orderDoc = await orderRef.get();
 
-    if (!orderDoc.exists) {
-      return res.status(404).json({ error: 'Ordine non trovato' });
+    if (tipo === 'acconto' && (typeof importo !== 'number' || !Number.isFinite(importo) || importo <= 0)) {
+      return res.status(400).json({ error: 'Importo acconto deve essere maggiore di zero' });
     }
-
-    const orderData = orderDoc.data()!;
-    if (orderData.orderType === 'print_shop') {
-      return res.status(409).json({
-        error: 'I pagamenti dello shop stampe sono gestiti esclusivamente tramite PayPal',
-        code: 'print_shop_route_required',
-      });
+    if (requestId !== undefined && (typeof requestId !== 'string' || !/^[A-Za-z0-9_-]{8,100}$/.test(requestId))) {
+      return res.status(400).json({ error: 'Identificativo della richiesta non valido' });
     }
-    if (orderData.orderType === 'shop') {
-      return res.status(409).json({
-        error: 'I pagamenti dello shop online sono gestiti esclusivamente tramite PayPal',
-        code: 'shop_route_required',
-      });
-    }
-    const totale = orderData.totale || 0;
-    const accontoAttuale = orderData.acconto || 0;
-    const saldoAttuale = orderData.saldo || totale - accontoAttuale;
-    const transactions = orderData.transactions || [];
-    const paymentDate = data ? toRomeDateTime(data).toJSDate() : nowRomeDate();
+    // Con un identificativo il movimento di cassa ha un ID deterministico: una ripetizione
+    // (doppio clic, ritentativo) non puo' registrare due volte lo stesso incasso.
+    const cashMovementRef = db.collection('cashMovements').doc(
+      requestId ? `order_payment_${createHash('sha256').update(`${orderId}:${requestId}`).digest('hex').slice(0, 32)}` : undefined as any,
+    );
 
-    let paymentAmount: number;
-    let nuovoAcconto: number;
-    let nuovoSaldo: number;
-
-    if (tipo === 'acconto') {
-      if (!importo || importo <= 0) {
-        return res.status(400).json({ error: 'Importo acconto deve essere maggiore di zero' });
-      }
-      paymentAmount = importo;
-      nuovoAcconto = accontoAttuale + importo;
-      nuovoSaldo = totale - nuovoAcconto;
-
-      if (nuovoAcconto > totale) {
-        return res.status(400).json({ 
-          error: `Acconto totale (€${nuovoAcconto.toFixed(2)}) supera il totale ordine (€${totale.toFixed(2)})` 
-        });
-      }
-    } else {
-      if (saldoAttuale <= 0) {
-        return res.status(400).json({ error: 'Non c\'è saldo da pagare per questo ordine' });
-      }
-      paymentAmount = saldoAttuale;
-      nuovoAcconto = accontoAttuale + saldoAttuale;
-      nuovoSaldo = 0;
-    }
-
-    const cashMovementRef = db.collection('cashMovements').doc();
-
-    const newTransaction = {
-      tipo,
-      importo: paymentAmount,
-      metodo: metodoPagamento,
-      data: paymentDate,
-      emailInviata: false,
-      cashMovementId: cashMovementRef.id,
-      ...(note?.trim() && { note: note.trim() }),
-    };
-
-    const updatedTransactions = [...transactions, newTransaction];
-
-    const batch = db.batch();
-
-    batch.update(orderRef, {
-      transactions: updatedTransactions,
-      acconto: nuovoAcconto,
-      saldo: nuovoSaldo,
-      [`metodoPagamento${tipo === 'acconto' ? 'Acconto' : 'Saldo'}`]: metodoPagamento,
-      [`data${tipo === 'acconto' ? 'Acconto' : 'Saldo'}`]: paymentDate,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-
-    const prodottiDescrizione = orderData.prodotti
-      ?.map((p: any) => p.prodottoNome)
-      .join(', ')
-      .substring(0, 50) || 'Prodotti';
-    const nomeCliente = orderData.nomeCliente || 'Cliente';
-
-    // Determina origine in base al tipo di ordine
-    const hasBooking = !!orderData.bookingId;
-    const cashOrigine = hasBooking ? 'booking' : 'walk-in';
-    
-    // Recupera il nome della campagna dal booking se disponibile
-    let origineTema: string | undefined;
-    if (hasBooking) {
-      try {
-        const bookingDoc = await db.collection('bookings').doc(orderData.bookingId).get();
-        if (bookingDoc.exists) {
-          const bookingData = bookingDoc.data();
-          if (bookingData?.campaignId) {
-            const campaignDoc = await db.collection('booking_campaigns').doc(bookingData.campaignId).get();
-            if (campaignDoc.exists) {
-              origineTema = campaignDoc.data()?.nome;
-            }
-          }
+    let outcome;
+    try {
+      // Lettura, calcolo e scrittura in una sola transazione: nessun aggiornamento concorrente
+      // (riconciliazione PayPal, altro operatore) puo' essere sovrascritto.
+      outcome = await db.runTransaction(async (tx) => {
+        const orderSnap = await tx.get(orderRef);
+        if (!orderSnap.exists) throw new OrderHttpError(404, { error: 'Ordine non trovato' });
+        const orderData = orderSnap.data()!;
+        if (orderData.orderType === 'print_shop') {
+          throw new OrderHttpError(409, { error: 'I pagamenti dello shop stampe sono gestiti esclusivamente tramite PayPal', code: 'print_shop_route_required' });
         }
-      } catch (err) {
-        console.warn('⚠️ Impossibile recuperare campagna per origineTema:', err);
-      }
+        if (orderData.orderType === 'shop') {
+          throw new OrderHttpError(409, { error: 'I pagamenti dello shop online sono gestiti esclusivamente tramite PayPal', code: 'shop_route_required' });
+        }
+        const transactions: any[] = Array.isArray(orderData.transactions) ? orderData.transactions : [];
+        const cashSnap = await tx.get(cashMovementRef);
+        if (requestId && cashSnap.exists) {
+          const index = transactions.findIndex((line) => line.cashMovementId === cashMovementRef.id);
+          return { duplicate: true as const, orderData, transactionIndex: index, paymentAmount: cashSnap.data()?.importo ?? 0,
+            nuovoSaldo: orderData.saldo ?? round2((orderData.totale || 0) - (orderData.acconto || 0)) };
+        }
+
+        const hasBooking = !!orderData.bookingId;
+        let origineTema: string | undefined;
+        if (hasBooking) {
+          const bookingSnap = await tx.get(db.collection('bookings').doc(orderData.bookingId));
+          const campaignId = bookingSnap.data()?.campaignId;
+          if (campaignId) origineTema = (await tx.get(db.collection('booking_campaigns').doc(campaignId))).data()?.nome;
+        }
+
+        const totale = orderData.totale || 0;
+        const accontoAttuale = orderData.acconto || 0;
+        const saldoAttuale = orderData.saldo ?? round2(totale - accontoAttuale);
+        const paymentDate = data ? toRomeDateTime(data).toJSDate() : nowRomeDate();
+        let paymentAmount: number;
+        let nuovoAcconto: number;
+        let nuovoSaldo: number;
+        if (tipo === 'acconto') {
+          paymentAmount = importo;
+          nuovoAcconto = round2(accontoAttuale + importo);
+          nuovoSaldo = round2(totale - nuovoAcconto);
+          if (nuovoAcconto > totale) {
+            throw new OrderHttpError(400, { error: `Acconto totale (€${nuovoAcconto.toFixed(2)}) supera il totale ordine (€${totale.toFixed(2)})` });
+          }
+        } else {
+          if (saldoAttuale <= 0) throw new OrderHttpError(400, { error: 'Non c\'è saldo da pagare per questo ordine' });
+          paymentAmount = saldoAttuale;
+          nuovoAcconto = round2(accontoAttuale + saldoAttuale);
+          nuovoSaldo = 0;
+        }
+
+        const newTransaction = {
+          tipo, importo: paymentAmount, metodo: metodoPagamento, data: paymentDate, emailInviata: false,
+          cashMovementId: cashMovementRef.id, ...(note?.trim() && { note: note.trim() }),
+        };
+        const updatedTransactions = [...transactions, newTransaction];
+        const prodottiDescrizione = orderData.prodotti?.map((p: any) => p.prodottoNome).join(', ').substring(0, 50) || 'Prodotti';
+        const nomeCliente = orderData.nomeCliente || 'Cliente';
+
+        tx.update(orderRef, {
+          transactions: updatedTransactions, acconto: nuovoAcconto, saldo: nuovoSaldo,
+          [`metodoPagamento${tipo === 'acconto' ? 'Acconto' : 'Saldo'}`]: metodoPagamento,
+          [`data${tipo === 'acconto' ? 'Acconto' : 'Saldo'}`]: paymentDate,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        tx.set(cashMovementRef, {
+          tipo: 'entrata',
+          categoria: hasBooking ? 'Servizio fotografico' : 'Vendita diretta',
+          importo: paymentAmount,
+          descrizione: hasBooking ? `Ordine da Prenotazione: ${nomeCliente} - ${prodottiDescrizione}` : `Ordine Walk-in: ${nomeCliente} - ${prodottiDescrizione}`,
+          data: paymentDate,
+          metodoPagamento,
+          note: `Ordine ID: ${orderId} - ${tipo === 'acconto' ? 'Acconto' : 'Saldo'}`,
+          origine: hasBooking ? 'booking' : 'walk-in',
+          origineRef: hasBooking ? orderData.bookingId : orderId,
+          ...(origineTema && { origineTema }),
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        return { duplicate: false as const, orderData, transactionIndex: updatedTransactions.length - 1, paymentAmount, nuovoSaldo };
+      });
+    } catch (error) {
+      if (error instanceof OrderHttpError) return res.status(error.status).json(error.body);
+      throw error;
     }
-    
-    batch.set(cashMovementRef, {
-      tipo: 'entrata',
-      categoria: hasBooking ? 'Servizio fotografico' : 'Vendita diretta',
-      importo: paymentAmount,
-      descrizione: hasBooking 
-        ? `Ordine da Prenotazione: ${nomeCliente} - ${prodottiDescrizione}`
-        : `Ordine Walk-in: ${nomeCliente} - ${prodottiDescrizione}`,
-      data: paymentDate,
-      metodoPagamento,
-      note: `Ordine ID: ${orderId} - ${tipo === 'acconto' ? 'Acconto' : 'Saldo'}`,
-      origine: cashOrigine, // Track cash origin (booking or walk-in)
-      origineRef: hasBooking ? orderData.bookingId : orderId,
-      ...(origineTema && { origineTema }), // Nome della campagna per filtro
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
 
-    await batch.commit();
-
-    console.log(`✅ Pagamento ${tipo} registrato per ordine ${orderId}: €${paymentAmount} (${metodoPagamento})`);
-    console.log(`✅ Movimento cassa creato: ${cashMovementRef.id}`);
+    console.log(`✅ Pagamento ${tipo} registrato per ordine ${orderId}: €${outcome.paymentAmount} (${metodoPagamento})${outcome.duplicate ? ' [ripetizione]' : ''}`);
 
     // Aggiorna conteggio transazioni denormalizzato sul job collegato
-    await recomputeJobTransactionCount(orderData.jobId);
+    await recomputeJobTransactionCount(outcome.orderData.jobId);
 
     res.json({
       success: true,
       orderId,
-      transactionIndex: updatedTransactions.length - 1,
+      duplicate: outcome.duplicate,
+      transactionIndex: outcome.transactionIndex,
       cashMovementId: cashMovementRef.id,
-      paymentAmount,
-      nuovoSaldo,
-      message: `Pagamento ${tipo} di €${paymentAmount.toFixed(2)} registrato con successo`,
+      paymentAmount: outcome.paymentAmount,
+      nuovoSaldo: outcome.nuovoSaldo,
+      message: `Pagamento ${tipo} di €${Number(outcome.paymentAmount).toFixed(2)} registrato con successo`,
     });
 
   } catch (error: any) {
@@ -1148,85 +1126,64 @@ router.post('/:id/delete-payment', authenticateFirebase, async (req: any, res: R
       return res.status(400).json({ error: 'Indice transazione non valido' });
     }
 
+    await reconcileOrderBookingDeposit(db, orderId);
     const orderRef = db.collection('orders').doc(orderId);
-    const orderDoc = await orderRef.get();
 
-    if (!orderDoc.exists) {
-      return res.status(404).json({ error: 'Ordine non trovato' });
-    }
-
-    const orderData = orderDoc.data()!;
-    if (orderData.orderType === 'print_shop') {
-      return res.status(409).json({
-        error: 'I pagamenti dello shop stampe non possono essere modificati dalle route legacy',
-        code: 'print_shop_route_required',
-      });
-    }
-    if (orderData.orderType === 'shop') {
-      return res.status(409).json({
-        error: 'I pagamenti dello shop online non possono essere modificati dalle route legacy',
-        code: 'shop_route_required',
-      });
-    }
-    const transactions: any[] = orderData.transactions || [];
-
-    if (transactionIndex >= transactions.length) {
-      return res.status(400).json({ error: 'Indice transazione fuori range' });
-    }
-
-    const deletedTransaction = transactions[transactionIndex];
-    const deletedAmount = deletedTransaction.importo || 0;
-
-    if (expectedImporto !== undefined && Math.abs(deletedAmount - expectedImporto) > 0.01) {
-      return res.status(409).json({ error: 'La transazione è stata modificata. Ricarica la pagina e riprova.' });
-    }
-    if (expectedTipo && deletedTransaction.tipo !== expectedTipo) {
-      return res.status(409).json({ error: 'La transazione è stata modificata. Ricarica la pagina e riprova.' });
-    }
-
-    const updatedTransactions = transactions.filter((_: any, i: number) => i !== transactionIndex);
-
-    const nuovoAccontoPagato = updatedTransactions.reduce((sum: number, t: any) => sum + (t.importo || 0), 0);
-    const totale = orderData.totale || 0;
-    const nuovoSaldo = totale - nuovoAccontoPagato;
-
-    const batch = db.batch();
-
-    batch.update(orderRef, {
-      transactions: updatedTransactions,
-      acconto: nuovoAccontoPagato,
-      saldo: nuovoSaldo,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-
-    let cashMovementDeleted = false;
+    let removed;
     try {
-      if (deletedTransaction.cashMovementId) {
-        const cmRef = db.collection('cashMovements').doc(deletedTransaction.cashMovementId);
-        const cmDoc = await cmRef.get();
-        if (cmDoc.exists) {
-          batch.delete(cmRef);
-          cashMovementDeleted = true;
-          console.log(`🗑️ Rimosso movimento cassa ${deletedTransaction.cashMovementId} (tramite ID diretto)`);
+      // Una sola transazione: riga dell'ordine e movimento di cassa spariscono insieme o per niente.
+      removed = await db.runTransaction(async (tx) => {
+        const orderSnap = await tx.get(orderRef);
+        if (!orderSnap.exists) throw new OrderHttpError(404, { error: 'Ordine non trovato' });
+        const orderData = orderSnap.data()!;
+        if (orderData.orderType === 'print_shop') {
+          throw new OrderHttpError(409, { error: 'I pagamenti dello shop stampe non possono essere modificati dalle route legacy', code: 'print_shop_route_required' });
         }
-      } else {
-        const cashQuery = await db.collection('cashMovements')
-          .where('note', '==', `Ordine ID: ${orderId} - ${deletedTransaction.tipo === 'acconto' ? 'Acconto' : 'Saldo'}`)
-          .where('importo', '==', deletedAmount)
-          .limit(1)
-          .get();
+        if (orderData.orderType === 'shop') {
+          throw new OrderHttpError(409, { error: 'I pagamenti dello shop online non possono essere modificati dalle route legacy', code: 'shop_route_required' });
+        }
+        const transactions: any[] = orderData.transactions || [];
+        if (transactionIndex >= transactions.length) throw new OrderHttpError(400, { error: 'Indice transazione fuori range' });
 
-        if (!cashQuery.empty) {
-          batch.delete(cashQuery.docs[0].ref);
-          cashMovementDeleted = true;
-          console.log(`🗑️ Rimosso 1 movimento cassa per pagamento eliminato (${cashQuery.docs[0].id}) (fallback query)`);
+        const deletedTransaction = transactions[transactionIndex];
+        if (deletedTransaction.source === BOOKING_DEPOSIT_SOURCE || deletedTransaction.source === IN_PERSON_SOURCE) {
+          throw new OrderHttpError(409, { error: `L’acconto ${deletedTransaction.source === IN_PERSON_SOURCE ? 'incassato di persona' : 'PayPal'} appartiene alla prenotazione: gestisci l’eventuale rimborso da Annullamento e acconto, non eliminare l’incasso dall’ordine.` });
         }
-      }
-    } catch (err: any) {
-      console.warn('⚠️ Errore ricerca movimento cassa:', err.message);
+        const deletedAmount = deletedTransaction.importo || 0;
+        if (expectedImporto !== undefined && Math.abs(deletedAmount - expectedImporto) > 0.01) {
+          throw new OrderHttpError(409, { error: 'La transazione è stata modificata. Ricarica la pagina e riprova.' });
+        }
+        if (expectedTipo && deletedTransaction.tipo !== expectedTipo) {
+          throw new OrderHttpError(409, { error: 'La transazione è stata modificata. Ricarica la pagina e riprova.' });
+        }
+
+        const updatedTransactions = transactions.filter((_: any, i: number) => i !== transactionIndex);
+        const nuovoAccontoPagato = round2(updatedTransactions.reduce((sum: number, t: any) => sum + (t.importo || 0), 0));
+        const totale = orderData.totale || 0;
+        const nuovoSaldo = round2(totale - nuovoAccontoPagato);
+
+        // Tutte le letture prima delle scritture.
+        let cashRefToDelete: FirebaseFirestore.DocumentReference | null = null;
+        if (deletedTransaction.cashMovementId) {
+          const cmRef = db.collection('cashMovements').doc(deletedTransaction.cashMovementId);
+          if ((await tx.get(cmRef)).exists) cashRefToDelete = cmRef;
+        } else {
+          const cashQuery = await tx.get(db.collection('cashMovements')
+            .where('note', '==', `Ordine ID: ${orderId} - ${deletedTransaction.tipo === 'acconto' ? 'Acconto' : 'Saldo'}`)
+            .where('importo', '==', deletedAmount)
+            .limit(1));
+          if (!cashQuery.empty) cashRefToDelete = cashQuery.docs[0].ref;
+        }
+
+        tx.update(orderRef, { transactions: updatedTransactions, acconto: nuovoAccontoPagato, saldo: nuovoSaldo, updatedAt: FieldValue.serverTimestamp() });
+        if (cashRefToDelete) tx.delete(cashRefToDelete);
+        return { orderData, deletedTransaction, deletedAmount, totale, nuovoAccontoPagato, nuovoSaldo, cashMovementDeleted: !!cashRefToDelete };
+      });
+    } catch (error) {
+      if (error instanceof OrderHttpError) return res.status(error.status).json(error.body);
+      throw error;
     }
-
-    await batch.commit();
+    const { orderData, deletedTransaction, deletedAmount, totale, nuovoAccontoPagato, nuovoSaldo, cashMovementDeleted } = removed;
 
     console.log(`✅ Pagamento #${transactionIndex} eliminato dall'ordine ${orderId}: €${deletedAmount} (${deletedTransaction.tipo})`);
 
@@ -1611,9 +1568,7 @@ router.post('/repair-bundle-galleries', authenticateFirebase, async (req: any, r
           selectionsReset++;
         }
 
-        const totalFoto = newProductRequirements.reduce(
-          (sum: number, r: any) => sum + (r.prodottoNumeroFoto || 0), 0
-        );
+        const totalFoto = getRequiredGalleryPhotoCount(newProductRequirements);
         galleryUpdate.requiredPhotoCount = totalFoto;
 
         await galleryDoc.ref.update(galleryUpdate);

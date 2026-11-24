@@ -120,6 +120,8 @@ export function PayPalCheckout({
   const legalConsentsRef = useRef(legalConsents);
   const enabledRef = useRef(enabled);
   const buttonActionsRef = useRef<PayPalButtonActions | null>(null);
+  const createOrderPromiseRef = useRef<Promise<string> | null>(null);
+  const approvePromisesRef = useRef(new Map<string, Promise<void>>());
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -142,6 +144,8 @@ export function PayPalCheckout({
     let active = true;
     let buttons: PayPalButtonsInstance | null = null;
     const controller = new AbortController();
+    createOrderPromiseRef.current = null;
+    approvePromisesRef.current.clear();
 
     const setup = async () => {
       setLoading(true);
@@ -166,61 +170,82 @@ export function PayPalCheckout({
             else actions.disable();
           },
           createOrder: async () => {
-            if (!enabledRef.current) throw new Error('Conferma prima i dati e le condizioni di vendita.');
-            setProcessing(true);
-            setError(null);
-            try {
-              const freshQuote = await prepareOrderRef.current();
-              return (await printShopApi.createPaypalOrder(
-                orderId,
-                legalConsentsRef.current,
-                freshQuote,
-              )).paypalOrderId;
-            } catch (createError) {
-              if (requiresPaypalQuoteReview(createError)) {
-                const alreadyRefreshed = createError instanceof PrintShopQuoteReviewRequiredError &&
-                  createError.quoteAlreadyRefreshed;
-                if (!alreadyRefreshed) {
-                  await onQuoteReviewRequiredRef.current().catch(() => undefined);
+            if (createOrderPromiseRef.current) return createOrderPromiseRef.current;
+            const createPromise = (async () => {
+              if (!enabledRef.current) throw new Error('Conferma prima i dati e le condizioni di vendita.');
+              setProcessing(true);
+              setError(null);
+              try {
+                const freshQuote = await prepareOrderRef.current();
+                return (await printShopApi.createPaypalOrder(
+                  orderId,
+                  legalConsentsRef.current,
+                  freshQuote,
+                )).paypalOrderId;
+              } catch (createError) {
+                if (requiresPaypalQuoteReview(createError)) {
+                  const alreadyRefreshed = createError instanceof PrintShopQuoteReviewRequiredError &&
+                    createError.quoteAlreadyRefreshed;
+                  if (!alreadyRefreshed) {
+                    await onQuoteReviewRequiredRef.current().catch(() => undefined);
+                  }
                 }
+                setProcessing(false);
+                setError(checkoutErrorMessage(createError));
+                throw createError;
               }
-              setProcessing(false);
-              setError(checkoutErrorMessage(createError));
-              throw createError;
+            })();
+            createOrderPromiseRef.current = createPromise;
+            try {
+              return await createPromise;
+            } finally {
+              if (createOrderPromiseRef.current === createPromise) {
+                createOrderPromiseRef.current = null;
+              }
             }
           },
-          onApprove: async ({ orderID }) => {
-            setProcessing(true);
-            setError(null);
-            try {
-              const result = await printShopApi.capturePaypalOrder(orderId, orderID);
-              if (result.paymentStatus !== 'paid') {
-                throw new Error('PayPal sta ancora confermando il pagamento. Controlla tra poco nei tuoi ordini.');
-              }
-              onCapturedRef.current(result);
-            } catch (captureError) {
-              // The PayPal capture may have succeeded while its response or our
-              // webhook crossed this callback. Read the order once before
-              // showing an error so a paid customer is never invited to repay.
+          onApprove: ({ orderID }) => {
+            const existingApproval = approvePromisesRef.current.get(orderID);
+            if (existingApproval) return existingApproval;
+            const approvalPromise = (async () => {
+              let paymentConfirmed = false;
+              setProcessing(true);
+              setError(null);
               try {
-                const recordedOrder = await printShopApi.getOrder(orderId);
-                if (hasRecordedPaypalPayment(recordedOrder)) {
-                  onCapturedRef.current({
-                    orderId: recordedOrder.id,
-                    orderNumber: recordedOrder.orderNumber,
-                    paypalOrderId: recordedOrder.payment.paypalOrderId || orderID,
-                    paypalCaptureId: recordedOrder.payment.paypalCaptureId,
-                    paymentStatus: recordedOrder.payment.status,
-                  });
-                  return;
+                const result = await printShopApi.capturePaypalOrder(orderId, orderID);
+                if (result.paymentStatus !== 'paid') {
+                  throw new Error('PayPal sta ancora confermando il pagamento. Controlla tra poco nei tuoi ordini.');
                 }
-              } catch {
-                // Keep the original capture error; it is more useful to the user.
+                onCapturedRef.current(result);
+                paymentConfirmed = true;
+              } catch (captureError) {
+                // The PayPal capture may have succeeded while its response or our
+                // webhook crossed this callback. Read the order once before
+                // showing an error so a paid customer is never invited to repay.
+                try {
+                  const recordedOrder = await printShopApi.getOrder(orderId);
+                  if (hasRecordedPaypalPayment(recordedOrder)) {
+                    onCapturedRef.current({
+                      orderId: recordedOrder.id,
+                      orderNumber: recordedOrder.orderNumber,
+                      paypalOrderId: recordedOrder.payment.paypalOrderId || orderID,
+                      paypalCaptureId: recordedOrder.payment.paypalCaptureId,
+                      paymentStatus: recordedOrder.payment.status,
+                    });
+                    paymentConfirmed = true;
+                    return;
+                  }
+                } catch {
+                  // Keep the original capture error; it is more useful to the user.
+                }
+                setError(`${checkoutErrorMessage(captureError)} Non ripetere il pagamento: controlla prima “I miei ordini”.`);
+              } finally {
+                setProcessing(false);
               }
-              setError(`${checkoutErrorMessage(captureError)} Non ripetere il pagamento: controlla prima “I miei ordini”.`);
-            } finally {
-              setProcessing(false);
-            }
+              if (!paymentConfirmed) approvePromisesRef.current.delete(orderID);
+            })();
+            approvePromisesRef.current.set(orderID, approvalPromise);
+            return approvalPromise;
           },
           onCancel: () => {
             setProcessing(false);
@@ -233,7 +258,7 @@ export function PayPalCheckout({
           },
         });
         if (buttons.isEligible && !buttons.isEligible()) {
-          throw new Error('PayPal non è disponibile su questo dispositivo. Prova con un altro browser.');
+          throw new Error('PayPal non è supportato in questo browser. Prova con Safari, Chrome, Firefox o Samsung Internet aggiornato.');
         }
         await buttons.render(containerRef.current);
       } catch (setupError) {

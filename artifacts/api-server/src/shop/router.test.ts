@@ -4,6 +4,7 @@ import sharp from 'sharp';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { requireVerifiedCustomer } from '../commerce/http';
+import { createPrintShopAuthenticator } from '../print-shop/auth';
 import { FakeFirestore, FakeStorage } from '../print-shop/test-fakes';
 import { createShopRouter } from './router';
 import { ShopAdminService } from './admin';
@@ -26,7 +27,7 @@ afterEach(async () => {
 const address = { street: 'Via Roma', houseNumber: '12', postalCode: '81031', city: 'Aversa', province: 'CE', country: 'IT' };
 const billing = { fiscalCode: 'RSSMRA85M01H501Q', residenceAddress: address };
 
-async function start() {
+async function start(options: { authenticate?: any } = {}) {
   const db = new FakeFirestore();
   const storage = new FakeStorage();
   db.seed('productCategories/c1', { value: 'natale', nome: 'Natale', attivo: true, displayOrder: 1 });
@@ -73,7 +74,7 @@ async function start() {
     maintenance: { run: maintenanceRun as unknown as ShopMaintenance['run'] },
     adminEmails: ['admin@studio.test'],
     // Il "token" è `email|provider|verificata`: basta a distinguere chi chiama.
-    authenticate: (req: any, res, next) => {
+    authenticate: options.authenticate ?? ((req: any, res, next) => {
       const token = String(req.headers.authorization || '');
       if (!token.startsWith('Bearer ')) {
         res.status(401).json({ error: { code: 'unauthenticated' } });
@@ -82,7 +83,7 @@ async function start() {
       const [email, provider = 'password', verified = 'si'] = token.slice('Bearer '.length).split('|');
       req.user = { uid: email.split('@')[0], email, provider, emailVerified: verified === 'si' };
       next();
-    },
+    }),
     verifiedCustomer: requireVerifiedCustomer,
     maintenanceAuth: (req, res, next) => {
       if (req.get('x-maintenance') !== 'ok') {
@@ -155,6 +156,111 @@ describe('catalogo e impostazioni', () => {
     const ok = await call('/admin/settings', { as: 'admin@studio.test' });
     expect(ok.status).toBe(200);
     expect(ok.headers.get('cache-control')).toBe('private, no-store');
+  });
+
+  it('i costi unitari sono accessibili solo allo studio e non vengono messi in cache', async () => {
+    const { call, db } = await start();
+    db.seed('shopProductCosts/mug', { costoUnitario: 4.25 });
+
+    expect((await call('/admin/product-costs')).status).toBe(401);
+    expect((await call('/admin/product-costs', { as: 'cliente@example.com' })).status).toBe(403);
+    const response = await call('/admin/product-costs', { as: 'admin@studio.test' });
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('private, no-store, max-age=0');
+    expect(await json(response)).toEqual({
+      costs: [{ productId: 'mug', costoUnitario: 4.25 }],
+    });
+  });
+
+  it('salva i prodotti solo come amministratore e mantiene privato il costo', async () => {
+    const { call, db } = await start();
+    const body = { nome: 'Cornice', descrizione: '', prezzo: 20, sconto: 0, numeroFoto: 1, categoria: 'natale', attivo: true, costoUnitario: 10 };
+    expect((await call('/admin/catalog-products', { json: body })).status).toBe(401);
+    expect((await call('/admin/catalog-products', { as: 'cliente@example.com', json: body })).status).toBe(403);
+    const created = await call('/admin/catalog-products', { as: 'admin@studio.test', json: body });
+    expect(created.status).toBe(201);
+    const { id } = await json(created);
+    expect((await db.collection('products').doc(id).get()).data()).not.toHaveProperty('costoUnitario');
+    const updated = await call(`/admin/catalog-products/${id}`, { method: 'PATCH', as: 'admin@studio.test', json: { prezzo: 25 } });
+    expect(updated.status).toBe(200);
+    expect((await db.collection('products').doc(id).get()).data()).toMatchObject({ prezzoFinale: 25 });
+    expect((await call(`/admin/catalog-products/${id}`, { method: 'PATCH', as: 'cliente@example.com', json: { prezzo: 1 } })).status).toBe(403);
+    expect((await call('/admin/catalog-products', { as: 'admin@studio.test', json: { ...body, sconto: 101 } })).status).toBe(400);
+  });
+
+  it('protegge eliminazione e riordino e impedisce modifiche ai formati print shop', async () => {
+    const { call, db } = await start();
+    db.seed('shopProductCosts/mug', { costoUnitario: 4.25 });
+
+    expect((await call('/admin/catalog-products/mug', { method: 'DELETE' })).status).toBe(401);
+    expect((await call('/admin/catalog-products/mug', { method: 'DELETE', as: 'cliente@example.com' })).status).toBe(403);
+    expect((await call('/admin/catalog-products/reorder', { method: 'PUT', json: { ids: ['card', 'mug'] } })).status).toBe(401);
+    expect((await call('/admin/catalog-products/reorder', {
+      method: 'PUT', as: 'cliente@example.com', json: { ids: ['card', 'mug'] },
+    })).status).toBe(403);
+
+    const reordered = await call('/admin/catalog-products/reorder', {
+      method: 'PUT', as: 'admin@studio.test', json: { ids: ['card', 'mug'] },
+    });
+    expect(reordered.status).toBe(200);
+    expect(await json(reordered)).toEqual({ updated: 2 });
+    expect((await db.collection('products').doc('card').get()).data()).toMatchObject({ displayOrder: 1 });
+    expect((await db.collection('products').doc('mug').get()).data()).toMatchObject({ displayOrder: 2 });
+
+    const removed = await call('/admin/catalog-products/mug', { method: 'DELETE', as: 'admin@studio.test' });
+    expect(removed.status).toBe(200);
+    expect((await db.collection('products').doc('mug').get()).exists).toBe(false);
+    expect((await db.collection('shopProductCosts').doc('mug').get()).exists).toBe(false);
+
+    db.seed('products/print-format', { nome: 'Formato', salesChannels: ['admin', 'print_shop'] });
+    expect((await call('/admin/catalog-products/print-format', {
+      method: 'DELETE', as: 'admin@studio.test',
+    })).status).toBe(409);
+    expect((await call('/admin/catalog-products/reorder', {
+      method: 'PUT', as: 'admin@studio.test', json: { ids: ['card', 'print-format'] },
+    })).status).toBe(409);
+    expect((await db.collection('products').doc('print-format').get()).exists).toBe(true);
+  });
+
+  it('richiede la verifica passkey per eliminare o riordinare i prodotti', async () => {
+    const gate = vi.fn(async (decoded: any) => (
+      decoded.email === 'admin@studio.test' && decoded.passkeyVerified !== true
+        ? { status: 403, body: { error: 'Passkey richiesta', code: 'admin_passkey_required' } }
+        : null
+    ));
+    const authenticate = createPrintShopAuthenticator(
+      async (token: string) => {
+        const [email, verification] = token.split('|');
+        return {
+          uid: email.split('@')[0],
+          email,
+          firebase: { sign_in_provider: 'password' },
+          passkeyVerified: verification === 'passkey',
+        } as any;
+      },
+      gate,
+    );
+    const { call, db } = await start({ authenticate });
+
+    const deniedDelete = await call('/admin/catalog-products/mug', {
+      method: 'DELETE', as: 'admin@studio.test',
+    });
+    expect(deniedDelete.status).toBe(403);
+    expect((await json(deniedDelete)).error.code).toBe('admin_passkey_required');
+
+    const deniedReorder = await call('/admin/catalog-products/reorder', {
+      method: 'PUT', as: 'admin@studio.test', json: { ids: ['card', 'mug'] },
+    });
+    expect(deniedReorder.status).toBe(403);
+    expect((await db.collection('products').doc('card').get()).data()).not.toHaveProperty('displayOrder');
+
+    expect((await call('/admin/catalog-products/reorder', {
+      method: 'PUT', as: 'admin@studio.test|passkey', json: { ids: ['card', 'mug'] },
+    })).status).toBe(200);
+    expect((await call('/admin/catalog-products/mug', {
+      method: 'DELETE', as: 'admin@studio.test|passkey',
+    })).status).toBe(200);
+    expect(gate).toHaveBeenCalledTimes(4);
   });
 
   it('salva le impostazioni e rifiuta quelle non valide', async () => {

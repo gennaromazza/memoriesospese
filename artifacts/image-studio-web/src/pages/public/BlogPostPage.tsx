@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Loader2, Calendar, User, Share2, Facebook, Twitter, Linkedin, Clock } from "lucide-react";
 import { BlogPost, BlogPostStatus } from "@shared/schema";
 import { useSEO } from "@/hooks/useSEO";
-import { firstImageCandidateFromHtml } from "@shared/social-metadata";
+import { blogSocialImage } from "@shared/social-metadata";
 import { sanitizeBlogHtml } from "@/lib/blog-html";
 import Navigation from "@/components/Navigation";
 import { captureBlogAttribution, trackBlogConversion, trackBlogEvent } from "@/lib/analytics";
@@ -64,10 +64,7 @@ export default function BlogPostPage() {
   const [relatedPosts, setRelatedPosts] = useState<BlogPost[]>([]);
   const [contextualLinks, setContextualLinks] = useState<BlogContextualLink[]>([]);
   const abortRef = useRef<AbortController | null>(null);
-  const contentImage = firstImageCandidateFromHtml(post?.content, post?.title || "Articolo Image Studio");
-  const articleOgImage = typeof post?.coverImage === 'string'
-    ? post.coverImage
-    : (typeof contentImage?.url === 'string' ? contentImage.url : undefined);
+  const articleImage = blogSocialImage(post || {});
 
   useSEO({
     title: post ? (post.metaTitle || `${post.title} | Blog Image Studio`) : "Blog | Image Studio",
@@ -77,9 +74,12 @@ export default function BlogPostPage() {
       : window.location.pathname,
     pending: !post && !notFound,
     ogType: "article",
-    ogImage: articleOgImage,
-    ogImageAlt: post?.coverImageAlt || post?.title,
-    ogImageSource: post?.coverImage ? "editorial-cover" : "content-image",
+    ogImage: articleImage.url,
+    ogImageAlt: articleImage.alt,
+    ogImageWidth: articleImage.width,
+    ogImageHeight: articleImage.height,
+    ogImageType: articleImage.type,
+    ogImageSource: articleImage.source,
   });
 
   useEffect(() => {
@@ -339,7 +339,7 @@ export default function BlogPostPage() {
             <img
               src={post.coverImage}
               alt={post.coverImageAlt || post.title}
-              className="wedding-cover-image w-full object-cover"
+              className="wedding-cover-image blog-article-cover-image w-full object-cover"
               style={weddingCoverPositionStyle(
                 post.coverImagePosition,
                 post.coverImageMobilePosition,

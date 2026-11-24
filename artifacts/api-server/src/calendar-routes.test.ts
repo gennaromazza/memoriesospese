@@ -13,6 +13,7 @@ const h = vi.hoisted(() => {
     arrayRemove: (...items: any[]) => ({ __arrayRemove: items }),
   };
   return {
+    authEmail: "gennaro.mazzacane@gmail.com" as string | null,
     db: null as any,
     updateEventCalls: [] as any[],
     Timestamp,
@@ -46,7 +47,8 @@ vi.mock("./google-calendar.js", () => ({
 
 vi.mock("./email-routes.js", () => ({
   authenticateFirebase: (req: any, _res: any, next: any) => {
-    req.user = { email: "gennaro.mazzacane@gmail.com" };
+    if (!h.authEmail) return _res.status(401).json({ error: "Non autenticato" });
+    req.user = { email: h.authEmail };
     next();
   },
   sendGmailEmail: vi.fn(async () => {}),
@@ -123,6 +125,22 @@ const server = http.createServer(app);
 await new Promise<void>((r) => server.listen(0, r));
 const port = (server.address() as any).port;
 afterAll(() => server.close());
+
+describe('accesso alla procedura guidata calendario', () => {
+  it.each([
+    ['GET', 'setup'], ['POST', 'setup/verify'], ['POST', 'setup/confirm'],
+  ])('protegge %s %s da utenti anonimi e non admin', async (method, path) => {
+    try {
+      for (const [email, expected] of [[null, 401], ['other@example.test', 403]] as const) {
+        h.authEmail = email;
+        const response = await fetch(`http://127.0.0.1:${port}/api/calendar/${path}`, { method });
+        expect(response.status).toBe(expected);
+      }
+    } finally {
+      h.authEmail = 'gennaro.mazzacane@gmail.com';
+    }
+  });
+});
 
 async function patchEvent(eventId: string, body: any) {
   const res = await fetch(

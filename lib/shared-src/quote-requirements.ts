@@ -178,3 +178,136 @@ export function findInvalidSelections(
     .filter(name => blocked.has(name))
     .map(name => blocked.get(name)!);
 }
+
+/** Restituisce i prodotti attualmente incompatibili con quello indicato. */
+export function getMutuallyExcludedProductNames(
+  rules: RequirementRule[],
+  productName: string
+): string[] {
+  const partners = new Set<string>();
+  for (const rule of rules) {
+    if (!rule.enabled || rule.type !== 'excludes') continue;
+    const group = rule.blockedProductNames ?? [];
+    if (!group.includes(productName)) continue;
+    group.forEach(name => {
+      if (name && name !== productName) partners.add(name);
+    });
+  }
+  return [...partners];
+}
+
+/**
+ * Imposta o rimuove una singola incompatibilità reciproca.
+ *
+ * Le vecchie regole possono contenere gruppi di tre o più prodotti. Quando si
+ * modifica una coppia, li espandiamo in coppie indipendenti per poter rimuovere
+ * solo quella relazione senza cancellare le altre.
+ */
+export function setMutualExclusionPair(
+  rules: RequirementRule[],
+  productName: string,
+  incompatibleProductName: string,
+  isIncompatible: boolean,
+  createId: () => string
+): RequirementRule[] {
+  if (!productName || !incompatibleProductName || productName === incompatibleProductName) {
+    return rules;
+  }
+
+  const pairKey = (left: string, right: string) =>
+    JSON.stringify([left, right].sort((a, b) => a.localeCompare(b)));
+  const result: RequirementRule[] = [];
+  const pairIndexes = new Map<string, number>();
+
+  const addPair = (pair: RequirementRule) => {
+    const key = pairKey(pair.blockedProductNames[0], pair.blockedProductNames[1]);
+    const existingIndex = pairIndexes.get(key);
+    if (existingIndex === undefined) {
+      pairIndexes.set(key, result.length);
+      result.push(pair);
+      return;
+    }
+
+    // Una relazione duplicata resta attiva se almeno una delle sue regole lo è.
+    if (pair.enabled && !result[existingIndex].enabled) {
+      result[existingIndex] = { ...result[existingIndex], enabled: true };
+    }
+  };
+
+  for (const rule of rules) {
+    if (rule.type !== 'excludes') {
+      result.push(rule);
+      continue;
+    }
+
+    const group = [...new Set(rule.blockedProductNames ?? [])];
+    if (group.length < 2) {
+      // Conserva le regole incomplete, che il motore ignora in sicurezza.
+      result.push(rule);
+      continue;
+    }
+
+    for (let leftIndex = 0; leftIndex < group.length; leftIndex += 1) {
+      for (let rightIndex = leftIndex + 1; rightIndex < group.length; rightIndex += 1) {
+        addPair({
+          id: group.length === 2 ? rule.id : createId(),
+          enabled: rule.enabled,
+          type: 'excludes',
+          blockedProductNames: [group[leftIndex], group[rightIndex]],
+          requiredProductNames: [],
+        });
+      }
+    }
+  }
+
+  const targetKey = pairKey(productName, incompatibleProductName);
+  const targetIndex = pairIndexes.get(targetKey);
+  if (!isIncompatible) {
+    if (targetIndex !== undefined) result.splice(targetIndex, 1);
+    // Gli indici registrati non servono più dopo la rimozione.
+    return result;
+  }
+
+  if (targetIndex !== undefined) {
+    result[targetIndex] = { ...result[targetIndex], enabled: true };
+    return result;
+  }
+
+  result.push({
+    id: createId(),
+    enabled: true,
+    type: 'excludes',
+    blockedProductNames: [productName, incompatibleProductName],
+    requiredProductNames: [],
+  });
+  return result;
+}
+
+/** Elimina riferimenti a prodotti rimossi dall'offerta, evitando regole dormienti. */
+export function pruneRequirementRules(
+  rules: RequirementRule[],
+  availableProductNames: string[]
+): RequirementRule[] {
+  const available = new Set(availableProductNames);
+
+  return rules.flatMap(rule => {
+    if (rule.type === 'excludes') {
+      const group = [...new Set(rule.blockedProductNames ?? [])].filter(name => available.has(name));
+      return group.length >= 2
+        ? [{ ...rule, blockedProductNames: group, requiredProductNames: [] }]
+        : [];
+    }
+
+    const blockedProductNames = (rule.blockedProductNames ?? []).filter(name => available.has(name));
+    const requiredProductNames = rule.requiredProductNames ?? [];
+    if (
+      blockedProductNames.length === 0 ||
+      requiredProductNames.length === 0 ||
+      requiredProductNames.some(name => !available.has(name))
+    ) {
+      return [];
+    }
+
+    return [{ ...rule, blockedProductNames }];
+  });
+}

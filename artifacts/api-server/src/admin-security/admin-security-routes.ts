@@ -24,16 +24,31 @@ import { readAdminPasskeyClaim, readAuthTime } from './admin-identity.js';
 import {
   PasskeyError,
   describeSecurity,
+  cancelDeviceEnrollment,
+  createDeviceEnrollmentRequest,
   finishAuthentication,
+  finishDeviceEnrollmentApproval,
+  finishDeviceEnrollmentRegistration,
   finishDesktopHandoffAuthentication,
   finishRegistration,
   finalizeDesktopHandoff,
+  forgetAllRememberedDevices,
+  forgetRememberedDevice,
   getCurrentPasskeyClaim,
+  getDeviceEnrollmentApprovalInfo,
+  getDeviceEnrollmentStatus,
+  hasFreshPasskeyProof,
+  listRememberedDeviceSummaries,
   redeemRecoveryCode,
+  rememberVerifiedDevice,
   regenerateRecoveryCodes,
+  rejectDeviceEnrollment,
+  restoreRememberedDevice,
   revokePasskey,
   setEnforcement,
   startAuthentication,
+  startDeviceEnrollmentApproval,
+  startDeviceEnrollmentRegistration,
   startDesktopHandoffAuthentication,
   startRegistration,
   DESKTOP_HANDOFF_TTL_MS,
@@ -48,7 +63,11 @@ import {
 
 const router = express.Router();
 const handoffIdSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
+const deviceEnrollmentIdSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
 const verifierSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
+const rememberedDeviceIdSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
+const REMEMBERED_DEVICE_COOKIE = '__Host-admin-device';
+const REMEMBERED_DEVICE_COOKIE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
 const verifierHashSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
 // Queste route servono a ottenere la verifica: il gate centrale di
 // `authenticateFirebase` non deve bloccarle.
@@ -95,6 +114,35 @@ function handoffVerifierMatches(expectedHash: string, verifier: string): boolean
   return expected.length === actualBytes.length && timingSafeEqual(expected, actualBytes);
 }
 
+function readRememberedDeviceCookie(req: Request): string | undefined {
+  const cookieHeader = req.headers.cookie;
+  if (!cookieHeader) return undefined;
+  for (const entry of cookieHeader.split(';')) {
+    const separator = entry.indexOf('=');
+    if (separator < 0 || entry.slice(0, separator).trim() !== REMEMBERED_DEVICE_COOKIE) continue;
+    try {
+      return decodeURIComponent(entry.slice(separator + 1).trim());
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
+function setRememberedDeviceCookie(res: Response, value: string) {
+  res.setHeader(
+    'Set-Cookie',
+    `${REMEMBERED_DEVICE_COOKIE}=${encodeURIComponent(value)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${REMEMBERED_DEVICE_COOKIE_MAX_AGE_SECONDS}`,
+  );
+}
+
+function clearRememberedDeviceCookie(res: Response) {
+  res.setHeader(
+    'Set-Cookie',
+    `${REMEMBERED_DEVICE_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`,
+  );
+}
+
 function desktopHandoffClaim(req: Request): { id: string; nonce: string } | null {
   const user = (req as any).user as AuthenticatedUser;
   const claim = user.claims?.adminDesktopHandoff;
@@ -111,16 +159,42 @@ function desktopHandoffClaim(req: Request): { id: string; nonce: string } | null
   return { id: value.id, nonce: value.nonce };
 }
 
+function deviceEnrollmentIdOf(req: Request, res: Response): string | null {
+  const enrollmentId = deviceEnrollmentIdSchema.safeParse(req.params.enrollmentId);
+  if (enrollmentId.success) return enrollmentId.data;
+  res.status(404).json({ error: 'Richiesta non valida o scaduta', code: 'device_enrollment_not_found' });
+  return null;
+}
+
+const deviceEnrollmentStartSchema = z.object({
+  verifierHash: verifierHashSchema,
+  deviceLabel: z.string().trim().min(1).max(60),
+});
+const deviceEnrollmentSecretSchema = z.object({ verifier: verifierSchema });
+const deviceEnrollmentAuthenticationVerifySchema = z.object({
+  response: z.object({ id: z.string().min(1) }).passthrough(),
+});
+const deviceEnrollmentRegistrationVerifySchema = z.object({
+  verifier: verifierSchema,
+  response: z.object({ id: z.string().min(1) }).passthrough(),
+});
+
 /**
  * Quando l'obbligo è attivo le modifiche richiedono una verifica corrente.
  * Prima dell'attivazione (bootstrap) basta l'identità admin.
  */
 async function requireVerifiedWhenEnforced(req: Request, res: Response, next: NextFunction) {
   try {
-    const evaluation = await evaluateAdminPasskey((req as any).user as AuthenticatedUser);
-    if (evaluation.passkeyRequired && !evaluation.verified) {      res.status(403).json({
-        error: 'Verifica passkey richiesta per modificare le impostazioni di sicurezza',
-        code: ADMIN_PASSKEY_REQUIRED_CODE,
+    const user = (req as any).user as AuthenticatedUser;
+    const state = await loadState(user.uid);
+    const passkeys = await listPasskeys(user.uid);
+    if (!state.passkeyRequired && passkeys.length === 0) return next();
+    const identity = identityOf(req, res);
+    if (!identity) return;
+    if (!hasFreshPasskeyProof(state, identity, readAdminPasskeyClaim(user.claims), req.headers.origin)) {
+      res.status(403).json({
+        error: 'Verifica di nuovo la passkey prima di modificare le impostazioni di sicurezza',
+        code: 'fresh_passkey_required',
       });
       return;
     }
@@ -136,10 +210,13 @@ async function requireVerifiedForAdditionalPasskey(req: Request, res: Response, 
     const user = (req as any).user as AuthenticatedUser;
     const existing = await listPasskeys(user.uid);
     if (existing.length === 0) return next();
-    const evaluation = await evaluateAdminPasskey(user);
-    if (!evaluation.verified) {      res.status(403).json({
-        error: 'Verifica la passkey esistente prima di aggiungerne un’altra',
-        code: ADMIN_PASSKEY_REQUIRED_CODE,
+    const state = await loadState(user.uid);
+    const identity = identityOf(req, res);
+    if (!identity) return;
+    if (!hasFreshPasskeyProof(state, identity, readAdminPasskeyClaim(user.claims), req.headers.origin)) {
+      res.status(403).json({
+        error: 'Verifica di nuovo una passkey esistente prima di aggiungerne un’altra',
+        code: 'fresh_passkey_required',
       });
       return;
     }
@@ -162,18 +239,292 @@ router.get('/status', async (req, res) => {
     const user = (req as any).user as AuthenticatedUser;
     const identity = identityOf(req, res);
     if (!identity) return;
-    const [summary, evaluation, expectedClaim] = await Promise.all([
+    const [summary, evaluation, expectedClaim, rememberedDevices] = await Promise.all([
       describeSecurity(user.uid, identity, readAdminPasskeyClaim(user.claims), statusOrigin(req)),
       evaluateAdminPasskey(user),
       getCurrentPasskeyClaim(user.uid),
+      listRememberedDeviceSummaries(user.uid),
     ]);
     res.json({
       ...summary,
       activationReady: summary.activationReady && evaluation.verified,
       verified: evaluation.verified,
       verifiedUntil: evaluation.verifiedUntil,
+      rememberedDeviceId: evaluation.rememberedDeviceId,
+      rememberedDevices,
       expectedClaim,
     });
+  } catch (error) {
+    handleError(error, req, res);
+  }
+});
+
+router.post('/devices/restore', async (req, res) => {
+  const rp = relyingPartyOf(req, res);
+  if (!rp) return;
+  const identity = identityOf(req, res);
+  if (!identity) return;
+  if (!isProductionPasskeyOrigin(rp.origin)) {
+    // Il browser Preview non riceve il cookie __Host- del sito ufficiale.
+    // Non ripristinare fiducia fuori produzione, ma non trasformare questo
+    // caso previsto in un errore che impedisce il controllo MFA successivo.
+    if (readRememberedDeviceCookie(req)) clearRememberedDeviceCookie(res);
+    res.json({ restored: false });
+    return;
+  }
+  try {
+    const result = await restoreRememberedDevice(
+      identity,
+      readRememberedDeviceCookie(req),
+      (req as any).user?.claims,
+    );
+    if (!result.valid) {
+      if (readRememberedDeviceCookie(req)) clearRememberedDeviceCookie(res);
+      res.json({ restored: false });
+      return;
+    }
+    res.json({
+      restored: true,
+      deviceId: result.id,
+      expiresAt: result.expiresAt,
+      ...(result.customToken ? { customToken: result.customToken } : {}),
+    });
+  } catch (error) {
+    handleError(error, req, res);
+  }
+});
+
+router.delete('/devices/:deviceId', requireVerifiedWhenEnforced, async (req, res) => {
+  const deviceId = rememberedDeviceIdSchema.safeParse(req.params.deviceId);
+  if (!deviceId.success) {
+    res.status(404).json({ error: 'Dispositivo non trovato', code: 'remembered_device_not_found' });
+    return;
+  }
+  const identity = identityOf(req, res);
+  if (!identity) return;
+  try {
+    const revoked = await forgetRememberedDevice(identity.uid, deviceId.data);
+    if (!revoked) {
+      res.status(404).json({ error: 'Dispositivo non trovato', code: 'remembered_device_not_found' });
+      return;
+    }
+    const cookie = readRememberedDeviceCookie(req);
+    if (cookie?.startsWith(`${deviceId.data}.`)) clearRememberedDeviceCookie(res);
+    res.json({ success: true });
+  } catch (error) {
+    handleError(error, req, res);
+  }
+});
+
+router.post('/devices/revoke-all', requireVerifiedWhenEnforced, async (req, res) => {
+  const identity = identityOf(req, res);
+  if (!identity) return;
+  try {
+    await forgetAllRememberedDevices(identity.uid);
+    clearRememberedDeviceCookie(res);
+    res.json({ success: true });
+  } catch (error) {
+    handleError(error, req, res);
+  }
+});
+
+/**
+ * QR pairing adds exactly one passkey to the requesting device. It never mints
+ * a general admin-verification claim or transfers the trusted device session.
+ */
+router.post('/device-enrollment/start', async (req, res) => {
+  const parsed = deviceEnrollmentStartSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Dati per la richiesta dispositivo non validi', code: 'invalid_body' });
+    return;
+  }
+  const rp = relyingPartyOf(req, res);
+  if (!rp) return;
+  const identity = identityOf(req, res);
+  if (!identity) return;
+  const enrollmentId = randomBytes(32).toString('base64url');
+  try {
+    const { expiresAt } = await createDeviceEnrollmentRequest(
+      identity,
+      rp,
+      enrollmentId,
+      parsed.data.verifierHash,
+      parsed.data.deviceLabel,
+    );
+    const approvalUrl = new URL('/admin/authorize-device', 'https://imagestudiofotografico.com');
+    approvalUrl.searchParams.set('deviceEnrollment', enrollmentId);
+    res.json({ enrollmentId, approvalUrl: approvalUrl.toString(), expiresAt });
+  } catch (error) {
+    handleError(error, req, res);
+  }
+});
+
+router.post('/device-enrollment/:enrollmentId/approval-info', async (req, res) => {
+  const enrollmentId = deviceEnrollmentIdOf(req, res);
+  if (!enrollmentId) return;
+  const rp = relyingPartyOf(req, res);
+  if (!rp) {
+    return;
+  }
+  if (!isProductionPasskeyOrigin(rp.origin)) {
+    res.status(400).json({ error: 'Apri la richiesta dal sito ufficiale', code: 'origin_not_allowed' });
+    return;
+  }
+  const identity = identityOf(req, res);
+  if (!identity) return;
+  try {
+    const info = await getDeviceEnrollmentApprovalInfo(identity.uid, enrollmentId);
+    if (!info) {
+      res.status(404).json({ error: 'Richiesta non valida o scaduta', code: 'device_enrollment_not_found' });
+      return;
+    }
+    res.json(info);
+  } catch (error) {
+    handleError(error, req, res);
+  }
+});
+
+router.post('/device-enrollment/:enrollmentId/status', async (req, res) => {
+  const enrollmentId = deviceEnrollmentIdOf(req, res);
+  if (!enrollmentId) return;
+  const parsed = deviceEnrollmentSecretSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Verifica della richiesta non valida', code: 'invalid_body' });
+    return;
+  }
+  const rp = relyingPartyOf(req, res);
+  if (!rp) return;
+  const identity = identityOf(req, res);
+  if (!identity) return;
+  try {
+    res.json(await getDeviceEnrollmentStatus(identity, rp, enrollmentId, parsed.data.verifier));
+  } catch (error) {
+    handleError(error, req, res);
+  }
+});
+
+router.post('/device-enrollment/:enrollmentId/cancel', async (req, res) => {
+  const enrollmentId = deviceEnrollmentIdOf(req, res);
+  if (!enrollmentId) return;
+  const parsed = deviceEnrollmentSecretSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Verifica della richiesta non valida', code: 'invalid_body' });
+    return;
+  }
+  const rp = relyingPartyOf(req, res);
+  if (!rp) return;
+  const identity = identityOf(req, res);
+  if (!identity) return;
+  try {
+    await cancelDeviceEnrollment(identity, rp, enrollmentId, parsed.data.verifier);
+    res.json({ cancelled: true });
+  } catch (error) {
+    handleError(error, req, res);
+  }
+});
+
+router.post('/device-enrollment/:enrollmentId/reject', requireVerifiedWhenEnforced, async (req, res) => {
+  const enrollmentId = deviceEnrollmentIdOf(req, res);
+  if (!enrollmentId) return;
+  const rp = relyingPartyOf(req, res);
+  if (!rp) return;
+  if (!isProductionPasskeyOrigin(rp.origin)) {
+    res.status(400).json({ error: 'Apri la richiesta dal sito ufficiale', code: 'origin_not_allowed' });
+    return;
+  }
+  const identity = identityOf(req, res);
+  if (!identity) return;
+  try {
+    await rejectDeviceEnrollment(identity, enrollmentId);
+    res.json({ rejected: true });
+  } catch (error) {
+    handleError(error, req, res);
+  }
+});
+
+router.post('/device-enrollment/:enrollmentId/authentication/options', async (req, res) => {
+  const enrollmentId = deviceEnrollmentIdOf(req, res);
+  if (!enrollmentId) return;
+  const rp = relyingPartyOf(req, res);
+  if (!rp) return;
+  const identity = identityOf(req, res);
+  if (!identity) return;
+  try {
+    res.json(await startDeviceEnrollmentApproval(identity, rp, enrollmentId));
+  } catch (error) {
+    handleError(error, req, res);
+  }
+});
+
+const deviceEnrollmentAuthenticationResponseSchema = deviceEnrollmentAuthenticationVerifySchema;
+router.post('/device-enrollment/:enrollmentId/authentication/verify', async (req, res) => {
+  const enrollmentId = deviceEnrollmentIdOf(req, res);
+  if (!enrollmentId) return;
+  const rp = relyingPartyOf(req, res);
+  if (!rp) return;
+  const parsed = deviceEnrollmentAuthenticationResponseSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Risposta di autenticazione non valida', code: 'invalid_body' });
+    return;
+  }
+  const identity = identityOf(req, res);
+  if (!identity) return;
+  try {
+    res.json(await finishDeviceEnrollmentApproval(
+      identity,
+      rp,
+      enrollmentId,
+      parsed.data.response as any,
+    ));
+  } catch (error) {
+    handleError(error, req, res);
+  }
+});
+
+router.post('/device-enrollment/:enrollmentId/registration/options', async (req, res) => {
+  const enrollmentId = deviceEnrollmentIdOf(req, res);
+  if (!enrollmentId) return;
+  const parsed = deviceEnrollmentSecretSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Verifica della richiesta non valida', code: 'invalid_body' });
+    return;
+  }
+  const rp = relyingPartyOf(req, res);
+  if (!rp) return;
+  const identity = identityOf(req, res);
+  if (!identity) return;
+  try {
+    res.json(await startDeviceEnrollmentRegistration(
+      identity,
+      rp,
+      enrollmentId,
+      parsed.data.verifier,
+    ));
+  } catch (error) {
+    handleError(error, req, res);
+  }
+});
+
+router.post('/device-enrollment/:enrollmentId/registration/verify', async (req, res) => {
+  const enrollmentId = deviceEnrollmentIdOf(req, res);
+  if (!enrollmentId) return;
+  const parsed = deviceEnrollmentRegistrationVerifySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Risposta di registrazione non valida', code: 'invalid_body' });
+    return;
+  }
+  const rp = relyingPartyOf(req, res);
+  if (!rp) return;
+  const identity = identityOf(req, res);
+  if (!identity) return;
+  try {
+    res.json(await finishDeviceEnrollmentRegistration(
+      identity,
+      rp,
+      enrollmentId,
+      parsed.data.verifier,
+      parsed.data.response as any,
+    ));
   } catch (error) {
     handleError(error, req, res);
   }
@@ -430,6 +781,8 @@ router.post('/authentication/options', async (req, res) => {
 
 const authenticationVerifySchema = z.object({
   response: z.object({ id: z.string().min(1) }).passthrough(),
+  rememberDevice: z.boolean().optional().default(false),
+  deviceLabel: z.string().trim().max(60).optional().default(''),
 });
 
 router.post('/authentication/verify', async (req, res) => {
@@ -443,7 +796,23 @@ router.post('/authentication/verify', async (req, res) => {
   if (!identity) return;
   try {
     const claim = await finishAuthentication(identity, rp, parsed.data.response as any);
-    res.json({ verifiedUntil: claim.exp, expectedClaim: claim });
+    if (!parsed.data.rememberDevice) {
+      res.json({ verifiedUntil: claim.exp, expectedClaim: claim });
+      return;
+    }
+    const remembered = await rememberVerifiedDevice(
+      identity,
+      claim,
+      rp.origin,
+      parsed.data.deviceLabel,
+    );
+    setRememberedDeviceCookie(res, remembered.cookieValue);
+    res.json({
+      verifiedUntil: claim.exp,
+      expectedClaim: claim,
+      rememberedDevice: { id: remembered.id, expiresAt: remembered.expiresAt },
+      customToken: remembered.customToken,
+    });
   } catch (error) {
     handleError(error, req, res);
   }

@@ -14,6 +14,61 @@ async function setup() {
 }
 
 describe('Manual acceptance of an unconfirmed print draft', () => {
+  it('persists the 15 €/50 print offline draft as deferred, not collected, and permits lab preparation', async () => {
+    const f = await deferredFixture({ unconfirmed: true, copies: 50, unitPriceCents: 30 });
+    const draft = await f.service.adminOrder(f.orderId);
+    expect(draft.totals.totalCents).toBe(1500);
+    expect(draft.printShop.copyCount).toBe(50);
+    expect(draft.manualAcceptanceEligibility.canAccept).toBe(true);
+    expect(draft.deferredPaymentEligibility.canAuthorize).toBe(false);
+    await f.service.acceptDraftManually(f.orderId, testAdmin, {
+      note: 'Conferma telefonica di 50 stampe, saldo al ritiro', confirmed: true,
+      expectedQuoteFingerprint: draft.quoteFingerprint,
+      expectedSnapshotHash: draft.manualAcceptanceEligibility.snapshotHash,
+      expectedTotalCents: 1500,
+    });
+    // A failed second step cannot undo or require repeating the first.
+    await f.db.collection('orders').doc(f.orderId).update({ 'payment.paypalOrderId': 'PAYPAL-DEFERRED-TEST' });
+    f.setProviderStatus('APPROVED');
+    await expect(f.authorize()).rejects.toMatchObject({ code: 'paypal_payment_unresolved' });
+    const accepted = await f.service.adminOrder(f.orderId);
+    expect(accepted.printShop.adminAcceptance).toBeTruthy();
+    expect(accepted.manualAcceptanceEligibility.canAccept).toBe(false);
+    expect(accepted.deferredPaymentEligibility.canAuthorize).toBe(false);
+    expect(accepted.deferredPaymentEligibility.reason).toContain('PayPal');
+    f.setProviderStatus('VOIDED');
+    await f.authorize();
+    const reopened = await f.service.adminOrder(f.orderId);
+    expect(reopened.payment).toMatchObject({
+      status: 'deferred', method: 'pay_on_delivery', collectedCents: 0, dueCents: 1500,
+    });
+    expect(reopened.fulfillment.status).toBe('submitted');
+    expect(reopened.transactions).toEqual([]);
+    expect(f.db.countCollection('cashMovements')).toBe(0);
+    await expect(f.service.createLabShipment(f.orderId, { labId: 'lab_test' }, testAdmin))
+      .resolves.toHaveProperty('id');
+  });
+
+  it.each(['APPROVED', 'COMPLETED'])('does not offer manual acceptance of a draft with PayPal %s', async status => {
+    const f = await setup();
+    await f.db.collection('orders').doc(f.orderId).update({ 'payment.paypalOrderId': 'PAYPAL-DEFERRED-TEST' });
+    f.setProviderStatus(status);
+    const detail = await f.service.adminOrder(f.orderId);
+    expect(detail.manualAcceptanceEligibility.canAccept).toBe(false);
+    expect(detail.manualAcceptanceEligibility.reason).toContain('PayPal');
+    expect(detail.deferredPaymentEligibility.canAuthorize).toBe(false);
+  });
+
+  it('does not suggest manual acceptance or checkout for an unconfirmed cancelled draft', async () => {
+    const f = await setup();
+    await f.db.collection('orders').doc(f.orderId).update({ 'fulfillment.status': 'cancelled' });
+    const detail = await f.service.adminOrder(f.orderId);
+    expect(detail.manualAcceptanceEligibility.canAccept).toBe(false);
+    expect(detail.deferredPaymentEligibility).toMatchObject({ canAuthorize: false, canRestore: false });
+    expect(detail.deferredPaymentEligibility.reason).toContain('crea un nuovo ordine');
+    expect(detail.deferredPaymentEligibility.reason).not.toContain('accetta manualmente');
+  });
+
   it('accepts offline instructions, then separately authorizes production without inventing money or customer consent', async () => {
     const f = await setup();
     expect((await f.service.adminOrder(f.orderId)).manualAcceptanceEligibility.canAccept).toBe(true);

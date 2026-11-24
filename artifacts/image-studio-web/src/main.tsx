@@ -1,4 +1,5 @@
 // client/src/main.tsx
+import "./features/booking/payment-link-token";
 import React, { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { Router } from "wouter";

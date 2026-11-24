@@ -705,7 +705,9 @@ export default function EditOrderModal({ order, products, onClose, onOrderUpdate
                               {transaction.note || '-'}
                             </TableCell>
                             <TableCell className="text-center">
-                              {!isDeleting ? (
+                              {transaction.source === 'booking_paypal_deposit' ? (
+                                <span className="text-xs text-muted-foreground">Gestisci dalla prenotazione</span>
+                              ) : !isDeleting ? (
                                 <Button
                                   variant="ghost"
                                   size="sm"

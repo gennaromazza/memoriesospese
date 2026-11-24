@@ -9,7 +9,7 @@ vi.mock('./firebase-admin.js', () => ({
   FieldValue: { serverTimestamp: () => ({}) },
 }));
 vi.mock('firebase-admin/firestore', () => ({ Timestamp: { fromDate: (date: Date) => ({ date }), now: () => ({}) } }));
-vi.mock('./google-calendar.js', () => ({ getAvailableSlots: vi.fn(), deleteEvent: vi.fn() }));
+vi.mock('./google-calendar.js', () => ({ getAvailableSlots: vi.fn(), deleteEvent: vi.fn(), createEvent: vi.fn(), getEventById: vi.fn(), resolveCalendarId: () => 'primary' }));
 vi.mock('./email-routes.js', () => ({
   authenticateFirebase: (req: any, res: any, next: any) => {
     if (!req.headers.authorization) return res.status(401).json({ error: 'Token mancante' });
@@ -47,5 +47,15 @@ describe('protezione delle route booking amministrative', () => {
       body: JSON.stringify({ date: '2026-09-17', campaignId: 'campaign-1', isManualBooking: true }),
     });
     expect(response.status).toBe(401);
+  });
+
+  it.each(['/create', '/v2/create'])('rifiuta flag manuali non booleani su %s prima di leggere i dati', async route => {
+    for (const isManual of ['true', 'false', 1, {}]) {
+      const response = await fetch(`${base}/api/booking${route}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isManual }),
+      });
+      expect(response.status).toBe(400);
+    }
   });
 });

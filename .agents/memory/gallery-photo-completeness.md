@@ -24,6 +24,11 @@ Il metodo di fetch completo deve `throw` sull'errore, non `catch → return []`.
 **Why:** se il comparator ignora una prop, quella prop non si aggiorna finché un'ALTRA prop (es. `index`) non cambia e forza il re-render.
 **How to apply:** non chiudere mai sull'array. Usa un handler stabile (`useCallback`) che rilegge l'elenco corrente da una `ref` aggiornata via `useEffect`, identificando la sorgente con un valore STABILE (indice per la vista standard; id del capitolo per i capitoli). La closure può catturare solo valori stabili.
 
+## Riapertura lightbox con una sorgente diversa
+Quando la lightbox si riapre su un nuovo elenco (per esempio dopo un filtro o un cambio capitolo), `initialIndex` rappresenta la foto appena cliccata e deve avere priorità. La riconciliazione per ID della foto precedente va eseguita solo se l'elenco cambia mentre la lightbox è già aperta, non nel passaggio chiusa→aperta.
+**Why:** l'indice mantenuto dalla sessione precedente può indicare un'immagine ancora presente nel nuovo elenco e sovrascrivere la scelta appena fatta.
+**How to apply:** traccia lo stato di apertura precedente; salta il riallineamento all'apertura e mantienilo solo per aggiornamenti della lista durante la visualizzazione.
+
 ## Il progetto NON compila pulito con `tsc` — build via Vite/esbuild
 `tsc --noEmit` produce decine di errori PREESISTENTI (es. `useInfiniteQuery` usa l'API v5 `initialPageParam` che i types installati di `@tanstack/react-query` rifiutano → `infiniteData` degrada a `unknown`; `fetchpriority` lowercase; mismatch Timestamp/Date in Home/Campaigns). Il dev/build gira via Vite (esbuild) che NON type-checka.
 **How to apply:** non aspettarti `tsc` pulito; verifica solo che le TUE modifiche non aggiungano NUOVI errori (grep dei tuoi file nell'output tsc). Dove `infiniteData` è `unknown`, accedi alle pagine via un cast locale solo-tipi (`as unknown as { pages?: Array<{photos: Photo[]}> }`).

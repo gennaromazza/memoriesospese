@@ -5,11 +5,13 @@ import {
   cartLines,
   emptyCart,
   parseStoredCart,
+  pendingShopOrderCount,
   pruneCart,
   removeFromCart,
   serializeCart,
   setCartQuantity,
 } from './shop-cart';
+import type { ShopOrderDto } from '@shared/shop-types';
 
 const mug = { id: 'mug', photosRequired: 1 };
 const card = { id: 'card', photosRequired: 0 };
@@ -101,5 +103,24 @@ describe('carrello salvato', () => {
   it('non carica più righe del massimo', () => {
     const items = Array.from({ length: 50 }, (_, index) => ({ key: `k${index}`, productId: 'p', quantity: 1 }));
     expect(parseStoredCart(JSON.stringify({ version: 1, items })).items).toHaveLength(20);
+  });
+});
+
+describe('articoli trasferiti nella bozza', () => {
+  const draft = {
+    canEdit: true, paymentStatus: 'pending', fulfillmentStatus: 'draft',
+    lines: [{ quantity: 2 }, { quantity: 1 }],
+  } as ShopOrderDto;
+
+  it('conta anche gli articoli salvati nell’ordine non pagato', () => {
+    expect(pendingShopOrderCount(draft)).toBe(3);
+    expect(pendingShopOrderCount({ ...draft, paymentStatus: 'failed' })).toBe(3);
+  });
+
+  it('non mostra ordini pagati, annullati o non modificabili nel carrello', () => {
+    expect(pendingShopOrderCount(undefined)).toBe(0);
+    expect(pendingShopOrderCount({ ...draft, canEdit: false })).toBe(0);
+    expect(pendingShopOrderCount({ ...draft, fulfillmentStatus: 'cancelled' })).toBe(0);
+    expect(pendingShopOrderCount({ ...draft, paymentStatus: 'paid' })).toBe(0);
   });
 });

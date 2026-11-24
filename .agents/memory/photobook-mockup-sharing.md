@@ -1,0 +1,50 @@
+---
+name: Condivisione manuale dei mockup fotolibri
+description: Perché l’anteprima cliente deve essere condivisibile anche fuori dal flusso email automatico.
+---
+
+L’approvazione manuale delle pagine e la preparazione del mockup da parte dello studio devono permettere l’invio manuale di un semplice link di anteprima al cliente.
+
+Quando il cliente cambia modello partendo da una bozza salvata, il browser può chiedere conferma prima di sostituire configurazioni incompatibili. Nei test Playwright la finestra va accettata esplicitamente: se viene chiusa, il selettore resta aperto senza procedere.
+
+**Why:** I test browser possono chiudere automaticamente `window.confirm`; il passaggio sembra bloccato anche se l’interfaccia sta proteggendo le personalizzazioni esistenti.
+
+**How to apply:** Nei test E2E che passano da una bozza salvata a un altro modello, gestire la conferma prima di controllare l’avvio del renderer.
+
+**Why:** Lo studio può aver già concordato il risultato con il cliente fuori dalla piattaforma: prepara il mockup e vuole inviare un link perché il cliente lo controlli e lo approvi, senza personalizzarlo.
+
+**How to apply:** La conferma tecnica dello studio prepara il mockup condivisibile; l’approvazione del cliente è un passaggio distinto, riferito alla revisione vista. Il cliente non deve personalizzare il modello. Nessuna di queste azioni avvia automaticamente la stampa. Una modifica successiva richiede una nuova approvazione.
+
+## Fotolibri autonomi
+
+Un fotolibro senza lavoro e senza galleria è un elemento distinto dai fotolibri collegati e va mostrato in una sezione separata, anche nell’archivio delle stampe. L’editor deve accettare pagine caricate direttamente e la spedizione al laboratorio non deve inventare o richiedere un lavoro associato.
+
+**Why:** Alcuni fotolibri vengono preparati o ristampati indipendentemente da un servizio fotografico registrato; mescolarli ai lavori collegati crea confusione e un job fittizio altererebbe i dati operativi.
+
+**How to apply:** Mantieni il link cliente copiabile per la condivisione manuale. Senza una galleria non proporre foto sostitutive; nella spedizione usa le pagine del fotolibro e le istruzioni inserite per quella consegna, senza snapshot o timeline di un job.
+
+Anche l’assegnazione del modello e il salvataggio del mockup devono funzionare senza `jobId`. Applicare comunque i normali controlli di autorizzazione, versione e modello: l’assenza del lavoro non è un errore né va corretta inventando un’associazione.
+
+**Why:** I fotolibri autonomi possono avere un mockup completo e modificabile, indipendente dal lavoro fotografico.
+
+**How to apply:** Le route del mockup non devono imporre un lavoro collegato per assegnare il modello, salvare la bozza o gestire la revisione.
+
+Un fotolibro autonomo può condividere e far confermare il mockup prima che siano state caricate pagine. Questa conferma appartiene alla revisione del mockup, non approva un’impaginazione assente. La prima versione grafica deve essere pubblicata come bozza separata e richiede poi la normale revisione cliente.
+
+**Why:** Il mockup può essere concordato in anticipo, ma non deve apparire come un’approvazione di pagine fittizie né impedire allo studio di caricare in seguito l’impaginato reale.
+
+**How to apply:** Permettere la conferma sul link mockup senza pagine; nascondere e rifiutare l’approvazione dell’impaginato finché non esistono pagine; quando si crea la versione grafica, conservare la revisione mockup originaria senza copiarne la conferma cliente.
+
+Lo studio deve poter correggere un modello assegnato per errore. Le modifiche locali non salvate possono richiedere una conferma prima di cambiare modello, ma non devono bloccare definitivamente il selettore; le bozze già salvate hanno una conferma separata e restano nello storico.
+
+**Why:** Una prima assegnazione può essere sbagliata e l’admin deve poter correggerla senza perdere silenziosamente le modifiche in corso o la revisione già salvata.
+
+**How to apply:** Se la bozza locale è modificata, chiedi conferma prima di aprire il selettore e abilitalo solo dopo il consenso. Dopo il salvataggio di un nuovo modello, azzera lo stato sporco e rigenera l’anteprima sul nuovo modello.
+
+## Invio in stampa
+
+Bloccare un fotolibro lo rende di sola lettura per il cliente e lo archivia, ma non significa che l’email al laboratorio sia stata inviata. La spedizione crea la cartella Drive e avvia il trasferimento delle pagine; l’invio al laboratorio è un’azione separata, disponibile dopo il trasferimento.
+
+**Why:** La preparazione su Drive e la comunicazione al laboratorio hanno esiti e tempi separati; chiamare entrambi “mandato in stampa” nasconde quando il fornitore ha davvero ricevuto il link.
+
+**How to apply:** Mostrare i fotolibri bloccati nell’archivio, esplicitare trasferimento e stato email, e tenere visibile il passaggio successivo senza dichiarare l’invio completato prima della conferma.

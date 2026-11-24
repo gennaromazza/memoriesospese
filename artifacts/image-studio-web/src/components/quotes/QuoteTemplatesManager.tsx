@@ -21,6 +21,7 @@ import { deleteField } from "firebase/firestore";
 import { getAllProducts } from "@/lib/products";
 import { getJobTypes } from "@/lib/job-types";
 import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
+import { useStudio } from "@/context/StudioContext";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import CatalogProductSelector from "./CatalogProductSelector";
@@ -395,6 +396,7 @@ const SortableTemplateCard = memo(function SortableTemplateCard({
 
 export default function QuoteTemplatesManager() {
   const { user } = useFirebaseAuth();
+  const { studioSettings } = useStudio();
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -588,11 +590,7 @@ export default function QuoteTemplatesManager() {
           categoria: "",
         },
       ],
-      theme: {
-        primaryColor: "#8B9A8B",
-        secondaryColor: "#C8B8A8",
-        footerText: "Image Studio - Fotografia professionale",
-      },
+      theme: { ...studioSettings.quoteTheme },
       attivo: true,
     },
   });
@@ -672,7 +670,7 @@ export default function QuoteTemplatesManager() {
             ],
       discountType: template.discountType,
       discountValue: template.discountValue !== undefined ? Number(template.discountValue) : undefined,
-      theme: template.theme,
+      theme: { ...studioSettings.quoteTheme },
       attivo: template.attivo,
     });
 
@@ -700,7 +698,7 @@ export default function QuoteTemplatesManager() {
     // Store template for update mutation (to preserve defaultClauses)
     setCurrentTemplate(template);
     setEditModalOpen(true);
-  }, [form, catalogProducts]);
+  }, [form, catalogProducts, studioSettings.quoteTheme]);
 
   // Handle create modal open
   const handleCreateTemplate = useCallback(() => {
@@ -718,11 +716,7 @@ export default function QuoteTemplatesManager() {
           categoria: "",
         },
       ],
-      theme: {
-        primaryColor: "#8B9A8B",
-        secondaryColor: "#C8B8A8",
-        footerText: "Image Studio - Fotografia professionale",
-      },
+      theme: { ...studioSettings.quoteTheme },
       attivo: true,
       discountType: undefined,
       discountValue: undefined,
@@ -739,7 +733,7 @@ export default function QuoteTemplatesManager() {
     pendingEditTemplateRef.current = null;
     lastHydratedTemplateIdRef.current = null;
     setCreateModalOpen(true);
-  }, [form]);
+  }, [form, studioSettings.quoteTheme]);
 
   // Watch values for totals using useWatch for better performance
   // NOTA: customProducts NON usa useWatch perché useFieldArray è già attivo sullo

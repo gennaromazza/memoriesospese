@@ -19,7 +19,13 @@ const h = vi.hoisted(() => ({
   emailTemplates: [] as any[],
   signedQuotes: [] as any[],
   manualLocks: new Map<string, any>(),
+  beforeLockRead: null as ((id: string) => void) | null,
+  lockQueryError: null as Error | null,
   transactionTail: Promise.resolve(),
+}));
+
+vi.mock("./lib/logger.js", () => ({
+  logger: { info: vi.fn(), error: vi.fn() },
 }));
 
 function makeDocumentReference(collectionName: string, id: string) {
@@ -27,6 +33,7 @@ function makeDocumentReference(collectionName: string, id: string) {
     collectionName,
     id,
     get: async () => {
+      if (collectionName === "manual_consultation_requests") h.beforeLockRead?.(id);
       const data = h.manualLocks.get(id);
       return {
         exists: collectionName === "manual_consultation_requests" && !!data,
@@ -57,14 +64,27 @@ vi.mock("./firebase-admin.js", () => ({
     collection: (collectionName: string) => ({
       doc: (id: string) => makeDocumentReference(collectionName, id),
       where: (_field: string, _operator: string, value: string) => ({
-        get: async () => ({
-          docs: collectionName === "quotes"
+        get: async () => {
+          if (collectionName === "manual_consultation_requests" && h.lockQueryError) {
+            throw h.lockQueryError;
+          }
+          return {
+            docs: collectionName === "manual_consultation_requests"
+            ? [...h.manualLocks.entries()]
+                .filter(([, data]) => data.status === value)
+                .map(([id, data]) => ({
+                  id,
+                  ref: makeDocumentReference(collectionName, id),
+                  data: () => data,
+                }))
+            : collectionName === "quotes"
             ? h.signedQuotes.filter((quote) => quote.jobId === value).map((quote) => ({
                 id: quote.id,
                 data: () => quote,
               }))
             : [],
-        }),
+          };
+        },
       }),
     }),
     runTransaction: async (callback: (transaction: any) => Promise<any>) => {
@@ -180,7 +200,8 @@ vi.mock("./calendar-engine/conflicts.js", () => ({
   hasConflict: () => h.events.length > 0,
 }));
 
-const { default: consultationRouter } = await import("./consultation-routes.js");
+const { default: consultationRouter, cleanupExpiredManualConsultationLocks } = await import("./consultation-routes.js");
+const { logger } = await import("./lib/logger.js");
 
 const app = express();
 app.use(express.json());
@@ -191,6 +212,9 @@ const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 afterAll(() => server.close());
 
 beforeEach(() => {
+  vi.clearAllMocks();
+  h.beforeLockRead = null;
+  h.lockQueryError = null;
   h.template = {
     id: "template-1",
     nome: "Consulenza matrimonio",
@@ -245,6 +269,78 @@ async function createManual(overrides: Record<string, unknown> = {}) {
     body: (await response.json()) as any,
   };
 }
+
+describe("cleanupExpiredManualConsultationLocks", () => {
+  it("rimuove solo i processing scaduti e registra il riepilogo", async () => {
+    const now = Date.now();
+    h.manualLocks.set("expired-date", { status: "processing", lockLeaseUntil: new Date(now - 1) });
+    h.manualLocks.set("expired-timestamp", {
+      status: "processing", lockLeaseUntil: { toDate: () => new Date(now - 1) },
+    });
+    h.manualLocks.set("active", { status: "processing", lockLeaseUntil: new Date(now + 60_000) });
+    h.manualLocks.set("completed", { status: "completed", lockLeaseUntil: new Date(now - 1) });
+    h.manualLocks.set("missing", { status: "processing" });
+    h.manualLocks.set("invalid", { status: "processing", lockLeaseUntil: "invalid" });
+    const preserved = new Map(h.manualLocks);
+
+    expect(await cleanupExpiredManualConsultationLocks()).toBe(2);
+    expect([...h.manualLocks.keys()]).toEqual(["active", "completed", "missing", "invalid"]);
+    for (const [id, data] of h.manualLocks) expect(data).toEqual(preserved.get(id));
+    expect(logger.info).toHaveBeenCalledWith(
+      { scanned: 5, removed: 2 }, "Manual consultation lock cleanup completed",
+    );
+    expect(await cleanupExpiredManualConsultationLocks()).toBe(0);
+  });
+
+  it.each(["renewed", "completed", "deleted"])(
+    "ricontrolla in transazione un candidato %s dopo la query",
+    async (change) => {
+      h.manualLocks.set("candidate", { status: "processing", lockLeaseUntil: new Date(0) });
+      h.beforeLockRead = (id) => {
+        if (change === "deleted") h.manualLocks.delete(id);
+        else h.manualLocks.set(id, change === "completed"
+          ? { status: "completed", consultationId: "existing", lockLeaseUntil: new Date(0) }
+          : { status: "processing", lockLeaseUntil: new Date(Date.now() + 60_000) });
+      };
+      expect(await cleanupExpiredManualConsultationLocks()).toBe(0);
+      if (change !== "deleted") expect(h.manualLocks.has("candidate")).toBe(true);
+    },
+  );
+
+  it("considera scaduta anche una lease esattamente al limite", async () => {
+    const now = Date.now();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+    try {
+      h.manualLocks.set("boundary", { status: "processing", lockLeaseUntil: new Date(now) });
+      expect(await cleanupExpiredManualConsultationLocks()).toBe(1);
+      expect(h.manualLocks.size).toBe(0);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  it("se la transazione fallisce conserva il lock e registra l'errore", async () => {
+    h.manualLocks.set("expired", { status: "processing", lockLeaseUntil: new Date(0) });
+    const error = new Error("Transaction failed");
+    h.beforeLockRead = () => { throw error; };
+    await expect(cleanupExpiredManualConsultationLocks()).rejects.toThrow(error);
+    expect(h.manualLocks.has("expired")).toBe(true);
+    expect(logger.error).toHaveBeenCalledWith(
+      { err: error, scanned: 1, removed: 0 }, "Manual consultation lock cleanup failed",
+    );
+  });
+
+  it("registra e propaga gli errori senza modificare i lock", async () => {
+    h.manualLocks.set("expired", { status: "processing", lockLeaseUntil: new Date(0) });
+    const error = new Error("Firestore unavailable");
+    h.lockQueryError = error;
+    await expect(cleanupExpiredManualConsultationLocks()).rejects.toThrow(error);
+    expect(h.manualLocks.has("expired")).toBe(true);
+    expect(logger.error).toHaveBeenCalledWith(
+      { err: error, scanned: 0, removed: 0 }, "Manual consultation lock cleanup failed",
+    );
+  });
+});
 
 describe("POST /api/consultations/v2/create-manual", () => {
   it("rifiuta uno slot sovrapposto senza creare consulenza o evento", async () => {

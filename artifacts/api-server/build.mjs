@@ -11,6 +11,24 @@ globalThis.require = createRequire(import.meta.url);
 const artifactDir = path.dirname(fileURLToPath(import.meta.url));
 
 async function buildAll() {
+  // Firebase marks these modules as optional, but our API and public web
+  // server require them. Check the runtime resolution path before publishing,
+  // since esbuild leaves firebase-admin external and cannot catch this itself.
+  const runtimeRequire = createRequire(import.meta.url);
+  for (const entry of [
+    "firebase-admin/firestore",
+    "firebase-admin/storage",
+    "firebase-admin/auth",
+  ]) {
+    try {
+      runtimeRequire(entry);
+    } catch (error) {
+      throw new Error(`Required Firebase runtime dependency failed to load: ${entry}`, {
+        cause: error,
+      });
+    }
+  }
+
   const distDir = path.resolve(artifactDir, "dist");
   await rm(distDir, { recursive: true, force: true });
 
@@ -39,6 +57,7 @@ async function buildAll() {
       "better-sqlite3",
       "sqlite3",
       "canvas",
+      "@napi-rs/canvas",
       "bcrypt",
       "argon2",
       "fsevents",

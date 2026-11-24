@@ -1,8 +1,22 @@
 /**
  * Bookings Manager - Gestione prenotazioni booking per admin
  */
+import { bookingPaymentStage, bookingPaymentStageLabel, matchesBookingPaymentFilter } from '@shared/booking-payment-state';
+import { BookingPaymentPanel } from './booking/BookingPaymentPanel';
+import { BookingDepositStatusBadge } from './booking/BookingDepositStatusBadge';
+import { InPersonDepositDialog } from './booking/InPersonDepositDialog';
+import { BookingApprovalButton } from './booking/BookingApprovalButton';
+import { useBookingApproval } from './booking/useBookingApproval';
+import { useBookingRejection } from './booking/useBookingRejection';
+import { BookingManagementLinkPanel } from './booking/BookingManagementLinkPanel';
+import { BookingCancellationAdminPanel } from './booking/BookingCancellationAdminPanel';
+import { requiresBookingCancellationPanel } from '@/lib/booking-deletion';
+import { BookingPaymentCheckouts } from './booking/BookingPaymentCheckouts';
+import { useLiveBookings, type BookingsScope } from './booking/useLiveBookings';
+import { useBookingDepositVerification } from './booking/useBookingDepositVerification';
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { BookingCalendarRecoveryPanel } from "./booking/BookingCalendarRecoveryPanel";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { useLocation, useSearch } from "wouter";
@@ -16,21 +30,22 @@ import {
   startOfDay,
 } from "date-fns";
 import {
-  getAllBookings,
-  approveBooking,
-  rejectBooking,
   updateBookingStatus,
   deleteBooking,
   markBookingAsViewed,
   updateBooking,
+  getBookingById,
   countRelatedEntities,
   deleteBookingCascade,
   updateWorkflowState,
+  getWorkflowStateAfterOrderCreation,
 } from "@/lib/bookings";
 import { getAllCampaigns } from "@/lib/booking-campaigns";
+import { BOOKINGS_SCREEN_ORDERS_KEY, BOOKINGS_SCREEN_ORDERS_STALE_MS } from "@/lib/bookings-screen-prefetch";
 import { getClienteByEmail } from "@/lib/clienti";
 import {
-  getAllOrders,
+  getAllOrdersUnreconciled,
+  getOrderById,
   createOrder,
   addAccontoPayment,
   recordSaldoPayment,
@@ -132,7 +147,7 @@ import {
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -144,9 +159,15 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+function needsDepositApproval(booking: Booking, campaigns: BookingCampaignFE[]) {
+  return campaigns.some(c => c.id === booking.campaignId && c.richiedeAcconto === true && c.richiedeApprovazione !== false);
+}
 const STATI_BOOKING = [
   { value: "all", label: "Tutti", icon: FileText },
-  { value: "in_attesa", label: "In Attesa", icon: Clock },
+  { value: "in_attesa", label: "Da approvare", icon: Clock },
+  { value: "in_attesa_pagamento", label: "In attesa di pagamento", icon: Clock },
+  { value: "scaduta", label: "Scadute", icon: XCircle },
+  { value: "pagamento_da_verificare", label: "Pagamenti da riconciliare", icon: AlertCircle },
   { value: "confermata", label: "Confermate", icon: CheckCircle },
   { value: "completata", label: "Completate", icon: Package },
   { value: "annullata", label: "Annullate", icon: XCircle },
@@ -179,7 +200,11 @@ const STATI_WORKFLOW = [
   { value: WorkflowState.CONSEGNATO, label: "Consegnato al Cliente", icon: PackageCheck },
 ] as const;
 
-function getStatoBadge(stato: string) {
+function getStatoBadge(booking: Booking, now = Date.now()) {
+  const stato = bookingPaymentStage(booking, now);
+  if (['in_attesa_pagamento', 'scaduta', 'pagamento_da_verificare'].includes(stato)) {
+    return <Badge variant="outline" className="max-w-44 whitespace-normal break-words text-right">{bookingPaymentStageLabel(stato)}</Badge>;
+  }
   switch (stato) {
     case "in_attesa":
       return (
@@ -187,7 +212,7 @@ function getStatoBadge(stato: string) {
           variant="outline"
           className="bg-yellow-50 text-yellow-700 border-yellow-200"
         >
-          In Attesa
+          Da approvare
         </Badge>
       );
     case "confermata":
@@ -245,6 +270,8 @@ export default function BookingsManager({
 }: BookingsManagerProps = {}) {
   const { toast } = useToast();
   const { user } = useFirebaseAuth();
+  const [paymentClock, setPaymentClock] = useState(Date.now());
+  useEffect(() => { const timer = window.setInterval(() => setPaymentClock(Date.now()), 15_000); return () => window.clearInterval(timer); }, []);
   const [, navigate] = useLocation();
   const searchParams = useSearch();
 
@@ -293,6 +320,16 @@ export default function BookingsManager({
     initialParams.stato,
   );
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [inPersonDepositBooking, setInPersonDepositBooking] = useState<Booking | null>(null);
+  const [cancellationFocusId, setCancellationFocusId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!cancellationFocusId || selectedBooking?.id !== cancellationFocusId) return;
+    const frame = requestAnimationFrame(() => {
+      document.getElementById('booking-cancellation-actions')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+      setCancellationFocusId(null);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [cancellationFocusId, selectedBooking?.id]);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>(initialParams.search);
   const [selectedBookingForOrder, setSelectedBookingForOrder] =
@@ -449,6 +486,8 @@ export default function BookingsManager({
     orderId: string;
     tipo: "acconto" | "saldo";
     bookingId: string;
+    /** Creato all'apertura del dialogo: doppio clic o ritentativo non registrano due volte lo stesso incasso. */
+    requestId: string;
   } | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<
     "contante" | "carta" | "bonifico" | "paypal"
@@ -458,21 +497,33 @@ export default function BookingsManager({
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
 
   // Query bookings - sempre tutti per permettere filtro client-side
+  // Query campagne per nomi (e per sapere quali sono attive: all'apertura si scaricano solo le loro prenotazioni)
+  const { data: campaigns = [], isSuccess: campaignsLoaded, isError: campaignsFailed } = useQuery<BookingCampaignFE[]>({
+    queryKey: ["campaigns"],
+    queryFn: getAllCampaigns,
+  });
+  const activeCampaignIds = useMemo(() => campaigns.filter((c) => c.attiva).map((c) => c.id as string), [campaigns]);
+  // Si passa a "tutte le prenotazioni" (e ci si resta) quando serve guardare oltre le campagne attive:
+  // ricerca, filtro su altre campagne o una prenotazione indicata da una notifica che non e' tra quelle caricate.
+  const [fullScope, setFullScope] = useState(false);
+  const filterNeedsAll = campaignsLoaded
+    && (campaignFilter === "all" || (campaignFilter !== "active" && !activeCampaignIds.includes(campaignFilter)));
+  const scopeAll = fullScope || campaignsFailed || filterNeedsAll || searchQuery.trim() !== "";
+  useEffect(() => { if (scopeAll) setFullScope(true); }, [scopeAll]);
+  const bookingsScope: BookingsScope = useMemo(
+    () => (scopeAll ? { mode: "all" } : { mode: "campaigns", campaignIds: activeCampaignIds }),
+    [scopeAll, activeCampaignIds],
+  );
   const {
     data: allBookings = [],
     isLoading,
     refetch,
-  } = useQuery<Booking[]>({
-    queryKey: ["bookings"],
-    queryFn: getAllBookings,
-    staleTime: 2 * 60 * 1000,
-  });
-
-  // Query campagne per nomi
-  const { data: campaigns = [] } = useQuery<BookingCampaignFE[]>({
-    queryKey: ["campaigns"],
-    queryFn: getAllCampaigns,
-  });
+    liveError,
+  } = useLiveBookings(user?.uid || '', bookingsScope, scopeAll || campaignsLoaded);
+  useEffect(() => {
+    const fresh = allBookings.find(booking => booking.id === selectedBooking?.id);
+    if (fresh && fresh !== selectedBooking) setSelectedBooking(fresh);
+  }, [allBookings, selectedBooking?.id]);
 
   useEffect(() => {
     if (campaigns.length > 0 && campaignFilter === "active" && !campaignAutoSelectDoneRef.current) {
@@ -495,10 +546,22 @@ export default function BookingsManager({
   }, [pendingOrderBookingId, allBookings]);
 
   // Query ordini per lookup
-  const { data: allOrders = [] } = useQuery<Order[]>({
-    queryKey: ["orders"],
-    queryFn: getAllOrders,
-    staleTime: 2 * 60 * 1000,
+  // Lettura veloce (una query): la verifica degli acconti PayPal avviene in background,
+  // solo per gli ordini che ne hanno bisogno, e blocca importi/azioni di quegli ordini.
+  const { data: allOrders = [], error: ordersError, isPending: ordersPending } = useQuery<Order[]>({
+    queryKey: [...BOOKINGS_SCREEN_ORDERS_KEY],
+    queryFn: getAllOrdersUnreconciled,
+    staleTime: BOOKINGS_SCREEN_ORDERS_STALE_MS,
+  });
+  const {
+    lockedOrderIds,
+    failedCount: depositCheckFailedCount,
+    verifyingCount: depositCheckVerifyingCount,
+    retry: retryDepositCheck,
+  } = useBookingDepositVerification({
+    orders: allOrders,
+    bookings: allBookings,
+    ready: !isLoading && !ordersPending && !ordersError,
   });
 
   // Query prodotti attivi per dialog creazione ordine
@@ -654,16 +717,7 @@ export default function BookingsManager({
       // Senza ricerca, applica i filtri normali
 
       // 1. Filtra per stato (escludi annullate se "all")
-      if (selectedStato === "all") {
-        // Escludi gli stati terminali/tecnici dalla vista "Tutte" per evitare confusione.
-        filtered = filtered.filter((b) => !["annullata", "cancellata", "cancellation_pending"].includes(b.stato));
-      } else if (selectedStato === "annullata") {
-        // Compatibilità dati storici: entrambe le forme di annullamento sono
-        // mostrate nello stesso filtro, senza migrare documenti esistenti.
-        filtered = filtered.filter((b) => ["annullata", "cancellata"].includes(b.stato));
-      } else {
-        filtered = filtered.filter((b) => b.stato === selectedStato);
-      }
+      filtered = filtered.filter(b => matchesBookingPaymentFilter(b, selectedStato, Date.now()));
 
       // 2. Filtra per selezioni approvate
       if (selectionFilter === "approved") {
@@ -808,6 +862,7 @@ export default function BookingsManager({
   }, [
     allBookings,
     selectedStato,
+    paymentClock,
     searchQuery,
     campaigns,
     timeFilter,
@@ -950,6 +1005,11 @@ export default function BookingsManager({
     const targetBooking = allBookings.find((b) => b.id === highlightBookingId);
 
     if (!targetBooking) {
+      if (!scopeAll) {
+        // Potrebbe essere di una campagna non attiva: si carica l'elenco completo e si riprova.
+        setFullScope(true);
+        return;
+      }
       console.warn(`Booking ${highlightBookingId} non trovato nel dataset`);
       onHighlightComplete?.();
       return;
@@ -1015,20 +1075,21 @@ export default function BookingsManager({
         clearHighlightTimeoutRef.current = null;
       }
     };
-  }, [highlightBookingId, allBookings, isLoading, onHighlightComplete, sortDirection]);
+  }, [highlightBookingId, allBookings, isLoading, onHighlightComplete, sortDirection, scopeAll]);
 
   // Mutation: Approva prenotazione
-  const approveMutation = useMutation({
-    mutationFn: async (bookingId: string) => {
-      // Marca come vista prima di approvare (per far scomparire badge NUOVA)
-      await markBookingAsViewed(bookingId);
-      await approveBooking(bookingId);
-    },
-    onSuccess: () => {
+  const approveMutation = useBookingApproval({
+    bookings: allBookings,
+    refresh: refetch,
+    onSuccess: result => {
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
       toast({
-        title: "Prenotazione approvata",
-        description: "Email di conferma inviata al cliente",
+        title: result?.paymentRequired ? "In attesa di pagamento" : "Prenotazione approvata",
+        description: result?.paymentRequired
+          ? result.emailStatus === 'sent' ? `Richiesta di acconto inviata. Pagamento entro ${new Date(result.expiresAt!).toLocaleString('it-IT', { timeZone: 'Europe/Rome', timeStyle: 'short' })}.`
+            : result.emailStatus === 'sending' ? 'Invio della richiesta già in corso. La scadenza resta invariata.'
+              : 'L’invio della richiesta richiede una verifica. L’appuntamento non è confermato e la scadenza resta invariata.'
+          : "Email di conferma inviata al cliente",
       });
       setSelectedBooking(null);
     },
@@ -1042,12 +1103,9 @@ export default function BookingsManager({
   });
 
   // Mutation: Rifiuta prenotazione
-  const rejectMutation = useMutation({
-    mutationFn: async (bookingId: string) => {
-      // Marca come vista prima di rifiutare (per far scomparire badge NUOVA)
-      await markBookingAsViewed(bookingId);
-      await rejectBooking(bookingId);
-    },
+  const rejectMutation = useBookingRejection({
+    bookings: allBookings,
+    refresh: refetch,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
       toast({
@@ -1068,13 +1126,15 @@ export default function BookingsManager({
   // Mutation: Cambia stato
   const changeStatusMutation = useMutation({
     mutationFn: async ({ id, stato }: { id: string; stato: any }) => {
-      await updateBookingStatus(id, stato);
+      return updateBookingStatus(id, stato);
     },
-    onSuccess: () => {
+    onSuccess: (_result, variables) => {
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
       toast({
-        title: "Stato aggiornato",
-        description: "Lo stato della prenotazione è stato modificato",
+        title: variables.stato === 'confermata' ? "Prenotazione confermata" : "Stato aggiornato",
+        description: variables.stato === 'confermata'
+          ? "Confermata manualmente senza richiedere l’acconto. Non è stato registrato alcun pagamento."
+          : "Lo stato della prenotazione è stato modificato",
       });
       setSelectedBooking(null);
     },
@@ -1098,7 +1158,11 @@ export default function BookingsManager({
       });
       setDeleteConfirmId(null);
     },
-    onError: (error: Error) => {
+    onError: (error: Error, bookingId: string) => {
+      if (error.message.includes('Annullamento e acconto')) {
+        setDeleteConfirmId(null);
+        openCancellationForBooking(bookingId);
+      }
       toast({
         title: "Errore eliminazione",
         description: error.message,
@@ -1126,7 +1190,8 @@ export default function BookingsManager({
       setCascadeDeleteCounts(null);
       setCancelReason("");
     },
-    onError: (error: Error) => {
+    onError: (error: Error, params: { bookingId: string; cancelReason?: string }) => {
+      if (error.message.includes('Annullamento e acconto')) openCancellationForBooking(params.bookingId);
       toast({
         title: "Errore eliminazione",
         description: error.message,
@@ -1187,11 +1252,33 @@ export default function BookingsManager({
   const createOrderMutation = useMutation({
     mutationFn: createOrder,
     onSuccess: async (_orderId: string, orderData: any) => {
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
-      queryClient.invalidateQueries({ queryKey: ["bookings"] });
+      let shootingMarkedComplete = false;
+      let workflowAlreadyAdvanced = false;
+      let workflowError: string | null = null;
+      if (orderData.bookingId) {
+        try {
+          const booking = await getBookingById(orderData.bookingId);
+          if (!booking) throw new Error("Prenotazione collegata non trovata.");
+          const nextWorkflowState = getWorkflowStateAfterOrderCreation(booking.statoWorkflow);
+          if (nextWorkflowState) {
+            await updateWorkflowState(orderData.bookingId, "booking", nextWorkflowState);
+            shootingMarkedComplete = true;
+          } else {
+            workflowAlreadyAdvanced = true;
+          }
+        } catch (error) {
+          workflowError = error instanceof Error ? error.message : "Aggiornamento workflow non riuscito.";
+          console.error("Ordine creato, ma aggiornamento automatico workflow fallito:", error);
+        }
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["orders"] }),
+        queryClient.invalidateQueries({ queryKey: ["bookings"] }),
+      ]);
 
       // Invia email automatica al cliente (non bloccante)
       let emailSent = false;
+      let orderEmailError: string | null = null;
       if (orderData.emailCliente && orderData.emailCliente.trim()) {
         try {
           // Prepara nome prodotto per l'email
@@ -1207,8 +1294,9 @@ export default function BookingsManager({
           );
           const sconto = orderData.sconto || 0;
           const totale = Math.max(0, subtotale - sconto);
-          const acconto = orderData.acconto || 0;
-          const saldo = totale - acconto;
+          const savedOrder = await getOrderById(_orderId);
+          const acconto = savedOrder ? getOrderTotals(savedOrder).totalePagato : orderData.acconto || 0;
+          const saldo = Math.max(0, totale - acconto);
 
           // Mappa prodotti per template email
           const prodottiEmail = orderData.prodotti.map((p: any) => ({
@@ -1252,24 +1340,27 @@ export default function BookingsManager({
             "⚠️ Errore invio email (ordine comunque creato):",
             emailError,
           );
-          // Mostra toast warning per fallimento email
-          toast({
-            title: "Ordine creato, email non inviata",
-            description: `L'ordine è stato creato ma l'email al cliente ha fallito: ${emailError.message}`,
-            variant: "destructive",
-          });
+          orderEmailError = emailError instanceof Error ? emailError.message : "Invio email non riuscito.";
         }
       }
 
-      // Toast success solo se email OK o nessuna email richiesta
-      if (!orderData.emailCliente || emailSent) {
-        toast({
-          title: "Ordine creato",
-          description: emailSent
-            ? "L'ordine è stato creato e il cliente ha ricevuto una email di conferma"
-            : "L'ordine è stato creato con successo",
-        });
-      }
+      const warnings = [
+        workflowError && `Stato non aggiornato: ${workflowError}`,
+        orderEmailError && `Email non inviata: ${orderEmailError}`,
+      ].filter(Boolean);
+      toast({
+        title: warnings.length ? "Ordine creato con avvisi" : "Ordine creato",
+        description: warnings.length
+          ? warnings.join(" ")
+          : shootingMarkedComplete
+            ? "Il workflow della prenotazione è passato a “Shooting completato”."
+            : workflowAlreadyAdvanced
+              ? "Il workflow era già oltre “Shooting da svolgere” ed è rimasto invariato."
+              : emailSent
+                ? "L'ordine è stato creato e il cliente ha ricevuto una email di conferma."
+                : "L'ordine è stato creato con successo.",
+        ...(warnings.length ? { variant: "destructive" as const } : {}),
+      });
 
       setSelectedBookingForOrder(null);
     },
@@ -1289,12 +1380,14 @@ export default function BookingsManager({
       importo,
       metodo,
       note,
+      requestId,
     }: {
       orderId: string;
       importo: number;
       metodo: "contante" | "carta" | "bonifico" | "paypal";
       note?: string;
-    }) => addAccontoPayment(orderId, importo, metodo, note),
+      requestId: string;
+    }) => addAccontoPayment(orderId, importo, metodo, note, new Date(), requestId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       toast({
@@ -1321,11 +1414,13 @@ export default function BookingsManager({
       orderId,
       metodo,
       note,
+      requestId,
     }: {
       orderId: string;
       metodo: "contante" | "carta" | "bonifico" | "paypal";
       note?: string;
-    }) => recordSaldoPayment(orderId, metodo, note),
+      requestId: string;
+    }) => recordSaldoPayment(orderId, metodo, note, new Date(), requestId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       toast({
@@ -1576,9 +1671,21 @@ export default function BookingsManager({
     window.open(`https://wa.me/${phone}?text=${message}`, "_blank");
   };
 
+  function openCancellationForBooking(bookingId: string) {
+    const booking = bookings.find(item => item.id === bookingId);
+    if (!booking) return;
+    setSelectedBooking(booking);
+    setCancellationFocusId(bookingId);
+  }
   // Handler: Richiesta cancellazione a cascata
   const handleRequestCascadeDelete = async (bookingId: string) => {
     try {
+      const booking = bookings.find(item => item.id === bookingId);
+      if (booking && requiresBookingCancellationPanel(booking)) {
+        openCancellationForBooking(bookingId);
+        toast({ title: 'Gestisci annullamento e acconto', description: 'La prenotazione non viene eliminata: scegli qui come gestire appuntamento e acconto.' });
+        return;
+      }
       // Conta elementi associati prima di mostrare dialog
       const counts = await countRelatedEntities(bookingId);
       setCascadeDeleteCounts(counts);
@@ -1621,8 +1728,49 @@ export default function BookingsManager({
     return format(date, "yyyy-MM-dd");
   };
 
+  // React Query keeps the last successful data after a refetch error. Do not
+  // expose cached balances or payment actions until reconciliation succeeds.
+  if (ordersError) {
+    return (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Pagamenti degli ordini da verificare</AlertTitle>
+          <AlertDescription>
+            Non è stato possibile caricare gli ordini. Gli importi e le azioni sugli ordini sono temporaneamente nascosti.
+            {" "}Non registrare nuovamente un acconto già versato.
+            <Button variant="outline" size="sm" className="ml-2" onClick={() => queryClient.invalidateQueries({ queryKey: ["orders"] })}>
+              Riprova
+            </Button>
+          </AlertDescription>
+        </Alert>
+    );
+  }
+  if (ordersPending) {
+    return <p role="status">Caricamento di prenotazioni e ordini…</p>;
+  }
+
   return (
     <div className="space-y-6 overflow-x-hidden">
+      {depositCheckFailedCount > 0 ? (
+        <Alert variant="destructive" role="alert">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Pagamenti degli ordini da verificare</AlertTitle>
+          <AlertDescription>
+            Non è stato possibile verificare gli acconti di {depositCheckFailedCount}{" "}
+            {depositCheckFailedCount === 1 ? "ordine" : "ordini"}: importi e azioni di
+            {depositCheckFailedCount === 1 ? " quell'ordine sono" : " quegli ordini sono"} temporaneamente nascosti.
+            {" "}Non registrare nuovamente un acconto già versato.
+            <Button variant="outline" size="sm" className="ml-2" onClick={retryDepositCheck}>
+              Riprova
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : depositCheckVerifyingCount > 0 ? (
+        <p role="status" className="text-sm text-gray-600">
+          Verifica degli acconti PayPal in corso per {depositCheckVerifyingCount}{" "}
+          {depositCheckVerifyingCount === 1 ? "ordine" : "ordini"}…
+        </p>
+      ) : null}
       {/* Contenuto Prenotazioni */}
       <>
         {/* Header e filtri */}
@@ -1654,6 +1802,7 @@ export default function BookingsManager({
                   placeholder="Cerca per nome, email o campagna..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  onFocus={() => setFullScope(true)}
                   className="pl-10 h-10"
                   data-testid="input-search-bookings"
                 />
@@ -1662,6 +1811,7 @@ export default function BookingsManager({
               <div className="w-full lg:w-56">
                 <Select
                   value={campaignFilter}
+                  onOpenChange={(open) => { if (open) setFullScope(true); }}
                   onValueChange={(value) => {
                     setCampaignFilter(value);
                     setCurrentPage(1);
@@ -1941,6 +2091,10 @@ export default function BookingsManager({
           </div>
         </div>
 
+        {liveError && <Alert variant="destructive"><AlertDescription>{liveError}</AlertDescription></Alert>}
+        <BookingPaymentCheckouts userId={user?.uid || ''} existingIds={(allBookings || []).map(b => b.id!)}
+          campaignFilter={campaignFilter} activeCampaignIds={(campaigns || []).filter(c => c.attiva).map(c => c.id!)}
+          statusFilter={selectedStato} search={searchQuery} />
         {/* Lista prenotazioni */}
         {isLoading ? (
           <Card>
@@ -1960,6 +2114,11 @@ export default function BookingsManager({
                   ? "Non ci sono prenotazioni nel sistema"
                   : `Non ci sono prenotazioni con stato "${STATI_BOOKING.find((s) => s.value === selectedStato)?.label}"`}
               </p>
+              {campaignFilter === "active" && !searchQuery.trim() && (
+                <p className="text-sm mt-1">
+                  Sono mostrate solo le campagne attive: per quelle passate scegli «Tutte le campagne» oppure cerca per nome.
+                </p>
+              )}
             </CardContent>
           </Card>
         ) : (
@@ -2109,7 +2268,10 @@ export default function BookingsManager({
                                       {getCampaignName(booking.campaignId)}
                                     </p>
                                   </div>
-                                  {getStatoBadge(booking.stato)}
+                                  <div className="flex flex-wrap items-center justify-end gap-2">
+                                    {getStatoBadge(booking, paymentClock)}
+                                    <BookingDepositStatusBadge booking={booking} />
+                                  </div>
                                 </div>
 
                                 {/* Dettagli */}
@@ -2800,27 +2962,19 @@ export default function BookingsManager({
                                 </TooltipProvider>
 
                                 {/* Pulsanti Approva/Rifiuta - Solo se in_attesa */}
-                                {booking.stato === "in_attesa" && (
+                                {bookingPaymentStage(booking) === "in_attesa" && (
                                   <div className="grid grid-cols-2 gap-2 w-full">
-                                    <Button
-                                      size="sm"
-                                      onClick={() =>
-                                        approveMutation.mutate(booking.id)
-                                      }
-                                      disabled={
-                                        approveMutation.isPending ||
-                                        rejectMutation.isPending
-                                      }
-                                      className="bg-sage hover:bg-dark-sage h-12"
-                                      data-testid={`button-approve-${booking.id}`}
-                                    >
-                                      {approveMutation.isPending ? (
-                                        <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                                      ) : (
-                                        <CheckCircle className="w-4 h-4 mr-1" />
-                                      )}
-                                      Approva
-                                    </Button>
+                                    <BookingApprovalButton
+                                      bookingId={booking.id}
+                                      requiresDeposit={needsDepositApproval(booking, campaigns)}
+                                      placement="list"
+                                      isPending={approveMutation.isPending}
+                                      isDisabled={rejectMutation.isPending}
+                                      completedLabel={approveMutation.completed[booking.id]
+                                        ? approveMutation.completed[booking.id].paymentRequired ? 'Acconto richiesto' : 'Approvata'
+                                        : undefined}
+                                      onApprove={() => approveMutation.mutate(booking.id)}
+                                    />
                                     <Button
                                       size="sm"
                                       variant="outline"
@@ -2829,7 +2983,9 @@ export default function BookingsManager({
                                       }
                                       disabled={
                                         approveMutation.isPending ||
-                                        rejectMutation.isPending
+                                        !!approveMutation.completed[booking.id] ||
+                                        rejectMutation.isPending ||
+                                        !!rejectMutation.completed[booking.id]
                                       }
                                       className="border-red-200 text-red-600 hover:bg-red-50 h-12"
                                       data-testid={`button-reject-${booking.id}`}
@@ -2931,6 +3087,17 @@ export default function BookingsManager({
                               expandedOrders[booking.id] &&
                               (() => {
                                 const order = getOrderByBookingId(booking.id)!;
+                                if (lockedOrderIds.has(order.id)) {
+                                  return (
+                                    <div
+                                      role="status"
+                                      className="mt-4 pt-4 border-t border-sage/30 rounded-lg p-4 text-sm text-gray-600"
+                                    >
+                                      Verifica dell’acconto PayPal in corso: importi e azioni di questo ordine
+                                      compariranno al termine. Non registrare nuovamente un acconto già versato.
+                                    </div>
+                                  );
+                                }
                                 const totals = getOrderTotals(order);
                                 const isPaidFull = totals.saldoResiduo === 0;
                                 const hasPartialPayment =
@@ -3035,7 +3202,9 @@ export default function BookingsManager({
                                                         : "text-green-600"
                                                     }
                                                   >
-                                                    {t.tipo === "acconto"
+                                                    {t.source === "booking_paypal_deposit"
+                                                      ? t.importo > 0 ? "Acconto prenotazione · PayPal" : "Acconto prenotazione rimborsato"
+                                                      : t.tipo === "acconto"
                                                       ? "💳 Acconto"
                                                       : "✅ Saldo"}
                                                   </span>
@@ -3070,6 +3239,7 @@ export default function BookingsManager({
                                             orderId: order.id,
                                             tipo: "acconto",
                                             bookingId: booking.id,
+                                            requestId: crypto.randomUUID(),
                                           });
                                           setPaymentAmount("");
                                           setPaymentNote("");
@@ -3094,6 +3264,7 @@ export default function BookingsManager({
                                             orderId: order.id,
                                             tipo: "saldo",
                                             bookingId: booking.id,
+                                            requestId: crypto.randomUUID(),
                                           });
                                           setPaymentNote("");
                                           setPaymentMethod("contante");
@@ -3240,8 +3411,9 @@ export default function BookingsManager({
                 {/* Stato corrente */}
                 <div>
                   <Label className="text-sm font-medium">Stato Attuale</Label>
-                  <div className="mt-2">
-                    {getStatoBadge(selectedBooking.stato)}
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    {getStatoBadge(selectedBooking, paymentClock)}
+                    <BookingDepositStatusBadge booking={selectedBooking} />
                   </div>
                 </div>
 
@@ -3252,6 +3424,7 @@ export default function BookingsManager({
                   </Label>
                   <Select
                     value={selectedBooking.stato}
+                    disabled={changeStatusMutation.isPending}
                     onValueChange={(value) =>
                       changeStatusMutation.mutate({
                         id: selectedBooking.id,
@@ -3273,6 +3446,10 @@ export default function BookingsManager({
                       <SelectItem value="annullata">Annullata</SelectItem>
                     </SelectContent>
                   </Select>
+                  {selectedBooking.stato === 'in_attesa' && <p className="mt-2 text-xs text-muted-foreground">
+                    Scegliendo “Confermata” da qui confermi senza richiedere l’acconto.
+                    Per richiedere il pagamento usa invece “Approva”.
+                  </p>}
                 </div>
 
                 {/* Info cliente */}
@@ -3516,15 +3693,33 @@ export default function BookingsManager({
                   </div>
                 </div>
 
+                {selectedBooking.stato === 'confermata' && <BookingCalendarRecoveryPanel
+                  key={`calendar-recovery-${selectedBooking.id}`} bookingId={selectedBooking.id!} />}
+                {(selectedBooking.depositPaymentRequest || selectedBooking.depositPayment) && <BookingPaymentPanel
+                  key={selectedBooking.id} bookingId={selectedBooking.id!} userId={user?.uid || ''} />}
+                <BookingManagementLinkPanel key={`management-${user?.uid}-${selectedBooking.id}`}
+                  bookingId={selectedBooking.id!} userId={user?.uid || ''} />
+                <div id="booking-cancellation-actions" className="scroll-mt-4">
+                  <BookingCancellationAdminPanel key={`cancellation-${selectedBooking.id}`} bookingId={selectedBooking.id!} userId={user?.uid || ''} />
+                </div>
                 {/* Azioni rapide */}
-                {selectedBooking.stato === "in_attesa" && (
+                {bookingPaymentStage(selectedBooking) === "in_attesa" && (
                   <Alert className="bg-yellow-50 border-yellow-200">
                     <AlertCircle className="w-4 h-4 text-yellow-600" />
                     <AlertDescription className="text-yellow-800">
-                      Questa prenotazione è in attesa di approvazione. Clicca su
-                      "Approva Ora" per confermare e inviare l'email al cliente.
+                      {needsDepositApproval(selectedBooking, campaigns)
+                        ? 'L’approvazione invia la richiesta di acconto, valida un’ora. La prenotazione sarà confermata solo dopo l’incasso.'
+                        : 'Questa prenotazione è in attesa di approvazione. Clicca su “Approva Ora” per confermare e inviare l’email al cliente.'}
                     </AlertDescription>
                   </Alert>
+                )}
+                {bookingPaymentStage(selectedBooking) === "in_attesa" && needsDepositApproval(selectedBooking, campaigns) && (
+                  <div className="rounded-lg border p-3 text-sm space-y-2" data-testid="in-person-deposit-hint">
+                    <p>Il cliente vuole pagare l’acconto di persona? Registralo qui invece di approvare: la prenotazione viene confermata senza link PayPal.</p>
+                    <Button variant="outline" onClick={() => setInPersonDepositBooking(selectedBooking)} data-testid="button-in-person-deposit">
+                      Acconto incassato di persona
+                    </Button>
+                  </div>
                 )}
               </div>
             )}
@@ -3542,32 +3737,25 @@ export default function BookingsManager({
               >
                 ✏️ Modifica Dati
               </Button>
-              {selectedBooking?.stato === "in_attesa" && (
+              {selectedBooking && bookingPaymentStage(selectedBooking) === "in_attesa" && (
                 <>
-                  <Button
-                    onClick={() => approveMutation.mutate(selectedBooking.id)}
-                    disabled={
-                      approveMutation.isPending || rejectMutation.isPending
-                    }
-                    className="bg-sage hover:bg-dark-sage"
-                  >
-                    {approveMutation.isPending ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Approvazione...
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle className="w-4 h-4 mr-2" />
-                        Approva Ora
-                      </>
-                    )}
-                  </Button>
+                  <BookingApprovalButton
+                    bookingId={selectedBooking.id}
+                    requiresDeposit={needsDepositApproval(selectedBooking, campaigns)}
+                    placement="detail"
+                    isPending={approveMutation.isPending}
+                    isDisabled={rejectMutation.isPending}
+                    completedLabel={approveMutation.completed[selectedBooking.id]
+                      ? approveMutation.completed[selectedBooking.id].paymentRequired ? 'Acconto richiesto' : 'Approvata'
+                      : undefined}
+                    onApprove={() => approveMutation.mutate(selectedBooking.id)}
+                  />
                   <Button
                     variant="outline"
                     onClick={() => rejectMutation.mutate(selectedBooking.id)}
                     disabled={
-                      approveMutation.isPending || rejectMutation.isPending
+                      approveMutation.isPending || !!approveMutation.completed[selectedBooking.id] || rejectMutation.isPending
+                      || !!rejectMutation.completed[selectedBooking.id]
                     }
                     className="border-red-200 text-red-600 hover:bg-red-50"
                     data-testid="button-reject-booking-detail"
@@ -4159,18 +4347,21 @@ export default function BookingsManager({
                     importo: amount,
                     metodo: paymentMethod,
                     note: paymentNote || undefined,
+                    requestId: paymentDialog.requestId,
                   });
                 } else {
                   saldoMutation.mutate({
                     orderId: foundOrder.id,
                     metodo: paymentMethod,
                     note: paymentNote || undefined,
+                    requestId: paymentDialog.requestId,
                   });
                 }
               }}
               disabled={
                 accontoMutation.isPending ||
                 saldoMutation.isPending ||
+                lockedOrderIds.has(paymentDialog?.orderId ?? "") ||
                 (paymentDialog?.tipo === "acconto" &&
                   (!paymentAmount || parseFloat(paymentAmount) <= 0))
               }
@@ -4192,6 +4383,15 @@ export default function BookingsManager({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <InPersonDepositDialog
+        bookingId={inPersonDepositBooking?.id ?? ""}
+        userId={user?.uid || ""}
+        suggestedAmountCents={campaigns.find((c) => c.id === inPersonDepositBooking?.campaignId)?.accontoImportoCentesimi ?? null}
+        open={!!inPersonDepositBooking}
+        onOpenChange={(open) => { if (!open) setInPersonDepositBooking(null); }}
+        onRecorded={() => setSelectedBooking(null)}
+      />
 
       {/* AlertDialog Cancellazione a Cascata */}
       <AlertDialog
@@ -4990,8 +5190,14 @@ function CreateOrderDialog({
 
           {/* Acconto */}
           <div>
+            {booking.depositPayment?.status === 'paid' && (
+              <p className="mb-3 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+                Acconto prenotazione già ricevuto: €{(booking.depositPayment.amountCents / 100).toFixed(2)}.
+                Verrà scalato automaticamente dal saldo dell’ordine. Non reinserirlo qui.
+              </p>
+            )}
             <Label htmlFor="acconto" className="mb-2 block">
-              Acconto (opzionale)
+              Acconto aggiuntivo (opzionale)
             </Label>
             <Input
               id="acconto"

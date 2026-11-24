@@ -6,6 +6,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
+import { countBundlePhotos, getBundleGalleryPhotoCount } from '@/lib/bundle-photos';
 import { getActiveProducts } from '@/lib/products';
 import { getAllClienti } from '@/lib/clienti';
 import { apiRequest } from '@/lib/queryClient';
@@ -333,9 +334,11 @@ export default function QuickOrderModal({ isOpen, onClose, onSuccess }: QuickOrd
       // Costruisci array prodotti
       const catalogoOrderItems: OrderItem[] = selectedProducts.map(item => {
         const product = allProducts.find(p => p.id === item.prodottoId)!;
-        // Per bundle: calcola totale foto da bundleItems
+        // Le foto condivise formano una sola galleria sorgente; le quote componenti restano in bundleItems.
         const totalPhotos = product.isBundle && product.bundleItems && product.bundleItems.length > 0
-          ? product.bundleItems.reduce((sum, bi) => sum + (bi.numeroFoto || 0) * (bi.quantita || 1), 0)
+          ? product.fotoCondivise
+            ? getBundleGalleryPhotoCount(product.bundleItems, product.prodottoSorgenteFotoId)
+            : countBundlePhotos(product.bundleItems)
           : product.numeroFoto;
         return {
           prodottoId: product.id,
@@ -344,7 +347,14 @@ export default function QuickOrderModal({ isOpen, onClose, onSuccess }: QuickOrd
           prodottoNumeroFoto: totalPhotos,
           quantita: item.quantita,
           // Salva bundleItems se è un bundle per espansione in gallery
-          ...(product.isBundle && product.bundleItems ? { isBundle: true, bundleItems: product.bundleItems } : {}),
+          ...(product.isBundle && product.bundleItems ? {
+            isBundle: true,
+            bundleItems: product.bundleItems,
+            ...(product.fotoCondivise ? {
+              fotoCondivise: true,
+              prodottoSorgenteFotoId: product.prodottoSorgenteFotoId,
+            } : {}),
+          } : {}),
         };
       });
       

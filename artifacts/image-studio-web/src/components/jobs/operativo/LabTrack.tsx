@@ -24,7 +24,7 @@ import { useToast } from "@/hooks/use-toast";
 import LabShipmentItem from "./LabShipmentItem";
 import { getJobShipments, createShipment } from "@/lib/labShipments";
 import { getAllLabs } from "@/lib/labs";
-import { shipmentPresentation } from "@/lib/lab-shipment-feedback";
+import { defaultExpandedShipmentId, shipmentPresentation } from "@/lib/lab-shipment-feedback";
 import {
   LAB_SHIPMENT_DEFAULT_EXPIRY_DAYS,
   type LabShipment,
@@ -92,7 +92,9 @@ export default function LabTrack({ jobId }: LabTrackProps) {
   const shipments = shipmentsQuery.data || [];
   const labs = labsQuery.data || [];
   const shipmentCards = useMemo(() => shipmentPresentation(shipments), [shipments]);
-  const defaultShipmentId = shipmentCards[0]?.shipment.id ?? null;
+  const defaultShipmentId = defaultExpandedShipmentId(
+    shipmentCards.map(({ shipment }) => shipment),
+  );
   const expandedShipmentId =
     selectedShipmentId === undefined
       ? defaultShipmentId

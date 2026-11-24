@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type MouseEvent } from 'react';
 import { Link } from 'wouter';
 import {
   ArrowDown,
+  ArrowRight,
   AlertTriangle,
   Check,
   CreditCard,
@@ -12,8 +13,10 @@ import {
   MessageCircle,
   Phone,
   Search,
+  ShoppingBag,
   ShoppingCart,
   SlidersHorizontal,
+  Ticket,
   UploadCloud,
   X,
 } from 'lucide-react';
@@ -46,7 +49,9 @@ import {
   countPrintFormats,
 } from '@shared/print-service-content';
 import { printShopApi } from '@/features/print-shop/print-shop-api';
+import { useShopAvailable } from '@/hooks/useShopAvailable';
 import type { PrintShopCatalogPayload } from '@/features/print-shop/types';
+import type { PrintShopPublicPromotion } from '@shared/print-shop-types';
 import {
   buildFallbackPriceSections,
   buildPublicCatalogPriceSections,
@@ -59,8 +64,25 @@ import {
   verifiedCatalogPriceCents,
 } from '@/features/print-shop/public-catalog-view';
 import { POLAROID_SKU } from '@shared/print-shop-catalog';
+import { formatPrintPromotionOffer, printPromotionPath } from '@shared/print-shop-promotion';
 
 const BASE_URL = 'https://imagestudiofotografico.com';
+
+function printOrderHref(sku?: string, coupon?: string): string {
+  const params = new URLSearchParams();
+  if (sku) params.set('sku', sku);
+  if (coupon) params.set('coupon', coupon);
+  const query = params.toString();
+  return createUrl(`/stampa-foto-aversa/ordine${query ? `?${query}` : ''}`);
+}
+
+function promotionExpiry(isoDate: string): string {
+  return new Intl.DateTimeFormat('it-IT', { day: 'numeric', month: 'long' }).format(new Date(isoDate));
+}
+
+function promotionDiscount(promotion: PrintShopPublicPromotion): string {
+  return formatPrintPromotionOffer(promotion);
+}
 
 const formatCards = [
   {
@@ -118,46 +140,73 @@ const steps = [
 
 interface PriceBreakdownProps {
   row: PublicCatalogPriceRow;
+  orderHref?: string;
+  onOrderClick?: () => void;
 }
 
-function PriceBreakdown({ row }: PriceBreakdownProps) {
+function PriceBreakdown({ row, orderHref, onOrderClick }: PriceBreakdownProps) {
   return (
-    <dl className="grid gap-2 border-t border-sage/10 bg-off-white/60 p-4 sm:grid-cols-2">
-      {row.quantityHeaders.map((quantity, index) => (
-        <div key={`${row.format}-${quantity}`} className="flex items-center justify-between gap-4 rounded-xl bg-white px-4 py-3 shadow-sm">
-          <dt className="text-xs font-medium text-blue-gray/55">{quantity} foto</dt>
-          <dd className="font-semibold tabular-nums text-blue-gray">{row.prices[index]}</dd>
-        </div>
-      ))}
-    </dl>
+    <div>
+      <dl className="grid gap-2 border-t border-sage/10 bg-off-white/60 p-4 sm:grid-cols-2">
+        {row.quantityHeaders.map((quantity, index) => (
+          <div key={`${row.format}-${quantity}`} className="flex items-center justify-between gap-4 rounded-xl bg-white px-4 py-3 shadow-sm">
+            <dt className="text-xs font-medium text-blue-gray/55">{quantity} foto</dt>
+            <dd className="font-semibold tabular-nums text-blue-gray">{row.prices[index]}</dd>
+          </div>
+        ))}
+      </dl>
+      {orderHref && (
+        <Link
+          href={orderHref}
+          onClick={onOrderClick}
+          className="flex min-h-12 items-center justify-center gap-2 border-t border-sage/10 bg-white px-4 text-sm font-semibold text-terracotta transition-colors hover:bg-terracotta/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-terracotta"
+        >
+          Scegli questo formato <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </Link>
+      )}
+    </div>
   );
 }
 
-function PriceFormatDisclosure({ row }: PriceBreakdownProps) {
+function PriceFormatDisclosure({ row, orderHref, onOrderClick }: PriceBreakdownProps) {
   return (
-    <details className="group overflow-hidden rounded-2xl border border-sage/15 bg-white shadow-sm">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 marker:hidden">
-        <span>
-          <span className="block text-lg font-semibold text-blue-gray">{row.name}</span>
-          <span className="mt-0.5 block text-xs text-blue-gray/50">
-            {!row.priceAvailable
-              ? 'prezzo temporaneamente non disponibile'
-              : row.isPackage ? `confezione da ${row.quantityHeaders[0]} foto · ${row.startingPrice}` : `a partire da ${row.startingPrice} per stampa`}
+    <div className="overflow-hidden rounded-2xl border border-sage/15 bg-white shadow-sm">
+      <details className="group">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 marker:hidden">
+          <span>
+            <span className="block text-lg font-semibold text-blue-gray">{row.name}</span>
+            <span className="mt-0.5 block text-xs text-blue-gray/50">
+              {!row.priceAvailable
+                ? 'prezzo temporaneamente non disponibile'
+                : row.isPackage ? `confezione da ${row.quantityHeaders[0]} foto · ${row.startingPrice}` : `a partire da ${row.startingPrice} per stampa`}
+            </span>
           </span>
-        </span>
-        <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-sage/10 text-lg text-dark-sage transition-transform duration-200 group-open:rotate-45" aria-hidden="true">+</span>
-      </summary>
-      <PriceBreakdown row={row} />
-    </details>
+          <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-sage/10 text-lg text-dark-sage transition-transform duration-200 group-open:rotate-45" aria-hidden="true">+</span>
+        </summary>
+        <PriceBreakdown row={row} />
+      </details>
+      {orderHref && (
+        <Link
+          href={orderHref}
+          onClick={onOrderClick}
+          className="flex min-h-12 items-center justify-center gap-2 border-t border-sage/10 bg-off-white/60 px-4 text-sm font-semibold text-terracotta transition-colors hover:bg-terracotta/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-terracotta"
+        >
+          Scegli questo formato <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </Link>
+      )}
+    </div>
   );
 }
 
 export default function StampaFotoAversaPage() {
   const { studioSettings } = useStudio();
+  const shopAvailable = useShopAvailable();
   const [formatQuery, setFormatQuery] = useState('');
   const [catalog, setCatalog] = useState<PrintShopCatalogPayload | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [promotions, setPromotions] = useState<PrintShopPublicPromotion[]>([]);
+  const [promotionsError, setPromotionsError] = useState<string | null>(null);
   const priceSections = useMemo(
     () => catalog?.products.length
       ? buildPublicCatalogPriceSections(catalog.products)
@@ -189,6 +238,17 @@ export default function StampaFotoAversaPage() {
     return () => controller.abort();
   }, []);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    printShopApi.getPublicPromotions(controller.signal)
+      .then(setPromotions)
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        setPromotionsError('Le promozioni non sono disponibili in questo momento. Riprova tra poco.');
+      });
+    return () => controller.abort();
+  }, []);
+
   useSEO({
     title: PRINT_SERVICE_SEO.title,
     description: PRINT_SERVICE_SEO.description,
@@ -216,7 +276,7 @@ export default function StampaFotoAversaPage() {
       : product?.printSpec.pricing.model === 'package'
         ? `${product.printSpec.pricing.packageSize} foto · ${formatCatalogEuro(cents)}`
         : `da ${formatCatalogEuro(cents)}`;
-    return { ...card, price };
+    return { ...card, price, orderAvailable: catalogReady && Boolean(product) };
   }), [catalogLoading, catalogReady, liveProducts]);
   const displayedFaqs = useMemo(() => PRINT_FAQS.map((faq) => {
     if (faq.question.startsWith('Quanto costa stampare una foto 10×15')) {
@@ -358,6 +418,14 @@ export default function StampaFotoAversaPage() {
                     <ArrowDown className="ml-2 h-5 w-5" />
                   </Button>
                 </a>
+                {shopAvailable && (
+                  <Link href={createUrl('/online-shop')}>
+                    <Button variant="outline" className="w-full rounded-full border-white/40 bg-white/5 px-7 py-6 text-base text-white hover:bg-white/15 hover:text-white sm:w-auto">
+                      <ShoppingBag className="mr-2 h-5 w-5" />
+                      Regali personalizzati
+                    </Button>
+                  </Link>
+                )}
               </div>
 
               <div className="mt-10 flex flex-wrap gap-x-7 gap-y-3 text-sm text-white/70">
@@ -406,6 +474,64 @@ export default function StampaFotoAversaPage() {
           </div>
         </section>
 
+        {promotionsError && (
+          <section className="bg-white px-4 pt-6">
+            <p className="mx-auto max-w-6xl rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950" role="status">
+              {promotionsError}
+            </p>
+          </section>
+        )}
+
+        {promotions.length > 0 && (
+          <section id="promozioni" className="bg-terracotta px-4 py-12 text-white sm:py-16">
+            <div className="mx-auto max-w-6xl">
+              <div className="mx-auto max-w-3xl text-center">
+                <span className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-cream">
+                  <Ticket className="h-4 w-4" aria-hidden="true" /> Promozioni attive
+                </span>
+                <h2 className="mt-4 text-3xl font-semibold sm:text-4xl">Un’occasione in più per stampare i tuoi ricordi</h2>
+                <p className="mt-3 text-white/80">Scegli un’offerta: il codice sarà precompilato nella sezione coupon del checkout.</p>
+              </div>
+              <div className="mt-8 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+                {promotions.map((promotion) => {
+                  return (
+                    <article key={promotion.code} className="flex flex-col rounded-3xl border border-white/20 bg-white p-6 text-blue-gray shadow-lg">
+                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-dark-sage">Promo stampe</p>
+                      <h3 className="mt-2 text-2xl font-semibold text-terracotta">
+                        {promotionDiscount(promotion)}
+                      </h3>
+                      <p className="mt-3 text-sm text-blue-gray/70">
+                        Codice <code className="rounded-lg bg-off-white px-2 py-1 font-mono font-bold text-blue-gray">{promotion.code}</code>
+                      </p>
+                      <p className="mt-4 text-sm leading-relaxed text-blue-gray/70">
+                        {promotion.scope === 'selected'
+                          ? `Valido su: ${promotion.eligibleFormats.map((format) => format.name).join(', ')}.`
+                          : 'Valido su tutti i formati delle stampe.'}
+                        {promotion.minPrintQuantity > 0
+                          ? promotion.discountType === 'fixed_total'
+                            ? ` Prezzo valido solo per esattamente ${promotion.minPrintQuantity} stampe totali, senza copie extra.`
+                            : ` Minimo ${promotion.minPrintQuantity} copie${promotion.scope === 'selected' ? ' tra i formati inclusi' : ''}.`
+                          : ''}
+                      </p>
+                      <p className="mt-3 text-xs text-blue-gray/55">
+                        Valido fino al {promotionExpiry(promotion.endsAt)}.
+                      </p>
+                      <Link
+                        href={createUrl(printPromotionPath(promotion.code))}
+                        onClick={() => trackOrderStart(`promo-${promotion.code}`)}
+                        className="mt-6 inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-dark-sage px-5 text-sm font-bold text-white transition-colors hover:bg-blue-gray focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-terracotta focus-visible:ring-offset-2"
+                      >
+                        Scopri l’offerta
+                        <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                      </Link>
+                    </article>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+        )}
+
         <section className="bg-off-white px-4 py-20 sm:py-24">
           <div className="mx-auto max-w-6xl">
             <div className="mx-auto max-w-3xl text-center">
@@ -418,8 +544,8 @@ export default function StampaFotoAversaPage() {
 
             <div className="mt-14 grid gap-6 md:grid-cols-3">
               {featuredCards.map((card) => {
-                return (
-                  <article key={card.title} className="group overflow-hidden rounded-[2rem] border border-sage/15 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl">
+                const content = (
+                  <article className="group overflow-hidden rounded-[2rem] border border-sage/15 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl">
                     <div className="relative h-52 overflow-hidden">
                       <img
                         src={createUrl(card.image)}
@@ -433,9 +559,25 @@ export default function StampaFotoAversaPage() {
                       <h3 className="text-2xl font-semibold text-blue-gray">{card.title}</h3>
                       <p className="mt-2 text-xl font-semibold text-terracotta">{card.price}</p>
                       <p className="mt-4 leading-relaxed text-blue-gray/65">{card.description}</p>
+                      {card.orderAvailable && (
+                        <p className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-terracotta">
+                          Scegli questo formato <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                        </p>
+                      )}
                     </div>
                   </article>
                 );
+                return card.orderAvailable ? (
+                  <Link
+                    key={card.title}
+                    href={printOrderHref(card.sku)}
+                    onClick={() => trackOrderStart(`formato-${card.sku}`)}
+                    aria-label={`Scegli il formato ${card.title}`}
+                    className="block rounded-[2rem] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-terracotta focus-visible:ring-offset-4"
+                  >
+                    {content}
+                  </Link>
+                ) : <div key={card.title}>{content}</div>;
               })}
             </div>
 
@@ -608,7 +750,11 @@ export default function StampaFotoAversaPage() {
                             </div>
                             <span className="rounded-full bg-sage/10 px-3 py-1 text-xs font-semibold text-dark-sage">{result.row.priceAvailable ? 'Prezzi per quantità' : 'Solo formato'}</span>
                           </div>
-                          <PriceBreakdown row={result.row} />
+                          <PriceBreakdown
+                            row={result.row}
+                            orderHref={catalogReady ? printOrderHref(result.row.sku) : undefined}
+                            onOrderClick={() => trackOrderStart(`ricerca-${result.row.sku}`)}
+                          />
                         </article>
                       ))}
                     </div>
@@ -635,7 +781,12 @@ export default function StampaFotoAversaPage() {
                       <AccordionContent className="border-t border-sage/10 px-4 pb-5 pt-5 sm:px-6">
                         <div className="grid gap-3 md:grid-cols-2">
                           {table.rows.map((row) => (
-                            <PriceFormatDisclosure key={row.sku} row={row} />
+                            <PriceFormatDisclosure
+                              key={row.sku}
+                              row={row}
+                              orderHref={catalogReady ? printOrderHref(row.sku) : undefined}
+                              onOrderClick={() => trackOrderStart(`listino-${row.sku}`)}
+                            />
                           ))}
                         </div>
                       </AccordionContent>
@@ -651,7 +802,7 @@ export default function StampaFotoAversaPage() {
 
             <div className="mt-9 text-center">
               {catalogReady ? (
-                <Link href={createUrl('/stampa-foto-aversa/ordine')}>
+                <Link href={printOrderHref(polaroidProduct?.sku)}>
                   <Button onClick={() => trackOrderStart('listino')} className="rounded-full bg-terracotta px-8 py-6 text-base text-white hover:bg-terracotta/90">
                     <ShoppingCart className="mr-2 h-5 w-5" />
                     Crea il tuo ordine

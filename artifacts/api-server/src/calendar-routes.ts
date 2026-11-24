@@ -6,6 +6,7 @@ import type { HttpHandlerResult } from "./http-types.js";
  */
 
 import express from 'express';
+import { calendarSetupRouter } from './calendar-setup-routes.js';
 import { getEvents, createEvent, updateEvent, getCalendarConnectionStatus, invalidateTokenCache } from './google-calendar.js';
 
 import { db, Timestamp, FieldValue } from './firebase-admin.js';
@@ -29,6 +30,8 @@ function requireAdmin(req: any, res: express.Response, next: express.NextFunctio
   }
   next();
 }
+
+router.use('/setup', authenticateFirebase, requireAdmin, calendarSetupRouter);
 
 /**
  * GET /api/calendar/status
@@ -57,8 +60,8 @@ router.post('/refresh-token', authenticateFirebase, requireAdmin, async (req, re
     invalidateTokenCache();
     const status = await getCalendarConnectionStatus();
     res.json({
-      success: true,
-      message: 'Service Account auth cache invalidated, re-initialized',
+      success: status.connected,
+      message: status.connected ? 'Calendario e permessi di scrittura verificati' : status.error,
       status,
     });
   } catch (error: any) {
@@ -934,15 +937,14 @@ router.patch('/events/:eventId', authenticateFirebase, requireAdmin, async (req,
 router.get('/connection-status', authenticateFirebase, requireAdmin, async (req, res) => {
   try {
     const status = await getCalendarConnectionStatus();
-    const calendarId = process.env.GOOGLE_CALENDAR_ID || 'non configurato';
-    
     res.json({
       connected: status.connected,
       accountEmail: status.email || '',
-      calendarId,
+      calendarId: status.calendarId || '',
       authMethod: 'service_account',
       needsReconnect: false,
       error: status.error || undefined,
+      errorCode: status.errorCode,
     });
   } catch (error: any) {
     console.error('❌ Error checking calendar status:', error);

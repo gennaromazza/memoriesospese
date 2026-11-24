@@ -15,10 +15,11 @@
  */
 
 import { db } from "../firebase-admin.js";
-import { getEventsWithDetailsAllCalendars } from "../google-calendar.js";
+import { getEventsWithDetailsAllCalendars, getEventById } from "../google-calendar.js";
 import type { Consultation } from "../../shared/consultation-types.js";
 import type { Booking } from "../../shared/booking-types.js";
 import { nowRomeDate } from "../utils/timezone.js";
+import { DateTime } from "luxon";
 
 // ========================================
 // TYPES
@@ -40,6 +41,16 @@ interface SyncReport {
   orphanedGoogleEvents: string[]; // Eventi GCAL senza riferimento in Firestore
 }
 
+interface GoogleEventInfo {
+  summary?: string;
+  start?: string;
+  crmKind?: string;
+  created?: string;
+}
+
+/** Un evento CRM senza record viene segnalato solo dopo questo tempo (il record potrebbe non essere ancora salvato). */
+const ORPHAN_GRACE_MS = 15 * 60 * 1000;
+
 interface RepairAction {
   id: string;
   type: 'missing_gcal_event' | 'orphaned_firestore_ref';
@@ -59,26 +70,31 @@ interface RepairAction {
  * IMPORTANTE: Un worker NON deve MAI propagare errori fatali.
  * In caso di errore, restituisce un Set vuoto e continua a vivere.
  */
-async function getAllGoogleCalendarEvents(): Promise<Set<string> | null> {
+/** Finestra di eventi Google letta dal sync: ultimi 30 giorni + prossimi 90. */
+function syncWindow(): { timeMin: Date; timeMax: Date } {
+  const nowRome = DateTime.now().setZone('Europe/Rome');
+  return {
+    timeMin: nowRome.minus({ days: 30 }).startOf('day').toJSDate(),
+    timeMax: nowRome.plus({ days: 90 }).endOf('day').toJSDate(),
+  };
+}
+
+async function getAllGoogleCalendarEvents(timeMin: Date, timeMax: Date): Promise<Map<string, GoogleEventInfo> | null> {
   console.log('[EVENT SYNC GUARD] 🔍 Fetching all events from Google Calendar (optimized range)...');
   
   try {
-    // FIX: Usa Luxon per calcoli timezone-safe
-    const { DateTime } = await import('luxon');
-    const nowRome = DateTime.now().setZone('Europe/Rome');
-    const timeMin = nowRome.minus({ days: 30 }).startOf('day').toJSDate();
-    const timeMax = nowRome.plus({ days: 90 }).endOf('day').toJSDate();
-    
     console.log(`[EVENT SYNC GUARD] 📅 Range OTTIMIZZATO: ${timeMin.toISOString()} -> ${timeMax.toISOString()}`);
     
     const events = await getEventsWithDetailsAllCalendars(timeMin, timeMax);
     
-    // Estrai solo gli ID degli eventi validi
-    const eventIds = new Set<string>();
+    // Id degli eventi validi, con i dati utili al rilevamento degli orfani
+    const eventIds = new Map<string, GoogleEventInfo>();
     
     events.forEach((event: any) => {
       if (event.eventId) {
-        eventIds.add(event.eventId);
+        eventIds.set(event.eventId, {
+          summary: event.summary, start: event.start, crmKind: event.crmKind, created: event.created,
+        });
       }
     });
     
@@ -114,6 +130,41 @@ async function getBookingsWithGoogleEvents(): Promise<Booking[]> {
     .get();
   
   return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Booking));
+}
+
+function recordDate(value: any): Date | null {
+  const date = value?.toDate?.() ?? (value instanceof Date ? value : null);
+  return date instanceof Date && !Number.isNaN(date.getTime()) ? date : null;
+}
+
+/**
+ * Tra i record con evento non presente nel set Google, tiene SOLO quelli il cui evento e'
+ * davvero sparito. Il set non basta per decidere: copre solo la finestra letta ed esclude
+ * eventi "Libero" e cancellati, quindi un evento valido puo' mancare dal set. Per ogni sospetto
+ * in finestra si chiede l'evento a Google (events.get): azzera solo se 404/410 o cancelled.
+ * Record fuori finestra: nessuna decisione (verranno valutati quando entrano in finestra).
+ * Errore temporaneo nella verifica: nessuna riparazione.
+ */
+async function confirmMissingEvents<T extends { id: string; googleCalendarEventId?: string | null }>(
+  records: T[], googleEventIds: ReadonlyMap<string, unknown>, timeMin: Date, timeMax: Date, dateOf: (record: T) => unknown,
+): Promise<T[]> {
+  const suspects = records.filter(record => {
+    if (!record.googleCalendarEventId || googleEventIds.has(record.googleCalendarEventId)) return false;
+    const date = recordDate(dateOf(record));
+    return !!date && date >= timeMin && date <= timeMax;
+  });
+  const verdicts = await Promise.allSettled(suspects.map(async record => {
+    const event = await getEventById('primary', record.googleCalendarEventId!);
+    return !event || event.status === 'cancelled';
+  }));
+  return suspects.filter((record, index) => {
+    const verdict = verdicts[index];
+    if (verdict.status === 'rejected') {
+      console.warn(`[EVENT SYNC GUARD] ⚠️ Verifica evento ${record.googleCalendarEventId} non riuscita: nessuna riparazione`, (verdict.reason as any)?.message);
+      return false;
+    }
+    return verdict.value;
+  });
 }
 
 /**
@@ -280,7 +331,8 @@ export async function runEventSyncGuard(): Promise<SyncReport> {
   
   try {
     // 1. Recupera tutti gli eventi da Google Calendar
-    const googleEventIds = await getAllGoogleCalendarEvents();
+    const { timeMin, timeMax } = syncWindow();
+    const googleEventIds = await getAllGoogleCalendarEvents(timeMin, timeMax);
 
     // FAIL-SAFE: se Google Calendar non è leggibile, NON confrontare con un set
     // vuoto (rimuoverebbe riferimenti validi). Salta l'intera riconciliazione.
@@ -329,8 +381,8 @@ export async function runEventSyncGuard(): Promise<SyncReport> {
     };
     
     // Ripara consultations con eventi mancanti - PARALLELO per velocità
-    const consultationsToRepair = consultations.filter(
-      c => c.googleCalendarEventId && !googleEventIds.has(c.googleCalendarEventId)
+    const consultationsToRepair = await confirmMissingEvents(
+      consultations, googleEventIds, timeMin, timeMax, c => c.dataConsulenza,
     );
     if (consultationsToRepair.length > 0) {
       const consultationResults = await Promise.allSettled(
@@ -346,8 +398,8 @@ export async function runEventSyncGuard(): Promise<SyncReport> {
     }
     
     // Ripara bookings con eventi mancanti - PARALLELO per velocità
-    const bookingsToRepair = bookings.filter(
-      b => b.googleCalendarEventId && !googleEventIds.has(b.googleCalendarEventId)
+    const bookingsToRepair = await confirmMissingEvents(
+      bookings, googleEventIds, timeMin, timeMax, b => b.dataShootingInizio,
     );
     if (bookingsToRepair.length > 0) {
       const bookingResults = await Promise.allSettled(
@@ -376,10 +428,22 @@ export async function runEventSyncGuard(): Promise<SyncReport> {
 
     // 6. Identifica eventi orfani in Google Calendar
     const orphanedEvents: string[] = [];
-    for (const gcalEventId of googleEventIds) {
+    const crmOrphans: Array<{ id: string; summary?: string; start?: string; kind?: string; where: string }> = [];
+    for (const [gcalEventId, info] of googleEventIds) {
       if (!knownEventIds.has(gcalEventId)) {
         orphanedEvents.push(gcalEventId);
+        const createdAt = info.created ? Date.parse(info.created) : NaN;
+        if ((info.crmKind === 'booking' || info.crmKind === 'consultation')
+          && Number.isFinite(createdAt) && Date.now() - createdAt > ORPHAN_GRACE_MS) {
+          crmOrphans.push({ id: gcalEventId, summary: info.summary, start: info.start, kind: info.crmKind, where: 'sync' });
+        }
       }
+    }
+    if (crmOrphans.length > 0) {
+      try {
+        const { notifyOrphanCalendarEvents } = await import('../system-alerts.js');
+        notifyOrphanCalendarEvents(crmOrphans);
+      } catch {}
     }
     
     if (orphanedEvents.length > 0) {

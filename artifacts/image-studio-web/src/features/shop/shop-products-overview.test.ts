@@ -21,6 +21,17 @@ describe('prodotti dello shop', () => {
     expect(shopProductRows([product({})], ['natale'], true)[0]).toMatchObject({ visible: true, notes: [] });
   });
 
+  it('calcola il margine sul prezzo scontato e distingue il costo non impostato da zero', () => {
+    const [withCost, withoutCost, zeroCost] = shopProductRows([
+      product({ prezzo: 50, sconto: 10, prezzoFinale: 45, costoUnitario: 12.5 }),
+      product({ id: 'legacy', prezzo: 50, sconto: 10, prezzoFinale: 45 }),
+      product({ id: 'free', prezzo: 50, sconto: 10, prezzoFinale: 45, costoUnitario: 0 }),
+    ], ['natale'], false);
+    expect(withCost).toMatchObject({ finalPriceCents: 4500, unitCostCents: 1250, unitMarginCents: 3250 });
+    expect(withoutCost).toMatchObject({ unitCostCents: null, unitMarginCents: null });
+    expect(zeroCost).toMatchObject({ unitCostCents: 0, unitMarginCents: 4500 });
+  });
+
   it('segnala cosa manca', () => {
     const [row] = shopProductRows([product({ attivo: false, prezzo: 0, prezzoFinale: 0, pesoGrammi: 0, immagini: [] })], ['natale'], true);
     expect(row.visible).toBe(false);

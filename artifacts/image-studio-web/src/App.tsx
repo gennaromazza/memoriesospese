@@ -1,5 +1,6 @@
 import { Suspense, lazy, useEffect, type ComponentType } from "react";
 import { AdminRouteGuard } from "@/components/admin/AdminRouteGuard";
+import AdminSidebarLayout from "@/components/admin/AdminSidebarLayout";
 import { Switch, Route, useLocation } from 'wouter';
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -14,6 +15,8 @@ import { Loader2 } from "lucide-react";
 import { isAdminPath, manifestForPath } from "./lib/pwa-manifest";
 
 import PublicHomepage from "./pages/public/PublicHomepage";
+import StudioSettingsPreviewE2EHarness from "./pages/StudioSettingsPreviewE2EHarness";
+import PhotobookMockupSharingE2EHarness from "./pages/PhotobookMockupSharingE2EHarness";
 import NotFound from "./pages/NotFound";
 import CookieBanner from "./components/CookieBanner";
 import ProfileImageWelcomeProvider from "./components/ProfileImageWelcomeProvider";
@@ -58,6 +61,7 @@ const WeddingVideosPage = lazyWithRetry(() => import("./pages/public/WeddingVide
 const WeddingSeoPage = lazyWithRetry(() => import("./pages/public/WeddingSeoPage"));
 const FotografoAversaPage = lazyWithRetry(() => import("./pages/public/FotografoAversaPage"));
 const StampaFotoAversaPage = lazyWithRetry(() => import("./pages/public/StampaFotoAversaPage"));
+const PrintShopPromotionPage = lazyWithRetry(() => import("./pages/public/PrintShopPromotionPage"));
 const PrintShopOrderPage = lazyWithRetry(() => import("./pages/public/PrintShopOrderPage"));
 const PrintShopConfirmationPage = lazyWithRetry(() => import("./pages/public/PrintShopConfirmationPage"));
 const PrintShopOrdersPage = lazyWithRetry(() => import("./pages/public/PrintShopOrdersPage"));
@@ -66,9 +70,12 @@ const Gallery = lazyWithRetry(() => import("./pages/Gallery"));
 const SpecialGalleryAccess = lazyWithRetry(() => import("./pages/SpecialGalleryAccess"));
 const BookingIndex = lazyWithRetry(() => import("./pages/BookingIndex"));
 const BookingPage = lazyWithRetry(() => import("./pages/BookingPage"));
+const BookingDepositPaymentPage = lazyWithRetry(() => import("./pages/BookingDepositPaymentPage"));
+const BookingManagementPage = lazyWithRetry(() => import("./pages/BookingManagementPage"));
 const QuotePortal = lazyWithRetry(() => import("./pages/QuotePortal"));
 const Privacy = lazyWithRetry(() => import("./pages/Privacy"));
 const CookiePolicy = lazyWithRetry(() => import("./pages/CookiePolicy"));
+const VademecumNatale2026 = lazyWithRetry(() => import("./pages/VademecumNatale2026"));
 const GdprRequest = lazyWithRetry(() => import("./pages/GdprRequest"));
 const Terms = lazyWithRetry(() => import("./pages/Terms"));
 const ConsultationIndex = lazyWithRetry(() => import("./pages/ConsultationIndex"));
@@ -82,6 +89,7 @@ const PasswordResult = lazyWithRetry(() => import("./pages/PasswordResult"));
 const AdminLogin = lazyWithRetry(() => import("./pages/AdminLogin"));
 const AdminDashboard = lazyWithRetry(() => import("./pages/AdminDashboard"));
 const AdminSecurityPage = lazyWithRetry(() => import("./pages/admin/AdminSecurityPage"));
+const AdminDeviceEnrollmentApprovalPage = lazyWithRetry(() => import("./pages/admin/AdminDeviceEnrollmentApprovalPage"));
 const AdminGalleryAccess = lazyWithRetry(() => import("./pages/AdminGalleryAccess"));
 const Faq = lazyWithRetry(() => import("./pages/admin/Faq"));
 const QuestionnaireManager = lazyWithRetry(() => import("./pages/admin/QuestionnaireManager"));
@@ -106,7 +114,10 @@ const PaymentDiscrepanciesAudit = lazyWithRetry(() => import("./pages/admin/Paym
 const BlogAdminE2EHarness = lazyWithRetry(() => import("./pages/BlogAdminE2EHarness"));
 const PhotobookJobGalleryE2EHarness = lazyWithRetry(() => import("./pages/PhotobookJobGalleryE2EHarness"));
 const WeddingSeoDraftE2EHarness = lazyWithRetry(() => import("./pages/WeddingSeoDraftE2EHarness"));
+const MockupOfferE2EHarness = lazyWithRetry(() => import("./pages/MockupOfferE2EHarness"));
 const DateSelectorE2EHarness = lazyWithRetry(() => import("./pages/DateSelectorE2EHarness"));
+const QuoteBuilderProductsE2EHarness = lazyWithRetry(() => import("./pages/QuoteBuilderProductsE2EHarness"));
+const QuoteBuilderLifecycleE2EHarness = lazyWithRetry(() => import("./pages/QuoteBuilderLifecycleE2EHarness"));
 const FinancialDashboardE2EHarness = lazyWithRetry(() => import("./pages/FinancialDashboardE2EHarness"));
 const CollaboratorProductsE2EHarness = lazyWithRetry(() => import("./pages/CollaboratorProductsE2EHarness"));
 const BulkEmailSender = lazyWithRetry(() => import("./pages/BulkEmailSender"));
@@ -114,6 +125,7 @@ const QuickQuotePage = lazyWithRetry(() => import("./pages/QuickQuotePage"));
 const InfoFormPublic = lazyWithRetry(() => import("./pages/InfoFormPublic"));
 const InfoFormTemplateManager = lazyWithRetry(() => import("./pages/admin/InfoFormTemplateManager"));
 const PhotobookViewPage = lazyWithRetry(() => import("./pages/PhotobookViewPage"));
+const PhotobookMockupViewPage = lazyWithRetry(() => import("./pages/PhotobookMockupViewPage"));
 const PhotobookEditorPage = lazyWithRetry(() => import("./pages/admin/PhotobookEditorPage"));
 
 import './scripts/seed-job-types';
@@ -156,7 +168,9 @@ function adminRoute<P extends object>(Component: ComponentType<P>) {
   return function GuardedAdminRoute(props: P) {
     return (
       <AdminRouteGuard>
-        <Component {...props} />
+        <AdminSidebarLayout>
+          <Component {...props} />
+        </AdminSidebarLayout>
       </AdminRouteGuard>
     );
   };
@@ -177,6 +191,7 @@ function AppRoutes() {
         <Route path="/lasciati-trasportare" component={LasciatiTrasportarePage} />
         <Route path="/fotografo-aversa" component={FotografoAversaPage} />
         <Route path="/stampa-foto-aversa" component={StampaFotoAversaPage} />
+        <Route path="/stampa-foto-aversa/offerte/:code" component={PrintShopPromotionPage} />
         <Route path="/stampa-foto-aversa/ordine" component={PrintShopOrderPage} />
         <Route path="/stampa-foto-aversa/ordine/conferma" component={PrintShopConfirmationPage} />
         <Route path="/stampa-foto-aversa/i-miei-ordini" component={PrintShopOrdersPage} />
@@ -207,11 +222,14 @@ function AppRoutes() {
 
         <Route path="/privacy" component={Privacy} />
         <Route path="/cookie-policy" component={CookiePolicy} />
+        <Route path="/vademecum-natale-2026" component={VademecumNatale2026} />
         <Route path="/gdpr" component={GdprRequest} />
         <Route path="/terms" component={Terms} />
 
         {/* Booking pubblico */}
         <Route path="/prenota" component={BookingIndex} />
+        <Route path="/prenota/acconto/:bookingId" component={BookingDepositPaymentPage} />
+        <Route path="/prenota/gestisci/:bookingId" component={BookingManagementPage} />
         <Route path="/prenota/:code" component={BookingPage} />
 
         {/* Consultations pubbliche (italiano) */}
@@ -239,6 +257,7 @@ function AppRoutes() {
         <Route path="/modulo/:token" component={InfoFormPublic} />
 
         {/* Fotolibro - Revisione cliente tramite link a token */}
+        <Route path="/fotolibro/:token/mockup" component={PhotobookMockupViewPage} />
         <Route path="/fotolibro/:token" component={PhotobookViewPage} />
 
         {/* Moduli Informativi - Template manager standalone */}
@@ -252,6 +271,7 @@ function AppRoutes() {
         <Route path="/admin" component={AdminLogin} />
         <Route path="/admin/dashboard" component={adminRoute(AdminDashboard)} />
         <Route path="/admin/sicurezza" component={adminRoute(AdminSecurityPage)} />
+        <Route path="/admin/authorize-device" component={adminRoute(AdminDeviceEnrollmentApprovalPage)} />
         <Route path="/admin/bulk-email" component={adminRoute(BulkEmailSender)} />
         <Route path="/admin/faq" component={adminRoute(Faq)} />
         <Route path="/admin/galleries/:galleryId" component={adminRoute(AdminGalleryAccess)} />
@@ -285,6 +305,12 @@ function AppRoutes() {
           />
         )}
         {import.meta.env.DEV && (
+          <Route path="/admin/__e2e/mockup-offer" component={MockupOfferE2EHarness} />
+        )}
+        {import.meta.env.DEV && (
+          <Route path="/admin/__e2e/photobook-mockup-sharing" component={PhotobookMockupSharingE2EHarness} />
+        )}
+        {import.meta.env.DEV && (
           <Route
             path="/admin/__e2e/collaborator-products"
             component={CollaboratorProductsE2EHarness}
@@ -303,6 +329,24 @@ function AppRoutes() {
           <Route
             path="/admin/__e2e/date-selectors/job/:jobId"
             component={DateSelectorE2EHarness}
+          />
+        )}
+        {import.meta.env.DEV && import.meta.env.VITE_QUOTE_BUILDER_PRODUCTS_E2E_HARNESS === "true" && (
+          <Route
+            path="/admin/__e2e/quote-builder-products"
+            component={QuoteBuilderProductsE2EHarness}
+          />
+        )}
+        {import.meta.env.DEV && import.meta.env.VITE_QUOTE_BUILDER_LIFECYCLE_E2E_HARNESS === "true" && (
+          <Route
+            path="/admin/__e2e/quote-builder-lifecycle"
+            component={QuoteBuilderLifecycleE2EHarness}
+          />
+        )}
+        {import.meta.env.DEV && import.meta.env.VITE_STUDIO_SETTINGS_E2E_HARNESS === "true" && (
+          <Route
+            path="/admin/__e2e/studio-settings-preview"
+            component={StudioSettingsPreviewE2EHarness}
           />
         )}
         {import.meta.env.DEV && import.meta.env.VITE_WEDDING_E2E_HARNESS === "true" && (

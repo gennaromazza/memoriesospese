@@ -20,6 +20,7 @@ declare global {
     imageStudioDesktop?: {
       platform: string;
       selectFolder(): Promise<DesktopSelectedFile[]>;
+      getPathForFile?(file: File): string;
       hashFile(filePath: string): Promise<string>;
       readFile?(filePath: string): Promise<{ bytes: Uint8Array; size: number; lastModified: number }>;
       uploadFile(

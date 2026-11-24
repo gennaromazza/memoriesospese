@@ -1,0 +1,77 @@
+# Collaudo prima della pubblicazione: calendario, slot e sincronizzazione
+
+Riguarda le modifiche dei commit "Prenotazioni: Google Calendar fail-closed…" e
+"Calendar sync: verifica prima di azzerare i riferimenti…" e i punti 5-7 dell'audit
+(override consulenze, evento cancelled dei job, approvazione atomica, controllo spostamenti).
+
+## 1. Test automatici (su Replit, senza toccare i dati)
+
+Da eseguire sul ramo allineato. Sono tutti a database simulato: non scrivono su Firestore né su Google.
+
+```text
+pnpm --filter @workspace/api-server exec vitest run src/google-calendar src/sync src/booking src/consultation-approval.test.ts src/consultation-override.test.ts src/job-calendar-event.test.ts src/system-alerts.orphans.test.ts src/booking-routes.creation.test.ts src/order-reconciliation.http.test.ts
+pnpm --filter @workspace/image-studio-web exec vitest run src/lib/orders src/components/booking
+pnpm --filter @workspace/image-studio-web exec playwright test --config playwright.order-reconciliation.config.ts
+```
+
+Esito atteso: tutto verde. Su questo ambiente di sviluppo risultavano già rossi (non dipendono da queste modifiche):
+`consultation-rejected-email` (3), `lab-mockup-workflow`, `photobook-shipment-integrated`,
+`print-shop/*`, `quote-signed-dates`, `shop/router`, `shared/social-metadata`.
+Se su Replit falliscono altri file, vanno segnalati e non ignorati.
+
+## 2. Prove manuali con il calendario reale
+
+Usa **un giorno lontano senza impegni veri** (per esempio fra 2-3 settimane) e un cliente di prova.
+Alla fine elimina a mano gli eventi e le prenotazioni di prova. Non provare lo scenario "Google non
+leggibile" in produzione: è coperto dai test automatici.
+
+| # | Cosa fare | Esito atteso |
+|---|---|---|
+| 1 | Crea a mano nel calendario Google un evento 10:00-11:00 nel giorno di prova. Apri la pagina pubblica di prenotazione per quel giorno. | Le 10:00 e le 10:30 non sono offerte. Il resto sì. |
+| 2 | Imposta lo stesso evento su "Libero" (non occupato). | Lo slot torna disponibile (comportamento voluto: gli eventi "Libero" non bloccano). |
+| 3 | Crea un evento "tutto il giorno" nel giorno di prova. | Nessuno slot offerto quel giorno. |
+| 4 | Prenota uno slot libero dalla pagina pubblica (campagna con conferma automatica) e verifica su Google. | Un solo evento creato, nessun duplicato. La prenotazione è confermata. |
+| 5 | Subito dopo la prenotazione, crea a mano un evento sovrapposto e prova a prenotare lo stesso slot da un secondo browser. | Il secondo tentativo riceve "slot non più disponibile". |
+| 6 | Crea una consulenza in attesa e una prenotazione in attesa di pagamento sullo stesso orario, poi approva la consulenza dall'admin. | Risposta 409 "Slot non più disponibile", nessun evento creato su Google. |
+| 7 | Approva una consulenza con "forza approvazione" scegliendo di cancellare un tuo evento in conflitto. | La consulenza passa a confermata, il nuovo evento esiste, il tuo evento viene cancellato solo dopo. |
+| 8 | Sposta una consulenza confermata (Reminder manager) su un orario occupato da un evento Google. | Errore 409 con il nome dell'evento, nulla viene modificato. Su un orario libero: salva e sposta l'evento. |
+| 9 | Annulla una prenotazione confermata dopo aver cancellato a mano il suo evento su Google. | L'annullamento si completa (non resta "in attesa di cancellazione"). |
+| 10 | Crea una prenotazione confermata con data fra più di 100 giorni, poi lancia la sincronizzazione (`POST /api/admin/sync-calendar` come admin). | La prenotazione conserva `googleCalendarEventId`. |
+| 11 | Cancella a mano su Google l'evento di una prenotazione fra 5-10 giorni e rilancia la sincronizzazione. | Solo in questo caso il riferimento viene rimosso. |
+| 12 | Crea a mano un job con data fissa e poi cancellane l'evento su Google; usa "sincronizza con il calendario" sul job. | L'evento viene ricreato (azione "recreated"). |
+| 13 | Apri la schermata Prenotazioni (admin). | Si apre subito. Con acconti PayPal da verificare compare "Verifica degli acconti PayPal in corso…" e solo il pannello di quell'ordine resta nascosto finché non finisce. |
+
+## 5. Prove per l'acconto di persona e i pagamenti (vedi docs/booking-in-person-deposit.md)
+
+| # | Cosa fare | Esito atteso |
+|---|---|---|
+| 14 | Prenotazione in attesa su una campagna con acconto: "Acconto incassato di persona", importo diverso da quello della campagna, metodo contanti. | Prenotazione confermata, evento su Google ed email di conferma, incasso in cassa con lo stesso importo e metodo. |
+| 15 | Approva una richiesta (parte il link PayPal), poi registra l'acconto di persona. Apri il link PayPal. | Il link risponde "Checkout già chiuso": nessun pagamento possibile. |
+| 16 | Crea l'ordine dalla prenotazione pagata di persona. | L'ordine mostra l'acconto pagato e il saldo residuo; nessun secondo movimento in cassa. |
+| 17 | Doppio clic su "Conferma incasso". | Un solo incasso in cassa. |
+| 18 | Registra un pagamento sul pannello ordine e ripeti subito la stessa operazione (doppio clic). | Una sola riga e un solo movimento di cassa. |
+| 19 | Dopo l'invio di una richiesta su campagna con approvazione e acconto, guarda il messaggio al cliente. | Spiega: email con il link, importo, un'ora di tempo, conferma solo dopo il pagamento. |
+| 20 | Solo in sandbox: lascia un pagamento PayPal incerto (chiudi la finestra durante la cattura), attendi 10 minuti, premi "Verifica esito PayPal". | Il pannello torna "non incassato" e compare "Acconto incassato di persona". |
+| 21 | Apri la pagina della campagna Natale 2026 per prenotare. | Compare la casella "Ho letto il vademecum di Natale…" con il link; il pulsante resta disattivato finché privacy e vademecum non sono spuntati. |
+| 22 | Clicca il link del vademecum (si apre in una nuova scheda). | Si apre `/vademecum-natale-2026` con tutto il testo, anche aprendo il link diretto dal telefono. |
+| 23 | Invia una richiesta di prova su Natale 2026 e controlla le email al cliente (richiesta ricevuta, link di pagamento dell'acconto, conferma). | Ogni email contiene il blocco "Prima di venire a trovarci" col link al vademecum. Una campagna non di Natale non lo mostra. |
+| 24 | Con una prenotazione Natale 2026 confermata, apri il link personale: prova a cambiare appuntamento a meno di 4 giorni dallo shooting e poi a 4 giorni o più. | Sotto i 4 giorni il cambio è bloccato con il messaggio "Mancano meno di 4 giorni…"; da 4 giorni in su si può cambiare. Il testo dice "fino a 4 giorni prima". Una prenotazione di un'altra campagna resta a 24 ore. |
+| 25 | Su una prenotazione di Natale 2026 fatta con le nuove condizioni, annulla dal link personale. | L'annullamento online è disponibile e mostra le condizioni con "4 giorni". |
+| 26 | Apri la pagina di prenotazione dal telefono (anche in orizzontale). Guarda la scelta della settimana, i giorni e un pacchetto con più prodotti. | Frecce ai lati e intervallo su una riga ("20 – 26 nov 2026"); giorni in 4 colonne; nei pacchetti si vedono le foto dei prodotti (toccandole si ingrandiscono); niente parole come "bundle", "slot" o "galleria sorgente"; le descrizioni lunghe si aprono con "Leggi tutto". |
+| 27 | Sulla campagna Natale 2026 (acconto attivo) apri il link di una gift card valida (`/regalo/CODICE` → "Scegli il tuo giorno"). Scegli giorno e orario e invia. | Nessun avviso sull'acconto, il pulsante dice "Invia prenotazione" (non "Continua con PayPal"), nessun pagamento. Se la campagna non richiede approvazione la prenotazione risulta confermata con l'email di conferma; altrimenti resta in attesa di approvazione e il messaggio non parla di link PayPal. La card passa a "riscattata". |
+| 28 | Stesso percorso con una gift card già usata, scaduta o di un valore inferiore all'acconto. | Messaggio chiaro, nessuna prenotazione creata, la card non viene consumata. Senza gift card resta il normale pagamento dell'acconto. |
+| 29 | Apri la dashboard admin con la cache del browser svuotata (finestra privata), aspetta 2-3 secondi e apri Agenda → Lista prenotazioni. Poi riprova aprendo subito la lista appena entri. | Con l'attesa la lista compare quasi subito; aprendola subito può mostrare per qualche secondo "Caricamento di prenotazioni e ordini…" ma mai il vecchio "Verifica dei pagamenti degli ordini…". Gli ordini collegati alle prenotazioni risultano tutti (nessun "Crea ordine" su una prenotazione che ne ha già uno). |
+| 30 | Apri "Lista prenotazioni" (filtro predefinito "Campagne attive"): vedi solo le prenotazioni delle campagne attive, senza quelle passate (es. Carnevale). Poi clicca nella ricerca, scrivi il nome di un cliente di una campagna passata, oppure scegli "Tutte le campagne". | All'apertura la lista è più corta e parte prima. Cliccando nella ricerca o aprendo il filtro campagne si scarica in background l'elenco completo; la ricerca trova anche i clienti delle campagne passate e "Tutte le campagne" mostra tutto (per un momento può comparire il caricamento). Con nessuna campagna attiva compare il suggerimento su "Tutte le campagne". Aprendo una notifica che porta a una prenotazione di una campagna passata, la lista la trova e la evidenzia. |
+
+## 3. Cosa guardare nei log durante le prove
+
+- `Calendario Google non leggibile`, `CALENDAR_UNAVAILABLE`: non devono comparire durante l'uso normale.
+- Email "Eventi da controllare" all'admin: arriva solo se resta un evento creato dal gestionale senza prenotazione collegata (al massimo una ogni 12 ore).
+- `CRITICAL` nei log di approvazione: indica un evento da rimuovere a mano (parte anche l'email).
+
+## 4. Prima di pubblicare
+
+- Tutti i test automatici verdi (sezione 1).
+- Prove 1-13 eseguite, con data e nota dell'esito.
+- Indice Firestore `consultations` (`stato` + `dataConsulenza`): già verificato presente.
+- Dopo la pubblicazione, controllare i log per 24 ore e che la sincronizzazione ogni 30 minuti non azzeri riferimenti (la sezione "Repairs" del report deve essere vuota in assenza di eventi cancellati).

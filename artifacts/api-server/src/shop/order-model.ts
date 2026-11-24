@@ -145,8 +145,11 @@ export function toOwnerDto(
     paymentStatus: (order.payment?.status || 'pending') as ShopPaymentStatus,
     lines: lines.map(line => {
       const photos = visibleAssets.filter(asset => asset.lineId === line.lineId);
+      // Le righe sono un DTO, ma non inoltrare mai campi interni arrivati
+      // accidentalmente nel documento ordine.
+      const { costoUnitario: _privateCost, ...publicLine } = line as ShopOrderLineDto & { costoUnitario?: unknown };
       return {
-        ...line,
+        ...publicLine,
         photos,
         photosMissing: Math.max(0, line.photosRequired - photos.filter(photo => photo.status === 'ready').length),
       };

@@ -44,11 +44,13 @@ describe('parseLineInputs', () => {
 
 describe('priceLines', () => {
   it('prende prezzi e foto richieste dal catalogo, non dal cliente', () => {
-    const [line] = priceLines([{ productId: 'p1', quantity: 1 }], catalog(product({ priceCents: 1990, listPriceCents: 2490, discountPercent: 20 })));
+    const privateCatalogProduct = { ...product({ priceCents: 1990, listPriceCents: 2490, discountPercent: 20 }), costoUnitario: 800 } as ShopProductDto;
+    const [line] = priceLines([{ productId: 'p1', quantity: 1 }], catalog(privateCatalogProduct));
     expect(line).toMatchObject({
       productId: 'p1', productName: 'Tazza', unitPriceCents: 1990, listPriceCents: 2490, discountPercent: 20,
       quantity: 1, photosRequired: 1, lineTotalCents: 1990,
     });
+    expect(line).not.toHaveProperty('costoUnitario');
     expect(line.lineId).toMatch(/^l_[a-f0-9]{8}$/);
   });
 

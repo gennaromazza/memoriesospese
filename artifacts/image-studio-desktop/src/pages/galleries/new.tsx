@@ -53,7 +53,7 @@ export default function NewGallery() {
               id="name" 
               required
               value={formData.name}
-              onChange={e => setFormData({ ...formData, name: e.target.value })}
+              onChange={e => setFormData(current => ({ ...current, name: e.target.value }))}
               placeholder="es. Matrimonio Marco e Giulia"
               className="text-lg py-6"
             />
@@ -76,7 +76,7 @@ export default function NewGallery() {
                 id="eventDate" 
                 type="date"
                 value={formData.eventDate}
-                onChange={e => setFormData({ ...formData, eventDate: e.target.value })}
+                onChange={e => setFormData(current => ({ ...current, eventDate: e.target.value }))}
               />
             </div>
             
@@ -85,7 +85,7 @@ export default function NewGallery() {
               <Input 
                 id="location" 
                 value={formData.location}
-                onChange={e => setFormData({ ...formData, location: e.target.value })}
+                onChange={e => setFormData(current => ({ ...current, location: e.target.value }))}
                 placeholder="es. Villa d'Este, Tivoli"
               />
             </div>
@@ -96,7 +96,7 @@ export default function NewGallery() {
             <Textarea 
               id="description" 
               value={formData.description}
-              onChange={e => setFormData({ ...formData, description: e.target.value })}
+              onChange={e => setFormData(current => ({ ...current, description: e.target.value }))}
               placeholder="Note interne o descrizione pubblica..."
               rows={4}
             />

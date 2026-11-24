@@ -10,8 +10,10 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import PhotobookMockup from '@/components/photobook/PhotobookMockup';
+import PhotobookClientProgress from '@/components/photobook/PhotobookClientProgress';
 import { createPortal } from 'react-dom';
 import { usePhoneOrientation } from '@/hooks/use-phone-orientation';
+import { photobookPageName } from '@/lib/photobook-page-name';
 import { useParams } from 'wouter';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
@@ -98,7 +100,7 @@ function PageLightbox({
   onIndexChange,
   onClose,
 }: {
-  pages: { url: string; displayUrl?: string | null; pageNumber: number }[];
+  pages: { url: string; displayUrl?: string | null; pageNumber: number; fileName?: string | null }[];
   index: number;
   onIndexChange: (i: number) => void;
   onClose: () => void;
@@ -167,7 +169,7 @@ function PageLightbox({
       {/* Barra superiore */}
       <div className="flex items-center justify-between px-4 py-2 text-white shrink-0">
         <p className="text-sm font-medium">
-          Pagina {page.pageNumber} · {index + 1} di {pages.length}
+          {photobookPageName(page.fileName, page.pageNumber)} · Pagina {page.pageNumber} · {index + 1} di {pages.length}
         </p>
         <div className="flex items-center gap-1">
           <button
@@ -500,6 +502,7 @@ export default function PhotobookViewPage() {
   const isApproved =
     !!data?.photobook.approval &&
     data.photobook.approval.version === data.photobook.currentVersion;
+  const hasPages = (data?.pages.length || 0) > 0;
   const clientConfiguresMockup = data?.photobook.mockupPath === 'client';
   const canEdit = isCurrentVersion && !isLocked && !isApproved;
 
@@ -822,6 +825,7 @@ export default function PhotobookViewPage() {
               {isTouchPhone
                 ? !isCurrentVersion ? `Versione ${data.version} precedente · sola lettura`
                   : isLocked ? `Versione ${data.version} · in stampa`
+                  : !hasPages ? `Versione ${data.version} · impaginato da preparare`
                   : isApproved ? `Versione ${data.version} · pagine approvate`
                   : pendingSentCount > 0 ? `Versione ${data.version} · richieste in attesa`
                   : `Versione ${data.version} aggiornata · da approvare`
@@ -857,7 +861,7 @@ export default function PhotobookViewPage() {
                 </SelectContent>
               </Select>
             )}
-            {canEdit && isTouchPhone && (
+            {canEdit && hasPages && isTouchPhone && (
               <Button
                 size="sm"
                 className="h-11 shrink-0 whitespace-nowrap bg-green-600 px-3 text-xs text-white hover:bg-green-700"
@@ -891,65 +895,15 @@ export default function PhotobookViewPage() {
           isTouchPhone ? 'px-1 py-1 space-y-1' : 'max-w-4xl px-2 sm:px-4 space-y-4 sm:space-y-6 py-4 sm:py-6'
         }`}
       >
-        {isTouchPhone && isApproved && isCurrentVersion && (
-          <Card className="border-emerald-300 bg-emerald-50/80 shadow-sm mx-1 my-2" data-testid="card-photobook-mockup-mobile">
-            <CardContent className="p-3.5 flex flex-col gap-2">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                <h2 className="font-semibold text-stone-900 text-sm">{clientConfiguresMockup ? 'Personalizza il tuo album in 3D' : 'Mockup del fotolibro'}</h2>
-              </div>
-              <p className="text-xs text-stone-600">
-                {clientConfiguresMockup
-                  ? 'Pagine approvate! Ora puoi scegliere tessuti, colori, copertina e retro con anteprima interattiva.'
-                  : 'Lo studio gestisce la copertina. Qui trovi lo stato del mockup e le istruzioni per consultarlo.'}
-              </p>
-              <div className="pt-1">
-                <PhotobookMockup key={`mobile-main-${photobook.id}-${data.version}`} photobookId={photobook.id} version={data.version} token={token} readOnly={isLocked} onOpenChange={setMockupOpen} />
-              </div>
+        <PhotobookClientProgress approved={isApproved} locked={isLocked} isCurrentVersion={isCurrentVersion} clientConfigures={clientConfiguresMockup} hasPages={hasPages} compact={isTouchPhone} />
+        {!hasPages && isCurrentVersion && (
+          <Card className="border-[#dce5dc] bg-white" data-testid="photobook-no-pages">
+            <CardContent className="py-4 text-sm text-muted-foreground">
+              Le pagine dell’impaginato non sono ancora state caricate. Se lo studio ha condiviso un mockup, potete consultarlo e confermarlo dal link dedicato: questa conferma non approva le pagine.
             </CardContent>
           </Card>
         )}
-        {!isTouchPhone && photobook.versions.length > 1 && <Card className="border-blue-200 bg-blue-50"><CardContent className="py-3 space-y-2 text-sm">
-          <p className="font-semibold">{isCurrentVersion ? `Stai vedendo la versione aggiornata ${data.version}` : `Versione precedente ${data.version} · sola lettura`}</p>
-          <p>Le versioni precedenti sono conservate. Scegli una versione dal menu in alto per confrontare le pagine; le nuove richieste si inviano solo sulla versione attuale.</p>
-          {!isCurrentVersion && <Button variant="outline" onClick={() => { setSelectedVersion(null); setSlideIdx(0); }}>Torna alla versione attuale</Button>}
-        </CardContent></Card>}
-        {!isTouchPhone && <details className="rounded-lg border bg-white p-3 text-sm"><summary className="cursor-pointer font-medium min-h-9">Come controllare il tuo fotolibro · guida passo passo</summary>
-          <ol className="list-decimal pl-5 space-y-2 mt-2"><li>Sfoglia tutte le pagine con le frecce.</li><li>Per una correzione, tocca “Segna una X”, indica la foto e descrivi cosa cambiare.</li><li>Invia le richieste: finché restano in bozza lo studio non le riceve.</li><li>Quando le pagine vanno bene, approva l’impaginato. {clientConfiguresMockup ? 'Poi personalizza copertina e box con “Apri mockup”: potrai modificarli fino all’invio in stampa.' : 'Lo studio preparerà il mockup e ti invierà il link quando sarà confermato.'}</li></ol>
-        </details>}
-        {!isTouchPhone && isApproved && <PhotobookMockup key={`${photobook.id}-${data.version}`} photobookId={photobook.id} version={data.version} token={token} readOnly={isLocked || !isCurrentVersion} onOpenChange={setMockupOpen} />}
-        {isLocked && !isTouchPhone && (
-          <Card className="border-stone-300 bg-stone-100" data-testid="banner-locked">
-            <CardContent className="py-4 flex items-start gap-3">
-              <Lock className="h-5 w-5 text-stone-500 shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <p className="font-semibold text-stone-800">Album mandato in stampa</p>
-                <p className="text-sm text-stone-600">
-                  Non è più possibile apportare modifiche. Puoi comunque sfogliare le pagine e
-                  rivedere le richieste inviate.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {!isLocked && isApproved && isCurrentVersion && !isTouchPhone && (
-          <Card className="border-green-300 bg-green-50" data-testid="banner-approved">
-            <CardContent className="py-4 flex items-start gap-3">
-              <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <p className="font-semibold text-green-800">Impaginato approvato</p>
-                <p className="text-sm text-green-700">
-                  Le pagine di questa versione sono approvate. Ora puoi personalizzare
-                  album e box con il mockup, fino all'invio in stampa. Per altre
-                  modifiche alle pagine, contatta il tuo fotografo.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {canEdit && !isTouchPhone && (
+        {canEdit && hasPages && !isTouchPhone && (
           <Card className="border-green-200 bg-white" data-testid="card-approve">
             <CardContent className="py-3 flex items-center gap-3 flex-wrap">
               <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
@@ -976,17 +930,52 @@ export default function PhotobookViewPage() {
             </CardContent>
           </Card>
         )}
-
-        {!isCurrentVersion && !isLocked && !isTouchPhone && (
-          <Card className="border-amber-300 bg-amber-50">
-            <CardContent className="py-3 text-sm text-amber-800">
-              Stai guardando una versione precedente del fotolibro (solo lettura). Torna alla
-              versione attuale per richiedere modifiche.
+        {isTouchPhone && isApproved && isCurrentVersion && (
+          <Card className="border-emerald-300 bg-emerald-50/80 shadow-sm mx-1 my-2" data-testid="card-photobook-mockup-mobile">
+            <CardContent className="p-3.5 flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                <h2 className="font-semibold text-stone-900 text-sm">{clientConfiguresMockup ? 'Personalizza il tuo album in 3D' : 'Mockup del fotolibro'}</h2>
+              </div>
+              <p className="text-xs text-stone-600">
+                {clientConfiguresMockup
+                  ? 'Pagine approvate! Ora puoi scegliere tessuti, colori, copertina e retro con anteprima interattiva.'
+                  : 'Lo studio gestisce la copertina. Qui trovi lo stato del mockup e le istruzioni per consultarlo.'}
+              </p>
+              <div className="pt-1">
+                <PhotobookMockup key={`mobile-main-${photobook.id}-${data.version}`} photobookId={photobook.id} version={data.version} token={token} readOnly={isLocked} onOpenChange={setMockupOpen} />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        {!isTouchPhone && photobook.versions.length > 1 && <Card className="border-blue-200 bg-blue-50"><CardContent className="py-3 space-y-2 text-sm">
+          <p className="font-semibold">{isCurrentVersion ? `Stai vedendo la versione aggiornata ${data.version}` : `Versione precedente ${data.version} · sola lettura`}</p>
+          <p>Le versioni precedenti sono conservate. Scegli una versione dal menu in alto per confrontare le pagine; le nuove richieste si inviano solo sulla versione attuale.</p>
+          {!isCurrentVersion && <Button variant="outline" onClick={() => { setSelectedVersion(null); setSlideIdx(0); }}>Torna alla versione attuale</Button>}
+        </CardContent></Card>}
+        {!isTouchPhone && <details className="rounded-lg border bg-white p-3 text-sm"><summary className="cursor-pointer font-medium min-h-9">Come controllare il tuo fotolibro · guida passo passo</summary>
+          <ol className="list-decimal pl-5 space-y-2 mt-2"><li>Sfoglia tutte le pagine con le frecce.</li><li>Per una correzione, tocca “Segna una X”, indica la foto e descrivi cosa cambiare.</li><li>Invia le richieste: finché restano in bozza lo studio non le riceve.</li><li>Quando le pagine vanno bene, approva l’impaginato. {clientConfiguresMockup ? 'Poi personalizza copertina e box con “Personalizza il tuo album”: potrai modificarli fino all’invio in stampa.' : 'Lo studio preparerà il mockup e ti invierà il link quando sarà confermato.'}</li></ol>
+        </details>}
+        {!isTouchPhone && isApproved && <PhotobookMockup key={`${photobook.id}-${data.version}`} photobookId={photobook.id} version={data.version} token={token} readOnly={isLocked || !isCurrentVersion} onOpenChange={setMockupOpen} />}
+        {isLocked && !isTouchPhone && (
+          <Card className="border-stone-300 bg-stone-100" data-testid="banner-locked">
+            <CardContent className="py-4 flex items-start gap-3">
+              <Lock className="h-5 w-5 text-stone-500 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-semibold text-stone-800">Album mandato in stampa</p>
+                <p className="text-sm text-stone-600">
+                  Non è più possibile apportare modifiche. Puoi comunque sfogliare le pagine e
+                  rivedere le richieste inviate.
+                </p>
+              </div>
             </CardContent>
           </Card>
         )}
 
-        {canEdit && !isTouchPhone && (
+
+
+
+        {canEdit && hasPages && !isTouchPhone && (
           <p className="text-sm text-muted-foreground px-1">
             Tocca <span className="font-medium text-foreground">"Segna una X"</span> su una pagina e
             disegna una X sulla foto che vuoi far modificare: ogni X prende un colore diverso e
@@ -1036,7 +1025,10 @@ export default function PhotobookViewPage() {
             >
               <div className="flex items-center gap-2 flex-wrap px-1">
                 <p className="text-xs font-medium text-stone-500 uppercase tracking-wide">
-                  Pagina {page.pageNumber}
+                  <span className="max-w-[70vw] truncate" title={photobookPageName(page.fileName, page.pageNumber)}>
+                    {photobookPageName(page.fileName, page.pageNumber)}
+                  </span>
+                  <span className="shrink-0">· Pagina {page.pageNumber}</span>
                 </p>
                 <button
                   type="button"

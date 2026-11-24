@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { AlertCircle, CheckCircle, RefreshCw } from "lucide-react";
+import { AlertCircle, CheckCircle, RefreshCw, Settings2 } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import { CalendarSetupWizard, type SetupStatus } from "./CalendarSetupWizard";
 
 interface CalendarConnectionStatus {
   connected: boolean;
@@ -44,6 +45,23 @@ export function GoogleCalendarStatus({ toast }: GoogleCalendarStatusProps) {
     loading: true,
   });
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
+
+  const handleWizardCompleted = (result: SetupStatus) => {
+    setWizardOpen(false);
+    setStatus({
+      connected: result.connected,
+      accountEmail: result.accountEmail,
+      calendarId: result.calendarId ?? undefined,
+      error: result.error,
+      loading: false,
+    });
+    toast({
+      title: "Calendario verificato",
+      description: "Calendario di destinazione configurato. Gli eventi esistenti non sono stati spostati.",
+    });
+    checkStatus();
+  };
 
   const getFirebaseToken = async (forceRefresh = false) => {
     await auth.authStateReady();
@@ -89,6 +107,7 @@ export function GoogleCalendarStatus({ toast }: GoogleCalendarStatusProps) {
       }
       setStatus({
         ...data,
+        accountEmail: data?.accountEmail ?? data?.email,
         loading: false,
         error: calendarErrorMessage(data?.error),
       });
@@ -136,6 +155,7 @@ export function GoogleCalendarStatus({ toast }: GoogleCalendarStatusProps) {
       if (refreshedStatus && typeof refreshedStatus === "object") {
         setStatus({
           ...refreshedStatus,
+          accountEmail: refreshedStatus.accountEmail ?? refreshedStatus.email,
           loading: false,
           error: calendarErrorMessage(refreshedStatus.error),
         });
@@ -145,8 +165,8 @@ export function GoogleCalendarStatus({ toast }: GoogleCalendarStatusProps) {
 
       if (refreshedStatus?.connected) {
         toast({
-          title: "Google Calendar sincronizzato",
-          description: "Sessione admin e connessione del Service Account verificate.",
+          title: "Calendario verificato",
+          description: "Calendario di destinazione e permessi di scrittura verificati. Gli eventi esistenti non sono stati modificati.",
         });
       } else {
         toast({
@@ -162,6 +182,7 @@ export function GoogleCalendarStatus({ toast }: GoogleCalendarStatusProps) {
         calendarErrorMessage(error) || "Impossibile sincronizzare Google Calendar";
       setStatus((prev) => ({
         ...prev,
+        connected: false,
         loading: false,
         error: message,
       }));
@@ -201,7 +222,7 @@ export function GoogleCalendarStatus({ toast }: GoogleCalendarStatusProps) {
                 Service Account: <strong>{status.accountEmail}</strong>
               </span>
               <p className="text-xs text-green-600">
-                Calendario: {status.calendarId} — Connessione permanente
+                Calendario: {status.calendarId} — Lettura e scrittura verificate
               </p>
             </div>
           </div>
@@ -214,7 +235,7 @@ export function GoogleCalendarStatus({ toast }: GoogleCalendarStatusProps) {
             data-testid="button-sync-calendar"
           >
             <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-            {isRefreshing ? "Sincronizzazione..." : "Sincronizza / ricollega"}
+            {isRefreshing ? "Verifica in corso..." : "Verifica collegamento"}
           </Button>
         </div>
         <CalendarConnectionHelp />
@@ -237,15 +258,33 @@ export function GoogleCalendarStatus({ toast }: GoogleCalendarStatusProps) {
         <Button
           variant="outline"
           size="sm"
+          onClick={() => setWizardOpen(true)}
+          disabled={wizardOpen}
+          className="text-red-700 mr-2"
+          data-testid="button-open-calendar-wizard"
+        >
+          <Settings2 className="mr-2 h-4 w-4" />
+          Configura calendario
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
           onClick={refreshCalendarConnection}
           disabled={isRefreshing}
           className="text-red-700"
           data-testid="button-sync-calendar"
         >
           <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-          {isRefreshing ? "Sincronizzazione..." : "Sincronizza / ricollega"}
+          {isRefreshing ? "Verifica in corso..." : "Verifica collegamento"}
         </Button>
       </div>
+
+      {wizardOpen && (
+        <CalendarSetupWizard
+          onClose={() => setWizardOpen(false)}
+          onCompleted={handleWizardCompleted}
+        />
+      )}
 
       <CalendarConnectionHelp />
     </div>
@@ -260,16 +299,17 @@ function CalendarConnectionHelp() {
       </p>
       <ul className="text-sm text-blue-700 list-disc list-inside space-y-1">
         <li>
-          Il pulsante rinnova la sessione Firebase dell&apos;admin e verifica di
-          nuovo la richiesta.
+          Il pulsante verifica il calendario di destinazione e i permessi per
+          leggere e creare appuntamenti. Non recupera gli eventi mancanti.
         </li>
         <li>
-          Il server reinizializza il client Google con il Service Account
-          configurato; non è un nuovo login OAuth personale.
+          Deve essere configurato l&apos;ID del calendario dello studio, tramite
+          la procedura guidata o la configurazione esistente del server; la sola autenticazione Google non basta.
         </li>
         <li>
           Se l&apos;errore continua, il calendario deve essere condiviso con
-          l&apos;indirizzo email del Service Account.
+          l&apos;indirizzo email del Service Account con il permesso
+          “Apportare modifiche agli eventi”.
         </li>
       </ul>
     </div>

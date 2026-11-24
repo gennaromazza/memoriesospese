@@ -5,9 +5,12 @@ vi.mock('./firebase-admin', () => ({ db: {} }));
 import {
   BLOG_SEO_RENDERING_LASTMOD,
   blogSitemapLastModifiedDate,
+  buildPrintPromotionSitemapEntries,
+  buildShopCategorySitemapEntries,
   buildStaticSitemapEntries,
   buildWeddingSitemapEntries,
 } from './sitemap-generator';
+import { ShopService } from './shop/service';
 
 describe('Blog sitemap', () => {
   it('signals the latest real article or shared SEO rendering update', () => {
@@ -52,13 +55,34 @@ describe('Real Wedding sitemap', () => {
 });
 
 describe('Static sitemap', () => {
-  it('publishes Image Experience but not its legacy campaign alias', () => {
+  it('publishes canonical destinations but no audited legacy aliases', () => {
     const xml = buildStaticSitemapEntries();
 
     expect(xml.match(/<loc>https:\/\/imagestudiofotografico\.com\/image-experience<\/loc>/g)?.length)
       .toBe(1);
-    expect(xml).not.toContain('https://imagestudiofotografico.com/esperienza');
-    expect(xml).not.toContain('https://imagestudiofotografico.com/esperienza/');
+    expect(xml).toContain('<loc>https://imagestudiofotografico.com/portfolio/matrimonio</loc>');
+    for (const alias of ['/esperienza', '/consultations', '/shop-natale', '/?p=']) {
+      expect(xml).not.toContain(`https://imagestudiofotografico.com${alias}`);
+    }
+  });
+});
+
+describe('Sitemap promozioni stampe', () => {
+  it('pubblica le offerte attive con una immagine social dedicata', () => {
+    const xml = buildPrintPromotionSitemapEntries([{
+      code: 'PACK100',
+      discountType: 'fixed_total',
+      value: 2_500,
+      startsAt: '2026-11-01T00:00:00.000Z',
+      endsAt: '2026-12-01T23:59:59.000Z',
+      scope: 'all',
+      eligibleFormats: [],
+      minPrintQuantity: 100,
+    }], 'https://example.test');
+
+    expect(xml).toContain('<loc>https://example.test/stampa-foto-aversa/offerte/pack100</loc>');
+    expect(xml).toContain('https://example.test/images/print-service/print-promotions-og.jpg');
+    expect(xml).toContain('Offerta stampe foto PACK100');
   });
 });
 
@@ -74,9 +98,48 @@ describe('Sitemap della vetrina shop', () => {
     expect(buildStaticSitemapEntries('https://example.test')).not.toContain('/online-shop');
   });
 
-  it('la elenca quando viene aperta a Google', () => {
+  it('non include lo shop staticamente: serve verificare il catalogo attivo', () => {
     process.env.SHOP_INDEXABLE = 'true';
-    expect(buildStaticSitemapEntries('https://example.test')).toContain('<loc>https://example.test/online-shop</loc>');
+    expect(buildStaticSitemapEntries('https://example.test')).not.toContain('/online-shop');
+  });
+
+  it('include vetrina e sole categorie con prodotti vendibili', async () => {
+    process.env.SHOP_INDEXABLE = 'true';
+    vi.spyOn(ShopService.prototype, 'publicCatalog').mockResolvedValue({
+      enabled: true,
+      orderingOpen: true,
+      lastOrderDate: null,
+      currency: 'EUR',
+      shipping: {} as any,
+      photoWaitDays: 7,
+      categories: [
+        { value: 'natale', nome: 'Natale' },
+        { value: 'vuota', nome: 'Vuota' },
+      ],
+      products: [{ id: 'p1', categoria: 'natale' }],
+    } as any);
+
+    const xml = await buildShopCategorySitemapEntries('https://example.test');
+
+    expect(xml).toContain('<loc>https://example.test/online-shop</loc>');
+    expect(xml).toContain('<loc>https://example.test/online-shop/categoria/natale</loc>');
+    expect(xml).not.toContain('/categoria/vuota');
+  });
+
+  it('esclude vetrina e categorie quando shop o catalogo sono spenti', async () => {
+    process.env.SHOP_INDEXABLE = 'true';
+    vi.spyOn(ShopService.prototype, 'publicCatalog').mockResolvedValue({
+      enabled: false,
+      orderingOpen: false,
+      lastOrderDate: null,
+      currency: 'EUR',
+      shipping: {} as any,
+      photoWaitDays: 7,
+      categories: [],
+      products: [],
+    } as any);
+
+    expect(await buildShopCategorySitemapEntries('https://example.test')).toBe('');
   });
 });
 

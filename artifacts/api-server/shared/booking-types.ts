@@ -142,6 +142,14 @@ export interface BookingCampaign {
   
   // Prodotti disponibili per questa campagna
   prodottiDisponibili: string[]; // Array di productId
+
+  // Impostazioni pagamento (opzionali nei documenti legacy).
+  // Se assenti: approvazione richiesta e nessun acconto.
+  richiedeApprovazione?: boolean;
+  richiedeAcconto?: boolean;
+  /** Email automatiche a 30 e 50 minuti dalla richiesta di acconto (default on). */
+  emailPromemoriaAcconto?: boolean;
+  accontoImportoCentesimi?: number | null;
   
   // Immagini personalizzate (opzionali)
   immagineSlider?: string; // URL immagine per slider homepage (opzionale)
@@ -161,6 +169,30 @@ export interface BookingCampaignFE extends Omit<BookingCampaign, 'dataInizio' | 
 /**
  * BOOKINGS - Prenotazioni clienti
  */
+export interface BookingDepositPayment {
+  provider: 'paypal';
+  status: 'paid' | 'paid_action_required';
+  amountCents: number;
+  currency: 'EUR';
+  paypalOrderId: string;
+  paypalCaptureId: string;
+  paypalFeeCents?: number; // assente = non ancora disponibile, non zero
+  netCents?: number;
+  paidAt: Timestamp;
+}
+
+export interface BookingDepositPaymentRequest {
+  status: 'pending' | 'expired' | 'paid';
+  amountCents: number;
+  currency: 'EUR';
+  requestedAt: Timestamp;
+  expiresAt: Timestamp;
+  expiredAt?: Timestamp;
+  emailStatus?: 'pending' | 'sending' | 'sent' | 'failed' | 'unknown';
+  approvedBy?: string;
+  paidAt?: Timestamp;
+}
+
 export interface Booking {
   id: string;
   campaignId: string; // Riferimento a booking_campaigns
@@ -222,6 +254,9 @@ export interface Booking {
   saldo?: number; // Saldo residuo (totale - acconto)
   metodoPagamento?: 'contante' | 'carta' | 'bonifico' | 'paypal' | 'altro'; // Metodo pagamento acconto
   transactions?: Transaction[]; // Storico transazioni (centralizzato con ordini)
+  depositPayment?: BookingDepositPayment;
+  depositPaymentRequest?: BookingDepositPaymentRequest;
+  calendarSyncPending?: boolean;
   
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -284,6 +319,13 @@ export interface Transaction {
   data: Timestamp;
   note?: string; // Note opzionali (es. "Primo acconto", "Bonifico IBAN: IT...")
   emailInviata: boolean; // Flag per tracking notifica email cliente
+  providerTransactionId?: string;
+  paypalOrderId?: string;
+  paypalFeeCents?: number;
+  source?: 'booking_paypal_deposit';
+  bookingId?: string;
+  originalAmountCents?: number;
+  cashMovementId?: string;
 }
 
 /**

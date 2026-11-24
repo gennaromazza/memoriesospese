@@ -113,7 +113,7 @@ export default function HeroSlideshow() {
   }
 
   return (
-    <div className="absolute inset-0 h-full w-full max-w-full overflow-hidden [contain:paint]">
+    <div className="absolute inset-0 h-full w-full max-w-full overflow-hidden bg-cream/60 [contain:paint]">
       {images.map((image, index) => (
         <div
           key={image.id}
@@ -125,7 +125,7 @@ export default function HeroSlideshow() {
             <img
               src={image.url}
               alt={image.alt}
-              className="block h-full w-full max-w-full object-cover object-center"
+              className="block h-full w-full max-w-full object-contain object-center"
               loading={index === 0 ? "eager" : "lazy"}
               decoding={index === 0 ? "sync" : "async"}
             />
@@ -135,7 +135,7 @@ export default function HeroSlideshow() {
               <img
                 src={image.url}
                 alt={image.alt}
-                className="absolute inset-0 block h-full w-full max-w-full object-cover object-center"
+                className="absolute inset-0 block h-full w-full max-w-full object-contain object-center"
                 loading={index === 0 ? "eager" : "lazy"}
                 decoding={index === 0 ? "sync" : "async"}
                 onLoad={() => setLoadedImages(prev => new Set([...prev, index]))}

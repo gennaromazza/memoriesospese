@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { GIFT_HOW_SEO, GIFT_SHOP_FAQS, GIFT_SHOP_SEO } from '@shared/gift-card-landing-content';
 import { SHOP_FAQS, SHOP_SEO, shopCategoryPath, shopCategorySeo, shopCategoryValueFromPath } from '@shared/shop-landing-content';
 import type { ShopCatalogDto, ShopProductDto } from '@shared/shop-types';
-import { buildShopCategoryPageMeta, shopAvailability, shopCategoryCatalog, shopCategorySitemapPaths, shopProductUrl, shopProductsBody, shopProductsJsonLd } from './seo';
+import { buildShopCategoryPageMeta, shopAvailability, shopCategoryCatalog, shopSitemapPaths, shopProductUrl, shopProductsBody, shopProductsJsonLd } from './seo';
 
 const product = (patch: Partial<ShopProductDto> = {}): ShopProductDto => ({
   id: 'tazza',
@@ -198,9 +198,18 @@ describe('pagina di una categoria', () => {
     expect(seo.description).toMatch(/Aversa/);
   });
 
-  it('nella mappa del sito entrano solo le categorie con prodotti, e solo a vetrina accesa', () => {
-    expect(shopCategorySitemapPaths(two)).toEqual(['/online-shop/categoria/natale', '/online-shop/categoria/tazze']);
-    expect(shopCategorySitemapPaths({ ...two, enabled: false })).toEqual([]);
+  it('nella mappa entrano vetrina e sole categorie con prodotti vendibili', () => {
+    expect(shopSitemapPaths(two)).toEqual([
+      '/online-shop',
+      '/online-shop/categoria/natale',
+      '/online-shop/categoria/tazze',
+    ]);
+    expect(shopSitemapPaths({ ...two, enabled: false })).toEqual([]);
+    expect(shopSitemapPaths({ ...two, products: [] })).toEqual([]);
+    expect(shopSitemapPaths({ ...two, products: [product({ categoria: 'natale' })] })).toEqual([
+      '/online-shop',
+      '/online-shop/categoria/natale',
+    ]);
   });
 
   it("l'indirizzo si costruisce e si legge senza ambiguità, e rifiuta valori non validi", () => {

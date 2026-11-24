@@ -142,6 +142,23 @@ export interface FinanceLabBalance {
   jobNames: string[];
 }
 
+export interface FinancePrintShopMargin {
+  orderId: string;
+  orderNumber: string;
+  customerName: string;
+  date: Date | null;
+  paymentMethod: string;
+  revenueCents: number;
+  estimatedPrintCostCents: number | null;
+  supplierCostCents: number | null;
+  productionCostCents: number | null;
+  productionCostBasis: "actual" | "estimated" | null;
+  paypalFeeCents: number | null;
+  marginCents: number | null;
+  marginStatus: "actual" | "estimated" | "incomplete";
+  missingReasons: string[];
+}
+
 export interface FinanceLedgerEntry {
   id: string;
   date: Date | null;
@@ -190,6 +207,7 @@ export interface FinanceCampaign {
 
 export interface FinanceDashboard {
   ledger: FinanceLedgerEntry[];
+  printShopMargins: FinancePrintShopMargin[];
   receivables: FinanceReceivable[];
   campaigns: FinanceCampaign[];
   labCosts: FinanceLabCost[];

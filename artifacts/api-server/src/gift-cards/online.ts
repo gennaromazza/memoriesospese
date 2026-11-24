@@ -42,6 +42,7 @@ import {
   type GiftCardService,
 } from './service.js';
 import { upsertGiftCustomer } from './customers.js';
+import { handleVerifiedBookingPayPalEvent } from '../booking/deposit-payments.js';
 import {
   giftCardReceiptEmail,
   giftCardReceiptSubject,
@@ -269,6 +270,7 @@ export class GiftCardOnlineService {
         kind: type.kind,
         priceCents: type.priceCents,
         theme: type.theme,
+        visualStyle: type.visualStyle,
         items: await this.deps.service.catalogItems(type.items),
         validUntil: expires ? expires.toISOString() : null,
       });
@@ -819,6 +821,8 @@ export class GiftCardOnlineService {
       throw mapPayPalError(error);
     }
     if (!verified) throw new GiftCardHttpError(401, 'invalid_webhook_signature', 'Firma webhook PayPal non valida');
+    const bookingPayment = await handleVerifiedBookingPayPalEvent(this.db, this.deps.paypal, event);
+    if (bookingPayment) return bookingPayment;
 
     const eventId = typeof event?.id === 'string' ? event.id.slice(0, 160) : '';
     const eventType = typeof event?.event_type === 'string' ? event.event_type.slice(0, 160) : '';

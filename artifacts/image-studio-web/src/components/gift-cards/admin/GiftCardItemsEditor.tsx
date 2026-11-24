@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Plus, Search, Trash2 } from 'lucide-react';
+import { ExternalLink, Plus, Search, Trash2 } from 'lucide-react';
 import { GIFT_CARD_MAX_ITEMS, GIFT_CARD_MAX_ITEM_QUANTITY, type GiftCardItemInput } from '@shared/gift-card-types';
 import { getAllProducts, useActiveProductCategories } from '@/lib/products';
 import { Button } from '@/components/ui/button';
@@ -16,12 +16,13 @@ const MAX_RESULTS = 30;
 interface Props {
   items: GiftCardItemInput[];
   onChange: (items: GiftCardItemInput[]) => void;
+  onEditProduct: (productId: string) => void;
   /** Propone il totale del catalogo (in centesimi) come prezzo del regalo. */
   onUseTotal: (cents: number) => void;
 }
 
 /** Sceglie dal catalogo centrale i prodotti inclusi nel regalo, con ricerca e categorie. Prezzi visibili solo qui, allo studio. */
-export default function GiftCardItemsEditor({ items, onChange, onUseTotal }: Props) {
+export default function GiftCardItemsEditor({ items, onChange, onEditProduct, onUseTotal }: Props) {
   const products = useQuery({ queryKey: ['gift-card-products'], queryFn: getAllProducts, staleTime: 60_000 });
   const categories = useActiveProductCategories();
   const [search, setSearch] = useState('');
@@ -49,12 +50,61 @@ export default function GiftCardItemsEditor({ items, onChange, onUseTotal }: Pro
           <ul className="space-y-2">
             {items.map(item => {
               const product = byId.get(item.productId);
+              const bundleContents = product?.isBundle
+                ? product.bundleItems?.map(bundleItem => `${bundleItem.quantita} × ${bundleItem.prodottoNome}`).join(' · ')
+                : '';
+              const bundleProductsMissingDescription = product?.isBundle
+                ? (product.bundleItems ?? []).flatMap(bundleItem => {
+                    const bundleProduct = byId.get(bundleItem.prodottoId);
+                    return bundleProduct && !bundleProduct.descrizione?.trim() ? [bundleProduct] : [];
+                  })
+                : [];
               return (
                 <li key={item.productId} className="flex flex-wrap items-center gap-3 rounded-md border bg-muted/40 p-2 text-sm">
                   {product?.immagini?.[0] ? <img src={product.immagini[0]} alt="" className="h-10 w-10 rounded object-cover" /> : <span className="h-10 w-10 rounded bg-muted" aria-hidden="true" />}
                   <span className="min-w-0 flex-1">
                     <span className="block font-medium">{product?.nome ?? 'Prodotto non più nel catalogo'}</span>
-                    {product ? <span className="block text-xs text-muted-foreground">{euro(product.prezzoFinale)} ciascuno · solo per te</span> : null}
+                    {product ? (
+                      <>
+                        <span className="block text-xs text-muted-foreground">{euro(product.prezzoFinale)} ciascuno · solo per te</span>
+                        <span className="mt-1 block whitespace-normal text-xs text-muted-foreground">
+                          {product.descrizione?.trim() || 'Nessuna descrizione nel catalogo'}
+                        </span>
+                        {!product.descrizione?.trim() ? (
+                          <span className="mt-2 flex flex-wrap items-center gap-2 text-xs text-amber-800" role="status">
+                            <span>Descrizione del catalogo mancante: chi riceve la gift card vedrà solo il nome. Puoi aggiungerla nel catalogo prodotti.</span>
+                            <Button type="button" size="sm" variant="outline" className="h-7 border-amber-400 px-2 text-amber-900 hover:bg-amber-50" aria-label={`Completa descrizione di ${product.nome} nel catalogo prodotti`} onClick={() => onEditProduct(product.id)}>
+                              <ExternalLink className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+                              Correggi nel catalogo
+                            </Button>
+                          </span>
+                        ) : null}
+                        {bundleProductsMissingDescription.length ? (
+                          <div className="mt-2 space-y-2 text-xs text-amber-800" role="status">
+                            <p>Descrizione mancante per i prodotti inclusi nel bundle:</p>
+                            <ul className="space-y-1.5">
+                              {bundleProductsMissingDescription.map(bundleProduct => (
+                                <li key={bundleProduct.id} className="flex flex-wrap items-center gap-2">
+                                  <span>{bundleProduct.nome}</span>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 border-amber-400 px-2 text-amber-900 hover:bg-amber-50"
+                                    aria-label={`Completa descrizione di ${bundleProduct.nome} nel catalogo prodotti`}
+                                    onClick={() => onEditProduct(bundleProduct.id)}
+                                  >
+                                    <ExternalLink className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+                                    Correggi nel catalogo
+                                  </Button>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : null}
+                        {bundleContents ? <span className="mt-1 block line-clamp-2 text-xs text-muted-foreground">Include: {bundleContents}</span> : null}
+                      </>
+                    ) : null}
                   </span>
                   <Input
                     aria-label={`Quantità di ${product?.nome ?? 'prodotto'}`}
@@ -127,8 +177,16 @@ export default function GiftCardItemsEditor({ items, onChange, onUseTotal }: Pro
                       <span className="block truncate text-xs text-muted-foreground">
                         {categoryName.get(product.categoria) ?? product.categoria} · {euro(product.prezzoFinale)}
                       </span>
+                      <span className="mt-1 block whitespace-normal text-xs text-muted-foreground line-clamp-2">
+                        {product.descrizione || 'Nessuna descrizione nel catalogo'}
+                      </span>
+                      {product.isBundle && product.bundleItems?.length ? (
+                        <span className="mt-1 block text-xs text-muted-foreground line-clamp-2">
+                          Include: {product.bundleItems.map(item => `${item.quantita} × ${item.prodottoNome}`).join(' · ')}
+                        </span>
+                      ) : null}
                     </span>
-                    <Button type="button" size="sm" variant="outline" disabled={full} onClick={() => onChange([...items, { productId: product.id, quantity: 1 }])}>
+                    <Button type="button" size="sm" variant="outline" className="shrink-0" disabled={full} onClick={() => onChange([...items, { productId: product.id, quantity: 1 }])}>
                       <Plus className="mr-1 h-4 w-4" />Aggiungi
                     </Button>
                   </li>

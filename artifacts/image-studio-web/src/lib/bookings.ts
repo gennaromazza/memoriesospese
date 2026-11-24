@@ -7,6 +7,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   addDoc,
   updateDoc,
   deleteDoc,
@@ -18,10 +19,45 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { apiRequest } from '@/lib/queryClient';
+import { requiresBookingCancellationPanel } from './booking-deletion';
 import type { Booking } from '@shared/booking-types';
+import type { BookingApprovalResult, AdminBookingPayment, GetAdminBookingPaymentCheckouts200,
+  AdminBookingManagementLink, BookingManagementChangeInput, ChangeAdminBookingManagementLink200 } from '@workspace/api-client-react';
 import { WorkflowState } from '@shared/schema';
 
 const COLLECTION = 'bookings';
+
+export interface BookingCreationResult {
+  success: true;
+  bookingId: string;
+  stato: 'in_attesa' | 'confermata';
+}
+
+export class BookingRequestError extends Error {
+  constructor(message: string, readonly status?: number) {
+    super(message);
+    this.name = 'BookingRequestError';
+  }
+}
+
+function bookingRequestError(error: unknown, preserveConflictMessage = false): BookingRequestError {
+  const match = error instanceof Error ? /^(\d{3}):\s*([\s\S]*)$/.exec(error.message) : null;
+  const status = match ? Number(match[1]) : undefined;
+  if (status === 409 && !preserveConflictMessage) {
+    return new BookingRequestError('Questo orario non è più disponibile. Scegli un altro orario: i dati inseriti sono conservati.', status);
+  }
+  if (match) {
+    try {
+      const body = JSON.parse(match[2]);
+      const message = body.message || body.error;
+      if (typeof message === 'string' && message.trim()) return new BookingRequestError(message, status);
+    } catch { /* Non mostrare pagine HTML di errore o dettagli del proxy. */ }
+  }
+  return new BookingRequestError(
+    'Non è stato possibile verificare l’esito. Controlla la tua email o contatta lo studio prima di riprovare.',
+    status,
+  );
+}
 
 /**
  * Crea nuova prenotazione via endpoint server V2 (usa Calendar Engine V2)
@@ -41,12 +77,15 @@ export async function createBooking(data: {
   prodottoNome?: string;
   prodotti?: Array<{ prodottoId: string; prodottoNome: string; quantity: number }>;
   note: string;
+  bookingConditionsVersion?: string;
   isManual?: boolean;
   createdByAdmin?: string;
   /** Gift card usata per pagare la prenotazione. */
   giftCardCode?: string;
-}): Promise<string> {
-  const response = await apiRequest('POST', '/api/booking/v2/create', {
+}): Promise<BookingCreationResult> {
+  let response: Response;
+  try {
+    response = await apiRequest('POST', '/api/booking/v2/create', {
       campaignId: data.campaignId,
       cliente: data.cliente,
       dataShootingInizio: data.dataShootingInizio.toISOString(),
@@ -55,13 +94,26 @@ export async function createBooking(data: {
       prodottoNome: data.prodottoNome,
       prodotti: data.prodotti,
       note: data.note,
+      bookingConditionsVersion: data.bookingConditionsVersion,
       isManual: data.isManual,
       createdByAdmin: data.createdByAdmin,
       giftCardCode: data.giftCardCode,
-  });
+    });
+  } catch (error) {
+    throw bookingRequestError(error);
+  }
 
-  const result = await response.json();
-  return result.bookingId;
+  let result: unknown;
+  try { result = await response.json(); } catch {
+    throw bookingRequestError(null);
+  }
+  if (!result || typeof result !== 'object'
+    || !('success' in result) || result.success !== true
+    || !('bookingId' in result) || typeof result.bookingId !== 'string' || !result.bookingId.trim()
+    || !('stato' in result) || (result.stato !== 'in_attesa' && result.stato !== 'confermata')) {
+    throw bookingRequestError(null);
+  }
+  return { success: true, bookingId: result.bookingId, stato: result.stato };
 }
 
 /**
@@ -170,8 +222,135 @@ export async function getBookingsByStatus(
 /**
  * Approva prenotazione (admin only) - chiama API server V2 con Calendar Engine V2
  */
-export async function approveBooking(bookingId: string): Promise<void> {
-  await apiRequest('PATCH', `/api/booking/v2/${bookingId}/approve`);
+export async function getBookingPaymentDetails(id: string): Promise<AdminBookingPayment> {
+  try { return await (await apiRequest('GET', `/api/booking/${encodeURIComponent(id)}/payment`)).json(); }
+  catch (error) { throw bookingRequestError(error, true); }
+}
+/** Authenticated transport preserves Firebase + admin-MFA headers for generated hooks. */
+export async function getBookingManagementLinkDetails(id: string): Promise<AdminBookingManagementLink> {
+  try { return await (await apiRequest('GET', `/api/booking/${encodeURIComponent(id)}/management-link`)).json(); }
+  catch (error) { throw bookingRequestError(error, true); }
+}
+export async function changeBookingManagementLink(id: string, input: BookingManagementChangeInput): Promise<ChangeAdminBookingManagementLink200> {
+  try { return await (await apiRequest('POST', `/api/booking/${encodeURIComponent(id)}/management-link`, input)).json(); }
+  catch (error) { throw bookingRequestError(error, true); }
+}
+/** One initial read, then Firestore delivers changes; never poll the entire booking collection. */
+export function subscribeBookings(onUpdate: (bookings: Booking[], fromCache: boolean) => void, onError: (error: Error) => void) {
+  return onSnapshot(query(collection(db, 'bookings'), orderBy('dataShootingInizio', 'desc')), { includeMetadataChanges: true },
+    snapshot => onUpdate(snapshot.docs.map(document => ({ ...document.data(), id: document.id } as Booking)), snapshot.metadata.fromCache),
+    onError);
+}
+// --- Solo le prenotazioni di alcune campagne (es. quelle attive): la lista parte da qui e passa a "tutte" su richiesta.
+const CAMPAIGNS_PER_QUERY = 30; // limite di Firestore per l'operatore "in"
+
+/** Id ordinati, senza doppioni né vuoti, in gruppi da al massimo 30. */
+export function chunkCampaignIds(campaignIds: string[]): string[][] {
+  const unique = [...new Set(campaignIds.filter(id => typeof id === 'string' && id))].sort();
+  const groups: string[][] = [];
+  for (let index = 0; index < unique.length; index += CAMPAIGNS_PER_QUERY) groups.push(unique.slice(index, index + CAMPAIGNS_PER_QUERY));
+  return groups;
+}
+
+function shootingMillis(booking: any): number {
+  const value = booking?.dataShootingInizio;
+  if (typeof value?.toMillis === 'function') return value.toMillis();
+  if (typeof value?.seconds === 'number') return value.seconds * 1000;
+  return value instanceof Date ? value.getTime() : 0;
+}
+const newestShootingFirst = (rows: Booking[]) => [...rows].sort((a, b) => shootingMillis(b) - shootingMillis(a));
+const toBooking = (document: { id: string; data: () => any }) => ({ ...document.data(), id: document.id } as Booking);
+
+/**
+ * Ascolto in tempo reale delle prenotazioni delle campagne indicate. Nessun orderBy sul server (servirebbe un
+ * indice composito): si ordina qui. Con più gruppi si notifica solo quando tutti hanno risposto almeno una volta.
+ */
+export function subscribeBookingsForCampaigns(
+  campaignIds: string[],
+  onUpdate: (bookings: Booking[], fromCache: boolean) => void,
+  onError: (error: Error) => void,
+): () => void {
+  const groups = chunkCampaignIds(campaignIds);
+  if (groups.length === 0) { onUpdate([], false); return () => undefined; }
+  const received = new Map<number, { rows: Booking[]; fromCache: boolean }>();
+  const stops = groups.map((group, index) => onSnapshot(
+    query(collection(db, COLLECTION), where('campaignId', 'in', group)), { includeMetadataChanges: true },
+    snapshot => {
+      received.set(index, { rows: snapshot.docs.map(toBooking), fromCache: snapshot.metadata.fromCache });
+      if (received.size < groups.length) return;
+      const parts = [...received.values()];
+      onUpdate(newestShootingFirst(parts.flatMap(part => part.rows)), parts.some(part => part.fromCache));
+    },
+    onError));
+  return () => stops.forEach(stop => stop());
+}
+
+/** Lettura una tantum (aggiornamento manuale) delle prenotazioni delle campagne indicate. */
+export async function getBookingsForCampaigns(campaignIds: string[]): Promise<Booking[]> {
+  const groups = chunkCampaignIds(campaignIds);
+  const snapshots = [];
+  for (const group of groups) snapshots.push(await getDocs(query(collection(db, COLLECTION), where('campaignId', 'in', group))));
+  return newestShootingFirst(snapshots.flatMap(snapshot => snapshot.docs.map(toBooking)));
+}
+
+export async function getBookingPaymentCheckouts(): Promise<GetAdminBookingPaymentCheckouts200> {
+  try { return await (await apiRequest('GET', '/api/booking/admin/payment-checkouts')).json(); }
+  catch (error) { throw bookingRequestError(error, true); }
+}
+export async function verifyBookingDeposit(id: string): Promise<AdminBookingPayment> {
+  try { return await (await apiRequest('POST', `/api/booking/${encodeURIComponent(id)}/payment/verify`, {})).json(); }
+  catch (error) { throw bookingRequestError(error, true); }
+}
+export async function resendBookingDeposit(id: string, requestId: string): Promise<AdminBookingPayment> {
+  try { return await (await apiRequest('POST', `/api/booking/${encodeURIComponent(id)}/payment/resend`, { requestId })).json(); }
+  catch (error) { throw bookingRequestError(error, true); }
+}
+/** Acconto incassato di persona (importo libero): conferma la prenotazione e chiude il link PayPal. */
+export async function recordInPersonBookingDeposit(
+  id: string, body: { amountCents: number; method: string; requestId: string; note?: string },
+): Promise<AdminBookingPayment> {
+  try { return await (await apiRequest('POST', `/api/booking/${encodeURIComponent(id)}/payment/in-person`, body)).json(); }
+  catch (error) { throw bookingRequestError(error, true); }
+}
+
+export interface ManualBookingRecoveryCandidate {
+  bookingId: string;
+  name?: string;
+  email?: string;
+  eligible: boolean;
+  reason?: string;
+}
+export interface ManualBookingRecoveryPreview {
+  campaignId: string;
+  eligible: ManualBookingRecoveryCandidate[];
+  excluded: ManualBookingRecoveryCandidate[];
+}
+export async function previewManualBookingRecovery(campaignId: string): Promise<ManualBookingRecoveryPreview> {
+  try {
+    return await (await apiRequest('POST', '/api/booking/admin/recovery/preview', { campaignId })).json();
+  } catch (error) { throw bookingRequestError(error, true); }
+}
+export async function sendManualBookingRecovery(campaignId: string, bookingIds: string[]) {
+  try {
+    return await (await apiRequest('POST', '/api/booking/admin/recovery/send', { campaignId, bookingIds })).json() as {
+      outcomes: Array<{ bookingId: string; status: string; reason?: string }>;
+    };
+  } catch (error) { throw bookingRequestError(error, true); }
+}
+export async function approveBooking(bookingId: string): Promise<BookingApprovalResult> {
+  try {
+    const response = await apiRequest('PATCH', `/api/booking/v2/${bookingId}/approve`);
+    const result = await response.json();
+    if (result?.success !== true || result.paymentRequired === true && (
+      !Number.isSafeInteger(result.amountCents) || result.amountCents <= 0 || !Number.isFinite(Date.parse(result.expiresAt))
+      || !['pending', 'sending', 'sent', 'failed', 'unknown'].includes(result.emailStatus))) {
+      throw new BookingRequestError('Esito dell’approvazione da verificare: aggiorna la lista prima di riprovare.');
+    }
+    return result;
+  } catch (error) {
+    if (error instanceof BookingRequestError) throw error;
+    throw bookingRequestError(error, true);
+  }
 }
 
 /**
@@ -187,8 +366,21 @@ export async function rejectBooking(bookingId: string): Promise<void> {
 export async function updateBookingStatus(
   bookingId: string,
   stato: 'in_attesa' | 'confermata' | 'completata' | 'annullata'
-): Promise<void> {
-  await apiRequest('PATCH', `/api/booking/${bookingId}/status`, { stato });
+): Promise<BookingApprovalResult | void> {
+  // The explicit status selector is an admin override, distinct from normal approval.
+  try {
+    const response = await apiRequest('PATCH', `/api/booking/${encodeURIComponent(bookingId)}/status`, { stato });
+    if (stato === 'confermata') {
+      const result = await response.json();
+      if (result?.success !== true || result.paymentRequired === true) {
+        throw new BookingRequestError('Conferma manuale non completata: aggiorna la prenotazione prima di riprovare.');
+      }
+      return result;
+    }
+  } catch (error) {
+    if (error instanceof BookingRequestError) throw error;
+    throw bookingRequestError(error, true);
+  }
 }
 
 /**
@@ -232,6 +424,11 @@ export async function markBookingAsViewed(bookingId: string): Promise<void> {
 export async function deleteBooking(bookingId: string): Promise<void> {
   const docRef = doc(db, COLLECTION, bookingId);
   const bookingSnap = await getDoc(docRef);
+  if (bookingSnap.exists() && requiresBookingCancellationPanel(bookingSnap.data())) {
+    throw new Error('Usa Annullamento e acconto: la prenotazione pagata o in lavorazione non va eliminata.');
+  }
+  // The authoritative server must finish before any customer cancellation email.
+  await apiRequest('DELETE', `/api/booking/${bookingId}/delete`);
   
   if (bookingSnap.exists()) {
     const bookingData = bookingSnap.data();
@@ -274,7 +471,6 @@ export async function deleteBooking(bookingId: string): Promise<void> {
     }
   }
   
-  await apiRequest('DELETE', `/api/booking/${bookingId}/delete`);
 }
 
 /**
@@ -333,6 +529,10 @@ export async function countRelatedEntities(bookingId: string): Promise<{
  */
 export async function deleteBookingCascade(params: { bookingId: string; cancelReason?: string }): Promise<void> {
   const { bookingId, cancelReason } = params;
+  const snapshot = await getDoc(doc(db, 'bookings', bookingId)), source = snapshot.data();
+  if (source && requiresBookingCancellationPanel(source)) {
+    throw new Error('Questa prenotazione conserva un acconto o un’operazione in corso. Usa Annullamento e acconto: nessun file collegato è stato eliminato.');
+  }
   console.log(`🗑️ Inizio cancellazione a cascata per booking ${bookingId}${cancelReason ? ` - Motivo: ${cancelReason}` : ''}`);
 
   // 1. Conta e trova tutti gli elementi correlati
@@ -624,6 +824,14 @@ export async function updateWorkflowState(
     console.error('❌ Errore aggiornamento stato workflow:', error);
     throw error;
   }
+}
+
+/** Creating the first order marks only an upcoming shooting as completed; later workflow stages never move backwards. */
+export function getWorkflowStateAfterOrderCreation(currentState?: WorkflowState): WorkflowState | null {
+  if (!currentState || currentState === WorkflowState.SHOOTING_DA_SVOLGERE) {
+    return WorkflowState.SHOOTING_COMPLETATO;
+  }
+  return null;
 }
 
 /**

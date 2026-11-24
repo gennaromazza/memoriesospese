@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import type { GiftCardPaypalPublicConfig } from '@shared/gift-card-types';
+type PayPalButtonConfig = Pick<GiftCardPaypalPublicConfig, 'enabled' | 'clientId' | 'currency'>
+  & Partial<Pick<GiftCardPaypalPublicConfig, 'environment'>>;
 
 interface ButtonActions {
   enable(): void;
@@ -29,7 +31,7 @@ const sdkWindow = () => window as unknown as { paypal?: PayPalSdk };
 let sdkPromise: Promise<PayPalSdk> | null = null;
 let sdkClientId: string | null = null;
 
-function loadSdk(config: GiftCardPaypalPublicConfig): Promise<PayPalSdk> {
+function loadSdk(config: PayPalButtonConfig): Promise<PayPalSdk> {
   if (!config.enabled || !config.clientId) {
     return Promise.reject(new Error('Il pagamento con PayPal non è ancora attivo.'));
   }
@@ -67,7 +69,7 @@ function loadSdk(config: GiftCardPaypalPublicConfig): Promise<PayPalSdk> {
 }
 
 export interface GiftCardPayPalButtonsProps {
-  config: GiftCardPaypalPublicConfig;
+  config: PayPalButtonConfig;
   /** I pulsanti restano visibili ma spenti finché i dati non sono completi. */
   enabled: boolean;
   /** Crea la card e l'ordine PayPal, restituisce l'id dell'ordine. */
@@ -120,7 +122,7 @@ export function GiftCardPayPalButtons({ config, enabled, createOrder, onApprove,
           onApprove: data => approveRef.current(data.orderID),
           onCancel: () => cancelRef.current?.(),
           onError: error => {
-            errorRef.current(error instanceof Error && error.message ? error.message : 'Il pagamento non è riuscito. Non è stato addebitato nulla: puoi riprovare.');
+            errorRef.current(error instanceof Error && error.message ? error.message : 'Non è stato possibile verificare il pagamento. Controlla l’esito prima di riprovare.');
           },
         });
         await instance.render(element);
@@ -129,7 +131,9 @@ export function GiftCardPayPalButtons({ config, enabled, createOrder, onApprove,
       .catch(error => {
         if (cancelled) return;
         setLoading(false);
-        setLoadError(error instanceof Error ? error.message : 'PayPal non è disponibile.');
+        const message = error instanceof Error ? error.message : 'PayPal non è disponibile.';
+        setLoadError(message);
+        errorRef.current(message);
       });
     return () => {
       cancelled = true;

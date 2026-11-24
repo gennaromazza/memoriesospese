@@ -37,12 +37,15 @@ describe('desktop interrupted upload after restart', () => {
          relativePath: nestedPhoto.relativePath, absolutePath: original,
          chapterName: nestedPhoto.chapterName!, size: bytes.length, hash,
         status: 'uploading', progress: 63, retries: 1,
+        fileObj: new File([bytes], 'original.jpg', { type: 'image/jpeg' }),
       };
       const restored = restoreUploadQueue(serializeUploadQueue([inFlight]));
       // In-flight hashes describe compressed bytes that no longer exist after a
       // restart, so they are dropped and recomputed from the original on resume.
-      expect(restored).toMatchObject([{ status: 'paused', hash: undefined, absolutePath: original, chapterName: 'Cerimonia' }]);
-      expect(resumeUploadItem(restored, 'one')).toMatchObject([{ status: 'pending', absolutePath: original }]);
+      expect(restored).toMatchObject([{ status: 'paused', hash: undefined, fileObj: undefined, absolutePath: original, chapterName: 'Cerimonia' }]);
+      const resumed = resumeUploadItem(restored, 'one');
+      expect(resumed).toMatchObject([{ status: 'pending', absolutePath: original }]);
+      expect(await hashFile(resumed[0].absolutePath!)).toBe(hash);
       expect(restoreUploadQueue(serializeUploadQueue([{ ...inFlight, status: 'success', uploadSize: 3 }]))[0]).toMatchObject({ hash, uploadSize: 3 });
       expect(restoreUploadQueue(serializeUploadQueue([{ ...inFlight, status: 'compressing' }]))[0].status).toBe('paused');
       expect(restoreUploadQueue(serializeUploadQueue([{ ...inFlight, status: 'hashing' }]))[0].status).toBe('paused');

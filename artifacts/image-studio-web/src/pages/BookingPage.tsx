@@ -3,14 +3,19 @@
  * URL: /prenota/:code
  */
 
+import { pendingBookingNextStep } from "@/lib/booking-outcome-copy";
+import { canSubmitBooking, vademecumForCampaign } from "@shared/seasonal-vademecum";
+import { formatWeekRange, packageHeadline, packageItemNote, packageItemsTitle, sharedPhotosNotice } from "@/lib/booking-package-copy";
 import { useState, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getCampaignByCode } from "@/lib/booking-campaigns";
 import { getAllProducts } from "@/lib/products";
-import { createBooking, getAvailableSlots } from "@/lib/bookings";
+import { getBundleGalleryPhotoCount } from "@/lib/bundle-photos";
+import { createBooking, getAvailableSlots, BookingRequestError, type BookingCreationResult } from "@/lib/bookings";
 import { GiftCardBookingBanner, useBookingGiftCard } from "@/components/gift-cards/GiftCardBookingBanner";
 import type { BookingCampaignFE, Product } from "@shared/booking-types";
+import { bookingConditionsFor } from '@shared/booking-conditions';
 import {
   Card,
   CardContent,
@@ -51,6 +56,7 @@ import {
   ZoomIn,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   X,
 } from "lucide-react";
 import { format, addDays, isBefore, isAfter, startOfDay } from "date-fns";
@@ -58,17 +64,30 @@ import { it } from "date-fns/locale";
 import { isSundayOrHoliday } from "@/lib/italian-holidays";
 import { EmailSuggestionChip } from '@/components/EmailSuggestionChip';
 import { useSEO } from '@/hooks/useSEO';
+import { BookingDepositCheckout, type BookingDepositCompletion } from '@/features/booking/BookingDepositCheckout';
+import { clearCheckoutSession, readCheckoutSession } from '@/features/booking/checkout-session';
+import type { BookingCheckoutHoldInput } from '@workspace/api-client-react';
+import { BookingDepositNotice } from '@/components/booking/BookingDepositNotice';
+
+type BookingSlot = Awaited<ReturnType<typeof getAvailableSlots>>[number];
+interface BookingSubmission {
+  code: string;
+  date: Date;
+  slot: BookingSlot;
+  payload: Parameters<typeof createBooking>[0];
+}
 
 export default function BookingPage() {
   const params = useParams<{ code: string }>();
   const [, setLocation] = useLocation();
   const gift = useBookingGiftCard();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const code = params.code || "";
 
   // Stati form
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [selectedSlot, setSelectedSlot] = useState<any | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<BookingSlot | null>(null);
   const [formData, setFormData] = useState({
     nome: "",
     cognome: "",
@@ -77,8 +96,12 @@ export default function BookingPage() {
     prodottoId: "",
     note: "",
   });
-  const [bookingSuccess, setBookingSuccess] = useState(false);
+  const [bookingResult, setBookingResult] = useState<(BookingCreationResult & { slot: BookingSlot; email: string; depositAmountCents?: number; giftUsed?: boolean }) | null>(null);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [checkoutInput, setCheckoutInput] = useState<BookingCheckoutHoldInput | null>(null);
+  const [submissionError, setSubmissionError] = useState<{ message: string; conflict: boolean } | null>(null);
   const [privacyConsent, setPrivacyConsent] = useState(false);
+  const [vademecumConsent, setVademecumConsent] = useState(false);
 
   // Stati lightbox immagini
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -109,6 +132,16 @@ export default function BookingPage() {
     queryFn: () => getCampaignByCode(code),
     enabled: !!code,
   });
+  const immediateDeposit = campaign?.richiedeAcconto === true && campaign.richiedeApprovazione === false;
+  // Chi arriva da una gift card ha gia' pagato: niente acconto, ne' PayPal, ne' avvisi sull'acconto.
+  const giftActive = !!gift.usableCode;
+  const payDepositNow = immediateDeposit && !giftActive;
+  const showDepositNotice = campaign?.richiedeAcconto === true && !giftActive;
+  // Campagne stagionali (es. Natale 2026): il cliente deve aver letto il vademecum prima di inviare.
+  const vademecum = vademecumForCampaign(campaign);
+  // Condizioni mostrate e inviate: quelle della campagna (Natale 2026: cambio appuntamento fino a 4 giorni prima).
+  const bookingConditions = bookingConditionsFor(campaign);
+  const canSubmit = canSubmitBooking({ privacyConsent, vademecumRequired: !!vademecum, vademecumConsent }) && !gift.checking;
 
   // Query products
   const { data: products = [] } = useQuery<Product[]>({
@@ -118,7 +151,7 @@ export default function BookingPage() {
   });
 
   // Query slots disponibili per data selezionata (V2: usa Calendar Engine V2)
-  const { data: availableSlots = [], isLoading: loadingSlots } = useQuery({
+  const { data: availableSlots = [], isLoading: loadingSlots, isSuccess: slotsLoaded } = useQuery({
     queryKey: ["available-slots", selectedDate, campaign?.id],
     queryFn: async () => {
       if (!selectedDate || !campaign) return [];
@@ -133,46 +166,39 @@ export default function BookingPage() {
 
   // Mutation per creare prenotazione
   const createBookingMutation = useMutation({
-    mutationFn: async () => {
-      if (!campaign || !selectedSlot) {
-        throw new Error("Dati mancanti");
-      }
-
-      const prodotto = products.find((p) => p.id === formData.prodottoId);
-
-      // V2: No workingHours/durataMinuti needed (loaded server-side)
-      return await createBooking({
-        campaignId: campaign.id,
-        cliente: {
-          nome: formData.nome,
-          cognome: formData.cognome,
-          email: formData.email,
-          whatsapp: formData.whatsapp,
-        },
-        dataShootingInizio: new Date(selectedSlot.start),
-        dataShootingFine: new Date(selectedSlot.end),
-        prodottoId: formData.prodottoId || undefined,
-        prodottoNome: prodotto?.nome || undefined,
-        note: formData.note,
-        giftCardCode: gift.usableCode,
-      });
-    },
-    onSuccess: () => {
-      setBookingSuccess(true);
+    mutationFn: (submission: BookingSubmission) => createBooking(submission.payload),
+    onSuccess: (result, submission) => {
+      if (submission.code !== code) return;
+      setSubmissionError(null);
+      setBookingResult({ ...result, slot: submission.slot, email: submission.payload.cliente.email, giftUsed: !!submission.payload.giftCardCode });
       trackAnalyticsEvent('booking_request_submitted', {
         campaign: campaign?.code || campaign?.id || 'unknown',
+        outcome: result.stato,
       });
       trackBlogConversion('booking_request_submitted', {
         campaign: campaign?.code || campaign?.id || 'unknown',
+        outcome: result.stato,
       });
       toast({
-        title: "Prenotazione inviata!",
-        description: "Riceverai una conferma via email a breve.",
+        title: result.stato === 'confermata' ? "Appuntamento confermato!" : "Richiesta inviata",
+        description: result.stato === 'confermata'
+          ? "L’orario è confermato. Controlla la tua email per i dettagli."
+          : "L’appuntamento non è ancora confermato: attendi l’approvazione dello studio.",
       });
     },
-    onError: (error: Error) => {
+    onError: (error: Error, submission) => {
+      if (submission.code !== code) return;
+      const conflict = error instanceof BookingRequestError && error.status === 409;
+      setSubmissionError({ message: error.message, conflict });
+      if (conflict) {
+        setSelectedSlot(current => current?.start === submission.slot.start ? null : current);
+        const key = ["available-slots", submission.date, submission.payload.campaignId];
+        // Remove the stale slot immediately, even if refreshing availability fails.
+        queryClient.setQueryData<BookingSlot[]>(key, slots => slots?.filter(slot => slot.start !== submission.slot.start));
+        void queryClient.invalidateQueries({ queryKey: key });
+      }
       toast({
-        title: "Errore",
+        title: conflict ? "Orario non più disponibile" : "Invio non completato",
         description: error.message,
         variant: "destructive",
       });
@@ -181,7 +207,7 @@ export default function BookingPage() {
 
   // Reset slot selezionato se non è più disponibile
   useEffect(() => {
-    if (selectedSlot && availableSlots.length > 0) {
+    if (selectedSlot && slotsLoaded) {
       const stillAvailable = availableSlots.some(
         (slot) => slot.start === selectedSlot.start,
       );
@@ -189,7 +215,21 @@ export default function BookingPage() {
         setSelectedSlot(null);
       }
     }
-  }, [availableSlots, selectedSlot]);
+  }, [availableSlots, selectedSlot, slotsLoaded]);
+
+  useEffect(() => {
+    setBookingResult(null);
+    setCheckoutOpen(false);
+    setCheckoutInput(null);
+    setSubmissionError(null);
+    setSelectedDate(null);
+    setSelectedSlot(null);
+    setPrivacyConsent(false);
+    setFormData(current => ({ ...current, prodottoId: '' }));
+  }, [code]);
+  useEffect(() => {
+    if (campaign?.id && readCheckoutSession(campaign.id)) setCheckoutOpen(true);
+  }, [campaign?.id]);
 
   // Reset week index quando campaign cambia per evitare settimane vuote
   useEffect(() => {
@@ -202,6 +242,7 @@ export default function BookingPage() {
     title: campaign ? `${campaign.nome} - Prenota il tuo shooting` : 'Prenota | Image Studio',
     description: campaign?.descrizione || 'Prenota il tuo servizio fotografico con Image Studio.',
     canonical: `/prenota/${code}`,
+    pending: isLoading,
     ogImage: campaign?.immaginePaginaBooking,
     ogImageAlt: campaign ? `Prenotazione ${campaign.nome}` : undefined,
     ogImageSource: 'editorial-cover',
@@ -236,6 +277,9 @@ export default function BookingPage() {
       currentDate = addDays(currentDate, 1);
     }
   }
+
+  const weekStart = availableDates[currentWeekIndex * 7];
+  const weekEnd = availableDates[Math.min((currentWeekIndex + 1) * 7 - 1, availableDates.length - 1)];
 
   // Funzioni lightbox
   const openLightbox = (
@@ -317,6 +361,7 @@ export default function BookingPage() {
   // Validazione form
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (createBookingMutation.isPending || checkoutOpen || !campaign || !canSubmit) return;
 
     if (!formData.nome.trim() || !formData.cognome.trim()) {
       toast({
@@ -348,7 +393,7 @@ export default function BookingPage() {
       return;
     }
 
-    if (!selectedSlot) {
+    if (!selectedSlot || !selectedDate) {
       toast({
         title: "Errore",
         description: "Seleziona data e orario",
@@ -362,16 +407,55 @@ export default function BookingPage() {
     const slotDate = new Date(selectedSlot.start);
     if (isBefore(slotDate, now)) {
       toast({
-        title: "Slot non disponibile",
+        title: "Orario non disponibile",
         description:
-          "Lo slot selezionato è ormai passato. Seleziona un altro orario.",
+          "L’orario scelto è ormai passato. Scegline un altro.",
         variant: "destructive",
       });
       setSelectedSlot(null); // Reset selezione
       return;
     }
 
-    createBookingMutation.mutate();
+    const prodotto = products.find(product => product.id === formData.prodottoId);
+    setSubmissionError(null);
+    if (immediateDeposit && gift.failed) {
+      // Un codice regalo e' presente ma non verificato: meglio non far pagare l'acconto a chi potrebbe averlo gia' pagato.
+      setSubmissionError({ conflict: false, message: 'Non riusciamo a verificare la tua gift card. Riprova tra un momento: se il codice è valido non devi pagare nulla. Nessun addebito è stato avviato.' });
+      void gift.query?.refetch?.();
+      return;
+    }
+    if (payDepositNow) {
+      if (!Number.isSafeInteger(campaign.accontoImportoCentesimi) || !campaign.accontoImportoCentesimi || campaign.accontoImportoCentesimi <= 0) {
+        setSubmissionError({ conflict: false, message: 'L’importo dell’acconto è da verificare. Contatta lo studio prima di pagare.' });
+        return;
+      }
+      setCheckoutInput({
+        bookingConditionsVersion: bookingConditions.version,
+        campaignId: campaign.id, cliente: { nome: formData.nome.trim(), cognome: formData.cognome.trim(),
+          email: formData.email.trim(), whatsapp: formData.whatsapp.trim() },
+        dataShootingInizio: new Date(selectedSlot.start).toISOString(),
+        dataShootingFine: new Date(selectedSlot.end).toISOString(),
+        ...(formData.prodottoId ? { prodottoId: formData.prodottoId } : {}), note: formData.note,
+      });
+      setCheckoutOpen(true);
+      return;
+    }
+    createBookingMutation.mutate({
+      code,
+      date: new Date(selectedDate),
+      slot: { ...selectedSlot },
+      payload: {
+        bookingConditionsVersion: bookingConditions.version,
+        campaignId: campaign.id,
+        cliente: { nome: formData.nome, cognome: formData.cognome, email: formData.email, whatsapp: formData.whatsapp },
+        dataShootingInizio: new Date(selectedSlot.start),
+        dataShootingFine: new Date(selectedSlot.end),
+        prodottoId: formData.prodottoId || undefined,
+        prodottoNome: prodotto?.nome || undefined,
+        note: formData.note,
+        giftCardCode: gift.usableCode,
+      },
+    });
   };
 
   if (isLoading) {
@@ -409,7 +493,26 @@ export default function BookingPage() {
     );
   }
 
-  if (!campaign.attiva) {
+  if (checkoutOpen) {
+    const completed = ({ payment, start, end }: BookingDepositCompletion) => {
+      const time = (value: string) => new Date(value).toLocaleTimeString('it-IT', { timeZone: 'Europe/Rome', hour: '2-digit', minute: '2-digit' });
+      setBookingResult({ success: true, bookingId: payment.bookingId, stato: 'confermata',
+        depositAmountCents: payment.amountCents, email: formData.email,
+        slot: { start, end, startTime: time(start), endTime: time(end) } });
+      setCheckoutOpen(false);
+      trackAnalyticsEvent('booking_request_submitted', { campaign: campaign.code || campaign.id, outcome: 'confermata', payment: 'paypal' });
+      trackBlogConversion('booking_request_submitted', { campaign: campaign.code || campaign.id, outcome: 'confermata', payment: 'paypal' });
+    };
+    return <div className="min-h-screen bg-background px-4 py-8">
+      <BookingDepositCheckout key={`${code}-${campaign.id}`} campaignId={campaign.id} input={checkoutInput}
+        onCompleted={completed} onExit={() => {
+          setCheckoutOpen(false); setCheckoutInput(null); setSelectedSlot(null);
+          void queryClient.invalidateQueries({ queryKey: ['available-slots'] });
+        }} />
+    </div>;
+  }
+
+  if (!campaign.attiva && !bookingResult) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-sage-50 to-cream-50 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center px-4">
         <Card className="max-w-md w-full">
@@ -434,40 +537,55 @@ export default function BookingPage() {
   }
 
   // Mostra conferma prenotazione
-  if (bookingSuccess) {
+  if (bookingResult) {
+    const confirmed = bookingResult.stato === 'confermata';
     return (
       <div className="min-h-screen bg-gradient-to-br from-sage-50 to-cream-50 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center px-4">
-        <Card className="max-w-md w-full">
+        <Card className="max-w-md w-full" role="status" aria-live="polite" data-testid="booking-outcome">
           <CardHeader>
-            <div className="flex items-center gap-3 text-green-600">
-              <CheckCircle2 className="h-8 w-8" />
-              <CardTitle>Prenotazione Confermata!</CardTitle>
+            <div className={`flex items-center gap-3 ${confirmed ? 'text-green-600' : 'text-amber-700'}`}>
+              {confirmed ? <CheckCircle2 className="h-8 w-8 shrink-0" /> : <Clock className="h-8 w-8 shrink-0" />}
+              <CardTitle>{confirmed ? 'Appuntamento confermato!' : 'Richiesta inviata · in attesa'}</CardTitle>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-muted-foreground">
-              La tua richiesta di prenotazione è stata inviata con successo.
+              {confirmed
+                ? 'Il tuo appuntamento è confermato. Ti aspettiamo in studio nel giorno e nell’orario indicati.'
+                : 'Abbiamo ricevuto la tua richiesta. L’appuntamento non è ancora confermato: attendi l’approvazione dello studio.'}
             </p>
             <div className="bg-muted rounded-lg p-4 space-y-2">
               <p className="text-sm">
                 <strong>Data:</strong>{" "}
-                {selectedSlot &&
-                  format(new Date(selectedSlot.start), "dd MMMM yyyy", {
+                {format(new Date(bookingResult.slot.start), "dd MMMM yyyy", {
                     locale: it,
                   })}
               </p>
               <p className="text-sm">
-                <strong>Orario:</strong> {selectedSlot?.startTime} -{" "}
-                {selectedSlot?.endTime}
+                <strong>Orario:</strong> {bookingResult.slot.startTime} -{" "}
+                {bookingResult.slot.endTime}
               </p>
-              <p className="text-sm">
-                <strong>Email:</strong> {formData.email}
-              </p>
+              {bookingResult.email && <p className="text-sm">
+                <strong>Email:</strong> <span className="break-all">{bookingResult.email}</span>
+              </p>}
+              {bookingResult.depositAmountCents !== undefined && <p className="text-sm" data-testid="booking-deposit-paid">
+                <strong>Acconto ricevuto:</strong> {(bookingResult.depositAmountCents / 100).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
+              </p>}
             </div>
             <p className="text-sm text-muted-foreground">
-              Riceverai una email di conferma all'indirizzo fornito. Lo staff ti
-              contatterà a breve per confermare la prenotazione.
+              {bookingResult.depositAmountCents !== undefined
+                ? `Pagamento registrato. Riferimento prenotazione: ${bookingResult.bookingId}. Per informazioni contatta lo studio.`
+                : confirmed
+                ? 'Per i dettagli controlla la tua email, anche nella cartella spam. Se non ricevi il messaggio, contatta lo studio.'
+                : pendingBookingNextStep({ requiresDepositAfterApproval: campaign.richiedeAcconto === true && campaign.richiedeApprovazione !== false && !bookingResult.giftUsed,
+                    depositAmountCents: campaign.accontoImportoCentesimi })}
             </p>
+            {bookingResult.depositAmountCents !== undefined && campaign.attiva && <Button variant="outline" className="w-full"
+              data-testid="button-new-paid-booking" onClick={() => {
+                clearCheckoutSession(campaign.id); setBookingResult(null); setCheckoutOpen(false);
+                setCheckoutInput(null); setSelectedSlot(null);
+                void queryClient.invalidateQueries({ queryKey: ['available-slots'] });
+              }}>Prenota un altro appuntamento</Button>}
             <Button onClick={() => setLocation("/")} className="w-full">
               Torna alla homepage
             </Button>
@@ -490,11 +608,11 @@ export default function BookingPage() {
       <div className="max-w-4xl mx-auto space-y-8">
         {/* Hero Image (solo immagine, senza testo) */}
         {campaign.immaginePaginaBooking && (
-          <div className="relative w-full h-64 md:h-96 rounded-xl overflow-hidden shadow-xl mb-6 md:mb-8">
+          <div className="relative flex w-full justify-center overflow-hidden rounded-xl bg-sage/10 shadow-xl mb-6 md:mb-8">
             <img
               src={campaign.immaginePaginaBooking}
               alt={campaign.nome}
-              className="w-full h-full object-cover"
+              className="block h-auto max-h-[70vh] w-full object-contain"
             />
           </div>
         )}
@@ -552,26 +670,15 @@ export default function BookingPage() {
                     <Package className="h-6 w-6 text-primary" />
                   </div>
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-                    Prodotti disponibili
+                    Pacchetti disponibili
                   </p>
                   <p className="text-base font-semibold text-foreground">
                     {availableProducts.length}{" "}
-                    {availableProducts.length === 1 ? "opzione" : "opzioni"}
+                    {availableProducts.length === 1 ? "pacchetto" : "pacchetti"}
                   </p>
                 </CardContent>
               </Card>
             </div>
-
-            {campaign.temaStagionale && (
-              <div className="pt-4 border-t text-center">
-                <p className="text-sm text-muted-foreground">
-                  🎨 Tema stagionale:{" "}
-                  <span className="font-medium capitalize">
-                    {campaign.temaStagionale}
-                  </span>
-                </p>
-              </div>
-            )}
           </CardContent>
         </Card>
 
@@ -606,6 +713,18 @@ export default function BookingPage() {
         {/* Form Prenotazione */}
         {bookingsOpen && (
           <form onSubmit={handleSubmit} className="space-y-6">
+            <BookingDepositNotice
+              enabled={showDepositNotice}
+              amountCents={campaign.accontoImportoCentesimi}
+              requiresApproval={campaign.richiedeApprovazione !== false}
+            />
+            {submissionError && (
+              <div role="alert" className="space-y-2 rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm">
+                <p className="font-semibold">{submissionError.conflict ? 'Orario non più disponibile' : 'Invio non completato'}</p>
+                <p>{submissionError.message}</p>
+                {submissionError.conflict && <a href="#booking-slot-picker" className="inline-block font-medium underline">Scegli un altro orario</a>}
+              </div>
+            )}
             {/* Banner Guida: appare se non hanno ancora completato selezione data/orario */}
             {(!selectedDate || !selectedSlot) && (
               <Card className="border-primary/30 bg-primary/5 dark:bg-primary/10">
@@ -615,20 +734,14 @@ export default function BookingPage() {
                       <AlertCircle className="h-6 w-6 text-primary" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-semibold text-foreground mb-3">
-                        📸 Come procedere con la prenotazione
+                      <h3 className="font-semibold text-foreground mb-2">
+                        Come prenotare
                       </h3>
-                      <div className="space-y-2 text-sm text-muted-foreground">
-                        <p>
-                          <strong className="text-foreground">1.</strong> Seleziona la <strong className="text-foreground">DATA</strong> del tuo shooting qui sotto
-                        </p>
-                        <p>
-                          <strong className="text-foreground">2.</strong> Scegli l'<strong className="text-foreground">ORARIO</strong> che preferisci
-                        </p>
-                        <p>
-                          <strong className="text-foreground">3.</strong> Vedrai i <strong className="text-foreground">pacchetti fotografici e i prezzi</strong> disponibili
-                        </p>
-                      </div>
+                      <ol className="space-y-1 text-sm text-muted-foreground">
+                        <li><strong className="text-foreground">1.</strong> Scegli il giorno</li>
+                        <li><strong className="text-foreground">2.</strong> Scegli l’orario</li>
+                        <li><strong className="text-foreground">3.</strong> Inserisci i tuoi dati e scegli il pacchetto</li>
+                      </ol>
                     </div>
                   </div>
                 </CardContent>
@@ -655,54 +768,41 @@ export default function BookingPage() {
                   </div>
                 ) : (
                   <>
-                    {/* Navigazione settimane */}
-                    <div className="flex items-center justify-between mb-4">
+                    {/* Navigazione settimane: su telefono frecce ai lati e intervallo su una sola riga */}
+                    <div className="mb-4 flex items-center justify-between gap-2">
                       <Button
                         type="button"
                         variant="outline"
-                        size="sm"
+                        className="h-10 w-10 shrink-0 p-0 sm:w-auto sm:px-3"
                         onClick={() => setCurrentWeekIndex(Math.max(0, currentWeekIndex - 1))}
                         disabled={currentWeekIndex === 0}
+                        aria-label="Settimana precedente"
                         data-testid="prev-week"
                       >
-                        <ChevronLeft className="h-4 w-4 mr-1" />
-                        Settimana prec.
+                        <ChevronLeft className="h-4 w-4 sm:mr-1" aria-hidden="true" />
+                        <span className="hidden sm:inline">Precedente</span>
                       </Button>
-                      
-                      <div className="text-center">
-                        <span className="text-xs sm:text-sm text-muted-foreground font-medium block">
-                          {(() => {
-                            const weekStart = availableDates[currentWeekIndex * 7];
-                            const weekEnd = availableDates[Math.min((currentWeekIndex + 1) * 7 - 1, availableDates.length - 1)];
-                            if (!weekStart || !weekEnd) return "";
-                            return (
-                              <>
-                                <span className="block sm:inline">{format(weekStart, "d MMM", { locale: it })}</span>
-                                <span className="hidden sm:inline"> - </span>
-                                <span className="block sm:inline sm:before:content-none before:content-['↓'] before:block before:text-primary before:my-1">
-                                  {format(weekEnd, "d MMM yyyy", { locale: it })}
-                                </span>
-                              </>
-                            );
-                          })()}
-                        </span>
-                      </div>
+
+                      <p className="min-w-0 flex-1 text-center text-sm font-medium text-foreground" aria-live="polite" data-testid="week-range">
+                        {weekStart && weekEnd ? formatWeekRange(weekStart, weekEnd) : ""}
+                      </p>
 
                       <Button
                         type="button"
                         variant="outline"
-                        size="sm"
+                        className="h-10 w-10 shrink-0 p-0 sm:w-auto sm:px-3"
                         onClick={() => setCurrentWeekIndex(currentWeekIndex + 1)}
                         disabled={(currentWeekIndex + 1) * 7 >= availableDates.length}
+                        aria-label="Settimana successiva"
                         data-testid="next-week"
                       >
-                        Settimana succ.
-                        <ChevronRight className="h-4 w-4 ml-1" />
+                        <span className="hidden sm:inline">Successiva</span>
+                        <ChevronRight className="h-4 w-4 sm:ml-1" aria-hidden="true" />
                       </Button>
                     </div>
 
                     {/* Griglia settimana corrente */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3">
+                    <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 sm:gap-3">
                       {availableDates
                         .slice(currentWeekIndex * 7, (currentWeekIndex + 1) * 7)
                         .map((date) => {
@@ -715,7 +815,7 @@ export default function BookingPage() {
                               key={date.toISOString()}
                               type="button"
                               variant={isSelected ? "default" : "outline"}
-                              className={`h-auto py-4 flex flex-col items-center ${
+                              className={`h-auto px-1 py-3 sm:py-4 flex flex-col items-center ${
                                 isHoliday && !isSelected
                                   ? "border-red-500/50 hover:border-red-500"
                                   : ""
@@ -738,7 +838,7 @@ export default function BookingPage() {
                                 {format(date, "EEE", { locale: it })}
                               </span>
                               <span
-                                className={`text-3xl font-bold mb-1 ${
+                                className={`text-2xl sm:text-3xl font-bold mb-1 ${
                                   isSelected
                                     ? "text-primary-foreground"
                                     : isHoliday
@@ -770,11 +870,11 @@ export default function BookingPage() {
 
             {/* Selezione Orario */}
             {selectedDate && (
-              <Card>
+              <Card id="booking-slot-picker" tabIndex={-1}>
                 <CardHeader>
                   <CardTitle>2. Seleziona l'Orario</CardTitle>
                   <CardDescription>
-                    Slot disponibili per{" "}
+                    Orari liberi per{" "}
                     {format(selectedDate, "dd MMMM yyyy", { locale: it })}
                   </CardDescription>
                 </CardHeader>
@@ -786,7 +886,7 @@ export default function BookingPage() {
                   ) : availableSlots.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground">
                       <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p>Nessuno slot disponibile per questa data</p>
+                      <p>Nessun orario libero per questa data</p>
                       <p className="text-sm mt-2">
                         Prova a selezionare un'altra giornata
                       </p>
@@ -918,7 +1018,7 @@ export default function BookingPage() {
 
                     {availableProducts.length > 0 && (
                       <div className="space-y-3">
-                        <Label>Pacchetto Fotografico (opzionale)</Label>
+                        <Label>Scegli il tuo pacchetto (facoltativo)</Label>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                           {/* Opzione "Da decidere" */}
                           <Card
@@ -935,10 +1035,10 @@ export default function BookingPage() {
                             <CardContent className="p-6 flex flex-col items-center justify-center min-h-[220px]">
                               <Package className="h-14 w-14 text-muted-foreground mb-4" />
                               <h3 className="font-semibold text-base text-center mb-2">
-                                Da Decidere
+                                Deciderò dopo
                               </h3>
                               <p className="text-sm text-muted-foreground text-center leading-relaxed">
-                                Sceglierò il pacchetto in sede
+                                Lo scelgo in studio
                               </p>
                             </CardContent>
                           </Card>
@@ -964,7 +1064,7 @@ export default function BookingPage() {
                                 {/* Immagine prodotto con carousel */}
                                 {product.immagini &&
                                 product.immagini.length > 0 ? (
-                                  <div className="relative w-full h-48 sm:h-52 bg-muted overflow-hidden rounded-t-lg group">
+                                  <div className="relative flex w-full h-48 sm:h-52 items-center justify-center bg-muted overflow-hidden rounded-t-lg group">
                                     <img
                                       src={
                                         product.immagini[
@@ -972,7 +1072,7 @@ export default function BookingPage() {
                                         ]
                                       }
                                       alt={`${product.nome} - ${getProductImageIndex(product.id) + 1}`}
-                                      className="w-full h-full object-cover"
+                                      className="w-full h-full object-contain"
                                     />
 
                                     {/* Frecce navigazione carousel - visibili solo se più immagini */}
@@ -1097,23 +1197,24 @@ export default function BookingPage() {
                                         className={`text-sm text-muted-foreground leading-relaxed ${
                                           expandedDescriptions[product.id]
                                             ? ""
-                                            : "line-clamp-3"
+                                            : "line-clamp-2"
                                         }`}
                                       >
                                         {product.descrizione}
                                       </p>
-                                      {/* Mostra sempre il toggle per permettere espansione/compressione */}
-                                      <button
-                                        type="button"
-                                        onClick={(e) =>
-                                          toggleDescription(product.id, e)
-                                        }
-                                        className="text-xs text-primary hover:underline font-medium inline-block"
-                                      >
-                                        {expandedDescriptions[product.id]
-                                          ? "Vedi meno"
-                                          : "Vedi di più"}
-                                      </button>
+                                      {product.descrizione.length > 80 && (
+                                        <button
+                                          type="button"
+                                          onClick={(e) =>
+                                            toggleDescription(product.id, e)
+                                          }
+                                          className="text-xs text-primary hover:underline font-medium inline-block"
+                                        >
+                                          {expandedDescriptions[product.id]
+                                            ? "Mostra meno"
+                                            : "Leggi tutto"}
+                                        </button>
+                                      )}
                                     </div>
                                   )}
 
@@ -1143,40 +1244,102 @@ export default function BookingPage() {
                                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                       <Package className="h-4 w-4" />
                                       <span>
-                                        {/* Per bundle: calcola totale foto da bundleItems, altrimenti usa numeroFoto */}
-                                        {product.isBundle && product.bundleItems && product.bundleItems.length > 0
-                                          ? (() => {
-                                              const totalPhotos = product.bundleItems.reduce(
-                                                (sum, item) => sum + (item.numeroFoto || 0) * (item.quantita || 1),
-                                                0
-                                              );
-                                              return totalPhotos > 0 ? `${totalPhotos} foto incluse` : '∞ Selezione libera';
-                                            })()
-                                          : product.numeroFoto > 0 
-                                            ? `${product.numeroFoto} foto incluse`
-                                            : '∞ Selezione libera'
-                                        }
+                                        {packageHeadline(product)}
                                       </span>
                                     </div>
                                     
                                     {/* Mostra prodotti inclusi nel bundle */}
                                     {product.isBundle && product.bundleItems && product.bundleItems.length > 0 && (
-                                      <div className="bg-muted/50 rounded-lg p-3 space-y-1">
-                                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                                          📦 Include:
-                                        </p>
-                                        <ul className="text-xs text-muted-foreground space-y-0.5">
-                                          {product.bundleItems.map((item, idx) => (
-                                            <li key={idx} className="flex items-center gap-1">
-                                              <span>•</span>
-                                              <span>
-                                                {item.quantita > 1 ? `${item.quantita}x ` : ''}{item.prodottoNome}
-                                                {item.numeroFoto > 0 ? ` (${item.numeroFoto} foto)` : ' (∞)'}
-                                              </span>
-                                            </li>
-                                          ))}
-                                        </ul>
-                                      </div>
+                                      <>
+                                        {product.fotoCondivise && product.prodottoSorgenteFotoId && (
+                                          <p className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+                                            {sharedPhotosNotice()}
+                                          </p>
+                                        )}
+                                        <details
+                                          className="group rounded-lg border bg-muted/40"
+                                          onClick={(event) => event.stopPropagation()}
+                                          data-testid={`bundle-details-${product.id}`}
+                                        >
+                                          <summary
+                                            className="flex cursor-pointer list-none items-center justify-between gap-3 p-3 text-sm font-medium marker:hidden"
+                                            data-testid={`bundle-details-toggle-${product.id}`}
+                                          >
+                                            <span>{packageItemsTitle(product.bundleItems.length)}</span>
+                                            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden="true" />
+                                          </summary>
+                                          <ul className="space-y-4 border-t px-3 py-3">
+                                            {product.bundleItems.map((item) => {
+                                              const includedProduct = products.find(
+                                                (catalogProduct) => catalogProduct.id === item.prodottoId,
+                                              );
+                                              const description = includedProduct?.descrizione?.trim();
+                                              const photos = includedProduct?.immagini ?? [];
+                                              const descriptionKey = `${product.id}:${item.prodottoId}`;
+
+                                              return (
+                                                <li
+                                                  key={item.prodottoId}
+                                                  className="flex gap-3"
+                                                  data-testid={`bundle-item-${product.id}-${item.prodottoId}`}
+                                                >
+                                                  {photos.length > 0 ? (
+                                                    <button
+                                                      type="button"
+                                                      className="h-20 w-20 shrink-0 overflow-hidden rounded-md border bg-muted"
+                                                      onClick={(event) => {
+                                                        event.stopPropagation();
+                                                        openLightbox(photos, item.prodottoNome, 0);
+                                                      }}
+                                                      aria-label={`Ingrandisci la foto di ${item.prodottoNome}`}
+                                                      data-testid={`bundle-item-photo-${product.id}-${item.prodottoId}`}
+                                                    >
+                                                      <img
+                                                        src={photos[0]}
+                                                        alt={item.prodottoNome}
+                                                        loading="lazy"
+                                                        className="h-full w-full object-cover"
+                                                      />
+                                                    </button>
+                                                  ) : (
+                                                    <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-md border bg-muted" aria-hidden="true">
+                                                      <Package className="h-6 w-6 text-muted-foreground" />
+                                                    </div>
+                                                  )}
+                                                  <div className="min-w-0 flex-1 space-y-1">
+                                                    <p className="text-sm font-medium leading-snug">
+                                                      {item.quantita > 1 ? `${item.quantita} × ` : ''}{item.prodottoNome}
+                                                    </p>
+                                                    <p className="text-xs text-muted-foreground">
+                                                      {packageItemNote(product, item)}
+                                                    </p>
+                                                    {description && (
+                                                      <>
+                                                        <p
+                                                          className={`text-xs leading-relaxed text-muted-foreground ${
+                                                            expandedDescriptions[descriptionKey] ? '' : 'line-clamp-2'
+                                                          }`}
+                                                        >
+                                                          {description}
+                                                        </p>
+                                                        {description.length > 80 && (
+                                                          <button
+                                                            type="button"
+                                                            onClick={(event) => toggleDescription(descriptionKey, event)}
+                                                            className="text-xs font-medium text-primary hover:underline"
+                                                          >
+                                                            {expandedDescriptions[descriptionKey] ? 'Mostra meno' : 'Leggi tutto'}
+                                                          </button>
+                                                        )}
+                                                      </>
+                                                    )}
+                                                  </div>
+                                                </li>
+                                              );
+                                            })}
+                                          </ul>
+                                        </details>
+                                      </>
                                     )}
                                   </div>
                                 </div>
@@ -1206,7 +1369,7 @@ export default function BookingPage() {
                 {/* Riepilogo e Conferma */}
                 <Card>
                   <CardHeader>
-                    <CardTitle>4. Conferma Prenotazione</CardTitle>
+                    <CardTitle>4. Riepilogo e invio</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="bg-muted rounded-lg p-4 space-y-2">
@@ -1261,11 +1424,50 @@ export default function BookingPage() {
                       </div>
                     </div>
 
+                    {vademecum && (
+                      <div className="flex items-start space-x-3 rounded-lg border p-4" data-testid="vademecum-consent-block">
+                        <Checkbox
+                          id="vademecum-consent"
+                          checked={vademecumConsent}
+                          onCheckedChange={(checked) => setVademecumConsent(!!checked)}
+                          data-testid="checkbox-vademecum-consent"
+                        />
+                        <div className="grid gap-1.5 leading-none">
+                          <label htmlFor="vademecum-consent" className="cursor-pointer text-sm font-medium leading-snug">
+                            Ho letto il{" "}
+                            <Link
+                              href={createUrl(vademecum.path)}
+                              className="text-primary underline"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              data-testid="link-vademecum"
+                            >
+                              vademecum di Natale
+                            </Link>{" "}
+                            e ne accetto le indicazioni *
+                          </label>
+                          <p className="text-xs text-muted-foreground">
+                            Persone, animali, cambio d’abito, spostamento dell’appuntamento, puntualità e durata dello shooting.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="rounded-lg border p-4 text-sm" data-testid="booking-conditions">
+                      <strong>Gestione dell’appuntamento e dell’acconto</strong>
+                      <p className="mt-2">{bookingConditions.text}</p>
+                    </div>
+                    <BookingDepositNotice
+                      enabled={showDepositNotice}
+                      amountCents={campaign.accontoImportoCentesimi}
+                      requiresApproval={campaign.richiedeApprovazione !== false}
+                      compact
+                    />
                     <Button
                       type="submit"
                       className="w-full"
                       size="lg"
-                      disabled={createBookingMutation.isPending || !privacyConsent}
+                      disabled={createBookingMutation.isPending || !canSubmit}
                       data-testid="button-submit-booking"
                     >
                       {createBookingMutation.isPending ? (
@@ -1274,14 +1476,13 @@ export default function BookingPage() {
                           Invio in corso...
                         </>
                       ) : (
-                        "Conferma Prenotazione"
+                        payDepositNow ? "Continua con PayPal" : "Invia prenotazione"
                       )}
                     </Button>
 
                     <p className="text-xs text-center text-muted-foreground">
-                      Cliccando conferma, riceverai una email con i dettagli
-                      della prenotazione. Lo staff ti contatterà per la conferma
-                      definitiva.
+                      {payDepositNow ? 'Il pagamento conferma l’orario. Hai dieci minuti per completarlo; altrimenti l’orario torna disponibile.'
+                        : 'Controlliamo che l’orario sia ancora libero. Al termine vedrai se l’appuntamento è confermato o se la richiesta attende l’approvazione dello studio.'}
                     </p>
                   </CardContent>
                 </Card>
@@ -1355,7 +1556,7 @@ export default function BookingPage() {
                   <img
                     src={img}
                     alt={`Miniatura ${idx + 1}`}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-contain"
                   />
                 </button>
               ))}

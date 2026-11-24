@@ -293,9 +293,12 @@ export default function LabShipmentItem({
                 variant="ghost"
                 size="icon"
                 className="text-red-500 hover:text-red-600 hover:bg-red-50 shrink-0"
+                disabled={deleteMut.isPending}
                 data-testid={`button-delete-shipment-${shipment.id}`}
               >
-                <Trash2 className="h-4 w-4" />
+                {deleteMut.isPending
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <Trash2 className="h-4 w-4" />}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
@@ -319,6 +322,34 @@ export default function LabShipmentItem({
             </AlertDialogContent>
           </AlertDialog>
         </div>
+
+        {deleteMut.isError && (
+          <div
+            role="alert"
+            className="flex flex-wrap items-center justify-between gap-3 border-t border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800"
+            data-testid={`shipment-delete-error-${shipment.id}`}
+          >
+            <p className="flex min-w-0 items-start gap-2">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              <span>
+                {(deleteMut.error as Error).message}
+                {" "}La spedizione è ancora disponibile; puoi riprovare da qui.
+              </span>
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={deleteMut.isPending}
+              onClick={() => deleteMut.mutate()}
+              data-testid={`button-retry-delete-shipment-${shipment.id}`}
+            >
+              {deleteMut.isPending
+                ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Eliminazione…</>
+                : "Riprova eliminazione"}
+            </Button>
+          </div>
+        )}
 
         <div id={`shipment-details-${shipment.id}`} hidden={!expanded}>
           {expanded && <div className="space-y-4 p-4">

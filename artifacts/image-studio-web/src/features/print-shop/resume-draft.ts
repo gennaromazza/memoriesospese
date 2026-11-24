@@ -99,6 +99,7 @@ export function restorePrintDraftQuote(order: PrintShopOrderListItem): PrintShop
     catalogVersion: order.catalogVersion,
     items,
     totals: order.totals,
+    ...(order.printShop?.coupon ? { coupon: order.printShop.coupon } : {}),
     assetCount: order.printShop?.assetCount ?? 0,
     copyCount: order.printShop?.copyCount ?? 0,
     qualityWarnings: order.printShop?.qualityWarnings ?? [],

@@ -1,12 +1,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 import { MOCKUP_MODEL, MOCKUP_RENDERERS } from '../shared/mockup-catalog';
 import { labMockupCatalogSchema } from '../shared/mockup-workflow';
 
-const catalogPath = path.resolve('client/public/mockups/custodia-v1/peppe-lab-catalog.json');
+const mockupsRoot = fileURLToPath(new URL('../../image-studio-web/public/mockups/', import.meta.url));
+const catalogPath = path.join(mockupsRoot, 'custodia-v1/peppe-lab-catalog.json');
 type MockupCatalog = {
   laboratories: Array<{ id: string; name: string; applicationLabId: string | null }>;
   families: Array<{ id: string; name: string; laboratoryId: string }>;
@@ -23,11 +25,19 @@ type MockupCatalog = {
     heightSha256: string;
     supplierCode: string | null;
     supplierColorName: string | null;
+    appearanceRevision: number;
     physicalScaleVerified: boolean;
     physicalScaleSource?: string;
     estimatedRepeatMeters: number;
   }>;
-  models: Array<{ materialPolicy: { allowedVariantIds: string[] } }>;
+  models: Array<{
+    id: string;
+    assetRevision: number;
+    modelAssetUrl: string;
+    materialPolicy: { allowedVariantIds: string[] };
+    coverLayouts: Array<{ id: string; label: string }>;
+    defaultCoverLayout: string;
+  }>;
 };
 const catalog = JSON.parse(fs.readFileSync(catalogPath, 'utf8')) as MockupCatalog;
 
@@ -45,8 +55,8 @@ type PeriodicCatalog = {
 function discoverPeriodicCatalogs(): PeriodicCatalog[] {
   const catalogs = new Map<string, PeriodicCatalog>();
 
-  for (const renderer of MOCKUP_RENDERERS) {
-    const viewerPath = path.resolve('client/public/mockups', renderer.path.replace(/index\.html$/, 'viewer.js'));
+  for (const renderer of MOCKUP_RENDERERS.filter(item => item.id === MOCKUP_MODEL.id)) {
+    const viewerPath = path.resolve(mockupsRoot, renderer.path.replace(/index\.html$/, 'viewer.js'));
     const source = fs.readFileSync(viewerPath, 'utf8');
     if (!source.includes('THREE.RepeatWrapping')) continue;
 
@@ -156,6 +166,23 @@ async function validatePeriodicAsset(
 }
 
 describe('Catalogo tessuti Peppe Lab', () => {
+  it('mantiene assegnazione, anteprima, layouts e rivestimenti della Custodia allineati', () => {
+    const model = catalog.models.find(item => item.id === MOCKUP_MODEL.id);
+    const renderer = MOCKUP_RENDERERS.find(item => item.id === MOCKUP_MODEL.id);
+    expect(model).toBeDefined();
+    expect(renderer).toBeDefined();
+    expect(model?.assetRevision).toBe(MOCKUP_MODEL.assetRevision);
+    expect(model?.modelAssetUrl).toBe('album-studio.glb');
+    expect(fs.existsSync(path.join(mockupsRoot, 'custodia-v1', model!.modelAssetUrl))).toBe(true);
+    expect(model?.materialPolicy.allowedVariantIds).toEqual(MOCKUP_MODEL.variants.map(variant => variant.id));
+    expect(catalog.variants.map(variant => variant.id)).toEqual(model?.materialPolicy.allowedVariantIds);
+    expect(catalog.variants.map(({ id, appearanceRevision }) => ({ id, appearanceRevision }))).toEqual(MOCKUP_MODEL.variants);
+    expect(model?.coverLayouts.map(layout => layout.id)).toEqual(MOCKUP_MODEL.coverLayouts);
+    expect(model?.defaultCoverLayout).toBe(MOCKUP_MODEL.defaultCoverLayout);
+    expect(renderer?.coverLayouts).toEqual(MOCKUP_MODEL.coverLayouts);
+    expect(renderer?.defaultCoverLayout).toBe(MOCKUP_MODEL.defaultCoverLayout);
+  });
+
   it('registra Spigato Beje una sola volta e lo limita al modello Peppe Lab', () => {
     expect(catalog.variants.filter(variant => variant.legacyId === 'spigato-beje')).toHaveLength(1);
     const family = catalog.families.find(item => item.id === spigato.familyId);
@@ -204,7 +231,7 @@ describe('Catalogo tessuti Peppe Lab', () => {
     expect(parsed.models[0].materialIds).toContain(spigato.id);
   });
 
-  it('verifica automaticamente ogni asset usato con wrapping periodico', async () => {
+  it('verifica gli asset della Custodia usati con wrapping periodico', async () => {
     const periodicCatalogs = discoverPeriodicCatalogs();
     expect(periodicCatalogs.length).toBeGreaterThan(0);
 
@@ -261,9 +288,9 @@ describe('Catalogo tessuti Peppe Lab', () => {
     }
   });
 
-  it('usa wrapping periodico nei renderer attivi che caricano cataloghi materiali', () => {
-    for (const renderer of MOCKUP_RENDERERS) {
-      const rendererPath = path.resolve('client/public/mockups', renderer.path.replace(/index\.html$/, 'viewer.js'));
+  it('la Custodia usa wrapping periodico senza mirrored repeat', () => {
+    for (const renderer of MOCKUP_RENDERERS.filter(item => item.id === MOCKUP_MODEL.id)) {
+      const rendererPath = path.resolve(mockupsRoot, renderer.path.replace(/index\.html$/, 'viewer.js'));
       const source = fs.readFileSync(rendererPath, 'utf8');
       if (source.includes('THREE.RepeatWrapping')) {
         expect(source).not.toContain('THREE.MirroredRepeatWrapping');

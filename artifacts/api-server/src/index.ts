@@ -19,6 +19,16 @@ import {
   startEventSyncWorker,
   stopEventSyncWorker,
 } from "./sync/event-sync-guard";
+import { cleanupDeviceEnrollments } from "./admin-security/admin-security-store";
+import { cleanupExpiredManualConsultationLocks } from "./consultation-routes";
+import { runSocialCoverHealthCheck } from "./social-cover-health";
+import { db } from "./firebase-admin";
+import { startBookingPaymentExpiryWorker } from "./booking/payment-expiry";
+import { startBookingRecoveryWorker } from "./booking/recovery-delivery";
+import { startBookingDepositReminderWorker } from "./booking/deposit-reminder-delivery";
+import { startBookingConfirmationWorker } from "./booking/confirmation-delivery";
+import { startBookingRescheduleWorker } from "./booking/reschedule-delivery";
+import { startBookingCancellationWorker } from "./booking/cancellations";
 
 const rawPort = process.env["PORT"];
 
@@ -35,11 +45,15 @@ if (Number.isNaN(port) || port <= 0) {
 }
 
 let cancellationWorkerCleanup: (() => void) | null = null;
+let bookingExpiryCleanup: (() => void) | null = null;
+let bookingDepositReminderCleanup: (() => void) | null = null;
+let bookingConfirmationCleanup: (() => void) | null = null;
+let bookingRescheduleCleanup: (() => void) | null = null;
 let cleanupInterval: NodeJS.Timeout | null = null;
 let reminderInterval: NodeJS.Timeout | null = null;
 
 const runScheduledMaintenance = async () => {
-  const jobs = [
+  const jobs: Promise<unknown>[] = [
     runReminderCheck(),
     runVisioneAutoInviteCheck(),
     runLabShipmentExpiryCheck(),
@@ -47,7 +61,18 @@ const runScheduledMaintenance = async () => {
     runGiftCardDeliveries(),
     runShopMaintenance(),
     runFollowUpCheck(),
+    cleanupDeviceEnrollments(),
+    cleanupExpiredManualConsultationLocks(),
   ];
+  if (process.env.NODE_ENV === "production") {
+    jobs.push(
+      runSocialCoverHealthCheck().then(result => {
+        if (result.checked > 0) {
+          logger.info(result, "Periodic social cover health check completed");
+        }
+      }),
+    );
+  }
   const results = await Promise.allSettled(jobs);
   results.forEach((result, index) => {
     if (result.status === "rejected") {
@@ -68,6 +93,16 @@ app.listen(port, async (err) => {
   logger.info({ port }, "Server listening");
 
   cancellationWorkerCleanup = startCancellationRetryWorker();
+  bookingExpiryCleanup = startBookingPaymentExpiryWorker(db);
+  if (process.env.NODE_ENV === "production") bookingDepositReminderCleanup = startBookingDepositReminderWorker(db);
+  const stopBookingRecovery = startBookingRecoveryWorker(db);
+  process.once('SIGTERM', stopBookingRecovery);
+  process.once('SIGINT', stopBookingRecovery);
+  bookingConfirmationCleanup = startBookingConfirmationWorker(db);
+  bookingRescheduleCleanup = startBookingRescheduleWorker(db);
+  const stopCancellation = startBookingCancellationWorker(db);
+  process.once('SIGTERM', stopCancellation);
+  process.once('SIGINT', stopCancellation);
   startEventSyncWorker(30);
   await cleanupStaleJobs();
   startBulkEmailDispatcher(30_000);
@@ -84,6 +119,10 @@ app.listen(port, async (err) => {
 const shutdown = (signal: string) => {
   logger.info({ signal }, "Shutting down");
   cancellationWorkerCleanup?.();
+  bookingExpiryCleanup?.();
+  bookingDepositReminderCleanup?.();
+  bookingConfirmationCleanup?.();
+  bookingRescheduleCleanup?.();
   stopEventSyncWorker();
   stopBulkEmailDispatcher();
   if (cleanupInterval) clearInterval(cleanupInterval);

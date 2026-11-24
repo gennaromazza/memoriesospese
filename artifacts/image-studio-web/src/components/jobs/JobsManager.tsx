@@ -3,7 +3,7 @@
  * Componente principale gestione lavori
  */
 
-import { useState, useMemo, Fragment, useEffect, forwardRef, type ComponentPropsWithoutRef } from 'react';
+import { useState, useMemo, Fragment, useEffect, useRef, forwardRef, type ComponentPropsWithoutRef } from 'react';
 import { useLocation } from 'wouter';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getAllJobs, deleteMultipleJobs, updateJob } from '@/lib/jobs';
@@ -18,6 +18,12 @@ import { getQuickQuoteDisplayDate } from '@shared/job-display';
 import type { Job, JobStatus } from '@shared/jobs-types';
 import type { JobTypeFE as JobTypeDoc } from '@shared/job-types';
 import type { Cliente } from '@shared/clienti-types';
+import { buildClientSearchIndex, searchJobs } from './jobs-list-search';
+import {
+  getJobListSection,
+  sortJobsForDisplay,
+  type JobListSection,
+} from './jobs-list-ordering';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -90,7 +96,7 @@ import {
   AlertCircle,
   RefreshCw
 } from 'lucide-react';
-import { format, isWithinInterval, differenceInDays } from 'date-fns';
+import { endOfDay, format, isWithinInterval, differenceInDays } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -192,7 +198,8 @@ export default function JobsManager() {
   const [filterQuoteStatus, setFilterQuoteStatus] = useState<string>('all'); // Stato preventivo (default: tutti per mostrare anche lavori nuovi)
   const [timeFilter, setTimeFilter] = useState<'all' | 'upcoming' | 'past'>('upcoming'); // Filtro temporale (default: prossimi impegni)
   const [filterCollaboratore, setFilterCollaboratore] = useState<string>('all'); // Filtro collaboratore
-  const [showQuickQuotesOnly, setShowQuickQuotesOnly] = useState(false); // Vista rapida: lead da Preventivo Rapido
+  const [showLeadsOnly, setShowLeadsOnly] = useState(false);
+  const [showQuickQuotesOnly, setShowQuickQuotesOnly] = useState(false); // Sottovista dei lead da Preventivo Rapido
   const [customDateRange, setCustomDateRange] = useState<{
     from: Date | undefined;
     to: Date | undefined;
@@ -409,14 +416,7 @@ export default function JobsManager() {
     return map;
   }, [jobTypes]);
   
-  // Crea mappa clienteId -> nome completo per ricerca
-  const clienteNamesMap = useMemo(() => {
-    const map: Record<string, string> = {};
-    clienti.forEach(c => {
-      map[c.id] = `${c.nome} ${c.cognome}`.trim();
-    });
-    return map;
-  }, [clienti]);
+  const clientSearchIndex = useMemo(() => buildClientSearchIndex(clienti), [clienti]);
   
   // Anni disponibili (per dropdown)
   const availableYears = useMemo(() => {
@@ -432,17 +432,31 @@ export default function JobsManager() {
     return Array.from(years).sort((a, b) => b - a);
   }, [jobs]);
   
-  // Conteggio lavori per tipo (esclude archiviati)
+  // I lead hanno una coda dedicata e non devono gonfiare i conteggi dei lavori.
+  // Manteniamo gli ID anche degli archiviati per non mostrarli nella lista lavori
+  // quando una ricerca testuale include gli archiviati.
+  const leadJobIds = useMemo(() =>
+    new Set(jobs
+      .filter(job => getJobListSection(job, quotesByJob[job.id]) === 'leads')
+      .map(job => job.id)),
+    [jobs, quotesByJob]
+  );
+  const leadJobs = useMemo(() =>
+    jobs.filter(job => job.status !== 'archiviato' && leadJobIds.has(job.id)),
+    [jobs, leadJobIds]
+  );
+
+  // Conteggio lavori per tipo (esclude archiviati e lead)
   const jobCountsByType = useMemo(() => {
     const counts: Record<string, number> = { all: 0 };
     jobs.forEach(job => {
-      if (job.status !== 'archiviato') {
+      if (job.status !== 'archiviato' && !leadJobIds.has(job.id)) {
         counts.all = (counts.all || 0) + 1;
         counts[job.jobType] = (counts[job.jobType] || 0) + 1;
       }
     });
     return counts;
-  }, [jobs]);
+  }, [jobs, leadJobIds]);
   
   // Mesi disponibili per l'anno selezionato
   const availableMonths = useMemo(() => {
@@ -462,47 +476,52 @@ export default function JobsManager() {
 
   // Filtra jobs
   const filteredJobs = useMemo(() => {
+    // Una ricerca esplicita attraversa categorie e code, inclusi i lead.
+    if (searchQuery.trim()) return searchJobs(jobs, searchQuery, clientSearchIndex);
+
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     
-    // Helper per ricerca testuale
-    const matchesSearch = (job: typeof jobs[0], query: string): boolean => {
-      const nomeEvento = job.nomeEvento?.toLowerCase() || '';
-      const eventLocation = (job.eventLocation || job.rituLocation || job.locationCerimonia || '').toLowerCase();
-      const note = job.noteInterne?.toLowerCase() || '';
-      
-      const clientIds = job.clientiIds?.length 
-        ? job.clientiIds 
-        : (job.clienteId ? [job.clienteId] : []);
-      const clientiNames = clientIds
-        .map((id: string) => clienteNamesMap[id]?.toLowerCase() || '')
-        .join(' ');
-      
-      return nomeEvento.includes(query) || 
-             eventLocation.includes(query) || 
-             note.includes(query) ||
-             clientiNames.includes(query);
+    const matchesQuoteStatus = (job: typeof jobs[0]): boolean => {
+      if (filterQuoteStatus === 'all') return true;
+      const quoteStatus = quotesByJob[job.id];
+      const hasQuote = quoteStatus?.hasQuote || false;
+      const confirmedJobStatuses = ['confermato', 'shooting_fatto', 'selezione_pending', 'produzione', 'consegnato'];
+      const jobIsConfirmed = confirmedJobStatuses.includes(job.status);
+      const isSigned = quoteStatus?.isSigned || jobIsConfirmed;
+      const isEmailSent = quoteStatus?.isEmailSent || false;
+
+      if (filterQuoteStatus === 'firmato') return isSigned;
+      if (filterQuoteStatus === 'non_firmato') return hasQuote && !isSigned && isEmailSent;
+      if (filterQuoteStatus === 'non_inviato') return !hasQuote || !isEmailSent;
+      return true;
     };
     
     // Vista rapida "Preventivi Rapidi": mostra tutti i lavori arrivati dal form online,
     // ignorando i filtri tipo/tempo (i lead spesso non hanno data o tipo "matrimonio")
     if (showQuickQuotesOnly) {
       return jobs.filter(job =>
-        job.provenance === 'preventivo-rapido' &&
+        leadJobIds.has(job.id) &&
         job.status !== 'archiviato' &&
-        (!searchQuery || matchesSearch(job, searchQuery.toLowerCase()))
+        job.provenance === 'preventivo-rapido' &&
+        matchesQuoteStatus(job)
+      );
+    }
+
+    if (showLeadsOnly) {
+      return jobs.filter(job =>
+        leadJobIds.has(job.id) &&
+        job.status !== 'archiviato' &&
+        matchesQuoteStatus(job)
       );
     }
 
     // Senza ricerca, applica normalmente i filtri
     return jobs.filter(job => {
       // Escludi archiviati dalla vista principale (a meno che non siano cercati)
-      if (job.status === 'archiviato' && !searchQuery) return false;
-      
-      // Se c'è una ricerca attiva, controlla solo quella
-      if (searchQuery) {
-        return matchesSearch(job, searchQuery.toLowerCase());
-      }
+      if (job.status === 'archiviato') return false;
+      // Le richieste non firmate sono gestite nella scheda Lead dedicata.
+      if (leadJobIds.has(job.id)) return false;
       
       // Filtro tipo
       if (filterType !== 'all' && job.jobType !== filterType) return false;
@@ -521,20 +540,7 @@ export default function JobsManager() {
       }
       
       // Filtro stato preventivo - usa dati reali dai preventivi + status job come fallback
-      if (filterQuoteStatus !== 'all') {
-        const quoteStatus = quotesByJob[job.id];
-        const hasQuote = quoteStatus?.hasQuote || false;
-        
-        const confirmedJobStatuses = ['confermato', 'shooting_fatto', 'selezione_pending', 'produzione', 'consegnato'];
-        const jobIsConfirmed = confirmedJobStatuses.includes(job.status);
-        const isSigned = quoteStatus?.isSigned || jobIsConfirmed;
-        
-        const isEmailSent = quoteStatus?.isEmailSent || false;
-        
-        if (filterQuoteStatus === 'firmato' && !isSigned) return false;
-        if (filterQuoteStatus === 'non_firmato' && (!hasQuote || isSigned || !isEmailSent)) return false;
-        if (filterQuoteStatus === 'non_inviato' && (hasQuote && isEmailSent)) return false;
-      }
+      if (!matchesQuoteStatus(job)) return false;
       
       // Filtro collaboratore
       if (filterCollaboratore !== 'all') {
@@ -556,7 +562,7 @@ export default function JobsManager() {
           if (customDateRange.from && customDateRange.to) {
             const inRange = isWithinInterval(eventDate, {
               start: customDateRange.from,
-              end: customDateRange.to
+              end: endOfDay(customDateRange.to)
             });
             if (!inRange) return false;
           }
@@ -597,66 +603,82 @@ export default function JobsManager() {
       
       return true;
     });
-  }, [jobs, filterType, filterYear, filterSemester, filterMonth, filterQuoteStatus, filterCollaboratore, timeFilter, customDateRange, searchQuery, clienteNamesMap, quotesByJob, collaboratoriByJob, jobsByCollaboratore, showQuickQuotesOnly]);
+  }, [jobs, filterType, filterYear, filterSemester, filterMonth, filterQuoteStatus, filterCollaboratore, timeFilter, customDateRange, searchQuery, clientSearchIndex, quotesByJob, collaboratoriByJob, jobsByCollaboratore, leadJobIds, showLeadsOnly, showQuickQuotesOnly]);
 
-  // Lead arrivati dal form Preventivo Rapido non ancora confermati (nuove richieste da gestire)
+  // Lead arrivati dal form Preventivo Rapido: filtro rapido nella coda Lead.
   const quickQuoteLeads = useMemo(() =>
-    jobs.filter(j => j.provenance === 'preventivo-rapido' && (j.status === 'lead' || j.status === 'preventivo_inviato')),
-    [jobs]
+    leadJobs.filter(j => j.provenance === 'preventivo-rapido'),
+    [leadJobs]
   );
-  const quickQuoteTotal = useMemo(() =>
-    jobs.filter(j => j.provenance === 'preventivo-rapido' && j.status !== 'archiviato').length,
-    [jobs]
-  );
+  const quickQuoteTotal = quickQuoteLeads.length;
   
-  // Funzione helper per convertire date Firestore
-  const toDate = (val: any): Date => {
-    if (!val) return new Date(0);
-    
-    const result = convertFirestoreTimestamp(val);
-    if (!result || !Number.isFinite(result.getTime())) {
-      return new Date(0);
-    }
-    
-    return result;
-  };
-  
-  // Sort jobs in base al filtro temporale
+  // Lead e lavori firmati restano in gruppi distinti. All'interno dei lavori
+  // confermati l'ordine è per data evento; i lead usano la data di richiesta.
   const sortedJobs = useMemo(() => {
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    
-    return [...filteredJobs].sort((a, b) => {
-      const dateA = toDate(a.eventDate);
-      const dateB = toDate(b.eventDate);
-      
-      // Se filtro "past": ordina dal più recente (decrescente)
-      if (timeFilter === 'past') {
-        return dateB.getTime() - dateA.getTime();
+    return sortJobsForDisplay(filteredJobs, quotesByJob, timeFilter);
+  }, [filteredJobs, quotesByJob, timeFilter]);
+
+  const jobsTableScrollAreaRef = useRef<HTMLDivElement>(null);
+  const jobsTableHasBeenScrolledRef = useRef(false);
+  const [showJobsTableScrollHint, setShowJobsTableScrollHint] = useState(false);
+
+  useEffect(() => {
+    const scrollArea = jobsTableScrollAreaRef.current;
+    if (!scrollArea || sortedJobs.length === 0) {
+      setShowJobsTableScrollHint(false);
+      return;
+    }
+
+    const updateScrollHint = () => {
+      if (!jobsTableHasBeenScrolledRef.current) {
+        setShowJobsTableScrollHint(scrollArea.scrollWidth > scrollArea.clientWidth + 1);
       }
-      
-      // Se filtro "upcoming": ordina dal più vicino (crescente)
-      if (timeFilter === 'upcoming') {
-        return dateA.getTime() - dateB.getTime();
-      }
-      
-      // Se filtro "all": logica mista (futuri prima, poi passati)
-      const aIsFuture = dateA >= startOfToday;
-      const bIsFuture = dateB >= startOfToday;
-      
-      // Se uno è futuro e l'altro no, il futuro viene prima
-      if (aIsFuture && !bIsFuture) return -1;
-      if (!aIsFuture && bIsFuture) return 1;
-      
-      // Se entrambi futuri: ordina dal più vicino (crescente)
-      if (aIsFuture && bIsFuture) {
-        return dateA.getTime() - dateB.getTime();
-      }
-      
-      // Se entrambi passati: ordina dal più recente (decrescente)
-      return dateB.getTime() - dateA.getTime();
-    });
-  }, [filteredJobs, timeFilter]);
+    };
+
+    updateScrollHint();
+    const resizeObserver = typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(updateScrollHint)
+      : null;
+    resizeObserver?.observe(scrollArea);
+    const table = scrollArea.querySelector('table');
+    if (table) resizeObserver?.observe(table);
+    window.addEventListener('resize', updateScrollHint);
+
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', updateScrollHint);
+    };
+  }, [sortedJobs.length]);
+
+  const visibleSelectedJobs = useMemo(
+    () => sortedJobs.filter(job => selectedJobs.has(job.id)),
+    [sortedJobs, selectedJobs]
+  );
+  const visibleSelectedJobIds = useMemo(
+    () => new Set(visibleSelectedJobs.map(job => job.id)),
+    [visibleSelectedJobs]
+  );
+
+  // Keep selection across pages, but drop jobs removed by the active search or filters.
+  useEffect(() => {
+    if (visibleSelectedJobIds.size !== selectedJobs.size) {
+      setSelectedJobs(visibleSelectedJobIds);
+    }
+  }, [selectedJobs.size, visibleSelectedJobIds]);
+
+  const listSections = useMemo(() => {
+    const referenceDate = new Date();
+    const byJobId = new Map<string, JobListSection>();
+    const counts = new Map<JobListSection, number>();
+
+    for (const job of sortedJobs) {
+      const section = getJobListSection(job, quotesByJob[job.id], referenceDate);
+      byJobId.set(job.id, section);
+      counts.set(section, (counts.get(section) || 0) + 1);
+    }
+
+    return { byJobId, counts };
+  }, [sortedJobs, quotesByJob]);
   
   // Paginated jobs
   const paginatedJobs = useMemo(() => {
@@ -670,7 +692,7 @@ export default function JobsManager() {
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterType, filterYear, filterSemester, filterMonth, filterQuoteStatus, filterCollaboratore, timeFilter, customDateRange, searchQuery]);
+  }, [filterType, filterYear, filterSemester, filterMonth, filterQuoteStatus, filterCollaboratore, timeFilter, customDateRange, searchQuery, showLeadsOnly, showQuickQuotesOnly]);
   
   // Clamp currentPage when totalPages decreases (e.g., after deletion or filtering)
   useEffect(() => {
@@ -709,7 +731,7 @@ export default function JobsManager() {
   );
   
   const toggleSelectJob = (jobId: string) => {
-    const newSelected = new Set(selectedJobs);
+    const newSelected = new Set(visibleSelectedJobIds);
     if (newSelected.has(jobId)) {
       newSelected.delete(jobId);
     } else {
@@ -721,8 +743,8 @@ export default function JobsManager() {
   const toggleSelectAll = () => {
     // Seleziona/deseleziona solo i lavori visibili nella pagina corrente (evita di selezionare lavori non visibili)
     const pageIds = paginatedJobs.map(j => j.id);
-    const allPageSelected = pageIds.length > 0 && pageIds.every(id => selectedJobs.has(id));
-    const newSelected = new Set(selectedJobs);
+    const allPageSelected = pageIds.length > 0 && pageIds.every(id => visibleSelectedJobIds.has(id));
+    const newSelected = new Set(visibleSelectedJobIds);
     if (allPageSelected) {
       pageIds.forEach(id => newSelected.delete(id));
     } else {
@@ -732,13 +754,18 @@ export default function JobsManager() {
   };
   
   const handleDeleteSelected = () => {
-    if (selectedJobs.size === 0) return;
+    if (visibleSelectedJobs.length === 0) return;
     setDeleteDialogOpen(true);
   };
   
   const confirmDelete = () => {
+    const selectedIds = visibleSelectedJobs.map(job => job.id);
+    if (selectedIds.length === 0) {
+      setDeleteDialogOpen(false);
+      return;
+    }
     setDeleteDialogOpen(false);
-    deleteMutation.mutate(Array.from(selectedJobs));
+    deleteMutation.mutate(selectedIds);
   };
   
   return (
@@ -754,9 +781,9 @@ export default function JobsManager() {
               <span>Caricamento lavori in corso...</span>
             ) : jobsLoadFailed ? (
               <span className="text-red-600 font-medium">Caricamento non riuscito</span>
-            ) : selectedJobs.size > 0 ? (
+            ) : visibleSelectedJobs.length > 0 ? (
               <span className="text-red-600 font-medium">
-                {selectedJobs.size} lavori selezionati
+                {visibleSelectedJobs.length} lavori selezionati
               </span>
             ) : (
               `${totalLoadedActiveJobs} lavori caricati${stats.totalJobs !== totalLoadedActiveJobs ? ` · ${stats.totalJobs} visualizzati` : ''}`
@@ -775,7 +802,7 @@ export default function JobsManager() {
             <RefreshCw className={cn("w-4 h-4 sm:mr-2", isJobsFetching && "animate-spin")} />
             <span className="sr-only sm:not-sr-only">Aggiorna</span>
           </Button>
-          {selectedJobs.size > 0 && (
+          {visibleSelectedJobs.length > 0 && (
             <Button
               onClick={handleDeleteSelected}
               variant="destructive"
@@ -791,7 +818,7 @@ export default function JobsManager() {
               ) : (
                 <>
                   <Trash2 className="w-4 h-4 mr-2" />
-                  Elimina ({selectedJobs.size})
+                  Elimina ({visibleSelectedJobs.length})
                 </>
               )}
             </Button>
@@ -800,7 +827,7 @@ export default function JobsManager() {
             onClick={() => setCreateModalOpen(true)}
             className={cn(
               "h-11 w-full bg-sage hover:bg-dark-sage sm:h-10 sm:w-auto",
-              selectedJobs.size > 0 && "col-span-2 sm:col-span-1",
+              visibleSelectedJobs.length > 0 && "col-span-2 sm:col-span-1",
             )}
             data-testid="button-create-job"
           >
@@ -811,7 +838,7 @@ export default function JobsManager() {
       </div>
       
       {/* Banner Preventivi Rapidi: nuove richieste dal form online */}
-      {(quickQuoteLeads.length > 0 || showQuickQuotesOnly) && (
+      {showLeadsOnly && (quickQuoteLeads.length > 0 || showQuickQuotesOnly) && (
         <div
           className={cn(
             "rounded-xl border p-3 sm:p-4 flex items-center gap-3 sm:justify-between sm:rounded-lg",
@@ -847,7 +874,7 @@ export default function JobsManager() {
                 </span>
                 <span className="hidden sm:inline">
                   {showQuickQuotesOnly
-                    ? `Stai vedendo solo i lavori arrivati dal form online (${quickQuoteTotal} totali).`
+                    ? `Stai vedendo solo i lead arrivati dal form online (${quickQuoteTotal} totali).`
                     : 'Clienti che hanno compilato il form online e attendono una risposta.'}
                 </span>
               </p>
@@ -858,7 +885,7 @@ export default function JobsManager() {
             variant={showQuickQuotesOnly ? "default" : "outline"}
             aria-label={
               showQuickQuotesOnly
-                ? "Torna a tutti i lavori"
+                ? "Mostra tutti i lead"
                 : "Mostra Preventivi Rapidi"
             }
             className={cn(
@@ -868,8 +895,10 @@ export default function JobsManager() {
                 : "border-amber-400 text-amber-800 hover:bg-amber-100"
             )}
             onClick={() => {
+              setShowLeadsOnly(true);
               setShowQuickQuotesOnly(v => !v);
               setCurrentPage(1);
+              setSelectedJobs(new Set());
             }}
             data-testid="button-toggle-quick-quotes"
           >
@@ -877,7 +906,7 @@ export default function JobsManager() {
               <>
                 <X className="w-4 h-4 sm:mr-2" />
                 <span className="sr-only sm:not-sr-only">
-                  Torna a tutti i lavori
+                  Mostra tutti i lead
                 </span>
               </>
             ) : (
@@ -893,7 +922,7 @@ export default function JobsManager() {
       )}
 
       {/* Stats cards - con toggle privacy */}
-      <div className="relative">
+      {!showLeadsOnly && <div className="relative">
         <div className="flex items-center justify-start mb-2 sm:justify-end">
           <Button
             variant="ghost"
@@ -954,25 +983,32 @@ export default function JobsManager() {
             </CardContent>
           </Card>
         )}
-      </div>
+      </div>}
       
       {/* Card Navigazione Tipi Lavoro */}
       <div className="overflow-x-auto pb-2">
         <div className="flex gap-2 min-w-max">
           {/* Card "Tutti" */}
           <button
-            onClick={() => setFilterType('all')}
+            onClick={() => {
+              setShowLeadsOnly(false);
+              setShowQuickQuotesOnly(false);
+              setSelectedJobs(new Set());
+              setFilterQuoteStatus('all');
+              setFilterType('all');
+            }}
             className={cn(
               "flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-all min-w-[100px]",
-              filterType === 'all'
+              !showLeadsOnly && filterType === 'all'
                 ? "bg-slate-100 border-slate-400 text-slate-800 shadow-sm"
                 : "bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"
             )}
+            aria-pressed={!showLeadsOnly && filterType === 'all'}
             data-testid="card-filter-all"
           >
             <FileText className="w-5 h-5" />
             <div className="text-left">
-              <div className="font-medium text-sm">Tutti</div>
+              <div className="font-medium text-sm">Tutti i lavori</div>
               <div className="text-xs text-muted-foreground">{jobCountsByType.all || 0}</div>
             </div>
           </button>
@@ -984,48 +1020,119 @@ export default function JobsManager() {
             .map(jobType => (
               <button
                 key={jobType.id}
-                onClick={() => setFilterType(jobType.slug)}
+                onClick={() => {
+                  setShowLeadsOnly(false);
+                  setShowQuickQuotesOnly(false);
+                  setSelectedJobs(new Set());
+                  setFilterQuoteStatus('all');
+                  setFilterType(jobType.slug);
+                }}
                 className={cn(
                   "flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-all min-w-[120px]",
-                  filterType === jobType.slug
+                  !showLeadsOnly && filterType === jobType.slug
                     ? "shadow-sm"
                     : "bg-white hover:bg-opacity-10"
                 )}
                 style={{
-                  borderColor: filterType === jobType.slug ? jobType.colore : '#e2e8f0',
-                  backgroundColor: filterType === jobType.slug ? `${jobType.colore}15` : 'white',
-                  color: filterType === jobType.slug ? jobType.colore : '#64748b'
+                  borderColor: !showLeadsOnly && filterType === jobType.slug ? jobType.colore : '#e2e8f0',
+                  backgroundColor: !showLeadsOnly && filterType === jobType.slug ? `${jobType.colore}15` : 'white',
+                  color: !showLeadsOnly && filterType === jobType.slug ? jobType.colore : '#64748b'
                 }}
+                aria-pressed={!showLeadsOnly && filterType === jobType.slug}
                 data-testid={`card-filter-${jobType.slug}`}
               >
                 <JobTypeIcon slug={jobType.slug} size="lg" />
                 <div className="text-left">
-                  <div className="font-medium text-sm" style={{ color: filterType === jobType.slug ? jobType.colore : '#334155' }}>
+                  <div className="font-medium text-sm" style={{ color: !showLeadsOnly && filterType === jobType.slug ? jobType.colore : '#334155' }}>
                     {jobType.nome}
                   </div>
                   <div className="text-xs opacity-70">{jobCountsByType[jobType.slug] || 0}</div>
                 </div>
               </button>
             ))}
+          <button
+            onClick={() => {
+              setShowLeadsOnly(true);
+              setShowQuickQuotesOnly(false);
+              setSelectedJobs(new Set());
+              setFilterQuoteStatus('all');
+            }}
+            className={cn(
+              "flex items-center gap-2 rounded-lg border-2 px-4 py-2 transition-all min-w-[110px]",
+              showLeadsOnly
+                ? "border-amber-400 bg-amber-50 text-amber-900 shadow-sm"
+                : "border-amber-200 bg-white text-amber-800 hover:border-amber-300 hover:bg-amber-50"
+            )}
+            aria-pressed={showLeadsOnly}
+            data-testid="card-filter-leads"
+          >
+            <Users className="h-5 w-5" aria-hidden="true" />
+            <div className="text-left">
+              <div className="font-medium text-sm">Lead</div>
+              <div className="text-xs opacity-70">{leadJobs.length}</div>
+            </div>
+          </button>
         </div>
       </div>
+
+      {showLeadsOnly && !searchQuery.trim() && (
+        <div
+          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-[#fbf7ed] px-4 py-3"
+          data-testid="lead-queue-heading"
+        >
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-amber-800">
+              <FileText className="h-4 w-4" aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-amber-950">Richieste da seguire</h2>
+              <p className="text-xs text-amber-900/70">
+                Contatti e preventivi non ancora firmati · ordinati per data di richiesta
+              </p>
+            </div>
+          </div>
+          <Badge variant="outline" className="rounded-full border-amber-300 bg-white text-amber-900">
+            {filteredJobs.length} lead
+          </Badge>
+        </div>
+      )}
       
       {/* Filters - Responsive Grid Layout */}
       <div className="space-y-3">
         {/* Prima riga: Ricerca + Periodo + Stato Preventivo */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className={cn("grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3", showLeadsOnly && "max-w-3xl")}>
           {/* Search - occupa più spazio */}
           <div className="sm:col-span-2 lg:col-span-2 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
             <Input
-              placeholder="Cerca per evento, location, clienti, note..."
+              placeholder="Cerca lavori e lead: nome, email, telefono, evento..."
+              aria-label="Cerca lavori e lead per cliente, email, telefono, evento, luogo o note"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
               data-testid="input-search-jobs"
             />
+            {searchQuery.trim() && (
+              <p className="mt-1 text-xs text-muted-foreground" role="status">
+                Ricerca su tutti i lavori e lead, senza filtri di categoria o periodo.
+              </p>
+            )}
           </div>
-          
+
+          {showLeadsOnly && searchQuery && (
+            <Button
+              variant="outline"
+              onClick={() => setSearchQuery('')}
+              className="w-full sm:w-auto"
+              data-testid="button-clear-lead-search"
+            >
+              <X className="mr-2 h-4 w-4" />
+              Pulisci ricerca
+            </Button>
+          )}
+
+          {!showLeadsOnly && (
+            <>
           {/* Filtro Periodo (Prossimi/Passati) */}
           <Select value={timeFilter} onValueChange={(val: 'all' | 'upcoming' | 'past') => setTimeFilter(val)}>
             <SelectTrigger className="w-full" data-testid="select-filter-time">
@@ -1037,9 +1144,25 @@ export default function JobsManager() {
               <SelectItem value="all">Tutti i periodi</SelectItem>
             </SelectContent>
           </Select>
-          
-          {/* Filtro Stato Preventivo */}
-          <Select value={filterQuoteStatus} onValueChange={setFilterQuoteStatus}>
+            </>
+          )}
+
+          {/* Filtro Stato Preventivo: i non firmati aprono la coda Lead */}
+          <Select
+            value={filterQuoteStatus}
+            onValueChange={(val) => {
+              setFilterQuoteStatus(val);
+              if (val === 'non_firmato' || val === 'non_inviato') {
+                setShowLeadsOnly(true);
+                setShowQuickQuotesOnly(false);
+                setSelectedJobs(new Set());
+              } else if (val === 'firmato') {
+                setShowLeadsOnly(false);
+                setShowQuickQuotesOnly(false);
+                setSelectedJobs(new Set());
+              }
+            }}
+          >
             <SelectTrigger className="w-full" data-testid="select-filter-quote">
               <SelectValue placeholder="Stato Preventivo" />
             </SelectTrigger>
@@ -1053,7 +1176,7 @@ export default function JobsManager() {
         </div>
         
         {/* Seconda riga: Collaboratore + Anno + Mese + Semestre */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        {!showLeadsOnly && <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {/* Filtro Collaboratore */}
           <Select value={filterCollaboratore} onValueChange={setFilterCollaboratore}>
             <SelectTrigger className="w-full" data-testid="select-filter-collaboratore">
@@ -1144,10 +1267,10 @@ export default function JobsManager() {
             </SelectContent>
           </Select>
           
-        </div>
+        </div>}
         
         {/* Terza riga: Range personalizzato + Reset Filtri */}
-        <div className="flex flex-wrap items-center gap-3">
+        {!showLeadsOnly && <div className="flex flex-wrap items-center gap-3">
           {/* Custom Date Range */}
           <Popover>
             <PopoverTrigger asChild>
@@ -1173,7 +1296,7 @@ export default function JobsManager() {
                 )}
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
+            <PopoverContent className="w-auto p-0" align="start" side="top">
               <CalendarUI
                 mode="range"
                 defaultMonth={customDateRange.from}
@@ -1194,6 +1317,10 @@ export default function JobsManager() {
                 }}
                 numberOfMonths={2}
                 locale={it}
+                classNames={{
+                  months: "flex flex-col gap-4 sm:flex-row",
+                  month: "w-[280px] space-y-4",
+                }}
               />
             </PopoverContent>
           </Popover>
@@ -1220,10 +1347,10 @@ export default function JobsManager() {
               Reset Filtri
             </Button>
           )}
-        </div>
+        </div>}
         
         {/* Active Filters Summary */}
-        {(filterType !== 'matrimonio' || filterYear !== 'all' || filterMonth !== 'all' || filterQuoteStatus !== 'all' || filterCollaboratore !== 'all' || customDateRange.from || timeFilter !== 'upcoming') && (
+        {!showLeadsOnly && (filterType !== 'matrimonio' || filterYear !== 'all' || filterMonth !== 'all' || filterQuoteStatus !== 'all' || filterCollaboratore !== 'all' || customDateRange.from || timeFilter !== 'upcoming') && (
           <div className="flex flex-wrap gap-2 items-center text-sm text-muted-foreground">
             <Filter className="w-4 h-4" />
             <span>Filtri attivi:</span>
@@ -1295,26 +1422,53 @@ export default function JobsManager() {
           <CardContent className="py-12 text-center">
             <FileText className="w-12 h-12 mx-auto text-gray-300 mb-4" />
             <p className="font-medium text-gray-600">
-              {jobs.length === 0 ? 'Non ci sono ancora lavori' : 'Nessun lavoro corrisponde ai filtri selezionati'}
+              {jobs.length === 0
+                ? 'Non ci sono ancora lavori'
+                : searchQuery.trim()
+                  ? 'Nessun lavoro o lead corrisponde alla ricerca'
+                : showLeadsOnly
+                  ? 'Non ci sono richieste da seguire'
+                  : 'Nessun lavoro corrisponde ai filtri selezionati'}
             </p>
             {jobs.length > 0 && (
               <p className="mt-1 text-sm text-gray-500">
-                I tuoi {totalLoadedActiveJobs} lavori sono caricati correttamente: modifica o azzera i filtri per visualizzarli.
+                {searchQuery.trim()
+                  ? 'Prova con nome, email o numero di telefono, oppure pulisci la ricerca.'
+                  : showLeadsOnly
+                    ? 'I nuovi contatti e i preventivi non firmati compariranno qui.'
+                  : `I tuoi ${totalLoadedActiveJobs} lavori sono caricati correttamente: modifica o azzera i filtri per visualizzarli.`}
               </p>
             )}
           </CardContent>
         </Card>
       ) : (
-        <div className="border rounded-lg overflow-hidden">
-          <Table>
+        <div className="overflow-hidden rounded-xl border border-[#e0e3d9] bg-card shadow-sm">
+          {showJobsTableScrollHint && (
+            <div
+              className="flex items-center justify-end gap-1 border-b border-[#e0e3d9] px-3 py-1.5 text-xs text-muted-foreground md:hidden"
+              data-testid="status-jobs-table-scroll-hint"
+            >
+              <span>Scorri per vedere altre colonne</span>
+              <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+            </div>
+          )}
+          <Table
+            scrollAreaRef={jobsTableScrollAreaRef}
+            onScrollArea={(event) => {
+              if (event.currentTarget.scrollLeft > 0) {
+                jobsTableHasBeenScrolledRef.current = true;
+                setShowJobsTableScrollHint(false);
+              }
+            }}
+          >
             <TableHeader>
               <TableRow>
                 <TableHead className="w-10">
                   <Checkbox
                     checked={
-                      paginatedJobs.length > 0 && paginatedJobs.every(j => selectedJobs.has(j.id))
+                      paginatedJobs.length > 0 && paginatedJobs.every(j => visibleSelectedJobIds.has(j.id))
                         ? true
-                        : paginatedJobs.some(j => selectedJobs.has(j.id))
+                        : paginatedJobs.some(j => visibleSelectedJobIds.has(j.id))
                           ? 'indeterminate'
                           : false
                     }
@@ -1329,46 +1483,78 @@ export default function JobsManager() {
                 <TableHead className="font-semibold">Data/Orario</TableHead>
                 <TableHead className="font-semibold">Tipo</TableHead>
                 <TableHead className="font-semibold">Status</TableHead>
-                <TableHead className="hidden lg:table-cell font-semibold text-center">👥</TableHead>
-                <TableHead className="hidden md:table-cell font-semibold text-center">💰</TableHead>
+                <TableHead className="hidden lg:table-cell text-center font-semibold">
+                  <span className="sr-only">Collaboratori</span>
+                  <Users className="mx-auto h-4 w-4" aria-hidden="true" />
+                </TableHead>
+                <TableHead className="hidden md:table-cell text-center font-semibold">
+                  <span className="sr-only">Pagamenti</span>
+                  <CreditCard className="mx-auto h-4 w-4" aria-hidden="true" />
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(() => {
-                const now = new Date();
-                const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                // Indice globale (su tutte le pagine) del primo lavoro passato, solo in vista "Tutti i periodi".
-                // Così il separatore appare una sola volta, nella pagina giusta, e solo se ci sono sia lavori futuri che passati.
-                const firstPastIndexGlobal = timeFilter === 'all'
-                  ? sortedJobs.findIndex(j => {
-                      const d = convertFirestoreTimestamp(j.eventDate);
-                      // Solo i lavori con data evento valida e passata contano come "passati":
-                      // i lavori senza data non devono attivare il separatore.
-                      return d != null && !isNaN(d.getTime()) && d < startOfToday;
-                    })
-                  : -1;
-                
-                return paginatedJobs.map((job, index) => {
+              {paginatedJobs.map((job, index) => {
                   const jobTypeInfo = jobTypeMap[job.jobType];
                   const rawEventDate = convertFirestoreTimestamp(job.eventDate);
                   const eventDate = rawEventDate && !isNaN(rawEventDate.getTime()) ? rawEventDate : null;
                   const createdAtDate = getQuickQuoteDisplayDate(job as any);
-                  const isSelected = selectedJobs.has(job.id);
-                  
-                  // Mostra il separatore esattamente prima del primo lavoro passato (indice globale),
-                  // solo se esiste almeno un lavoro futuro prima di esso.
-                  const globalIndex = (currentPage - 1) * itemsPerPage + index;
-                  const showPastSeparator = firstPastIndexGlobal > 0 && globalIndex === firstPastIndexGlobal;
-                  
+                  const isSelected = visibleSelectedJobIds.has(job.id);
+                  const section = listSections.byJobId.get(job.id) || 'undated';
+                  const previousSection = index > 0
+                    ? listSections.byJobId.get(paginatedJobs[index - 1].id)
+                    : undefined;
+                  const showSectionHeader = (!showLeadsOnly || Boolean(searchQuery.trim())) && (index === 0 || section !== previousSection);
+                  const sectionCount = listSections.counts.get(section) || 0;
+                  const sectionTitle =
+                    section === 'leads' ? 'Richieste da seguire' :
+                    section === 'today' ? `Oggi · ${format(new Date(), 'EEEE d MMMM yyyy', { locale: it })}` :
+                    section === 'upcoming' ? 'In arrivo' :
+                    section === 'undated' ? 'Data da definire' :
+                    timeFilter === 'past' ? 'Impegni passati' : 'Eventi passati';
+                  const sectionDescription =
+                    section === 'leads' ? 'Contatti e preventivi non ancora firmati' :
+                    section === 'today' ? 'Eventi confermati per oggi' :
+                    section === 'upcoming' ? 'Eventi confermati in ordine cronologico' :
+                    section === 'undated' ? 'Lavori confermati senza una data evento' :
+                    'Dal più recente al meno recente';
+                  const SectionIcon = section === 'leads' ? FileText : Calendar;
+                  const sectionTone =
+                    section === 'leads'
+                      ? 'border-amber-200 bg-[#f8f4ea] text-[#755f3d]'
+                      : section === 'today'
+                        ? 'border-[#d6e2d5] bg-[#edf3eb] text-[#405a5c]'
+                        : section === 'upcoming'
+                          ? 'border-[#e1e8dc] bg-[#f6f8f2] text-[#52695e]'
+                          : section === 'undated'
+                            ? 'border-[#e1e0d6] bg-[#f8f7f1] text-[#6f776f]'
+                            : 'border-[#e1dfd5] bg-[#f1f0ea] text-[#737a72]';
+
                   return (
                     <Fragment key={job.id}>
-                      {showPastSeparator && (
-                        <TableRow key="past-separator" className="bg-gray-100 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800">
-                          <TableCell colSpan={9} className="py-2 text-center">
-                            <div className="flex items-center justify-center gap-3 text-sm text-muted-foreground">
-                              <div className="flex-1 h-px bg-gray-300 dark:bg-gray-600" />
-                              <span className="font-medium">📅 Lavori Passati</span>
-                              <div className="flex-1 h-px bg-gray-300 dark:bg-gray-600" />
+                      {showSectionHeader && (
+                        <TableRow
+                          key={`section-${section}-${job.id}`}
+                          className="hover:bg-transparent"
+                          data-testid={`jobs-section-${section}`}
+                        >
+                          <TableCell colSpan={9} className="px-0 py-0">
+                            <div className={cn("flex flex-wrap items-center justify-between gap-2 border-y px-4 py-2.5 sm:px-5", sectionTone)}>
+                              <div className="flex min-w-0 items-center gap-2.5">
+                                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white/70">
+                                  <SectionIcon className="h-4 w-4" aria-hidden="true" />
+                                </span>
+                                <div className="min-w-0">
+                                  <div className="text-xs font-bold">{sectionTitle}</div>
+                                  <div className="text-[11px] opacity-75">{sectionDescription}</div>
+                                </div>
+                                <Badge variant="outline" className="rounded-full border-current/20 bg-white/70 text-[10px]">
+                                  {sectionCount}
+                                </Badge>
+                              </div>
+                              {section === 'leads' && (
+                                <span className="text-[11px] opacity-75">Ordinati per data di richiesta</span>
+                              )}
                             </div>
                           </TableCell>
                         </TableRow>
@@ -1683,8 +1869,7 @@ export default function JobsManager() {
                   </TableRow>
                     </Fragment>
                   );
-                });
-              })()}
+                })}
             </TableBody>
           </Table>
         </div>
@@ -1794,8 +1979,18 @@ export default function JobsManager() {
             </AlertDialogTitle>
             <AlertDialogDescription className="space-y-2">
               <p>
-                Stai per eliminare <strong>{selectedJobs.size} lavori</strong> e tutti i dati collegati:
+                Stai per eliminare <strong>{visibleSelectedJobs.length} lavori</strong> e tutti i dati collegati:
               </p>
+              <ul
+                className="max-h-32 space-y-1 overflow-y-auto rounded border border-red-100 bg-red-50 p-2 text-sm text-gray-800"
+                data-testid="delete-selected-job-list"
+              >
+                {visibleSelectedJobs.map(job => (
+                  <li key={job.id} data-testid={`delete-target-${job.id}`}>
+                    {job.nomeEvento || 'Lavoro senza nome'}
+                  </li>
+                ))}
+              </ul>
               <ul className="list-disc list-inside text-sm space-y-1 text-red-600">
                 <li>Tutti gli ordini associati</li>
                 <li>Tutte le gallerie fotografiche</li>
@@ -1812,9 +2007,10 @@ export default function JobsManager() {
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDelete}
+              disabled={visibleSelectedJobs.length === 0 || deleteMutation.isPending}
               className="bg-red-600 hover:bg-red-700"
             >
-              Elimina {selectedJobs.size} lavori
+              Elimina {visibleSelectedJobs.length} lavori
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

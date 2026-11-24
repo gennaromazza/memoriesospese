@@ -1,13 +1,17 @@
 import { useState, type ReactNode } from 'react';
-import { Check, Trash2 } from 'lucide-react';
+import { Check, Gift, Image, MailOpen, Ticket, Trash2 } from 'lucide-react';
 import {
   GIFT_CARD_THEME_KEYS,
+  GIFT_CARD_VISUAL_STYLE_DESCRIPTIONS,
+  GIFT_CARD_VISUAL_STYLE_KEYS,
+  GIFT_CARD_VISUAL_STYLE_LABELS,
   GIFT_CARD_TYPE_LINE2_MAX,
   GIFT_CARD_TYPE_TITLE_MAX,
   formatGiftCardPrice,
   giftCardThemeFromSeasonalTheme,
   type GiftCardThemeKey,
   type GiftCardTypeInput,
+  type GiftCardVisualStyle,
   type GiftCardValidityMode,
 } from '@shared/gift-card-types';
 import type { BookingCampaignFE } from '@shared/booking-types';
@@ -23,6 +27,12 @@ import GiftCardItemsEditor from './GiftCardItemsEditor';
 import { centsToEuros, eurosToCents, formatDay, onlineVisibility } from './giftCardAdminShared';
 
 const NO_CAMPAIGN = '__none__';
+const VISUAL_STYLE_ICONS = {
+  pacchetto: Gift,
+  busta: MailOpen,
+  cornice: Image,
+  premium: Ticket,
+} satisfies Record<GiftCardVisualStyle, typeof Gift>;
 
 const STEPS = [
   { id: 'regalo', label: 'Il regalo' },
@@ -43,6 +53,7 @@ interface Props {
   campaignsFailed: boolean;
   saving: boolean;
   onSave: () => void;
+  onEditProduct: (productId: string) => void;
   /** Presente solo quando si modifica un tipo già salvato. */
   onDelete?: () => void;
 }
@@ -83,7 +94,7 @@ function Channel({ on, title, text, onToggle }: { on: boolean; title: string; te
 
 /** Creazione e modifica di un tipo di gift card, un passaggio alla volta. */
 export default function GiftCardTypeWizard({
-  isNew, draft, patch, priceText, setPriceText, fieldErrors, campaigns, campaignsFailed, saving, onSave, onDelete,
+  isNew, draft, patch, priceText, setPriceText, fieldErrors, campaigns, campaignsFailed, saving, onSave, onEditProduct, onDelete,
 }: Props) {
   const [step, setStep] = useState(0);
   const [tried, setTried] = useState(false);
@@ -149,7 +160,7 @@ export default function GiftCardTypeWizard({
     content = (
       <>
         <p className="text-sm text-muted-foreground">Collega i prodotti del tuo catalogo: chi riceve vede nome, descrizione e foto, mai il prezzo.</p>
-        <GiftCardItemsEditor items={draft.items} onChange={items => patch({ items })} onUseTotal={cents => setPriceText(centsToEuros(cents))} />
+        <GiftCardItemsEditor items={draft.items} onChange={items => patch({ items })} onEditProduct={onEditProduct} onUseTotal={cents => setPriceText(centsToEuros(cents))} />
         {error('items')}
         <div className="max-w-xs space-y-1.5">
           <Label htmlFor="gct-price">Prezzo di vendita del regalo (€)</Label>
@@ -184,6 +195,42 @@ export default function GiftCardTypeWizard({
             </Select>
             {error('theme')}
           </div>
+        </div>
+        <div className="space-y-2">
+          <div>
+            <Label>Aspetto nella vetrina</Label>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Scegli una presentazione diversa per ogni offerta. Il tema sopra cambia solo i colori.
+            </p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2" role="group" aria-label="Aspetto della gift card nella vetrina">
+            {GIFT_CARD_VISUAL_STYLE_KEYS.map(style => {
+              const Icon = VISUAL_STYLE_ICONS[style];
+              const selected = draft.visualStyle === style;
+              return (
+                <button
+                  key={style}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => patch({ visualStyle: style })}
+                  className={`flex min-h-16 items-start gap-3 rounded-lg border p-3 text-left transition ${
+                    selected ? 'border-primary bg-primary/5 ring-2 ring-primary' : 'hover:bg-muted/50'
+                  }`}
+                >
+                  <span className={`mt-0.5 flex h-9 w-9 flex-none items-center justify-center rounded-md ${
+                    selected ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                  }`} aria-hidden="true">
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold">{GIFT_CARD_VISUAL_STYLE_LABELS[style]}</span>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">{GIFT_CARD_VISUAL_STYLE_DESCRIPTIONS[style]}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          {error('visualStyle')}
         </div>
         <p className="text-xs text-muted-foreground">
           {chosenCampaign ? `Tema suggerito dalla campagna ${chosenCampaign.nome}: puoi cambiarlo.` : 'Senza campagna puoi scegliere il tema che preferisci. Vedi l\'anteprima a destra.'}

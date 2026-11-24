@@ -4,10 +4,21 @@ import type { AddressInfo } from 'node:net';
 import { DateTime } from 'luxon';
 
 const state: Record<string, Record<string, any>> = {};
+const documentVersions = new Map<string, number>();
 let nextId = 1;
+let transactionCommitQueue = Promise.resolve();
+let concurrentAssignmentReadBarrier: {
+  remaining: number;
+  promise: Promise<void>;
+  release: () => void;
+} | null = null;
 const { sendGmailEmailMock } = vi.hoisted(() => ({
   sendGmailEmailMock: vi.fn(),
 }));
+
+function documentKey(collectionName: string, id: string): string {
+  return `${collectionName}/${id}`;
+}
 
 function documentRef(collectionName: string, id: string) {
   return {
@@ -20,6 +31,8 @@ function documentRef(collectionName: string, id: string) {
     async update(data: any) {
       state[collectionName] ??= {};
       state[collectionName][id] = { ...(state[collectionName][id] || {}), ...data };
+      const key = documentKey(collectionName, id);
+      documentVersions.set(key, (documentVersions.get(key) || 0) + 1);
     },
   };
 }
@@ -86,6 +99,8 @@ function collection(name: string) {
       const id = `auto-${nextId++}`;
       state[name] ??= {};
       state[name][id] = data;
+      const key = documentKey(name, id);
+      documentVersions.set(key, (documentVersions.get(key) || 0) + 1);
       return { id };
     },
   };
@@ -101,35 +116,73 @@ function hasUndefined(value: unknown): boolean {
 }
 
 async function runTransaction<T>(callback: (transaction: any) => Promise<T>): Promise<T> {
-  const writes: Array<{ type: 'create' | 'update'; ref: ReturnType<typeof documentRef>; data: any }> = [];
-  const result = await callback({
-    get: (ref: ReturnType<typeof documentRef>) => ref.get(),
-    create: (ref: ReturnType<typeof documentRef>, data: any) => {
-      writes.push({ type: 'create', ref, data });
-    },
-    update: (ref: ReturnType<typeof documentRef>, data: any) => {
-      writes.push({ type: 'update', ref, data });
-    },
-  });
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const readVersions = new Map<string, number>();
+    const writes: Array<{ type: 'create' | 'update'; ref: ReturnType<typeof documentRef>; data: any }> = [];
+    const result = await callback({
+      get: async (ref: ReturnType<typeof documentRef>) => {
+        const key = documentKey(ref.collectionName, ref.id);
+        const version = documentVersions.get(key) || 0;
+        const snapshot = await ref.get();
+        readVersions.set(key, version);
+        if (
+          ref.collectionName === 'jobCollaboratoreAssignments'
+          && concurrentAssignmentReadBarrier
+          && concurrentAssignmentReadBarrier.remaining > 0
+        ) {
+          const barrier = concurrentAssignmentReadBarrier;
+          barrier.remaining -= 1;
+          if (barrier.remaining === 0) barrier.release();
+          await barrier.promise;
+        }
+        return snapshot;
+      },
+      create: (ref: ReturnType<typeof documentRef>, data: any) => {
+        writes.push({ type: 'create', ref, data });
+      },
+      update: (ref: ReturnType<typeof documentRef>, data: any) => {
+        writes.push({ type: 'update', ref, data });
+      },
+    });
 
-  for (const write of writes) {
-    if (hasUndefined(write.data)) {
-      throw new Error('Firestore non accetta valori undefined');
-    }
-    state[write.ref.collectionName] ??= {};
-    if (write.type === 'create' && state[write.ref.collectionName][write.ref.id]) {
-      throw new Error('Documento già esistente');
+    let releaseCommitQueue: (() => void) | undefined;
+    const previousCommit = transactionCommitQueue;
+    transactionCommitQueue = new Promise<void>((resolve) => {
+      releaseCommitQueue = resolve;
+    });
+    await previousCommit;
+
+    try {
+      const hasConflict = [...readVersions].some(([key, version]) =>
+        (documentVersions.get(key) || 0) !== version);
+      if (hasConflict) continue;
+
+      for (const write of writes) {
+        if (hasUndefined(write.data)) {
+          throw new Error('Firestore non accetta valori undefined');
+        }
+        state[write.ref.collectionName] ??= {};
+        if (write.type === 'create' && state[write.ref.collectionName][write.ref.id]) {
+          throw new Error('Documento già esistente');
+        }
+      }
+
+      for (const write of writes) {
+        const current = state[write.ref.collectionName][write.ref.id] || {};
+        state[write.ref.collectionName][write.ref.id] = write.type === 'update'
+          ? { ...current, ...write.data }
+          : write.data;
+        const key = documentKey(write.ref.collectionName, write.ref.id);
+        documentVersions.set(key, (documentVersions.get(key) || 0) + 1);
+      }
+
+      return result;
+    } finally {
+      releaseCommitQueue?.();
     }
   }
 
-  for (const write of writes) {
-    const current = state[write.ref.collectionName][write.ref.id] || {};
-    state[write.ref.collectionName][write.ref.id] = write.type === 'update'
-      ? { ...current, ...write.data }
-      : write.data;
-  }
-
-  return result;
+  throw new Error('Firestore transaction retry limit exceeded');
 }
 
 vi.mock('./firebase-admin.js', () => ({
@@ -163,6 +216,9 @@ let baseUrl = '';
 beforeEach(async () => {
   sendGmailEmailMock.mockReset();
   for (const collectionName of Object.keys(state)) delete state[collectionName];
+  documentVersions.clear();
+  transactionCommitQueue = Promise.resolve();
+  concurrentAssignmentReadBarrier = null;
   nextId = 1;
   Object.assign(state, {
     jobCollaboratoreAssignments: {
@@ -215,6 +271,7 @@ describe('POST /api/collaboratori/assignments/:id/add-payment', () => {
         tipo: 'acconto',
         metodo: 'bonifico',
         data: '2026-08-31',
+        idempotencyKey: 'payment-attempt-1',
       }),
     });
 
@@ -232,6 +289,274 @@ describe('POST /api/collaboratori/assignments/:id/add-payment', () => {
       tipo: 'uscita', importo: 200, metodoPagamento: 'bonifico',
     });
     expect(hasUndefined(state)).toBe(false);
+  });
+
+  it('rifiuta un acconto oltre il residuo senza creare pagamenti o movimenti', async () => {
+    const previousPayment = {
+      id: 'previous-payment',
+      idempotencyKey: 'previous-payment-key',
+      tipo: 'acconto',
+      importo: 400,
+      metodo: 'bonifico',
+      cashMovementId: 'previous-cash-movement',
+    };
+    state.jobCollaboratoreAssignments.assignment1.pagamenti = [previousPayment];
+    state.jobCollaboratoreAssignments.assignment1.saldoResiduo = 100;
+    state.cashMovements['previous-cash-movement'] = {
+      tipo: 'uscita',
+      importo: 400,
+      metodoPagamento: 'bonifico',
+    };
+
+    const response = await fetch(`${baseUrl}/api/collaboratori/assignments/assignment1/add-payment`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        importo: 100.01,
+        tipo: 'saldo',
+        metodo: 'bonifico',
+        data: '2026-08-31',
+        idempotencyKey: 'over-limit-payment',
+      }),
+    });
+    const body: any = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body).toMatchObject({
+      code: 'PAYMENT_EXCEEDS_COMPENSATION',
+      maxImporto: 100,
+    });
+    expect(body.error).toContain('€100.00');
+    expect(state.jobCollaboratoreAssignments.assignment1.pagamenti).toEqual([previousPayment]);
+    expect(Object.keys(state.cashMovements)).toEqual(['previous-cash-movement']);
+    expect(sendGmailEmailMock).not.toHaveBeenCalled();
+  });
+
+  it('accetta un pagamento che porta esattamente al compenso concordato', async () => {
+    const previousPayment = {
+      id: 'previous-payment',
+      idempotencyKey: 'previous-payment-key',
+      tipo: 'acconto',
+      importo: 300.25,
+      metodo: 'bonifico',
+      cashMovementId: 'previous-cash-movement',
+    };
+    state.jobCollaboratoreAssignments.assignment1.pagamenti = [previousPayment];
+    state.jobCollaboratoreAssignments.assignment1.saldoResiduo = 199.75;
+    state.cashMovements['previous-cash-movement'] = {
+      tipo: 'uscita',
+      importo: 300.25,
+      metodoPagamento: 'bonifico',
+    };
+
+    const response = await fetch(`${baseUrl}/api/collaboratori/assignments/assignment1/add-payment`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        importo: 199.75,
+        tipo: 'saldo',
+        metodo: 'bonifico',
+        data: '2026-08-31',
+        idempotencyKey: 'exact-balance-payment',
+      }),
+    });
+    const body: any = await response.json();
+    const assignment = state.jobCollaboratoreAssignments.assignment1;
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({ success: true, saldoResiduo: 0, isPagato: true });
+    expect(assignment.pagamenti).toHaveLength(2);
+    expect(assignment.pagamenti[1]).toMatchObject({
+      idempotencyKey: 'exact-balance-payment',
+      importo: 199.75,
+      cashMovementId: body.cashMovementId,
+    });
+    expect(assignment.saldoResiduo).toBe(0);
+    expect(assignment.isPagato).toBe(true);
+    expect(assignment.dataPagamento).toBeDefined();
+    expect(Object.keys(state.cashMovements)).toHaveLength(2);
+    expect(state.cashMovements[body.cashMovementId]).toMatchObject({
+      tipo: 'uscita',
+      importo: 199.75,
+      metodoPagamento: 'bonifico',
+    });
+  });
+
+  it('reuses the committed payment when the response was lost and the request is retried', async () => {
+    const url = `${baseUrl}/api/collaboratori/assignments/assignment1/add-payment`;
+    const request = () => fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        importo: 200,
+        tipo: 'acconto',
+        metodo: 'bonifico',
+        data: '2026-08-31',
+        idempotencyKey: 'payment-after-timeout',
+      }),
+    });
+
+    // The first request commits, but its response is treated as lost by the client.
+    const ignoredFirstResponse = await request();
+    expect(ignoredFirstResponse.status).toBe(200);
+
+    const retryResponse = await request();
+    const retryBody: any = await retryResponse.json();
+
+    expect(retryResponse.status).toBe(200);
+    expect(retryBody).toMatchObject({
+      success: true,
+      saldoResiduo: 300,
+      isPagato: false,
+    });
+    expect(state.jobCollaboratoreAssignments.assignment1.pagamenti).toHaveLength(1);
+    expect(state.jobCollaboratoreAssignments.assignment1.pagamenti[0].idempotencyKey)
+      .toBe('payment-after-timeout');
+    expect(Object.keys(state.cashMovements)).toHaveLength(1);
+    expect(retryBody.cashMovementId).toBe(
+      state.jobCollaboratoreAssignments.assignment1.pagamenti[0].cashMovementId,
+    );
+    expect(sendGmailEmailMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('records a new payment when it has a new idempotency key', async () => {
+    const url = `${baseUrl}/api/collaboratori/assignments/assignment1/add-payment`;
+    const sendPayment = (idempotencyKey: string) => fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        importo: 100,
+        tipo: 'acconto',
+        metodo: 'bonifico',
+        data: '2026-08-31',
+        idempotencyKey,
+      }),
+    });
+
+    const firstResponse = await sendPayment('new-payment-1');
+    const secondResponse = await sendPayment('new-payment-2');
+
+    expect(firstResponse.status).toBe(200);
+    expect(secondResponse.status).toBe(200);
+    expect(state.jobCollaboratoreAssignments.assignment1.pagamenti).toHaveLength(2);
+    expect(Object.keys(state.cashMovements)).toHaveLength(2);
+  });
+
+  it('accepts at most one simultaneous payment when their total exceeds the remaining compensation', async () => {
+    const url = `${baseUrl}/api/collaboratori/assignments/assignment1/add-payment`;
+    let releaseAssignmentReads: (() => void) | undefined;
+    const assignmentReadsReady = new Promise<void>((resolve) => {
+      releaseAssignmentReads = resolve;
+    });
+    concurrentAssignmentReadBarrier = {
+      remaining: 2,
+      promise: assignmentReadsReady,
+      release: () => releaseAssignmentReads?.(),
+    };
+    const sendPayment = (idempotencyKey: string) => fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        importo: 300,
+        tipo: 'acconto',
+        metodo: 'bonifico',
+        data: '2026-08-31',
+        idempotencyKey,
+      }),
+    });
+
+    const responses = await Promise.all([
+      sendPayment('simultaneous-payment-1'),
+      sendPayment('simultaneous-payment-2'),
+    ]);
+    const results = await Promise.all(responses.map(async (response) => ({
+      status: response.status,
+      body: await response.json() as Record<string, any>,
+    })));
+    const accepted = results.filter(({ status }) => status === 200);
+    const rejected = results.filter(({ status }) => status === 409);
+    const assignment = state.jobCollaboratoreAssignments.assignment1;
+    const payments = assignment.pagamenti;
+    const cashMovements = Object.entries(state.cashMovements);
+
+    expect(accepted).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0].body).toMatchObject({
+      code: 'PAYMENT_EXCEEDS_COMPENSATION',
+      maxImporto: 200,
+    });
+    expect(assignment.compenso).toBe(500);
+    expect(payments).toHaveLength(1);
+    expect(payments[0]).toMatchObject({
+      importo: 300,
+      cashMovementId: accepted[0].body.cashMovementId,
+    });
+    expect(assignment.saldoResiduo).toBe(200);
+    expect(assignment.isPagato).toBe(false);
+    expect(cashMovements).toHaveLength(1);
+    expect(cashMovements[0][0]).toBe(payments[0].cashMovementId);
+    expect(cashMovements[0][1]).toMatchObject({ tipo: 'uscita', importo: 300 });
+    expect(sendGmailEmailMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('PATCH /api/collaboratori/assignments/:id/compenso', () => {
+  const getUrl = () => `${baseUrl}/api/collaboratori/assignments/assignment1/compenso`;
+
+  it('rifiuta un compenso inferiore agli acconti già pagati senza toccare pagamenti o cassa', async () => {
+    const previousPayments = [
+      { id: 'payment-1', tipo: 'acconto', importo: 200, cashMovementId: 'cash-1' },
+      { id: 'payment-2', tipo: 'acconto', importo: 100.25, cashMovementId: 'cash-2' },
+    ];
+    state.jobCollaboratoreAssignments.assignment1.pagamenti = previousPayments;
+    state.jobCollaboratoreAssignments.assignment1.saldoResiduo = 199.75;
+    state.cashMovements['cash-1'] = { tipo: 'uscita', importo: 200 };
+    state.cashMovements['cash-2'] = { tipo: 'uscita', importo: 100.25 };
+
+    const response = await fetch(getUrl(), {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ compenso: 300.24, sendEmail: false }),
+    });
+    const body: any = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body).toMatchObject({
+      code: 'COMPENSATION_BELOW_PAID',
+      totalePagato: 300.25,
+    });
+    expect(body.error).toContain('€300.25');
+    expect(state.jobCollaboratoreAssignments.assignment1).toMatchObject({
+      compenso: 500,
+      saldoResiduo: 199.75,
+      pagamenti: previousPayments,
+    });
+    expect(Object.keys(state.cashMovements)).toEqual(['cash-1', 'cash-2']);
+    expect(sendGmailEmailMock).not.toHaveBeenCalled();
+  });
+
+  it('consente un compenso pari al totale pagato senza duplicare i movimenti di cassa', async () => {
+    const previousPayments = [
+      { id: 'payment-1', tipo: 'acconto', importo: 200, cashMovementId: 'cash-1' },
+      { id: 'payment-2', tipo: 'acconto', importo: 100.25, cashMovementId: 'cash-2' },
+    ];
+    state.jobCollaboratoreAssignments.assignment1.pagamenti = previousPayments;
+    state.jobCollaboratoreAssignments.assignment1.saldoResiduo = 199.75;
+    state.cashMovements['cash-1'] = { tipo: 'uscita', importo: 200 };
+    state.cashMovements['cash-2'] = { tipo: 'uscita', importo: 100.25 };
+
+    const response = await fetch(getUrl(), {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ compenso: 300.25, sendEmail: false }),
+    });
+    const body: any = await response.json();
+    const assignment = state.jobCollaboratoreAssignments.assignment1;
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({ compenso: 300.25, saldoResiduo: 0, isPagato: true });
+    expect(assignment.pagamenti).toEqual(previousPayments);
+    expect(Object.keys(state.cashMovements)).toEqual(['cash-1', 'cash-2']);
   });
 });
 
@@ -271,6 +596,51 @@ describe('GET /api/collaboratori/assignments/job/:jobId', () => {
       prodottiAssegnati: [{ orderItemId: 'item-1', label: 'Drone', qty: 1 }],
     });
     expect(body[0]).not.toHaveProperty('mansioniAssegnate');
+  });
+});
+
+describe('PATCH /api/collaboratori/assignments/:id/respond', () => {
+  it('lets an admin confirm an assignment and returns the updated status', async () => {
+    state.jobCollaboratoreAssignments.assignment1.status = 'pending';
+    const response = await fetch(`${baseUrl}/api/collaboratori/assignments/assignment1/respond`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ status: 'accepted' }),
+    });
+    const body: any = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({ id: 'assignment1', status: 'accepted' });
+    expect(state.jobCollaboratoreAssignments.assignment1.status).toBe('accepted');
+  });
+
+  it('rejects invalid acceptance states', async () => {
+    const response = await fetch(`${baseUrl}/api/collaboratori/assignments/assignment1/respond`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ status: 'completed' }),
+    });
+    expect(response.status).toBe(400);
+  });
+
+  it('clears the response date and rejection note when an assignment returns to pending', async () => {
+    Object.assign(state.jobCollaboratoreAssignments.assignment1, {
+      status: 'accepted',
+      dataRisposta: { previous: true },
+      noteRifiuto: 'Motivo precedente',
+    });
+    const response = await fetch(`${baseUrl}/api/collaboratori/assignments/assignment1/respond`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ status: 'pending' }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(state.jobCollaboratoreAssignments.assignment1).toMatchObject({
+      status: 'pending',
+      dataRisposta: null,
+      noteRifiuto: null,
+    });
   });
 });
 

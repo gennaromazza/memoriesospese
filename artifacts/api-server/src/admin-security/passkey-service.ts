@@ -7,7 +7,7 @@
  * vengono salvate esclusivamente chiavi pubbliche e hash dei codici di recupero.
  */
 
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { getAuth } from 'firebase-admin/auth';
 import {
   generateAuthenticationOptions,
@@ -23,6 +23,7 @@ import {
 import { isoBase64URL } from '@simplewebauthn/server/helpers';
 import {
   ADMIN_PASSKEY_CLAIM,
+  readAdminDeviceTrustClaim,
   readAdminPasskeyClaim,
   type AdminPasskeyClaim,
 } from './admin-identity.js';
@@ -30,26 +31,43 @@ import {
   CHALLENGE_TTL_MS,
   LOCKOUT_MS,
   MAX_FAILED_ATTEMPTS,
+  REMEMBERED_DEVICE_TTL_MS,
   consumePendingChallenge,
   consumeRecoveryCode,
+  createRememberedDevice as createRememberedDeviceRecord,
   consumeDesktopHandoffChallenge,
+  consumeDeviceEnrollmentChallenge,
+  approveDeviceEnrollment,
+  commitDeviceEnrollmentPasskey,
+  createDeviceEnrollment,
+  getDeviceEnrollment,
   getDesktopHandoff,
+  saveDeviceEnrollmentChallenge,
   saveDesktopHandoffChallenge,
+  transitionDeviceEnrollment,
   transitionDesktopHandoff,
   deletePasskey,
   generateRecoveryCodes,
   getPasskey,
+  getRememberedDevice,
   hashRecoveryCode,
   listPasskeys,
+  listRememberedDevices,
   loadState,
   recordEvent,
   savePasskey,
-  updatePasskey,
+  updatePasskeyIfExists,
   updateState,
+  revokeAllRememberedDevices,
+  revokeRememberedDevice,
+  touchRememberedDevice,
   type AdminSecurityState,
   type ActivationProof,
   type ChallengeKind,
+  type DeviceEnrollmentRequest,
+  type DeviceEnrollmentStatus,
   type DesktopHandoffChallenge,
+  type RememberedDevice,
   type StoredPasskey,
 } from './admin-security-store.js';
 import { isProductionPasskeyOrigin, rpIdForOrigin, type ResolvedRelyingParty } from './passkey-origins.js';
@@ -60,6 +78,7 @@ const RECOVERY_GRANT_MS = 30 * 60 * 1000;
 const ACTIVATION_PROOF_MS = 5 * 60 * 1000;
 
 export const DESKTOP_HANDOFF_TTL_MS = 10 * 60 * 1000;
+export const DEVICE_ENROLLMENT_TTL_MS = 10 * 60 * 1000;
 export class PasskeyError extends Error {
   constructor(
     public readonly status: number,
@@ -135,6 +154,107 @@ export function activationProofIsValid(
     typeof claim.exp === 'number' && claim.exp > now;
 }
 
+export function hasFreshPasskeyProof(
+  state: AdminSecurityState,
+  identity: AdminIdentity,
+  claim: AdminPasskeyClaim | null,
+  origin: string | undefined,
+  now = Date.now(),
+): boolean {
+  return activationProofIsValid(state.activationProof, identity, claim, origin, now);
+}
+
+export async function rememberVerifiedDevice(
+  identity: AdminIdentity,
+  claim: AdminPasskeyClaim | null,
+  origin: string | undefined,
+  label: string,
+  now = Date.now(),
+): Promise<{ id: string; cookieValue: string; expiresAt: number; customToken: string }> {
+  if (!origin || !isProductionPasskeyOrigin(origin)) {
+    throw new PasskeyError(400, 'origin_not_allowed', 'Puoi ricordare il dispositivo solo dal sito ufficiale');
+  }
+  const state = await loadState(identity.uid);
+  if (!state.passkeyRequired) {
+    throw new PasskeyError(409, 'passkey_not_required', 'Attiva la verifica passkey prima di ricordare un dispositivo');
+  }
+  if (!hasFreshPasskeyProof(state, identity, claim, origin, now)) {
+    throw new PasskeyError(403, 'fresh_passkey_required', 'Verifica di nuovo la passkey prima di ricordare questo dispositivo');
+  }
+
+  const id = randomBytes(32).toString('base64url');
+  const secret = randomBytes(32).toString('base64url');
+  const expiresAt = now + REMEMBERED_DEVICE_TTL_MS;
+  await createRememberedDeviceRecord(identity.uid, {
+    id,
+    label: sanitizeLabel(label) || 'Browser personale',
+    secretHash: createHash('sha256').update(secret).digest('base64url'),
+    createdAt: now,
+    expiresAt,
+    lastUsedAt: now,
+    revokedAt: null,
+  });
+  const customToken = await getAuth().createCustomToken(identity.uid, {
+    adminDeviceTrust: { id },
+  });
+  return { id, cookieValue: `${id}.${secret}`, expiresAt, customToken };
+}
+
+export async function restoreRememberedDevice(
+  identity: AdminIdentity,
+  cookieValue: string | undefined,
+  tokenClaims: Record<string, unknown> | undefined,
+  now = Date.now(),
+): Promise<{ valid: false } | { valid: true; id: string; expiresAt: number; customToken?: string }> {
+  if (!cookieValue || cookieValue.length > 100) return { valid: false };
+  const match = /^([A-Za-z0-9_-]{43})\.([A-Za-z0-9_-]{43})$/.exec(cookieValue);
+  if (!match) return { valid: false };
+  const [, id, secret] = match;
+  const [device, state] = await Promise.all([
+    getRememberedDevice(identity.uid, id),
+    loadState(identity.uid),
+  ]);
+  if (
+    !device ||
+    device.revokedAt != null ||
+    device.expiresAt <= now ||
+    device.createdAt <= state.rememberedDevicesValidAfter
+  ) {
+    return { valid: false };
+  }
+  const actualHash = Buffer.from(createHash('sha256').update(secret).digest('base64url'));
+  const expectedHash = Buffer.from(device.secretHash);
+  if (actualHash.length !== expectedHash.length || !timingSafeEqual(actualHash, expectedHash)) {
+    return { valid: false };
+  }
+  if (!(await touchRememberedDevice(identity.uid, id, now))) return { valid: false };
+  const currentTrust = readAdminDeviceTrustClaim(tokenClaims);
+  const customToken = currentTrust?.id === id
+    ? undefined
+    : await getAuth().createCustomToken(identity.uid, { adminDeviceTrust: { id } });
+  return { valid: true, id, expiresAt: device.expiresAt, customToken };
+}
+
+export async function listRememberedDeviceSummaries(uid: string, now = Date.now()) {
+  const [devices, state] = await Promise.all([listRememberedDevices(uid), loadState(uid)]);
+  return devices.map(({ secretHash: _secretHash, ...device }) => ({
+    ...device,
+    status: device.revokedAt != null
+      ? 'revoked' as const
+      : device.expiresAt <= now || device.createdAt <= state.rememberedDevicesValidAfter
+        ? 'expired' as const
+        : 'active' as const,
+  }));
+}
+
+export async function forgetRememberedDevice(uid: string, deviceId: string, now = Date.now()) {
+  return revokeRememberedDevice(uid, deviceId, now);
+}
+
+export async function forgetAllRememberedDevices(uid: string, now = Date.now()) {
+  await revokeAllRememberedDevices(uid, now);
+}
+
 // ---- Claims Firebase ----------------------------------------------------
 
 async function writeClaim(uid: string, claim: AdminPasskeyClaim | null): Promise<void> {
@@ -189,7 +309,10 @@ async function grantVerification(
  */
 async function invalidateAllVerifications(uid: string, required: boolean, now: number) {
   const verificationsValidAfter = now + 1;
-  await updateState(uid, { verificationsValidAfter });
+  await updateState(uid, {
+    verificationsValidAfter,
+    rememberedDevicesValidAfter: now + 1,
+  });
   const invalidClaim = required ? { req: true, exp: 0, at: 0, sat: 0 } : null;
   await writeClaim(uid, invalidClaim);
   return invalidClaim;
@@ -279,6 +402,24 @@ export async function finishRegistration(
   const state = await loadState(identity.uid);
   assertNotLocked(state, now);
   const challenge = await consumeChallenge(identity.uid, 'registration', identity.authTime, now);
+  const stored = await verifyRegistrationAssertion(identity, rp, response, label, challenge, state, now);
+
+  await savePasskey(identity.uid, stored);
+  await updateState(identity.uid, { failedAttempts: 0 });
+  await recordEvent(identity.uid, 'passkey_registered', { credentialId: stored.id, label: stored.label });
+
+  return { passkey: publicPasskeyFromStored(stored) };
+}
+
+async function verifyRegistrationAssertion(
+  identity: AdminIdentity,
+  rp: ResolvedRelyingParty,
+  response: RegistrationResponseJSON,
+  label: string,
+  challenge: Pick<DesktopHandoffChallenge, 'value' | 'rpId' | 'origin'>,
+  state: AdminSecurityState,
+  now: number,
+): Promise<StoredPasskey> {
   if (challenge.origin !== rp.origin) {
     throw new PasskeyError(400, 'origin_mismatch', 'Origine della richiesta non corrispondente');
   }
@@ -302,7 +443,7 @@ export async function finishRegistration(
   }
 
   const info = verification.registrationInfo;
-  const stored: StoredPasskey = {
+  return {
     id: info.credential.id,
     publicKey: isoBase64URL.fromBuffer(info.credential.publicKey),
     counter: info.credential.counter,
@@ -314,20 +455,17 @@ export async function finishRegistration(
     createdAt: now,
     lastUsedAt: null,
   };
-  await savePasskey(identity.uid, stored);
-  await updateState(identity.uid, { failedAttempts: 0 });
-  await recordEvent(identity.uid, 'passkey_registered', { credentialId: stored.id, label: stored.label });
+}
 
+function publicPasskeyFromStored(stored: StoredPasskey): PublicPasskey {
   return {
-    passkey: {
-      id: stored.id,
-      label: stored.label,
-      rpId: stored.rpId,
-      deviceType: stored.deviceType,
-      backedUp: stored.backedUp,
-      createdAt: stored.createdAt,
-      lastUsedAt: null,
-    },
+    id: stored.id,
+    label: stored.label,
+    rpId: stored.rpId,
+    deviceType: stored.deviceType,
+    backedUp: stored.backedUp,
+    createdAt: stored.createdAt,
+    lastUsedAt: stored.lastUsedAt,
   };
 }
 
@@ -472,6 +610,377 @@ export async function finishDesktopHandoffAuthentication(
   }
   return { verifiedAt: now };
 }
+
+function enrollmentVerifierMatches(request: DeviceEnrollmentRequest, verifier: string): boolean {
+  const expected = Buffer.from(request.verifierHash);
+  const actual = Buffer.from(createHash('sha256').update(verifier).digest('base64url'));
+  return expected.length === actual.length && timingSafeEqual(expected, actual);
+}
+
+function isDeviceEnrollmentTerminal(status: DeviceEnrollmentStatus): boolean {
+  return status === 'registered' || status === 'rejected' || status === 'cancelled';
+}
+
+function enrollmentVisibleStatus(
+  request: DeviceEnrollmentRequest,
+  now: number,
+): DeviceEnrollmentStatus | 'expired' {
+  return !isDeviceEnrollmentTerminal(request.status) && request.expiresAt <= now
+    ? 'expired'
+    : request.status;
+}
+
+function assertProductionEnrollmentOrigin(rp: ResolvedRelyingParty): void {
+  if (!isProductionPasskeyOrigin(rp.origin) || rp.rpId !== 'imagestudiofotografico.com') {
+    throw new PasskeyError(400, 'origin_not_allowed', 'L’autorizzazione dei nuovi dispositivi è disponibile solo sul sito ufficiale');
+  }
+}
+
+export async function createDeviceEnrollmentRequest(
+  identity: AdminIdentity,
+  rp: ResolvedRelyingParty,
+  enrollmentId: string,
+  verifierHash: string,
+  deviceLabel: string,
+  now = Date.now(),
+): Promise<{ expiresAt: number }> {
+  assertProductionEnrollmentOrigin(rp);
+  const state = await loadState(identity.uid);
+  if (!state.passkeyRequired) {
+    throw new PasskeyError(409, 'passkey_not_required', 'L’obbligo passkey non è attivo');
+  }
+  assertNotLocked(state, now);
+  const passkeys = (await listPasskeys(identity.uid)).filter((passkey) => passkey.rpId === rp.rpId);
+  if (passkeys.length === 0) {
+    throw new PasskeyError(404, 'no_passkey', 'Non ci sono passkey del sito ufficiale da usare per autorizzare il dispositivo');
+  }
+
+  const expiresAt = now + DEVICE_ENROLLMENT_TTL_MS;
+  const normalizedLabel = sanitizeLabel(deviceLabel);
+  await createDeviceEnrollment(identity.uid, enrollmentId, {
+    verifierHash,
+    requesterAuthTime: identity.authTime,
+    deviceLabel: normalizedLabel,
+    rpId: rp.rpId,
+    origin: rp.origin,
+    createdAt: now,
+    expiresAt,
+    status: 'pending',
+    terminalAt: null,
+    approvalChallenge: null,
+    registrationChallenge: null,
+    approvedAt: null,
+    approvedByCredentialId: null,
+    registeredAt: null,
+  });
+  await recordEvent(identity.uid, 'device_enrollment_created', {
+    enrollmentId,
+    deviceLabel: normalizedLabel,
+  });
+  return { expiresAt };
+}
+
+export async function getDeviceEnrollmentApprovalInfo(
+  uid: string,
+  enrollmentId: string,
+  now = Date.now(),
+): Promise<{
+  status: DeviceEnrollmentStatus | 'expired';
+  deviceLabel: string;
+  expiresAt: number;
+} | null> {
+  const request = await getDeviceEnrollment(uid, enrollmentId);
+  if (!request) return null;
+  return {
+    status: enrollmentVisibleStatus(request, now),
+    deviceLabel: request.deviceLabel,
+    expiresAt: request.expiresAt,
+  };
+}
+
+export async function getDeviceEnrollmentStatus(
+  identity: AdminIdentity,
+  rp: ResolvedRelyingParty,
+  enrollmentId: string,
+  verifier: string,
+  now = Date.now(),
+): Promise<{
+  status: DeviceEnrollmentStatus | 'expired';
+  deviceLabel: string;
+  expiresAt: number;
+}> {
+  assertProductionEnrollmentOrigin(rp);
+  const request = await getDeviceEnrollment(identity.uid, enrollmentId);
+  if (
+    !request ||
+    request.requesterAuthTime !== identity.authTime ||
+    request.rpId !== rp.rpId ||
+    !enrollmentVerifierMatches(request, verifier)
+  ) {
+    throw new PasskeyError(404, 'device_enrollment_not_found', 'Richiesta non valida o scaduta');
+  }
+  return {
+    status: enrollmentVisibleStatus(request, now),
+    deviceLabel: request.deviceLabel,
+    expiresAt: request.expiresAt,
+  };
+}
+
+export async function cancelDeviceEnrollment(
+  identity: AdminIdentity,
+  rp: ResolvedRelyingParty,
+  enrollmentId: string,
+  verifier: string,
+  now = Date.now(),
+): Promise<void> {
+  const request = await getDeviceEnrollmentStatus(identity, rp, enrollmentId, verifier, now);
+  if (request.status !== 'pending' && request.status !== 'approved') {
+    throw new PasskeyError(409, 'device_enrollment_not_cancellable', 'La richiesta non può più essere annullata');
+  }
+  const stored = await getDeviceEnrollment(identity.uid, enrollmentId);
+  if (!stored) throw new PasskeyError(404, 'device_enrollment_not_found', 'Richiesta non valida o scaduta');
+  const cancelled = await transitionDeviceEnrollment(
+    identity.uid,
+    enrollmentId,
+    stored.status,
+    { status: 'cancelled', approvalChallenge: null, registrationChallenge: null },
+    now,
+  );
+  if (!cancelled) throw new PasskeyError(409, 'device_enrollment_not_cancellable', 'La richiesta non può più essere annullata');
+  await recordEvent(identity.uid, 'device_enrollment_cancelled', { enrollmentId });
+}
+
+export async function rejectDeviceEnrollment(
+  identity: AdminIdentity,
+  enrollmentId: string,
+  now = Date.now(),
+): Promise<void> {
+  const rejected = await transitionDeviceEnrollment(
+    identity.uid,
+    enrollmentId,
+    'pending',
+    { status: 'rejected', approvalChallenge: null },
+    now,
+  );
+  if (!rejected) throw new PasskeyError(404, 'device_enrollment_not_found', 'Richiesta non valida o scaduta');
+  await recordEvent(identity.uid, 'device_enrollment_rejected', {
+    enrollmentId,
+    deviceLabel: rejected.deviceLabel,
+  });
+}
+
+export async function startDeviceEnrollmentApproval(
+  identity: AdminIdentity,
+  rp: ResolvedRelyingParty,
+  enrollmentId: string,
+  now = Date.now(),
+): Promise<PublicKeyCredentialRequestOptionsJSON> {
+  assertProductionEnrollmentOrigin(rp);
+  const request = await getDeviceEnrollment(identity.uid, enrollmentId);
+  if (
+    !request ||
+    request.status !== 'pending' ||
+    request.expiresAt <= now ||
+    request.rpId !== rp.rpId
+  ) {
+    throw new PasskeyError(404, 'device_enrollment_not_found', 'Richiesta non valida o scaduta');
+  }
+  const state = await loadState(identity.uid);
+  if (!state.passkeyRequired) {
+    throw new PasskeyError(409, 'passkey_not_required', 'L’obbligo passkey non è attivo');
+  }
+  assertNotLocked(state, now);
+  const passkeys = (await listPasskeys(identity.uid)).filter((passkey) => passkey.rpId === rp.rpId);
+  if (passkeys.length === 0) {
+    throw new PasskeyError(404, 'no_passkey', 'Nessuna passkey registrata per questo dominio');
+  }
+  const options = await generateAuthenticationOptions({
+    rpID: rp.rpId,
+    userVerification: 'required',
+    allowCredentials: passkeys.map((passkey) => ({
+      id: passkey.id,
+      transports: (passkey.transports.includes('internal')
+        ? [...new Set([...passkey.transports, 'hybrid'])]
+        : passkey.transports) as AuthenticatorTransport[],
+    })),
+  });
+  const saved = await saveDeviceEnrollmentChallenge(identity.uid, enrollmentId, 'approval', {
+    value: options.challenge,
+    rpId: rp.rpId,
+    origin: rp.origin,
+    authTime: identity.authTime,
+    expiresAt: Math.min(request.expiresAt, now + CHALLENGE_TTL_MS),
+  }, now);
+  if (!saved) throw new PasskeyError(404, 'device_enrollment_not_found', 'Richiesta non valida o scaduta');
+  return options;
+}
+
+export async function finishDeviceEnrollmentApproval(
+  identity: AdminIdentity,
+  rp: ResolvedRelyingParty,
+  enrollmentId: string,
+  response: AuthenticationResponseJSON,
+  now = Date.now(),
+): Promise<{ approvedAt: number }> {
+  assertProductionEnrollmentOrigin(rp);
+  const state = await loadState(identity.uid);
+  if (!state.passkeyRequired) {
+    throw new PasskeyError(409, 'passkey_not_required', 'L’obbligo passkey non è attivo');
+  }
+  assertNotLocked(state, now);
+  const challenge = await consumeDeviceEnrollmentChallenge(
+    identity.uid,
+    enrollmentId,
+    'approval',
+    identity.authTime,
+    now,
+  );
+  if (!challenge) {
+    throw new PasskeyError(400, 'challenge_expired', 'La verifica è scaduta: riapri il QR e riprova');
+  }
+  const passkey = await verifyAuthenticationAssertion(identity, rp, response, challenge, state, now);
+  const approved = await approveDeviceEnrollment(
+    identity.uid,
+    enrollmentId,
+    passkey.id,
+    {
+      status: 'approved',
+      expiresAt: now + CHALLENGE_TTL_MS,
+      approvalChallenge: null,
+      registrationChallenge: null,
+      approvedAt: now,
+      approvedByCredentialId: passkey.id,
+    },
+    now,
+  );
+  if (!approved) {
+    throw new PasskeyError(409, 'device_enrollment_not_pending', 'La richiesta è già stata completata o annullata');
+  }
+  await recordEvent(identity.uid, 'device_enrollment_approved', {
+    enrollmentId,
+    deviceLabel: approved.deviceLabel,
+    credentialId: passkey.id,
+  });
+  return { approvedAt: now };
+}
+
+async function requireRequesterEnrollment(
+  identity: AdminIdentity,
+  rp: ResolvedRelyingParty,
+  enrollmentId: string,
+  verifier: string,
+  expectedStatus: DeviceEnrollmentStatus,
+  now: number,
+): Promise<DeviceEnrollmentRequest> {
+  assertProductionEnrollmentOrigin(rp);
+  const request = await getDeviceEnrollment(identity.uid, enrollmentId);
+  if (
+    !request ||
+    request.requesterAuthTime !== identity.authTime ||
+    request.rpId !== rp.rpId ||
+    !enrollmentVerifierMatches(request, verifier)
+  ) {
+    throw new PasskeyError(404, 'device_enrollment_not_found', 'Richiesta non valida o scaduta');
+  }
+  if (request.expiresAt <= now) {
+    throw new PasskeyError(410, 'device_enrollment_expired', 'La richiesta è scaduta: creane una nuova');
+  }
+  if (request.status !== expectedStatus) {
+    throw new PasskeyError(409, 'device_enrollment_not_ready', 'La richiesta non è pronta per questo passaggio');
+  }
+  return request;
+}
+
+export async function startDeviceEnrollmentRegistration(
+  identity: AdminIdentity,
+  rp: ResolvedRelyingParty,
+  enrollmentId: string,
+  verifier: string,
+  now = Date.now(),
+): Promise<PublicKeyCredentialCreationOptionsJSON> {
+  const request = await requireRequesterEnrollment(identity, rp, enrollmentId, verifier, 'approved', now);
+  const state = await loadState(identity.uid);
+  if (!state.passkeyRequired) {
+    throw new PasskeyError(409, 'passkey_not_required', 'L’obbligo passkey non è attivo');
+  }
+  assertNotLocked(state, now);
+  const passkeys = await listPasskeys(identity.uid);
+  const options = await generateRegistrationOptions({
+    rpName: RP_NAME,
+    rpID: rp.rpId,
+    userID: isoBase64URL.toBuffer(isoBase64URL.fromUTF8String(identity.uid)),
+    userName: identity.email,
+    userDisplayName: 'Amministratore',
+    attestationType: 'none',
+    excludeCredentials: passkeys
+      .filter((passkey) => passkey.rpId === rp.rpId)
+      .map((passkey) => ({
+        id: passkey.id,
+        transports: passkey.transports as AuthenticatorTransport[],
+      })),
+    authenticatorSelection: {
+      residentKey: 'preferred',
+      userVerification: 'required',
+    },
+  });
+  const saved = await saveDeviceEnrollmentChallenge(identity.uid, enrollmentId, 'registration', {
+    value: options.challenge,
+    rpId: rp.rpId,
+    origin: rp.origin,
+    authTime: identity.authTime,
+    expiresAt: Math.min(request.expiresAt, now + CHALLENGE_TTL_MS),
+  }, now);
+  if (!saved) throw new PasskeyError(409, 'device_enrollment_not_ready', 'La richiesta non è più pronta');
+  return options;
+}
+
+export async function finishDeviceEnrollmentRegistration(
+  identity: AdminIdentity,
+  rp: ResolvedRelyingParty,
+  enrollmentId: string,
+  verifier: string,
+  response: RegistrationResponseJSON,
+  now = Date.now(),
+): Promise<{ passkey: PublicPasskey }> {
+  const request = await requireRequesterEnrollment(identity, rp, enrollmentId, verifier, 'approved', now);
+  const state = await loadState(identity.uid);
+  if (!state.passkeyRequired) {
+    throw new PasskeyError(409, 'passkey_not_required', 'L’obbligo passkey non è attivo');
+  }
+  assertNotLocked(state, now);
+  const challenge = await consumeDeviceEnrollmentChallenge(
+    identity.uid,
+    enrollmentId,
+    'registration',
+    identity.authTime,
+    now,
+  );
+  if (!challenge) {
+    throw new PasskeyError(400, 'challenge_expired', 'La registrazione è scaduta: premi di nuovo il pulsante');
+  }
+  const stored = await verifyRegistrationAssertion(
+    identity,
+    rp,
+    response,
+    request.deviceLabel,
+    challenge,
+    state,
+    now,
+  );
+  const committed = await commitDeviceEnrollmentPasskey(identity.uid, enrollmentId, stored, now);
+  if (!committed) {
+    throw new PasskeyError(409, 'device_enrollment_not_ready', 'La richiesta è scaduta o è già stata completata');
+  }
+  await updateState(identity.uid, { failedAttempts: 0 });
+  await recordEvent(identity.uid, 'passkey_registered', { credentialId: stored.id, label: stored.label });
+  await recordEvent(identity.uid, 'device_enrollment_registered', {
+    enrollmentId,
+    credentialId: stored.id,
+    label: stored.label,
+  });
+  return { passkey: publicPasskeyFromStored(stored) };
+}
+
 export async function regenerateRecoveryCodes(identity: AdminIdentity, now = Date.now()): Promise<string[]> {
   const codes = generateRecoveryCodes();
   await updateState(identity.uid, {
@@ -553,7 +1062,10 @@ export async function setEnforcement(
       );
     }
   }
-  await updateState(identity.uid, { passkeyRequired: required });
+  await updateState(identity.uid, {
+    passkeyRequired: required,
+    rememberedDevicesValidAfter: now + 1,
+  });
   await recordEvent(identity.uid, required ? 'enforcement_enabled' : 'enforcement_disabled', {});
   if (required) {
     // Attivazione: solo la sessione che attiva (già verificata) resta valida;
@@ -636,10 +1148,15 @@ async function verifyAuthenticationAssertion(
     throw new PasskeyError(400, 'verification_failed', 'Verifica passkey non riuscita');
   }
 
-  await updatePasskey(identity.uid, passkey.id, {
+  const passkeyUpdated = await updatePasskeyIfExists(identity.uid, passkey.id, {
     counter: verification.authenticationInfo.newCounter,
     lastUsedAt: now,
   });
+  if (!passkeyUpdated) {
+    await registerFailure(identity.uid, state, now, 'unknown_credential');
+    await recordEvent(identity.uid, 'passkey_verification_failed', { reason: 'unknown_credential' });
+    throw new PasskeyError(400, 'unknown_credential', 'Passkey non riconosciuta');
+  }
   await updateState(identity.uid, { failedAttempts: 0 });
   await recordEvent(identity.uid, 'passkey_verified', { credentialId: passkey.id });
   return passkey;

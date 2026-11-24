@@ -4,6 +4,9 @@ import Navigation from "./Navigation";
 
 const fixture = vi.hoisted(() => ({
   isAdmin: false,
+  shopAvailable: false,
+  printShopAvailable: false,
+  location: '/',
   user: { email: "admin@example.com", displayName: "Admin" } as { email: string; displayName: string } | null,
   stateIndex: 0,
   setMenuOpen: vi.fn(),
@@ -24,7 +27,7 @@ vi.mock("react", async importOriginal => {
 });
 vi.mock("wouter", () => ({
   Link: "a",
-  useLocation: () => ["/", vi.fn()],
+  useLocation: () => [fixture.location, vi.fn()],
 }));
 vi.mock("../context/StudioContext", () => ({
   useStudio: () => ({ studioSettings: { logo: "", name: "Studio" } }),
@@ -42,7 +45,10 @@ vi.mock("@/hooks/useGiftShopAvailable", () => ({
   useGiftShopAvailable: () => false,
 }));
 vi.mock("@/hooks/useShopAvailable", () => ({
-  useShopAvailable: () => false,
+  useShopAvailable: () => fixture.shopAvailable,
+}));
+vi.mock("@/hooks/usePrintShopAvailable", () => ({
+  usePrintShopAvailable: () => fixture.printShopAvailable,
 }));
 vi.mock("@/lib/basePath", () => ({
   createUrl: fixture.createUrl,
@@ -77,6 +83,9 @@ function accountAdminLinks() {
 describe("Navigation account admin dashboard link", () => {
   beforeEach(() => {
     fixture.isAdmin = false;
+    fixture.shopAvailable = false;
+    fixture.printShopAvailable = false;
+    fixture.location = "/";
     fixture.user = { email: "admin@example.com", displayName: "Admin" };
     fixture.stateIndex = 0;
     fixture.setMenuOpen.mockClear();
@@ -116,5 +125,33 @@ describe("Navigation account admin dashboard link", () => {
   it("keeps both account menus free of the dashboard link for non-admins", () => {
     expect(accountAdminLinks()).toHaveLength(0);
     expect(collectLinks(Navigation({})).some(link => link.props.to === "/studio/stampa-foto-aversa/i-miei-ordini")).toBe(true);
+  });
+
+  it("shows only active storefront links in private-gallery navigation", () => {
+    fixture.shopAvailable = true;
+    fixture.printShopAvailable = true;
+    const links = collectLinks(Navigation({ galleryOwner: "Coppia", galleryCode: "private-code" }));
+
+    expect(links.map(link => link.props.to)).toContain("/studio/stampa-foto-aversa");
+    expect(links.map(link => link.props.to)).toContain("/studio/online-shop");
+    expect(links.map(link => link.props.to)).not.toContain("/studio/view/private-code");
+  });
+
+  it("does not show unavailable storefronts in private-gallery navigation", () => {
+    const links = collectLinks(Navigation({ galleryOwner: "Coppia", galleryCode: "private-code" }));
+    expect(links.map(link => link.props.to)).not.toContain("/studio/stampa-foto-aversa");
+    expect(links.map(link => link.props.to)).not.toContain("/studio/online-shop");
+  });
+
+  it("keeps order histories separate and selects the one matching the active storefront", () => {
+    fixture.location = '/studio/online-shop/ordine/conferma';
+    const shopLinks = collectLinks(Navigation({}));
+    expect(shopLinks.map(link => link.props.to)).toContain('/studio/online-shop/i-miei-ordini');
+    expect(shopLinks.map(link => link.props.to)).not.toContain('/studio/stampa-foto-aversa/i-miei-ordini');
+
+    fixture.location = '/stampa-foto-aversa/ordine';
+    const printLinks = collectLinks(Navigation({}));
+    expect(printLinks.map(link => link.props.to)).toContain('/studio/stampa-foto-aversa/i-miei-ordini');
+    expect(printLinks.map(link => link.props.to)).not.toContain('/studio/online-shop/i-miei-ordini');
   });
 });

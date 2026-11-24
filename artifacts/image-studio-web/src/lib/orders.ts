@@ -23,48 +23,102 @@ import { apiRequest } from "@/lib/queryClient";
 import { recomputeJobAggregates } from "@/lib/jobs";
 import type { Order, InsertOrder, Transaction } from "@shared/booking-types";
 import { isManagedOrderType } from "@shared/managed-order-types";
+import { expandOrderProductsToRequirements, getRequiredGalleryPhotoCount } from "@/lib/bundle-photos";
 
 const COLLECTION = "orders";
 
-/**
- * Helper: Espande prodotti ordine (bundle → componenti) per productRequirements galleria
- * Replica la logica server-side di expandOrderProductsToRequirements
- */
-function expandProductsToRequirements(prodotti: any[]): any[] {
-  const expanded: any[] = [];
-  for (const item of prodotti) {
-    const qty = item.quantita || 1;
-    const bundleItems = (item.isBundle && item.bundleItems && item.bundleItems.length > 0) ? item.bundleItems : null;
-    const bundleParentName = item.prodottoNome || 'Bundle';
-
-    if (bundleItems) {
-      for (let orderQty = 0; orderQty < qty; orderQty++) {
-        for (const bi of bundleItems) {
-          if (!bi.quantita || bi.quantita <= 0) continue;
-          if (bi.numeroFoto === undefined || bi.numeroFoto < 0) continue;
-          for (let i = 0; i < bi.quantita; i++) {
-            const prefix = qty > 1 ? `[${orderQty + 1}/${qty}] ` : '';
-            expanded.push({
-              prodottoId: bi.prodottoId || null,
-              prodottoNome: bi.quantita > 1
-                ? `${prefix}${bi.prodottoNome} (${i + 1}/${bi.quantita}) - ${bundleParentName}`
-                : `${prefix}${bi.prodottoNome} - ${bundleParentName}`,
-              prodottoNumeroFoto: bi.numeroFoto,
-            });
-          }
-        }
-      }
-    } else {
-      for (let i = 0; i < qty; i++) {
-        expanded.push({
-          prodottoId: (item.prodottoId && !item.prodottoId.startsWith('custom_')) ? item.prodottoId : null,
-          prodottoNome: qty > 1 ? `${item.prodottoNome} (${i + 1}/${qty})` : item.prodottoNome,
-          prodottoNumeroFoto: item.prodottoNumeroFoto ?? 0,
-        });
-      }
+async function reconcileBookingDeposits(docs: Array<{ id: string; data(): any }>): Promise<boolean> {
+  const ids = docs.filter(snapshot => snapshot.data().bookingId && !isManagedOrderType(snapshot.data().orderType)).map(snapshot => snapshot.id);
+  for (let offset = 0; offset < ids.length; offset += 50) {
+    const orderIds = ids.slice(offset, offset + 50);
+    const response = await apiRequest("POST", "/api/orders/reconcile-booking-deposits", { orderIds });
+    const result = await response.json();
+    if (!result || !Number.isSafeInteger(result.updated) || result.updated < 0 || result.updated > orderIds.length) {
+      throw new Error("Verifica degli acconti non disponibile: risposta del server non valida.");
+    }
+    // Risposta parziale: il server ha verificato gli altri ordini ma non questi.
+    if (Array.isArray(result.failed) && result.failed.length > 0) {
+      throw new Error("Acconti non verificabili per alcuni ordini: controlla il pagamento della prenotazione.");
     }
   }
-  return expanded;
+  // Another reader can reconcile after our initial snapshot and before our POST.
+  // updated: 0 only means this request did not write, not that the snapshot is fresh.
+  return ids.length > 0;
+}
+
+const DEPOSIT_SOURCE = "booking_paypal_deposit";
+const RECONCILE_CHUNK = 50;
+const RECONCILE_TIMEOUT_MS = 20_000;
+
+export interface DepositCheckBooking {
+  id?: string;
+  depositPayment?: { provider?: string; status?: string; amountCents?: number; paypalCaptureId?: string; receiptId?: string } | null;
+  bookingRefund?: { status?: string } | null;
+}
+
+/**
+ * Ordini il cui acconto PayPal (già incassato sulla prenotazione) non risulta ancora copiato
+ * nell'ordine. Sono gli unici da inviare al server: tutti gli altri sono già a posto e non
+ * richiedono né chiamate né una seconda lettura. Il server resta l'autorità finale.
+ */
+export function findOrdersNeedingDepositReconciliation(
+  orders: Array<Pick<Order, "id" | "bookingId" | "transactions"> & { orderType?: string }>,
+  bookings: DepositCheckBooking[],
+): string[] {
+  const byId = new Map(bookings.map((booking) => [booking.id, booking]));
+  const result: string[] = [];
+  for (const order of orders) {
+    if (!order.bookingId || isManagedOrderType(order.orderType)) continue;
+    const booking = byId.get(order.bookingId);
+    const payment = booking?.depositPayment;
+    if (payment?.provider === "in_person") {
+      // Acconto incassato di persona: la riga dell'ordine porta la stessa ricevuta e lo stesso importo.
+      if (payment.status !== "paid" || !payment.receiptId || !Number.isSafeInteger(payment.amountCents) || (payment.amountCents as number) <= 0) continue;
+      const rows = ((order.transactions ?? []) as any[]).filter(
+        (line) => line?.source === "booking_in_person_deposit" && line?.receiptId === payment.receiptId,
+      );
+      if (rows.length !== 1 || rows[0].importo !== (payment.amountCents as number) / 100) result.push(order.id);
+      continue;
+    }
+    if (payment?.provider !== "paypal" || payment.status !== "paid" || !payment.paypalCaptureId
+      || !Number.isSafeInteger(payment.amountCents) || (payment.amountCents as number) <= 0) continue;
+    const expected = booking?.bookingRefund?.status === "completed" ? 0 : (payment.amountCents as number) / 100;
+    const lines = ((order.transactions ?? []) as any[]).filter(
+      (line) => line?.source === DEPOSIT_SOURCE && line?.providerTransactionId === payment.paypalCaptureId,
+    );
+    if (lines.length !== 1 || lines[0].importo !== expected) result.push(order.id);
+  }
+  return result;
+}
+
+/**
+ * Verifica gli acconti di un gruppo di ordini senza mai lanciare: un gruppo scaduto
+ * (timeout) o in errore segna i suoi ordini come `failedIds`, gli altri proseguono.
+ */
+export async function reconcileBookingDepositsForOrders(
+  orderIds: string[],
+  timeoutMs: number = RECONCILE_TIMEOUT_MS,
+): Promise<{ updated: number; failedIds: string[] }> {
+  let updated = 0;
+  const failedIds: string[] = [];
+  for (let offset = 0; offset < orderIds.length; offset += RECONCILE_CHUNK) {
+    const chunk = orderIds.slice(offset, offset + RECONCILE_CHUNK);
+    try {
+      const response = await apiRequest(
+        "POST", "/api/orders/reconcile-booking-deposits", { orderIds: chunk },
+        { signal: AbortSignal.timeout(timeoutMs) },
+      );
+      const result = await response.json();
+      if (!result || !Number.isSafeInteger(result.updated) || result.updated < 0 || result.updated > chunk.length) {
+        throw new Error("risposta del server non valida");
+      }
+      updated += result.updated;
+      if (Array.isArray(result.failed)) failedIds.push(...chunk.filter((id) => result.failed.includes(id)));
+    } catch {
+      failedIds.push(...chunk);
+    }
+  }
+  return { updated, failedIds };
 }
 
 /**
@@ -185,12 +239,30 @@ function ensureProdottiArray(orderData: any): any {
 }
 
 /**
+ * Lettura veloce degli ordini (una sola query, nessuna chiamata al server).
+ * Per la schermata Prenotazioni: la verifica degli acconti avviene a parte e solo
+ * per gli ordini che ne hanno bisogno (vedi findOrdersNeedingDepositReconciliation).
+ */
+export async function getAllOrdersUnreconciled(): Promise<Order[]> {
+  // Solo gli ordini collegati a una prenotazione: la schermata li cerca per bookingId. Niente orderBy sul
+  // server (servirebbe un indice composito): si ordina qui, dal più recente.
+  const snapshot = await getDocs(query(collection(db, COLLECTION), where("bookingId", "!=", null)));
+  const millis = (value: any): number =>
+    typeof value?.toMillis === "function" ? value.toMillis() : typeof value?.seconds === "number" ? value.seconds * 1000 : 0;
+  return (snapshot.docs
+    .filter((orderDoc) => !isManagedOrderType(orderDoc.data().orderType))
+    .map((orderDoc) => ({ id: orderDoc.id, ...ensureProdottiArray(orderDoc.data()) })) as Order[])
+    .sort((a, b) => millis((b as any).createdAt) - millis((a as any).createdAt));
+}
+
+/**
  * Ottiene tutti gli ordini (admin only)
  */
 export async function getAllOrders(): Promise<Order[]> {
   const q = query(collection(db, COLLECTION), orderBy("createdAt", "desc"));
 
-  const snapshot = await getDocs(q);
+  let snapshot = await getDocs(q);
+  if (await reconcileBookingDeposits(snapshot.docs)) snapshot = await getDocs(q);
 
   // Gli ordini degli shop online (stampe e vetrina prodotti) hanno un workflow
   // dedicato con PayPal, retention e foto: non devono finire nel manager legacy
@@ -208,7 +280,7 @@ export async function getAllOrders(): Promise<Order[]> {
  */
 export async function getOrderById(id: string): Promise<Order | null> {
   const docRef = doc(db, COLLECTION, id);
-  const docSnap = await getDoc(docRef);
+  let docSnap = await getDoc(docRef);
 
   if (!docSnap.exists()) {
     return null;
@@ -218,6 +290,7 @@ export async function getOrderById(id: string): Promise<Order | null> {
     return null;
   }
 
+  if (await reconcileBookingDeposits([docSnap])) docSnap = await getDoc(docRef);
   return {
     id: docSnap.id,
     ...ensureProdottiArray(docSnap.data()),
@@ -234,7 +307,8 @@ export async function getOrdersByGallery(galleryId: string): Promise<Order[]> {
     orderBy("createdAt", "desc"),
   );
 
-  const snapshot = await getDocs(q);
+  let snapshot = await getDocs(q);
+  if (await reconcileBookingDeposits(snapshot.docs)) snapshot = await getDocs(q);
 
   return snapshot.docs.map((doc) => ({
     id: doc.id,
@@ -252,7 +326,8 @@ export async function getOrdersByBooking(bookingId: string): Promise<Order[]> {
     orderBy("createdAt", "desc"),
   );
 
-  const snapshot = await getDocs(q);
+  let snapshot = await getDocs(q);
+  if (await reconcileBookingDeposits(snapshot.docs)) snapshot = await getDocs(q);
 
   return snapshot.docs.map((doc) => ({
     id: doc.id,
@@ -270,7 +345,8 @@ export async function getOrdersByJobId(jobId: string): Promise<Order[]> {
     orderBy("createdAt", "desc"),
   );
 
-  const snapshot = await getDocs(q);
+  let snapshot = await getDocs(q);
+  if (await reconcileBookingDeposits(snapshot.docs)) snapshot = await getDocs(q);
 
   return snapshot.docs.map((doc) => ({
     id: doc.id,
@@ -381,7 +457,14 @@ export async function createOrder(data: InsertOrder): Promise<string> {
         ? item.quantita
         : 1,
     ...(item.isCustom ? { isCustom: true } : {}),
-    ...(item.isBundle && item.bundleItems ? { isBundle: true, bundleItems: item.bundleItems } : {}),
+    ...(item.isBundle && item.bundleItems ? {
+      isBundle: true,
+      bundleItems: item.bundleItems,
+      ...(item.fotoCondivise ? {
+        fotoCondivise: true,
+        prodottoSorgenteFotoId: item.prodottoSorgenteFotoId,
+      } : {}),
+    } : {}),
   }));
 
   console.log("📦 Prodotti normalizzati:", normalizedProdotti);
@@ -490,9 +573,9 @@ export async function createOrder(data: InsertOrder): Promise<string> {
         const galleryData = gallerySnap.data();
         // ✅ VINCOLO AUTO: sempre aggiorna productRequirements se ci sono prodotti,
         // indipendentemente da selectionEnabled (che viene forzato a true)
-        const newReqs = expandProductsToRequirements(normalizedProdotti);
+        const newReqs = expandOrderProductsToRequirements(normalizedProdotti);
         if (newReqs.length > 0) {
-          const totalFoto = newReqs.reduce((s: number, r: any) => s + (r.prodottoNumeroFoto || 0), 0);
+          const totalFoto = getRequiredGalleryPhotoCount(newReqs);
           const galleryUpdate: any = {
             productRequirements: newReqs,
             requiredPhotoCount: totalFoto,
@@ -698,12 +781,14 @@ export async function recordSaldoPayment(
   metodo: "contante" | "carta" | "bonifico" | "paypal",
   note?: string,
   data: Date = new Date(),
+  requestId: string = crypto.randomUUID(),
 ): Promise<{ transaction: Transaction; index: number }> {
   const response = await apiRequest('POST', `/api/orders/${orderId}/register-payment`, {
     tipo: 'saldo',
     metodoPagamento: metodo,
     note,
     data: data.toISOString(),
+    requestId,
   });
 
   const result = await response.json();
@@ -713,6 +798,10 @@ export async function recordSaldoPayment(
   }
 
   console.log(`✅ Saldo registrato: €${result.paymentAmount} - CashMovement: ${result.cashMovementId}`);
+  if (result.duplicate) {
+    return { transaction: { tipo: 'saldo', importo: result.paymentAmount, metodo, data: Timestamp.fromDate(data), emailInviata: true,
+      ...(note?.trim() && { note: note.trim() }) }, index: result.transactionIndex };
+  }
 
   try {
     await apiRequest('POST', '/api/orders/payment-received-notification', {
@@ -800,6 +889,8 @@ export async function addAccontoPayment(
   metodo: "contante" | "carta" | "bonifico" | "paypal",
   note?: string,
   data: Date = new Date(),
+  /** Stesso valore = stesso incasso: una ripetizione (doppio clic, ritentativo) non registra due volte. */
+  requestId: string = crypto.randomUUID(),
 ): Promise<{ transaction: Transaction; index: number }> {
   const response = await apiRequest('POST', `/api/orders/${orderId}/register-payment`, {
     tipo: 'acconto',
@@ -807,6 +898,7 @@ export async function addAccontoPayment(
     metodoPagamento: metodo,
     note,
     data: data.toISOString(),
+    requestId,
   });
 
   const result = await response.json();
@@ -816,6 +908,11 @@ export async function addAccontoPayment(
   }
 
   console.log(`✅ Acconto registrato: €${importo} - CashMovement: ${result.cashMovementId}`);
+  // Ripetizione riconosciuta dal server: l'incasso e la sua email risalgono al primo invio.
+  if (result.duplicate) {
+    return { transaction: { tipo: 'acconto', importo, metodo, data: Timestamp.fromDate(data), emailInviata: true,
+      ...(note?.trim() && { note: note.trim() }) }, index: result.transactionIndex };
+  }
 
   try {
     await apiRequest('POST', '/api/orders/payment-received-notification', {

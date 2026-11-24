@@ -35,6 +35,9 @@ import { calculateQuoteTotals, validateDiscount } from '@shared/quote-utils';
 import { migrateRequirementRules, findInvalidSelections } from '@shared/quote-requirements';
 import type { QuoteProduct } from '@shared/quotes-types';
 import { removeUndefinedFields } from '@shared/firestore-utils';
+import {
+  isQuoteProductSelectedForAcceptance,
+} from '@shared/quote-product-selection';
 
 const QUOTES_COLLECTION = 'quotes';
 const TEMPLATES_COLLECTION = 'quoteTemplates';
@@ -185,6 +188,9 @@ export async function createQuote(
       ...(data.expiresAt && { expiresAt: Timestamp.fromDate(data.expiresAt) }), // Solo se definito
       ...(data.noteInterne && { noteInterne: data.noteInterne }), // Solo se definito
       ...(paymentScheduleConfig && { paymentScheduleConfig }), // Solo se definito
+      ...(data.type === 'variabile' && (data.requirementRules?.length ?? 0) > 0 && {
+        requirementRules: data.requirementRules,
+      }),
       ...(data.jobInfo && { 
         jobInfo: {
           nomeEvento: data.jobInfo.nomeEvento,
@@ -460,7 +466,7 @@ export async function acceptQuote(data: AcceptQuoteData): Promise<void> {
     if (quote.type === 'variabile' && data.selectedProducts) {
       const benefitUnlockedNames = new Set(data.unlockedBenefitProductNames ?? []);
       // Marca i prodotti selezionati con selected: true, preservando selectable degli omaggi
-      updatedProducts = quote.products.map(p => {
+      updatedProducts = quote.products.map((p, index) => {
         // Omaggi fissi (admin-set): sempre inclusi a €0
         if (p.isOmaggio) {
           return { ...p, selectable: false, selected: true, prezzo: 0 };
@@ -472,7 +478,12 @@ export async function acceptQuote(data: AcceptQuoteData): Promise<void> {
         return {
           ...p,
           selectable: true,
-          selected: data.selectedProducts?.includes(p.nome) || false
+          selected: isQuoteProductSelectedForAcceptance(
+            p,
+            index,
+            data.selectedProductKeys,
+            data.selectedProducts,
+          )
         };
       });
       

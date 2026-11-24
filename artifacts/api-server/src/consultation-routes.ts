@@ -8,6 +8,7 @@ import express, { Request, Response } from "express";
 import { z } from "zod/v4";
 import axios from "axios";
 import { createHash } from "node:crypto";
+import { logger } from "./lib/logger.js";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { DateTime } from "luxon";
@@ -198,6 +199,45 @@ async function releaseManualConsultationLock(ref: any): Promise<void> {
       "[manual consultation] Impossibile rilasciare il lock:",
       error.message,
     );
+  }
+}
+
+/**
+ * Only scan processing requests (single-field index). Re-read each candidate
+ * transactionally so a renewed lease or a completed request cannot be deleted
+ * using the stale query snapshot. Missing/invalid leases are left for diagnosis.
+ */
+export async function cleanupExpiredManualConsultationLocks(): Promise<number> {
+  const cutoff = Date.now();
+  let removed = 0;
+  let scanned = 0;
+  try {
+    const candidates = await db.collection("manual_consultation_requests")
+      .where("status", "==", "processing")
+      .get();
+    scanned = candidates.docs.length;
+
+    for (const candidate of candidates.docs) {
+      const deleted = await db.runTransaction(async (transaction: any) => {
+        const snapshot = await transaction.get(candidate.ref);
+        if (!snapshot.exists) return false;
+        const current = snapshot.data();
+        if (current?.status !== "processing" || !current.lockLeaseUntil) return false;
+        const leaseDate = typeof current.lockLeaseUntil.toDate === "function"
+          ? current.lockLeaseUntil.toDate()
+          : new Date(current.lockLeaseUntil);
+        if (!Number.isFinite(leaseDate.getTime()) || leaseDate.getTime() > cutoff) return false;
+        transaction.delete(candidate.ref);
+        return true;
+      });
+      if (deleted) removed++;
+    }
+
+    logger.info({ scanned, removed }, "Manual consultation lock cleanup completed");
+    return removed;
+  } catch (err) {
+    logger.error({ err, scanned, removed }, "Manual consultation lock cleanup failed");
+    throw err;
   }
 }
 
@@ -864,6 +904,7 @@ router.patch(
       try {
         // NOTA: no attendees - Service Account non supporta invite senza Domain-Wide Delegation
         calendarEvent = await createEvent("primary", {
+        kind: 'consultation',
           summary: `Consulenza ${consultation.jobType} - ${consultation.cliente.nome} ${consultation.cliente.cognome}`,
           description: `Template: ${consultation.jobType}\nCliente: ${consultation.cliente.nome} ${consultation.cliente.cognome}\nEmail: ${consultation.cliente.email}\nWhatsApp: ${consultation.cliente.whatsapp}\nNote: ${consultation.note || "Nessuna"}`,
           start: startDateTime,
@@ -883,6 +924,8 @@ router.patch(
       console.log(`[POST /v2/approve] 📅 Created Google Calendar event ${eventId}`);
 
       // Step 8: Update Firestore with compensating transaction (rollback Calendar on error)
+      const { confirmConsultationReservation, ConsultationNotPendingError } = await import('./booking/consultation-reservation.js');
+      const { BookingSlotConflictError } = await import('./booking/slot-reservations.js');
       try {
         const consultationUpdates: any = {
           stato: "confermata",
@@ -899,10 +942,28 @@ router.patch(
         consultationUpdates.confermatail = FieldValue.serverTimestamp();
 
         console.log(`[POST /v2/approve] 📝 Updating Firestore status to 'confermata' for consultation ${id}`);
-        await db.collection("consultations").doc(id).update(consultationUpdates);
+        // Stessa transazione e stesse guardie giornaliere delle prenotazioni: una prenotazione
+        // pubblica concorrente (o in attesa di pagamento) non puo' coesistere con questa conferma.
+        await confirmConsultationReservation(db, id, startDateTime, endDateTime, consultationUpdates);
 
         console.log(`[POST /v2/approve] ✅ Updated Firestore consultation ${id}`);
       } catch (updateError: any) {
+        const slotTaken = updateError instanceof BookingSlotConflictError;
+        if (slotTaken || updateError instanceof ConsultationNotPendingError) {
+          // La consulenza non e' stata modificata: basta togliere l'evento appena creato.
+          try {
+            if (eventId) await deleteEvent("primary", eventId);
+          } catch (cleanupError: any) {
+            void import("./system-alerts.js").then(m => m.notifyOrphanCalendarEvents([{ id: String(eventId), kind: "consultation", where: "conferma consulenza: evento non rimosso" }])).catch(() => {});
+            console.error("[POST /v2/approve] ❌ CRITICAL: evento Calendar da rimuovere a mano", eventId, cleanupError.message);
+          }
+          return slotTaken
+            ? res.status(409).json({
+                error: "Slot non più disponibile",
+                message: "Attenzione: nel frattempo lo slot è stato occupato da un'altra prenotazione. Impossibile approvare.",
+              })
+            : res.status(409).json({ error: "Consultation già processata" });
+        }
         console.error("[POST /v2/approve] ❌ Error updating Firestore, executing rollback:", updateError.message);
         
         try {
@@ -921,6 +982,7 @@ router.patch(
 
           console.log(`[POST /v2/approve] 🔄 Rollback: reverted consultation ${id} to in_attesa`);
         } catch (rollbackError: any) {
+          void import("./system-alerts.js").then(m => m.notifyOrphanCalendarEvents([{ id: String(eventId), kind: "consultation", where: "conferma consulenza: rollback non riuscito" }])).catch(() => {});
           console.error("[POST /v2/approve] ❌ CRITICAL: Rollback failed", rollbackError.message);
         }
 
@@ -1139,10 +1201,87 @@ router.post(
         db
       );
 
-      // Delete selected Google Calendar events (ONLY from primary calendar)
+      // Senza override ogni conflitto deve essere tra quelli selezionati e cancellabili: altrimenti
+      // si risponde 409 PRIMA di toccare qualsiasi cosa (prima si approvava comunque).
+      const isSelectedDeletable = (c: any) => !!c.isDeletable && !!c.metadata?.googleEventId
+        && deleteEventIds.includes(c.metadata.googleEventId);
+      if (!overrideConflicts) {
+        const unresolved = conflictDetails.conflicts.filter((c: any) => !isSelectedDeletable(c));
+        if (unresolved.length > 0) {
+          return res.status(409).json({
+            error: "Conflitti non risolti",
+            message: "Ci sono conflitti non selezionati per la cancellazione o non cancellabili. Seleziona i conflitti oppure forza l'approvazione.",
+            conflicts: unresolved.map((c: any) => ({ title: c.title, source: c.source, startTime: c.startTime })),
+          });
+        }
+      }
+
       const deletedEvents: string[] = [];
       const deletionErrors: string[] = [];
 
+      // Ordine sicuro: 1) crea il nuovo evento, 2) conferma su Firestore, 3) solo dopo cancella i
+      // conflitti. Se un passo fallisce, gli eventi dell'admin non sono stati toccati.
+      // NOTA: no attendees - Service Account non supporta invite senza Domain-Wide Delegation
+      let calendarEvent: { id?: string | null };
+      try {
+        calendarEvent = await createEvent("primary", {
+          summary: `Consulenza ${consultation.jobType} - ${consultation.cliente.nome} ${consultation.cliente.cognome}`,
+          description: `Template: ${consultation.jobType}
+Cliente: ${consultation.cliente.nome} ${consultation.cliente.cognome}
+Email: ${consultation.cliente.email}
+WhatsApp: ${consultation.cliente.whatsapp}
+Note: ${consultation.note || "Nessuna"}`,
+          start: startDateTime,
+          end: endDateTime,
+          kind: 'consultation',
+        });
+      } catch (calendarError: any) {
+        console.error("[POST /v2/:id/approve-with-override] ❌ Errore creazione evento Google Calendar:", calendarError.message);
+        return res.status(503).json({
+          error: "Errore Google Calendar",
+          message: "Impossibile creare l'evento sul calendario. Nessun evento è stato cancellato. Riprova più tardi.",
+          code: calendarError?.code || "CALENDAR_EVENT_CREATION_FAILED",
+        });
+      }
+
+      const eventId = calendarEvent.id;
+      console.log(`[POST /v2/:id/approve-with-override] 📅 Created Google Calendar event ${eventId}`);
+
+      const { confirmConsultationReservation, ConsultationNotPendingError } = await import('./booking/consultation-reservation.js');
+      const { BookingSlotConflictError } = await import('./booking/slot-reservations.js');
+      try {
+        // Un'unica scrittura transazionale (stesse guardie delle prenotazioni). Con override
+        // esplicito il controllo di sovrapposizione e' saltato.
+        await confirmConsultationReservation(db, id, startDateTime, endDateTime, {
+          stato: "confermata",
+          ...(eventId ? { googleCalendarEventId: eventId } : {}),
+          confermataDa: req.user!.uid,
+          confermatail: Timestamp.now(),
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { force: overrideConflicts === true });
+        console.log(`[POST /v2/:id/approve-with-override] ✅ Updated Firestore consultation ${id}`);
+      } catch (updateError: any) {
+        // La consulenza non e' stata modificata: basta togliere l'evento appena creato.
+        try {
+          if (eventId) await deleteEvent("primary", eventId);
+        } catch (rollbackError: any) {
+          console.error("[POST /v2/:id/approve-with-override] ❌ CRITICAL: Rollback failed", rollbackError.message);
+          void import("./system-alerts.js").then(m => m.notifyOrphanCalendarEvents([{ id: String(eventId), kind: "consultation", where: "conferma con override: rollback non riuscito" }])).catch(() => {});
+        }
+        if (updateError instanceof BookingSlotConflictError) {
+          return res.status(409).json({
+            error: "Slot non più disponibile",
+            message: "Nel frattempo lo slot è stato occupato da un'altra prenotazione. Nessun evento è stato cancellato.",
+          });
+        }
+        if (updateError instanceof ConsultationNotPendingError) {
+          return res.status(409).json({ error: "Consultation già processata" });
+        }
+        console.error("[POST /v2/:id/approve-with-override] ❌ Error updating Firestore, rollback eseguito:", updateError.message);
+        return res.status(500).json({ error: "Errore approvazione", details: updateError.message });
+      }
+
+      // Approvazione salvata: ora si possono cancellare i conflitti selezionati.
       if (deleteEventIds.length > 0) {
         console.log(`[POST /v2/:id/approve-with-override] 🗑️ Attempting to delete ${deleteEventIds.length} events`);
 
@@ -1171,56 +1310,6 @@ router.post(
             deletionErrors.push(`Errore cancellazione "${eventToDelete.title}": ${delError.message}`);
           }
         }
-      }
-
-      // Create Google Calendar event for consultation
-      // NOTA: no attendees - Service Account non supporta invite senza Domain-Wide Delegation
-      const calendarEvent = await createEvent("primary", {
-        summary: `Consulenza ${consultation.jobType} - ${consultation.cliente.nome} ${consultation.cliente.cognome}`,
-        description: `Template: ${consultation.jobType}\nCliente: ${consultation.cliente.nome} ${consultation.cliente.cognome}\nEmail: ${consultation.cliente.email}\nWhatsApp: ${consultation.cliente.whatsapp}\nNote: ${consultation.note || "Nessuna"}`,
-        start: startDateTime,
-        end: endDateTime,
-      });
-
-      const eventId = calendarEvent.id;
-      console.log(`[POST /v2/:id/approve-with-override] 📅 Created Google Calendar event ${eventId}`);
-
-      // Update Firestore (with rollback on error)
-      try {
-        await consultationService.updateConsultation(id, {
-          stato: "confermata",
-          googleCalendarEventId: eventId || undefined,
-        });
-
-        await db.collection("consultations").doc(id).update({
-          confermataDa: req.body.userId || email,
-          confermatail: Timestamp.now(),
-        });
-
-        console.log(`[POST /v2/:id/approve-with-override] ✅ Updated Firestore consultation ${id}`);
-      } catch (updateError: any) {
-        console.error("[POST /v2/:id/approve-with-override] ❌ Error updating Firestore, executing rollback:", updateError.message);
-        
-        // Rollback: delete Calendar event
-        try {
-          if (eventId) {
-            await deleteEvent("primary", eventId);
-            console.log(`[POST /v2/:id/approve-with-override] 🔄 Rollback: deleted Calendar event ${eventId}`);
-          }
-
-          await consultationService.updateConsultation(id, {
-            stato: "in_attesa",
-          });
-
-          console.log(`[POST /v2/:id/approve-with-override] 🔄 Rollback: reverted consultation ${id} to in_attesa`);
-        } catch (rollbackError: any) {
-          console.error("[POST /v2/:id/approve-with-override] ❌ CRITICAL: Rollback failed", rollbackError.message);
-        }
-
-        return res.status(500).json({
-          error: "Errore approvazione",
-          details: updateError.message,
-        });
       }
 
       // Audit logging: save conflict override record
@@ -2107,6 +2196,7 @@ router.post(
       try {
         const contractLink = await getSignedContractLink(jobId);
         const calendarEvent = await createEvent("primary", {
+        kind: 'consultation',
           summary: `Consulenza ${template.jobType} - ${cliente.nome} ${cliente.cognome}`,
           description: [
             `Template: ${template.jobType}`,
@@ -2324,6 +2414,44 @@ router.patch(
         });
       }
 
+      // Controllo sovrapposizioni solo se l'orario cambia davvero (una correzione che lascia
+      // invariato lo slot non deve essere bloccata da conflitti preesistenti).
+      const newStart = schedule.startDateTime.toJSDate();
+      const newEnd = schedule.endDateTime.toJSDate();
+      const currentDate = normalizeTimestampToDate(consultation.dataConsulenza);
+      const currentDateStr = getConsultationLocalDate(currentDate);
+      const currentStart = createConsultationDateTime(currentDateStr, consultation.orarioInizio);
+      const currentEnd = createConsultationDateTime(currentDateStr, consultation.orarioFine);
+      const slotChanged = !currentStart.isValid || !currentEnd.isValid
+        || currentStart.toMillis() !== newStart.getTime() || currentEnd.toMillis() !== newEnd.getTime();
+
+      if (slotChanged) {
+        try {
+          const { getEventsWithDetailsAllCalendars } = await import("./google-calendar.js");
+          const { googleEventOverlaps } = await import("./booking/consultation-reservation.js");
+          const dayStart = DateTime.fromISO(dataConsulenza, { zone: CONSULTATION_TIME_ZONE }).startOf("day").toJSDate();
+          const dayEnd = DateTime.fromISO(dataConsulenza, { zone: CONSULTATION_TIME_ZONE }).endOf("day").toJSDate();
+          const events = await getEventsWithDetailsAllCalendars(dayStart, dayEnd);
+          const blocking = events.find(
+            (event) => event.eventId !== consultation.googleCalendarEventId && googleEventOverlaps(event, newStart, newEnd),
+          );
+          if (blocking) {
+            return res.status(409).json({
+              error: "Slot non disponibile",
+              code: "SLOT_CONFLICT",
+              message: `Il nuovo orario si sovrappone a "${blocking.summary || "un evento"}" su Google Calendar. Correzione non salvata.`,
+            });
+          }
+        } catch (conflictCheckError: any) {
+          console.error("[PATCH /:id/reminder-schedule] Controllo sovrapposizioni non riuscito:", conflictCheckError?.message);
+          return res.status(503).json({
+            error: "Google Calendar non disponibile",
+            code: "CALENDAR_UNAVAILABLE",
+            message: "Non è stato possibile verificare che il nuovo orario sia libero. Correzione non salvata: riprova.",
+          });
+        }
+      }
+
       let previousCalendarSchedule: { start: Date; end: Date } | null = null;
 
       if (consultation.googleCalendarEventId) {
@@ -2393,12 +2521,15 @@ router.patch(
       }
 
       try {
-        await db.collection("consultations").doc(id).update({
-          dataConsulenza: Timestamp.fromDate(schedule.startDateTime.toJSDate()),
+        // Stesse guardie e stessi controlli delle prenotazioni; se lo slot non cambia si
+        // aggiornano solo le guardie (force).
+        const { confirmConsultationReservation } = await import("./booking/consultation-reservation.js");
+        await confirmConsultationReservation(db, id, newStart, newEnd, {
+          dataConsulenza: Timestamp.fromDate(newStart),
           orarioInizio,
           orarioFine,
           updatedAt: FieldValue.serverTimestamp(),
-        });
+        }, { expectedStato: "confermata", force: !slotChanged });
       } catch (firestoreError: any) {
         if (consultation.googleCalendarEventId && previousCalendarSchedule) {
           try {
@@ -2425,6 +2556,14 @@ router.patch(
           `[PATCH /:id/reminder-schedule] Salvataggio Firestore fallito${previousCalendarSchedule ? ", evento Calendar ripristinato" : ""}:`,
           firestoreError?.message,
         );
+        const { BookingSlotConflictError } = await import("./booking/slot-reservations.js");
+        if (firestoreError instanceof BookingSlotConflictError) {
+          return res.status(409).json({
+            error: "Slot non disponibile",
+            code: "SLOT_CONFLICT",
+            message: "Il nuovo orario è stato occupato da un'altra prenotazione. Correzione non salvata; Google Calendar è stato ripristinato.",
+          });
+        }
         return res.status(500).json({
           error: "Errore aggiornamento orario consulenza",
           code: previousCalendarSchedule

@@ -1,7 +1,13 @@
 import { db } from './firebase-admin';
 import { ShopService } from './shop/service';
-import { shopCategorySitemapPaths } from './shop/seo';
+import { shopSitemapPaths } from './shop/seo';
 import { BlogPost, BlogPostStatus } from '@shared/schema';
+import {
+  PRINT_PROMOTION_OG_IMAGE,
+  printPromotionPath,
+} from '@shared/print-shop-promotion';
+import type { PrintShopPublicPromotion } from '@shared/print-shop-types';
+import { loadPublicPrintShopPromotions } from './print-shop/seo-promotions';
 
 interface BlogPostMedia {
   url: string;
@@ -71,6 +77,22 @@ export const STATIC_SITEMAP_PAGES: Array<{
   { path: '/privacy', changefreq: 'yearly', priority: '0.3', lastmod: '2026-10-10' },
   { path: '/terms', changefreq: 'yearly', priority: '0.3', lastmod: '2026-08-31' },
 ];
+
+export function buildPrintPromotionSitemapEntries(
+  promotions: readonly PrintShopPublicPromotion[],
+  baseUrl = 'https://imagestudiofotografico.com',
+): string {
+  return promotions.map(promotion => `  <url>
+    <loc>${escapeXml(`${baseUrl}${printPromotionPath(promotion.code)}`)}</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>${escapeXml(`${baseUrl}${PRINT_PROMOTION_OG_IMAGE}`)}</image:loc>
+      <image:title>${escapeXml(`Offerta stampe foto ${promotion.code}`)}</image:title>
+    </image:image>
+  </url>
+`).join('');
+}
 
 function escapeXml(value: unknown): string {
   return String(value ?? '')
@@ -170,11 +192,7 @@ export function buildStaticSitemapEntries(
         { path: '/regala/come-funziona', changefreq: 'monthly', priority: '0.7', lastmod: '2026-10-07' },
       ]
     : [];
-  // La vetrina dello shop entra nella mappa con il suo interruttore.
-  const shopPages = process.env.SHOP_INDEXABLE === 'true'
-    ? [{ path: '/online-shop', changefreq: 'weekly', priority: '0.9', lastmod: '2026-10-12' }]
-    : [];
-  for (const page of [...STATIC_SITEMAP_PAGES, ...giftPages, ...shopPages]) {
+  for (const page of [...STATIC_SITEMAP_PAGES, ...giftPages]) {
     entries += `  <url>
     <loc>${baseUrl}${page.path}</loc>
     <lastmod>${page.lastmod}</lastmod>
@@ -195,18 +213,22 @@ export function buildStaticSitemapEntries(
   return entries;
 }
 
-/** Pagine delle categorie dello shop: solo con lo shop indicizzabile, aperto e con almeno un prodotto per categoria. */
+/** Pagine dello shop: solo con lo shop indicizzabile, attivo e con prodotti vendibili. */
 export async function buildShopCategorySitemapEntries(baseUrl = 'https://imagestudiofotografico.com'): Promise<string> {
   if (process.env.SHOP_INDEXABLE !== 'true') return '';
   try {
     const catalog = await new ShopService({ db }).publicCatalog();
     const lastmod = new Date().toISOString().slice(0, 10);
-    return shopCategorySitemapPaths(catalog)
+    return shopSitemapPaths(catalog)
+      .map(path => ({
+        path,
+        priority: path === '/online-shop' ? '0.9' : '0.8',
+      }))
       .map(path => `  <url>
-    <loc>${escapeXml(`${baseUrl}${path}`)}</loc>
+    <loc>${escapeXml(`${baseUrl}${path.path}`)}</loc>
     <lastmod>${lastmod}</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>${path.priority}</priority>
   </url>
 `)
       .join('');
@@ -256,6 +278,11 @@ export async function generateDynamicSitemap(): Promise<string> {
 
   sitemap += buildStaticSitemapEntries(baseUrl);
   sitemap += await buildShopCategorySitemapEntries(baseUrl);
+  try {
+    sitemap += buildPrintPromotionSitemapEntries(await loadPublicPrintShopPromotions(), baseUrl);
+  } catch (error) {
+    console.warn('[sitemap] promozioni stampe non lette:', error);
+  }
 
   sitemap += `
   <!-- Blog Posts Dinamici -->

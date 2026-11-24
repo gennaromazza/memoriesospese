@@ -41,6 +41,17 @@ describe('desktop gallery UI with cached API data', () => {
     expect(html).toContain('vecchia.jpg');
     expect(html).toContain('Apri');
   });
+  it('offers selection for all filtered results separately from the current page', () => {
+    const chapterPhotos = Array.from({ length: 60 }, (_, index) => ({
+      id: `chapter-photo-${index}`,
+      name: `foto-${index}.jpg`,
+      url: `https://example.test/${index}.jpg`,
+      chapterId: 'chapter',
+    })) as Photo[];
+    const html = markup(<PhotosTab galleryId={gallery.id} />, chapterPhotos);
+    expect(html).toContain('Seleziona tutti i risultati (60)');
+    expect(html).toContain('Seleziona foto mostrate (48)');
+  });
   it('renders an empty gallery with the unassigned filter and create action', () => {
     const html = markup(<PhotosTab galleryId={gallery.id} />, [], []);
     expect(html).toContain('Senza capitolo (0)');

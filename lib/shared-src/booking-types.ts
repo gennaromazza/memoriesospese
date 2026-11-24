@@ -29,6 +29,8 @@ export interface Product {
   prezzo: number; // Prezzo base in euro
   sconto: number; // Sconto in percentuale (0-100)
   prezzoFinale: number; // Calcolato automaticamente
+  /** Costo unitario gestionale, idratato solo per l'area admin e salvato separatamente. */
+  costoUnitario?: number;
   numeroFoto: number; // Numero foto incluse nel prodotto (es. 20 per album)
   pesoGrammi?: number; // Peso di un esemplare in grammi, per la spedizione dello shop (0 o assente = non indicato)
   categoria: string; // Riferimento a ProductCategory.value
@@ -38,6 +40,8 @@ export interface Product {
   // Bundle fields
   isBundle?: boolean; // true = questo prodotto è un bundle contenente altri prodotti
   bundleItems?: BundleItem[]; // Prodotti contenuti nel bundle (solo se isBundle = true)
+  fotoCondivise?: boolean; // true = gli altri prodotti usano la galleria di un prodotto sorgente
+  prodottoSorgenteFotoId?: string; // ID del prodotto incluso che definisce la galleria condivisa
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -48,6 +52,8 @@ export interface InsertProduct {
   prezzo: number;
   sconto: number;
   numeroFoto: number;
+  /** Costo gestionale opzionale: non va scritto nel documento pubblico `products`. */
+  costoUnitario?: number;
   pesoGrammi?: number; // Peso di un esemplare in grammi, per la spedizione dello shop
   categoria: string; // Riferimento a ProductCategory.value
   attivo: boolean;
@@ -55,6 +61,8 @@ export interface InsertProduct {
   // Bundle fields
   isBundle?: boolean;
   bundleItems?: BundleItem[];
+  fotoCondivise?: boolean;
+  prodottoSorgenteFotoId?: string;
 }
 
 /**
@@ -144,6 +152,15 @@ export interface BookingCampaign {
   
   // Prodotti disponibili per questa campagna
   prodottiDisponibili: string[]; // Array di productId
+
+  // Impostazioni pagamento (opzionali nei documenti legacy).
+  // Se assenti: approvazione richiesta e nessun acconto.
+  richiedeApprovazione?: boolean;
+  richiedeAcconto?: boolean;
+  accontoImportoCentesimi?: number | null;
+  emailRecuperoAcconto?: boolean;
+  emailPromemoriaAcconto?: boolean; // Promemoria a 30 e 50 minuti dopo l’approvazione, attivi salvo disattivazione.
+  recuperoAccontoAttivatoIl?: Timestamp;
   
   // Immagini personalizzate (opzionali)
   immagineSlider?: string; // URL immagine per slider homepage (opzionale)
@@ -163,6 +180,38 @@ export interface BookingCampaignFE extends Omit<BookingCampaign, 'dataInizio' | 
 /**
  * BOOKINGS - Prenotazioni clienti
  */
+export interface BookingDepositPaymentRequest {
+  status: 'pending' | 'expired' | 'paid';
+  amountCents: number;
+  currency: 'EUR';
+  requestedAt: Timestamp;
+  expiresAt: Timestamp;
+  expiredAt?: Timestamp;
+  paidAt?: Timestamp;
+  approvedBy?: string;
+  emailStatus?: 'pending' | 'sending' | 'sent' | 'failed' | 'unknown';
+}
+export interface BookingDepositPayment {
+  provider: 'paypal' | 'in_person';
+  status: 'paid' | 'paid_action_required';
+  amountCents: number;
+  currency: 'EUR';
+  paypalOrderId?: string;
+  paypalCaptureId?: string;
+  receiptId?: string;
+  method?: 'contante' | 'carta' | 'bonifico';
+  paypalFeeCents?: number;
+  netCents?: number;
+  paidAt: Timestamp;
+}
+
+export interface BookingDepositWaiver {
+  reason: 'admin_status_confirmation';
+  waivedBy: string;
+  waivedAt: Timestamp;
+  originalRequest?: BookingDepositPaymentRequest;
+}
+
 export interface Booking {
   id: string;
   campaignId: string; // Riferimento a booking_campaigns
@@ -221,6 +270,10 @@ export interface Booking {
   // Pagamento (per prenotazioni manuali con acconto/saldo)
   totale?: number; // Totale ordine in euro
   acconto?: number; // Acconto pagato in euro
+  depositPaymentRequest?: BookingDepositPaymentRequest;
+  depositPayment?: BookingDepositPayment;
+  depositWaiver?: BookingDepositWaiver;
+  paymentReviewRequired?: boolean;
   saldo?: number; // Saldo residuo (totale - acconto)
   metodoPagamento?: 'contante' | 'carta' | 'bonifico' | 'paypal' | 'altro'; // Metodo pagamento acconto
   transactions?: Transaction[]; // Storico transazioni (centralizzato con ordini)
@@ -274,6 +327,8 @@ export interface OrderItem {
   isCustom?: boolean; // true se prodotto personalizzato (non da catalogo)
   isBundle?: boolean; // true se è un bundle (pacchetto di più prodotti)
   bundleItems?: BundleItemSnapshot[]; // Prodotti inclusi nel bundle con snapshot
+  fotoCondivise?: boolean;
+  prodottoSorgenteFotoId?: string;
 }
 
 /**
@@ -286,6 +341,13 @@ export interface Transaction {
   data: Timestamp;
   note?: string; // Note opzionali (es. "Primo acconto", "Bonifico IBAN: IT...")
   emailInviata: boolean; // Flag per tracking notifica email cliente
+  providerTransactionId?: string;
+  paypalOrderId?: string;
+  paypalFeeCents?: number;
+  source?: 'booking_paypal_deposit';
+  bookingId?: string;
+  originalAmountCents?: number;
+  cashMovementId?: string;
 }
 
 /**

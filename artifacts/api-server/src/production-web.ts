@@ -8,6 +8,7 @@ import { stat } from 'node:fs/promises';
 import path from 'node:path';
 import { isKnownClientPath, isPrivateClientPath } from './client-routes';
 import { createSeoMiddleware } from './seo-prerender';
+import { registerLegacyCampaignRoutes } from './legacy-campaign-routes';
 
 const IMMUTABLE_ASSET_CACHE = 'public, max-age=31536000, immutable';
 const REVALIDATE_CACHE = 'no-cache, max-age=0, must-revalidate';
@@ -139,6 +140,9 @@ export function mountProductionClient(
   options: { cwd?: string } = {},
 ): string {
   const buildPath = productionClientBuildPath(options.cwd);
+
+  // Redirects must run before SEO/prerendering and static SPA fallback.
+  registerLegacyCampaignRoutes(app);
 
   // Before static hosting: even an existing HTML file must not bypass the
   // current page metadata. The renderer reads the compiled Vite shell.

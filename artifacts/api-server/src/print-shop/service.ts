@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Readable } from 'node:stream';
 import sharp from 'sharp';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
@@ -30,6 +30,14 @@ import {
   type PrintShopPostalAddress,
   type PrintShopQuote,
   type PrintShopQuoteInput,
+  type PrintShopCouponInput,
+  type PrintShopCouponDiscountType,
+  type PrintShopCouponGraphic,
+  type PrintShopGraphicPlacementId,
+  type PrintShopGraphicTemplateId,
+  type PrintShopPublicPromotion,
+  type PrintShopOrderFinancialRecord,
+  type PrintShopOrderFinancialItem,
   type PrintShopShippingConfig,
 } from '@shared/print-shop-types';
 import {
@@ -38,6 +46,7 @@ import {
 } from '../../shared/print-shop-legal.js';
 import { normalizeEmail } from '../utils/normalize.js';
 import { CommerceHttpError } from '../commerce/errors.js';
+import { handleVerifiedBookingPayPalEvent } from '../booking/deposit-payments.js';
 import {
   assertDocumentId,
   assertIdempotencyMatch,
@@ -76,6 +85,9 @@ export interface PrintShopIdentity {
 }
 
 export interface PrintShopDriveAdapter {
+  findDriveFilesInFolder?(
+    folderId: string, fileName: string,
+  ): Promise<Array<{ fileId: string; webViewLink?: string; size?: number }>>;
   findOrCreateLabParentFolder(): Promise<string>;
   createShipmentFolder(
     parentId: string,
@@ -216,6 +228,24 @@ const ADMIN_TRANSITIONS: Record<string, readonly PrintShopFulfillmentStatus[]> =
   delivered: [],
   cancelled: [],
 };
+
+const PROMOTION_GRAPHIC_SIZES: Record<PrintShopGraphicPlacementId, readonly [number, number]> = {
+  'instagram-organic-34': [1080, 1440],
+  'instagram-organic-square': [1080, 1080],
+  'meta-feed-45': [1080, 1350],
+  'meta-feed-square': [1080, 1080],
+  'stories-reels': [1080, 1920],
+  'whatsapp-status': [1080, 1920],
+  'whatsapp-channel-square': [1080, 1080],
+  'whatsapp-channel-45': [1080, 1350],
+};
+const PROMOTION_GRAPHIC_TEMPLATES = new Set<PrintShopGraphicTemplateId>([
+  'contact-sheet',
+  'darkroom',
+  'gallery-label',
+  'field-notes',
+]);
+const MAX_PROMOTION_GRAPHIC_UPLOAD_BYTES = 4 * 1024 * 1024;
 
 let processFinalizeSlotsInUse = 0;
 
@@ -407,6 +437,519 @@ export class PrintShopService {
       updatedBy: normalizeRequiredEmail(adminEmail),
     }, { merge: true });
     return shipping;
+  }
+
+  async adminPrintShopCoupons(): Promise<Record<string, unknown>[]> {
+    const snapshot = await this.deps.db.collection('printShopCoupons').get();
+    const coupons = await Promise.all(snapshot.docs.map(async (doc: any) => {
+      const data = doc.data();
+      const reservations = await this.deps.db.collection('printShopCouponRedemptions')
+        .where('couponId', '==', doc.id).get();
+      const reservedCount = reservations.docs.filter((entry: any) =>
+        entry.data()?.state === 'reserved' &&
+        timestampMillis(entry.data()?.expiresAt) > this.now().toMillis(),
+      ).length;
+      return couponForAdmin(doc.id, { ...data, reservedCount });
+    }));
+    return coupons.sort((a: any, b: any) => String(a.code).localeCompare(String(b.code)));
+  }
+
+  async publicPrintShopPromotions(): Promise<PrintShopPublicPromotion[]> {
+    const nowMillis = this.now().toMillis();
+    const candidates = (await this.adminPrintShopCoupons()).filter((coupon) => {
+      const startsAt = Date.parse(String(coupon.startsAt || ''));
+      const endsAt = Date.parse(String(coupon.endsAt || ''));
+      return coupon.showOnPromotionsPage === true &&
+        coupon.active === true &&
+        Number.isFinite(startsAt) &&
+        Number.isFinite(endsAt) &&
+        startsAt <= nowMillis &&
+        endsAt >= nowMillis &&
+        coupon.remainingUses !== 0;
+    });
+    if (candidates.length === 0) return [];
+
+    const selectedSkus = new Set(
+      candidates.flatMap((coupon) => couponScope(coupon) === 'selected' ? couponEligibleSkus(coupon) : []),
+    );
+    const catalog = selectedSkus.size > 0 ? await this.loadCatalog() : [];
+
+    return candidates.flatMap((coupon): PrintShopPublicPromotion[] => {
+      const scope = couponScope(coupon);
+      const eligibleFormats = scope === 'selected'
+        ? couponEligibleSkus(coupon).flatMap((sku) => {
+            const product = catalog.find((candidate) => candidate.sku === sku);
+            return product ? [{ sku, name: product.nome }] : [];
+          })
+        : [];
+      if (scope === 'selected' && eligibleFormats.length === 0) return [];
+      if (
+        coupon.discountType !== 'percentage' &&
+        coupon.discountType !== 'fixed' &&
+        coupon.discountType !== 'fixed_total'
+      ) return [];
+
+      return [{
+        code: String(coupon.code || ''),
+        discountType: coupon.discountType,
+        value: Number(coupon.value || 0),
+        startsAt: String(coupon.startsAt || ''),
+        endsAt: String(coupon.endsAt || ''),
+        scope,
+        eligibleFormats,
+        minPrintQuantity: couponMinPrintQuantity(coupon),
+        ...(isPublicPromotionGraphic(coupon.graphic) ? {
+          graphic: {
+            imageUrl: coupon.graphic.imageUrl,
+            width: coupon.graphic.width,
+            height: coupon.graphic.height,
+            contentType: 'image/jpeg' as const,
+          },
+        } : {}),
+      }];
+    });
+  }
+
+  async saveAdminPrintShopCoupon(
+    input: PrintShopCouponInput,
+    adminEmail: string,
+    couponId?: string,
+  ): Promise<Record<string, unknown>> {
+    const coupon = normalizeCouponInput(input);
+    if (coupon.scope === 'selected') {
+      const catalogSkus = new Set((await this.loadCatalog()).map(product => product.sku));
+      if (coupon.eligibleSkus.some(sku => !catalogSkus.has(sku))) {
+        throw new PrintShopHttpError(
+          400,
+          'invalid_coupon_formats',
+          'Uno o più formati selezionati non sono più disponibili nello shop',
+        );
+      }
+    }
+    const collection = this.deps.db.collection('printShopCoupons');
+    const ref = couponId ? collection.doc(couponId) : collection.doc();
+    const now = this.now();
+    const startsAt = Timestamp.fromMillis(Date.parse(coupon.startsAt));
+    const endsAt = Timestamp.fromMillis(Date.parse(coupon.endsAt));
+    const editor = normalizeRequiredEmail(adminEmail);
+    let staleGraphicPath: string | undefined;
+
+    await this.deps.db.runTransaction(async (transaction: any) => {
+      const [existing, duplicates, reservations] = await Promise.all([
+        transaction.get(ref),
+        transaction.get(collection.where('normalizedCode', '==', coupon.code).limit(2)),
+        transaction.get(
+          this.deps.db.collection('printShopCouponRedemptions')
+            .where('couponId', '==', ref.id),
+        ),
+      ]);
+      if (couponId && !existing.exists) {
+        throw new PrintShopHttpError(404, 'coupon_not_found', 'Coupon non trovato');
+      }
+      if (duplicates.docs.some((doc: any) => doc.id !== ref.id)) {
+        throw new PrintShopHttpError(409, 'coupon_code_conflict', 'Questo codice coupon è già in uso');
+      }
+      const previous = existing.data() || {};
+      const hasActiveReservations = reservations.docs.some((entry: any) =>
+        entry.data()?.state === 'reserved' &&
+        timestampMillis(entry.data()?.expiresAt) > now.toMillis(),
+      );
+      const termsChanged = existing.exists && (
+        normalizeCouponCode(previous.normalizedCode || previous.code) !== coupon.code ||
+        previous.discountType !== coupon.discountType ||
+        Number(previous.value) !== coupon.value ||
+        couponScope(previous) !== coupon.scope ||
+        couponEligibleSkus(previous).join('|') !== coupon.eligibleSkus.join('|') ||
+        couponMinPrintQuantity(previous) !== coupon.minPrintQuantity ||
+        timestampMillis(previous.startsAt) !== Date.parse(coupon.startsAt) ||
+        timestampMillis(previous.endsAt) !== Date.parse(coupon.endsAt) ||
+        (previous.maxUses == null ? null : Number(previous.maxUses)) !== coupon.maxUses ||
+        (previous.active === true) !== coupon.active
+      );
+      const artworkTermsChanged = Boolean(previous.graphic) && (
+        normalizeCouponCode(previous.normalizedCode || previous.code) !== coupon.code ||
+        previous.discountType !== coupon.discountType ||
+        Number(previous.value) !== coupon.value ||
+        couponScope(previous) !== coupon.scope ||
+        couponEligibleSkus(previous).join('|') !== coupon.eligibleSkus.join('|') ||
+        couponMinPrintQuantity(previous) !== coupon.minPrintQuantity ||
+        timestampMillis(previous.startsAt) !== Date.parse(coupon.startsAt) ||
+        timestampMillis(previous.endsAt) !== Date.parse(coupon.endsAt)
+      );
+      if (hasActiveReservations && termsChanged) {
+        throw new PrintShopHttpError(
+          409,
+          'coupon_has_active_checkouts',
+          'Questo coupon è in uso in un checkout aperto: attendi che il pagamento termini o scada prima di modificarlo',
+        );
+      }
+      const value = {
+        code: coupon.code,
+        normalizedCode: coupon.code,
+        discountType: coupon.discountType,
+        value: coupon.value,
+        scope: coupon.scope,
+        eligibleSkus: coupon.eligibleSkus,
+        minPrintQuantity: coupon.minPrintQuantity,
+        startsAt,
+        endsAt,
+        maxUses: coupon.maxUses,
+        usedCount: Number.isSafeInteger(previous.usedCount) ? previous.usedCount : 0,
+        reservedCount: Number.isSafeInteger(previous.reservedCount) ? previous.reservedCount : 0,
+        active: coupon.active,
+        showOnPromotionsPage: coupon.showOnPromotionsPage,
+        ...(existing.exists && previous.graphic && !artworkTermsChanged ? { graphic: previous.graphic } : {}),
+        ...(existing.exists
+          ? { createdAt: previous.createdAt || now }
+          : { createdAt: now, createdBy: editor }),
+        updatedAt: now,
+        updatedBy: editor,
+      };
+      if (artworkTermsChanged && typeof previous.graphic?.storagePath === 'string') {
+        staleGraphicPath = previous.graphic.storagePath;
+      }
+      transaction.set(ref, value);
+    });
+
+    const saved = await ref.get();
+    if (staleGraphicPath) {
+      await this.deps.storage.bucket().file(staleGraphicPath).delete({ ignoreNotFound: true }).catch(() => undefined);
+    }
+    return couponForAdmin(ref.id, saved.data());
+  }
+
+  async saveAdminCouponGraphic(
+    couponId: string,
+    input: {
+      image: Buffer;
+      templateId: PrintShopGraphicTemplateId;
+      placementId: PrintShopGraphicPlacementId;
+      width: number;
+      height: number;
+    },
+    adminEmail: string,
+  ): Promise<PrintShopCouponGraphic> {
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(couponId)) {
+      throw new PrintShopHttpError(400, 'invalid_coupon_id', 'Identificativo coupon non valido');
+    }
+    const expectedSize = PROMOTION_GRAPHIC_SIZES[input.placementId];
+    if (
+      !expectedSize ||
+      !PROMOTION_GRAPHIC_TEMPLATES.has(input.templateId) ||
+      input.width !== expectedSize[0] ||
+      input.height !== expectedSize[1]
+    ) {
+      throw new PrintShopHttpError(400, 'invalid_coupon_graphic_dimensions', 'Formato della grafica coupon non valido');
+    }
+    if (!Buffer.isBuffer(input.image) || input.image.length === 0) {
+      throw new PrintShopHttpError(400, 'invalid_coupon_graphic', 'Immagine vuota o non valida');
+    }
+    if (input.image.length > MAX_PROMOTION_GRAPHIC_UPLOAD_BYTES) {
+      throw new PrintShopHttpError(413, 'coupon_graphic_too_large', 'La grafica non può superare 4 MB');
+    }
+
+    let optimized: Buffer;
+    try {
+      const source = sharp(input.image, { limitInputPixels: 3_000_000 });
+      if ((await source.metadata()).format !== 'jpeg') {
+        throw new Error('Expected a JPEG source');
+      }
+      const result = await source
+        .jpeg({ quality: 86, mozjpeg: true })
+        .toBuffer({ resolveWithObject: true });
+      if (
+        result.info.format !== 'jpeg' ||
+        result.info.width !== input.width ||
+        result.info.height !== input.height ||
+        result.data.length === 0 ||
+        result.data.length > MAX_PROMOTION_GRAPHIC_UPLOAD_BYTES
+      ) {
+        throw new Error('Invalid image');
+      }
+      optimized = result.data;
+    } catch {
+      throw new PrintShopHttpError(400, 'invalid_coupon_graphic', 'Immagine non valida o dimensioni diverse dal formato selezionato');
+    }
+
+    const couponRef = this.deps.db.collection('printShopCoupons').doc(couponId);
+    const existing = await couponRef.get();
+    if (!existing.exists) {
+      throw new PrintShopHttpError(404, 'coupon_not_found', 'Coupon non trovato');
+    }
+    const previousPath = existing.data()?.graphic?.storagePath;
+    const storagePath = `print-shop/promotions/${couponId}/${this.now().toMillis()}_${randomUUID()}.jpg`;
+    const token = randomUUID();
+    const bucket = this.deps.storage.bucket();
+    await bucket.file(storagePath).save(optimized, {
+      resumable: false,
+      metadata: {
+        contentType: 'image/jpeg',
+        cacheControl: 'public, max-age=31536000, immutable',
+        metadata: { firebaseStorageDownloadTokens: token },
+      },
+    });
+    const graphic: PrintShopCouponGraphic = {
+      templateId: input.templateId,
+      placementId: input.placementId,
+      width: input.width,
+      height: input.height,
+      contentType: 'image/jpeg',
+      imageUrl: `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(bucket.name)}/o/${encodeURIComponent(storagePath)}?alt=media&token=${encodeURIComponent(token)}`,
+      storagePath,
+      updatedAt: this.now().toDate().toISOString(),
+    };
+    try {
+      await couponRef.update({
+        graphic,
+        updatedAt: this.now(),
+        updatedBy: normalizeRequiredEmail(adminEmail),
+      });
+    } catch (error) {
+      await bucket.file(storagePath).delete({ ignoreNotFound: true }).catch(() => undefined);
+      throw error;
+    }
+    if (typeof previousPath === 'string' && previousPath !== storagePath) {
+      await bucket.file(previousPath).delete({ ignoreNotFound: true }).catch(() => undefined);
+    }
+    return graphic;
+  }
+
+  private async couponForQuote(
+    rawCode: string | undefined,
+    orderId: string,
+    items: readonly PrintOrderItemSnapshot[],
+    now: Timestamp,
+  ): Promise<{ coupon?: PrintShopQuote['coupon']; couponId?: string }> {
+    const code = normalizeCouponCode(rawCode);
+    if (!code) return {};
+    const snapshot = await this.deps.db.collection('printShopCoupons')
+      .where('normalizedCode', '==', code).limit(1).get();
+    const doc = snapshot.docs[0];
+    if (!doc) throw new PrintShopHttpError(400, 'coupon_invalid', 'Il codice coupon non è valido');
+    const value = doc.data();
+    validateCouponUsable(value, now.toMillis());
+    const scope = couponScope(value);
+    const eligibleSkus = couponEligibleSkus(value);
+    const eligibleSubtotalCents = couponEligibleSubtotal(value, items);
+    const minPrintQuantity = couponMinPrintQuantity(value);
+    const eligiblePrintQuantity = couponEligiblePrintQuantity(value, items);
+    if (scope === 'selected' && eligibleSubtotalCents <= 0) {
+      throw new PrintShopHttpError(
+        409,
+        'coupon_not_applicable',
+        'Questo coupon non è applicabile ai formati presenti nel carrello',
+      );
+    }
+    const totalPrintQuantity = couponEligiblePrintQuantity({ scope: 'all' }, items);
+    if (value.discountType === 'fixed_total') {
+      if (eligiblePrintQuantity !== minPrintQuantity || totalPrintQuantity !== minPrintQuantity) {
+        throw new PrintShopHttpError(
+          409,
+          'coupon_exact_quantity_not_met',
+          `Il prezzo pacchetto vale solo per esattamente ${minPrintQuantity} stampe totali, tutte nei formati inclusi. Nel carrello ci sono ${totalPrintQuantity} stampe, di cui ${eligiblePrintQuantity} idonee.`,
+        );
+      }
+      if (eligibleSubtotalCents <= Number(value.value)) {
+        throw new PrintShopHttpError(
+          409,
+          'coupon_no_savings',
+          'Questo prezzo pacchetto non produce un risparmio sui formati presenti nel carrello.',
+        );
+      }
+    } else if (eligiblePrintQuantity < minPrintQuantity) {
+      const quantityScope = scope === 'selected' ? 'nei formati selezionati' : 'in totale';
+      throw new PrintShopHttpError(
+        409,
+        'coupon_min_quantity_not_met',
+        `Per applicare questo coupon servono almeno ${minPrintQuantity} copie ${quantityScope}. Nel carrello ne hai ${eligiblePrintQuantity}.`,
+      );
+    }
+    const redemption = await this.deps.db.collection('printShopCouponRedemptions')
+      .doc(orderId).get();
+    const ownActiveReservation = redemption.exists &&
+      redemption.data()?.couponId === doc.id &&
+      redemption.data()?.state === 'reserved' &&
+      timestampMillis(redemption.data()?.expiresAt) > now.toMillis();
+    const activeReservations = await this.deps.db.collection('printShopCouponRedemptions')
+      .where('couponId', '==', doc.id).get();
+    const activeCount = activeReservations.docs.filter((entry: any) =>
+      entry.data()?.state === 'reserved' &&
+      timestampMillis(entry.data()?.expiresAt) > now.toMillis(),
+    ).length;
+    const maximum = value.maxUses == null ? null : Number(value.maxUses);
+    if (
+      maximum !== null &&
+      Number(value.usedCount || 0) + activeCount >= maximum &&
+      !ownActiveReservation
+    ) {
+      throw new PrintShopHttpError(409, 'coupon_exhausted', 'Il coupon ha raggiunto il limite massimo di utilizzi');
+    }
+    const discountType = value.discountType as PrintShopCouponDiscountType;
+    const discountValue = Number(value.value);
+    const discountCents = couponDiscountCents(
+      { discountType, value: discountValue },
+      eligibleSubtotalCents,
+    );
+    return {
+      couponId: doc.id,
+      coupon: {
+        code: String(value.code),
+        discountType,
+        value: discountValue,
+        discountCents,
+        minPrintQuantity,
+        scope,
+        eligibleSkus,
+      },
+    };
+  }
+
+  private async reserveCouponForPayment(
+    identity: PrintShopIdentity,
+    orderId: string,
+    fingerprint: string,
+    now: Timestamp,
+  ): Promise<void> {
+    const orderRef = this.deps.db.collection('orders').doc(orderId);
+    const redemptionRef = this.deps.db.collection('printShopCouponRedemptions').doc(orderId);
+    await this.deps.db.runTransaction(async (transaction: any) => {
+      const [orderDoc, redemptionDoc] = await Promise.all([
+        transaction.get(orderRef),
+        transaction.get(redemptionRef),
+      ]);
+      if (!orderDoc.exists || orderDoc.data()?.ownerUid !== identity.uid) {
+        throw new PrintShopHttpError(404, 'order_not_found', 'Ordine non trovato');
+      }
+      const order = orderDoc.data();
+      if (order.quoteFingerprint !== fingerprint) {
+        throw new PrintShopHttpError(409, 'order_changed', 'L’ordine è cambiato durante il pagamento');
+      }
+      const applied = order.printShop?.coupon;
+      const previous = redemptionDoc.exists ? redemptionDoc.data() : undefined;
+      const previousCouponRef = previous?.state === 'reserved' && previous.couponId
+        ? this.deps.db.collection('printShopCoupons').doc(previous.couponId)
+        : undefined;
+      const couponRef = applied?.id
+        ? this.deps.db.collection('printShopCoupons').doc(applied.id)
+        : undefined;
+      const refs = [...new Map(
+        [previousCouponRef, couponRef].filter(Boolean).map((ref: any) => [ref.id, ref]),
+      ).values()] as any[];
+      const [couponDocs, reservations] = await Promise.all([
+        Promise.all(refs.map(ref => transaction.get(ref))),
+        couponRef
+          ? transaction.get(this.deps.db.collection('printShopCouponRedemptions')
+              .where('couponId', '==', applied.id))
+          : Promise.resolve({ docs: [] }),
+      ]);
+      const couponById = new Map(refs.map((ref, index) => [ref.id, couponDocs[index]]));
+      const oldCoupon = previousCouponRef ? couponById.get(previousCouponRef.id) : undefined;
+      const couponDoc = couponRef ? couponById.get(couponRef.id) : undefined;
+      const sameActiveReservation = Boolean(
+        previous?.state === 'reserved' &&
+        previous.couponId === applied?.id &&
+        previous.quoteFingerprint === fingerprint &&
+        timestampMillis(previous.expiresAt) > now.toMillis(),
+      );
+      let activeCount = reservations.docs.filter((entry: any) =>
+        entry.data()?.state === 'reserved' &&
+        timestampMillis(entry.data()?.expiresAt) > now.toMillis(),
+      ).length;
+      if (sameActiveReservation) {
+        validateCouponUsable(couponDoc?.data(), now.toMillis());
+        assertCouponMatchesSnapshot(
+          couponDoc.data(),
+          applied,
+          order,
+        );
+        const maximum = couponDoc.data()?.maxUses == null ? null : Number(couponDoc.data().maxUses);
+        if (maximum !== null && Number(couponDoc.data()?.usedCount || 0) + activeCount > maximum) {
+          throw new PrintShopHttpError(409, 'coupon_exhausted', 'Il coupon ha raggiunto il limite massimo di utilizzi');
+        }
+        return;
+      }
+      if (previous?.state === 'reserved' && previousCouponRef && oldCoupon?.exists) {
+        transaction.update(previousCouponRef, {
+          reservedCount: Math.max(0, Number(oldCoupon.data()?.reservedCount || 0) - 1),
+          updatedAt: now,
+        });
+      }
+      if (!applied) {
+        if (redemptionDoc.exists) {
+          transaction.set(redemptionRef, {
+            ...previous,
+            state: 'released',
+            releasedAt: now,
+            updatedAt: now,
+          });
+        }
+        return;
+      }
+      if (!couponDoc?.exists) {
+        throw new PrintShopHttpError(409, 'coupon_invalid', 'Il coupon non è più disponibile');
+      }
+      const coupon = couponDoc.data();
+      validateCouponUsable(coupon, now.toMillis());
+      assertCouponMatchesSnapshot(coupon, applied, order);
+      if (
+        previous?.state === 'reserved' &&
+        previous.couponId === applied.id &&
+        timestampMillis(previous.expiresAt) > now.toMillis()
+      ) {
+        activeCount = Math.max(0, activeCount - 1);
+      }
+      const maximum = coupon.maxUses == null ? null : Number(coupon.maxUses);
+      if (maximum !== null && Number(coupon.usedCount || 0) + activeCount >= maximum) {
+        throw new PrintShopHttpError(409, 'coupon_exhausted', 'Il coupon ha raggiunto il limite massimo di utilizzi');
+      }
+      transaction.update(couponRef, {
+        reservedCount: activeCount + 1,
+        updatedAt: now,
+      });
+      transaction.set(redemptionRef, {
+        orderId,
+        couponId: applied.id,
+        code: applied.code,
+        discountCents: applied.discountCents,
+        quoteFingerprint: fingerprint,
+        state: 'reserved',
+        reservedAt: now,
+        expiresAt: Timestamp.fromMillis(now.toMillis() + this.paypalOrderTtlMinutes * 60_000),
+        updatedAt: now,
+      });
+    });
+  }
+
+  private async releaseCouponReservation(orderId: string, now = this.now()): Promise<void> {
+    const redemptionRef = this.deps.db.collection('printShopCouponRedemptions').doc(orderId);
+    await this.deps.db.runTransaction(async (transaction: any) => {
+      const redemptionDoc = await transaction.get(redemptionRef);
+      if (!redemptionDoc.exists || redemptionDoc.data()?.state !== 'reserved') return;
+      const redemption = redemptionDoc.data();
+      const couponRef = this.deps.db.collection('printShopCoupons').doc(redemption.couponId);
+      const [couponDoc, reservations] = await Promise.all([
+        transaction.get(couponRef),
+        transaction.get(this.deps.db.collection('printShopCouponRedemptions')
+          .where('couponId', '==', redemption.couponId)),
+      ]);
+      if (couponDoc.exists) {
+        const activeCount = (reservations?.docs || []).filter((entry: any) =>
+          entry.data()?.state === 'reserved' &&
+          timestampMillis(entry.data()?.expiresAt) > now.toMillis(),
+        ).length;
+        const ownActive = timestampMillis(redemption.expiresAt) > now.toMillis() ? 1 : 0;
+        transaction.update(couponRef, {
+          reservedCount: Math.max(0, activeCount - ownActive),
+          updatedAt: now,
+        });
+      }
+      transaction.set(redemptionRef, {
+        ...redemption,
+        state: 'released',
+        releasedAt: now,
+        updatedAt: now,
+      });
+    });
   }
 
   async createDraft(
@@ -713,7 +1256,37 @@ export class PrintShopService {
         );
       }
       assertModifiable(order, now.toMillis(), { allowPendingPaypal: true });
+      const redemptionRef = this.deps.db.collection('printShopCouponRedemptions').doc(orderId);
+      const redemptionDoc = await transaction.get(redemptionRef);
+      const redemption = redemptionDoc.exists ? redemptionDoc.data() : undefined;
+      const couponRef = redemption?.state === 'reserved'
+        ? this.deps.db.collection('printShopCoupons').doc(redemption.couponId)
+        : undefined;
+      const couponDoc = couponRef ? await transaction.get(couponRef) : undefined;
+      const activeReservations = couponRef
+        ? await transaction.get(this.deps.db.collection('printShopCouponRedemptions')
+            .where('couponId', '==', redemption.couponId))
+        : undefined;
       notifyCancellation = Boolean(order.legal?.termsAcceptedAt || order.printShop?.adminAcceptance);
+      if (redemption?.state === 'reserved') {
+        if (couponRef && couponDoc?.exists) {
+          const activeCount = (activeReservations?.docs || []).filter((entry: any) =>
+            entry.data()?.state === 'reserved' &&
+            timestampMillis(entry.data()?.expiresAt) > now.toMillis(),
+          ).length;
+          const ownActive = timestampMillis(redemption.expiresAt) > now.toMillis() ? 1 : 0;
+          transaction.update(couponRef, {
+            reservedCount: Math.max(0, activeCount - ownActive),
+            updatedAt: now,
+          });
+        }
+        transaction.set(redemptionRef, {
+          ...redemption,
+          state: 'released',
+          releasedAt: now,
+          updatedAt: now,
+        });
+      }
       transaction.update(orderRef, {
         payment: {
           ...order.payment,
@@ -887,16 +1460,21 @@ export class PrintShopService {
       }
       throw error;
     }
+    const now = this.now();
+    const applied = await this.couponForQuote(input.couponCode, orderId, quote.items, now);
     const assets = await this.requireReadyAssets(orderId, quote.items);
     const qualityWarnings = calculateQualityWarnings(quote.items, assets, catalog);
     const shippingCents = method === 'shipping' ? shipping.priceCents : 0;
+    const discountCents = applied.coupon?.discountCents ?? 0;
     quote = {
       ...quote,
+      ...(applied.coupon ? { coupon: applied.coupon } : {}),
       fulfillment: { method },
       totals: {
         ...quote.totals,
+        discountCents,
         shippingCents,
-        totalCents: quote.totals.totalCents + shippingCents,
+        totalCents: Math.max(0, quote.totals.subtotalCents - discountCents) + shippingCents,
       },
       qualityWarnings,
     };
@@ -911,7 +1489,6 @@ export class PrintShopService {
         });
       }),
     );
-    const now = this.now();
     const fingerprint = quoteFingerprint(quote);
     const preserveLowResolutionAcceptance = Boolean(
       order.printShop?.lowResolutionAccepted === true &&
@@ -947,6 +1524,10 @@ export class PrintShopService {
         freshData.payment?.paypalOrderId &&
         freshData.payment?.quoteFingerprint === fingerprint,
       );
+      // Recalculating an unchanged checkout must preserve its payable state,
+      // including retries of older orders left in draft by this recalculation.
+      // A changed quote still invalidates the provider order and stays a draft.
+      if (preservePendingPaypalOrder) nextFulfillment.status = 'awaiting_payment';
       transaction.update(orderRef, {
         catalogVersion: quote.catalogVersion,
         totals: quote.totals,
@@ -962,6 +1543,10 @@ export class PrintShopService {
         'printShop.assetCount': quote.assetCount,
         'printShop.copyCount': quote.copyCount,
         'printShop.qualityWarnings': qualityWarnings,
+        'printShop.coupon': applied.coupon
+          ? { id: applied.couponId, ...applied.coupon }
+          : FieldValue.delete(),
+        'printShop.requestedCouponCode': applied.coupon?.code || FieldValue.delete(),
         'printShop.lowResolutionAccepted':
           qualityWarnings.length === 0 || preserveLowResolutionAcceptance,
         'printShop.lowResolutionAcceptedFingerprint':
@@ -1575,6 +2160,7 @@ export class PrintShopService {
         fulfillment: {
           method: order.fulfillment?.method === 'shipping' ? 'shipping' : 'studio_pickup',
         },
+        ...(order.printShop?.coupon?.code ? { couponCode: order.printShop.coupon.code } : {}),
       },
       { allowPendingPaypal: true },
     );
@@ -1655,6 +2241,7 @@ export class PrintShopService {
       acceptance?.manifestHash === legalManifestHash &&
       acceptance?.sellerSnapshotHash === sellerSnapshotHash,
     );
+    await this.reserveCouponForPayment(identity, orderId, fingerprint, this.now());
     const pendingCreatedAt = timestampMillis(order.payment?.createdAt);
     const pendingStillReusable =
       pendingCreatedAt > 0 &&
@@ -1702,9 +2289,11 @@ export class PrintShopService {
         ),
       );
     } catch (error) {
+      await this.releaseCouponReservation(orderId).catch(() => undefined);
       throw mapPayPalError(error);
     }
     if (!paypalOrder.id) {
+      await this.releaseCouponReservation(orderId);
       throw new PrintShopHttpError(502, 'paypal_invalid_response', 'PayPal non ha restituito un ordine valido');
     }
     const now = this.now();
@@ -1713,7 +2302,8 @@ export class PrintShopService {
       hashId(`${fingerprint}:${legalManifestHash}:${sellerSnapshotHash}:${paymentAttempt}`),
     );
     let concurrentReplay = false;
-    await this.deps.db.runTransaction(async (transaction: any) => {
+    try {
+      await this.deps.db.runTransaction(async (transaction: any) => {
       const fresh = await transaction.get(orderRef);
       const data = fresh.data();
       if (!fresh.exists || data?.ownerUid !== identity.uid) {
@@ -1796,7 +2386,11 @@ export class PrintShopService {
         sellerSnapshotHash,
         acceptedAt: now,
       });
-    });
+      });
+    } catch (error) {
+      await this.releaseCouponReservation(orderId).catch(() => undefined);
+      throw error;
+    }
     const approveUrl = paypalOrder.links?.find(link => link.rel === 'approve')?.href;
     await this.sendCustomerNotificationBestEffort(orderId, 'order_approved');
     return {
@@ -1807,6 +2401,229 @@ export class PrintShopService {
       currency: PRINT_SHOP_CURRENCY,
       reused: concurrentReplay,
     };
+  }
+
+  async completeZeroTotalOrder(
+    identity: PrintShopIdentity,
+    orderId: string,
+    input: {
+      termsAccepted: boolean;
+      privacyAccepted: boolean;
+      personalizedProductionAccepted: boolean;
+      expectedQuoteFingerprint: string;
+      expectedTotalCents: 0;
+    },
+  ): Promise<{ success: true; orderId: string; status: 'paid' }> {
+    if (
+      input.termsAccepted !== true ||
+      input.privacyAccepted !== true ||
+      input.personalizedProductionAccepted !== true
+    ) {
+      throw new PrintShopHttpError(
+        400,
+        'legal_acceptance_required',
+        'Accetta condizioni di vendita, privacy e produzione personalizzata prima di confermare',
+      );
+    }
+    await this.assertLiveRetentionConfigured();
+    let order = await this.requireOwnerOrder(identity, orderId);
+    assertModifiable(order, this.now().toMillis());
+    const requestedItems = order.printShop?.requestedItems as PrintOrderItemInput[] | undefined;
+    if (!Array.isArray(requestedItems) || requestedItems.length === 0) {
+      throw new PrintShopHttpError(409, 'quote_required', 'Calcola il riepilogo prima di confermare');
+    }
+    const quote = await this.quote(identity, orderId, {
+      items: requestedItems,
+      fulfillment: {
+        method: order.fulfillment?.method === 'shipping' ? 'shipping' : 'studio_pickup',
+      },
+      ...(order.printShop?.coupon?.code ? { couponCode: order.printShop.coupon.code } : {}),
+    });
+    order = await this.requireOwnerOrder(identity, orderId);
+    if (
+      quote.totals.totalCents !== 0 ||
+      input.expectedTotalCents !== 0 ||
+      input.expectedQuoteFingerprint !== quote.quoteFingerprint
+    ) {
+      throw new PrintShopHttpError(
+        409,
+        'quote_changed',
+        'Il riepilogo è cambiato: controlla il nuovo totale prima di confermare',
+      );
+    }
+    if (!quote.coupon || quote.coupon.discountCents < quote.totals.subtotalCents) {
+      throw new PrintShopHttpError(409, 'zero_total_coupon_required', 'Per confermare senza pagamento serve un coupon che copra l’intero importo');
+    }
+    if (
+      Array.isArray(order.printShop?.qualityWarnings) &&
+      order.printShop.qualityWarnings.length > 0 &&
+      (order.printShop?.lowResolutionAccepted !== true ||
+        order.printShop?.lowResolutionAcceptedFingerprint !== order.quoteFingerprint)
+    ) {
+      throw new PrintShopHttpError(
+        409,
+        'low_resolution_confirmation_required',
+        'Conferma di voler stampare le fotografie segnalate a bassa risoluzione',
+        order.printShop.qualityWarnings,
+      );
+    }
+    if (order.fulfillment?.method === 'shipping') {
+      normalizePostalAddress(order.fulfillment?.shippingAddress);
+      normalizeBillingDetails(order.billingDetails);
+    }
+
+    const now = this.now();
+    const fingerprint = quote.quoteFingerprint!;
+    const sellerSnapshot = await this.loadSellerSnapshot();
+    const legalManifest = PRINT_SHOP_LEGAL_MANIFEST;
+    const legalManifestHash = printShopLegalManifestHash(legalManifest);
+    const sellerSnapshotHash = hashId(stableStringify(sellerSnapshot));
+    const orderRef = this.deps.db.collection('orders').doc(orderId);
+    const coupon = order.printShop?.coupon;
+    const couponRef = coupon?.id
+      ? this.deps.db.collection('printShopCoupons').doc(coupon.id)
+      : undefined;
+    const redemptionRef = this.deps.db.collection('printShopCouponRedemptions').doc(orderId);
+    const legalAcceptanceRef = orderRef.collection('legalAcceptances')
+      .doc(hashId(`zero:${fingerprint}:${legalManifestHash}:${sellerSnapshotHash}`));
+
+    await this.deps.db.runTransaction(async (transaction: any) => {
+      const fresh = await transaction.get(orderRef);
+      if (!fresh.exists || fresh.data()?.ownerUid !== identity.uid) {
+        throw new PrintShopHttpError(404, 'order_not_found', 'Ordine non trovato');
+      }
+      const data = fresh.data();
+      assertModifiable(data, now.toMillis());
+      if (
+        data.quoteFingerprint !== fingerprint ||
+        Number(data.totals?.totalCents) !== 0
+      ) {
+        throw new PrintShopHttpError(409, 'order_changed', 'L’ordine è cambiato durante la conferma');
+      }
+      const [redemptionDoc, couponDoc, reservations] = await Promise.all([
+        transaction.get(redemptionRef),
+        couponRef ? transaction.get(couponRef) : Promise.resolve(undefined),
+        couponRef
+          ? transaction.get(this.deps.db.collection('printShopCouponRedemptions')
+              .where('couponId', '==', coupon.id))
+          : Promise.resolve({ docs: [] }),
+      ]);
+      await this.capturePrintUnitCostSnapshot(transaction, orderId, data, now, {
+        method: 'other',
+        status: 'paid',
+        paypalFeeStatus: 'not_applicable',
+        paypalFeeCents: 0,
+      });
+      if (coupon) {
+        if (!couponDoc?.exists) {
+          throw new PrintShopHttpError(409, 'coupon_invalid', 'Il coupon non è più disponibile');
+        }
+        const currentCoupon = couponDoc.data();
+        validateCouponUsable(currentCoupon, now.toMillis());
+        assertCouponMatchesSnapshot(currentCoupon, coupon, data);
+        const activeReservations = (reservations?.docs || []).filter((entry: any) =>
+          entry.data()?.state === 'reserved' &&
+          timestampMillis(entry.data()?.expiresAt) > now.toMillis(),
+        ).length;
+        const maximum = currentCoupon.maxUses == null ? null : Number(currentCoupon.maxUses);
+        if (maximum !== null && Number(currentCoupon.usedCount || 0) + activeReservations >= maximum) {
+          throw new PrintShopHttpError(409, 'coupon_exhausted', 'Il coupon ha raggiunto il limite massimo di utilizzi');
+        }
+        if (redemptionDoc.exists && redemptionDoc.data()?.state === 'reserved') {
+          throw new PrintShopHttpError(409, 'coupon_reservation_conflict', 'Esiste già un pagamento PayPal in corso per questo coupon');
+        }
+        transaction.update(couponRef, {
+          usedCount: Number(currentCoupon.usedCount || 0) + 1,
+          reservedCount: activeReservations,
+          updatedAt: now,
+        });
+        transaction.set(redemptionRef, {
+          orderId,
+          couponId: coupon.id,
+          code: coupon.code,
+          discountCents: coupon.discountCents,
+          quoteFingerprint: fingerprint,
+          state: 'redeemed',
+          reservedAt: now,
+          paidAt: now,
+          zeroTotal: true,
+          updatedAt: now,
+        });
+      }
+      transaction.update(orderRef, {
+        payment: {
+          method: 'other',
+          status: 'paid',
+          amountCents: 0,
+          collectedCents: 0,
+          dueCents: 0,
+          currency: PRINT_SHOP_CURRENCY,
+          zeroTotal: true,
+          paidAt: now,
+        },
+        fulfillment: {
+          ...data.fulfillment,
+          method: data.fulfillment?.method === 'shipping' ? 'shipping' : 'studio_pickup',
+          status: 'submitted',
+        },
+        legal: {
+          ...(data.legal || {}),
+          termsAcceptedAt: now,
+          termsVersion: legalManifest.termsVersion,
+          privacyAcceptedAt: now,
+          privacyVersion: legalManifest.privacyVersion,
+          personalizedProductionAcceptedAt: now,
+          personalizedProductionVersion: legalManifest.personalizedProductionVersion,
+          manifestVersion: legalManifest.schemaVersion,
+          manifestHash: legalManifestHash,
+          sellerSnapshot,
+          sellerSnapshotHash,
+          quoteFingerprint: fingerprint,
+          frozenQuoteHash: frozenPrintQuoteHash(data),
+          totalCents: 0,
+          fulfillmentMethod: data.fulfillment?.method === 'shipping' ? 'shipping' : 'studio_pickup',
+          shippingCents: Number(data.totals?.shippingCents || 0),
+        },
+        legalAcceptanceRef: legalAcceptanceRef.id,
+        'printShop.zeroTotalCouponCompleted': true,
+        printAdminMail: { status: 'pending', attempts: 0, eligibleAt: now },
+        printAdminMailDueAt: now,
+        printRecoveryDueAt: FieldValue.delete(),
+        transactions: Array.isArray(data.transactions) ? data.transactions : [],
+        acconto: 0,
+        saldo: 0,
+        stato: 'in_lavorazione',
+        submittedAt: data.submittedAt || now,
+        retention: { status: 'production', assetRetentionDays: this.retentionDays },
+        updatedAt: now,
+      });
+      transaction.set(legalAcceptanceRef, {
+        orderId,
+        ownerUid: identity.uid,
+        paymentAttempt: 0,
+        quoteFingerprint: fingerprint,
+        frozenQuoteHash: frozenPrintQuoteHash(data),
+        totalCents: 0,
+        currency: PRINT_SHOP_CURRENCY,
+        fulfillmentMethod: data.fulfillment?.method === 'shipping' ? 'shipping' : 'studio_pickup',
+        shippingCents: Number(data.totals?.shippingCents || 0),
+        termsAccepted: true,
+        privacyAccepted: true,
+        personalizedProductionAccepted: true,
+        manifest: legalManifest,
+        manifestHash: legalManifestHash,
+        sellerSnapshot,
+        sellerSnapshotHash,
+        acceptedAt: now,
+      });
+    });
+
+    await Promise.allSettled([
+      this.orderMail.send(orderId, 'admin'),
+      this.recordPrintShopAdminNotification(orderId),
+      this.sendCustomerNotificationBestEffort(orderId, 'payment_confirmed'),
+    ]);
+    return { success: true, orderId, status: 'paid' };
   }
 
   async capturePaypalOrder(
@@ -1873,6 +2690,25 @@ export class PrintShopService {
         throw new PrintShopHttpError(404, 'order_not_found', 'Ordine non trovato');
       }
       const order = fresh.data();
+      const appliedCoupon = order.printShop?.coupon;
+      if (appliedCoupon?.id) {
+        const redemptionRef = this.deps.db.collection('printShopCouponRedemptions').doc(orderId);
+        const couponRef = this.deps.db.collection('printShopCoupons').doc(appliedCoupon.id);
+        const [redemptionDoc, couponDoc, reservations] = await Promise.all([
+          transaction.get(redemptionRef),
+          transaction.get(couponRef),
+          transaction.get(this.deps.db.collection('printShopCouponRedemptions')
+            .where('couponId', '==', appliedCoupon.id)),
+        ]);
+        validateCouponRedemptionForCapture(
+          appliedCoupon,
+          redemptionDoc,
+          couponDoc,
+          reservations,
+          order,
+          claimNow.toMillis(),
+        );
+      }
       if (order.payment?.status === 'paid' && order.payment?.paypalCaptureId) {
         capturedReplay = order.payment;
         return;
@@ -1984,6 +2820,8 @@ export class PrintShopService {
     if (!verified) {
       throw new PrintShopHttpError(401, 'invalid_webhook_signature', 'Firma webhook PayPal non valida');
     }
+    const bookingPayment = await handleVerifiedBookingPayPalEvent(this.deps.db, this.deps.paypal, event);
+    if (bookingPayment) return bookingPayment;
     const eventId = cleanText(event?.id, 160);
     const eventType = cleanText(event?.event_type, 160);
     if (!eventId || !eventType) {
@@ -2081,6 +2919,23 @@ export class PrintShopService {
         return;
       }
       const order = orderDoc.data();
+      const appliedCoupon = order.printShop?.coupon;
+      let couponRedemptionDoc: any;
+      let couponDoc: any;
+      let couponReservations: any;
+      let couponRedemptionRef: any;
+      let couponRef: any;
+      if (appliedCoupon?.id) {
+        couponRedemptionRef = this.deps.db.collection('printShopCouponRedemptions').doc(orderId);
+        couponRef = this.deps.db.collection('printShopCoupons').doc(appliedCoupon.id);
+        [couponRedemptionDoc, couponDoc, couponReservations] = await Promise.all([
+          transaction.get(couponRedemptionRef),
+          transaction.get(couponRef),
+          transaction.get(this.deps.db.collection('printShopCouponRedemptions')
+            .where('couponId', '==', appliedCoupon.id)),
+        ]);
+        validateCouponRedemptionForPayment(appliedCoupon, couponRedemptionDoc, order);
+      }
       validateCaptureAgainstOrder(orderId, order, capture, this.deps.paypal.config.merchantId);
       const filesUnavailable =
         order.retention?.status === 'purging' || order.retention?.status === 'purged';
@@ -2089,21 +2944,54 @@ export class PrintShopService {
         (Boolean(order.payment?.deferredAuthorization) && order.fulfillment?.status === 'cancelled');
       const keepProductionState = Boolean(order.payment?.deferredAuthorization);
       if (needsReconciliation) customerConfirmationAllowed = false;
+      const clienteRef = order.clienteId
+        ? this.deps.db.collection('clienti').doc(order.clienteId)
+        : undefined;
+      const clienteDoc = clienteRef ? await transaction.get(clienteRef) : undefined;
       if (captureDoc.exists) {
         if (eventRef) {
           transaction.set(eventRef, { ...eventRecord, status: 'processed_duplicate', processedAt: now });
         }
         return;
       }
-      const clienteRef = order.clienteId
-        ? this.deps.db.collection('clienti').doc(order.clienteId)
-        : undefined;
-      const clienteDoc = clienteRef ? await transaction.get(clienteRef) : undefined;
+      const paypalFeeKnown = Number.isSafeInteger(capture.paypalFeeCents) &&
+        Number(capture.paypalFeeCents) >= 0;
+      await this.capturePrintUnitCostSnapshot(transaction, orderId, order, now, {
+        method: 'paypal',
+        status: 'paid',
+        paypalFeeStatus: paypalFeeKnown ? 'known' : 'unknown',
+        ...(paypalFeeKnown ? { paypalFeeCents: capture.paypalFeeCents } : {}),
+      });
+      if (appliedCoupon?.id && couponRedemptionDoc?.data()?.state === 'reserved') {
+        if (couponDoc?.exists) {
+          const coupon = couponDoc.data();
+          const activeReservations = (couponReservations?.docs || []).filter((entry: any) =>
+            entry.data()?.state === 'reserved' &&
+            timestampMillis(entry.data()?.expiresAt) > now.toMillis(),
+          ).length;
+          const ownActiveReservation =
+            timestampMillis(couponRedemptionDoc.data()?.expiresAt) > now.toMillis() ? 1 : 0;
+          transaction.update(couponRef, {
+            usedCount: Number(coupon.usedCount || 0) + 1,
+            reservedCount: Math.max(0, activeReservations - ownActiveReservation),
+            updatedAt: now,
+          });
+        }
+        transaction.set(couponRedemptionRef, {
+          ...couponRedemptionDoc.data(),
+          state: 'redeemed',
+          paidAt: now,
+          captureId: capture.captureId,
+          updatedAt: now,
+        });
+      }
       const amountEuros = centsToEuros(capture.amountCents);
       const existingTransactions = Array.isArray(order.transactions) ? order.transactions : [];
       const {
         captureClaimToken: _captureClaimToken,
         captureClaimedAt: _captureClaimedAt,
+        paypalFeeCents: _previousPaypalFeeCents,
+        netAmountCents: _previousNetAmountCents,
         ...paymentBeforeCapture
       } = order.payment || {};
       const newTransaction = {
@@ -2132,8 +3020,13 @@ export class PrintShopService {
           paypalCaptureId: capture.captureId,
           paypalStatus: 'COMPLETED',
           amountCents: capture.amountCents,
-          paypalFeeCents: capture.paypalFeeCents || 0,
-          netAmountCents: capture.amountCents - (capture.paypalFeeCents || 0),
+          paypalFeeStatus: paypalFeeKnown ? 'known' : 'unknown',
+          ...(paypalFeeKnown
+            ? {
+                paypalFeeCents: capture.paypalFeeCents,
+                netAmountCents: capture.amountCents - Number(capture.paypalFeeCents),
+              }
+            : {}),
           currency: capture.currency,
           ...(capture.payerEmail ? { payerEmail: capture.payerEmail } : {}),
           refundedCents: order.payment?.refundedCents || 0,
@@ -2179,11 +3072,6 @@ export class PrintShopService {
               assetRetentionDays: this.retentionDays,
             },
         updatedAt: now,
-        'printShop.paypalFeeCents': capture.paypalFeeCents || 0,
-        'printShop.estimatedMarginCents':
-          capture.amountCents -
-          Number(order.printShop?.totalSupplierCostCents || 0) -
-          Number(capture.paypalFeeCents || 0),
       });
       transaction.set(cashRef, {
         tipo: 'entrata',
@@ -2230,6 +3118,7 @@ export class PrintShopService {
         paypalOrderId: capture.paypalOrderId,
         captureId: capture.captureId,
         amountCents: capture.amountCents,
+        ...(paypalFeeKnown ? { paypalFeeCents: capture.paypalFeeCents } : {}),
         currency: capture.currency,
         recordedAt: now,
       });
@@ -2276,7 +3165,9 @@ export class PrintShopService {
         transaction.set(notificationRef, {
           type: 'print_shop_order',
           title: 'Nuovo ordine e-commerce',
-          description: `Ordine ${orderNumber} ricevuto e pagato online`,
+          description: order.payment?.zeroTotal === true
+            ? `Ordine ${orderNumber} confermato con coupon e importo zero`
+            : `Ordine ${orderNumber} ricevuto e pagato online`,
           orderId,
           relatedDocId: orderId,
           relatedDocType: 'print_shop_order',
@@ -2552,6 +3443,71 @@ export class PrintShopService {
     return product;
   }
 
+  async adminCatalogUnitCost(sku: string): Promise<{
+    sku: string;
+    unitCostCents: number | null;
+    updatedAt?: string;
+  }> {
+    const normalizedSku = normalizeCatalogSku(sku);
+    await this.adminCatalogProduct(normalizedSku);
+    const doc = await this.deps.db.collection('printShopUnitCosts').doc(normalizedSku).get();
+    const value = doc.exists ? doc.data() : undefined;
+    return {
+      sku: normalizedSku,
+      unitCostCents: Number.isSafeInteger(value?.unitCostCents) && value.unitCostCents >= 0
+        ? value.unitCostCents
+        : null,
+      ...(timestampToIso(value?.updatedAt) ? { updatedAt: timestampToIso(value?.updatedAt) } : {}),
+    };
+  }
+
+  async updateAdminCatalogUnitCost(
+    sku: string,
+    unitCostCents: number | null,
+    adminEmail: string,
+  ): Promise<{ sku: string; unitCostCents: number | null; updatedAt: string }> {
+    const normalizedSku = normalizeCatalogSku(sku);
+    if (unitCostCents !== null &&
+      (!Number.isSafeInteger(unitCostCents) || unitCostCents < 0 || unitCostCents > 100_000_000)) {
+      throw new PrintShopHttpError(400, 'invalid_unit_cost', 'Costo unitario non valido');
+    }
+    await this.adminCatalogProduct(normalizedSku);
+    const costRef = this.deps.db.collection('printShopUnitCosts').doc(normalizedSku);
+    const now = this.now();
+    await this.deps.db.runTransaction(async (transaction: any) => {
+      // Rilegge il prodotto nella stessa transazione per non salvare costi di SKU
+      // rimossi o modificati durante la richiesta.
+      const productSnapshot = await transaction.get(this.deps.db.collection('products')
+        .where('sku', '==', normalizedSku).limit(2));
+      if (productSnapshot.size !== 1) {
+        throw new PrintShopHttpError(409, 'catalog_product_changed', 'Il prodotto è cambiato');
+      }
+      const productDoc = await transaction.get(productSnapshot.docs[0].ref);
+      if (!productDoc.exists || normalizeCatalogSku(productDoc.data()?.sku) !== normalizedSku ||
+        !productDoc.data()?.salesChannels?.includes('print_shop')) {
+        throw new PrintShopHttpError(409, 'catalog_product_changed', 'Il prodotto è cambiato');
+      }
+      // Lettura del documento privato prima della scrittura: la transazione
+      // mantiene l'aggiornamento coerente e non tocca il catalogo pubblico.
+      await transaction.get(costRef);
+      if (unitCostCents === null) {
+        transaction.delete(costRef);
+      } else {
+        transaction.set(costRef, {
+          sku: normalizedSku,
+          unitCostCents,
+          updatedAt: now,
+          updatedBy: normalizeRequiredEmail(adminEmail),
+        });
+      }
+    });
+    return {
+      sku: normalizedSku,
+      unitCostCents,
+      updatedAt: now.toDate().toISOString(),
+    };
+  }
+
   async updateAdminCatalogProduct(
     sku: string,
     input: PrintShopCatalogAdminUpdate,
@@ -2668,6 +3624,263 @@ export class PrintShopService {
     return result;
   }
 
+  private async capturePrintUnitCostSnapshot(
+    transaction: any,
+    orderId: string,
+    order: any,
+    at: Timestamp,
+    payment: {
+      method: string;
+      status: string;
+      paypalFeeStatus: 'known' | 'unknown' | 'not_applicable';
+      paypalFeeCents?: number;
+    },
+  ): Promise<void> {
+    const financialRef = this.deps.db.collection('printShopOrderFinancials').doc(orderId);
+    const existingDoc = await transaction.get(financialRef);
+    const existing = existingDoc.exists ? existingDoc.data() : {};
+    let unitCostSnapshot = existing?.unitCostSnapshot;
+
+    // Lo snapshot si crea una sola volta, alla conferma dell'ordine. Un costo
+    // inserito successivamente non può alterare i dati storici.
+    if (!unitCostSnapshot) {
+      const orderItems = Array.isArray(order.printShop?.items) ? order.printShop.items : [];
+      const skus = [...new Set(orderItems.map((item: any) => normalizeCatalogSku(item.sku)).filter(Boolean))];
+      const costDocs = await Promise.all(skus.map((sku: string) =>
+        transaction.get(this.deps.db.collection('printShopUnitCosts').doc(sku))));
+      const costBySku = new Map(skus.map((sku, index) => {
+        const data = costDocs[index]?.exists ? costDocs[index].data() : undefined;
+        return [sku, Number.isSafeInteger(data?.unitCostCents) && data.unitCostCents >= 0
+          ? data.unitCostCents
+          : null] as const;
+      }));
+      const items: PrintShopOrderFinancialItem[] = orderItems.map((item: any) => {
+        const sku = normalizeCatalogSku(item.sku);
+        const packageQuantity = item.pricingModel === 'package'
+          ? Number(item.packageCount || 1) * Number(item.packageSize || 1)
+          : Number(item.copyCount || (item.assignments || [])
+            .reduce((sum: number, assignment: any) => sum + Number(assignment.copies || 0), 0));
+        const copyCount = Number.isSafeInteger(packageQuantity) && packageQuantity > 0
+          ? packageQuantity
+          : 0;
+        const unitCostCents = costBySku.get(sku) ?? null;
+        const calculatedLineCost = unitCostCents === null || !copyCount
+          ? null
+          : unitCostCents * copyCount;
+        return {
+          sku,
+          productName: String(item.productName || item.nome || sku),
+          copyCount,
+          unitCostCents,
+          lineCostCents: calculatedLineCost !== null &&
+            Number.isSafeInteger(calculatedLineCost) && calculatedLineCost >= 0
+            ? calculatedLineCost
+            : null,
+        };
+      });
+      const calculatedTotal = items.reduce((sum, item) => sum + Number(item.lineCostCents || 0), 0);
+      const complete = items.length > 0 && Number.isSafeInteger(calculatedTotal) && items.every(item =>
+        item.unitCostCents !== null && item.lineCostCents !== null);
+      unitCostSnapshot = {
+        version: 1,
+        capturedAt: at,
+        complete,
+        items,
+        totalCostCents: complete ? calculatedTotal : null,
+      };
+    }
+
+    transaction.set(financialRef, {
+      orderId,
+      unitCostSnapshot,
+      paymentMethod: payment.method,
+      paymentStatus: payment.status,
+      paypalFeeStatus: payment.paypalFeeStatus,
+      paypalFeeCents: payment.paypalFeeStatus === 'known'
+        ? payment.paypalFeeCents
+        : null,
+      paidAt: payment.status === 'paid' ? at : existing?.paidAt || null,
+      updatedAt: at,
+    }, { merge: true });
+  }
+
+  private buildPrintOrderFinancialRecord(
+    orderId: string,
+    order: any,
+    financial: any,
+    shipments: readonly any[],
+  ): PrintShopOrderFinancialRecord {
+    const snapshot = financial?.unitCostSnapshot;
+    const snapshotItems: PrintShopOrderFinancialItem[] = Array.isArray(snapshot?.items)
+      ? snapshot.items.map((item: any) => ({
+          sku: String(item.sku || ''),
+          productName: String(item.productName || item.sku || ''),
+          copyCount: Number(item.copyCount || 0),
+          unitCostCents: Number.isSafeInteger(item.unitCostCents) && item.unitCostCents >= 0
+            ? item.unitCostCents
+            : null,
+          lineCostCents: Number.isSafeInteger(item.lineCostCents) && item.lineCostCents >= 0
+            ? item.lineCostCents
+            : null,
+        }))
+      : [];
+    const estimatedPrintCostCents = snapshot?.complete === true &&
+      Number.isSafeInteger(snapshot.totalCostCents) && snapshot.totalCostCents >= 0
+      ? snapshot.totalCostCents
+      : null;
+
+    const shipmentRows = shipments.filter(shipment => shipment?.orderId === orderId);
+    const legacySupplierCosts = Array.isArray(order.printShop?.supplierCosts)
+      ? order.printShop.supplierCosts
+      : [];
+    const legacyCostByShipment = new Map(legacySupplierCosts.map((cost: any) => [
+      String(cost.labShipmentId || ''),
+      Number.isSafeInteger(cost.amountCents) && cost.amountCents >= 0
+        ? cost.amountCents
+        : null,
+    ]));
+    const supplierCostEntries = shipmentRows.map(shipment => {
+      const stored = Number.isSafeInteger(shipment.costoImportoCents) && shipment.costoImportoCents >= 0
+        ? shipment.costoImportoCents
+        : legacyCostByShipment.get(String(shipment.id || '')) ?? null;
+      return { id: String(shipment.id || ''), amountCents: stored };
+    });
+    const supplierCostCents = supplierCostEntries.some(entry => entry.amountCents !== null)
+      ? supplierCostEntries.reduce((sum, entry) => sum + Number(entry.amountCents || 0), 0)
+      : legacySupplierCosts.length
+        ? legacySupplierCosts.reduce((sum: number, cost: any) =>
+            sum + (Number.isSafeInteger(cost.amountCents) && cost.amountCents >= 0
+              ? cost.amountCents
+              : 0), 0)
+        : null;
+    const supplierCostComplete = shipmentRows.length > 0 &&
+      supplierCostEntries.every(entry => entry.amountCents !== null);
+
+    const paymentMethod = String(order.payment?.method || financial?.paymentMethod || 'paypal');
+    const isPaypal = paymentMethod.toLowerCase() === 'paypal' ||
+      Boolean(order.payment?.paypalCaptureId);
+    const storedFeeStatus = financial?.paypalFeeStatus || order.payment?.paypalFeeStatus;
+    const paypalFeeStatus = !isPaypal
+      ? 'not_applicable'
+      : storedFeeStatus === 'known' ||
+          Number(order.payment?.paypalFeeCents ?? order.printShop?.paypalFeeCents) > 0
+        ? 'known'
+        : 'unknown';
+    const paypalFeeCents = paypalFeeStatus === 'not_applicable'
+      ? 0
+      : paypalFeeStatus === 'known'
+        ? Number.isSafeInteger(financial?.paypalFeeCents) && financial.paypalFeeCents >= 0
+          ? financial.paypalFeeCents
+          : Number(order.payment?.paypalFeeCents ?? order.printShop?.paypalFeeCents)
+        : null;
+
+    const fulfillmentMethod: PrintShopOrderFinancialRecord['fulfillmentMethod'] =
+      order.fulfillment?.method === 'shipping' ? 'shipping' : 'studio_pickup';
+    const collectedCents = collectedPrintCents(order);
+    const paid = ['paid', 'paid_action_required', 'partially_refunded', 'refunded']
+      .includes(String(order.payment?.status || ''));
+    const missingReasons: string[] = [];
+    if (!snapshot) {
+      missingReasons.push('Manca lo snapshot dei costi unitari alla data dell’ordine.');
+    } else if (estimatedPrintCostCents === null) {
+      missingReasons.push('Uno o più costi unitari non erano configurati al momento dell’ordine.');
+    }
+    if (!paid) missingReasons.push('L’ordine non risulta interamente incassato.');
+
+    let productionCostCents: number | null = null;
+    let productionCostBasis: 'actual' | 'estimated' | null = null;
+    if (supplierCostComplete && supplierCostCents !== null) {
+      productionCostCents = supplierCostCents;
+      productionCostBasis = 'actual';
+    } else if (shipmentRows.length > 0) {
+      if (supplierCostEntries.some(entry => entry.amountCents !== null)) {
+        missingReasons.push('Il costo consuntivo del laboratorio è incompleto.');
+      } else {
+        missingReasons.push('Manca il costo consuntivo del laboratorio.');
+      }
+    } else if (legacySupplierCosts.length > 0) {
+      missingReasons.push('Il consuntivo storico del laboratorio non è completo o verificabile.');
+    } else if (fulfillmentMethod === 'studio_pickup' && estimatedPrintCostCents !== null) {
+      productionCostCents = estimatedPrintCostCents;
+      productionCostBasis = 'estimated';
+    } else if (fulfillmentMethod === 'shipping') {
+      missingReasons.push('Mancano i costi consuntivi della spedizione/laboratorio.');
+    }
+
+    if (isPaypal && paypalFeeStatus === 'unknown') {
+      missingReasons.push('La commissione PayPal effettiva non è disponibile.');
+    }
+    const marginComplete = paid && Boolean(snapshot) &&
+      estimatedPrintCostCents !== null && productionCostCents !== null &&
+      paypalFeeCents !== null;
+    const marginCents = marginComplete
+      ? collectedCents - productionCostCents! - paypalFeeCents!
+      : null;
+    const dateValue = order.payment?.paidAt ||
+      order.payment?.manualReceipt?.receivedAt ||
+      order.submittedAt || order.createdAt;
+    const dateMillis = timestampMillis(dateValue);
+    const customerName = String(order.nomeCliente || order.customer?.name ||
+      [order.customer?.firstName, order.customer?.lastName].filter(Boolean).join(' ') ||
+      order.emailCliente || '');
+    const orderNumber = String(order.orderNumber || orderId);
+    const copyCount = snapshotItems.reduce((sum, item) => sum + item.copyCount, 0) ||
+      Number(order.printShop?.copyCount || 0);
+
+    return {
+      orderId,
+      orderNumber,
+      customerName,
+      date: dateMillis > 0 ? new Date(dateMillis).toISOString() : null,
+      paymentMethod,
+      paymentStatus: String(order.payment?.status || 'pending'),
+      fulfillmentMethod,
+      revenueCents: collectedCents,
+      copyCount,
+      items: snapshotItems,
+      estimatedPrintCostCents,
+      supplierCostCents,
+      supplierCostComplete,
+      productionCostCents,
+      productionCostBasis,
+      paypalFeeCents,
+      marginCents,
+      marginStatus: marginCents === null
+        ? 'incomplete'
+        : productionCostBasis === 'actual' ? 'actual' : 'estimated',
+      missingReasons: [...new Set(missingReasons)],
+    };
+  }
+
+  async adminPrintShopFinancialReport(): Promise<PrintShopOrderFinancialRecord[]> {
+    const [ordersSnapshot, financialSnapshot, shipmentSnapshot] = await Promise.all([
+      this.deps.db.collection('orders').where('orderType', '==', 'print_shop').get(),
+      this.deps.db.collection('printShopOrderFinancials').get(),
+      this.deps.db.collection('labShipments').where('sourceType', '==', 'print_shop').get(),
+    ]);
+    const financialByOrder = new Map(financialSnapshot.docs.map((doc: any) =>
+      [doc.id, doc.data()]));
+    const shipments = shipmentSnapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+    return ordersSnapshot.docs
+      .filter((doc: any) => {
+        const order = doc.data();
+        if (hasPrintFinancialActivity(order)) return true;
+        const fulfillmentStatus = String(order.fulfillment?.status || '');
+        const legacyStatus = String(order.stato || '');
+        return !['draft', 'awaiting_payment', 'cancelled'].includes(fulfillmentStatus) &&
+          !['bozza', 'annullato'].includes(legacyStatus) &&
+          order.payment?.status !== 'pending';
+      })
+      .map((doc: any) => this.buildPrintOrderFinancialRecord(
+        doc.id,
+        doc.data(),
+        financialByOrder.get(doc.id),
+        shipments,
+      ))
+      .sort((a: PrintShopOrderFinancialRecord, b: PrintShopOrderFinancialRecord) =>
+        (Date.parse(b.date || '') || 0) - (Date.parse(a.date || '') || 0));
+  }
+
   async adminOrders(filters: {
     status?: string;
     paymentStatus?: string;
@@ -2679,7 +3892,7 @@ export class PrintShopService {
       .get();
     return snapshot.docs
       .map((doc: any) => {
-        const order = doc.data();
+        const order = sanitizeAdminPrintOrder(doc.data());
         const collectedCents = collectedPrintCents(order);
         return { id: doc.id, ...order, payment: { ...order.payment, collectedCents,
           dueCents: Math.max(0, Number(order.totals?.totalCents || 0) - collectedCents) } };
@@ -2697,7 +3910,21 @@ export class PrintShopService {
 
   async adminOrder(orderId: string): Promise<any> {
     const order = await this.requirePrintOrder(orderId);
-    const assets = await this.listAssets(orderId);
+    const [assets, financialDoc, shipmentSnapshot] = await Promise.all([
+      this.listAssets(orderId),
+      this.deps.db.collection('printShopOrderFinancials').doc(orderId).get(),
+      this.deps.db.collection('labShipments')
+        .where('sourceType', '==', 'print_shop')
+        .where('orderId', '==', orderId)
+        .get(),
+    ]);
+    const shipments = shipmentSnapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+    const financials = this.buildPrintOrderFinancialRecord(
+      orderId,
+      order,
+      financialDoc.exists ? financialDoc.data() : undefined,
+      shipments,
+    );
     let reason = '';
     try {
       await this.deps.db.runTransaction(async (tx: any) => {
@@ -2723,10 +3950,23 @@ export class PrintShopService {
         acceptanceReason = error.message;
       }
     }
+    // Do not advertise an action that the write endpoint will refuse because
+    // PayPal already has an approval/capture (or cannot be verified).
+    if (!reason || (needsManualAcceptance && !acceptanceReason)) {
+      try {
+        await this.deferredPaypalGuard(order);
+      } catch (error: any) {
+        if (!(error instanceof PrintShopHttpError)) throw error;
+        reason = error.message;
+        acceptanceReason = error.message;
+      }
+    }
+    const safeOrder = sanitizeAdminPrintOrder(order);
     return {
-      ...order,
-      payment: { ...order.payment, collectedCents: collectedPrintCents(order),
+      ...safeOrder,
+      payment: { ...safeOrder.payment, collectedCents: collectedPrintCents(order),
         dueCents: Math.max(0, Number(order.totals?.totalCents || 0) - collectedPrintCents(order)) },
+      printShopFinancials: financials,
       assets: assets.map(publicAsset),
       manualAcceptanceEligibility: {
         canAccept: needsManualAcceptance && !acceptanceReason,
@@ -2928,6 +4168,12 @@ export class PrintShopService {
       if (order.payment?.paypalOrderId !== paypalId) {
         throw new PrintShopHttpError(409, 'order_changed', 'Il pagamento è cambiato: aggiorna il dettaglio.');
       }
+      await this.capturePrintUnitCostSnapshot(tx, orderId, order, now, {
+        method: 'pay_on_delivery',
+        status: 'deferred',
+        paypalFeeStatus: 'not_applicable',
+        paypalFeeCents: 0,
+      });
       const by = normalizeRequiredEmail(adminEmail);
       const authorization = { authorizedAt: now, by, note,
         amountCents: order.totals.totalCents, quoteFingerprint: order.quoteFingerprint };
@@ -3019,6 +4265,8 @@ export class PrintShopService {
       }
       const cashDoc = await tx.get(cashRef);
       const captures = await tx.get(this.deps.db.collection('printShopPaymentCaptures').where('orderId', '==', orderId));
+      const financialRef = this.deps.db.collection('printShopOrderFinancials').doc(orderId);
+      const financialDoc = await tx.get(financialRef);
       const clientRef = order.clienteId ? this.deps.db.collection('clienti').doc(order.clienteId) : undefined;
       const client = clientRef ? await tx.get(clientRef) : undefined;
       if (cashDoc.exists || !captures.empty) {
@@ -3031,18 +4279,27 @@ export class PrintShopService {
       const receipt = { method: input.method, receivedAt, recordedAt: now, by, note, amountCents };
       tx.update(ref, {
         payment: { ...order.payment, method: input.method, status: 'paid', paidAt: receivedAt,
-          amountCents, collectedCents: amountCents, dueCents: 0, manualReceipt: receipt },
+          amountCents, collectedCents: amountCents, dueCents: 0,
+          paypalFeeStatus: 'not_applicable', manualReceipt: receipt },
         transactions: [...(order.transactions || []), {
           tipo: 'saldo', importo: amount, metodo: input.method, data: receivedAt, note,
           cashMovementId: cashRef.id, provider: 'manual', recordedBy: by,
         }],
         acconto: amount, saldo: 0, metodoPagamentoSaldo: input.method, dataSaldo: receivedAt,
-        'printShop.estimatedMarginCents': amountCents - Number(order.printShop?.totalSupplierCostCents || 0),
         'fulfillment.history': [...(order.fulfillment?.history || []), {
           action: 'manual_payment_collected', at: now, by, note, amountCents,
         }],
         updatedAt: now,
       });
+      tx.set(financialRef, {
+        orderId,
+        paymentMethod: input.method,
+        paymentStatus: 'paid',
+        paypalFeeStatus: 'not_applicable',
+        paypalFeeCents: 0,
+        paidAt: receivedAt,
+        updatedAt: now,
+      }, { merge: true });
       tx.set(cashRef, { tipo: 'entrata', categoria: 'Vendita stampe online', importo: amount,
         descrizione: `Shop stampe ${order.orderNumber}`, data: receivedAt,
         metodoPagamento: input.method, note, orderId, clienteId: order.clienteId || null,
@@ -3565,7 +4822,6 @@ export class PrintShopService {
     const { order, rows } = await this.manifest(orderId);
     const details = order as any;
     const customer = details.customer || {};
-    const totalCents = Number(details.totals?.totalCents || 0);
     const bodyRows = rows.map((row, index) => `<tr>
       <td>${index + 1}</td>
        <td><strong>${escapeHtml(row.fileName)}</strong><br><small>${escapeHtml(row.assetId)} · ${row.fileKind === 'composed' ? 'Composito Polaroid' : 'Originale'}</small></td>
@@ -3577,12 +4833,11 @@ export class PrintShopService {
     </tr>`).join('');
     return `<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Distinta ${escapeHtml(details.orderNumber)}</title>
     <style>
-      :root{color-scheme:light}*{box-sizing:border-box}body{margin:0;background:#f4f2ed;color:#425563;font-family:Arial,sans-serif}.page{max-width:1100px;margin:24px auto;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 10px 40px rgba(66,85,99,.12)}header{padding:30px 36px;background:#708594;color:#fff}header p{margin:5px 0 0;color:#edf0ea}.brand{font-family:Georgia,serif;letter-spacing:.18em;font-size:13px}.content{padding:30px 36px}.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}.card{padding:14px;border:1px solid #dce2da;border-radius:12px;background:#f9faf7}.label{display:block;color:#788a94;font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px}.value{font-weight:700}table{width:100%;border-collapse:collapse;font-size:13px}th{padding:12px 10px;background:#e7ece5;text-align:left;color:#425563}td{padding:12px 10px;border-bottom:1px solid #e7ebe5;vertical-align:top}small{color:#788a94}.copies{font-size:18px;font-weight:700;color:#b77f68;text-align:center}footer{padding:20px 36px;background:#f6f3ee;color:#788a94;font-size:12px}@media(max-width:760px){.page{margin:0;border-radius:0}.content,header,footer{padding:22px 16px}.summary{grid-template-columns:1fr 1fr}.table-wrap{overflow:auto}table{min-width:850px}}@media print{body{background:#fff}.page{margin:0;box-shadow:none;max-width:none}}
+      :root{color-scheme:light}*{box-sizing:border-box}body{margin:0;background:#f4f2ed;color:#425563;font-family:Arial,sans-serif}.page{max-width:1100px;margin:24px auto;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 10px 40px rgba(66,85,99,.12)}header{padding:30px 36px;background:#708594;color:#fff}header p{margin:5px 0 0;color:#edf0ea}.brand{font-family:Georgia,serif;letter-spacing:.18em;font-size:13px}.content{padding:30px 36px}.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px}.card{padding:14px;border:1px solid #dce2da;border-radius:12px;background:#f9faf7}.label{display:block;color:#788a94;font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px}.value{font-weight:700}table{width:100%;border-collapse:collapse;font-size:13px}th{padding:12px 10px;background:#e7ece5;text-align:left;color:#425563}td{padding:12px 10px;border-bottom:1px solid #e7ebe5;vertical-align:top}small{color:#788a94}.copies{font-size:18px;font-weight:700;color:#b77f68;text-align:center}footer{padding:20px 36px;background:#f6f3ee;color:#788a94;font-size:12px}@media(max-width:760px){.page{margin:0;border-radius:0}.content,header,footer{padding:22px 16px}.summary{grid-template-columns:1fr 1fr}.table-wrap{overflow:auto}table{min-width:850px}}@media print{body{background:#fff}.page{margin:0;box-shadow:none;max-width:none}}
     </style></head><body><main class="page"><header><div class="brand">IMAGE STUDIO</div><h1>Distinta di stampa</h1><p>Ordine ${escapeHtml(details.orderNumber)}</p></header><div class="content"><section class="summary">
       <div class="card"><span class="label">Cliente</span><span class="value">${escapeHtml(customer.name || customer.displayName || '—')}</span></div>
       <div class="card"><span class="label">Fotografie</span><span class="value">${Number(details.assetCount || 0)}</span></div>
       <div class="card"><span class="label">Stampe totali</span><span class="value">${Number(details.copyCount || 0)}</span></div>
-      <div class="card"><span class="label">Totale ordine</span><span class="value">€ ${centsToEuros(totalCents).toFixed(2).replace('.', ',')}</span></div>
     </section><div class="table-wrap"><table><thead><tr><th>#</th><th>File</th><th>Formato</th><th>Carta</th><th>Adattamento</th><th>Copie</th><th>Risoluzione</th></tr></thead><tbody>${bodyRows}</tbody></table></div></div><footer>Documento generato dal gestionale Image Studio · Puoi aprirlo e stamparlo con qualsiasi browser.</footer></main></body></html>`;
   }
 
@@ -3609,7 +4864,15 @@ export class PrintShopService {
         `Il file ordinato ${unavailableId} non è disponibile per l’archivio`,
       );
     }
-    const manifestJson = await this.manifest(orderId);
+    const productionManifest = await this.manifest(orderId);
+    const manifestJson = {
+      order: {
+        orderNumber: productionManifest.order.orderNumber,
+        assetCount: productionManifest.order.assetCount,
+        copyCount: productionManifest.order.copyCount,
+      },
+      rows: productionManifest.rows,
+    };
     const manifestHtml = await this.manifestHtml(orderId);
     const files: Array<{ asset: any; assignment: any; body?: Buffer; fileName: string; kind: 'original' | 'composed' }> = [];
     for (const item of order.printShop?.items || []) {
@@ -3647,6 +4910,18 @@ export class PrintShopService {
       .get();
     return snapshot.docs
       .map((doc: any) => ({ id: doc.id, ...doc.data() }))
+      .map((shipment: any) => {
+        const heartbeat = timestampMillis(shipment.transfer?.heartbeatAt || shipment.createdAt);
+        const stalled = ['pending', 'running'].includes(shipment.transfer?.status) &&
+          heartbeat > 0 && heartbeat < Date.now() - 15 * 60 * 1000;
+        return stalled ? {
+          ...shipment,
+          transfer: {
+            ...shipment.transfer, status: 'partial',
+            lastError: 'Trasferimento interrotto: puoi riprendere i file mancanti senza creare un nuovo invio.',
+          },
+        } : shipment;
+      })
       .sort((a: any, b: any) => timestampMillis(b.createdAt) - timestampMillis(a.createdAt));
   }
 
@@ -3717,7 +4992,7 @@ export class PrintShopService {
         expiresAt,
         transfer: {
           status: 'pending',
-          total: referencedIds.length,
+          total: printShopTransferEntryKeys(freshOrder.printShop?.items || []).length,
           transferred: 0,
           failed: [],
         },
@@ -3749,6 +5024,7 @@ export class PrintShopService {
       throw new PrintShopHttpError(503, 'drive_unavailable', 'Google Drive non configurato');
     }
     const shipmentRef = this.deps.db.collection('labShipments').doc(shipmentId);
+    const runId = randomUUID();
     const now = this.now();
     let shipment: any;
     let order: any;
@@ -3785,6 +5061,7 @@ export class PrintShopService {
       shipment = { ...shipment, expiresAt: transferExpiresAt };
       transaction.update(shipmentRef, {
         'transfer.status': 'running',
+        'transfer.runId': runId,
         'transfer.startedAt': shipment.transfer?.startedAt || now,
         'transfer.heartbeatAt': now,
         'transfer.lastError': FieldValue.delete(),
@@ -3793,6 +5070,15 @@ export class PrintShopService {
       });
     });
     if (shipment.transfer?.status === 'completed') return;
+    const updateOwned = async (values: Record<string, any>) => {
+      await this.deps.db.runTransaction(async (transaction: any) => {
+        const current = await transaction.get(shipmentRef);
+        if (current.data()?.transfer?.runId !== runId) {
+          throw new PrintShopHttpError(409, 'transfer_superseded', 'Un altro processo ha ripreso il trasferimento.');
+        }
+        transaction.update(shipmentRef, values);
+      });
+    };
     try {
       const assets = await this.listAssets(shipment.orderId);
       const referencedIds = referencedAssetIds(order);
@@ -3831,7 +5117,7 @@ export class PrintShopService {
         folderId = folder.folderId;
         shareableLink = folder.webViewLink;
         try {
-          await shipmentRef.update({
+          await updateOwned({
             driveFolderId: folderId,
             shareableLink: shareableLink || null,
             expiresAt: shipment.expiresAt,
@@ -3855,7 +5141,13 @@ export class PrintShopService {
 
       if (!files.some(file => file.kind === 'manifest')) {
         const html = await this.manifestHtml(shipment.orderId);
-        const uploaded = await this.deps.drive.uploadStreamToDriveFolder(
+        const recovered = await this.deps.drive.findDriveFilesInFolder?.(
+          folderId, `${order.orderNumber}-distinta.html`,
+        );
+        if (recovered && recovered.length > 1) {
+          throw new Error('Più distinte omonime su Drive: verifica la cartella prima di riprendere.');
+        }
+        const uploaded = recovered?.[0] || await this.deps.drive.uploadStreamToDriveFolder(
           folderId,
           `${order.orderNumber}-distinta.html`,
           'text/html',
@@ -3865,7 +5157,7 @@ export class PrintShopService {
           kind: 'manifest',
           driveFileId: uploaded.fileId,
           name: `${order.orderNumber}-distinta.html`,
-          size: uploaded.size,
+          size: uploaded.size || Buffer.byteLength(html, 'utf8'),
           mimeType: 'text/html',
           ...(uploaded.webViewLink ? { webViewLink: uploaded.webViewLink } : {}),
           uploadedAt: this.now(),
@@ -3879,6 +5171,11 @@ export class PrintShopService {
           assignment: { ...assignment, sku: item.sku },
         })),
       );
+      const transferTotal = new Set(transferEntries.map((entry: any) =>
+        `${entry.asset?.id || entry.assignment.assetId}:${isComposedSku(entry.assignment.sku)
+          ? JSON.stringify(entry.assignment.composition || {})
+          : 'original'}`,
+      )).size;
       for (const [index, entry] of transferEntries.entries()) {
         const asset = entry.asset;
         const assignment = entry.assignment;
@@ -3891,17 +5188,20 @@ export class PrintShopService {
           file.transferKey === transferKey ||
           (!file.transferKey && !composed && file.assetId === asset.id),
         )) continue;
-        const source = composed
-          ? Readable.from([composed])
-          : this.deps.storage.bucket().file(asset.storagePath).createReadStream();
         const fileName = `${String(index + 1).padStart(4, '0')}_${sanitizeFileName(
           composed ? `${asset.id}-polaroid.jpg` : `${asset.id}_${asset.originalName || 'foto.jpg'}`,
         )}`;
-        const uploaded = await this.deps.drive.uploadStreamToDriveFolder(
+        const recovered = await this.deps.drive.findDriveFilesInFolder?.(folderId, fileName);
+        if (recovered && recovered.length > 1) {
+          throw new Error('Più file omonimi su Drive: verifica la cartella prima di riprendere.');
+        }
+        await updateOwned({ 'transfer.heartbeatAt': this.now() });
+        const uploaded = recovered?.[0] || await this.deps.drive.uploadStreamToDriveFolder(
           folderId,
           fileName,
           'image/jpeg',
-          source,
+          composed ? Readable.from([composed])
+            : this.deps.storage.bucket().file(asset.storagePath).createReadStream(),
         );
         files.push({
           kind: composed ? 'composed' : 'original',
@@ -3909,13 +5209,13 @@ export class PrintShopService {
           transferKey,
           driveFileId: uploaded.fileId,
           name: fileName,
-          size: uploaded.size,
+          size: uploaded.size || 0,
           mimeType: 'image/jpeg',
           ...(uploaded.webViewLink ? { webViewLink: uploaded.webViewLink } : {}),
           uploadedAt: this.now(),
         });
         transferred++;
-        await shipmentRef.update({
+        await updateOwned({
           files,
           'transfer.transferred': transferred,
           'transfer.heartbeatAt': this.now(),
@@ -3923,6 +5223,10 @@ export class PrintShopService {
         });
       }
       await this.deps.db.runTransaction(async (transaction: any) => {
+        const currentShipmentDoc = await transaction.get(shipmentRef);
+        if (currentShipmentDoc.data()?.transfer?.runId !== runId) {
+          throw new PrintShopHttpError(409, 'transfer_superseded', 'Trasferimento ripreso da un altro processo.');
+        }
         const currentOrderDoc = await transaction.get(
           this.deps.db.collection('orders').doc(shipment.orderId),
         );
@@ -3939,8 +5243,8 @@ export class PrintShopService {
           driveFolderId: folderId,
           shareableLink: shareableLink || null,
           'transfer.status': 'completed',
-          'transfer.total': transferEntries.length,
-          'transfer.transferred': transferEntries.length,
+          'transfer.total': transferTotal,
+          'transfer.transferred': transferTotal,
           'transfer.failed': [],
           'transfer.finishedAt': finishedAt,
           'transfer.heartbeatAt': finishedAt,
@@ -3948,7 +5252,8 @@ export class PrintShopService {
         });
       });
     } catch (error: any) {
-      await shipmentRef.update({
+      if (error?.code === 'transfer_superseded') throw error;
+      await updateOwned({
         'transfer.status': 'failed',
         'transfer.lastError': String(error?.message || error).slice(0, 500),
         'transfer.finishedAt': this.now(),
@@ -4272,25 +5577,6 @@ export class PrintShopService {
       ) {
         throw new PrintShopHttpError(404, 'shipment_not_found', 'Spedizione non trovata');
       }
-      const order = orderDoc.data();
-      const existingCosts = Array.isArray(order.printShop?.supplierCosts)
-        ? order.printShop.supplierCosts
-        : [];
-      const supplierCosts = [
-        ...existingCosts.filter((cost: any) => cost.labShipmentId !== shipmentId),
-        {
-          labShipmentId: shipmentId,
-          labId: shipmentDoc.data()?.labId,
-          labName: shipmentDoc.data()?.labNome,
-          amountCents: cents,
-          updatedAt: now,
-          updatedBy: adminEmail,
-        },
-      ];
-      const totalSupplierCostCents = supplierCosts.reduce(
-        (total: number, cost: any) => total + Number(cost.amountCents || 0),
-        0,
-      );
       transaction.update(shipmentRef, {
         costoImporto: importo,
         costoImportoCents: cents,
@@ -4298,21 +5584,12 @@ export class PrintShopService {
         costoUpdatedBy: adminEmail,
         updatedAt: now,
       });
-      transaction.update(orderRef, {
-        'printShop.supplierCosts': supplierCosts,
-        'printShop.totalSupplierCostCents': totalSupplierCostCents,
-        'printShop.estimatedMarginCents':
-          Number(order.totals?.totalCents || 0) -
-          totalSupplierCostCents -
-          Number(order.payment?.paypalFeeCents || order.printShop?.paypalFeeCents || 0),
-        updatedAt: now,
-      });
       if (cents > 0) {
         transaction.set(cashRef, {
           tipo: 'uscita',
           categoria: 'Produzione stampe',
           importo: importo,
-          descrizione: `Costo laboratorio shop stampe ${order.orderNumber} - ${shipmentDoc.data()?.labNome || 'Laboratorio'}`,
+          descrizione: `Costo laboratorio shop stampe ${orderDoc.data()?.orderNumber || orderId} - ${shipmentDoc.data()?.labNome || 'Laboratorio'}`,
           data: now,
           metodoPagamento: 'altro',
           note: `Costo di produzione collegato alla spedizione ${shipmentId}`,
@@ -4330,10 +5607,10 @@ export class PrintShopService {
         transaction.delete(cashRef);
       }
     });
-    const [shipment, order] = await Promise.all([shipmentRef.get(), orderRef.get()]);
+    const shipment = await shipmentRef.get();
     return {
       shipment: { id: shipment.id, ...shipment.data() },
-      order: { id: order.id, ...order.data() },
+      order: await this.adminOrder(orderId),
     };
   }
 
@@ -5203,7 +6480,6 @@ function paypalFeeFields(
   const fee = paypalValueToCents(breakdown?.paypal_fee?.value);
   if (
     fee === null ||
-    fee <= 0 ||
     String(breakdown?.paypal_fee?.currency_code || captureCurrency || '') !== PRINT_SHOP_CURRENCY
   ) {
     return {};
@@ -5258,11 +6534,281 @@ function quoteFingerprint(quote: PrintShopQuote): string {
         currency: quote.currency,
         catalogVersion: quote.catalogVersion,
         totals: quote.totals,
+        coupon: quote.coupon,
         fulfillment: quote.fulfillment,
         items: quote.items,
       }),
     )
     .digest('hex');
+}
+
+function normalizeCouponCode(raw: unknown): string {
+  if (raw == null || String(raw).trim() === '') return '';
+  const code = String(raw).trim().toUpperCase();
+  if (!/^[A-Z0-9_-]{3,32}$/.test(code)) {
+    throw new PrintShopHttpError(400, 'coupon_invalid', 'Il codice coupon non è valido');
+  }
+  return code;
+}
+
+function normalizeCouponInput(input: PrintShopCouponInput): PrintShopCouponInput {
+  const code = normalizeCouponCode(input.code);
+  const startsAt = Date.parse(input.startsAt);
+  const endsAt = Date.parse(input.endsAt);
+  const scope = input.scope === 'selected' ? 'selected' : 'all';
+  const minPrintQuantity = input.minPrintQuantity ?? 0;
+  const eligibleSkus = [...new Set(
+    (Array.isArray(input.eligibleSkus) ? input.eligibleSkus : [])
+      .map(value => normalizeCatalogSku(value))
+      .filter(Boolean),
+  )].sort();
+  if (!code || !Number.isFinite(startsAt) || !Number.isFinite(endsAt) || endsAt <= startsAt) {
+    throw new PrintShopHttpError(400, 'invalid_coupon', 'I dati del coupon non sono validi');
+  }
+  if (
+    !Number.isSafeInteger(input.value) || input.value <= 0 ||
+    (input.discountType === 'percentage' && input.value > 100) ||
+    ((input.discountType === 'fixed' || input.discountType === 'fixed_total') && input.value > 100_000_000) ||
+    !Number.isSafeInteger(minPrintQuantity) || minPrintQuantity < 0 || minPrintQuantity > 100_000 ||
+    (input.discountType === 'fixed_total' && minPrintQuantity < 1) ||
+    (input.maxUses !== null && (!Number.isSafeInteger(input.maxUses) || input.maxUses < 1))
+  ) {
+    throw new PrintShopHttpError(400, 'invalid_coupon', 'Valore o limite utilizzi del coupon non valido');
+  }
+  if (
+    eligibleSkus.length > 100 ||
+    (scope === 'selected' && eligibleSkus.length === 0)
+  ) {
+    throw new PrintShopHttpError(
+      400,
+      'invalid_coupon_formats',
+      'Seleziona almeno un formato, oppure scegli tutto lo shop',
+    );
+  }
+  return {
+    ...input,
+    code,
+    scope,
+    eligibleSkus: scope === 'selected' ? eligibleSkus : [],
+    minPrintQuantity,
+    showOnPromotionsPage: input.showOnPromotionsPage === true,
+    startsAt: new Date(startsAt).toISOString(),
+    endsAt: new Date(endsAt).toISOString(),
+  };
+}
+
+function timestampToIso(value: any): string | undefined {
+  const millis = timestampMillis(value);
+  return millis > 0 ? new Date(millis).toISOString() : undefined;
+}
+
+function couponForAdmin(id: string, value: any): Record<string, unknown> {
+  const usedCount = Math.max(0, Number(value?.usedCount || 0));
+  const reservedCount = Math.max(0, Number(value?.reservedCount || 0));
+  const maxUses = value?.maxUses == null ? null : Number(value.maxUses);
+  return {
+    id,
+    code: String(value?.code || ''),
+    discountType: value?.discountType,
+    value: Number(value?.value || 0),
+    scope: couponScope(value),
+    eligibleSkus: couponEligibleSkus(value),
+    minPrintQuantity: couponMinPrintQuantity(value),
+    startsAt: timestampToIso(value?.startsAt) || '',
+    endsAt: timestampToIso(value?.endsAt) || '',
+    maxUses,
+    usedCount,
+    reservedCount,
+    remainingUses: maxUses === null ? null : Math.max(0, maxUses - usedCount - reservedCount),
+    active: value?.active === true,
+    showOnPromotionsPage: value?.showOnPromotionsPage === true,
+    ...(isAdminCouponGraphic(value?.graphic) ? { graphic: value.graphic } : {}),
+    ...(timestampToIso(value?.createdAt) ? { createdAt: timestampToIso(value.createdAt) } : {}),
+    ...(timestampToIso(value?.updatedAt) ? { updatedAt: timestampToIso(value.updatedAt) } : {}),
+  };
+}
+
+function isAdminCouponGraphic(value: any): value is PrintShopCouponGraphic {
+  return Boolean(
+    value &&
+    PROMOTION_GRAPHIC_TEMPLATES.has(value.templateId) &&
+    Object.prototype.hasOwnProperty.call(PROMOTION_GRAPHIC_SIZES, value.placementId) &&
+    Number.isSafeInteger(value.width) &&
+    Number.isSafeInteger(value.height) &&
+    value.contentType === 'image/jpeg' &&
+    typeof value.imageUrl === 'string' &&
+    value.imageUrl.startsWith('https://firebasestorage.googleapis.com/') &&
+    typeof value.storagePath === 'string' &&
+    value.storagePath.startsWith('print-shop/promotions/'),
+  );
+}
+
+function isPublicPromotionGraphic(value: any): value is PrintShopCouponGraphic {
+  return Boolean(
+    isAdminCouponGraphic(value) &&
+    PROMOTION_GRAPHIC_SIZES[value.placementId as PrintShopGraphicPlacementId]?.[0] === value.width &&
+    PROMOTION_GRAPHIC_SIZES[value.placementId as PrintShopGraphicPlacementId]?.[1] === value.height,
+  );
+}
+
+function validateCouponUsable(coupon: any, nowMillis: number): void {
+  if (!coupon || typeof coupon !== 'object') {
+    throw new PrintShopHttpError(400, 'coupon_invalid', 'Il codice coupon non è valido');
+  }
+  if (coupon.active !== true) {
+    throw new PrintShopHttpError(409, 'coupon_inactive', 'Questo coupon è disattivato');
+  }
+  const startsAt = timestampMillis(coupon.startsAt);
+  const endsAt = timestampMillis(coupon.endsAt);
+  if (startsAt > nowMillis) {
+    throw new PrintShopHttpError(409, 'coupon_not_started', 'Questo coupon non è ancora valido');
+  }
+  if (!endsAt || endsAt < nowMillis) {
+    throw new PrintShopHttpError(409, 'coupon_expired', 'Questo coupon è scaduto');
+  }
+}
+
+function couponDiscountCents(coupon: any, subtotalCents: number): number {
+  const value = Number(coupon.value);
+  return Math.min(
+    Math.max(0, subtotalCents),
+    coupon.discountType === 'percentage'
+      ? Math.round(subtotalCents * value / 100)
+      : coupon.discountType === 'fixed_total'
+        ? Math.max(0, subtotalCents - value)
+      : value,
+  );
+}
+
+function couponScope(coupon: any): 'all' | 'selected' {
+  return coupon?.scope === 'selected' ? 'selected' : 'all';
+}
+
+function couponEligibleSkus(coupon: any): string[] {
+  if (couponScope(coupon) !== 'selected' || !Array.isArray(coupon?.eligibleSkus)) return [];
+  const normalized = coupon.eligibleSkus
+    .map((sku: unknown) => String(sku).trim())
+    .filter((sku: string) => sku.length > 0);
+  return [...new Set<string>(normalized)].sort();
+}
+
+function couponEligibleSubtotal(coupon: any, items: readonly any[]): number {
+  if (couponScope(coupon) !== 'selected') {
+    return items.reduce((sum, item) => sum + Math.max(0, Number(item.lineTotalCents) || 0), 0);
+  }
+  const eligible = new Set(couponEligibleSkus(coupon));
+  return items.reduce(
+    (sum, item) => eligible.has(String(item.sku || '').trim())
+      ? sum + Math.max(0, Number(item.lineTotalCents) || 0)
+      : sum,
+    0,
+  );
+}
+
+function couponMinPrintQuantity(coupon: any): number {
+  if (coupon?.minPrintQuantity == null) return 0;
+  const value = Number(coupon?.minPrintQuantity ?? 0);
+  if (!Number.isSafeInteger(value) || value < 0 || value > 100_000) {
+    throw new PrintShopHttpError(409, 'coupon_invalid', 'La soglia minima del coupon non è valida');
+  }
+  return value;
+}
+
+function couponEligiblePrintQuantity(coupon: any, items: readonly any[]): number {
+  const eligibleSkus = new Set(couponEligibleSkus(coupon));
+  return items.reduce((total, item) => {
+    if (couponScope(coupon) === 'selected' && !eligibleSkus.has(String(item.sku || '').trim())) {
+      return total;
+    }
+    const copies = Array.isArray(item.assignments)
+      ? item.assignments.reduce(
+        (sum: number, assignment: any) => sum + Math.max(0, Number(assignment.copies) || 0),
+        0,
+      )
+      : 0;
+    return total + copies;
+  }, 0);
+}
+
+function assertCouponMatchesSnapshot(coupon: any, applied: any, order: any): void {
+  const scope = couponScope(coupon);
+  const appliedScope = couponScope(applied);
+  const eligibleSkus = couponEligibleSkus(coupon);
+  const appliedEligibleSkus = couponEligibleSkus(applied);
+  const items = order?.printShop?.items || [];
+  const eligibleSubtotalCents = couponEligibleSubtotal(coupon, items);
+  const minPrintQuantity = couponMinPrintQuantity(coupon);
+  const eligiblePrintQuantity = couponEligiblePrintQuantity(coupon, items);
+  const totalPrintQuantity = couponEligiblePrintQuantity({ scope: 'all' }, items);
+  const quantityInvalid = coupon?.discountType === 'fixed_total'
+    ? eligiblePrintQuantity !== minPrintQuantity || totalPrintQuantity !== minPrintQuantity
+    : eligiblePrintQuantity < minPrintQuantity;
+  if (
+    normalizeCouponCode(coupon?.normalizedCode || coupon?.code) !== normalizeCouponCode(applied?.code) ||
+    coupon?.discountType !== applied?.discountType ||
+    Number(coupon?.value) !== Number(applied?.value) ||
+    scope !== appliedScope ||
+    eligibleSkus.join('|') !== appliedEligibleSkus.join('|') ||
+    minPrintQuantity !== couponMinPrintQuantity(applied) ||
+    quantityInvalid ||
+    (scope === 'selected' && eligibleSubtotalCents <= 0) ||
+    couponDiscountCents(coupon, eligibleSubtotalCents) !== Number(applied?.discountCents)
+  ) {
+    throw new PrintShopHttpError(409, 'coupon_changed', 'Le condizioni del coupon sono cambiate: aggiorna il riepilogo');
+  }
+}
+
+function validateCouponRedemptionForCapture(
+  applied: any,
+  redemptionDoc: any,
+  couponDoc: any,
+  reservations: any,
+  order: any,
+  nowMillis: number,
+): void {
+  if (!couponDoc?.exists) {
+    throw new PrintShopHttpError(409, 'coupon_invalid', 'Il coupon non è più disponibile');
+  }
+  validateCouponUsable(couponDoc.data(), nowMillis);
+  assertCouponMatchesSnapshot(couponDoc.data(), applied, order);
+  const redemption = redemptionDoc?.data();
+  if (
+    !redemptionDoc?.exists ||
+    redemption?.state !== 'reserved' ||
+    redemption?.couponId !== applied.id ||
+    redemption?.quoteFingerprint !== order.quoteFingerprint ||
+    timestampMillis(redemption?.expiresAt) <= nowMillis
+  ) {
+    throw new PrintShopHttpError(409, 'coupon_reservation_expired', 'La prenotazione del coupon è scaduta: aggiorna il riepilogo');
+  }
+  const activeCount = (reservations?.docs || []).filter((entry: any) =>
+    entry.data()?.state === 'reserved' &&
+    timestampMillis(entry.data()?.expiresAt) > nowMillis,
+  ).length;
+  const maximum = couponDoc.data()?.maxUses == null ? null : Number(couponDoc.data().maxUses);
+  if (maximum !== null && Number(couponDoc.data()?.usedCount || 0) + activeCount > maximum) {
+    throw new PrintShopHttpError(409, 'coupon_exhausted', 'Il coupon ha raggiunto il limite massimo di utilizzi');
+  }
+}
+
+function validateCouponRedemptionForPayment(
+  applied: any,
+  redemptionDoc: any,
+  order: any,
+): void {
+  // PayPal has already captured the money. Validate the frozen reservation,
+  // not today's editable coupon terms; pre-capture validation happens earlier.
+  const redemption = redemptionDoc?.data();
+  if (
+    !redemptionDoc?.exists ||
+    !['reserved', 'redeemed'].includes(redemption?.state) ||
+    redemption?.couponId !== applied.id ||
+    redemption?.quoteFingerprint !== order.quoteFingerprint ||
+    normalizeCouponCode(redemption?.code) !== normalizeCouponCode(applied?.code) ||
+    Number(redemption?.discountCents) !== Number(applied?.discountCents)
+  ) {
+    throw new PrintShopHttpError(409, 'coupon_reservation_missing', 'Prenotazione coupon dell’ordine non trovata');
+  }
 }
 
 function frozenPrintQuoteHash(order: any): string {
@@ -5366,7 +6912,9 @@ function assertDeferredCandidateData(order: any, nowMillis: number,
         order.printShop.lowResolutionAcceptedFingerprint === order.quoteFingerprint));
   if (!complete || order.currency !== PRINT_SHOP_CURRENCY) {
     throw new PrintShopHttpError(409, 'order_incomplete',
-      options.acceptingDraft
+      order.fulfillment?.status === 'cancelled'
+        ? 'Ordine annullato senza configurazione e conferma valide: crea un nuovo ordine.'
+        : options.acceptingDraft
         ? 'Bozza incompleta: servono formati, quantità, riepilogo con prezzo valido e conferma delle eventuali foto a bassa risoluzione.'
         : 'Ordine non confermato: completa il checkout oppure accetta manualmente la bozza su richiesta del cliente prima di autorizzare il pagamento alla consegna.');
   }
@@ -5403,6 +6951,16 @@ function compatibilityProducts(items: readonly PrintOrderItemSnapshot[]): any[] 
 
 function isComposedSku(sku: unknown): boolean {
   return String(sku || '').trim().toUpperCase() === POLAROID_SKU;
+}
+
+function printShopTransferEntryKeys(items: any[]): string[] {
+  return [...new Set(items.flatMap((item: any) =>
+    (item.assignments || []).map((assignment: any) =>
+      `${assignment.assetId}:${isComposedSku(item.sku)
+        ? JSON.stringify(assignment.composition || {})
+        : 'original'}`,
+    ),
+  ))];
 }
 
 function findOrderAssignment(order: any, assetId: string): any | undefined {
@@ -5628,6 +7186,27 @@ function isCatalogProduct(value: any): value is PrintShopCatalogProduct {
   );
 }
 
+function sanitizeAdminPrintOrder(order: any): any {
+  const {
+    paypalFeeCents: _paypalFeeCents,
+    paypalFeeStatus: _paypalFeeStatus,
+    netAmountCents: _netAmountCents,
+    ...payment
+  } = order.payment || {};
+  const {
+    supplierCosts: _supplierCosts,
+    totalSupplierCostCents: _totalSupplierCostCents,
+    estimatedMarginCents: _estimatedMarginCents,
+    paypalFeeCents: _printShopPaypalFeeCents,
+    ...printShop
+  } = order.printShop || {};
+  return {
+    ...order,
+    payment,
+    printShop,
+  };
+}
+
 function publicOwnerOrder(order: any, assets?: any[]): any {
   return {
     ...(order.printRecovery ? {
@@ -5695,6 +7274,17 @@ function publicOwnerOrder(order: any, assets?: any[]): any {
       qualityWarnings: Array.isArray(order.printShop?.qualityWarnings)
         ? order.printShop.qualityWarnings
         : [],
+      ...(order.printShop?.coupon ? {
+        coupon: {
+          code: order.printShop.coupon.code,
+          discountType: order.printShop.coupon.discountType,
+          value: order.printShop.coupon.value,
+          discountCents: order.printShop.coupon.discountCents,
+          minPrintQuantity: couponMinPrintQuantity(order.printShop.coupon),
+          scope: couponScope(order.printShop.coupon),
+          eligibleSkus: couponEligibleSkus(order.printShop.coupon),
+        },
+      } : {}),
       ...(order.printShop?.customerNotes
         ? { customerNotes: order.printShop.customerNotes }
         : {}),

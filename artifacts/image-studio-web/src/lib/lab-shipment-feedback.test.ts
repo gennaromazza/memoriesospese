@@ -6,6 +6,7 @@ vi.mock("./labShipments", () => ({
   tsToDate: (value: unknown) => value ? new Date(value as string) : null,
 }));
 import {
+  defaultExpandedShipmentId,
   shipmentAccentHue,
   shipmentHasNewFiles,
   shipmentPresentation,
@@ -19,6 +20,14 @@ function shipment(id: string, createdAt: string, sentAt?: string, uploadedAt?: s
 }
 
 describe("laboratory shipment visual feedback", () => {
+  it("opens a single shipment by default and keeps multiple shipments compact", () => {
+    const first = shipment("a", "2026-10-01");
+    const second = shipment("b", "2026-10-02");
+    expect(defaultExpandedShipmentId([])).toBeNull();
+    expect(defaultExpandedShipmentId([first])).toBe("a");
+    expect(defaultExpandedShipmentId([first, second])).toBeNull();
+  });
+
   it("distinguishes genuinely new files from attachments already sent", () => {
     const original = shipment("a", "2026-10-01", "2026-10-03T10:00:00Z", "2026-10-03T09:00:00Z");
     expect(shipmentHasNewFiles(original)).toBe(false);

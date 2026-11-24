@@ -31,8 +31,12 @@ import { authenticateFirebase, sendGmailEmail, getSiteBaseUrl } from './email-ro
 import { loadGalleryPhotoDocs, listGalleryPhotosPublic, loadGalleryChapters } from './photobook-gallery.js';
 import { PHOTOBOOK_MARK_PALETTE, type PhotobookMarkPoint } from '../shared/photobook-types.js';
 import { refreshLabShipmentInstructions } from './lab-shipment-instructions.js';
+import { comparePhotobookShipmentPages } from './photobook-shipment-readiness.js';
+import { orderPhotobookPages, photobookPageFileName } from './photobook-page-order.js';
+import { copyPhotobookPage, verifyPhotobookDrivePages } from './photobook-drive-copy.js';
 import { createPhotobookMockupRouter } from './photobook-mockup-routes.js';
 import { createVersionDraft, publishVersion, PhotobookVersionError } from './photobook-version-workflow.js';
+import { newPhotobookOperation, operationAbandoned, watchPhotobookOperation } from './photobook-operation.js';
 
 const router: Router = express.Router();
 
@@ -274,6 +278,8 @@ const LOCKED_MESSAGE =
 const APPROVED_MESSAGE =
   "Hai approvato l'impaginato: non è più possibile inviare o cancellare richieste. " +
   'Se serve una modifica, contatta il tuo fotografo.';
+const NO_PAGES_TO_APPROVE_MESSAGE =
+  'Non ci sono pagine da approvare. Potrai approvare l’impaginato dopo aver ricevuto le pagine.';
 
 /** true se il cliente ha approvato la versione attualmente attiva. */
 function isApprovedForCurrent(book: any): boolean {
@@ -355,6 +361,9 @@ router.get('/by-token/:token/gallery-photos', async (req: Request, res: Response
     const bookDoc = await getBookByToken(req.params.token);
     if (!bookDoc) return res.status(404).json({ error: 'Fotolibro non trovato' });
     const galleryId = bookDoc.data().galleryId;
+    if (typeof galleryId !== 'string' || !galleryId.trim()) {
+      return res.json({ photos: [], chapters: [] });
+    }
     const [photos, chapters] = await Promise.all([
       listGalleryPhotosPublic(galleryId),
       loadGalleryChapters(galleryId),
@@ -699,6 +708,15 @@ router.post('/by-token/:token/approve', async (req: Request, res: Response) => {
     if (book.locked) {
       return res.status(403).json({ error: LOCKED_MESSAGE });
     }
+    const currentPages = await db
+      .collection(PAGES_COL)
+      .where('photobookId', '==', bookDoc.id)
+      .where('version', '==', book.currentVersion)
+      .limit(1)
+      .get();
+    if (currentPages.empty) {
+      return res.status(409).json({ error: NO_PAGES_TO_APPROVE_MESSAGE });
+    }
     if (isApprovedForCurrent(book)) {
       return res.json({ ok: true, alreadyApproved: true });
     }
@@ -731,6 +749,13 @@ router.post('/by-token/:token/approve', async (req: Request, res: Response) => {
       const fresh = (await tx.get(ref)).data()!;
       if (fresh.locked) return 'locked';
       if (fresh.currentVersion !== book.currentVersion) return 'version-changed';
+      const pages = await tx.get(
+        db.collection(PAGES_COL)
+          .where('photobookId', '==', bookDoc.id)
+          .where('version', '==', fresh.currentVersion)
+          .limit(1),
+      );
+      if (pages.empty) return 'no-pages';
       if (isApprovedForCurrent(fresh)) return 'already';
       tx.update(ref, {
         approval: {
@@ -743,6 +768,9 @@ router.post('/by-token/:token/approve', async (req: Request, res: Response) => {
       return 'ok';
     });
     if (result === 'locked') return res.status(403).json({ error: LOCKED_MESSAGE });
+    if (result === 'no-pages') {
+      return res.status(409).json({ error: NO_PAGES_TO_APPROVE_MESSAGE });
+    }
     if (result === 'version-changed') {
       return res.status(409).json({
         error: 'Il fotolibro è stato aggiornato nel frattempo: ricarica la pagina.',
@@ -811,17 +839,6 @@ router.post('/by-token/:token/approve', async (req: Request, res: Response) => {
     if (book.mockupPath === 'client') {
       try { mockupNotification = await notifyApprovedMockup(bookDoc, book.currentVersion); }
       catch { mockupNotification = 'uncertain'; }
-    } else {
-      try {
-        const freshBook = await ref.get();
-        const currentMockup = await ref.collection('mockups').doc(`v${book.currentVersion}`).get();
-        if (freshBook.data()?.approval?.version === book.currentVersion && currentMockup.data()?.status === 'confirmed') {
-          const confirmed = currentMockup.data() as { version: number; revision: number; status: string };
-          await notifyMockupClientStatus(freshBook, confirmed, 'confirmed');
-          const latest = await ref.get();
-          mockupNotification = latest.data()?.mockupNotifications?.[`confirmed_v${confirmed.version}_r${confirmed.revision}`]?.state || 'sent';
-        }
-      } catch { mockupNotification = 'uncertain'; }
     }
     return res.json({ ok: true, approved: true, mockupNotification });
   } catch (error) {
@@ -904,7 +921,7 @@ router.get('/', async (_req: Request, res: Response) => {
     // gallery.jobId e persisti. jobId === null (galleria orfana) viene
     // ritentato ad ogni lista finché non risolto (o impostato a mano).
     for (const e of entries) {
-      if (e.data.jobId) continue;
+      if (e.data.jobId || !e.data.galleryId) continue;
       try {
         const gDoc = await db.collection('galleries').doc(e.data.galleryId).get();
         const gJobId = (gDoc.exists ? gDoc.data()?.jobId : null) || null;
@@ -927,35 +944,39 @@ router.get('/', async (_req: Request, res: Response) => {
   }
 });
 
-/** POST / — crea fotolibro { name, galleryId, jobId, allowAssociationMismatch? } */
+/** POST / — crea fotolibro collegato o autonomo. */
 router.post('/', async (req: Request, res: Response) => {
   try {
     const { name, galleryId, jobId, allowAssociationMismatch, mockupPath } = req.body || {};
     if (mockupPath !== 'client' && mockupPath !== 'studio') return res.status(400).json({ error: 'Scegli chi prepara il mockup' });
-    if (
-      !name ||
-      typeof name !== 'string' ||
-      !galleryId ||
-      typeof galleryId !== 'string' ||
-      !jobId ||
-      typeof jobId !== 'string'
-    ) {
-      return res.status(400).json({ error: 'Nome, galleria e lavoro sono obbligatori' });
+    if (typeof name !== 'string' || !name.trim()) {
+      return res.status(400).json({ error: 'Il nome del fotolibro è obbligatorio' });
+    }
+    if (galleryId != null && typeof galleryId !== 'string') {
+      return res.status(400).json({ error: 'La galleria selezionata non è valida' });
+    }
+    if (jobId != null && typeof jobId !== 'string') {
+      return res.status(400).json({ error: 'Il lavoro selezionato non è valido' });
     }
 
-    const galleryDoc = await db.collection('galleries').doc(galleryId).get();
-    if (!galleryDoc.exists) return res.status(404).json({ error: 'Galleria non trovata' });
-    const g = galleryDoc.data() || {};
-    const normalizedJobId = jobId.trim();
-    const jobDoc = await db.collection('jobs').doc(normalizedJobId).get();
-    if (!jobDoc.exists) return res.status(404).json({ error: 'Lavoro non trovato' });
+    const normalizedGalleryId = typeof galleryId === 'string' ? galleryId.trim() : '';
+    const galleryDoc = normalizedGalleryId
+      ? await db.collection('galleries').doc(normalizedGalleryId).get()
+      : null;
+    if (normalizedGalleryId && !galleryDoc?.exists) return res.status(404).json({ error: 'Galleria non trovata' });
+    const g = galleryDoc?.data() || {};
 
-    const associationWarnings = galleryJobAssociationWarnings(
-      g,
-      galleryId,
-      normalizedJobId,
-      jobDoc.data(),
-    );
+    const requestedJobId = typeof jobId === 'string' ? jobId.trim() : '';
+    const normalizedJobId = requestedJobId || (typeof g.jobId === 'string' ? g.jobId.trim() : '');
+    const jobDoc = normalizedJobId
+      ? await db.collection('jobs').doc(normalizedJobId).get()
+      : null;
+    if (normalizedJobId && !jobDoc?.exists) return res.status(404).json({ error: 'Lavoro non trovato' });
+    const job = jobDoc?.data() || {};
+
+    const associationWarnings = normalizedGalleryId && normalizedJobId
+      ? galleryJobAssociationWarnings(g, normalizedGalleryId, normalizedJobId, job)
+      : [];
     if (associationWarnings.length > 0 && allowAssociationMismatch !== true) {
       return res.status(409).json({
         error: 'I collegamenti della galleria non coincidono con il lavoro selezionato',
@@ -968,12 +989,17 @@ router.post('/', async (req: Request, res: Response) => {
     const now = new Date();
     const docData = {
       name: name.trim(),
-      galleryId,
+      galleryId: normalizedGalleryId || null,
       galleryName: g.name || '',
-      clientName: g.clientName || g.clientEmail || g.name || '',
+      clientName:
+        g.clientName ||
+        g.clientEmail ||
+        (Array.isArray(job.clientNames) ? job.clientNames.join(', ') : '') ||
+        g.name ||
+        null,
       // Il lavoro è l'associazione canonica del fotolibro. La galleria resta
       // la sorgente delle fotografie e non viene modificata implicitamente.
-      jobId: normalizedJobId,
+      jobId: normalizedJobId || null,
       token,
       mockupPath,
       currentVersion: 1,
@@ -983,7 +1009,9 @@ router.post('/', async (req: Request, res: Response) => {
     };
     const ref = await db.collection(BOOKS_COL).add(docData);
     const saved = await ref.get();
-    console.log(`📖 [photobooks] Creato fotolibro "${name}" per galleria ${galleryId}`);
+    console.log(
+      `📖 [photobooks] Creato fotolibro "${name}"${normalizedJobId ? ` per lavoro ${normalizedJobId}` : ' autonomo'}`,
+    );
     return res.json({ photobook: serializeBook(ref.id, saved.data()) });
   } catch (error) {
     console.error('[photobooks] Errore creazione:', error);
@@ -1194,7 +1222,6 @@ router.post('/:id/notify-confirmed-mockup', async (req: Request, res: Response) 
     const version = doc.data()!.currentVersion;
     const saved = await doc.ref.collection('mockups').doc(`v${version}`).get();
     if (doc.data()!.mockupPath !== 'studio' || saved.data()?.status !== 'confirmed') return res.status(409).json({ error: 'Nessun mockup confermato nel percorso studio' });
-    if (doc.data()!.approval?.version !== version) return res.status(409).json({ error: 'L’email sarà inviata quando il cliente approverà le pagine.' });
     await notifyMockupClientStatus(doc, saved.data() as { version: number; revision: number }, 'confirmed');
     const fresh = await doc.ref.get();
     return res.json({ state: fresh.data()?.mockupNotifications?.[`confirmed_v${version}_r${saved.data()!.revision}`]?.state || 'sent' });
@@ -1248,7 +1275,7 @@ async function notifyMockupClientStatus(
   const acquired = await db.runTransaction(async (tx) => {
     const fresh = await tx.get(bookDoc.ref);
     if (!fresh.exists || fresh.data()!.locked || fresh.data()!.currentVersion !== saved.version ||
-        (event === 'confirmed' && (fresh.data()!.mockupPath === 'client' || fresh.data()!.approval?.version !== saved.version))) return 'stale';
+        (event === 'confirmed' && fresh.data()!.mockupPath === 'client')) return 'stale';
     const existing = fresh.data()?.mockupNotifications?.[key];
     if (existing && !['waiting-approval', 'missing-email', 'not-delivered'].includes(existing.state)) return existing.state === 'pending' || existing.state === 'uncertain' ? 'uncertain' : 'sent';
     tx.update(bookDoc.ref, { [`mockupNotifications.${key}`]: { attemptId, state: 'pending' } });
@@ -1441,12 +1468,6 @@ async function notifyVersion(req: Request, res: Response) {
 }
 
 /**
- * Un trasferimento marcato "running" senza heartbeat da oltre questo tempo è
- * considerato morto (crash/restart del server): un nuovo POST può ripartire.
- */
-const TRANSFER_STALE_MS = 3 * 60 * 1000;
-
-/**
  * Trasferimento pagine → Drive eseguito in background (fuori dalla richiesta
  * HTTP). Idempotente: nome file deterministico per pagina, salta quelle già
  * presenti nella spedizione. Avanzamento e esito vengono scritti in
@@ -1457,57 +1478,68 @@ async function runPhotobookPageTransfer(
   photobookId: string,
   driveFolderId: string,
   pages: Array<{ id: string; pageNumber: number; storagePath: string }>,
+  operationId: string,
 ): Promise<void> {
+  const operation = watchPhotobookOperation(db, shipmentRef, 'pageTransfer', operationId);
   const bucket = storage.bucket();
   let transferred = 0;
   let skipped = 0;
   const failed: Array<{ pageNumber: number; error: string }> = [];
 
   try {
-    // Rileggi i file già presenti (fonte di verità per il retry)
+    // Preserve non-page attachments; the actual Drive inventory, not this
+    // registration, is authoritative for each page's recovery.
     const sDoc = await shipmentRef.get();
     const files: any[] = Array.isArray(sDoc.data()?.files) ? [...sDoc.data()!.files] : [];
-    const existingNames = new Set(files.map((f) => f.name));
+    const uploadIds: Record<string, { id: string; storagePath: string }> = { ...(sDoc.data()?.pageTransfer?.uploadIds || {}) };
 
-    for (const page of pages) {
-      const extMatch = String(page.storagePath).match(/\.(\w+)$/);
-      const ext = extMatch ? extMatch[1] : 'jpg';
-      const fileName = `pagina-${String(page.pageNumber).padStart(3, '0')}-${page.id}.${ext}`;
-      if (existingNames.has(fileName)) {
-        skipped++;
-      } else {
-        try {
-          const storageFile = bucket.file(page.storagePath);
-          const [meta] = await storageFile.getMetadata();
-          const uploaded = await uploadStreamToDriveFolder(
-            driveFolderId,
-            fileName,
-            String(meta.contentType || 'image/jpeg'),
-            storageFile.createReadStream(),
-          );
-          const entry: any = {
-            driveFileId: uploaded.fileId,
-            name: fileName,
-            size: uploaded.size || Number(meta.size) || 0,
-            kind: 'original',
-            mimeType: String(meta.contentType || 'image/jpeg'),
-            uploadedAt: new Date(),
-          };
-          if (uploaded.webViewLink) entry.webViewLink = uploaded.webViewLink;
-          files.push(entry);
-          existingNames.add(fileName);
-          transferred++;
-        } catch (e: any) {
-          console.error(
-            `[photobooks] Trasferimento pagina ${page.pageNumber} fallito (fotolibro ${photobookId}):`,
-            e?.message || e,
-          );
-          failed.push({ pageNumber: page.pageNumber, error: e?.message || 'Errore trasferimento' });
+    for (const page of orderPhotobookPages(pages)) {
+      await operation.update({ 'pageTransfer.phase': 'copying', 'pageTransfer.currentPageNumber': page.pageNumber });
+      const fileName = photobookPageFileName(page);
+      try {
+        const storageFile = bucket.file(page.storagePath);
+        const [meta] = await storageFile.getMetadata();
+        const { file: uploaded, skipped: adopted } = await copyPhotobookPage({
+          folderId: driveFolderId, page, source: storageFile,
+          reservedId: uploadIds[page.id]?.storagePath === page.storagePath ? uploadIds[page.id].id : undefined,
+          assertActive: () => operation.update(),
+          reserve: async id => {
+            uploadIds[page.id] = { id, storagePath: page.storagePath };
+            await operation.update({ 'pageTransfer.uploadIds': uploadIds });
+          },
+        });
+        const entry: any = {
+          driveFileId: uploaded.id,
+          name: fileName,
+          size: Number(uploaded.size) || Number(meta.size) || 0,
+          kind: 'original',
+          sourcePageId: page.id,
+          sourcePageNumber: page.pageNumber,
+          sourceStoragePath: page.storagePath,
+          sourceMd5: uploaded.md5Checksum,
+          mimeType: String(meta.contentType || 'image/jpeg'),
+          uploadedAt: new Date(),
+        };
+        if (uploaded.webViewLink) entry.webViewLink = uploaded.webViewLink;
+        // Repair stale registrations only after verifying real remote bytes.
+        // Supplemental files and manifests are never replaced by this worker.
+        for (let i = files.length - 1; i >= 0; i--) {
+          if ((files[i].kind === 'original' || /^pagina-\d+-/.test(files[i].name || ''))
+            && files[i].name === fileName) files.splice(i, 1);
         }
+        files.push(entry);
+        if (adopted) skipped++;
+        else transferred++;
+      } catch (e: any) {
+        console.error(
+          `[photobooks] Trasferimento pagina ${page.pageNumber} fallito (fotolibro ${photobookId}):`,
+          e?.message || e,
+        );
+        failed.push({ pageNumber: page.pageNumber, error: e?.message || 'Errore trasferimento' });
       }
       // Persistenza incrementale + avanzamento: un crash a metà non perde i
       // file già copiati e il client vede il progresso in tempo reale
-      await shipmentRef.update({
+      await operation.update({
         files,
         'pageTransfer.transferred': transferred,
         'pageTransfer.skipped': skipped,
@@ -1517,8 +1549,26 @@ async function runPhotobookPageTransfer(
       });
     }
 
-    await shipmentRef.update({
+    let instructionsError: string | null = null;
+    if (!failed.length) {
+      await operation.update({ 'pageTransfer.phase': 'verifying', 'pageTransfer.currentPageNumber': null });
+      const currentBook = (await db.collection('photobooks').doc(photobookId).get()).data();
+      const currentShipment = (await shipmentRef.get()).data();
+      const current = await comparePhotobookShipmentPages({ get: (document: any) => document.get() }, db, currentShipment);
+      const signature = (entries: typeof pages) => orderPhotobookPages(entries).map(page => `${page.id}:${page.pageNumber}:${page.storagePath}`).join('\n');
+      if (currentBook?.currentVersion !== currentShipment?.photobookVersion || signature(current.pages) !== signature(pages)) {
+        throw new Error('Le pagine sono cambiate durante il trasferimento. Verifica la versione corrente prima di riprendere.');
+      }
+      await verifyPhotobookDrivePages(driveFolderId, pages, bucket);
+      await operation.update({ 'pageTransfer.phase': 'instructions' });
+      try { await refreshLabShipmentInstructions(shipmentRef); }
+      catch (error: any) { instructionsError = `Pagine verificate, ma istruzioni non aggiornate: ${error.message}`; }
+    }
+    await operation.update({
       'pageTransfer.status': failed.length > 0 ? 'partial' : 'completed',
+      'pageTransfer.phase': null,
+      'pageTransfer.currentPageNumber': null,
+      'pageTransfer.instructionsError': instructionsError,
       'pageTransfer.finishedAt': FieldValue.serverTimestamp(),
       'pageTransfer.heartbeatAt': FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
@@ -1526,6 +1576,16 @@ async function runPhotobookPageTransfer(
     console.log(
       `📖 [photobooks] Trasferimento pagine fotolibro ${photobookId} → spedizione ${shipmentRef.id} concluso: ${transferred} trasferite, ${skipped} già presenti, ${failed.length} fallite`,
     );
+    if (!failed.length) {
+      try {
+        const { ensureConfirmedMockupAttached } = await import('./photobook-mockup-delivery.js');
+        await ensureConfirmedMockupAttached(await db.collection('photobooks').doc(photobookId).get());
+      } catch (error: any) {
+        // Pages are complete even when supplementary materials need attention.
+        // Sending email performs the same check and must fail closed.
+        console.error(`[photobooks] Materiali mockup non allegati (${photobookId}):`, error?.message || error);
+      }
+    }
   } catch (e: any) {
     // Errore fatale (es. Firestore/Drive irraggiungibile): marca il fallimento
     console.error(
@@ -1533,8 +1593,10 @@ async function runPhotobookPageTransfer(
       e?.message || e,
     );
     try {
-      await shipmentRef.update({
+      await operation.update({
         'pageTransfer.status': 'failed',
+        'pageTransfer.phase': null,
+        'pageTransfer.currentPageNumber': null,
         'pageTransfer.error': String(e?.message || 'Errore trasferimento'),
         'pageTransfer.finishedAt': FieldValue.serverTimestamp(),
         'pageTransfer.heartbeatAt': FieldValue.serverTimestamp(),
@@ -1543,6 +1605,8 @@ async function runPhotobookPageTransfer(
     } catch {
       // best-effort
     }
+  } finally {
+    operation.stop();
   }
 }
 
@@ -1567,18 +1631,14 @@ router.post('/:id/lab-shipment', async (req: any, res: Response) => {
     if (!bookDoc.exists) return res.status(404).json({ error: 'Fotolibro non trovato' });
     const book = bookDoc.data()!;
 
-    // Lavoro associato (obbligatorio per la spedizione)
+    // Un fotolibro autonomo può essere spedito senza lavoro: in quel caso la
+    // spedizione contiene solo pagine e istruzioni inserite per il laboratorio.
+    const requestedJobId = typeof req.body?.jobId === 'string' ? req.body.jobId.trim() : '';
     const jobId: string =
-      book.jobId || (typeof req.body?.jobId === 'string' ? req.body.jobId.trim() : '');
-    if (!jobId) {
-      return res.status(400).json({
-        error:
-          'Il fotolibro non è associato a nessun lavoro: seleziona il lavoro a cui collegare la spedizione',
-      });
-    }
-    const jobDoc = await db.collection('jobs').doc(jobId).get();
-    if (!jobDoc.exists) return res.status(404).json({ error: 'Lavoro non trovato' });
-    const job = jobDoc.data() || {};
+      (typeof book.jobId === 'string' ? book.jobId.trim() : '') || requestedJobId;
+    const jobDoc = jobId ? await db.collection('jobs').doc(jobId).get() : null;
+    if (jobId && !jobDoc?.exists) return res.status(404).json({ error: 'Lavoro non trovato' });
+    const job = jobDoc?.data() || {};
 
     // Pagine della versione corrente (originali ad alta risoluzione)
     const pagesSnap = await db
@@ -1586,13 +1646,19 @@ router.post('/:id/lab-shipment', async (req: any, res: Response) => {
       .where('photobookId', '==', ref.id)
       .where('version', '==', book.currentVersion)
       .get();
-    const pages = pagesSnap.docs
+    let pages = pagesSnap.docs
       .map((d) => ({ id: d.id, ...(d.data() as any) }))
       .filter((p) => p.storagePath)
       .sort((a, b) => a.pageNumber - b.pageNumber);
     if (pages.length === 0) {
       return res.status(400).json({ error: 'La versione corrente non ha pagine da trasferire' });
     }
+    const expectedPages = book.versions?.find((v: any) => v.version === book.currentVersion)?.pageCount;
+    if (pages.length !== pagesSnap.docs.length || pages.length !== expectedPages) {
+      return res.status(409).json({ error: 'Le pagine della versione corrente sono incomplete. Ripristina gli originali prima di preparare la spedizione.' });
+    }
+    try { pages = orderPhotobookPages(pages); }
+    catch (error: any) { return res.status(409).json({ error: error.message }); }
 
     // Riusa la spedizione già collegata (retry idempotente), altrimenti creala
     let shipmentRef = book.labShipmentId
@@ -1603,6 +1669,28 @@ router.post('/:id/lab-shipment', async (req: any, res: Response) => {
       const sDoc = await shipmentRef.get();
       if (sDoc.exists) shipment = sDoc.data();
       else shipmentRef = null;
+    }
+    if (shipment) {
+      if (shipment.sentAt || ['inviato', 'in_stampa', 'ricevuto'].includes(shipment.status)) {
+        return res.status(409).json({
+          error: 'La spedizione è già stata inviata. Per modificarne i file serve prima la conferma esplicita dell’admin.',
+        });
+      }
+      if (shipment.photobookPageCleanup?.status === 'running'
+        || shipment.photobookPageCleanup?.status === 'needs_review'
+        || (shipment.photobookPageCleanup?.status === 'completed' && shipment.photobookPageCleanup.instructionsUpdated === false)) {
+        return res.status(409).json({
+          error: 'Completa o ripeti la sistemazione delle pagine obsolete prima di trasferire.',
+        });
+      }
+      const comparison = await comparePhotobookShipmentPages({ get: (document: any) => document.get() }, db, shipment);
+      if (comparison.obsoleteFiles.length) {
+        return res.status(409).json({
+          error: 'La spedizione contiene pagine obsolete. Archiviali fuori dalla cartella del laboratorio prima di trasferire quelle correnti.',
+          shipmentId: shipmentRef!.id,
+          obsoletePhotobookPages: comparison.obsoleteFiles,
+        });
+      }
     }
 
     let isNewShipment = false;
@@ -1628,7 +1716,10 @@ router.post('/:id/lab-shipment', async (req: any, res: Response) => {
       if (requestedPhotoNotes.length > 30) {
         return res.status(400).json({ error: 'Puoi allegare al massimo 30 note con foto' });
       }
-      const sourcePhotoNotes = Array.isArray(job.notePerFoto) ? job.notePerFoto : [];
+      const sourcePhotoNotes = jobId && Array.isArray(job.notePerFoto) ? job.notePerFoto : [];
+      if (!jobId && requestedPhotoNotes.length > 0) {
+        return res.status(400).json({ error: 'Le note con foto richiedono un lavoro associato' });
+      }
       const bucketName = storage.bucket().name;
       const sourceById = new Map(
         sourcePhotoNotes
@@ -1671,19 +1762,21 @@ router.post('/:id/lab-shipment', async (req: any, res: Response) => {
         });
       }
 
-      jobNotesSnapshot = {
-        jobId,
-        ...(labNote ? { generalNote: labNote } : {}),
-        photoNotes: selectedPhotoNotes,
-        capturedAt: FieldValue.serverTimestamp(),
-        ...(req.user?.email ? { capturedBy: req.user.email } : {}),
-      };
+      jobNotesSnapshot = jobId
+        ? {
+            jobId,
+            ...(labNote ? { generalNote: labNote } : {}),
+            photoNotes: selectedPhotoNotes,
+            capturedAt: FieldValue.serverTimestamp(),
+            ...(req.user?.email ? { capturedBy: req.user.email } : {}),
+          }
+        : null;
       const shipmentData: any = {
-        jobId,
+        ...(jobId ? { jobId } : {}),
         descrizione,
         sourceType: 'photobook',
         ...(labNote ? { labNote } : {}),
-        jobNotesSnapshot,
+        ...(jobNotesSnapshot ? { jobNotesSnapshot } : {}),
         files: [],
         status: 'da_inviare',
         expiryDays,
@@ -1696,6 +1789,9 @@ router.post('/:id/lab-shipment', async (req: any, res: Response) => {
       if (labId) {
         shipmentData.labId = labId;
         const labDoc = await db.collection('labs').doc(labId).get();
+        if (!labDoc.exists || labDoc.data()?.attivo === false || !labDoc.data()?.email?.trim()) {
+          return res.status(400).json({ error: 'Scegli un laboratorio attivo con un indirizzo email valido.' });
+        }
         if (labDoc.exists) {
           shipmentData.labNome = labDoc.data()?.nome;
           shipmentData.labEmail = labDoc.data()?.email;
@@ -1785,36 +1881,38 @@ router.post('/:id/lab-shipment', async (req: any, res: Response) => {
 
     // Collega subito fotolibro ↔ spedizione (evita doppie creazioni anche se
     // il trasferimento fallisce a metà e si riprova)
-    await ref.update({
-      jobId,
+    const photobookUpdate: Record<string, unknown> = {
       labShipmentId: shipmentRef.id,
       ...(req.body?.lockPhotobook === true ? { locked: true } : {}),
       updatedAt: FieldValue.serverTimestamp(),
-    });
+    };
+    if (jobId) photobookUpdate.jobId = jobId;
+    await ref.update(photobookUpdate);
 
     // Trasferimento pagine in BACKGROUND: con fotolibri grandi (50+ pagine ad
     // alta risoluzione) la copia sequenziale può durare minuti e far scadere la
     // richiesta HTTP lato client/proxy. La route risponde subito e il client
     // segue l'avanzamento leggendo `pageTransfer` sulla spedizione.
-    const now = Date.now();
     const existingTransfer = shipment.pageTransfer;
-    const heartbeatMs = existingTransfer?.heartbeatAt?.toDate
-      ? existingTransfer.heartbeatAt.toDate().getTime()
-      : typeof existingTransfer?.heartbeatAt?._seconds === 'number'
-        ? existingTransfer.heartbeatAt._seconds * 1000
-        : 0;
     let transferAlreadyRunning =
-      existingTransfer?.status === 'running' && now - heartbeatMs < TRANSFER_STALE_MS;
+      existingTransfer?.status === 'running' && !operationAbandoned(shipment, 'pageTransfer');
 
     if (!transferAlreadyRunning) {
+      const operation = newPhotobookOperation();
       const started = await db.runTransaction(async tx => {
         const fresh = await tx.get(shipmentRef!);
         const data = fresh.data();
-        if (!data || data.mockupDispatching || ['uploading', 'needs_review'].includes(data.mockupTransfer?.status)) return false;
-        const freshHeartbeat = data.pageTransfer?.heartbeatAt?.toDate?.().getTime() || Number(data.pageTransfer?.heartbeatAt?._seconds || 0) * 1000;
-        if (data.pageTransfer?.status === 'running' && Date.now() - freshHeartbeat < TRANSFER_STALE_MS) return 'running' as const;
+        if (!data || data.mockupDispatching || ['uploading', 'needs_review'].includes(data.mockupTransfer?.status)
+          || data.photobookPageCleanup?.status === 'running'
+          || data.photobookPageCleanup?.status === 'needs_review'
+          || (data.photobookPageCleanup?.status === 'completed' && data.photobookPageCleanup.instructionsUpdated === false)) return false;
+        if (data.pageTransfer?.status === 'running') {
+          if (!operationAbandoned(data, 'pageTransfer')) return 'running' as const;
+          if (req.body?.recoverAbandoned !== true) return false;
+        }
         tx.update(shipmentRef!, {
           pageTransfer: {
+            ...operation,
             status: 'running',
             total: pages.length,
             transferred: 0,
@@ -1823,7 +1921,9 @@ router.post('/:id/lab-shipment', async (req: any, res: Response) => {
             startedAt: FieldValue.serverTimestamp(),
             heartbeatAt: FieldValue.serverTimestamp(),
             finishedAt: null,
+            uploadIds: data.pageTransfer?.uploadIds || {},
           },
+          photobookVersion: book.currentVersion,
           updatedAt: FieldValue.serverTimestamp(),
         });
         return true;
@@ -1831,11 +1931,11 @@ router.post('/:id/lab-shipment', async (req: any, res: Response) => {
       if (!started) return res.status(409).json({ error: 'Attendi la conclusione del trasferimento mockup o verifica l’invio della spedizione prima di trasferire le pagine.' });
       // Fire-and-forget: gli errori vengono registrati dentro pageTransfer
       if (started === 'running') transferAlreadyRunning = true;
-      else void runPhotobookPageTransfer(shipmentRef, ref.id, driveFolderId, pages);
+      else void runPhotobookPageTransfer(shipmentRef, ref.id, driveFolderId, pages, operation.id);
     }
 
     // Evento timeline sul job (solo alla prima creazione, best-effort)
-    if (isNewShipment) {
+    if (isNewShipment && jobId) {
       try {
         await db.collection('jobTimeline').add({
           id: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -1902,7 +2002,11 @@ router.get('/:id/gallery-photos', async (req: Request, res: Response) => {
   try {
     const bookDoc = await db.collection(BOOKS_COL).doc(req.params.id).get();
     if (!bookDoc.exists) return res.status(404).json({ error: 'Fotolibro non trovato' });
-    const photos = await listGalleryPhotosPublic(bookDoc.data()!.galleryId);
+    const galleryId = bookDoc.data()?.galleryId;
+    if (typeof galleryId !== 'string' || !galleryId.trim()) {
+      return res.json({ photos: [] });
+    }
+    const photos = await listGalleryPhotosPublic(galleryId);
     return res.json({ photos });
   } catch (error) {
     console.error('[photobooks] Errore gallery-photos:', error);

@@ -12,7 +12,6 @@ import { useToast } from '@/hooks/use-toast';
 import {
   listPhotobooks,
   createPhotobook,
-  createPhotobookVersion,
   deletePhotobook,
   updatePhotobook,
   photobookClientLink,
@@ -26,6 +25,7 @@ import { getAllLabs } from '@/lib/labs';
 import {
   getShipment,
   sendShipment,
+  updateShipment,
   tsToDate,
   daysUntilExpiry,
   formatFileSize,
@@ -38,6 +38,7 @@ import {
   type Lab,
   type LabShipment,
 } from '@shared/lab-types';
+import { filterPhotobookSections } from './photobook-list-filter';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -73,7 +74,6 @@ import {
 import {
   BookImage,
   Copy,
-  Layers,
   Lock,
   Unlock,
   Pencil,
@@ -88,11 +88,18 @@ import {
   CheckCircle2,
   MessageSquareWarning,
   FileText,
+  Eye,
+  Download,
   ChevronDown,
   ChevronRight,
+  Filter,
+  Printer,
+  Search,
+  X,
 } from 'lucide-react';
 import PhotobookTutorial from '@/components/photobook/PhotobookTutorial';
-import PhotobookMockup from '@/components/photobook/PhotobookMockup';
+import { MockupStatusLine } from '@/components/photobook/MockupAdminFlow';
+import './PhotobooksManager.css';
 import LabFileUploader from '@/components/jobs/operativo/LabFileUploader';
 import LabSendFeedback from '@/components/jobs/operativo/LabSendFeedback';
 import type { Job } from '@shared/jobs-types';
@@ -142,13 +149,17 @@ export default function PhotobooksManager({
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const [createOpen, setCreateOpen] = useState(false);
+  const [createMode, setCreateMode] = useState<'linked' | 'standalone'>('linked');
+  // The print queue must remain discoverable after navigation and refresh.
   const [showArchived, setShowArchived] = useState(false);
   const [newName, setNewName] = useState('');
   const [newGalleryId, setNewGalleryId] = useState('');
   const [newJobId, setNewJobId] = useState('');
-  const [newMockupPath, setNewMockupPath] = useState<'client' | 'studio'>('client');
   const [associationMismatchConfirmed, setAssociationMismatchConfirmed] = useState(false);
   const [gallerySearch, setGallerySearch] = useState('');
+  const [bookSearch, setBookSearch] = useState('');
+  const [bookFilter, setBookFilter] = useState<'all' | 'attention' | 'approved'>('all');
+  const [archiveSearchDismissed, setArchiveSearchDismissed] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Photobook | null>(null);
   const [lockTarget, setLockTarget] = useState<Photobook | null>(null);
 
@@ -168,6 +179,13 @@ export default function PhotobooksManager({
     queryKey: ['/api/photobooks'],
     queryFn: listPhotobooks,
   });
+  useEffect(() => {
+    const target = new URLSearchParams(window.location.search).get('photobook');
+    if (!target || !books.some(book => book.id === target)) return;
+    const element = document.getElementById(`photobook-materials-${target}`);
+    element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    element?.focus({ preventScroll: true });
+  }, [books]);
 
   // Richieste di modifica pendenti: badge sui fotolibri + banner riepilogo
   const { data: changeRequests = [] } = useQuery({
@@ -191,16 +209,16 @@ export default function PhotobooksManager({
   const { data: galleries = [] } = useQuery<Gallery[]>({
     queryKey: ['admin-galleries-for-photobooks'],
     queryFn: loadGalleries,
-    enabled: createOpen || !!lockTarget,
+    enabled: (createOpen && createMode === 'linked') || Boolean(lockTarget?.galleryId),
     staleTime: 5 * 60 * 1000,
   });
 
   const createMutation = useMutation({
     mutationFn: () => createPhotobook({
       name: newName.trim(),
-      galleryId: newGalleryId,
-      jobId: newJobId,
-      mockupPath: newMockupPath,
+      ...(createMode === 'linked' ? { galleryId: newGalleryId, jobId: newJobId } : {}),
+      // Il percorso si sceglie dopo, nel passo 3 del mockup: si parte sempre da "lo prepara lo studio".
+      mockupPath: 'studio',
       allowAssociationMismatch: associationMismatchConfirmed,
     }),
     onSuccess: (book) => {
@@ -209,26 +227,13 @@ export default function PhotobooksManager({
       setNewName('');
       setNewGalleryId('');
       setNewJobId('');
+      setCreateMode('linked');
       setAssociationMismatchConfirmed(false);
       toast({ title: 'Fotolibro creato', description: 'Ora carica le pagine JPEG nell\u2019editor.' });
       navigate(`/admin/photobooks/${book.id}`);
     },
     onError: (e: any) =>
       toast({ title: 'Errore creazione fotolibro', description: e.message, variant: 'destructive' }),
-  });
-
-  const versionMutation = useMutation({
-    mutationFn: (id: string) => createPhotobookVersion(id),
-    onSuccess: (book) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/photobooks'] });
-      toast({
-        title: `Bozza versione ${Math.max(...book.versions.map(v => v.version))} creata`,
-        description: 'Carica le nuove pagine nell\u2019editor.',
-      });
-      navigate(`/admin/photobooks/${book.id}`);
-    },
-    onError: (e: any) =>
-      toast({ title: 'Errore nuova versione', description: e.message, variant: 'destructive' }),
   });
 
   const deleteMutation = useMutation({
@@ -290,18 +295,21 @@ export default function PhotobooksManager({
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['/api/photobooks'] });
+      // Il fotolibro bloccato passa nell'archivio: aprilo subito, altrimenti
+      // l'utente può pensare che sia sparito prima di poter inviare l'email.
+      setShowArchived(true);
       if (result) {
         queryClient.invalidateQueries({ queryKey: ['/api/lab-shipments', result.shipment.id] });
         toast({
-          title: 'Album mandato in stampa',
-          description: `Trasferimento di ${result.totalPages} pagine su Google Drive avviato: segui l'avanzamento nella scheda del fotolibro.`,
+          title: 'Fotolibro preparato per la stampa',
+          description: `Trasferimento di ${result.totalPages} pagine su Google Drive avviato. L'email al laboratorio non è ancora stata inviata: apri il riquadro “Spedizione laboratorio” e premi “Invia email al laboratorio” quando il trasferimento è completo.`,
         });
         setLockTarget(null);
       } else {
         toast({
-          title: 'Album mandato in stampa',
+          title: 'Fotolibro bloccato per la stampa',
           description:
-            'Il cliente ora vede il fotolibro in sola lettura e non può più inviare o cancellare richieste.',
+            'Il cliente ora vede il fotolibro in sola lettura. Il fotolibro è nell’archivio; non è stata creata né inviata una spedizione al laboratorio.',
         });
         setLockTarget(null);
       }
@@ -334,7 +342,9 @@ export default function PhotobooksManager({
   const { data: jobs = [], isLoading: jobsLoading } = useQuery<Job[]>({
     queryKey: ['/api/jobs', 'for-photobook-shipment'],
     queryFn: loadJobs,
-    enabled: createOpen || (!!lockTarget && createShip),
+    enabled:
+      (createOpen && createMode === 'linked') ||
+      Boolean(lockTarget && createShip && (lockTarget.jobId || lockTarget.galleryId)),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -348,6 +358,7 @@ export default function PhotobooksManager({
   const selectedShipJobId = lockTarget?.jobId || shipJobId;
   const selectedShipJob = jobs.find((job) => job.id === selectedShipJobId);
   const selectedShipGallery = galleries.find((gallery) => gallery.id === lockTarget?.galleryId);
+  const shipmentNeedsJobSelection = Boolean(lockTarget?.galleryId && !lockTarget?.jobId);
   const shipAssociationWarnings = associationWarnings(selectedShipGallery, selectedShipJob);
 
   useEffect(() => {
@@ -415,38 +426,58 @@ export default function PhotobooksManager({
     g.name.toLowerCase().includes(gallerySearch.trim().toLowerCase()),
   );
 
-  const activeBooks = books.filter((b) => !b.locked);
-  const archivedBooks = books.filter((b) => b.locked);
+  const {
+    activeBooks,
+    archivedBooks,
+    visibleLinkedBooks,
+    visibleStandaloneBooks,
+    visibleArchivedLinkedBooks,
+    visibleArchivedStandaloneBooks,
+    hasArchivedSearchMatches,
+  } = filterPhotobookSections(books, bookSearch, bookFilter, pendingByBook);
+  const archivedSearchExpanded = hasArchivedSearchMatches && !archiveSearchDismissed;
+  const isArchivedExpanded = showArchived || archivedSearchExpanded;
+  const approvedCount = activeBooks.filter((book) => book.approval?.version === book.currentVersion).length;
 
   const renderBook = (book: Photobook) => {
+            const sourceLabel =
+              book.galleryName ||
+              book.galleryId ||
+              (book.jobId ? 'Senza galleria · lavoro collegato' : 'Fotolibro autonomo');
             const currentVer = book.versions.find((v) => v.version === book.currentVersion);
             return (
-              <Card key={book.id} data-testid={`card-photobook-${book.id}`}>
-                <CardContent className="pt-5 space-y-3">
-                  <div className="flex items-start justify-between gap-2">
+              <Card key={book.id} id={`photobook-materials-${book.id}`} tabIndex={-1} className="pb-book-card focus:ring-2 focus:ring-primary focus:outline-none" data-testid={`card-photobook-${book.id}`}>
+                <CardContent className="pb-book-card-content">
+                  <div className="pb-book-cover" aria-hidden="true">
+                    <span>{book.name.trim().split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toLocaleUpperCase() || 'FB'}</span>
+                    <small>{currentVer?.pageCount ?? 0} pag.</small>
+                  </div>
+                  <div className="pb-book-main">
+                  <div className="pb-book-heading flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <h3 className="font-semibold truncate">{book.name}</h3>
                       <p className="text-xs text-muted-foreground truncate">
-                        {book.galleryName || book.galleryId}
+                        {sourceLabel}
                         {book.clientName ? ` · ${book.clientName}` : ''}
                       </p>
                     </div>
                     <div className="flex flex-col items-end gap-1 shrink-0">
                       <Badge variant="secondary">v{book.currentVersion}</Badge>
                       {(pendingByBook.get(book.id) || 0) > 0 && (
-                        <Badge
-                          className="bg-amber-500 text-white hover:bg-amber-600 cursor-pointer"
+                        <button
+                          type="button"
+                          className="pb-status-chip pb-status-pending"
                           onClick={goToChanges}
                           data-testid={`badge-pending-changes-${book.id}`}
                         >
                           <MessageSquareWarning className="h-3 w-3 mr-1" />
                           {pendingByBook.get(book.id)}{' '}
                           {pendingByBook.get(book.id) === 1 ? 'modifica' : 'modifiche'}
-                        </Badge>
+                        </button>
                       )}
                       {book.approval?.version === book.currentVersion && (
                         <Badge
-                          className="bg-green-600 text-white hover:bg-green-600"
+                          className="pb-status-chip pb-status-approved"
                           title={
                             book.approval?.note
                               ? `Nota del cliente: ${book.approval.note}`
@@ -460,63 +491,57 @@ export default function PhotobooksManager({
                       )}
                       {book.locked && (
                         <Badge
-                          className="bg-stone-700 text-white hover:bg-stone-700"
+                          className="pb-status-chip pb-status-locked"
                           data-testid={`badge-locked-${book.id}`}
                         >
                           <Lock className="h-3 w-3 mr-1" />
-                          In stampa
+                          Modifiche bloccate
                         </Badge>
                       )}
                     </div>
                   </div>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="pb-book-meta">
                     {currentVer?.pageCount ?? 0} pagine · {book.versions.length}{' '}
                     {book.versions.length === 1 ? 'versione' : 'versioni'}
                   </p>
-                  <div className="flex flex-wrap items-center gap-2">
+                  <MockupStatusLine
+                    photobookId={book.id}
+                    version={book.currentVersion}
+                    readOnly={!!book.locked}
+                    onAssign={() => navigate(`/admin/photobooks/${book.id}?mockupTab=offer`)}
+                  />
+                  <div className="pb-book-actions">
                     <Button
                       size="sm"
+                      className="h-8"
                       onClick={() => navigate(`/admin/photobooks/${book.id}`)}
                       data-testid={`button-edit-photobook-${book.id}`}
                     >
                       <Pencil className="h-3.5 w-3.5 mr-1.5" />
-                      Apri Editor
+                      Apri editor
                     </Button>
-                    <PhotobookMockup
-                      key={`manager-mockup-${book.id}-${book.currentVersion}`}
-                      photobookId={book.id}
-                      version={book.currentVersion}
-                      compact={true}
-                    />
-                    <Button size="sm" variant="outline" onClick={() => copyLink(book)}>
+                    <Button size="sm" variant="outline" className="h-8" onClick={() => copyLink(book)}>
                       <Copy className="h-3.5 w-3.5 mr-1.5" />
-                      Link Cliente
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={versionMutation.isPending}
-                      onClick={() => versionMutation.mutate(book.id)}
-                    >
-                      <Layers className="h-3.5 w-3.5 mr-1.5" />
-                      Nuova Versione
+                      Copia link cliente
                     </Button>
                     {!book.locked && book.approval?.version === book.currentVersion && (
                       <Button
                         size="sm"
                         variant="outline"
+                        className="h-8"
                         disabled={resetApprovalMutation.isPending}
                         onClick={() => resetApprovalMutation.mutate(book.id)}
                         data-testid={`button-reset-approval-${book.id}`}
                       >
                         <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-                        Annulla Approvazione
+                        Annulla approvazione
                       </Button>
                     )}
                     {book.locked ? (
                       <Button
                         size="sm"
                         variant="outline"
+                        className="h-8"
                         disabled={unlockMutation.isPending}
                         onClick={() => unlockMutation.mutate(book.id)}
                         data-testid={`button-unlock-${book.id}`}
@@ -528,19 +553,21 @@ export default function PhotobooksManager({
                       <Button
                         size="sm"
                         variant="outline"
+                        className="h-8"
                         disabled={lockMutation.isPending}
                         onClick={() => openLockDialog(book)}
                         data-testid={`button-lock-${book.id}`}
                       >
                         <Lock className="h-3.5 w-3.5 mr-1.5" />
-                        Manda in Stampa
+                        Manda in stampa
                       </Button>
                     )}
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="text-destructive hover:text-destructive"
+                      className="h-8 text-destructive hover:text-destructive"
                       onClick={() => setDeleteTarget(book)}
+                      aria-label={`Elimina ${book.name}`}
                       data-testid={`button-delete-photobook-${book.id}`}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -552,80 +579,178 @@ export default function PhotobooksManager({
                       book={book}
                     />
                   )}
+                  {book.locked && !book.labShipmentId && (
+                    <div className="rounded border p-3 text-sm space-y-2">
+                      <p>Modifiche bloccate. Nessuna spedizione preparata e nessuna email inviata.</p>
+                      <Button size="sm" variant="outline" onClick={() => openLockDialog(book)}>Prepara spedizione laboratorio</Button>
+                    </div>
+                  )}
+                  </div>
                 </CardContent>
               </Card>
             );
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <p className="text-sm text-muted-foreground">
-          Carica le pagine JPEG del fotolibro e invia al cliente il link di revisione: il cliente
-          disegna una X sulle foto da modificare.
-        </p>
-        <div className="flex items-center gap-2">
+    <div className="photobooks-dashboard">
+      <header className="pb-page-heading">
+        <div>
+          <p className="pb-eyebrow">GESTIONE · {activeBooks.length} {activeBooks.length === 1 ? 'ALBUM ATTIVO' : 'ALBUM ATTIVI'}</p>
+          <h1>Fotolibri</h1>
+          <p>Una vista ordinata di revisioni, approvazioni e stampa.</p>
+        </div>
+        <div className="pb-heading-actions">
           <PhotobookTutorial />
-          <Button onClick={() => setCreateOpen(true)} data-testid="button-create-photobook">
+          <Button onClick={() => { setCreateMode('linked'); setCreateOpen(true); }} data-testid="button-create-photobook">
             <Plus className="h-4 w-4 mr-2" />
-            Nuovo Fotolibro
+            Nuovo fotolibro
           </Button>
         </div>
-      </div>
+      </header>
+
+      <section className="pb-overview" aria-label="Riepilogo fotolibri">
+        <div className="pb-overview-intro">
+          <span className="pb-overview-icon"><BookImage className="h-5 w-5" /></span>
+          <div><strong>Riepilogo della lavorazione</strong><p>Album attivi, richieste in attesa e approvazioni.</p></div>
+        </div>
+        <div className="pb-overview-stat"><span>ALBUM ATTIVI</span><strong>{activeBooks.length.toString().padStart(2, '0')}</strong></div>
+        <div className="pb-overview-stat"><span>RICHIESTE APERTE</span><strong className={totalPending ? 'is-warm' : ''}>{totalPending.toString().padStart(2, '0')}</strong></div>
+        <div className="pb-overview-stat"><span>APPROVATI</span><strong>{approvedCount.toString().padStart(2, '0')}</strong></div>
+      </section>
 
       {totalPending > 0 && (
         <button
           type="button"
           onClick={goToChanges}
-          className="w-full flex items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-left hover:bg-amber-100 transition-colors"
+          className="pb-pending-banner"
           data-testid="banner-pending-changes"
         >
-          <MessageSquareWarning className="h-5 w-5 text-amber-600 shrink-0" />
-          <span className="text-sm text-amber-900">
-            <span className="font-semibold">
+          <span className="pb-pending-icon"><MessageSquareWarning className="h-5 w-5" /></span>
+          <span className="pb-pending-copy">
+            <strong>
               {totalPending} {totalPending === 1 ? 'richiesta di modifica' : 'richieste di modifica'}
-            </span>{' '}
-            in attesa dai clienti — clicca per aprire "Modifiche Fotolibro"
+            </strong>
+            <small>In attesa dai clienti — apri la coda revisioni.</small>
           </span>
+          <span className="pb-pending-link">Apri richieste <ExternalLink className="h-4 w-4" /></span>
         </button>
       )}
 
+      <div className="pb-list-toolbar">
+        <div className="pb-toolbar-title"><span>ALBUM ATTIVI</span><i aria-hidden="true" /></div>
+        <div className="pb-toolbar-controls">
+          <label className="pb-search">
+            <Search className="h-4 w-4" aria-hidden="true" />
+            <Input
+              value={bookSearch}
+              onChange={(event) => {
+                setBookSearch(event.target.value);
+                setArchiveSearchDismissed(false);
+              }}
+              placeholder="Cerca album, cliente o galleria"
+              aria-label="Cerca fotolibri"
+            />
+            {bookSearch && <button type="button" onClick={() => { setBookSearch(''); setArchiveSearchDismissed(false); }} aria-label="Cancella ricerca"><X className="h-4 w-4" /></button>}
+          </label>
+          <div className="pb-filter">
+            <Filter className="h-4 w-4" aria-hidden="true" />
+            <Select value={bookFilter} onValueChange={(value) => {
+              setBookFilter(value as typeof bookFilter);
+              setArchiveSearchDismissed(false);
+            }}>
+              <SelectTrigger aria-label="Filtra fotolibri"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutti gli stati</SelectItem>
+                <SelectItem value="attention">Con modifiche richieste</SelectItem>
+                <SelectItem value="approved">Approvati</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+
       {isLoading ? (
-        <div className="flex justify-center py-12">
+        <div className="flex justify-center py-12" role="status" aria-label="Caricamento fotolibri">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : books.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            <BookImage className="h-10 w-10 mx-auto mb-3 opacity-40" />
-            Nessun fotolibro ancora creato.
-          </CardContent>
-        </Card>
+        <div className="pb-empty"><BookImage className="h-8 w-8" /><strong>Nessun fotolibro ancora creato.</strong><span>Usa “Nuovo fotolibro” per iniziare.</span></div>
       ) : (
-        <div className="space-y-6">
-          {activeBooks.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {activeBooks.map(renderBook)}
+        <div className="pb-page-content">
+          {activeBooks.length > 0 ? (
+            <div className="pb-active-sections">
+              <section className="pb-book-section" data-testid="section-linked-photobooks">
+                <div className="pb-section-heading">
+                  <div><h2>Collegati a un lavoro</h2><p>Album associati a una galleria o a un incarico dello studio.</p></div>
+                  <span>{visibleLinkedBooks.length.toString().padStart(2, '0')}</span>
+                </div>
+                <div className="pb-book-list">
+                  {visibleLinkedBooks.length ? visibleLinkedBooks.map(renderBook) : <div className="pb-section-empty">Nessun fotolibro corrisponde ai filtri.</div>}
+                </div>
+              </section>
+              <section className="pb-book-section" data-testid="section-standalone-photobooks">
+                <div className="pb-section-heading">
+                  <div><h2>Autonomi</h2><p>Album indipendenti, con pagine caricate direttamente nell’editor.</p></div>
+                  <span>{visibleStandaloneBooks.length.toString().padStart(2, '0')}</span>
+                </div>
+                <div className="pb-book-list">
+                  {visibleStandaloneBooks.length ? visibleStandaloneBooks.map(renderBook) : <div className="pb-section-empty">Nessun fotolibro corrisponde ai filtri.</div>}
+                </div>
+              </section>
             </div>
+          ) : (
+            <div className="pb-empty"><BookImage className="h-8 w-8" /><strong>Nessun album attivo.</strong><span>Gli album bloccati restano nella coda di stampa.</span></div>
           )}
           {archivedBooks.length > 0 && (
-            <div className="space-y-3" data-testid="section-archived-photobooks">
+            <section className="pb-print-queue" data-testid="section-archived-photobooks">
               <button
                 type="button"
-                onClick={() => setShowArchived((v) => !v)}
-                className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"
-                aria-expanded={showArchived}
+                onClick={() => {
+                  if (isArchivedExpanded) {
+                    setShowArchived(false);
+                    if (archivedSearchExpanded) setArchiveSearchDismissed(true);
+                  } else {
+                    setShowArchived(true);
+                  }
+                }}
+                className="pb-queue-toggle"
+                aria-expanded={isArchivedExpanded}
                 data-testid="button-toggle-archived"
               >
-                {showArchived ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                Archivio — mandati in stampa ({archivedBooks.length})
+                {isArchivedExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                <span className="pb-queue-icon"><Printer className="h-4 w-4" /></span>
+                <span className="pb-queue-title"><strong>Coda di stampa</strong><small>Album con modifiche bloccate</small></span>
+                <span className="pb-queue-count">{archivedBooks.length}</span>
               </button>
-              {showArchived && (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 opacity-80">
-                  {archivedBooks.map(renderBook)}
+              {isArchivedExpanded && (
+                <div className="pb-queue-content">
+                  <p className="pb-queue-note">
+                    Il blocco impedisce al cliente di modificare l’album, ma non conferma che
+                    l’email sia stata inviata. Se non risulta ancora inviata, controlla lo stato
+                    e completa l’invio dal riquadro “Spedizione laboratorio”.
+                  </p>
+                  {visibleArchivedLinkedBooks.length > 0 && (
+                    <section className="pb-archived-group" data-testid="section-archived-linked-photobooks">
+                      <h4>Collegati</h4>
+                      <div className="pb-book-list">
+                        {visibleArchivedLinkedBooks.map(renderBook)}
+                      </div>
+                    </section>
+                  )}
+                  {visibleArchivedStandaloneBooks.length > 0 && (
+                    <section className="pb-archived-group" data-testid="section-archived-standalone-photobooks">
+                      <h4>Autonomi</h4>
+                      <div className="pb-book-list">
+                        {visibleArchivedStandaloneBooks.map(renderBook)}
+                      </div>
+                    </section>
+                  )}
+                  {visibleArchivedLinkedBooks.length === 0 && visibleArchivedStandaloneBooks.length === 0 && (
+                    <p className="pb-section-empty">Nessun fotolibro in coda corrisponde ai filtri.</p>
+                  )}
                 </div>
               )}
-            </div>
+            </section>
           )}
         </div>
       )}
@@ -636,11 +761,39 @@ export default function PhotobooksManager({
           <DialogHeader>
             <DialogTitle>Nuovo Fotolibro</DialogTitle>
             <DialogDescription>
-              Il fotolibro è collegato a un lavoro e usa una galleria come sorgente delle foto
-              sostitutive.
+              Scegli se collegarlo a un lavoro e a una galleria oppure gestirlo come fotolibro autonomo.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-2" role="group" aria-label="Tipo di fotolibro">
+              <Button
+                type="button"
+                variant={createMode === 'linked' ? 'default' : 'outline'}
+                onClick={() => setCreateMode('linked')}
+                data-testid="button-photobook-mode-linked"
+              >
+                Collegato
+              </Button>
+              <Button
+                type="button"
+                variant={createMode === 'standalone' ? 'default' : 'outline'}
+                onClick={() => {
+                  setCreateMode('standalone');
+                  setNewGalleryId('');
+                  setNewJobId('');
+                  setAssociationMismatchConfirmed(false);
+                }}
+                data-testid="button-photobook-mode-standalone"
+              >
+                Autonomo
+              </Button>
+            </div>
+            {createMode === 'standalone' && (
+              <p className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
+                Non serve un lavoro né una galleria. Carica le pagine già impaginate nell’editor;
+                senza galleria non sarà disponibile la selezione di foto sostitutive.
+              </p>
+            )}
             <div className="space-y-2">
               <Label htmlFor="pb-name">Nome fotolibro</Label>
               <Input
@@ -651,14 +804,7 @@ export default function PhotobooksManager({
                 data-testid="input-photobook-name"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="new-mockup-path">Chi prepara il mockup?</Label>
-              <select id="new-mockup-path" className="w-full rounded border p-2" value={newMockupPath} onChange={e => setNewMockupPath(e.target.value as 'client' | 'studio')}>
-                <option value="client">Cliente: invito dopo approvazione pagine</option>
-                <option value="studio">Studio: notifica dopo conferma mockup</option>
-              </select>
-            </div>
-            <div className="space-y-2">
+            {createMode === 'linked' && <div className="space-y-2">
               <Label>Galleria</Label>
               <Input
                 value={gallerySearch}
@@ -678,8 +824,8 @@ export default function PhotobooksManager({
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-            <div className="space-y-2">
+            </div>}
+            {createMode === 'linked' && <div className="space-y-2">
               <Label>Lavoro associato</Label>
               <JobPicker
                 jobs={jobs}
@@ -735,7 +881,7 @@ export default function PhotobooksManager({
                   </label>
                 </div>
               )}
-            </div>
+            </div>}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateOpen(false)}>
@@ -744,8 +890,7 @@ export default function PhotobooksManager({
             <Button
               disabled={
                 !newName.trim() ||
-                !newGalleryId ||
-                !newJobId ||
+                (createMode === 'linked' && (!newGalleryId || !newJobId)) ||
                 (createAssociationWarnings.length > 0 && !associationMismatchConfirmed) ||
                 createMutation.isPending
               }
@@ -799,7 +944,7 @@ export default function PhotobooksManager({
 
                 {createShip && (
                   <div className="space-y-3 pl-6">
-                    {!lockTarget?.jobId && (
+                    {shipmentNeedsJobSelection && (
                       <div className="space-y-1.5">
                         <Label className="flex items-center gap-1.5 text-amber-600">
                           <AlertTriangle className="h-3.5 w-3.5" />
@@ -815,6 +960,12 @@ export default function PhotobooksManager({
                           testId="select-shipment-job"
                         />
                       </div>
+                    )}
+                    {!lockTarget?.jobId && !lockTarget?.galleryId && (
+                      <p className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
+                        Fotolibro autonomo: la spedizione non sarà collegata a un lavoro e non includerà
+                        note o foto provenienti da un job.
+                      </p>
                     )}
                     {selectedShipJob && (
                       <div className="rounded-md border bg-muted/30 p-3 text-sm space-y-1">
@@ -855,13 +1006,14 @@ export default function PhotobooksManager({
                         onChange={(e) => setShipDesc(e.target.value)}
                       />
                     </div>
-                    {selectedShipJob && (
+                    {(selectedShipJob || !lockTarget?.jobId) && (
                       <div className="space-y-3 rounded-md border p-3">
                         <div>
                           <Label htmlFor="ship-lab-note">Note per il laboratorio</Label>
                           <p className="text-xs text-muted-foreground mt-1">
-                            È una copia iniziale della nota del lavoro. Puoi modificarla liberamente:
-                            la nota originale del job non verrà aggiornata.
+                            {selectedShipJob
+                              ? 'È una copia iniziale della nota del lavoro. Puoi modificarla liberamente: la nota originale non verrà aggiornata.'
+                              : 'Aggiungi istruzioni per questa spedizione; saranno salvate solo sulla consegna al laboratorio.'}
                           </p>
                         </div>
                         <Textarea
@@ -873,16 +1025,16 @@ export default function PhotobooksManager({
                           data-testid="textarea-shipment-lab-note"
                         />
 
-                        {(selectedShipJob.notePerFoto || []).length > 0 && (
+                        {(selectedShipJob?.notePerFoto || []).length > 0 && (
                           <div className="space-y-2">
                             <p className="text-sm font-medium">
-                              Note con foto del lavoro ({selectedShipJob.notePerFoto?.length})
+                              Note con foto del lavoro ({selectedShipJob?.notePerFoto?.length})
                             </p>
                             <p className="text-xs text-muted-foreground">
                               Seleziona solo quelle da copiare nella cartella Drive del laboratorio.
                               Anche il loro testo può essere modificato per questa spedizione.
                             </p>
-                            {selectedShipJob.notePerFoto?.map((photoNote, index) => {
+                            {selectedShipJob?.notePerFoto?.map((photoNote, index) => {
                               const draft = shipPhotoNotes[photoNote.id] || {
                                 selected: false,
                                 note: photoNote.nota || '',
@@ -971,7 +1123,9 @@ export default function PhotobooksManager({
                 <Button
                   disabled={
                     lockMutation.isPending ||
-                    (createShip && (!selectedShipJobId || !selectedShipJob))
+                    (createShip &&
+                      shipmentNeedsJobSelection &&
+                      (!selectedShipJobId || !selectedShipJob))
                   }
                   onClick={() => {
                     setTransferError(null);
@@ -982,7 +1136,7 @@ export default function PhotobooksManager({
                   {lockMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                   {lockMutation.isPending && createShip
                     ? 'Avvio trasferimento…'
-                    : 'Manda in Stampa'}
+                    : 'Manda in stampa'}
                 </Button>
               </DialogFooter>
             </>
@@ -1018,20 +1172,109 @@ export default function PhotobooksManager({
  * Riquadro spedizione laboratorio collegata a un fotolibro mandato in stampa:
  * laboratorio, stato, scadenza file, link Drive e retry per pagine mancanti.
  */
-function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book: Photobook }) {
+function PhotobookShipmentInfo({
+  shipmentId,
+  book,
+}: {
+  shipmentId: string;
+  book: Photobook;
+}) {
   const { toast } = useToast();
   const [supplementalUploading, setSupplementalUploading] = useState(false);
-  const { data: shipment, isLoading } = useQuery<LabShipment>({
+  const [archivedPageBusyId, setArchivedPageBusyId] = useState<string | null>(null);
+  const { data: shipment, isLoading, isError, error, refetch } = useQuery<LabShipment>({
     queryKey: ['/api/lab-shipments', shipmentId],
     queryFn: () => getShipment(shipmentId),
-    staleTime: 60 * 1000,
+    staleTime: 0,
+    refetchOnMount: 'always',
     // Trasferimento in background in corso: polla l'avanzamento ogni 2.5s
     refetchInterval: (query) =>
-      query.state.data?.pageTransfer?.status === 'running' ? 2500 : false,
+      query.state.data?.pageTransfer?.status === 'running' || query.state.data?.mockupTransfer?.status === 'uploading' || query.state.data?.mockupDispatching ? 2500 : false,
   });
+  const { data: availableLabs = [], isError: labsError, refetch: reloadLabs } = useQuery<Lab[]>({
+    queryKey: ['photobook-shipment-labs'],
+    queryFn: () => getAllLabs(true),
+    staleTime: 60 * 1000,
+  });
+  const labMutation = useMutation({
+    mutationFn: (labId: string) => updateShipment(shipmentId, { labId }),
+    onSuccess: updated => {
+      queryClient.setQueryData(['/api/lab-shipments', shipmentId], updated);
+      void refetch();
+    },
+    onError: (e: Error) => toast({ title: 'Laboratorio non aggiornato', description: e.message, variant: 'destructive' }),
+  });
+  const resolveMutation = useMutation({
+    mutationFn: async (delivered: boolean) => {
+      const { apiRequest } = await import('@/lib/queryClient');
+      const response = await apiRequest('POST', `/api/lab-shipments/${shipmentId}/resolve-photobook-send`, { delivered });
+      if (!response.ok) throw new Error('Impossibile registrare la verifica. Riprova.');
+      return await response.json() as LabShipment;
+    },
+    onSuccess: updated => {
+      queryClient.setQueryData(['/api/lab-shipments', shipmentId], updated);
+      void refetch();
+    },
+    onError: (e: Error) => toast({ title: 'Verifica non salvata', description: e.message, variant: 'destructive' }),
+  });
+  const archiveObsoleteMutation = useMutation({
+    mutationFn: async ({ confirmSentShipment, recoverAbandoned }: { confirmSentShipment: boolean; recoverAbandoned: boolean }) => {
+      const { apiRequest } = await import('@/lib/queryClient');
+      const response = await apiRequest('POST', `/api/lab-shipments/${shipmentId}/archive-obsolete-photobook-pages`, {
+        confirm: true,
+        confirmSentShipment,
+        recoverAbandoned,
+      });
+      return await response.json() as LabShipment;
+    },
+    onSuccess: updated => {
+      queryClient.setQueryData(['/api/lab-shipments', shipmentId], updated);
+      void refetch();
+      queryClient.invalidateQueries({ queryKey: ['/api/photobooks'] });
+      toast({
+        title: 'Pagine obsolete archiviate',
+        description: 'Sono state spostate in una cartella privata; le pagine correnti e gli allegati restano nella spedizione.',
+      });
+    },
+    onError: (e: Error) => {
+      void refetch();
+      toast({ title: 'Archiviazione non completata', description: e.message, variant: 'destructive' });
+    },
+  });
+  const accessArchivedPage = async (file: NonNullable<LabShipment['archivedPhotobookPages']>[number], action: 'open' | 'download') => {
+    const popup = action === 'open' ? window.open('about:blank', '_blank') : null;
+    if (popup) popup.opener = null;
+    setArchivedPageBusyId(file.driveFileId);
+    try {
+      const { apiRequest } = await import('@/lib/queryClient');
+      const url = `/api/lab-shipments/${encodeURIComponent(shipmentId)}/archived-pages/${encodeURIComponent(file.driveFileId)}${action === 'download' ? '?download=true' : ''}`;
+      const response = await apiRequest('GET', url);
+      const objectUrl = URL.createObjectURL(await response.blob());
+      if (action === 'open' && popup) {
+        popup.location.href = objectUrl;
+      } else {
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = file.name;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      }
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    } catch (error) {
+      popup?.close();
+      toast({
+        title: action === 'open' ? 'Originale non disponibile' : 'Download non riuscito',
+        description: error instanceof Error ? error.message : 'Riprova tra poco.',
+        variant: 'destructive',
+      });
+    } finally {
+      setArchivedPageBusyId(null);
+    }
+  };
 
   const retryMutation = useMutation({
-    mutationFn: () => createPhotobookLabShipment(book.id, {}),
+    mutationFn: (recoverAbandoned: boolean = false) => createPhotobookLabShipment(book.id, { recoverAbandoned }),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['/api/lab-shipments', shipmentId] });
       queryClient.invalidateQueries({ queryKey: ['/api/photobooks'] });
@@ -1056,8 +1299,10 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
         description: `Email inviata${updated.labNome ? ` a ${updated.labNome}` : ''} con il link Google Drive ai file di stampa.`,
       });
     },
-    onError: (e: any) =>
-      toast({ title: 'Errore invio email', description: e.message, variant: 'destructive' }),
+    onError: (e: any) => {
+      void refetch();
+      toast({ title: 'Errore invio email', description: e.message, variant: 'destructive' });
+    },
   });
 
   if (isLoading) {
@@ -1068,7 +1313,13 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
       </div>
     );
   }
-  if (!shipment) return null;
+  if (isError || !shipment) return (
+    <div role="alert" className="mt-3 rounded border border-destructive p-3 text-sm space-y-2">
+      <p>Impossibile caricare la spedizione laboratorio. Il fotolibro resta disponibile.</p>
+      <p>{error instanceof Error ? error.message : 'Spedizione non disponibile.'}</p>
+      <Button size="sm" variant="outline" onClick={() => void refetch()}>Riprova caricamento spedizione</Button>
+    </div>
+  );
 
   const expiresDate = tsToDate(shipment.expiresAt);
   const daysLeft = daysUntilExpiry(shipment.expiresAt);
@@ -1089,15 +1340,64 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
   );
   const transfer = shipment.pageTransfer;
   const transferRunning = transfer?.status === 'running';
+  const transferAbandoned = shipment.photobookRecovery?.pageTransferAbandoned === true;
+  const cleanup = shipment.photobookPageCleanup;
+  const obsoletePages = shipment.obsoletePhotobookPages || [];
+  const missingPages = shipment.missingPhotobookPages || [];
+  const cleanupAbandoned = shipment.photobookRecovery?.pageCleanupAbandoned === true;
+  const cleanupNeedsAttention = cleanup?.status === 'running' || cleanup?.status === 'needs_review'
+    || (cleanup?.status === 'completed' && cleanup.instructionsUpdated === false);
+  const shipmentAlreadySent = !!shipment.sentAt || ['inviato', 'in_stampa', 'ricevuto'].includes(shipment.status);
+  const dispatchAbandoned = shipment.photobookRecovery?.dispatchAbandoned === true;
   const incomplete =
-    !transferRunning && !shipment.deletedFromDrive && pageCount > 0 && pageFilesCount < pageCount;
+    !transferRunning && !shipment.deletedFromDrive &&
+    (pageCount < 1 || pageFilesCount < pageCount ||
+      (shipment.photobookVersion !== undefined && shipment.photobookVersion !== book.currentVersion) ||
+      obsoletePages.length > 0 || missingPages.length > 0 ||
+      shipment.drivePageVerification?.status === 'failed' ||
+      !!transfer?.instructionsError ||
+      (!!transfer && (transfer.status !== 'completed' || !!transfer.failed?.length)));
+  const selectedLabValid = availableLabs.some(lab => lab.id === shipment.labId && !!lab.email?.trim());
+  const shipmentSummaryStatus = expired
+    ? 'File scaduti'
+    : dispatchAbandoned
+      ? 'Email da verificare'
+      : shipment.mockupDispatching || transferRunning
+        ? 'Preparazione in corso'
+        : shipmentAlreadySent
+          ? 'Email inviata'
+          : incomplete
+            ? 'File da completare'
+            : 'Pronta per invio';
 
   return (
-    <div className="mt-3 rounded-md border bg-muted/30 p-3 text-sm space-y-1.5">
-      <p className="font-medium flex items-center gap-1.5">
-        <Truck className="h-4 w-4" />
-        Spedizione laboratorio
-        <Badge variant="secondary" className="ml-1">
+    <details
+      className="pb-shipment-details"
+      data-testid="photobook-shipment-details"
+    >
+      <summary className="pb-shipment-summary">
+        <span className="pb-shipment-summary-main">
+          <Truck className="h-4 w-4 shrink-0" />
+          <span className="pb-shipment-summary-copy">
+            <span className="pb-shipment-summary-title">Spedizione laboratorio</span>
+            <span className="pb-shipment-summary-meta">
+              {pageFilesCount}/{pageCount} pagine
+              {shipment.labNome ? ` · ${shipment.labNome}` : ''}
+              {supplementalFiles.length ? ` · ${supplementalFiles.length} file aggiuntivi` : ''}
+            </span>
+          </span>
+        </span>
+        <span className="pb-shipment-summary-status">{shipmentSummaryStatus}</span>
+        <span className="pb-shipment-summary-toggle">
+          Gestisci
+          <ChevronDown className="h-4 w-4" aria-hidden="true" />
+        </span>
+      </summary>
+      <div className="pb-shipment-panel-body">
+      <div className="pb-shipment-panel-content">
+      <div className="font-medium flex flex-wrap items-center gap-1.5">
+        <span className="sr-only">Stato della spedizione</span>
+        <Badge variant="secondary">
           {LAB_SHIPMENT_STATUS_LABELS[shipment.status] || shipment.status}
         </Badge>
         {expired && (
@@ -1106,7 +1406,49 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
             {shipment.deletedFromDrive ? 'File eliminati da Drive' : 'File scaduti'}
           </Badge>
         )}
+      </div>
+      <p className="text-xs" role="status">
+        {dispatchAbandoned ? 'Invio interrotto o con esito incerto: verifica manuale necessaria.'
+          : shipment.mockupDispatching ? 'Invio email in corso o verifica del blocco in attesa: nessun nuovo invio consentito.'
+          : cleanup?.status === 'running' && !cleanupAbandoned ? 'Archiviazione delle pagine obsolete in corso.'
+          : cleanupAbandoned ? 'Archiviazione interrotta: verifica la cartella privata e recupera l’operazione.'
+          : cleanup?.status === 'needs_review' || (cleanup?.status === 'completed' && cleanup.instructionsUpdated === false)
+            ? 'Archiviazione interrotta: puoi riprenderla senza inviare email.'
+          : transferAbandoned ? 'Trasferimento interrotto: è disponibile il recupero manuale.'
+          : shipmentAlreadySent ? 'Email al laboratorio inviata.'
+          : transferRunning ? transfer?.phase === 'verifying'
+            ? 'Verifica di tutte le pagine effettivamente presenti su Drive · email non inviata.'
+            : transfer?.phase === 'instructions'
+              ? 'Pagine verificate · aggiornamento delle istruzioni per il laboratorio.'
+              : `Verifica e trasferimento${transfer?.currentPageNumber ? ` · pagina ${transfer.currentPageNumber}` : ''} · email non inviata.`
+          : incomplete ? 'Trasferimento incompleto · invio email bloccato.'
+          : 'Spedizione pronta · email non ancora inviata.'}
       </p>
+      {dispatchAbandoned && (
+        <div className="rounded border border-amber-400 p-2 space-y-2">
+          <p>Verifica la posta inviata o contatta il laboratorio prima di procedere, per evitare doppioni.</p>
+          <Button size="sm" variant="outline" disabled={resolveMutation.isPending} onClick={() => {
+            if (window.confirm('Hai verificato che il laboratorio ha ricevuto l’email?')) resolveMutation.mutate(true);
+          }}>Ho verificato: email ricevuta</Button>
+          <Button size="sm" variant="outline" disabled={resolveMutation.isPending} onClick={() => {
+            if (window.confirm('Hai verificato che l’email NON è stata inviata? Il nuovo tentativo potrebbe duplicarla se la verifica è errata.')) resolveMutation.mutate(false);
+          }}>Ho verificato: email non inviata</Button>
+        </div>
+      )}
+      {labsError ? <p role="alert">Impossibile verificare il laboratorio. <button className="underline" onClick={() => void reloadLabs()}>Riprova</button></p> : (
+        <label className="block text-xs">
+          Laboratorio destinatario
+          <select className="block w-full rounded border p-2 mt-1" value={shipment.labId || ''}
+            disabled={labMutation.isPending || !!shipment.mockupDispatching || !!shipment.mockupSnapshot}
+            onChange={event => { if (event.target.value) labMutation.mutate(event.target.value); }}>
+            <option value="">Seleziona un laboratorio</option>
+            {!selectedLabValid && shipment.labId && <option value={shipment.labId}>Laboratorio non disponibile: scegline un altro</option>}
+            {availableLabs.filter(lab => !!lab.email?.trim()).map(lab => <option key={lab.id} value={lab.id}>{lab.nome}</option>)}
+          </select>
+          {!selectedLabValid && <span className="text-destructive">Seleziona un laboratorio attivo con email valida prima di inviare.</span>}
+          {!selectedLabValid && shipment.mockupSnapshot && <span className="block">Il laboratorio è vincolato al mockup confermato: ripristina i suoi dati in Anagrafica laboratori, oppure correggi il modello dall’editor del fotolibro.</span>}
+        </label>
+      )}
       <p className="text-muted-foreground">
         {shipment.labNome ? `Laboratorio: ${shipment.labNome} · ` : ''}
         Pagine trasferite: {pageFilesCount}
@@ -1125,20 +1467,136 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
           <p className="whitespace-pre-wrap text-muted-foreground">{shipment.labNote}</p>
         </div>
       )}
+      {(obsoletePages.length > 0 || cleanupNeedsAttention || cleanupAbandoned) && (
+        <div role="alert" className="rounded border border-amber-500 bg-amber-50 p-3 space-y-2">
+          <p className="font-medium text-amber-950">
+            {obsoletePages.length === 1
+              ? 'La cartella contiene un originale di pagina superato.'
+              : `La cartella contiene ${obsoletePages.length} originali di pagina superati.`}
+            {' '}L’invio email è bloccato finché non vengono sistemati.
+          </p>
+          <ul className="list-disc pl-5 text-xs text-amber-950">
+            {obsoletePages.map(file => (
+              <li key={file.driveFileId}>
+                {file.pageNumber ? `Pagina ${file.pageNumber}: ` : ''}{file.name}
+              </li>
+            ))}
+          </ul>
+          {shipmentAlreadySent && (
+            <p className="text-xs text-amber-950">
+              Questa spedizione è già stata inviata. L’archiviazione cambierà i file visibili nella cartella condivisa e richiede la tua autorizzazione esplicita.
+            </p>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={archiveObsoleteMutation.isPending || transferRunning || !!shipment.mockupDispatching}
+            onClick={() => {
+              const sentConsent = shipmentAlreadySent;
+              const message = obsoletePages.length === 0
+                ? 'Riprendere la sistemazione interrotta? Nessun file verrà cancellato e non verrà inviata alcuna email.'
+                : sentConsent
+                ? `La spedizione è già stata inviata. Confermi di spostare ${obsoletePages.length} originale/i obsoleto/i dalla cartella condivisa a una cartella privata di archivio? Non verrà inviata alcuna email.`
+                : `Confermi di spostare ${obsoletePages.length} originale/i obsoleto/i fuori dalla cartella del laboratorio? Le pagine correnti e gli allegati resteranno. Non verrà inviata alcuna email.`;
+              if (window.confirm(message)) {
+                archiveObsoleteMutation.mutate({
+                  confirmSentShipment: sentConsent,
+                  recoverAbandoned: cleanupAbandoned,
+                });
+              }
+            }}
+            data-testid={`button-archive-obsolete-pages-${book.id}`}
+          >
+            {archiveObsoleteMutation.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+            ) : (
+              <FileText className="h-3.5 w-3.5 mr-1.5" />
+            )}
+            {cleanupAbandoned || cleanupNeedsAttention ? 'Riprendi archiviazione interrotta'
+              : obsoletePages.length ? 'Archivia pagine obsolete' : 'Completa sistemazione'}
+          </Button>
+        </div>
+      )}
+      {cleanup?.status === 'running' && !cleanupAbandoned && (
+        <p className="text-xs text-muted-foreground" role="status">Spostamento delle pagine obsolete nella cartella privata…</p>
+      )}
+      {cleanup?.status === 'needs_review' && (
+        <p className="text-xs text-destructive" role="alert">
+          {cleanup.error || 'L’archiviazione non è stata completata.'} I file non sono stati cancellati; puoi ripetere l’azione.
+        </p>
+      )}
+      {(shipment.archivedPhotobookPages || []).length > 0 && (
+        <section className="rounded border bg-background p-3 space-y-2" aria-label="Originali archiviati">
+          <div>
+            <p className="font-medium">Originali archiviati</p>
+            <p className="text-xs text-muted-foreground">
+              Accesso riservato agli amministratori. Il laboratorio non può aprire questi file.
+            </p>
+          </div>
+          <ul className="space-y-2">
+            {[...(shipment.archivedPhotobookPages || [])]
+              .sort((a, b) => (tsToDate(b.archivedAt)?.getTime() || 0) - (tsToDate(a.archivedAt)?.getTime() || 0))
+              .map(file => {
+                const archivedAt = tsToDate(file.archivedAt);
+                const busy = archivedPageBusyId === file.driveFileId;
+                return (
+                  <li
+                    key={file.driveFileId}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded bg-muted/50 px-2.5 py-2 text-xs"
+                    data-testid={`archived-photobook-page-${file.driveFileId}`}
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{file.name}</p>
+                      <p className="text-muted-foreground">
+                        {file.sourcePageNumber ? `Pagina ${file.sourcePageNumber} · ` : ''}
+                        Archiviato il {archivedAt ? archivedAt.toLocaleString('it-IT') : 'data non disponibile'}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 gap-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() => void accessArchivedPage(file, 'open')}
+                        aria-label={`Apri ${file.name}`}
+                        data-testid={`button-open-archived-page-${file.driveFileId}`}
+                      >
+                        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
+                        <span className="ml-1">Apri</span>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() => void accessArchivedPage(file, 'download')}
+                        aria-label={`Scarica ${file.name}`}
+                        data-testid={`button-download-archived-page-${file.driveFileId}`}
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                        <span className="ml-1">Scarica</span>
+                      </Button>
+                    </div>
+                  </li>
+                );
+              })}
+          </ul>
+        </section>
+      )}
       <div className="rounded border bg-background p-3 space-y-2">
         <div className="space-y-3">
           <div>
-            <p className="font-medium">Copertine e altri file per il fotolibro</p>
+            <p className="font-medium">File originali per la stampa</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Aggiungi copertine, dorsi, loghi, PDF tecnici o altri materiali. Verranno caricati
-              nella stessa cartella Drive delle pagine.
+              Il mockup confermato e le sue anteprime leggere vengono allegati automaticamente come riferimento.
+              Dopo aver confermato il mockup, carica qui le foto originali ad alta risoluzione necessarie per copertina o retro.
+              I file vengono trasferiti senza compressione nella cartella Drive del laboratorio. Puoi aggiungere anche PDF tecnici.
             </p>
           </div>
           {!expired && (
             <LabFileUploader
               shipmentId={shipmentId}
               kind="supplemental"
-              label="Aggiungi file"
+              label="Carica originali e file stampa"
               disabled={transferRunning || sendMutation.isPending || shipment.mockupDispatching
                 || ['uploading', 'needs_review'].includes(shipment.mockupTransfer?.status || '')}
               onUploadingChange={setSupplementalUploading}
@@ -1181,7 +1639,11 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
         )}
       </div>
       <LabSendFeedback shipment={shipment} pending={sendMutation.isPending} error={sendMutation.error} />
-      {transferRunning && transfer && (
+      {transfer?.instructionsError && <p role="alert" className="text-xs text-destructive">{transfer.instructionsError} Riprendi la preparazione: le pagine già verificate non saranno ricopiate.</p>}
+      {shipment.drivePageVerification?.status === 'failed' && (
+        <p role="alert" className="text-xs text-destructive">{shipment.drivePageVerification.error} L’email al laboratorio resta bloccata.</p>
+      )}
+      {transferRunning && !transferAbandoned && transfer && (
         <div className="space-y-1">
           <p className="text-xs text-muted-foreground flex items-center gap-1.5">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1198,6 +1660,15 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
           </div>
         </div>
       )}
+      {transferAbandoned && (
+        <div role="alert" className="rounded border border-amber-400 p-2 space-y-2">
+          <p>Il trasferimento non riceve più aggiornamenti. Puoi recuperarlo senza inviare email al laboratorio.</p>
+          <Button size="sm" variant="outline" disabled={retryMutation.isPending || !!shipment.mockupDispatching}
+            onClick={() => {
+              if (window.confirm('Recuperare il trasferimento interrotto? Verranno copiate solo le pagine mancanti. Il server controllerà di nuovo che il trasferimento non sia attivo.')) retryMutation.mutate(true);
+            }}>Recupera trasferimento interrotto</Button>
+        </div>
+      )}
       {!transferRunning && transfer && (transfer.status === 'partial' || transfer.status === 'failed') && (
         <p className="text-xs text-destructive flex items-center gap-1.5">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
@@ -1207,7 +1678,7 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
           Riprova: verranno copiate solo le pagine mancanti, senza duplicati.
         </p>
       )}
-      <div className="flex flex-wrap items-center gap-2 pt-1">
+      <div className="pb-shipment-actions flex flex-wrap items-center gap-2 pt-1">
         {shipment.shareableLink && !shipment.deletedFromDrive && (
           <Button size="sm" variant="outline" asChild>
             <a href={shipment.shareableLink} target="_blank" rel="noopener noreferrer">
@@ -1216,6 +1687,9 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
             </a>
           </Button>
         )}
+        {shipment.shareableLink && !shipment.deletedFromDrive && (
+          <span className="text-xs text-muted-foreground">Su Drive: ordina per Nome, crescente (A → Z), per vedere le pagine nell’ordine del fotolibro.</span>
+        )}
         {shipment.shareableLink &&
           !shipment.deletedFromDrive &&
           !transferRunning &&
@@ -1223,7 +1697,7 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
             <Button
               size="sm"
               variant={shipment.sentAt ? 'outline' : 'default'}
-              disabled={sendMutation.isPending || supplementalUploading || expired || shipment.mockupDispatching
+              disabled={sendMutation.isPending || supplementalUploading || expired || incomplete || !selectedLabValid || shipment.mockupDispatching || obsoletePages.length > 0 || cleanupNeedsAttention
                 || ['uploading', 'needs_review'].includes(shipment.mockupTransfer?.status || '')}
               onClick={() => sendMutation.mutate()}
               data-testid="button-send-lab-email"
@@ -1238,12 +1712,12 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
                 : 'Invia email al laboratorio'}
             </Button>
           )}
-        {incomplete && (
+        {incomplete && obsoletePages.length === 0 && !cleanupNeedsAttention && (
           <Button
             size="sm"
             variant="outline"
-            disabled={retryMutation.isPending}
-            onClick={() => retryMutation.mutate()}
+            disabled={retryMutation.isPending || !!shipment.mockupDispatching}
+            onClick={() => retryMutation.mutate(false)}
             data-testid={`button-retry-shipment-${book.id}`}
           >
             {retryMutation.isPending ? (
@@ -1251,16 +1725,18 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
             ) : (
               <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
             )}
-            Riprova pagine mancanti
+            {transfer?.instructionsError ? 'Aggiorna istruzioni di stampa' : 'Riprova pagine mancanti'}
           </Button>
         )}
-        {!incomplete && !expired && pageFilesCount > 0 && (
+        {!incomplete && !transferRunning && !expired && pageFilesCount > 0 && (
           <span className="text-xs text-muted-foreground flex items-center gap-1">
             <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
             Tutte le pagine trasferite
           </span>
         )}
       </div>
-    </div>
+      </div>
+      </div>
+    </details>
   );
 }

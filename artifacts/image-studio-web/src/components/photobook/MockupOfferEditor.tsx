@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getAllLabs } from "@/lib/labs";
 import { Button } from "@/components/ui/button";
-import { visibleCatalogForLab } from "@shared/mockup-workflow";
+import { BOX_FORMAT_MAX_CM, BOX_FORMAT_MIN_CM, mockupBoxSetupSchema, visibleCatalogForLab } from "@shared/mockup-workflow";
+import type { MockupBoxSetup, MockupModelSetup } from "@shared/mockup-workflow";
+import { IMAGEBOX_FORMATS } from "@shared/mockup-catalog";
 import type {
   LabMockupCatalog,
   MockupOffer,
@@ -15,10 +17,41 @@ interface MockupOfferEditorProps {
   modelMode?: MockupOfferMode;
   modelSelection?: MockupSelection | null;
   disabled: boolean;
+  /** Mostra subito il form, senza il pulsante che lo apre (finestra admin “Assegna modello”). */
+  alwaysOpen?: boolean;
+  /** Carica la grafica di copertina e restituisce l'id dell'asset (solo per il Quadrobook). */
+  uploadGraphic?: (file: File) => Promise<string>;
+  /** Una nuova offerta può riportare la bozza salvata allo stato da verificare. */
+  hasSavedMockup?: boolean;
+  /** Ricarica dal server dopo che una proposta è stata modificata in un’altra sessione. */
+  reloadOffer: () => Promise<void>;
   publish: (
     mode: MockupOfferMode,
     selections: MockupSelection[],
   ) => Promise<boolean>;
+}
+
+export function MockupOfferPublishError({
+  message,
+  conflict,
+  refreshing,
+  onReload,
+}: {
+  message: string;
+  conflict: boolean;
+  refreshing: boolean;
+  onReload: () => void;
+}) {
+  return (
+    <div role="alert" className="rounded border border-amber-300 bg-amber-50 p-3 text-sm space-y-2">
+      <p>{message}</p>
+      {conflict && (
+        <Button type="button" variant="outline" disabled={refreshing} onClick={onReload}>
+          {refreshing ? "Caricamento…" : "Ricarica il modello aggiornato"}
+        </Button>
+      )}
+    </div>
+  );
 }
 
 /** Ritorna il mode di default derivato dalla prop o dall'offerta. */
@@ -29,29 +62,61 @@ function computeDefaultMode(
   return (
     modelMode ??
     offer?.mode ??
-    (offer?.options.length === 1 ? "fixed" : "choice")
+    // Quasi sempre si assegna un solo modello: è il punto di partenza.
+    ((offer?.options.length ?? 0) > 1 ? "choice" : "fixed")
   );
 }
+
+const BOX_RENDERER = "scatola-cornice";
+const IMAGEBOX_RENDERER = "imagebox";
+interface BoxDraft { w: string; h: string; mode: MockupBoxSetup["cover"]["mode"]; graphicAssetId?: string; graphicName?: string }
+const boxDraftOf = (setup?: MockupModelSetup): BoxDraft => {
+  const cover = setup && "cover" in setup ? setup.cover : undefined;
+  return {
+    w: String(setup?.format.w ?? 25), h: String(setup?.format.h ?? 35),
+    mode: cover?.mode ?? "photo", graphicAssetId: cover?.graphicAssetId, graphicName: cover?.graphicAssetId ? "Grafica già caricata" : undefined,
+  };
+};
+// ImageBox: lo studio sceglie solo il formato, tra quelli del laboratorio.
+const formatKey = (f: { w: number; h: number }) => `${f.w}x${f.h}`;
+const DEFAULT_IMAGEBOX_FORMAT = "30x20";
+const COVER_MODES: { id: BoxDraft["mode"]; label: string; hint: string }[] = [
+  { id: "photo", label: "Foto scelta dal cliente", hint: "La sceglie dalla sua galleria nello slide della copertina. Non devi caricare niente." },
+  { id: "graphic", label: "La mia grafica", hint: "Carichi tu la grafica; il cliente non la cambia." },
+  { id: "choice", label: "Il cliente sceglie tra la sua foto e la mia grafica", hint: "Carichi la grafica; il cliente può usarla oppure scegliere una sua foto." },
+];
 
 export default function MockupOfferEditor({
   offer,
   modelMode,
   modelSelection,
   disabled,
+  alwaysOpen = false,
+  uploadGraphic,
+  hasSavedMockup = false,
+  reloadOffer,
   publish,
 }: MockupOfferEditorProps) {
-  const [expanded, setExpanded] = useState(false);
+  const [boxDrafts, setBoxDrafts] = useState<Record<string, BoxDraft>>({});
+  const [imageBoxFormats, setImageBoxFormats] = useState<Record<string, string>>({});
+  const [uploading, setUploading] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(alwaysOpen);
   const [selected, setSelected] = useState<string[] | null>(null);
   const [mode, setMode] = useState<MockupOfferMode>(() =>
     computeDefaultMode(modelMode, offer),
   );
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
+  const [publishConflict, setPublishConflict] = useState(false);
+  const [refreshingOffer, setRefreshingOffer] = useState(false);
 
   // FIX: se la prop / l'offerta cambiano dall'esterno, `mode` si risincronizza.
   // Prima rimaneva congelato al valore di mount.
   useEffect(() => {
     setMode(computeDefaultMode(modelMode, offer));
+    setSelected(null);
+    setPublishError(null);
+    setPublishConflict(false);
   }, [modelMode, offer]);
 
   const labs = useQuery({
@@ -95,6 +160,51 @@ export default function MockupOfferEditor({
     return offerKeys[0] ?? "";
   }, [selected, modelSelection, offerKeys]);
 
+  const boxDraft = (key: string): BoxDraft =>
+    boxDrafts[key] ?? boxDraftOf(offer?.options.find((o) => `${o.labId}/${o.id}` === key)?.setup);
+  const patchBox = (key: string, patch: Partial<BoxDraft>) =>
+    setBoxDrafts((prev) => ({ ...prev, [key]: { ...boxDraft(key), ...patch } }));
+  const boxKeys = useMemo(
+    () => new Set(choices.flatMap((l) => l.models.filter((m) => m.rendererId === BOX_RENDERER).map((m) => `${l.id}/${m.id}`))),
+    [choices],
+  );
+  const imageBoxKeys = useMemo(
+    () => new Set(choices.flatMap((l) => l.models.filter((m) => m.rendererId === IMAGEBOX_RENDERER).map((m) => `${l.id}/${m.id}`))),
+    [choices],
+  );
+  const imageBoxFormat = (key: string) => {
+    const saved = offer?.options.find((o) => `${o.labId}/${o.id}` === key)?.setup;
+    return imageBoxFormats[key] ?? (saved ? formatKey(saved.format) : DEFAULT_IMAGEBOX_FORMAT);
+  };
+  function setupFor(key: string): { setup?: MockupModelSetup; error?: string } {
+    if (imageBoxKeys.has(key)) {
+      const format = IMAGEBOX_FORMATS.find((f) => formatKey(f) === imageBoxFormat(key));
+      return format ? { setup: { format: { w: format.w, h: format.h } } } : { error: "Scegli il formato dell’ImageBox." };
+    }
+    if (!boxKeys.has(key)) return {};
+    const d = boxDraft(key);
+    const parsed = mockupBoxSetupSchema.safeParse({
+      format: { w: Number(d.w.replace(",", ".")), h: Number(d.h.replace(",", ".")) },
+      cover: { mode: d.mode, ...(d.mode !== "photo" && d.graphicAssetId ? { graphicAssetId: d.graphicAssetId } : {}) },
+    });
+    if (parsed.success) return { setup: parsed.data };
+    const graphicMissing = d.mode !== "photo" && !d.graphicAssetId;
+    return { error: graphicMissing ? "Carica la grafica di copertina." : `Il formato deve essere tra ${BOX_FORMAT_MIN_CM} e ${BOX_FORMAT_MAX_CM} cm per lato.` };
+  }
+  async function onGraphic(key: string, file: File | undefined) {
+    if (!file || !uploadGraphic) return;
+    setUploading(key);
+    setPublishError(null);
+    try {
+      const id = await uploadGraphic(file);
+      patchBox(key, { graphicAssetId: id, graphicName: file.name });
+    } catch (err) {
+      setPublishError(err instanceof Error ? err.message : "Caricamento della grafica non riuscito.");
+    } finally {
+      setUploading(null);
+    }
+  }
+
   function toggle(keys: string[], checked: boolean) {
     // FIX: uso l'updater funzionale per non dipendere da `selection` catturato
     // nella closure (poteva essere stantio in click rapidi).
@@ -116,31 +226,64 @@ export default function MockupOfferEditor({
       .map((key) => {
         const [labId, modelId] = key.split("/");
         return labId && modelId
-          ? ({ labId, modelId } as MockupSelection)
+          ? ({ labId, modelId, ...setupFor(key) } as MockupSelection)
           : null;
       })
       .filter((x): x is MockupSelection => x !== null);
 
     if (selections.length === 0) return;
+    const invalid = keys.map((key) => setupFor(key).error).find(Boolean);
+    if (invalid) { setPublishError(invalid); return; }
+    const previousMode = offer?.mode ?? ((offer?.options.length ?? 0) > 1 ? "choice" : "fixed");
+    const previousOptions = (offer?.options ?? [])
+      .map(({ labId, id, setup }) => ({ labId, modelId: id, ...(setup ? { setup } : {}) }))
+      .sort((a, b) => `${a.labId}/${a.modelId}`.localeCompare(`${b.labId}/${b.modelId}`));
+    const nextOptions = selections
+      .map(({ labId, modelId, setup }) => ({ labId, modelId, ...(setup ? { setup } : {}) }))
+      .sort((a, b) => `${a.labId}/${a.modelId}`.localeCompare(`${b.labId}/${b.modelId}`));
+    const offerChanged = !!offer && (previousMode !== mode || JSON.stringify(previousOptions) !== JSON.stringify(nextOptions));
+    if (offerChanged && hasSavedMockup && !window.confirm(
+      "Questa bozza salvata resterà conservata, ma tornerà da verificare e potrebbe richiedere un aggiornamento per il nuovo modello. La revisione precedente resterà nello storico. Vuoi continuare?",
+    )) return;
 
     setPublishing(true);
     setPublishError(null);
+    setPublishConflict(false);
     try {
       // FIX: `publish` può rejectare; prima la Promise veniva silenziosamente ignorata.
       const ok = await publish(mode, selections);
       if (ok) {
         setSelected(null);
       } else {
-        setPublishError("Pubblicazione non riuscita. Riprova.");
+        setPublishError("Salvataggio del modello non riuscito. Riprova.");
       }
     } catch (err) {
+      const status = err && typeof err === "object" && "status" in err
+        ? Number((err as { status?: unknown }).status)
+        : undefined;
       setPublishError(
         err instanceof Error
           ? err.message
-          : "Errore imprevisto durante la pubblicazione.",
+            : "Errore imprevisto durante il salvataggio del modello.",
       );
+      setPublishConflict(status === 409);
     } finally {
       setPublishing(false);
+    }
+  }
+
+  async function reloadAfterConflict() {
+    setRefreshingOffer(true);
+    try {
+      await reloadOffer();
+      setPublishError(null);
+      setPublishConflict(false);
+      setSelected(null);
+    } catch (err) {
+      setPublishError(err instanceof Error ? err.message : "Impossibile ricaricare il modello aggiornato.");
+      setPublishConflict(false);
+    } finally {
+      setRefreshingOffer(false);
     }
   }
 
@@ -152,7 +295,7 @@ export default function MockupOfferEditor({
 
   return (
     <div className="mockup-offer-editor space-y-3">
-      <Button
+      {!alwaysOpen && <Button
         variant="outline"
         disabled={disabled}
         aria-expanded={expanded}
@@ -166,7 +309,7 @@ export default function MockupOfferEditor({
         }}
       >
         Configura modello fotolibro
-      </Button>
+      </Button>}
 
       <p className="text-sm">
         {mode === "fixed"
@@ -175,12 +318,20 @@ export default function MockupOfferEditor({
             ? `${offer.options.length} modelli disponibili nel link cliente.`
             : "Lascia scegliere il modello al cliente pubblicando più opzioni."}
       </p>
+      {publishError && (
+        <MockupOfferPublishError
+          message={publishError}
+          conflict={publishConflict}
+          refreshing={refreshingOffer}
+          onReload={() => void reloadAfterConflict()}
+        />
+      )}
 
       {expanded && (
         <>
           <fieldset className="space-y-2" disabled={disabled}>
             <legend className="text-sm font-medium">
-              Come deve essere scelto il modello?
+              Chi sceglie il modello dell’album?
             </legend>
             <label className="flex items-start gap-2 text-sm">
               <input
@@ -190,9 +341,9 @@ export default function MockupOfferEditor({
                 onChange={() => setMode("fixed")}
               />
               <span>
-                <strong>Modello già deciso</strong>
+                <strong>Un solo modello: lo scelgo io</strong>
                 <small className="block text-muted-foreground">
-                  Il cliente lo vede e poi continua con la personalizzazione.
+                  Il cliente vede questo modello e può personalizzarlo, ma non sceglie tra modelli diversi.
                 </small>
               </span>
             </label>
@@ -204,18 +355,19 @@ export default function MockupOfferEditor({
                 onChange={() => setMode("choice")}
               />
               <span>
-                <strong>Lascia scegliere al cliente</strong>
+                <strong>Il cliente sceglie tra i modelli pubblicati</strong>
                 <small className="block text-muted-foreground">
-                  Pubblica due o più modelli tra cui scegliere.
+                  Pubblica due o più modelli: nel link il cliente ne sceglie uno prima di personalizzarlo.
                 </small>
               </span>
             </label>
           </fieldset>
 
-          <p className="text-xs">
-            La pubblicazione richiede una nuova verifica del mockup. Le conferme
-            precedenti restano nello storico.
-          </p>
+          {!!offer?.options.length && (
+            <p className="text-xs text-muted-foreground">
+              Cambiare un’offerta con una bozza salvata la riporta allo stato da verificare: configurazione e revisione precedente restano conservate. Prima della pubblicazione ti chiederemo conferma.
+            </p>
+          )}
 
           {labs.isError && <p role="alert">Impossibile leggere i cataloghi.</p>}
 
@@ -277,10 +429,8 @@ export default function MockupOfferEditor({
                 const isChecked =
                   mode === "fixed" ? fixedKey === key : selection.includes(key);
                 return (
-                  <label
-                    key={model.id}
-                    className="flex items-center gap-2 pl-5"
-                  >
+                  <div key={model.id} className="space-y-2">
+                  <label className="flex items-center gap-2 pl-5">
                     <input
                       type={mode === "fixed" ? "radio" : "checkbox"}
                       // FIX: `name` presente solo in modalità fixed, così i checkbox
@@ -295,21 +445,60 @@ export default function MockupOfferEditor({
                     />
                     {model.name}
                   </label>
+                  {isChecked && imageBoxKeys.has(key) && (
+                    <fieldset className="ml-5 rounded border p-3 space-y-2 bg-muted/30" data-testid="imagebox-setup">
+                      <legend className="text-sm font-medium px-1">Formato dell’album (lo decidi tu, il cliente non lo cambia)</legend>
+                      <div className="grid grid-cols-2 gap-2">
+                        {IMAGEBOX_FORMATS.map((f) => (
+                          <label key={formatKey(f)} className="flex items-center gap-2 rounded border bg-background p-2 text-sm min-h-11">
+                            <input type="radio" name={`imagebox-format-${key}`} checked={imageBoxFormat(key) === formatKey(f)} onChange={() => setImageBoxFormats((prev) => ({ ...prev, [key]: formatKey(f) }))} />
+                            {f.w} × {f.h} cm <span className="text-muted-foreground">{f.w > f.h ? "orizzontale" : "verticale"}</span>
+                          </label>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground">Le grafiche da incidere le carichi nella bozza, solo se prepari tu il mockup.</p>
+                    </fieldset>
+                  )}
+                  {isChecked && boxKeys.has(key) && (() => {
+                    const d = boxDraft(key);
+                    return (
+                      <div className="ml-5 rounded border p-3 space-y-3 bg-muted/30" data-testid="box-setup">
+                        <p className="text-sm font-medium">Formato album (lo decidi tu, il cliente non lo cambia)</p>
+                        <div className="flex items-center gap-2">
+                          <input aria-label="Larghezza in cm" inputMode="decimal" className="w-20 rounded border p-2 text-base" value={d.w} onChange={(e) => patchBox(key, { w: e.target.value })} />
+                          <span>×</span>
+                          <input aria-label="Altezza in cm" inputMode="decimal" className="w-20 rounded border p-2 text-base" value={d.h} onChange={(e) => patchBox(key, { h: e.target.value })} />
+                          <span className="text-sm">cm · es. 25×35 verticale, 35×25 orizzontale</span>
+                        </div>
+                        <fieldset className="space-y-2">
+                          <legend className="text-sm font-medium">Copertina dell’album</legend>
+                          {COVER_MODES.map((m) => (
+                            <label key={m.id} className="flex items-start gap-2 text-sm">
+                              <input type="radio" name={`cover-${key}`} checked={d.mode === m.id} onChange={() => patchBox(key, { mode: m.id })} />
+                              <span><strong>{m.label}</strong><small className="block text-muted-foreground">{m.hint}</small></span>
+                            </label>
+                          ))}
+                        </fieldset>
+                        {d.mode !== "photo" && (
+                          <label className="block text-sm">
+                            Grafica richiesta dall’offerta Quadrobook (non è una foto della bozza; JPG, PNG o WebP)
+                            <input type="file" accept="image/jpeg,image/png,image/webp" className="block mt-1 w-full min-h-11" disabled={disabled || uploading === key || !uploadGraphic} onChange={(e) => { void onGraphic(key, e.target.files?.[0]); e.target.value = ""; }} />
+                            <span className="block text-xs text-muted-foreground mt-1">{uploading === key ? "Caricamento…" : d.graphicName || "Nessuna grafica caricata"}</span>
+                          </label>
+                        )}
+                      </div>
+                    );
+                  })()}
+                  </div>
                 );
               })}
             </fieldset>
           ))}
 
-          {publishError && (
-            <p role="alert" className="text-sm text-destructive">
-              {publishError}
-            </p>
-          )}
-
           <Button disabled={publishDisabled} onClick={publishCurrent}>
             {mode === "fixed"
-              ? "Salva modello unico"
-              : "Pubblica modelli disponibili"}
+              ? "Salva modello"
+              : "Salva modelli proposti"}
           </Button>
         </>
       )}

@@ -61,6 +61,10 @@ export default function AdminSecurityPage() {
   const [sessionRefreshClaim, setSessionRefreshClaim] = useState<ExpectedAdminPasskeyClaim | null>(null);
   const [sessionRefreshPending, setSessionRefreshPending] = useState(false);
   const [sessionRefreshError, setSessionRefreshError] = useState<string | null>(null);
+  const [rememberThisDevice, setRememberThisDevice] = useState(false);
+  const [rememberDeviceLabel, setRememberDeviceLabel] = useState('Browser personale');
+  const [pendingDeviceRevoke, setPendingDeviceRevoke] = useState<{ id: string; label: string } | null>(null);
+  const [confirmRevokeAllDevices, setConfirmRevokeAllDevices] = useState(false);
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ADMIN_SECURITY_STATUS_KEY });
   const fail = (error: unknown) =>
@@ -90,9 +94,18 @@ export default function AdminSecurityPage() {
   });
 
   const verifyNow = useMutation({
-    mutationFn: () => AdminPasskeyClient.verify(),
+    mutationFn: () => AdminPasskeyClient.verify(
+      rememberThisDevice
+        ? { rememberDevice: true, deviceLabel: rememberDeviceLabel.trim() }
+        : undefined,
+    ),
     onSuccess: () => {
-      toast({ title: 'Verifica riuscita' });
+      toast({
+        title: 'Verifica riuscita',
+        description: rememberThisDevice
+          ? 'Questo browser è stato ricordato per 30 giorni.'
+          : undefined,
+      });
       void refresh();
     },
     onError: (error) => {
@@ -100,6 +113,25 @@ export default function AdminSecurityPage() {
     },
   });
 
+  const revokeRememberedDevice = useMutation({
+    mutationFn: (deviceId: string) => AdminPasskeyClient.forgetRememberedDevice(deviceId),
+    onSuccess: () => {
+      setPendingDeviceRevoke(null);
+      toast({ title: 'Dispositivo dimenticato', description: 'La fiducia è stata revocata anche per i token già emessi.' });
+      void refresh();
+    },
+    onError: fail,
+  });
+
+  const revokeAllRememberedDevices = useMutation({
+    mutationFn: () => AdminPasskeyClient.forgetAllRememberedDevices(),
+    onSuccess: () => {
+      setConfirmRevokeAllDevices(false);
+      toast({ title: 'Dispositivi dimenticati', description: 'Tutte le sessioni ricordate sono state revocate.' });
+      void refresh();
+    },
+    onError: fail,
+  });
   const verifyForHandoff = useMutation({
     mutationFn: () => {
       if (!desktopHandoffId) throw new Error('Richiesta di verifica non valida.');
@@ -176,6 +208,7 @@ export default function AdminSecurityPage() {
 
   const data = status.data;
   const canEnforce = !!data && data.passkeys.length > 0 && data.recoveryCodesRemaining > 0 && data.activationReady;
+  const freshPasskeyRequired = !!data && (data.passkeys.length > 0 || data.passkeyRequired);
   const copyCodes = async () => {
     if (!freshCodes) return;
     await navigator.clipboard.writeText(freshCodes.join('\n'));
@@ -269,15 +302,44 @@ export default function AdminSecurityPage() {
                   </div>
                 </div>
                 {data.passkeys.length > 0 && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={verifyNow.isPending}
-                    onClick={() => verifyNow.mutate()}
-                    data-testid="button-verify-now"
-                  >
-                    <Fingerprint className="h-4 w-4 mr-1" /> Verifica ora
-                  </Button>
+                  <div className="flex flex-col items-start gap-2">
+                    {data.passkeyRequired &&
+                      window.location.hostname.replace(/^www\./, '') === 'imagestudiofotografico.com' && (
+                        <div className="space-y-2">
+                          <label className="flex items-start gap-2 text-xs text-blue-gray">
+                            <input
+                              type="checkbox"
+                              checked={rememberThisDevice}
+                              onChange={(event) => setRememberThisDevice(event.target.checked)}
+                              data-testid="checkbox-remember-device-security"
+                            />
+                            <span>
+                              Ricorda questo browser per 30 giorni
+                              <span className="block">Solo su dispositivi personali, non condivisi.</span>
+                            </span>
+                          </label>
+                          {rememberThisDevice && (
+                            <Input
+                              value={rememberDeviceLabel}
+                              onChange={(event) => setRememberDeviceLabel(event.target.value)}
+                              placeholder="Nome del dispositivo"
+                              maxLength={60}
+                              aria-label="Nome del browser personale"
+                              data-testid="input-remember-device-label-security"
+                            />
+                          )}
+                        </div>
+                      )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={verifyNow.isPending || (rememberThisDevice && !rememberDeviceLabel.trim())}
+                      onClick={() => verifyNow.mutate()}
+                      data-testid="button-verify-now"
+                    >
+                      <Fingerprint className="h-4 w-4 mr-1" /> Verifica ora
+                    </Button>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -338,7 +400,11 @@ export default function AdminSecurityPage() {
                       maxLength={60}
                       data-testid="input-passkey-label"
                     />
-                    <Button type="submit" disabled={register.isPending} data-testid="button-register-passkey">
+                    <Button
+                      type="submit"
+                      disabled={register.isPending || (data.passkeys.length > 0 && !data.activationReady)}
+                      data-testid="button-register-passkey"
+                    >
                       <Fingerprint className="h-4 w-4 mr-1" />
                       {register.isPending ? 'Attendi il dispositivo…' : 'Registra passkey'}
                     </Button>
@@ -350,6 +416,74 @@ export default function AdminSecurityPage() {
                   <p className="text-xs text-muted-foreground">
                     Per aggiungere un'altra passkey devi prima verificare quella esistente ("Verifica ora").
                   </p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card data-testid="card-remembered-devices">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <span className="rounded-full bg-sage/15 text-sage h-6 w-6 inline-flex items-center justify-center text-xs">2</span>
+                  Browser ricordati
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-sm text-blue-gray">
+                  La fiducia resta legata a questo browser per 30 giorni. “Esci” chiude la sessione ma non dimentica
+                  il browser; usa “Dimentica” per revocare anche la fiducia.
+                </p>
+                {data.rememberedDevices.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Nessun browser ricordato.</p>
+                ) : (
+                  <ul className="divide-y">
+                    {data.rememberedDevices.map((device) => (
+                      <li key={device.id} className="py-3 flex flex-wrap items-center justify-between gap-3" data-testid={`row-remembered-device-${device.id}`}>
+                        <div className="min-w-0">
+                          <p className="font-medium text-charcoal flex flex-wrap items-center gap-2">
+                            {device.label}
+                            {device.id === data.rememberedDeviceId && <Badge variant="secondary">Questo browser</Badge>}
+                            {device.status !== 'active' && (
+                              <Badge variant="outline">
+                                {device.status === 'revoked' ? 'Revocato' : 'Scaduto'}
+                              </Badge>
+                            )}
+                          </p>
+                          <p className="text-xs text-blue-gray">
+                            Ultimo uso {formatDate(device.lastUsedAt)} · scade {formatDate(device.expiresAt)}
+                          </p>
+                        </div>
+                        {device.status === 'active' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={!data.activationReady || revokeRememberedDevice.isPending}
+                            onClick={() => setPendingDeviceRevoke({ id: device.id, label: device.label })}
+                            data-testid={`button-forget-device-${device.id}`}
+                          >
+                            <Trash2 className="h-4 w-4 mr-1 text-red-500" /> Dimentica
+                          </Button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {data.rememberedDevices.some((device) => device.status === 'active') && (
+                  <>
+                    {!data.activationReady && (
+                      <p className="text-xs text-amber-800">
+                        Verifica di nuovo la passkey per gestire i browser ricordati.
+                      </p>
+                    )}
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      disabled={!data.activationReady || revokeAllRememberedDevices.isPending}
+                      onClick={() => setConfirmRevokeAllDevices(true)}
+                      data-testid="button-forget-all-devices"
+                    >
+                      Dimentica tutti i dispositivi
+                    </Button>
+                  </>
                 )}
               </CardContent>
             </Card>
@@ -395,7 +529,7 @@ export default function AdminSecurityPage() {
                 )}
                 <Button
                   variant="outline"
-                  disabled={recoveryCodes.isPending}
+                  disabled={recoveryCodes.isPending || (freshPasskeyRequired && !data.activationReady)}
                   onClick={() => recoveryCodes.mutate()}
                   data-testid="button-generate-recovery-codes"
                 >
@@ -435,7 +569,7 @@ export default function AdminSecurityPage() {
                 {data.passkeyRequired ? (
                   <Button
                     variant="outline"
-                    disabled={enforcement.isPending}
+                    disabled={enforcement.isPending || !data.activationReady}
                     onClick={() => enforcement.mutate(false)}
                     data-testid="button-disable-enforcement"
                   >
@@ -500,6 +634,48 @@ export default function AdminSecurityPage() {
               data-testid="button-confirm-revoke"
             >
               Revoca
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!pendingDeviceRevoke} onOpenChange={(open) => !open && setPendingDeviceRevoke(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Dimenticare “{pendingDeviceRevoke?.label}”?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Il browser perderà subito l’autorizzazione, anche se ha ancora un token Firebase già emesso. Per
+              accedere di nuovo da lì servirà una nuova verifica passkey.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => pendingDeviceRevoke && revokeRememberedDevice.mutate(pendingDeviceRevoke.id)}
+              data-testid="button-confirm-forget-device"
+            >
+              Dimentica dispositivo
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmRevokeAllDevices} onOpenChange={setConfirmRevokeAllDevices}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Dimenticare tutti i browser?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tutti i browser ricordati verranno revocati subito. Le sessioni Firebase aperte non potranno più
+              leggere i dati amministrativi finché non verrà verificata di nuovo una passkey.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => revokeAllRememberedDevices.mutate()}
+              data-testid="button-confirm-forget-all-devices"
+            >
+              Dimentica tutti
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

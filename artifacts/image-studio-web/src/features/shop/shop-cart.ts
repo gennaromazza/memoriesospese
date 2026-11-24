@@ -1,4 +1,5 @@
 import { SHOP_MAX_LINES, SHOP_MAX_QUANTITY } from '@shared/shop-types';
+import type { ShopOrderDto } from '@shared/shop-types';
 
 /**
  * Carrello del browser. Contiene solo cosa si vuole comprare (prodotto e
@@ -18,6 +19,7 @@ export interface CartState {
 
 export const SHOP_CART_STORAGE_KEY = 'shop-cart-v1';
 export const SHOP_DRAFT_STORAGE_KEY = 'shop-draft-order-id';
+export const SHOP_STORAGE_EVENT = 'shop-storage-change';
 
 export const emptyCart = (): CartState => ({ version: 1, items: [] });
 
@@ -65,6 +67,12 @@ export function setCartQuantity(cart: CartState, key: string, quantity: number):
 /** Numero di pezzi nel carrello. */
 export function cartCount(cart: CartState): number {
   return cart.items.reduce((total, item) => total + item.quantity, 0);
+}
+
+export function pendingShopOrderCount(order: Pick<ShopOrderDto, 'canEdit' | 'fulfillmentStatus' | 'paymentStatus' | 'lines'> | undefined): number {
+  if (!order?.canEdit || order.fulfillmentStatus === 'cancelled' ||
+    !['pending', 'failed'].includes(order.paymentStatus)) return 0;
+  return order.lines.reduce((total, line) => total + line.quantity, 0);
 }
 
 /** Toglie i prodotti che non sono più in vendita. */
@@ -130,4 +138,5 @@ export function writeStored(key: string, value: string | null): void {
   } catch {
     // Senza memoria locale il carrello vale solo per questa visita.
   }
+  window.dispatchEvent(new CustomEvent(SHOP_STORAGE_EVENT, { detail: key }));
 }

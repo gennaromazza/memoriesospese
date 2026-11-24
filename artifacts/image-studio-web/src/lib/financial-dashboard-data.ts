@@ -1,8 +1,10 @@
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "./firebase";
 import { buildFinanceDashboard } from "./finance-model";
-import type { FinanceDashboard, FinanceDocument, FinanceSnapshot } from "./finance-types";
+import type { FinanceDashboard, FinanceDocument, FinancePrintShopMargin, FinanceSnapshot } from "./finance-types";
 import * as XLSX from "xlsx";
+import { apiRequest } from "./queryClient";
+import { financeDate } from "./finance-model";
 
 export async function loadFinanceDashboard(): Promise<FinanceDashboard> {
   const coreCollections: Record<Exclude<keyof FinanceSnapshot, "labStatements">, string> = {
@@ -27,10 +29,32 @@ export async function loadFinanceDashboard(): Promise<FinanceDashboard> {
       ? "Dati laboratorio non disponibili: Firestore ha negato la lettura. I totali della sezione Laboratori non sono inclusi."
       : "Dati laboratorio non caricati. Riprova ad aggiornare; i totali della sezione Laboratori non sono inclusi.";
   }
+  let printShopMargins: FinancePrintShopMargin[] = [];
+  let printShopWarning: string | undefined;
+  try {
+    const response = await apiRequest("GET", "/api/print-shop/admin/financial-report");
+    const body = await response.json() as {
+      orders?: Array<Omit<FinancePrintShopMargin, "date"> & { date: string | null }>;
+    };
+    if (!Array.isArray(body.orders)) throw new Error("Risposta incompleta");
+    printShopMargins = body.orders.map((row) => ({
+      ...row,
+      date: financeDate(row.date),
+      missingReasons: [...row.missingReasons],
+    }));
+  } catch {
+    printShopWarning = "Margini delle stampe non caricati. Riprova ad aggiornare; i totali finanziari di cassa restano disponibili.";
+  }
   const dashboard = buildFinanceDashboard({ ...coreSnapshot, labStatements });
-  return labWarning
-    ? { ...dashboard, warnings: [...dashboard.warnings, labWarning] }
-    : dashboard;
+  return {
+    ...dashboard,
+    printShopMargins,
+    warnings: [
+      ...dashboard.warnings,
+      ...(labWarning ? [labWarning] : []),
+      ...(printShopWarning ? [printShopWarning] : []),
+    ],
+  };
 }
 
 /** Exports precisely the filtered read model displayed by the dashboard. */
@@ -46,6 +70,7 @@ export function exportFinanceDashboard(data: FinanceDashboard): void {
     "Orizzonte da riscuotere": data.exportContext?.receivables || "Come nella vista esportata",
     Ricerca: data.exportContext?.search || "",
     Nota: "Pattuito e residuo delle campagne sono storici; incassi e uscite seguono il periodo. Le date assenti non sono ricostruite.",
+    "Margini stampe": "Analisi separata: non sommare nuovamente ricavi, commissioni o costi già presenti nei movimenti di cassa.",
   }]);
   append("Movimenti", data.ledger.map(e => ({
     Data: date(e.date), Tipo: e.kind === "refund" ? "Rimborso / storno" : e.kind === "cost" ? "Costo lavoro" : e.direction === "income" ? "Entrata" : "Uscita",
@@ -53,6 +78,24 @@ export function exportFinanceDashboard(data: FinanceDashboard): void {
     Descrizione: e.description, Metodo: e.method, Campagna: e.campaignId || "",
     Prenotazione: e.bookingId || "", Lavoro: e.jobId || "", Ordine: e.orderId || "",
     Riferimenti: e.references.join("; "),
+  })));
+  append("Margini stampe", data.printShopMargins.map(row => ({
+    Data: date(row.date),
+    Ordine: row.orderNumber,
+    Cliente: row.customerName,
+    Metodo: row.paymentMethod,
+    Incassato: row.revenueCents / 100,
+    "Costo copie stimato": row.estimatedPrintCostCents === null ? "Non disponibile" : row.estimatedPrintCostCents / 100,
+    "Costo laboratorio effettivo": row.supplierCostCents === null ? "Non disponibile" : row.supplierCostCents / 100,
+    "Costo produzione usato": row.productionCostCents === null ? "Non determinabile" : row.productionCostCents / 100,
+    "Base costo": row.productionCostBasis === "actual" ? "Consuntivo laboratorio" :
+      row.productionCostBasis === "estimated" ? "Stima per copia" : "Non disponibile",
+    "Commissione PayPal": row.paypalFeeCents === null ? "Non disponibile" : row.paypalFeeCents / 100,
+    Margine: row.marginCents === null ? "Non determinabile" : row.marginCents / 100,
+    Stato: row.marginStatus === "actual" ? "Consuntivo" :
+      row.marginStatus === "estimated" ? "Stimato" : "Incompleto",
+    "Da completare": row.missingReasons.join(" "),
+    Riferimento: row.orderId,
   })));
   append("Da riscuotere", data.receivables.map(e => ({
     Scadenza: date(e.date), Residuo: e.amount,

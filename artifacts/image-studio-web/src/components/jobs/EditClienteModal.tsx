@@ -1,6 +1,6 @@
 import { Cliente, UpdateCliente } from '@shared/clienti-types';
 import ClienteForm from '@/components/ClienteForm';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface EditClienteModalProps {
   open: boolean;
@@ -35,6 +35,9 @@ export default function EditClienteModal({
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="dialog-edit-cliente">
         <DialogHeader>
           <DialogTitle>Modifica Cliente</DialogTitle>
+          <DialogDescription>
+            Le modifiche aggiornano l’anagrafica condivisa del cliente in tutto lo studio.
+          </DialogDescription>
         </DialogHeader>
         <ClienteForm
           cliente={cliente}

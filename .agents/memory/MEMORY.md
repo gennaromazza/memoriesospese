@@ -1,7 +1,10 @@
+- [Form con valori iniziali asincroni](async-form-initial-values.md) — completare il lookup dei default prima di aprire il form e usare update funzionali per non sovrascrivere input recenti.
 - [Linea corretta = multi-artifact](lineage-restore-multi-artifact.md) — la struttura client/ server/ alla radice è una base vecchia: ripartire dal ramo restore/completo-20261010 (artifacts/, lib/, pnpm).
 - [Calendar SA fallback & fail-closed](calendar-sa-fallback-failclosed.md) — auth Calendar con fallback FIREBASE_ADMIN_CREDENTIALS; disponibilità mai fail-open: CALENDAR_UNAVAILABLE → 503, sync guard salta.
+- [Scelta sicura calendario studio](calendar-destination-safety.md) — il collegamento iniziale non autorizza una migrazione: i riferimenti storici possono non contenere il calendario di origine.
 - [GitHub sync senza riscrivere main](github-push-connector-token.md) — confronta gli alberi prima della cronologia; per backup divergenti crea uno snapshot via API e non fare force push senza consenso esplicito.
 - [FIREBASE_ADMIN_CREDENTIALS formato doppio](firebase-admin-credentials-format.md) — secret JSON puro O base64: parsing dual-format ovunque; 16 UNAUTHENTICATED diffuso = chiave revocata da Google.
+- [Firebase Admin CLI bundle](firebase-admin-cli-cjs-bundle.md) — per script one-off, bundle temporaneo CommonJS; gli import named ESM via tsx possono fallire.
 - [OCR documenti Tesseract rimosso](document-ocr-tesseract.md) — route server, dialog client e dipendenza tesseract.js eliminati; shared/document-ocr.ts conservato per decodeCodiceFiscale/cfSurnameCode/cfNameCode ancora usati.
 - [Esclusione capitoli dalla selezione](chapter-selection-exclusion.md) — flag sul capitolo, non sulla galleria; enforcement in più punti di Gallery.tsx (toggle, prodotti, save, sanificazione, lightbox) da tenere allineati.
 - [Requirement rules preventivi](quote-requirement-rules.md) — regole per NOME; QuickQuote usa chiavi productId||nome; "sempre inclusi" (Fissi/omaggio) mai rimossi a cascata; guardia no-op negli effect di sanificazione.
@@ -13,18 +16,24 @@
 - [Drive resumable upload CORS](drive-resumable-upload-cors.md) — l'upload browser→Drive richiede header Origin nella init server-side della sessione resumable, altrimenti i PUT dei chunk sono bloccati da CORS.
 - [Google Drive via connectors SDK](drive-connectors-sdk.md) — l'endpoint raw v2 ritorna items:[] anche a connessione sana; ogni chiamata Drive passa dal proxy @replit/connectors-sdk, niente token raw.
 - [Quote price snapshot vs catalog](quote-price-snapshot.md) — la creazione preventivo deve rispettare il prezzo override/omaggio deciso dall'admin; mai ri-leggere il listino catalogo (solo existence check).
+- [QuoteBuilder type hydration in StrictMode](quote-builder-type-hydration.md) — i reset programmatici del tipo devono attendere il valore target; un flag one-shot può essere consumato sul render intermedio.
+- [Quote builder dialog lifecycle](quote-builder-dialog-lifecycle.md) — testare il rifiuto dell’avviso separatamente da chiusura e riapertura controllate dal parent.
 - [Masonry render-window reset loop](gallery-render-window-reset.md) — callback non-memoizzata usata in un useEffect figlio resetta la finestra masonry (~60 foto, lightbox ok). Fix: useCallback.
 - [Dedup foto legacy cross-pagina](gallery-legacy-photo-dedup.md) — foto in 2 collezioni: le legacy senza chapterId vanno dedupate per nome sull'elenco completo o appare il capitolo fantasma "Altre Foto".
 - [Gallery photo completeness & lightbox](gallery-photo-completeness.md) — Firestore orderBy scarta i doc senza il campo → galleria perde foto; riconcilia con query unordered gated su photoCount (deve throw, no save parziale).
 - [Gallery render window](gallery-render-window.md) — finestra di rendering masonry: l'observer della sentinella va ri-armato (deps su visiblePhotoLimit) o si blocca dopo il 1° incremento (~100 foto); attiva solo vista standard fotografo.
 - [Gallery public access gate](gallery-public-access-gate.md) — gate di /view/:id redirige a /gallery/:id (pagina password); per test senza password impostare localStorage gallery_auth_<id>.
 - [Job REST API timestamp serialization](job-rest-timestamp-serialization.md) — getJob/GET /api/jobs/:id ritorna i Timestamp come {_seconds,_nanoseconds}: convertire con convertFirestoreTimestamp, mai .toDate() diretto.
+- [Job custom date-range picker](job-filter-custom-date-range.md) — fine intervallo inclusiva con endOfDay; calendari popover a due mesi richiedono larghezza mese vincolata.
 - [Auto-send email scheduler idempotency](auto-send-scheduler-idempotency.md) — marker in transazione PRIMA dell'invio; rollback SOLO se l'invio email fallisce; timeline post-invio best-effort (mai rollback) → evita doppi invii.
 - [Real Wedding cover contract](wedding-cover-contract.md) — Home e articolo usano endpoint distinti: entrambi devono risolvere lato server la stessa cover e lo stesso fallback; i client usano coverImage/photos[0].
-- [Test framework (vitest) setup](testing-setup.md) — `npx vitest run` (niente npm script); config standalone evita i plugin Vite; pattern per mockare Firestore/Gmail in test server.
+- [Test framework (vitest) setup](testing-setup.md) — config separate dal dev server; mock ai confini esterni; attenzione alla trasformazione SSR degli import nelle funzioni Playwright.
+- [Firebase emulator config per E2E](firebase-emulator-e2e-config.md) — test browser con helper a porte fisse usano una config Firebase dedicata, non quella generale del progetto.
 - [Job denormalized aggregates](job-denormalized-aggregates.md) — quoteStatus/transactionCount da ricalcolare sui write-path; financials.totalePagato/saldoResiduo STALE → incassi reali da paymentSchedules.importoPagato.
+- [Pagamenti e compensi collaboratori](job-collaborator-costs.md) — i costi seguono i pagamenti registrati; le modifiche al compenso devono essere atomiche e non scendere sotto il già pagato.
 - [Caricamento dati nei modal](modal-data-load-on-open.md) — modal sempre montati: fetch Firestore gated su isOpen, non al mount (auth non pronta → liste vuote silenziose).
 - [Quote product grouping](quote-product-sezione-grouping.md) — le viste cliente raggruppano i prodotti per `sezione` (algoritmo groupItems di ProductOrderEditor); `categoria` è un tag separato da NON mostrare.
+- [Bundle photo pools](bundle-photo-pools.md) — la galleria condivisa deriva dal prodotto sorgente scelto dall’admin; le quote degli altri componenti non sono scatti aggiuntivi.
 - [Date all-day da istante UTC](allday-date-utc-shift.md) — data evento all-day da Date/ISO va estratta in Europe/Rome (toRomeDateTime().toISODate()), mai toISOString().split → shift -1 giorno.
 - [Google all-day events are transparent](google-allday-transparency.md) — gli all-day Google nascono transparency:'transparent'; un filtro "Libero" deve esentare gli all-day o i blocchi giornata spariscono dalla disponibilità.
 - [Dev Workflow: no server hot-reload](dev-workflow-no-server-watch.md) — `tsx server/index.ts` senza watch: le modifiche server NON si ricaricano, serve restart_workflow; solo il client (Vite) fa hot-reload.
@@ -32,7 +41,7 @@
 - [Calendar event ↔ Job association](calendar-job-association.md) — link in job.linkedCalendarEventIds[] (no collezione dedicata); risolto in GET /events; ogni write deve calendarCache.clear() o link stale 2min.
 - [Firestore vieta array annidati](firestore-nested-arrays.md) — write con array-di-array fallisce a runtime (INVALID_ARGUMENT); avvolgere il livello interno in mappe {points:[...]} e riconvertire in lettura.
 - [Fallback e2e Playwright locale](local-playwright-e2e-fallback.md) — se il tester e2e è giù: chromium via Nix + playwright npm con executablePath; galleria test OvZM1Zt0 ha solo 5 foto/2 capitoli.
-- [Fixture e2e nel Firestore di produzione](e2e-fixtures-prod-firestore.md) — i task env hanno i secrets: test e2e col vero Admin SDK sporcano il DB reale; usare mock, ripulire per prefisso code.
+- [Fixture e provider reali nei test](e2e-fixtures-prod-firestore.md) — i task hanno credenziali reali: emulatori e rete esterna bloccata; simulare ogni provider, non soltanto database ed email.
 - [Ambienti task isolati senza connettori](isolated-env-no-connectors.md) — Drive & co. non raggiungibili nei task env: testare con mock (pattern fake Firestore + drive) e route lunghe sempre in background.
 - [Ciclo vita asset Blog](blog-asset-lifecycle.md) — tracciare i path Storage; write Firestore prima del cleanup; invalidare upload fuori sessione; publishedAt resta la prima pubblicazione.
 - [NPM firewall registry protocol](npm-firewall-registry-protocol.md) — installazioni nel workflow corrompono node_modules; recupero esplicito dal lockfile con host registry sostituito.
@@ -40,3 +49,34 @@
 - [Appuntamenti e ore legali](appointment-timezones.md) — consulenze legacy a mezzanotte: promemoria dall'orario scelto; preservare l'occorrenza nell'ora autunnale ripetuta.
 - [Audience e collegamento Image Vision](image-vision-audience.md) — per gli sposi; film associati in automatico via galleria→job→Real Wedding, con estratto e link all'articolo.
 - [Passkey in Preview](passkey-preview-handoff.md) — non indebolire MFA in produzione: autorizzare la Preview con una verifica temporanea sul dominio WebAuthn ufficiale.
+- [QR passkey enrollment](device-passkey-enrollment.md) — il QR autorizza una sola credenziale; nei test di concorrenza sincronizzare le letture prima delle transazioni Firestore.
+- [Dispositivi admin ricordati](remembered-admin-devices.md) — fiducia esplicita per 30 giorni sui browser personali; passkey fresca per dispositivi nuovi e modifiche alla sicurezza.
+- [Lead separati dai lavori](jobs-list-leads-separation.md) — lead non firmati nella scheda Lead; conteggi e lista lavori restano dedicati ai lavori firmati.
+- [Studio settings as the source](studio-settings-source.md) — quote colors and studio footer come from saved Admin Studio settings, not template overrides or code fallbacks.
+- [Navigazione admin globale](admin-navigation-sidebar.md) — usare una sidebar condivisa in tutte le pagine admin, mantenendo invariati gruppi, destinazioni e permessi esistenti.
+- [Quote color contrast warnings](quote-color-contrast-warning.md) — calculate actual text/background contrast, but only inform; never alter or block the owner's chosen palette.
+- [Stale TypeScript LSP diagnostics](typescript-lsp-diagnostics-cache.md) — compare the reported expression with saved source and typecheck before repeating edits; reload the editor if only LSP disagrees.
+- [Condividere i preventivi firmati](quote-pdf-sharing.md) — gli URL blob del PDF sono temporanei; condividere il portale tokenizzato `/quote/:token`.
+- [Condivisione mockup fotolibri](photobook-mockup-sharing.md) — anteprima cliente condivisibile manualmente, anche dopo approvazione manuale, senza dipendere dall’email o avviare la stampa.
+- [Nomi originali pagine fotolibro](photobook-page-filenames.md) — mantenere visibile il nome del file caricato; il numero pagina resta un dato distinto per l’ordine.
+- [Ripristino dopo errore renderer mockup](mockup-renderer-retry-restore.md) — resettare il marker di revisione quando si ricrea l’iframe, altrimenti il viewer nuovo non riapplica le scelte salvate.
+- [Recupero scelte tra renderer mockup](mockup-renderer-choice-recovery.md) — partire dai default del renderer nuovo e trasferire solo scelte con semantica e ruolo realmente condivisi.
+- [Ripristino tessuti Quadrobook](quadrobook-fabric-restoration.md) — al riavvio del viewer, scatola e album conservano tessuti distinti se i rispettivi ID salvati differiscono.
+- [Modifica dati cliente da fattura](invoice-client-editing.md) — correggere i dati fattura aggiorna l’anagrafica condivisa del cliente usando il form canonico.
+- [MIME delle immagini social](social-image-mime-source.md) — dichiarare il formato solo quando proviene dai dati attendibili dell’immagine; non dedurlo dall’estensione URL.
+- [Deep link e server produzione](production-spa-deep-links.md) — Vite nasconde le route mancanti nel server produzione: verificare l’apertura diretta con il server reale, non solo la Preview.
+- [Mockup WebGL browser testing](mockup-webgl-browser-testing.md) — per i test mobile 3D in iframe, verificare area full-screen e hit dei controlli anche con mq-final e cambio orientamento.
+- [Fotolibri e invio stampa](photobook-print-dispatch.md) — blocco, trasferimento ed email sono stati distinti; invii dall’esito ambiguo richiedono verifica esplicita, mai retry automatico.
+- [Costo prodotti shop e privacy](shop-product-cost-privacy.md) — i costi unitari restano in dati admin-only, mai nei prodotti pubblici o nelle risposte cliente.
+- [Coupon e incassi confermati](print-coupon-payment-safety.md) — validare prima dell’incasso; dopo la conferma del provider riconciliare la prenotazione congelata, non le condizioni attuali.
+- [Testi promozionali coupon](coupon-promo-copy.md) — valorizzare il beneficio, indicare prezzo/sconto e inclusioni, e spiegare chiaramente dove inserire il codice.
+- [Consenso marketing e disiscrizioni](marketing-consent.md) — il titolare dichiara il consenso dei clienti; non riattivare chi si è disiscritto e richiedere conferma per la lista selezionata.
+- [Footer invii email marketing](marketing-email-footer.md) — ogni invio massivo dichiara che è automatico e mostra i recapiti salvati dello studio.
+- [Destinatari marketing dalle prenotazioni](bulk-email-booking-snapshots.md) — usare lo snapshot valido se manca la scheda cliente; escludere prenotazioni annullate e deduplicare email normalizzate.
+- [Resend e schemi dei contatti](resend-contact-schema.md) — verificare le strutture annidate nella documentazione API corrente: i riepiloghi del connettore possono essere obsoleti.
+- [Resend in produzione](resend-production-credentials.md) — Connectors può non avere un’identità nel runtime pubblicato; usare `RESEND_API_KEY` come secret in produzione.
+- [Continuità del carrello shop](shop-cart-continuity.md) — uscire dal checkout non conclude l’acquisto: rendere raggiungibile la bozza senza duplicare gli articoli.
+- [Trasferimenti stampe interrotti](print-transfer-interruption.md) — “running” non prova che il worker sia vivo; riconciliare Drive prima della ripresa e non ripetere l’email.
+- [Acconti shooting configurabili](booking-deposit-flow.md) — approvazione e acconto sono indipendenti per campagna; importo fisso deciso dall’admin e link gestione nella conferma.
+- [Nomi dei payload Orval](orval-request-schema-names.md) — body generici inline possono creare export Zod/tipo omonimi; usare schemi entità con riferimento.
+- [Recupero appuntamenti storici](booking-calendar-recovery-safety.md) — un riferimento Google mancante non prova che l’evento non esista: niente ricreazioni massive alla cieca.

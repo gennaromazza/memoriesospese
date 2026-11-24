@@ -10,6 +10,9 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import imageCompression from 'browser-image-compression';
 import { storage, auth } from '@/lib/firebase';
+import { AdminPasskeyClient, type AdminSecurityStatus } from '@/lib/admin-passkey';
+import { getProductSaveErrorMessage, isAdminPasskeyRefreshRequired, isProductWritePermissionDenied } from '@/lib/product-save-errors';
+import { ProductPasskeyRecovery } from '@/components/ProductPasskeyRecovery';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import {
   DndContext,
@@ -52,24 +55,34 @@ import {
   createProduct,
   updateProduct,
   deleteProduct,
+  getAllProductsWithShopCosts,
   useProductCategories,
   useReorderProducts,
 } from '@/lib/products';
 import { apiRequest } from '@/lib/queryClient';
 import type { Product, InsertProduct, ProductCategory, BundleItem } from '@shared/booking-types';
 import { isPrintShopManagedProduct } from '@/features/print-shop/product-channel-guard';
+import { countBundlePhotos, getBundleGalleryPhotoCount, resolveBundleItems } from '@/lib/bundle-photos';
 
 const isPrintShopProduct = (product: Product): boolean =>
   isPrintShopManagedProduct(product as Product & { salesChannels?: unknown });
 
 interface SortableProductCardProps {
   product: Product;
+  catalog: Product[];
   categories: ProductCategory[];
   onEdit: () => void;
   onDelete: () => void;
 }
 
-function SortableProductCard({ product, categories, onEdit, onDelete }: SortableProductCardProps) {
+function SortableProductCard({ product, catalog, categories, onEdit, onDelete }: SortableProductCardProps) {
+  const bundleItems = resolveBundleItems(product.bundleItems, catalog);
+  const sharedPhotoSource = product.fotoCondivise
+    ? bundleItems.find((item) => item.prodottoId === product.prodottoSorgenteFotoId)
+    : undefined;
+  const bundleGalleryPhotoCount = product.fotoCondivise
+    ? sharedPhotoSource?.numeroFoto ?? 0
+    : countBundlePhotos(bundleItems);
   const {
     attributes,
     listeners,
@@ -146,6 +159,30 @@ function SortableProductCard({ product, categories, onEdit, onDelete }: Sortable
         <p className="text-sm text-muted-foreground line-clamp-2">
           {product.descrizione || 'Nessuna descrizione'}
         </p>
+        {product.isBundle && (
+          <div className="rounded-lg border bg-muted/40 p-3 space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cosa include il bundle</p>
+            {bundleItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nessun prodotto incluso</p>
+            ) : (
+              <ul className="space-y-2">
+                {bundleItems.map(item => (
+                  <li key={item.prodottoId} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
+                    <span className="min-w-0 break-words">
+                      <strong>{item.quantita} ×</strong> {item.prodottoNome}
+                      {product.fotoCondivise && product.prodottoSorgenteFotoId === item.prodottoId && (
+                        <Badge variant="outline" className="ml-2 text-[10px]">Galleria condivisa</Badge>
+                      )}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {item.numeroFoto > 0 ? `${item.numeroFoto} foto per questo prodotto` : 'Selezione libera'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
         
         <div className="space-y-2 pt-2 border-t">
           <div className="flex justify-between items-center">
@@ -170,9 +207,9 @@ function SortableProductCard({ product, categories, onEdit, onDelete }: Sortable
           <div className="flex justify-between items-center pt-2 border-t">
             <span className="text-sm text-muted-foreground flex items-center gap-1">
               <Image className="h-4 w-4" />
-              Foto incluse:
+              {product.isBundle && product.fotoCondivise ? 'Foto nella galleria condivisa:' : 'Foto incluse:'}
             </span>
-            <span className="font-semibold">{product.numeroFoto}</span>
+            <span className="font-semibold">{product.isBundle ? bundleGalleryPhotoCount : product.numeroFoto}</span>
           </div>
         </div>
 
@@ -206,11 +243,15 @@ interface ProductsManagerProps {
   autoCreate?: boolean;
   /** Apre subito la modifica di questo prodotto. */
   autoEditId?: string;
+  /** Porta il focus sul campo descrizione quando si apre la modifica. */
+  autoFocusDescription?: boolean;
+  /** Mostra e salva il costo gestionale riservato allo shop online. */
+  showShopCost?: boolean;
   /** Chiamata dopo ogni salvataggio o eliminazione. */
   onChanged?: () => void;
 }
 
-export default function ProductsManager({ autoCreate, autoEditId, onChanged }: ProductsManagerProps = {}) {
+export default function ProductsManager({ autoCreate, autoEditId, autoFocusDescription = false, showShopCost = false, onChanged }: ProductsManagerProps = {}) {
   const autoOpened = useRef(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -226,6 +267,9 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [isSyncingBundles, setIsSyncingBundles] = useState(false);
+  const [shopCostInput, setShopCostInput] = useState('');
+  const [passkeyRecoveryRequired, setPasskeyRecoveryRequired] = useState(false);
+  const [passkeyRecoveryAttempt, setPasskeyRecoveryAttempt] = useState(0);
   
   // Form state
   const [formData, setFormData] = useState<InsertProduct>({
@@ -240,6 +284,8 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
     immagini: [],
     isBundle: false,
     bundleItems: [],
+    fotoCondivise: false,
+    prodottoSorgenteFotoId: '',
   });
   
   // Bundle product search state
@@ -359,7 +405,7 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
   async function loadProducts() {
     try {
       setIsLoading(true);
-      const data = await getAllProducts();
+      const data = showShopCost ? await getAllProductsWithShopCosts() : await getAllProducts();
       setProducts(data);
     } catch (error) {
       console.error('Errore caricamento prodotti:', error);
@@ -374,7 +420,9 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
   }
 
   function openCreateDialog() {
+    setPasskeyRecoveryRequired(false);
     setEditingProduct(null);
+    setShopCostInput('');
     setFormData({
       nome: '',
       descrizione: '',
@@ -387,6 +435,8 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
       immagini: [],
       isBundle: false,
       bundleItems: [],
+      fotoCondivise: false,
+      prodottoSorgenteFotoId: '',
     });
     setProductImages([]);
     setBundleSearchTerm('');
@@ -395,7 +445,13 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
   }
 
   function openEditDialog(product: Product) {
+    setPasskeyRecoveryRequired(false);
     setEditingProduct(product);
+    setShopCostInput(
+      typeof product.costoUnitario === 'number' && Number.isFinite(product.costoUnitario)
+        ? String(product.costoUnitario)
+        : '',
+    );
 
     let syncedBundleItems = product.bundleItems || [];
     if (product.isBundle && syncedBundleItems.length > 0) {
@@ -428,6 +484,8 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
       immagini: product.immagini || [],
       isBundle: product.isBundle || false,
       bundleItems: syncedBundleItems,
+      fotoCondivise: product.fotoCondivise || false,
+      prodottoSorgenteFotoId: product.prodottoSorgenteFotoId || '',
     });
     setProductImages(product.immagini || []);
     setBundleSearchTerm('');
@@ -571,6 +629,9 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
     setFormData({
       ...formData,
       bundleItems: formData.bundleItems?.filter(item => item.prodottoId !== prodottoId) || [],
+      prodottoSorgenteFotoId: formData.prodottoSorgenteFotoId === prodottoId
+        ? ''
+        : formData.prodottoSorgenteFotoId,
     });
   }
   
@@ -602,7 +663,12 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
   });
   
   // Calculate total photos in bundle
-  const totalBundlePhotos = formData.bundleItems?.reduce((sum, item) => sum + (item.numeroFoto * item.quantita), 0) || 0;
+  const resolvedBundleItems = resolveBundleItems(formData.bundleItems, products);
+  const totalBundlePhotos = countBundlePhotos(resolvedBundleItems);
+  const bundleGalleryPhotoCount = formData.prodottoSorgenteFotoId
+    ? getBundleGalleryPhotoCount(resolvedBundleItems, formData.prodottoSorgenteFotoId)
+    : 0;
+  const displayedBundlePhotoCount = formData.fotoCondivise ? bundleGalleryPhotoCount : totalBundlePhotos;
 
   async function handleSave() {
     // Validazione
@@ -628,6 +694,16 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
       toast({
         title: 'Errore',
         description: 'Lo sconto deve essere tra 0% e 100%',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const costoUnitario = shopCostInput.trim() === '' ? undefined : Number(shopCostInput);
+    if (showShopCost && costoUnitario !== undefined && (!Number.isFinite(costoUnitario) || costoUnitario < 0)) {
+      toast({
+        title: 'Costo non valido',
+        description: 'Inserisci un costo unitario pari o superiore a 0 euro.',
         variant: 'destructive',
       });
       return;
@@ -681,21 +757,47 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
           return;
         }
       }
+
+      if (formData.fotoCondivise) {
+        const sourceProduct = resolvedBundleItems.find(
+          (item) => item.prodottoId === formData.prodottoSorgenteFotoId && item.numeroFoto > 0,
+        );
+        if (!sourceProduct) {
+          toast({
+            title: 'Seleziona la galleria sorgente',
+            description: 'Scegli un prodotto incluso nel bundle che definisca la galleria condivisa.',
+            variant: 'destructive',
+          });
+          return;
+        }
+      }
     }
 
     try {
       setIsSaving(true);
+      const productDataBase = formData.isBundle
+        ? {
+            ...formData,
+            fotoCondivise: Boolean(formData.fotoCondivise),
+            prodottoSorgenteFotoId: formData.fotoCondivise ? formData.prodottoSorgenteFotoId || '' : '',
+            bundleItems: resolvedBundleItems,
+            numeroFoto: totalBundlePhotos,
+          }
+        : { ...formData, fotoCondivise: false, prodottoSorgenteFotoId: '' };
+      const productData = showShopCost
+        ? { ...productDataBase, costoUnitario }
+        : productDataBase;
 
       if (editingProduct) {
         // Modifica
-        await updateProduct(editingProduct.id, formData);
+        await updateProduct(editingProduct.id, productData);
         toast({
           title: 'Prodotto aggiornato',
           description: `Il prodotto "${formData.nome}" è stato modificato con successo`,
         });
       } else {
         // Creazione
-        await createProduct(formData);
+        await createProduct(productData);
         toast({
           title: 'Prodotto creato',
           description: `Il prodotto "${formData.nome}" è stato creato con successo`,
@@ -707,9 +809,28 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
       onChanged?.();
     } catch (error) {
       console.error('Errore salvataggio prodotto:', error);
+      if (isAdminPasskeyRefreshRequired(error)) {
+        setPasskeyRecoveryRequired(true);
+        setPasskeyRecoveryAttempt((attempt) => attempt + 1);
+        toast({
+          title: 'Verifica di sicurezza scaduta',
+          description: 'I dati del prodotto restano aperti nel modulo. Verifica di nuovo la passkey, poi premi Salva Modifiche.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      let securityStatus: Pick<AdminSecurityStatus, 'passkeyRequired' | 'verified'> | undefined;
+      let securityStatusError: unknown;
+      if (isProductWritePermissionDenied(error)) {
+        try {
+          securityStatus = await AdminPasskeyClient.getStatus();
+        } catch (statusError) {
+          securityStatusError = statusError;
+        }
+      }
       toast({
         title: 'Errore',
-        description: 'Impossibile salvare il prodotto',
+        description: getProductSaveErrorMessage(error, securityStatus, securityStatusError),
         variant: 'destructive',
       });
     } finally {
@@ -738,6 +859,14 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
   }
 
   const prezzoFinale = formData.prezzo - (formData.prezzo * formData.sconto / 100);
+  const costoUnitarioPreview = shopCostInput.trim() === '' ? null : Number(shopCostInput);
+  const margineUnitarioPreview = costoUnitarioPreview !== null && Number.isFinite(costoUnitarioPreview) && costoUnitarioPreview >= 0
+    ? prezzoFinale - costoUnitarioPreview
+    : null;
+  const formatEuro = (amount: number) => new Intl.NumberFormat('it-IT', {
+    style: 'currency',
+    currency: 'EUR',
+  }).format(amount);
 
   // Sincronizza dati bundle negli ordini esistenti
   async function handleSyncBundles() {
@@ -948,6 +1077,7 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredProducts.map(product => (
                 <SortableProductCard
+                  catalog={products}
                   key={product.id}
                   product={product}
                   categories={allCategories}
@@ -973,6 +1103,10 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
                 : 'Crea un nuovo prodotto fotografico'}
             </DialogDescription>
           </DialogHeader>
+
+          {passkeyRecoveryRequired ? (
+            <ProductPasskeyRecovery key={passkeyRecoveryAttempt} />
+          ) : null}
 
           <div className="space-y-4 py-4">
             {/* Nome */}
@@ -1028,6 +1162,7 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
                 onChange={e => setFormData({ ...formData, descrizione: e.target.value })}
                 placeholder="Descrizione dettagliata del prodotto..."
                 rows={3}
+                autoFocus={autoFocusDescription && Boolean(autoEditId)}
                 data-testid="input-product-description"
               />
             </div>
@@ -1072,20 +1207,58 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
               </div>
             )}
 
+            {showShopCost && (
+              <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+                <Label htmlFor="shop-unit-cost">Costo unitario sostenuto (€)</Label>
+                <Input
+                  id="shop-unit-cost"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={shopCostInput}
+                  onChange={e => setShopCostInput(e.target.value)}
+                  placeholder="es. 12,50"
+                  data-testid="input-shop-unit-cost"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Dato gestionale riservato: non viene mostrato ai clienti.
+                </p>
+                <div className="flex items-center justify-between border-t pt-2 text-sm">
+                  <span className="font-medium">Margine unitario stimato</span>
+                  <span className={margineUnitarioPreview !== null && margineUnitarioPreview < 0 ? 'font-semibold text-destructive' : 'font-semibold'}>
+                    {margineUnitarioPreview === null ? 'Inserisci il costo' : formatEuro(margineUnitarioPreview)}
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* Numero Foto */}
             <div className="space-y-2">
-              <Label htmlFor="numeroFoto">Numero Foto Incluse *</Label>
+              <Label htmlFor="numeroFoto">
+                {formData.isBundle
+                  ? formData.fotoCondivise
+                    ? 'Foto nella galleria condivisa'
+                    : 'Foto totali dei prodotti'
+                  : 'Numero Foto Incluse *'}
+              </Label>
               <Input
                 id="numeroFoto"
                 type="number"
                 min="0"
-                value={formData.numeroFoto}
+                value={formData.isBundle ? displayedBundlePhotoCount : formData.numeroFoto}
+                readOnly={formData.isBundle}
+                aria-describedby="product-photos-help"
+                className={formData.isBundle ? 'bg-muted' : undefined}
                 onChange={e => setFormData({ ...formData, numeroFoto: parseInt(e.target.value) || 0 })}
                 placeholder="es. 20"
                 data-testid="input-product-photos"
               />
-              <p className="text-xs text-muted-foreground">
-                Numero di foto che il cliente può selezionare per questo prodotto
+              <p id="product-photos-help" className="text-xs text-muted-foreground">
+                {formData.isBundle
+                  ? formData.fotoCondivise
+                    ? 'Il cliente vede una sola galleria. Le foto indicate per gli altri prodotti vengono scelte da questa stessa raccolta.'
+                    : 'Conteggio complessivo dei prodotti inclusi. Attiva “Foto condivise” se i prodotti usano una sola galleria.'
+                  : 'Numero di foto che il cliente può selezionare per questo prodotto'}
               </p>
             </div>
 
@@ -1210,6 +1383,8 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
                     ...formData, 
                     isBundle: checked,
                     bundleItems: checked ? formData.bundleItems : [],
+                fotoCondivise: checked ? formData.fotoCondivise : false,
+                prodottoSorgenteFotoId: checked ? formData.prodottoSorgenteFotoId : '',
                   });
                 }}
                 data-testid="switch-is-bundle"
@@ -1225,17 +1400,17 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
                     Prodotti nel Bundle
                   </Label>
                   <Badge variant="secondary">
-                    {formData.bundleItems?.length || 0} prodotti - {totalBundlePhotos} foto totali
+                    {formData.bundleItems?.length || 0} prodotti - galleria di {bundleGalleryPhotoCount} foto
                   </Badge>
                 </div>
 
                 {/* Current bundle items */}
                 {formData.bundleItems && formData.bundleItems.length > 0 && (
                   <div className="space-y-2">
-                    {formData.bundleItems.map((item) => (
+                    {resolvedBundleItems.map((item) => (
                       <div 
                         key={item.prodottoId} 
-                        className="flex items-center gap-3 p-3 bg-muted rounded-lg"
+                        className="flex flex-wrap items-center gap-3 p-3 bg-muted rounded-lg"
                       >
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-sm truncate">{item.prodottoNome}</p>
@@ -1262,9 +1437,9 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
                               type="number"
                               min="0"
                               value={item.numeroFoto}
-                              onChange={(e) => updateBundleItem(item.prodottoId, { 
-                                numeroFoto: parseInt(e.target.value) || 0 
-                              })}
+                              readOnly
+                              aria-label={`Foto per ${item.prodottoNome}, dal catalogo`}
+                              title="Numero di foto del prodotto nel catalogo"
                               className="w-16 h-8 text-center"
                             />
                           </div>
@@ -1282,6 +1457,54 @@ export default function ProductsManager({ autoCreate, autoEditId, onChanged }: P
                     ))}
                   </div>
                 )}
+
+                <div className="space-y-3 rounded-lg border border-sky-200 bg-sky-50/60 p-3 dark:border-sky-900 dark:bg-sky-950/20">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="bundle-shared-photos" className="font-medium">Foto condivise</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Gli altri prodotti useranno le foto della galleria del prodotto sorgente.
+                      </p>
+                    </div>
+                    <Switch
+                      id="bundle-shared-photos"
+                      checked={Boolean(formData.fotoCondivise)}
+                      onCheckedChange={(checked) => setFormData({
+                        ...formData,
+                        fotoCondivise: checked,
+                        prodottoSorgenteFotoId: checked ? formData.prodottoSorgenteFotoId || '' : '',
+                      })}
+                      data-testid="switch-bundle-shared-photos"
+                    />
+                  </div>
+                  {formData.fotoCondivise && (
+                    <div className="space-y-2">
+                      <Label htmlFor="bundle-photo-source">Prodotto che definisce la galleria *</Label>
+                      <Select
+                        value={formData.prodottoSorgenteFotoId || ''}
+                        onValueChange={(value) => setFormData({ ...formData, prodottoSorgenteFotoId: value })}
+                      >
+                        <SelectTrigger id="bundle-photo-source" data-testid="select-bundle-photo-source">
+                          <SelectValue placeholder="Seleziona il prodotto sorgente" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {resolvedBundleItems
+                            .filter((item) => item.numeroFoto > 0)
+                            .map((item) => (
+                              <SelectItem key={item.prodottoId} value={item.prodottoId}>
+                                {item.prodottoNome} · {item.numeroFoto} foto
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                      {resolvedBundleItems.filter((item) => item.numeroFoto > 0).length === 0 && (
+                        <p className="text-xs text-destructive">
+                          Aggiungi prima un prodotto con foto incluse per usarlo come sorgente.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 {/* Search and add products */}
                 <div className="space-y-3">

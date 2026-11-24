@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { getDiscoverGroups, getHeaderItems, getMobileItems } from "@/config/navigation";
 import { useGiftShopAvailable } from "@/hooks/useGiftShopAvailable";
 import { useShopAvailable } from "@/hooks/useShopAvailable";
+import { usePrintShopAvailable } from "@/hooks/usePrintShopAvailable";
+import { ShopCartLink } from "@/features/shop/ShopCartLink";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,14 +29,19 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDiscoverOpen, setIsDiscoverOpen] = useState(false);
   const discoverContentId = useId();
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   const { studioSettings } = useStudio();
   const { handleLogout } = useLogout();
   const isAdmin = useIsAdmin();
   const { user, userProfile, isLoading: authLoading } = useFirebaseAuth();
   const giftShop = useGiftShopAvailable();
   const shop = useShopAvailable();
+  const printShop = usePrintShopAvailable();
   const accountName = userProfile?.displayName || user?.displayName || user?.email?.split('@')[0] || 'Account';
+  const isShopJourney = /(?:^|\/)online-shop(?:\/|$)/.test(location);
+  const accountOrdersHref = isShopJourney ? '/online-shop/i-miei-ordini' : '/stampa-foto-aversa/i-miei-ordini';
+  const accountOrdersLabel = isShopJourney ? 'Ordini shop online' : 'Ordini di stampe';
+  const accountLoginHref = isShopJourney ? '/online-shop/ordine' : '/stampa-foto-aversa/ordine#accesso';
 
   // Lock body scroll when mobile menu is open
   useEffect(() => {
@@ -104,10 +111,31 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
                 )}
               </Link>
             </div>
-            <div className="ml-4 flex items-center md:ml-6 gap-3">
+            <div className="ml-3 flex min-w-0 items-center justify-end gap-2 md:ml-6 md:gap-3">
+              <ShopCartLink />
               <span className="hidden sm:inline-block px-3 py-1.5 rounded-full text-blue-gray bg-sage/10 text-sm font-medium">
                 Galleria di <span>{galleryOwner}</span>
               </span>
+              {(printShop || shop) && (
+                <div className="flex items-center gap-1" aria-label="Altri prodotti Image Studio">
+                  {printShop && (
+                    <Link
+                      to={createUrl('/stampa-foto-aversa')}
+                      className="rounded-full border border-sage/25 px-3 py-2 text-xs font-semibold text-blue-gray hover:bg-sage/10 sm:text-sm"
+                    >
+                      Stampe
+                    </Link>
+                  )}
+                  {shop && (
+                    <Link
+                      to={createUrl('/online-shop')}
+                      className="rounded-full border border-sage/25 px-3 py-2 text-xs font-semibold text-blue-gray hover:bg-sage/10 sm:text-sm"
+                    >
+                      Shop online
+                    </Link>
+                  )}
+                </div>
+              )}
 
               {/* Pulsante Richiedi Password - solo per non-admin */}
               {galleryCode && !isAdmin && (
@@ -143,7 +171,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
   // Default public navigation bar (homepage e tutte le pagine pubbliche)
   const headerItems = getHeaderItems({ giftShop, shop });
   const mobileItems = getMobileItems({ giftShop, shop });
-  const discoverGroups = getDiscoverGroups();
+  const discoverGroups = getDiscoverGroups({ giftShop, shop, printShop });
 
   return (
     <nav className="fixed top-0 w-full z-50 bg-white/85 backdrop-blur-xl border-b border-sage/10 shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
@@ -168,6 +196,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
 
           {/* Desktop nav */}
           <div className="hidden md:flex md:items-center md:gap-1">
+            <ShopCartLink />
             {headerItems.filter(i => !i.highlight).map((item) => {
               const className = "relative text-[15px] font-medium text-blue-gray/85 hover:text-sage px-3.5 py-2 rounded-full transition-colors duration-200";
 
@@ -262,8 +291,8 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuItem asChild className="cursor-pointer rounded-xl p-0 focus:bg-sage/10">
-                      <Link to={createUrl('/stampa-foto-aversa/i-miei-ordini')} className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-blue-gray">
-                        <ShoppingBag className="h-4 w-4 text-dark-sage" aria-hidden="true" /> I miei ordini
+                      <Link to={createUrl(accountOrdersHref)} className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-blue-gray">
+                        <ShoppingBag className="h-4 w-4 text-dark-sage" aria-hidden="true" /> {accountOrdersLabel}
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem
@@ -277,7 +306,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
               </DropdownMenu>
             ) : (
               <Link
-                to={createUrl('/stampa-foto-aversa/ordine#accesso')}
+                to={createUrl(accountLoginHref)}
                 className="ml-1 inline-flex items-center gap-2 rounded-full border border-sage/30 bg-white px-4 py-2 text-[14px] font-semibold text-blue-gray transition hover:border-sage/50 hover:bg-sage/5"
               >
                 <LogIn className="h-4 w-4 text-dark-sage" aria-hidden="true" /> Accedi
@@ -297,6 +326,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
 
           {/* Mobile burger */}
           <div className="md:hidden flex items-center gap-1.5">
+            <ShopCartLink />
             {!authLoading && (user ? (
               <button
                 type="button"
@@ -309,7 +339,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
               </button>
             ) : (
               <Link
-                to={createUrl('/stampa-foto-aversa/ordine#accesso')}
+                to={createUrl(accountLoginHref)}
                 className="inline-flex h-10 items-center gap-1.5 rounded-full border border-sage/30 px-3 text-sm font-semibold text-blue-gray"
               >
                 <LogIn className="h-4 w-4 text-dark-sage" aria-hidden="true" /> Accedi
@@ -429,11 +459,11 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
                   </Link>
                 )}
                 <Link
-                  to={createUrl('/stampa-foto-aversa/i-miei-ordini')}
+                  to={createUrl(accountOrdersHref)}
                   onClick={() => setIsMenuOpen(false)}
                   className="flex items-center gap-3 rounded-xl bg-white px-3 py-3 text-sm font-semibold text-blue-gray"
                 >
-                  <ShoppingBag className="h-4 w-4 text-dark-sage" aria-hidden="true" /> I miei ordini
+                  <ShoppingBag className="h-4 w-4 text-dark-sage" aria-hidden="true" /> {accountOrdersLabel}
                 </Link>
                 <button
                   type="button"
@@ -448,7 +478,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
               </div>
             ) : (
               <Link
-                to={createUrl('/stampa-foto-aversa/ordine#accesso')}
+                to={createUrl(accountLoginHref)}
                 onClick={() => setIsMenuOpen(false)}
                 className="mt-4 flex items-center justify-center gap-2 rounded-full border border-sage/30 bg-sage/5 px-4 py-3 text-base font-semibold text-blue-gray"
               >

@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { UploadCloud, Trash2, ArrowLeft, Loader2, CheckCircle2, AlertCircle, Play, Pause, RefreshCw, Copy, Check, LockKeyhole } from 'lucide-react';
 import { selectFolderNative } from '../../lib/native';
 import { browserFolderChapter, supportedUploadImage } from '../../lib/folderChapter';
+import { collectDroppedFiles } from '../../lib/droppedFiles';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Progress } from '@/components/ui/progress';
 import { GalleryAssociationFields } from './association-fields';
@@ -251,19 +252,19 @@ function SettingsTab({ gallery, updateGallery }: { gallery: any, updateGallery: 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2 col-span-2">
             <Label htmlFor="gallery-name">Nome galleria</Label>
-            <Input id="gallery-name" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+            <Input id="gallery-name" value={formData.name} onChange={e => setFormData(current => ({ ...current, name: e.target.value }))} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="gallery-event-date">Data evento</Label>
-            <Input id="gallery-event-date" type="date" value={formData.eventDate} onChange={e => setFormData({ ...formData, eventDate: e.target.value })} />
+            <Input id="gallery-event-date" type="date" value={formData.eventDate} onChange={e => setFormData(current => ({ ...current, eventDate: e.target.value }))} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="gallery-location">Luogo</Label>
-            <Input id="gallery-location" value={formData.location} onChange={e => setFormData({ ...formData, location: e.target.value })} />
+            <Input id="gallery-location" value={formData.location} onChange={e => setFormData(current => ({ ...current, location: e.target.value }))} />
           </div>
           <div className="space-y-2 col-span-2">
             <Label htmlFor="gallery-description">Descrizione</Label>
-            <Input id="gallery-description" value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} />
+            <Input id="gallery-description" value={formData.description} onChange={e => setFormData(current => ({ ...current, description: e.target.value }))} />
           </div>
         </div>
         <div className="border-t border-border pt-4">
@@ -343,6 +344,7 @@ function SelectionTab({ gallery }: { gallery: any }) {
   const configure = useConfigureSelection(galleryId);
   const unlock = useUnlockSelection(galleryId);
   const reset = useResetSelection(galleryId);
+  const selectionFormDirty = useRef(false);
   
   const [formData, setFormData] = useState({
     enabled: selection?.enabled ?? gallery.selectionMode !== undefined,
@@ -352,8 +354,13 @@ function SelectionTab({ gallery }: { gallery: any }) {
     deadline: selection?.deadline ? new Date(selection.deadline).toISOString().split('T')[0] : ''
   });
   const [productRequirements, setProductRequirements] = useState<Array<{ prodottoId: string; prodottoNome: string; prodottoNumeroFoto: number }>>([]);
+  const updateFormData = (updates: Partial<typeof formData>) => {
+    selectionFormDirty.current = true;
+    setFormData(current => ({ ...current, ...updates }));
+  };
+  useEffect(() => { selectionFormDirty.current = false; }, [galleryId]);
   useEffect(() => {
-    if (!selection) return;
+    if (!selection || selectionFormDirty.current) return;
     setFormData({
       enabled: selection.enabled ?? true,
       unlimited: selection.unlimited ?? false,
@@ -363,6 +370,7 @@ function SelectionTab({ gallery }: { gallery: any }) {
     });
   }, [galleryId, selection?.mode, selection?.requiredCount, selection?.deadline, selection?.enabled, selection?.unlimited]);
   useEffect(() => {
+    if (selectionFormDirty.current) return;
     const source = selection?.productRequirements || selection?.products || gallery.productRequirements || [];
     setProductRequirements(source.map((product: any) => ({
       prodottoId: product.prodottoId || product.id || '',
@@ -372,7 +380,10 @@ function SelectionTab({ gallery }: { gallery: any }) {
   }, [galleryId, selection?.productRequirements, selection?.products, gallery.productRequirements]);
 
   const handleSave = () => {
-    configure.mutate({ ...formData, productRequirements }, { onSuccess: () => window.alert('Selezione salvata.'), onError: (e: Error) => window.alert(`Salvataggio non riuscito: ${e.message}`) });
+    configure.mutate({ ...formData, productRequirements }, {
+      onSuccess: () => { selectionFormDirty.current = false; window.alert('Selezione salvata.'); },
+      onError: (e: Error) => window.alert(`Salvataggio non riuscito: ${e.message}`)
+    });
   };
 
   if (isLoading) return <div className="p-8 text-muted-foreground">Caricamento dati di selezione...</div>;
@@ -383,27 +394,27 @@ function SelectionTab({ gallery }: { gallery: any }) {
         <h3 className="font-medium text-foreground text-lg mb-4">Configurazione Selezione</h3>
         <div className="grid grid-cols-2 gap-4">
           <div className="col-span-2 flex items-center gap-2">
-            <input id="selection-enabled" type="checkbox" checked={formData.enabled} onChange={e => setFormData({ ...formData, enabled: e.target.checked })} />
+            <input id="selection-enabled" type="checkbox" checked={formData.enabled} onChange={e => updateFormData({ enabled: e.target.checked })} />
             <Label htmlFor="selection-enabled">Abilita selezione cliente</Label>
           </div>
           <div className="space-y-2">
             <Label>Modalità Selezione</Label>
-            <select className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" value={formData.mode} onChange={e => setFormData({ ...formData, mode: e.target.value as 'like'|'dislike' })}>
+            <select className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" value={formData.mode} onChange={e => updateFormData({ mode: e.target.value as 'like'|'dislike' })}>
               <option value="like">Mi piace</option>
               <option value="dislike">Non mi piace</option>
             </select>
           </div>
           <div className="space-y-2">
             <Label>Numero Foto Richieste</Label>
-            <Input type="number" min={0} disabled={formData.unlimited} value={formData.requiredCount} onChange={e => setFormData({ ...formData, requiredCount: parseInt(e.target.value, 10) || 0 })} />
+            <Input type="number" min={0} disabled={formData.unlimited} value={formData.requiredCount} onChange={e => updateFormData({ requiredCount: parseInt(e.target.value, 10) || 0 })} />
           </div>
           <div className="col-span-2 flex items-center gap-2">
-            <input id="selection-unlimited" type="checkbox" checked={formData.unlimited} onChange={e => setFormData({ ...formData, unlimited: e.target.checked, requiredCount: e.target.checked ? 0 : formData.requiredCount })} />
+            <input id="selection-unlimited" type="checkbox" checked={formData.unlimited} onChange={e => updateFormData({ unlimited: e.target.checked, requiredCount: e.target.checked ? 0 : formData.requiredCount })} />
             <Label htmlFor="selection-unlimited">Selezione libera (senza limite)</Label>
           </div>
           <div className="space-y-2">
             <Label>Scadenza (Opzionale)</Label>
-            <Input type="date" value={formData.deadline} onChange={e => setFormData({ ...formData, deadline: e.target.value })} />
+            <Input type="date" value={formData.deadline} onChange={e => updateFormData({ deadline: e.target.value })} />
           </div>
         </div>
         <Button onClick={handleSave} disabled={configure.isPending}>
@@ -418,14 +429,23 @@ function SelectionTab({ gallery }: { gallery: any }) {
           {productRequirements.map((product, index) => (
             <div key={`${product.prodottoId || 'custom'}-${index}`} className="grid grid-cols-[1fr_120px_auto] gap-2 items-center">
               <span className="text-sm truncate">{product.prodottoNome}</span>
-              <Input type="number" min={0} value={product.prodottoNumeroFoto} onChange={e => setProductRequirements(rows => rows.map((row, i) => i === index ? { ...row, prodottoNumeroFoto: Math.max(0, Number(e.target.value) || 0) } : row))} aria-label={`Foto per ${product.prodottoNome}`} />
-              <Button type="button" variant="ghost" size="sm" onClick={() => setProductRequirements(rows => rows.filter((_, i) => i !== index))}>Rimuovi</Button>
+              <Input type="number" min={0} value={product.prodottoNumeroFoto} onChange={e => {
+                selectionFormDirty.current = true;
+                setProductRequirements(rows => rows.map((row, i) => i === index ? { ...row, prodottoNumeroFoto: Math.max(0, Number(e.target.value) || 0) } : row));
+              }} aria-label={`Foto per ${product.prodottoNome}`} />
+              <Button type="button" variant="ghost" size="sm" onClick={() => {
+                selectionFormDirty.current = true;
+                setProductRequirements(rows => rows.filter((_, i) => i !== index));
+              }}>Rimuovi</Button>
             </div>
           ))}
           <div className="flex gap-2">
             <select className="flex-1 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm" value="" onChange={e => {
               const selected = catalogProducts.find((product: any) => product.id === e.target.value);
-              if (selected && !productRequirements.some(product => product.prodottoId === selected.id)) setProductRequirements(rows => [...rows, { prodottoId: selected.id, prodottoNome: selected.name || selected.nome || selected.title || selected.id, prodottoNumeroFoto: Number(selected.numeroFoto || selected.photoCount || 0) }]);
+               if (selected && !productRequirements.some(product => product.prodottoId === selected.id)) {
+                 selectionFormDirty.current = true;
+                 setProductRequirements(rows => [...rows, { prodottoId: selected.id, prodottoNome: selected.name || selected.nome || selected.title || selected.id, prodottoNumeroFoto: Number(selected.numeroFoto || selected.photoCount || 0) }]);
+               }
             }}>
               <option value="">Aggiungi prodotto dal catalogo…</option>
               {catalogProducts.filter((product: any) => !productRequirements.some(current => current.prodottoId === product.id)).map((product: any) => <option key={product.id} value={product.id}>{product.name || product.nome || product.title || product.id}</option>)}
@@ -490,6 +510,8 @@ function UploadTab({ galleryId }: { galleryId: string }) {
   const { items, addItem, clearCompleted, pauseItem, resumeItem, retryItem, concurrency, setConcurrency, aggregateProgress } = useUploadQueue();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [dropMessage, setDropMessage] = useState('');
   const galleryItems = items.filter(i => i.galleryId === galleryId);
 
   const handleSelectFiles = () => {
@@ -536,12 +558,63 @@ function UploadTab({ galleryId }: { galleryId: string }) {
     e.target.value = '';
   };
 
+  const onDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    setDropMessage('');
+    try {
+      const dropped = await collectDroppedFiles(e.dataTransfer.items);
+      let added = 0;
+      let skipped = 0;
+      dropped.forEach(({ file, relativePath }) => {
+        if (!supportedUploadImage(file.name)) { skipped++; return; }
+        let absolutePath: string | undefined;
+        try {
+          absolutePath = window.imageStudioDesktop?.getPathForFile?.(file) || undefined;
+        } catch {
+          // A regular browser has no native path; its File object remains usable
+          // for the lifetime of this window.
+        }
+        addItem({
+          fileName: file.name,
+          relativePath,
+          chapterName: browserFolderChapter(relativePath),
+          size: file.size,
+          galleryId,
+          ...(absolutePath ? { absolutePath } : { fileObj: file }),
+          contentType: file.type,
+        });
+        added++;
+      });
+      setDropMessage(
+        added
+          ? `${added} ${added === 1 ? 'foto aggiunta' : 'foto aggiunte'} alla coda${skipped ? `; ${skipped} file non supportati ignorati` : ''}.`
+          : 'Nessuna foto supportata trovata nella selezione.',
+      );
+    } catch (error) {
+      setDropMessage(error instanceof Error ? error.message : 'Non è stato possibile leggere gli elementi trascinati.');
+    }
+  };
+
   return (
     <div className="max-w-4xl space-y-6">
-      <div className="bg-card border border-border p-8 rounded-xl shadow-sm flex flex-col items-center justify-center border-dashed text-center">
+      <div
+        onDragEnter={e => { e.preventDefault(); setIsDragOver(true); }}
+        onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setIsDragOver(true); }}
+        onDragLeave={e => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setIsDragOver(false);
+        }}
+        onDrop={onDrop}
+        className={`bg-card border p-8 rounded-xl shadow-sm flex flex-col items-center justify-center border-dashed text-center transition-colors ${
+          isDragOver ? 'border-primary bg-primary/5 ring-2 ring-primary/20' : 'border-border'
+        }`}
+      >
         <UploadCloud className="w-12 h-12 text-muted-foreground/50 mb-4" />
         <h3 className="font-medium text-lg mb-2">Carica Foto</h3>
-        <p className="text-sm text-muted-foreground mb-6 max-w-sm">Seleziona file o cartelle. Verranno aggiunti alla coda e processati automaticamente.</p>
+        <p className="text-sm text-muted-foreground mb-2 max-w-sm">
+          Trascina qui foto o cartelle, oppure selezionale. Le immagini nelle sottocartelle mantengono il capitolo di appartenenza.
+        </p>
+        <p aria-live="polite" className="text-sm text-primary min-h-5 mb-4">{dropMessage}</p>
         
         <div className="flex gap-4">
           <Button onClick={handleSelectFiles} variant="outline">Seleziona File</Button>

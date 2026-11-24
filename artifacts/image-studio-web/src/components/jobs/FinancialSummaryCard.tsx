@@ -1,12 +1,16 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Euro, TrendingUp, TrendingDown, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import type { CollaboratorCostSummary } from '@/lib/job-collaborator-costs';
 
 interface FinancialSummaryCardProps {
   totalePreventivato: number;
   totalePagato: number;
   saldoResiduo: number;
   totaleCosti: number;
+  collaboratorCosts?: CollaboratorCostSummary;
+  collaboratorCostsLoading?: boolean;
+  collaboratorCostsError?: boolean;
   className?: string;
 }
 
@@ -15,6 +19,9 @@ export default function FinancialSummaryCard({
   totalePagato,
   saldoResiduo,
   totaleCosti,
+  collaboratorCosts,
+  collaboratorCostsLoading = false,
+  collaboratorCostsError = false,
   className
 }: FinancialSummaryCardProps) {
   const margine = totalePreventivato - totaleCosti;
@@ -102,7 +109,7 @@ export default function FinancialSummaryCard({
               </p>
             </div>
             <p className="text-xs text-muted-foreground" data-testid="text-margine-percentage">
-              {marginePercentuale.toFixed(1)}% del preventivo
+              {marginePercentuale.toLocaleString('it-IT', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}% del preventivo
             </p>
           </div>
         </div>
@@ -112,11 +119,29 @@ export default function FinancialSummaryCard({
           <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Costi totali:</span>
-              <span className="font-medium text-gray-900 dark:text-white">
+              <span className="font-medium text-gray-900 dark:text-white" data-testid="text-costi-totali">
                 {formatEuro(totaleCosti)}
               </span>
             </div>
+            {collaboratorCosts && (collaboratorCosts.paidTotal > 0 || collaboratorCosts.remaining > 0) && (
+              <p className="mt-1 text-xs text-muted-foreground" data-testid="text-collaborator-cost-breakdown">
+                Pagamenti collaboratori inclusi nei costi: {formatEuro(collaboratorCosts.paidTotal)}
+                {collaboratorCosts.remaining > 0
+                  ? ` · residuo compensi accettati (non incluso): ${formatEuro(collaboratorCosts.remaining)}`
+                  : ''}
+              </p>
+            )}
           </div>
+        )}
+        {collaboratorCostsLoading && (
+          <p className="mt-3 text-xs text-muted-foreground" role="status">
+            Aggiornamento dei compensi collaboratori; il margine potrebbe cambiare.
+          </p>
+        )}
+        {collaboratorCostsError && (
+          <p className="mt-3 text-xs text-destructive" role="alert">
+            Compensi collaboratori non caricati: il margine visualizzato potrebbe essere parziale.
+          </p>
         )}
       </CardContent>
     </Card>

@@ -7,17 +7,16 @@ import {
   doc,
   getDocs,
   getDoc,
-  addDoc,
   updateDoc,
   deleteDoc,
   query,
   orderBy,
-  Timestamp,
-  serverTimestamp,
   writeBatch,
 } from 'firebase/firestore';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
+import { shopApi, shopRequest } from '@/features/shop/shop-api';
+import type { AdminCatalogProductResult } from '@workspace/api-client-react';
 import type { Product, InsertProduct, ProductCategory } from '@shared/booking-types';
 import type { BenefitRule } from '@shared/quote-benefits';
 import {
@@ -29,8 +28,25 @@ import {
   reorderProductCategories,
   toggleProductCategoryStatus
 } from './product-categories';
+import { isPrintShopManagedProduct } from '@/features/print-shop/product-channel-guard';
 
 const PRODUCTS_COLLECTION = 'products';
+
+function assertClientManagedProduct(product: unknown): void {
+  if (!product || typeof product !== 'object') return;
+  if (isPrintShopManagedProduct(product as { salesChannels?: unknown })) {
+    throw Object.assign(
+      new Error('I prodotti del catalogo stampe si gestiscono dall’editor shop dedicato.'),
+      { code: 'print_shop_route_required' },
+    );
+  }
+}
+
+function assertValidShopProductCost(value: unknown): asserts value is number | undefined {
+  if (value !== undefined && (typeof value !== 'number' || !Number.isFinite(value) || value < 0)) {
+    throw new Error('Il costo unitario deve essere un importo numerico non negativo');
+  }
+}
 
 /**
  * Ottiene tutti i prodotti, ordinati per displayOrder (con fallback a createdAt)
@@ -55,6 +71,19 @@ export async function getAllProducts(): Promise<Product[]> {
   });
 }
 
+/** Arricchisce i prodotti con i costi riservati, leggibili solo dall'area admin dello shop. */
+export async function getAllProductsWithShopCosts(): Promise<Product[]> {
+  const [products, costs] = await Promise.all([
+    getAllProducts(),
+    shopApi.getAdminProductCosts(),
+  ]);
+  const costsByProductId = new Map(costs.map(({ productId, costoUnitario }) => [productId, costoUnitario]));
+  return products.map(product => {
+    const costoUnitario = costsByProductId.get(product.id);
+    return costoUnitario === undefined ? product : { ...product, costoUnitario };
+  });
+}
+
 /**
  * Ottiene un singolo prodotto per ID
  */
@@ -74,18 +103,12 @@ export async function getProductById(id: string): Promise<Product | null> {
  * Crea un nuovo prodotto
  */
 export async function createProduct(data: InsertProduct): Promise<string> {
-  // Calcola prezzo finale
-  const prezzoFinale = data.prezzo - (data.prezzo * data.sconto / 100);
-  
-  const docRef = await addDoc(collection(db, PRODUCTS_COLLECTION), {
-    ...data,
-    immagini: data.immagini || [], // Array vuoto se non fornito
-    prezzoFinale,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
+  assertClientManagedProduct(data);
+  assertValidShopProductCost(data.costoUnitario);
+  const result = await shopRequest<AdminCatalogProductResult>('/admin/catalog-products', {
+    method: 'POST', body: JSON.stringify(data),
   });
-  
-  return docRef.id;
+  return result.id;
 }
 
 const BENEFIT_RULES_BATCH_SIZE = 499; // Firestore batch limit is 500 ops
@@ -187,11 +210,18 @@ async function renameBenefitProductNameInRules(oldName: string, newName: string)
  * solo se la cascade riesce, procede con il rename del prodotto in Firestore.
  */
 export async function updateProduct(id: string, data: Partial<InsertProduct>): Promise<void> {
+  assertClientManagedProduct(data);
   const docRef = doc(db, PRODUCTS_COLLECTION, id);
+  const hasShopCost = Object.prototype.hasOwnProperty.call(data, 'costoUnitario');
+  const { costoUnitario, ...productFields } = data;
+  if (hasShopCost) assertValidShopProductCost(costoUnitario);
 
   // Leggi sempre il doc corrente: serve per prezzo/sconto E per rilevare cambio nome
   const currentDoc = await getDoc(docRef);
-  const currentData = currentDoc.exists() ? currentDoc.data() as { nome?: string; prezzo?: number; sconto?: number } : null;
+  const currentData = currentDoc.exists()
+    ? currentDoc.data() as { nome?: string; prezzo?: number; sconto?: number; salesChannels?: unknown }
+    : null;
+  assertClientManagedProduct(currentData);
 
   // Se il nome cambia, esegui la cascade PRIMA di aggiornare il prodotto.
   // In caso di errore nella cascade, l'eccezione si propaga e il prodotto non viene rinominato.
@@ -199,26 +229,22 @@ export async function updateProduct(id: string, data: Partial<InsertProduct>): P
     await renameBenefitProductNameInRules(currentData.nome, data.nome);
   }
 
-  const updateData: Record<string, unknown> = {
-    ...data,
-    updatedAt: serverTimestamp(),
-  };
-
-  if (data.prezzo !== undefined || data.sconto !== undefined) {
-    const prezzo = data.prezzo ?? currentData?.prezzo ?? 0;
-    const sconto = data.sconto ?? currentData?.sconto ?? 0;
-    updateData.prezzoFinale = prezzo - (prezzo * sconto / 100);
-  }
-
-  await updateDoc(docRef, updateData);
+  await shopRequest(`/admin/catalog-products/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      ...productFields,
+      ...(hasShopCost ? { costoUnitario: costoUnitario ?? null } : {}),
+    }),
+  });
 }
 
 /**
  * Elimina un prodotto
  */
 export async function deleteProduct(id: string): Promise<void> {
-  const docRef = doc(db, PRODUCTS_COLLECTION, id);
-  await deleteDoc(docRef);
+  await shopRequest(`/admin/catalog-products/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
 }
 
 /**
@@ -234,18 +260,10 @@ export async function getActiveProducts(): Promise<Product[]> {
  * @param reorderedIds Array di product IDs nell'ordine desiderato
  */
 export async function reorderProducts(reorderedIds: string[]): Promise<void> {
-  const batch = writeBatch(db);
-  const now = Timestamp.now();
-  
-  reorderedIds.forEach((id, index) => {
-    const docRef = doc(db, PRODUCTS_COLLECTION, id);
-    batch.update(docRef, {
-      displayOrder: index + 1,
-      updatedAt: now
-    });
+  await shopRequest('/admin/catalog-products/reorder', {
+    method: 'PUT',
+    body: JSON.stringify({ ids: reorderedIds }),
   });
-  
-  await batch.commit();
 }
 
 /**

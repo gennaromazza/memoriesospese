@@ -1,0 +1,110 @@
+import { FieldValue, type Firestore, type DocumentReference } from 'firebase-admin/firestore';
+import { createEvent, deleteEvent } from '../google-calendar.js';
+import { syncBookingWorkflowState } from '../../shared/workflow-helpers.js';
+import { logger } from '../lib/logger.js';
+import { checkSlotReservation } from './slot-reservations.js';
+import { checkGoogleCalendarBusyPeriods } from '../calendar-engine/google-sync.js';
+import { hasConflict } from '../calendar-engine/conflicts.js';
+export { BookingSlotConflictError } from './slot-reservations.js';
+
+/** Rechecks Firestore inside the write transaction, including other campaigns. */
+export async function reservePublicBooking(
+  db: Firestore,
+  data: FirebaseFirestore.DocumentData,
+  start: Date,
+  end: Date,
+): Promise<DocumentReference> {
+  const ref = db.collection('bookings').doc();
+  await db.runTransaction(async transaction => {
+    const commitLocks = await checkSlotReservation(transaction, db, start, end);
+    commitLocks();
+    transaction.set(ref, data);
+  });
+  return ref;
+}
+
+export class AutomaticConfirmationError extends Error {
+  constructor(readonly status: number, readonly bookingRetained: boolean,
+    message = 'Impossibile completare la conferma automatica. Contatta lo studio prima di riprovare.') {
+    super(message);
+  }
+}
+
+/** Confirm only after Calendar succeeds; never send emails from this operation. */
+export async function confirmPublicBooking(
+  ref: DocumentReference,
+  data: FirebaseFirestore.DocumentData,
+  start: Date,
+  end: Date,
+): Promise<void> {
+  // Ricontrollo di Google subito prima di creare l'evento: la disponibilita' e' stata letta prima
+  // della riserva e un impegno inserito nel frattempo non deve diventare una sovrapposizione.
+  // Nessun evento e' stato ancora creato, quindi in caso di problemi basta liberare la riserva.
+  const releaseReservation = async (status: number, message?: string): Promise<never> => {
+    let retained = false;
+    try { await ref.delete(); } catch {
+      retained = true;
+      logger.error({ bookingId: ref.id }, 'Riserva da riconciliare dopo ricontrollo Calendar');
+    }
+    throw new AutomaticConfirmationError(status, retained, message);
+  };
+  let busy: Awaited<ReturnType<typeof checkGoogleCalendarBusyPeriods>>;
+  try {
+    busy = await checkGoogleCalendarBusyPeriods(start, end);
+  } catch {
+    logger.error({ bookingId: ref.id }, 'Google Calendar non leggibile prima della conferma automatica');
+    return releaseReservation(503);
+  }
+  if (hasConflict(start, end, busy)) {
+    logger.warn({ bookingId: ref.id }, 'Impegno Google comparso prima della conferma: slot non più disponibile');
+    return releaseReservation(409, 'Slot non più disponibile. Scegli un altro orario.');
+  }
+
+  let eventId: string | null = null;
+  let calendarCreated = false;
+  try {
+    const event = await createEvent('primary', {
+        kind: 'booking',
+      summary: `Shooting: ${data.cliente.nome} ${data.cliente.cognome}`,
+      description: `Prenotazione shooting CONFERMATA\n\nCliente: ${data.cliente.nome} ${data.cliente.cognome}\nEmail: ${data.cliente.email}\nWhatsApp: ${data.cliente.whatsapp}\n${data.prodottoNome ? `Prodotto: ${data.prodottoNome}\n` : ''}${data.note ? `Note: ${data.note}` : ''}`,
+      start, end, location: 'Studio fotografico',
+    });
+    if (!event.id) throw new Error('Google Calendar non ha restituito un ID evento');
+    eventId = event.id;
+    calendarCreated = true;
+    await ref.update({
+      stato: 'confermata',
+      ...syncBookingWorkflowState('confermata', data.statoWorkflow),
+      googleCalendarEventId: eventId,
+      confermataDa: 'sistema',
+      confermatail: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  } catch {
+    logger.error({ bookingId: ref.id, calendarCreated }, 'Conferma automatica non completata');
+    if (!eventId) {
+      // A timeout may mean Google accepted the insert without returning its ID.
+      // Keep the slot blocked for reconciliation rather than inviting a retry.
+      await ref.update({ automaticConfirmationError: true }).catch(() => undefined);
+      throw new AutomaticConfirmationError(503, true);
+    }
+    if (eventId) {
+      try {
+        await deleteEvent('primary', eventId);
+      } catch {
+        // Retain the reservation if Calendar cleanup is ambiguous: do not reopen
+        // the slot on top of an event that may still exist.
+        await ref.update({ googleCalendarEventId: eventId, automaticConfirmationError: true }).catch(() => undefined);
+        logger.error({ bookingId: ref.id }, 'Evento da riconciliare: prenotazione mantenuta');
+        void import('../system-alerts.js').then(m => m.notifyOrphanCalendarEvents([{ id: eventId!, kind: 'booking', where: 'conferma automatica: evento non rimosso' }])).catch(() => {});
+        throw new AutomaticConfirmationError(500, true);
+      }
+    }
+    let retained = false;
+    try { await ref.delete(); } catch {
+      retained = true;
+      logger.error({ bookingId: ref.id }, 'Riserva da riconciliare dopo errore di conferma');
+    }
+    throw new AutomaticConfirmationError(calendarCreated ? 500 : 503, retained);
+  }
+}

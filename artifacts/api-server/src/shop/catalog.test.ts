@@ -78,7 +78,7 @@ describe('buildShopCatalog', () => {
       categories,
       now: NOW,
       products: [
-        product(),
+        product({ costoUnitario: 7.5 }),
         product({ id: 'p2', nome: 'Spento', attivo: false }),
         product({ id: 'p3', nome: 'Altra categoria', categoria: 'album' }),
         product({ id: 'p4', nome: 'Stampa', salesChannels: ['admin', 'print_shop'] }),
@@ -89,6 +89,7 @@ describe('buildShopCatalog', () => {
     });
     expect(catalog.products.map(item => item.id)).toEqual(['p7', 'p1']);
     expect(catalog.products[0]).toMatchObject({ priceCents: 4500, listPriceCents: 5000, discountPercent: 10, photosRequired: 3 });
+    expect(catalog.products.find(item => item.id === 'p1')).not.toHaveProperty('costoUnitario');
     expect(catalog.categories).toEqual([{ value: 'natale', nome: 'Shopping online Natale 2026' }]);
     expect(catalog.orderingOpen).toBe(true);
     expect(catalog.currency).toBe('EUR');

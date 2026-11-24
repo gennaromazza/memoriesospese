@@ -20,6 +20,7 @@ import {
 import {
   isKnownClientPath,
   isPrivateClientPath,
+  isShopHidden,
   normalizeClientPath,
 } from './client-routes';
 import {
@@ -29,9 +30,12 @@ import {
   resolveSocialImage,
   staticPageMetadata,
   staticSocialImage,
+  blogSocialImage,
+  weddingSocialImage,
+  pageSocialImage,
   type ResolvedSocialImage,
   type SocialImageCandidate,
-} from '../shared/social-metadata';
+} from '@shared/social-metadata';
 import {
   GIFT_HOW_SECTIONS,
   GIFT_HOW_SEO,
@@ -46,6 +50,14 @@ import {
   buildBlogContextualLinks,
   type BlogWeddingStoryCandidate,
 } from '../shared/blog-contextual-links';
+import {
+  formatPrintPromotionOffer,
+  PRINT_PROMOTION_OG_IMAGE,
+  PRINT_PROMOTION_ROUTE_PREFIX,
+  printPromotionPath,
+} from '@shared/print-shop-promotion';
+import type { PrintShopPublicPromotion } from '@shared/print-shop-types';
+import { loadPublicPrintShopPromotions } from './print-shop/seo-promotions';
 
 const BASE_URL = 'https://imagestudiofotografico.com';
 const OG_IMAGE = defaultSocialImage().url;
@@ -54,6 +66,7 @@ const OG_IMAGE = defaultSocialImage().url;
 const PRINT_SEO_FAQS = PRINT_FAQS.filter(faq => !faq.answer.includes('€'));
 const BLOG_LINK_CACHE_TTL_MS = 5 * 60 * 1000;
 let blogLinkCache: { expiresAt: number; docs: any[] } | null = null;
+const PRINT_PROMOTION_OG_URL = `${BASE_URL}${PRINT_PROMOTION_OG_IMAGE}`;
 
 function isNonPrerenderablePath(path: string): boolean {
   return (
@@ -89,6 +102,7 @@ interface PageMeta {
   title: string;
   description: string;
   canonical: string;
+  noindex?: boolean;
   ogType?: string;
   keywords?: string;
   ogImage?: string;
@@ -427,12 +441,6 @@ function getStaticPageMeta(path: string): PageMeta | null {
         <p>Richiedi una consulenza gratuita per discutere del tuo matrimonio, evento o servizio fotografico. Ci incontriamo di persona ad Aversa o in videocall per capire le tue esigenze e creare il pacchetto perfetto per te.</p>
       `
     },
-    '/consultations': {
-      title: 'Consulenza Gratuita Fotografo Matrimoni | Image Studio',
-      description: 'Richiedi una consulenza gratuita e personalizzata con Image Studio, ad Aversa oppure online.',
-      canonical: `${BASE_URL}/consulenze`,
-      bodyContent: `<h1>Consulenze Image Studio</h1><p>Parliamo del tuo matrimonio, evento o servizio fotografico.</p>`
-    },
     '/lasciati-trasportare': {
       title: 'Lasciati Trasportare | E-book Fotografia Matrimonio | Image Studio',
       description: 'Scarica l\'e-book "Lasciati Trasportare" di Image Studio. La filosofia e l\'approccio emozionale alla fotografia matrimoniale di Gennaro Mazzacane.',
@@ -474,6 +482,7 @@ function getStaticPageMeta(path: string): PageMeta | null {
       title: 'Area Ospiti | Image Studio',
       description: 'Scopri i servizi Image Studio dedicati agli ospiti e accedi rapidamente ai contatti dello studio.',
       canonical: `${BASE_URL}/ospiti`,
+      noindex: true,
       bodyContent: `<h1>Area Ospiti Image Studio</h1><p>Informazioni e contatti utili per gli ospiti degli eventi fotografati da Image Studio.</p>`
     },
     '/regala': {
@@ -582,9 +591,26 @@ function getStaticPageMeta(path: string): PageMeta | null {
     }
   };
 
-  const page = pages[path];
+  const page = pages[path] || (path === '/consultations' ? pages['/consulenze'] : undefined);
   const sharedPage = staticPageMetadata(path);
   return page ? { ...page, ...(sharedPage || {}) } : null;
+}
+
+function fallbackPublicPageMeta(path: string): PageMeta {
+  const label = path.split('/').filter(Boolean)
+    .map(segment => segment.replace(/[-_]+/g, ' '))
+    .join(' · ') || 'Image Studio';
+  const socialImage = staticSocialImage(path);
+
+  return {
+    title: `${label} | Image Studio`,
+    description: `Scopri ${label.toLowerCase()} di Image Studio: fotografia e servizi fotografici ad Aversa, Napoli, Caserta e in Campania.`,
+    canonical: `${BASE_URL}${path}`,
+    socialImage: {
+      ...socialImage,
+      alt: `Anteprima ${label} di Image Studio`,
+    },
+  };
 }
 
 async function getBookingCampaignMeta(path: string): Promise<PageMeta | null> {
@@ -608,7 +634,7 @@ async function getBookingCampaignMeta(path: string): Promise<PageMeta | null> {
       url: campaign.immaginePaginaBooking,
       alt: `Prenotazione ${name}`,
       source: 'editorial-cover',
-    }], staticSocialImage('/prenota')),
+    }], staticSocialImage(path)),
     bodyContent: `<h1>${escapeHtml(title)}</h1><p>${escapeHtml(description)}</p>`,
   };
 }
@@ -926,17 +952,10 @@ async function getBlogPostMeta(slug: string): Promise<PageMeta | null> {
       sourceText,
       await getPublishedWeddingStoryCandidates(),
     );
-    const socialImage = resolveSocialImage([
-      {
-        url: post.coverImage,
-        alt: post.coverImageAlt || post.title,
-        width: post.coverImageWidth,
-        height: post.coverImageHeight,
-        type: post.coverImageType,
-        source: 'editorial-cover',
-      },
-      ...(contentImage ? [contentImage] : []),
-    ], defaultSocialImage());
+    const socialImage = blogSocialImage(
+      post,
+      contentImage ? { ...contentImage, alt: post.title } : null,
+    );
     const articleImage = socialImage.url;
 
     const blogPostingJsonLd = {
@@ -1142,13 +1161,7 @@ export function buildWeddingStoryPageMeta(
   const normalizedImages = images
     .map(image => typeof image === 'string' ? { url: image } : image)
     .filter(image => Boolean(image.url));
-  const socialImage = resolveSocialImage(normalizedImages.map((image, index) => ({
-    url: image.url,
-    alt: image.alt || (index === 0
-      ? `Copertina del Real Wedding ${story.title}`
-      : `${story.title} - fotografia ${index + 1}`),
-    source: 'selected-photo' as const,
-  })), defaultSocialImage());
+  const socialImage = weddingSocialImage(story.title, normalizedImages);
   const publicImages = normalizedImages
     .map(image => {
       const resolved = resolveSocialImage([{ url: image.url, alt: image.alt || story.title, source: 'selected-photo' }], { url: '' });
@@ -1210,6 +1223,15 @@ async function getWeddingStoryMeta(slug: string): Promise<PageMeta | null> {
   const photoDocuments = await Promise.all(photoIds.map(id => id.startsWith('legacy-')
     ? db.collection('galleries').doc(story.galleryId).collection('photos').doc(id.slice('legacy-'.length)).get()
     : db.collection('photos').doc(id).get()));
+  // The public API uses chapter titles when no editorial alt was saved.
+  // Resolve the same fallback here, without changing the gallery's photo order.
+  const gallery = photoIds.length
+    ? await db.collection('galleries').doc(story.galleryId).get()
+    : null;
+  const chapters = new Map<string, string>(
+    (Array.isArray(gallery?.data()?.chapters) ? gallery!.data()!.chapters : [])
+      .map((chapter: any) => [chapter.id, chapter.titolo || '']),
+  );
   const images = photoDocuments
     .map((document, index) => {
       if (!document.exists || (!photoIds[index].startsWith('legacy-') && document.data()?.galleryId !== story.galleryId)) return null;
@@ -1219,7 +1241,7 @@ async function getWeddingStoryMeta(slug: string): Promise<PageMeta | null> {
         : '';
       return {
         url: String(document.data()?.url || ''),
-        alt: alt || String(story.title || ''),
+        alt: alt || chapters.get(document.data()?.chapterId) || String(story.title || ''),
       };
     })
     .filter((image): image is { url: string; alt: string } => Boolean(image?.url));
@@ -1331,10 +1353,9 @@ function getPortfolioCategoryMeta(category: string): PageMeta | null {
 function renderSeoHtml(meta: PageMeta, indexHtml: string): string {
   const ogType = meta.ogType || 'website';
   const canonical = canonicalUrl(meta.canonical);
-  const socialImage = resolveSocialImage([
+  const socialImage = pageSocialImage(canonical, [
     ...(meta.socialImage ? [meta.socialImage] : []),
     ...(meta.ogImage ? [{ url: meta.ogImage, alt: meta.title, source: 'content-image' as const }] : []),
-    staticSocialImage(canonical),
   ]);
   const ogImage = socialImage.url;
 
@@ -1421,7 +1442,7 @@ function renderSeoHtml(meta: PageMeta, indexHtml: string): string {
   const seoHead = `
     <title>${escapeHtml(meta.title)}</title>
     <meta name="description" content="${escapeHtml(meta.description)}" />
-    <meta name="robots" content="index,follow,max-image-preview:large" />
+    <meta name="robots" content="${meta.noindex ? 'noindex,nofollow,noarchive' : 'index,follow,max-image-preview:large'}" />
     ${meta.keywords ? `<meta name="keywords" content="${escapeHtml(meta.keywords)}" />` : ''}
     <link rel="canonical" href="${escapeHtml(canonical)}" />
     <meta property="og:title" content="${escapeHtml(meta.title)}" />
@@ -1469,6 +1490,109 @@ const SHOP_SEO_CACHE_MS = 60 * 1000;
 let shopCatalogCache: { expiresAt: number; catalog: ShopCatalogDto } | null = null;
 const shopForSeo = new ShopService({ db });
 
+function promotionOrderUrl(promotion: PrintShopPublicPromotion): string {
+  const params = new URLSearchParams({ coupon: promotion.code });
+  if (promotion.scope === 'selected' && promotion.eligibleFormats.length === 1) {
+    params.set('sku', promotion.eligibleFormats[0].sku);
+  }
+  return `${BASE_URL}/stampa-foto-aversa/ordine?${params.toString()}`;
+}
+
+async function getPrintPromotionMeta(
+  slug: string,
+  loadPromotions: () => Promise<PrintShopPublicPromotion[]>,
+): Promise<PageMeta | null> {
+  if (!/^[a-z0-9_-]{3,32}$/i.test(slug)) return null;
+  const code = slug.toUpperCase();
+  const promotion = (await loadPromotions()).find(
+    entry => entry.code.toUpperCase() === code,
+  );
+  if (!promotion) return null;
+
+  const canonical = `${BASE_URL}${printPromotionPath(promotion.code)}`;
+  const offer = formatPrintPromotionOffer(promotion);
+  const title = `Stampe foto ad Aversa: ${code.slice(0, 12)} | ${offer}`.slice(0, 60);
+  const expiry = new Intl.DateTimeFormat('it-IT', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(new Date(promotion.endsAt));
+  const description = `${offer}. Usa il codice ${promotion.code} entro il ${expiry}. Il risparmio sul listino viene calcolato nel carrello prima del pagamento. Ordina online le stampe fotografiche.`;
+  const formats = promotion.scope === 'selected'
+    ? promotion.eligibleFormats.map(format => escapeHtml(format.name)).join(', ')
+    : 'tutti i formati disponibili nello shop';
+  const exactQuantityText = promotion.discountType === 'fixed_total'
+    ? `Il prezzo pacchetto vale esclusivamente per esattamente ${promotion.minPrintQuantity} stampe totali, tutte nei formati inclusi.`
+    : promotion.minPrintQuantity > 0
+      ? `Per applicare il coupon occorrono almeno ${promotion.minPrintQuantity} copie.`
+      : '';
+  const imageAlt = 'Stampe fotografiche di qualità pronte per conservare i tuoi ricordi';
+  const promotionImage = promotion.graphic?.imageUrl || PRINT_PROMOTION_OG_URL;
+  const promotionImageWidth = promotion.graphic?.width || 1200;
+  const promotionImageHeight = promotion.graphic?.height || 630;
+  const offerSchema: Record<string, unknown> = {
+    '@context': 'https://schema.org',
+    '@type': 'Offer',
+    name: offer,
+    description,
+    url: canonical,
+    priceCurrency: 'EUR',
+    availability: 'https://schema.org/InStock',
+    validFrom: promotion.startsAt,
+    priceValidUntil: promotion.endsAt.slice(0, 10),
+    seller: { '@type': 'Organization', name: 'Image Studio' },
+    ...(promotion.discountType === 'fixed_total'
+      ? {
+          price: (promotion.value / 100).toFixed(2),
+          eligibleQuantity: {
+            '@type': 'QuantitativeValue',
+            value: promotion.minPrintQuantity,
+            unitText: 'stampe',
+          },
+        }
+      : {}),
+  };
+  return {
+    title,
+    description,
+    canonical,
+    keywords: `stampe foto Aversa, coupon stampa foto, ${promotion.code}, promozioni stampe fotografiche`,
+    socialImage: {
+      url: promotionImage,
+      alt: imageAlt,
+      width: promotionImageWidth,
+      height: promotionImageHeight,
+      type: promotion.graphic?.contentType || 'image/jpeg',
+      source: 'curated-static',
+    },
+    bodyContent: `
+      <article>
+        <img src="${escapeHtml(promotionImage)}" alt="${imageAlt}" width="${promotionImageWidth}" height="${promotionImageHeight}" fetchpriority="high" />
+        <h1>Offerta stampe fotografiche: ${escapeHtml(offer)}</h1>
+        <p>Usa il codice <strong>${escapeHtml(promotion.code)}</strong> per ordinare stampe fotografiche online ad Aversa.</p>
+        <p>Formati validi: ${formats}.</p>
+        ${exactQuantityText ? `<p>${escapeHtml(exactQuantityText)}</p>` : ''}
+        <p>Il risparmio viene calcolato sul prezzo normale dei formati scelti e mostrato nel riepilogo prima del pagamento.</p>
+        <p>Offerta valida fino al ${escapeHtml(expiry)}, salvo esaurimento degli utilizzi disponibili.</p>
+        <p><a href="${escapeHtml(promotionOrderUrl(promotion))}">Scegli le stampe e applica il codice ${escapeHtml(promotion.code)}</a></p>
+        <p><a href="${BASE_URL}/stampa-foto-aversa">Scopri tutti i formati di stampa foto</a></p>
+      </article>
+    `,
+    jsonLd: [
+      offerSchema,
+      {
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'Home', item: `${BASE_URL}/` },
+          { '@type': 'ListItem', position: 2, name: 'Stampa foto ad Aversa', item: `${BASE_URL}/stampa-foto-aversa` },
+          { '@type': 'ListItem', position: 3, name: `Offerta ${promotion.code}`, item: canonical },
+        ],
+      },
+    ],
+  };
+}
+
 /**
  * Vetrina di Natale per Google: testi fissi più, se lo shop è aperto, l'elenco dei
  * prodotti con prezzo e i dati strutturati. Se il catalogo non si legge, la pagina
@@ -1492,7 +1616,9 @@ async function getShopPageMeta(): Promise<PageMeta | null> {
   try {
     const catalog = await getShopCatalogForSeo();
     const products = shopProductsBody(catalog);
-    if (!products) return base;
+    if (!catalog.enabled || catalog.products.length === 0 || !products) {
+      return { ...base, noindex: true };
+    }
     const baseLd = Array.isArray(base.jsonLd) ? base.jsonLd : base.jsonLd ? [base.jsonLd] : [];
     return {
       ...base,
@@ -1500,44 +1626,19 @@ async function getShopPageMeta(): Promise<PageMeta | null> {
       jsonLd: [...baseLd, ...shopProductsJsonLd(catalog, new Date())],
     };
   } catch (error) {
-    logger.warn({ err: error }, 'Catalogo shop non letto per la pagina SEO: uso i testi fissi');
-    return base;
+    logger.warn({ err: error }, 'Catalogo shop non letto per la pagina SEO: la pagina resta noindex');
+    return { ...base, noindex: true };
   }
 }
 
-export function createSeoMiddleware(options: { indexHtmlPath?: string } = {}) {
+export function createSeoMiddleware(options: {
+  indexHtmlPath?: string;
+  loadPrintPromotions?: () => Promise<PrintShopPublicPromotion[]>;
+} = {}) {
   const indexHtmlPath = options.indexHtmlPath
     || path.resolve(process.cwd(), 'artifacts/image-studio-web/dist/public/index.html');
   return async (req: Request, res: Response, next: NextFunction) => {
     const path = normalizeClientPath(req.path);
-    const legacyWordPressId = Array.isArray(req.query?.p)
-      ? req.query.p[0]
-      : req.query?.p;
-
-    // I vecchi permalink WordPress `/?p=123` oggi risolverebbero sulla
-    // homepage e verrebbero segnalati da Search Console come duplicati.
-    // Non esiste più una pagina pubblica associata all'ID numerico: reindirizza
-    // quindi in modo permanente alla homepage canonica.
-    if (path === '/' && typeof legacyWordPressId === 'string' && /^\d+$/.test(legacyWordPressId)) {
-      res.status(301);
-      res.setHeader('Location', '/');
-      res.setHeader('Cache-Control', 'public, max-age=86400');
-      res.type('text/plain').send('Moved Permanently');
-      return;
-    }
-
-    // Lo shop prima stava su /shop-natale: i vecchi link (email, PayPal, condivisioni)
-    // continuano a funzionare e portano all'indirizzo nuovo, con lo stesso percorso e gli stessi parametri.
-    if (path === '/shop-natale' || path.startsWith('/shop-natale/')) {
-      const originalUrl = req.originalUrl || '';
-      const queryStart = originalUrl.indexOf('?');
-      const query = queryStart >= 0 ? originalUrl.slice(queryStart) : '';
-      res.status(301);
-      res.setHeader('Location', `/online-shop${path.slice('/shop-natale'.length)}${query}`);
-      res.setHeader('Cache-Control', 'public, max-age=86400');
-      res.type('text/plain').send('Moved Permanently');
-      return;
-    }
 
     // In development Vite serves these virtual modules after this middleware.
     // They are not application routes and must not be mistaken for 404s.
@@ -1553,7 +1654,9 @@ export function createSeoMiddleware(options: { indexHtmlPath?: string } = {}) {
 
     if (isPrivateClientPath(path)) {
       res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
-      return next();
+      // Lo shop resta escluso dall'indice finché SHOP_INDEXABLE non è attivo,
+      // ma è una pagina pubblica condivisibile: serve comunque i suoi meta OG.
+      if (!isShopHidden(path)) return next();
     }
 
     if (isNonPrerenderablePath(path)) {
@@ -1563,7 +1666,18 @@ export function createSeoMiddleware(options: { indexHtmlPath?: string } = {}) {
     try {
       let meta: PageMeta | null = null;
 
-      if (path.startsWith('/real-wedding/') && path !== '/real-wedding') {
+      if (path.startsWith(`${PRINT_PROMOTION_ROUTE_PREFIX}/`)) {
+        const slug = path.slice(PRINT_PROMOTION_ROUTE_PREFIX.length + 1);
+        meta = await getPrintPromotionMeta(
+          slug,
+          options.loadPrintPromotions || loadPublicPrintShopPromotions,
+        );
+        if (!meta) {
+          res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+          res.status(404).type('text/plain').send('Not Found');
+          return;
+        }
+      } else if (path.startsWith('/real-wedding/') && path !== '/real-wedding') {
         const slug = path.replace('/real-wedding/', '');
         if (!await hasWeddingStory(slug)) {
           res.setHeader('X-Robots-Tag', 'noindex, nofollow');
@@ -1611,8 +1725,11 @@ export function createSeoMiddleware(options: { indexHtmlPath?: string } = {}) {
         return;
       }
 
-      if (!meta) {
-        return next();
+      // Every recognized public route gets route-specific Open Graph metadata,
+      // even if a new page has not yet received a curated SEO entry.
+      meta ||= fallbackPublicPageMeta(path);
+      if (meta.noindex) {
+        res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
       }
 
       let indexHtml = readFileSync(indexHtmlPath, 'utf-8');

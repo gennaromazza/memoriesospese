@@ -14,6 +14,7 @@ import { Readable } from "node:stream";
 import { db, FieldValue, storage } from "./firebase-admin.js";
 import { authenticateFirebase, sendGmailEmail } from "./email-routes.js";
 import { getClientWhatsAppPhone, getWhatsAppLink } from "../../../lib/shared-src/phone-utils";
+import { getRequiredGalleryPhotoCount } from "@shared/gallery-requirements";
 
 const router = express.Router();
 const ADMIN_EMAILS = new Set(["gennaro.mazzacane@gmail.com"]);
@@ -556,8 +557,10 @@ router.delete("/galleries/:galleryId/photos/:photoId", async (req, res) => {
 // Assign only photos owned by this gallery. Legacy subcollection IDs are scoped to the gallery.
 router.post("/galleries/:galleryId/photos/assign", async (req, res) => {
   const ids = req.body?.photoIds, chapterId = req.body?.chapterId;
+  const positionOffset = req.body?.positionOffset ?? 0;
   if (!Array.isArray(ids) || ids.length < 1 || ids.length > 450 || new Set(ids).size !== ids.length ||
-      ids.some((id: any) => !validId(id)) || !(chapterId === null || validId(chapterId)))
+      ids.some((id: any) => !validId(id)) || !(chapterId === null || validId(chapterId)) ||
+      !Number.isSafeInteger(positionOffset) || positionOffset < 0 || positionOffset > 1_000_000)
     return res.status(400).json({ error: "Foto o capitolo non validi" });
   const gallery = await galleryRef(req.params.galleryId).get();
   if (!gallery.exists) return res.status(404).json({ error: "Galleria non trovata" });
@@ -570,7 +573,7 @@ router.post("/galleries/:galleryId/photos/assign", async (req, res) => {
   if (snaps.some((s: any, i: number) => !s.exists || (!ids[i].startsWith("legacy-") && s.data()?.galleryId !== req.params.galleryId)))
     return res.status(404).json({ error: "Una o più foto non appartengono alla galleria" });
   const batch = db.batch();
-  snaps.forEach((s: any, i: number) => batch.update(s.ref, { chapterId, chapterPosition: i, updatedAt: FieldValue.serverTimestamp() }));
+  snaps.forEach((s: any, i: number) => batch.update(s.ref, { chapterId, chapterPosition: positionOffset + i, updatedAt: FieldValue.serverTimestamp() }));
   const affected = new Set(ids);
   const chapters = chaptersOf(gallery.data());
   if (chapters.some((c: any) => affected.has(c.coverPhotoId) && c.id !== chapterId))
@@ -735,12 +738,21 @@ router.put("/galleries/:galleryId/customer-selection", async (req, res) => {
           (id && !catalogProduct) ||
           (catalogProduct && name !== String(catalogProduct.nome || "").trim()))
         return res.status(400).json({ error: "Product requirement does not match catalog" });
-      normalized.push({ prodottoId: id || null, prodottoNome: name, prodottoNumeroFoto: count });
+      const sharedGalleryId = typeof p?.galleriaCondivisaId === "string" &&
+        p.galleriaCondivisaId.length <= 500
+        ? p.galleriaCondivisaId
+        : undefined;
+      normalized.push({
+        prodottoId: id || null,
+        prodottoNome: name,
+        prodottoNumeroFoto: count,
+        ...(sharedGalleryId ? { galleriaCondivisaId: sharedGalleryId } : {}),
+      });
     }
     updates.productRequirements = normalized;
     // Product requirements are the source of truth for the selection quota.
     if (normalized.length) {
-      updates.requiredPhotoCount = normalized.reduce((sum, p) => sum + p.prodottoNumeroFoto, 0);
+      updates.requiredPhotoCount = getRequiredGalleryPhotoCount(normalized);
       updates.unlimitedSelection = false;
     }
   }

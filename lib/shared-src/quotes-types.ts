@@ -42,6 +42,7 @@ export interface QuoteBundleItem {
 
 export interface QuoteProduct {
   productId?: string;           // Link opzionale a products collection
+  customProductId?: string;     // Identità stabile dei prodotti custom, distinta da React Hook Form
   nome: string;
   descrizione: string;
   prezzo: number;
@@ -52,6 +53,8 @@ export interface QuoteProduct {
   immagini?: string[];          // URLs immagini prodotto (custom products)
   isBundle?: boolean;           // true = questo prodotto è un bundle
   bundleItems?: QuoteBundleItem[]; // Prodotti inclusi nel bundle
+  fotoCondivise?: boolean;
+  prodottoSorgenteFotoId?: string;
   isOmaggio?: boolean;          // true = prodotto in omaggio (prezzo = 0, visibile nel contratto)
   sezione?: string;             // Raggruppamento visivo (es. "Servizi Principali", "Luxury Touch")
 }
@@ -353,6 +356,7 @@ export interface AcceptQuoteData {
     clientName: string;
   };
   selectedProducts?: string[];             // Nomi prodotti selezionati (solo variabile)
+  selectedProductKeys?: string[];          // Identità delle singole righe selezionate (retrocompatibile)
   unlockedBenefitProductNames?: string[];  // Nomi prodotti omaggio sbloccati via benefit rules
   clausesAccepted: string[];               // IDs clausole accettate
 }

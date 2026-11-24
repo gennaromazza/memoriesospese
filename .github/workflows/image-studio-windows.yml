@@ -23,6 +23,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @workspace/image-studio-desktop run typecheck
       - run: pnpm --filter @workspace/image-studio-desktop exec vitest run src/lib/uploadQueuePersistence.test.ts
+      - run: pnpm --filter @workspace/image-studio-desktop exec vitest run src/lib/droppedFiles.test.ts
       - run: pnpm --filter @workspace/image-studio-desktop exec vitest run electron/update-controller.test.mjs
       - run: pnpm --filter @workspace/image-studio-desktop run desktop:dist
         env:

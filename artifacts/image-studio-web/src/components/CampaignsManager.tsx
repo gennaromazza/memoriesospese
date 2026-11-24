@@ -12,7 +12,8 @@ import {
   updateCampaign,
   deleteCampaign,
   generateCampaignCode,
-  isCampaignCodeUnique
+  isCampaignCodeUnique,
+  uploadCampaignImage
 } from '@/lib/booking-campaigns';
 import { getAllProducts } from '@/lib/products';
 import { getProductCategories } from '@/lib/product-categories';
@@ -57,15 +58,22 @@ import {
   Copy,
   Clock,
   Package,
+  Search,
+  Check,
   Upload,
   X,
   Image as ImageIcon
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { storage } from '@/lib/firebase';
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import imageCompression from 'browser-image-compression';
+import CampaignPaymentSettings from './CampaignPaymentSettings';
+import { BookingRecoveryManualPanel } from './booking/BookingRecoveryManualPanel';
+import {
+  campaignPaymentForm,
+  campaignPaymentFields,
+  type CampaignPaymentFormValues,
+} from '@/lib/campaign-payment-settings';
 
 // Temi stagionali disponibili
 const TEMI_STAGIONALI = [
@@ -77,7 +85,7 @@ const TEMI_STAGIONALI = [
   { value: 'halloween', label: '🎃 Halloween' },
 ];
 
-interface CampaignFormData {
+interface CampaignFormData extends CampaignPaymentFormValues {
   nome: string;
   descrizione: string;
   code: string;
@@ -105,6 +113,7 @@ interface CampaignProductGroup {
 }
 
 const defaultFormData: CampaignFormData = {
+  ...campaignPaymentForm(),
   nome: '',
   descrizione: '',
   code: '',
@@ -130,7 +139,11 @@ export default function CampaignsManager() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState<BookingCampaignFE | null>(null);
   const [formData, setFormData] = useState<CampaignFormData>(defaultFormData);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+  const [productSearchTerm, setProductSearchTerm] = useState('');
+  const [productCategoryFilter, setProductCategoryFilter] = useState('all');
+  const [showOnlySelectedProducts, setShowOnlySelectedProducts] = useState(false);
   const [uploadingSlider, setUploadingSlider] = useState(false);
   const [uploadingBooking, setUploadingBooking] = useState(false);
 
@@ -209,6 +222,32 @@ export default function CampaignsManager() {
     return groups;
   }, [products, productCategories]);
 
+  const filteredProductGroups = useMemo<CampaignProductGroup[]>(() => {
+    const searchTerm = productSearchTerm.trim().toLocaleLowerCase('it');
+
+    return productGroups
+      .filter(group => productCategoryFilter === 'all' || group.key === productCategoryFilter)
+      .map(group => ({
+        ...group,
+        products: group.products.filter(product => {
+          const matchesSearch = !searchTerm
+            || product.nome.toLocaleLowerCase('it').includes(searchTerm)
+            || group.name.toLocaleLowerCase('it').includes(searchTerm);
+          const matchesSelection = !showOnlySelectedProducts || selectedProducts.includes(product.id);
+          return matchesSearch && matchesSelection;
+        }),
+      }))
+      .filter(group => group.products.length > 0);
+  }, [productGroups, productSearchTerm, productCategoryFilter, showOnlySelectedProducts, selectedProducts]);
+
+  const visibleProductIds = useMemo(
+    () => filteredProductGroups.flatMap(group => group.products.map(product => product.id)),
+    [filteredProductGroups],
+  );
+  const allVisibleProductsSelected = visibleProductIds.length > 0
+    && visibleProductIds.every(productId => selectedProducts.includes(productId));
+  const activeProductCount = productGroups.reduce((count, group) => count + group.products.length, 0);
+
   // Create mutation
   const createMutation = useMutation({
     mutationFn: async (data: CampaignFormData) => {
@@ -228,6 +267,7 @@ export default function CampaignsManager() {
         orarioChiusura: data.orarioChiusura,
         durataShootingMinuti: data.durataShootingMinuti,
         prodottiDisponibili: data.prodottiDisponibili,
+        ...campaignPaymentFields(data),
         attiva: data.attiva,
         ...(data.excludedDays.length > 0 && { excludedDays: data.excludedDays }),
         ...(data.immagineSlider && { immagineSlider: data.immagineSlider }),
@@ -255,8 +295,10 @@ export default function CampaignsManager() {
 
   // Update mutation
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Partial<CampaignFormData> }) => {
+    mutationFn: async ({ id, data }: { id: string; data: CampaignFormData }) => {
       const updateData: any = { ...data };
+      Object.assign(updateData, campaignPaymentFields(data));
+      delete updateData.accontoImportoEuro;
       
       if (data.dataInizio) {
         updateData.dataInizio = new Date(data.dataInizio);
@@ -354,17 +396,10 @@ export default function CampaignsManager() {
         useWebWorker: true,
       });
 
-      // Upload a Firebase Storage
-      const timestamp = Date.now();
       const campaignId = editingCampaign?.id || 'temp';
-      const fileName = `slider_${timestamp}.jpg`;
-      const storagePath = `campaigns/${campaignId}/${fileName}`;
-      const storageRef = ref(storage, storagePath);
+      const { downloadUrl } = await uploadCampaignImage(campaignId, 'slider', compressedFile);
 
-      await uploadBytes(storageRef, compressedFile);
-      const downloadURL = await getDownloadURL(storageRef);
-
-      setFormData({ ...formData, immagineSlider: downloadURL });
+      setFormData(current => ({ ...current, immagineSlider: downloadUrl }));
 
       toast({
         title: 'Successo',
@@ -374,7 +409,7 @@ export default function CampaignsManager() {
       console.error('Errore upload immagine slider:', error);
       toast({
         title: 'Errore',
-        description: 'Errore durante l\'upload dell\'immagine',
+        description: error instanceof Error ? error.message : 'Errore durante l\'upload dell\'immagine',
         variant: 'destructive',
       });
     } finally {
@@ -407,17 +442,10 @@ export default function CampaignsManager() {
         useWebWorker: true,
       });
 
-      // Upload a Firebase Storage
-      const timestamp = Date.now();
       const campaignId = editingCampaign?.id || 'temp';
-      const fileName = `booking_${timestamp}.jpg`;
-      const storagePath = `campaigns/${campaignId}/${fileName}`;
-      const storageRef = ref(storage, storagePath);
+      const { downloadUrl } = await uploadCampaignImage(campaignId, 'booking', compressedFile);
 
-      await uploadBytes(storageRef, compressedFile);
-      const downloadURL = await getDownloadURL(storageRef);
-
-      setFormData({ ...formData, immaginePaginaBooking: downloadURL });
+      setFormData(current => ({ ...current, immaginePaginaBooking: downloadUrl }));
 
       toast({
         title: 'Successo',
@@ -427,7 +455,7 @@ export default function CampaignsManager() {
       console.error('Errore upload immagine booking:', error);
       toast({
         title: 'Errore',
-        description: 'Errore durante l\'upload dell\'immagine',
+        description: error instanceof Error ? error.message : 'Errore durante l\'upload dell\'immagine',
         variant: 'destructive',
       });
     } finally {
@@ -455,14 +483,18 @@ export default function CampaignsManager() {
       isUnique = await isCampaignCodeUnique(code);
     }
     
-    setFormData({ ...formData, code });
+    setFormData(current => ({ ...current, code }));
   };
 
   // Apri dialog per nuova campagna
   const handleNewCampaign = async () => {
+    setPaymentError(null);
     setEditingCampaign(null);
     setFormData(defaultFormData);
     setSelectedProducts([]);
+    setProductSearchTerm('');
+    setProductCategoryFilter('all');
+    setShowOnlySelectedProducts(false);
     
     // Genera codice automaticamente
     await handleGenerateCode();
@@ -472,8 +504,13 @@ export default function CampaignsManager() {
 
   // Apri dialog per modifica
   const handleEditCampaign = (campaign: BookingCampaignFE) => {
+    setPaymentError(null);
     setEditingCampaign(campaign);
+    setProductSearchTerm('');
+    setProductCategoryFilter('all');
+    setShowOnlySelectedProducts(false);
     setFormData({
+      ...campaignPaymentForm(campaign),
       nome: campaign.nome,
       descrizione: campaign.descrizione,
       code: campaign.code,
@@ -499,10 +536,14 @@ export default function CampaignsManager() {
 
   // Chiudi dialog
   const handleCloseDialog = () => {
+    setPaymentError(null);
     setDialogOpen(false);
     setEditingCampaign(null);
     setFormData(defaultFormData);
     setSelectedProducts([]);
+    setProductSearchTerm('');
+    setProductCategoryFilter('all');
+    setShowOnlySelectedProducts(false);
   };
 
   // Submit form
@@ -539,6 +580,14 @@ export default function CampaignsManager() {
       ...formData,
       prodottiDisponibili: selectedProducts,
     };
+    try {
+      campaignPaymentFields(dataToSave);
+      setPaymentError(null);
+    } catch (error) {
+      setPaymentError(error instanceof Error ? error.message : 'Controlla l’importo dell’acconto.');
+      document.getElementById('campaign-deposit-amount')?.focus();
+      return;
+    }
 
     if (editingCampaign) {
       updateMutation.mutate({ id: editingCampaign.id, data: dataToSave });
@@ -581,13 +630,15 @@ export default function CampaignsManager() {
             Gestisci campagne di prenotazione con date, temi e prodotti
           </p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={handleNewCampaign} data-testid="button-new-campaign">
-              <Plus className="h-4 w-4 mr-2" />
-              Nuova Campagna
-            </Button>
-          </DialogTrigger>
+        <div className="flex flex-wrap gap-2">
+          <BookingRecoveryManualPanel campaigns={campaigns} />
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={handleNewCampaign} data-testid="button-new-campaign">
+                <Plus className="h-4 w-4 mr-2" />
+                Nuova Campagna
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
@@ -950,57 +1001,195 @@ export default function CampaignsManager() {
                 </div>
               </div>
 
+              <CampaignPaymentSettings
+                value={{
+                  richiedeApprovazione: formData.richiedeApprovazione,
+                  richiedeAcconto: formData.richiedeAcconto,
+                  accontoImportoEuro: formData.accontoImportoEuro,
+                  emailPromemoriaAcconto: formData.emailPromemoriaAcconto,
+                  emailRecuperoAcconto: formData.emailRecuperoAcconto,
+                }}
+                error={paymentError}
+                onChange={payment => {
+                  setPaymentError(null);
+                  setFormData(current => ({ ...current, ...payment }));
+                }}
+              />
+
               {/* Prodotti Disponibili */}
               <div className="space-y-3 pt-3 border-t">
-                <Label className="text-base font-semibold">Prodotti Disponibili</Label>
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <Label className="text-base font-semibold">Prodotti Disponibili</Label>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Cerca un prodotto o filtra per categoria. La selezione resta attiva cambiando filtro.
+                    </p>
+                  </div>
+                  <Badge variant="secondary" className="shrink-0">
+                    {selectedProducts.length} selezionati
+                  </Badge>
+                </div>
+
                 {productGroups.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
                     Nessun prodotto attivo. Crea dei prodotti prima di configurare la campagna.
                   </p>
                 ) : (
-                  <div className="grid max-h-64 grid-cols-1 gap-2 overflow-y-auto rounded-lg border p-3 sm:grid-cols-2">
-                    {productGroups.flatMap(group => [
-                      <div
-                        key={`category-${group.key}`}
-                        className="col-span-full sticky top-0 z-10 flex items-center justify-between border-b bg-background/95 px-1 py-1.5 backdrop-blur"
+                  <>
+                    <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,0.7fr)]">
+                      <div className="relative">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          value={productSearchTerm}
+                          onChange={event => setProductSearchTerm(event.target.value)}
+                          placeholder="Cerca per nome prodotto..."
+                          aria-label="Cerca prodotti della campagna"
+                          className="pl-9 pr-9"
+                          data-testid="input-campaign-product-search"
+                        />
+                        {productSearchTerm && (
+                          <button
+                            type="button"
+                            onClick={() => setProductSearchTerm('')}
+                            aria-label="Cancella ricerca prodotti"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+
+                      <Select value={productCategoryFilter} onValueChange={setProductCategoryFilter}>
+                        <SelectTrigger
+                          aria-label="Filtra prodotti per categoria"
+                          data-testid="select-campaign-product-category"
+                        >
+                          <SelectValue placeholder="Tutte le categorie" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Tutte le categorie ({activeProductCount})</SelectItem>
+                          {productGroups.map(group => (
+                            <SelectItem key={group.key} value={group.key}>
+                              {group.name} ({group.products.length})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={showOnlySelectedProducts ? 'default' : 'outline'}
+                        aria-pressed={showOnlySelectedProducts}
+                        onClick={() => setShowOnlySelectedProducts(value => !value)}
+                        data-testid="toggle-campaign-selected-products"
                       >
-                        <h3 className="text-xs font-semibold text-muted-foreground">{group.name}</h3>
-                        <Badge variant="secondary" className="h-5 min-w-5 justify-center px-1.5 text-[10px]">
-                          {group.products.length}
-                        </Badge>
-                      </div>,
-                      ...group.products.map(product => (
-                      <div
-                        key={product.id}
-                        className={`flex items-start gap-3 p-3 rounded-lg border-2 cursor-pointer transition-colors ${
-                          selectedProducts.includes(product.id)
-                            ? 'border-primary bg-primary/5'
-                            : 'border-muted hover:border-primary/50'
-                        }`}
-                        onClick={() => toggleProductSelection(product.id)}
-                        data-testid={`product-option-${product.id}`}
+                        <Check className="mr-1.5 h-4 w-4" />
+                        Solo selezionati
+                        <span className="ml-1 rounded-full bg-background/20 px-1.5 text-xs">
+                          {selectedProducts.length}
+                        </span>
+                      </Button>
+
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={visibleProductIds.length === 0}
+                        onClick={() => {
+                          const visibleIds = new Set(visibleProductIds);
+                          setSelectedProducts(current => allVisibleProductsSelected
+                            ? current.filter(id => !visibleIds.has(id))
+                            : Array.from(new Set([...current, ...visibleProductIds])));
+                        }}
+                        data-testid="button-toggle-visible-campaign-products"
                       >
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm truncate">{product.nome}</p>
+                        {allVisibleProductsSelected ? 'Deseleziona risultati' : 'Seleziona risultati'}
+                      </Button>
+
+                      {selectedProducts.length > 0 && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setSelectedProducts([])}
+                          data-testid="button-clear-campaign-products"
+                        >
+                          Azzera selezione
+                        </Button>
+                      )}
+
+                      <span className="ml-auto text-xs text-muted-foreground" aria-live="polite">
+                        {visibleProductIds.length} {visibleProductIds.length === 1 ? 'risultato' : 'risultati'}
+                      </span>
+                    </div>
+
+                    <div data-testid="campaign-product-list" className="max-h-72 overflow-y-auto rounded-lg border bg-muted/20 p-2">
+                      {filteredProductGroups.length === 0 ? (
+                        <div className="flex min-h-28 flex-col items-center justify-center gap-1 px-4 text-center">
+                          <Package className="h-5 w-5 text-muted-foreground" />
+                          <p className="text-sm font-medium">Nessun prodotto trovato</p>
                           <p className="text-xs text-muted-foreground">
-                            €{product.prezzoFinale.toFixed(2)} • {product.numeroFoto} foto
+                            Modifica la ricerca o la categoria. Le selezioni già fatte restano salvate.
                           </p>
                         </div>
-                        <div className="flex-shrink-0">
-                          <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
-                            selectedProducts.includes(product.id)
-                              ? 'bg-primary border-primary'
-                              : 'border-muted-foreground/50'
-                          }`}>
-                            {selectedProducts.includes(product.id) && (
-                              <div className="w-2 h-2 bg-white rounded-full" />
-                            )}
-                          </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {filteredProductGroups.map(group => (
+                            <section key={group.key} className="space-y-2">
+                              <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-background/95 px-1 py-2 backdrop-blur">
+                                <h3 className="text-xs font-semibold text-foreground">{group.name}</h3>
+                                <Badge variant="secondary" className="h-5 min-w-5 justify-center px-1.5 text-[10px]">
+                                  {group.products.length}
+                                </Badge>
+                              </div>
+                              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                {group.products.map(product => {
+                                  const isSelected = selectedProducts.includes(product.id);
+                                  return (
+                                    <button
+                                      key={product.id}
+                                      type="button"
+                                      aria-pressed={isSelected}
+                                      aria-label={`${isSelected ? 'Rimuovi' : 'Aggiungi'} ${product.nome} ${isSelected ? 'dalla' : 'alla'} campagna`}
+                                      className={`flex w-full items-center gap-3 rounded-lg border-2 p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                                        isSelected
+                                          ? 'border-primary bg-primary/5'
+                                          : 'border-muted bg-background hover:border-primary/50'
+                                      }`}
+                                      onClick={() => toggleProductSelection(product.id)}
+                                      data-testid={`product-option-${product.id}`}
+                                    >
+                                      <span className="min-w-0 flex-1">
+                                        <span className="block break-words text-sm font-medium leading-snug">
+                                          {product.nome}
+                                        </span>
+                                        <span className="mt-1 block text-xs text-muted-foreground">
+                                          €{product.prezzoFinale.toFixed(2)} · {product.numeroFoto} foto
+                                        </span>
+                                      </span>
+                                      <span
+                                        aria-hidden="true"
+                                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 ${
+                                          isSelected
+                                            ? 'border-primary bg-primary text-primary-foreground'
+                                            : 'border-muted-foreground/50 bg-background'
+                                        }`}
+                                      >
+                                        {isSelected && <Check className="h-3.5 w-3.5" />}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </section>
+                          ))}
                         </div>
-                      </div>
-                      )),
-                    ])}
-                  </div>
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
 
@@ -1040,7 +1229,8 @@ export default function CampaignsManager() {
               </Button>
             </DialogFooter>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
 
       {/* Lista Campagne */}
