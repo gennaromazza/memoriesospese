@@ -12,6 +12,7 @@ import express from "express";
 import { randomUUID, createHash } from "node:crypto";
 import { Readable } from "node:stream";
 import { db, FieldValue, storage } from "./firebase-admin.js";
+import { createPhotoVersions, PHOTO_CACHE_CONTROL } from "./thumbnails.js";
 import { authenticateFirebase, sendGmailEmail } from "./email-routes.js";
 import { getClientWhatsAppPhone, getWhatsAppLink } from "../../../lib/shared-src/phone-utils";
 import { getRequiredGalleryPhotoCount } from "@shared/gallery-requirements";
@@ -188,19 +189,29 @@ async function syncAssociationLinks(tx: any, galleryId: string, oldData: any, ne
     });
   }
 }
-async function verifyImage(file: any, expectedHash: string | null, contentType: string) {
+/** Originals up to this size are kept in memory to prepare the light versions without a second download. */
+const MAX_VERSION_SOURCE_BYTES = 25 * 1024 * 1024;
+/**
+ * Reads the uploaded object once to check its signature and hash. With `keep`,
+ * the bytes of a valid image are handed back in `keep.bytes`.
+ */
+async function verifyImage(file: any, expectedHash: string | null, contentType: string, keep?: { bytes?: Buffer }) {
   const digest = createHash("sha256");
   let prefix = Buffer.alloc(0);
+  const chunks: Buffer[] = [];
   for await (const chunk of file.createReadStream() as Readable) {
     if (prefix.length < 16) prefix = Buffer.concat([prefix, chunk]).subarray(0, 16);
     digest.update(chunk);
+    if (keep) chunks.push(chunk);
   }
   const signature = contentType === "image/jpeg" ? prefix.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff]))
     : contentType === "image/png" ? prefix.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
     : contentType === "image/webp" ? prefix.toString("ascii", 0, 4) === "RIFF" && prefix.toString("ascii", 8, 12) === "WEBP"
     : contentType === "image/gif" ? ["GIF87a", "GIF89a"].includes(prefix.toString("ascii", 0, 6))
     : ["heic", "heix", "hevc", "heif", "mif1"].includes(prefix.toString("ascii", 8, 12));
-  return signature && (!expectedHash || digest.digest("hex").toLowerCase() === expectedHash.toLowerCase());
+  const valid = signature && (!expectedHash || digest.digest("hex").toLowerCase() === expectedHash.toLowerCase());
+  if (valid && keep) keep.bytes = Buffer.concat(chunks);
+  return valid;
 }
 const normalizeGallery = (id: string, data: Record<string, any>) => {
   // Legacy gallery documents occasionally contain credentials.  Never spread
@@ -890,7 +901,8 @@ router.post("/galleries/:galleryId/photos/finalize", async (req, res) => {
   if (!metadata) return res.status(400).json({ error: "File non ancora caricato" });
   if (Number(metadata.size) !== s.size || metadata.contentType !== s.contentType)
     return res.status(400).json({ error: "Il file caricato non corrisponde alla sessione" });
-  if (!(await verifyImage(file, hash, s.contentType)))
+  const source: { bytes?: Buffer } = {};
+  if (!(await verifyImage(file, hash, s.contentType, s.size <= MAX_VERSION_SOURCE_BYTES ? source : undefined)))
     return res.status(400).json({ error: "Immagine o contenuto del file non validi" });
   if (b.chapterId && !chaptersOf(gallery.data()).some((c: any) => c.id === b.chapterId))
     return res.status(400).json({ error: "Capitolo non valido" });
@@ -899,7 +911,7 @@ router.post("/galleries/:galleryId/photos/finalize", async (req, res) => {
   const duplicate = await db.collection("photos").where("galleryId", "==", req.params.galleryId).where("contentHash", "==", hash).limit(1).get();
   if (!duplicate.empty) return res.status(409).json({ error: "Foto già presente", duplicatePhotoId: duplicate.docs[0].id });
   const downloadToken = randomUUID();
-  await file.setMetadata({ metadata: { firebaseStorageDownloadTokens: downloadToken } });
+  await file.setMetadata({ cacheControl: PHOTO_CACHE_CONTROL, metadata: { firebaseStorageDownloadTokens: downloadToken } });
   const url = storageUrl(b.storagePath, downloadToken);
   let chapterId = b.chapterId;
   const chapterName = String(b.chapterName || "").trim();
@@ -923,7 +935,13 @@ router.post("/galleries/:galleryId/photos/finalize", async (req, res) => {
     tx.update(galleryRef(req.params.galleryId), { photoCount: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp() });
     return true;
   });
-  return created ? res.status(201).json({ id: photoRef.id }) : res.status(409).json({ error: "Foto già presente", duplicatePhotoId: photoRef.id });
+  if (!created) return res.status(409).json({ error: "Foto già presente", duplicatePhotoId: photoRef.id });
+  // Light versions for the customer gallery (thumbnail, retina, lightbox) only once the
+  // photo exists, so a duplicate never overwrites another photo's files. Inside the
+  // request: on the autoscale deploy the CPU may stop after the response is sent.
+  // A failure leaves the photo valid; the thumbnail recovery job picks it up later.
+  if (source.bytes) await createPhotoVersions(req.params.galleryId, photoRef, source.bytes);
+  return res.status(201).json({ id: photoRef.id });
 });
 
 router.patch("/galleries/:galleryId/cover", async (req, res) => {
@@ -979,7 +997,8 @@ router.post("/galleries/:galleryId/covers/finalize", async (req, res) => {
   if (!(await verifyImage(file, null, s.contentType)))
     return res.status(400).json({ error: "File immagine non valido" });
   const token = meta.metadata?.firebaseStorageDownloadTokens || randomUUID();
-  if (!meta.metadata?.firebaseStorageDownloadTokens) await file.setMetadata({ metadata: { firebaseStorageDownloadTokens: token } });
+  // Cover paths are unique per upload, so the header image can be cached for a year.
+  await file.setMetadata({ cacheControl: PHOTO_CACHE_CONTROL, metadata: { firebaseStorageDownloadTokens: token } });
   const url = storageUrl(storagePath, token);
   await galleryRef(req.params.galleryId).update({
     [kind === "desktop" ? "coverImageDesktop" : "coverImageMobile"]: url,

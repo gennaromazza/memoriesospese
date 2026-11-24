@@ -15,6 +15,13 @@ import {
 import { storage } from './firebase';
 import { compressImage } from './imageCompression';
 
+/**
+ * Cache for uploaded images whose path is unique (timestamp in the name): the
+ * browser keeps them a year without asking again. `private`: only the customer's
+ * browser, not shared proxies. Same value as the server's PHOTO_CACHE_CONTROL.
+ */
+export const IMMUTABLE_UPLOAD_CACHE = 'private, max-age=31536000, immutable';
+
 export interface UploadProgress {
   fileName: string;
   progress: number;
@@ -67,7 +74,11 @@ export class StorageService {
       
       // Upload file
       const storageRef = ref(storage, fullPath);
-      const uploadResult = await uploadBytes(storageRef, processedFile);
+      const uploadResult = await uploadBytes(
+        storageRef,
+        processedFile,
+        processedFile.type.startsWith('image/') ? { cacheControl: IMMUTABLE_UPLOAD_CACHE } : undefined,
+      );
       
       // Ottieni URL di download
       const downloadURL = await getDownloadURL(uploadResult.ref);

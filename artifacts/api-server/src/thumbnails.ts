@@ -13,11 +13,21 @@
 import sharp from 'sharp';
 import { randomUUID } from 'node:crypto';
 import { db, storage } from './firebase-admin.js';
+import { logger } from './lib/logger.js';
 
 const THUMB_MAX_DIM = 400; // lato lungo massimo
-const THUMB_JPEG_QUALITY = 72; // ~40KB per foto, qualità adeguata per griglia
+const THUMB_JPEG_QUALITY = 72; // ~15KB per foto, qualità adeguata per griglia
+const RETINA_MAX_DIM = 800; // griglia su schermi ad alta densità
+const DISPLAY_MAX_DIM = 1600; // foto ingrandita (lightbox)
+const WEBP_QUALITY = 78;
+/**
+ * Ogni file generato ha un percorso con token nuovo a ogni rigenerazione, quindi
+ * il browser può tenerlo un anno senza ricontrollarlo. `private`: solo la cache
+ * del browser del cliente, non quelle condivise di eventuali proxy.
+ */
+export const PHOTO_CACHE_CONTROL = 'private, max-age=31536000, immutable';
 const CONCURRENCY = 6;
-const DEFAULT_LIMIT = 30; // miniature generate per chiamata HTTP (basso per evitare timeout 502 del proxy; il client cicla automaticamente)
+const DEFAULT_LIMIT = 15; // foto per chiamata HTTP (3 versioni ciascuna; basso per evitare timeout 502 del proxy; il client cicla automaticamente)
 const MAX_LIMIT = 300;
 
 interface PhotoRef {
@@ -115,8 +125,100 @@ async function collectPhotosMissingThumb(galleryId: string): Promise<PhotoRef[]>
   return result;
 }
 
+export interface RenderedPhotoVersions {
+  /** JPEG, lato lungo 400 px: resta in `thumbnailUrl`, usato anche da fotolibri, SEO e app desktop. */
+  thumb: Buffer;
+  /** WebP, lato lungo 800 px: griglia su schermi ad alta densità. */
+  w800: Buffer;
+  /** WebP, lato lungo 1600 px: foto ingrandita. */
+  w1600: Buffer;
+  /** Dimensioni dell'originale già raddrizzato secondo l'EXIF. */
+  width: number;
+  height: number;
+}
+
+export interface PhotoVersionFields {
+  thumbnailUrl: string;
+  variants: { w800: string; w1600: string };
+  width: number;
+  height: number;
+}
+
 /**
- * Genera e salva la miniatura per una singola foto, aggiornando Firestore.
+ * Prepara le versioni leggere di una foto. Ogni versione è una pipeline sharp a
+ * sé: con lo «shrink-on-load» dei JPEG ridurre a 400 px non decodifica l'intera
+ * foto, quindi tre pipeline costano poco più di una.
+ * Lancia un errore se i byte non sono un'immagine leggibile.
+ */
+export async function renderPhotoVersions(original: Buffer): Promise<RenderedPhotoVersions> {
+  const { width, height, orientation } = await sharp(original).metadata();
+  if (!width || !height) throw new Error('Immagine senza dimensioni');
+  const sideways = (orientation ?? 1) >= 5; // EXIF 5-8: foto ruotata di 90°
+  const fit = (max: number) => sharp(original)
+    .rotate() // auto-orienta in base all'EXIF prima di scartare i metadati
+    .resize(max, max, { fit: 'inside', withoutEnlargement: true });
+  const [thumb, w800, w1600] = await Promise.all([
+    fit(THUMB_MAX_DIM).jpeg({ quality: THUMB_JPEG_QUALITY, mozjpeg: true }).toBuffer(),
+    fit(RETINA_MAX_DIM).webp({ quality: WEBP_QUALITY }).toBuffer(),
+    fit(DISPLAY_MAX_DIM).webp({ quality: WEBP_QUALITY }).toBuffer(),
+  ]);
+  return { thumb, w800, w1600, width: sideways ? height : width, height: sideways ? width : height };
+}
+
+/** Salva le versioni in `thumbnails/{galleryId}/` con un unico token nuovo e cache lunga. */
+async function savePhotoVersions(
+  galleryId: string,
+  photoId: string,
+  versions: RenderedPhotoVersions,
+): Promise<PhotoVersionFields> {
+  const bucket = storage.bucket();
+  const token = randomUUID();
+  const files = {
+    thumb: { path: `thumbnails/${galleryId}/${photoId}.jpg`, bytes: versions.thumb, type: 'image/jpeg' },
+    w800: { path: `thumbnails/${galleryId}/${photoId}-800.webp`, bytes: versions.w800, type: 'image/webp' },
+    w1600: { path: `thumbnails/${galleryId}/${photoId}-1600.webp`, bytes: versions.w1600, type: 'image/webp' },
+  };
+  await Promise.all(Object.values(files).map(({ path, bytes, type }) => bucket.file(path).save(bytes, {
+    resumable: false,
+    metadata: {
+      contentType: type,
+      cacheControl: PHOTO_CACHE_CONTROL,
+      metadata: { firebaseStorageDownloadTokens: token },
+    },
+  })));
+  const url = (path: string) =>
+    `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(path)}?alt=media&token=${token}`;
+  return {
+    thumbnailUrl: url(files.thumb.path),
+    variants: { w800: url(files.w800.path), w1600: url(files.w1600.path) },
+    width: versions.width,
+    height: versions.height,
+  };
+}
+
+/**
+ * Prepara, salva e registra sulla foto tutte le versioni leggere a partire dai
+ * byte dell'originale già in memoria. Restituisce null se l'immagine non è
+ * leggibile o il salvataggio fallisce: la foto resta valida e il recupero
+ * (`generateGalleryThumbnails`) la riprenderà.
+ */
+export async function createPhotoVersions(
+  galleryId: string,
+  photoRef: Pick<FirebaseFirestore.DocumentReference, 'id' | 'update'>,
+  original: Buffer,
+): Promise<PhotoVersionFields | null> {
+  try {
+    const fields = await savePhotoVersions(galleryId, photoRef.id, await renderPhotoVersions(original));
+    await photoRef.update({ ...fields });
+    return fields;
+  } catch (err) {
+    logger.warn({ err, galleryId, photoId: photoRef.id }, 'Versioni leggere della foto non create: le riprenderà il recupero miniature');
+    return null;
+  }
+}
+
+/**
+ * Genera e salva le versioni per una singola foto, aggiornando Firestore.
  * Ritorna l'esito: generata, fallimento permanente (originale irrecuperabile),
  * o fallimento transitorio (errore di rete: verrà ritentato).
  */
@@ -124,46 +226,24 @@ async function generateOne(galleryId: string, p: PhotoRef): Promise<GenerateOutc
   const path = parseStoragePath(p.url);
   if (!path) return 'permanent-fail'; // URL non interpretabile
 
-  const bucket = storage.bucket();
-
   let buffer: Buffer;
   try {
-    [buffer] = await bucket.file(path).download();
+    [buffer] = await storage.bucket().file(path).download();
   } catch (err: any) {
     // 404 / oggetto inesistente (anche se l'originale è in un altro bucket) => permanente
     if (err?.code === 404) return 'permanent-fail';
     return 'transient-fail'; // errore di rete o transitorio: ritenta più tardi
   }
 
-  let thumb: Buffer;
+  let versions: RenderedPhotoVersions;
   try {
-    thumb = await sharp(buffer)
-      .rotate() // auto-orienta in base all'EXIF prima di scartare i metadati
-      .resize(THUMB_MAX_DIM, THUMB_MAX_DIM, { fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: THUMB_JPEG_QUALITY, mozjpeg: true })
-      .toBuffer();
+    versions = await renderPhotoVersions(buffer);
   } catch {
     return 'permanent-fail'; // file non è un'immagine valida
   }
 
   try {
-    const token = randomUUID();
-    const thumbPath = `thumbnails/${galleryId}/${p.ref.id}.jpg`;
-    const file = bucket.file(thumbPath);
-
-    await file.save(thumb, {
-      resumable: false,
-      metadata: {
-        contentType: 'image/jpeg',
-        metadata: { firebaseStorageDownloadTokens: token },
-      },
-    });
-
-    const thumbnailUrl =
-      `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/` +
-      `${encodeURIComponent(thumbPath)}?alt=media&token=${token}`;
-
-    await p.ref.update({ thumbnailUrl });
+    await p.ref.update({ ...(await savePhotoVersions(galleryId, p.ref.id, versions)) });
     return 'generated';
   } catch {
     return 'transient-fail'; // upload/update fallito: ritenta più tardi

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, ChangeEvent } from "react";
 import { doc, updateDoc, collection, getDocs, getDoc, addDoc, serverTimestamp, where, query, deleteDoc, Timestamp, setDoc, arrayRemove, arrayUnion, writeBatch } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject, getMetadata, listAll } from "firebase/storage";
 import { db, storage } from "../lib/firebase";
+import { IMMUTABLE_UPLOAD_CACHE } from "../lib/storage";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "./ui/dialog";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -799,7 +800,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       
       // Carica su Firebase Storage
       const storageRef = ref(storage, `galleries/${gallery.id}/covers/desktop_${Date.now()}.jpg`);
-      await uploadBytesResumable(storageRef, compressedFile);
+      await uploadBytesResumable(storageRef, compressedFile, { cacheControl: IMMUTABLE_UPLOAD_CACHE });
       const downloadUrl = await getDownloadURL(storageRef);
       
       // Aggiorna lo stato
@@ -844,7 +845,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       
       // Carica su Firebase Storage
       const storageRef = ref(storage, `galleries/${gallery.id}/covers/mobile_${Date.now()}.jpg`);
-      await uploadBytesResumable(storageRef, compressedFile);
+      await uploadBytesResumable(storageRef, compressedFile, { cacheControl: IMMUTABLE_UPLOAD_CACHE });
       const downloadUrl = await getDownloadURL(storageRef);
       
       // Aggiorna lo stato

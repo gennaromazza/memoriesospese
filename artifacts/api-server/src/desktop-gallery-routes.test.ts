@@ -3,6 +3,7 @@ import express from 'express';
 import { createHash } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import { Readable } from 'node:stream';
+import sharp from 'sharp';
 
 // These fakes have no connection to Firebase credentials, production buckets or real documents.
 const h = vi.hoisted(() => ({
@@ -10,6 +11,7 @@ const h = vi.hoisted(() => ({
   blobs: new Map<string, Buffer>(),
   tokens: new Map<string, string>(),
   types: new Map<string, string>(),
+  cacheControl: new Map<string, string>(),
   storageDeleteFailures: new Set<string>(),
   signedUrlBase: '',
   nextId: 0,
@@ -129,9 +131,16 @@ vi.mock('./firebase-admin.js', () => {
             return [{ size: h.blobs.get(path)!.length, contentType: h.types.get(path), metadata: { firebaseStorageDownloadTokens: h.tokens.get(path) } }];
           },
           createReadStream: () => Readable.from([h.blobs.get(path) || Buffer.alloc(0)]),
-          setMetadata: async ({ metadata }: any) => {
+          setMetadata: async ({ metadata, cacheControl }: any) => {
             if (!h.blobs.has(path)) throw new Error('Original missing');
             h.tokens.set(path, metadata.firebaseStorageDownloadTokens);
+            if (cacheControl) h.cacheControl.set(path, cacheControl);
+          },
+          save: async (bytes: Buffer, options: any) => {
+            h.blobs.set(path, Buffer.from(bytes));
+            h.types.set(path, options?.metadata?.contentType || '');
+            h.tokens.set(path, options?.metadata?.metadata?.firebaseStorageDownloadTokens);
+            if (options?.metadata?.cacheControl) h.cacheControl.set(path, options.metadata.cacheControl);
           },
           delete: async () => {
             if (h.storageDeleteFailures.has(path)) { h.storageDeleteFailures.delete(path); throw new Error('storage unavailable'); }
@@ -191,7 +200,7 @@ beforeAll(async () => {
 });
 afterAll(async () => { await new Promise<void>(resolve => server.close(() => resolve())); });
 beforeEach(() => {
-  h.docs.clear(); h.blobs.clear(); h.tokens.clear(); h.types.clear(); h.storageDeleteFailures.clear(); h.nextId = 0;
+  h.docs.clear(); h.blobs.clear(); h.tokens.clear(); h.types.clear(); h.cacheControl.clear(); h.storageDeleteFailures.clear(); h.nextId = 0;
   vi.mocked(sendGmailEmail).mockClear();
   h.docs.set('galleries/gallery-1', { name: 'Existing gallery', active: true, photoCount: 0, chapters: [] });
   h.docs.set('galleries/other', { name: 'Other gallery', photoCount: 0 });
@@ -480,6 +489,8 @@ describe('desktop gallery authenticated isolated upload', () => {
     expect(result.status).toBe(201);
     const photo = h.docs.get(`photos/${result.data.id}`)!;
     expect(photo).toMatchObject({ galleryId: 'gallery-1', originalName: 'original.jpg', size: original.length, contentHash: hash, uploaderUid: 'fixture-uid', chapterName: 'Cerimonia' });
+    // These bytes are not a decodable picture: the upload succeeds, versions come later from the recovery job.
+    expect(photo.thumbnailUrl).toBeUndefined();
     expect(h.docs.get('galleries/gallery-1')?.chapters).toHaveLength(1);
     expect(photo.chapterId).toBe(h.docs.get('galleries/gallery-1')?.chapters[0].id);
     const downloadUrl = new URL(photo.url);
@@ -496,6 +507,35 @@ describe('desktop gallery authenticated isolated upload', () => {
     expect([...h.docs.keys()].filter(key => key.startsWith('photos/'))).toHaveLength(1);
     expect(h.docs.get('galleries/gallery-1')?.chapters).toHaveLength(1);
     expect(h.docs.get('galleries/gallery-1')?.photoCount).toBe(1);
+  });
+
+  it('finalize prepares the thumbnail, the 800/1600 px versions and a long cache for the customer gallery', async () => {
+    const original = await sharp({ create: { width: 2400, height: 1600, channels: 3, background: '#6b7f6b' } }).jpeg().toBuffer();
+    const hash = createHash('sha256').update(original).digest('hex');
+    const start = await request('/galleries/gallery-1/upload-sessions', 'POST', {
+      fileName: 'scatto.jpg', contentType: 'image/jpeg', size: original.length, contentHash: hash,
+    });
+    await fetch(start.data.uploadUrl, { method: 'PUT', headers: { 'Content-Type': 'image/jpeg' }, body: original });
+
+    const result = await request('/galleries/gallery-1/photos/finalize', 'POST', {
+      storagePath: start.data.storagePath, name: 'scatto.jpg', size: original.length, contentType: 'image/jpeg', contentHash: hash,
+    });
+
+    expect(result.status).toBe(201);
+    const id = result.data.id;
+    const photo = h.docs.get(`photos/${id}`)!;
+    expect([photo.width, photo.height]).toEqual([2400, 1600]);
+    const files = [`thumbnails/gallery-1/${id}.jpg`, `thumbnails/gallery-1/${id}-800.webp`, `thumbnails/gallery-1/${id}-1600.webp`];
+    expect(photo.thumbnailUrl).toContain(encodeURIComponent(files[0]));
+    expect(photo.variants.w800).toContain(encodeURIComponent(files[1]));
+    expect(photo.variants.w1600).toContain(encodeURIComponent(files[2]));
+    for (const path of [...files, start.data.storagePath]) {
+      expect(h.cacheControl.get(path), path).toBe('private, max-age=31536000, immutable');
+    }
+    const thumbToken = new URL(photo.thumbnailUrl).searchParams.get('token');
+    const thumb = await fetch(`${base}/download/${encodeURIComponent(files[0])}?token=${thumbToken}`);
+    expect(thumb.status).toBe(200);
+    expect((await sharp(Buffer.from(await thumb.arrayBuffer())).metadata()).width).toBe(400);
   });
 
   it('rejects nonexistent and forged objects before finalization, and retry remains idempotent', async () => {
